@@ -11,7 +11,8 @@ export default function GameCanvas({
   streak,
   onPlaySound,
   showFeedback,
-  isCorrect 
+  isCorrect,
+  mode = 'catch'
 }) {
   const [tongueActive, setTongueActive] = useState(false);
   const [targetFly, setTargetFly] = useState(null);
@@ -28,6 +29,11 @@ export default function GameCanvas({
   const handleFlyClick = (letter, index, event) => {
     if (animationPhase !== 'idle') return;
     
+    if (mode === 'spelling') {
+      onAnswer(letter, index);
+      return;
+    }
+    
     const rect = event.currentTarget.getBoundingClientRect();
     const frogRect = frogRef.current?.getBoundingClientRect();
     
@@ -42,12 +48,10 @@ export default function GameCanvas({
     setCapturedLetter(letter);
     setAnimationPhase('extend');
     
-    // Extend tongue (300ms)
     setTimeout(() => {
       setAnimationPhase('retract');
     }, 300);
     
-    // Retract tongue with letter (600ms)
     setTimeout(() => {
       setAnimationPhase('process');
       onAnswer(letter);
@@ -146,7 +150,7 @@ export default function GameCanvas({
               <div className="relative">
                 {/* Fly body */}
                 <div className="w-20 h-20 bg-gradient-to-br from-gray-800 to-gray-600 rounded-full shadow-lg flex items-center justify-center border-2 border-gray-900">
-                  <span className="text-3xl font-bold text-white">{letter}</span>
+                  <span className={`${letter.length > 2 ? 'text-xl' : 'text-3xl'} font-bold text-white`}>{letter}</span>
                 </div>
                 {/* Wings */}
                 <div className="absolute -top-2 -left-4 w-12 h-8 bg-blue-200/70 rounded-full blur-sm animate-pulse" />
