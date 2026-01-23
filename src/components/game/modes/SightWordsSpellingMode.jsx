@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea from '../SpellingBuildArea';
-import { SIGHT_WORDS_SPELLING } from '../../../data/sightWords';
+import { SIGHT_WORDS_SPELLING } from '../../data/sightWords';
 
 const SIGHT_WORDS = SIGHT_WORDS_SPELLING;
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea from '../SpellingBuildArea';
-import { SPELLING_WORDS } from '../../../data/spellingWords';
+import { SPELLING_WORDS } from '../../data/spellingWords';
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
