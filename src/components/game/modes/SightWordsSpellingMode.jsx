@@ -134,23 +134,19 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   if (!currentWord) return null;
 
-  const visibleOptions = options.filter((_, idx) => !usedIndices.includes(idx));
-
   return (
     <>
       <GameCanvas
         currentLetter={currentWord}
-        options={visibleOptions}
-        onAnswer={(letter) => {
-          const actualIndex = options.findIndex((l, idx) => l === letter && !usedIndices.includes(idx));
-          if (actualIndex !== -1) handleLetterClick(letter, actualIndex);
-        }}
+        options={options}
+        onAnswer={handleLetterClick}
         score={score}
         streak={0}
         onPlaySound={() => playSound(currentWord)}
         showFeedback={false}
         isCorrect={false}
         mode="spelling"
+        usedIndices={usedIndices}
       />
       <SpellingBuildArea
         builtWord={builtWord}
