@@ -56,7 +56,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     const allLetters = [...neededLetters, ...distractors].sort(() => Math.random() - 0.5);
     
     setCurrentWord(targetWord);
-    setOptions(allLetters);
+    setOptions(allLetters.map((letter, idx) => ({ letter, id: idx })));
     setBuiltWord([]);
     setUsedIndices([]);
     setShowResult(false);
