@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
-import { SIGHT_WORDS_EASY } from '../../../data/sightWords';
+import { SIGHT_WORDS_EASY } from '../../data/sightWords';
 
 const SIGHT_WORDS = SIGHT_WORDS_EASY;
 
