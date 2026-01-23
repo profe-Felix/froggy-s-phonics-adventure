@@ -28,10 +28,24 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
     
     const targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
     
-    const allOptions = [
+    // Create the matching pair
+    const matchingPair = [
       { letter: targetLetter.toLowerCase(), id: 0 },
       { letter: targetLetter.toUpperCase(), id: 1 }
     ];
+    
+    // Add distractor letters (other random letters)
+    const distractorLetters = ALL_LETTERS
+      .filter(l => l !== targetLetter)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 6);
+    
+    const distractors = distractorLetters.map((letter, idx) => ({
+      letter: Math.random() > 0.5 ? letter.toUpperCase() : letter.toLowerCase(),
+      id: idx + 2
+    }));
+    
+    const allOptions = [...matchingPair, ...distractors].sort(() => Math.random() - 0.5);
     
     setCurrentLetter(targetLetter);
     setOptions(allOptions);
