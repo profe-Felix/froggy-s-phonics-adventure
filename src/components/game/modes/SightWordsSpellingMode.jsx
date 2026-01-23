@@ -141,19 +141,12 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   if (!currentWord) return null;
 
-  const visibleOptions = options.map((letter, idx) => 
-    usedIndices.includes(idx) ? null : letter
-  ).filter(l => l !== null);
-
   return (
     <>
       <GameCanvas
         currentLetter={currentWord}
-        options={visibleOptions}
-        onAnswer={(letter) => {
-          const originalIndex = options.findIndex((l, idx) => l === letter && !usedIndices.includes(idx));
-          if (originalIndex !== -1) handleLetterClick(letter, originalIndex);
-        }}
+        options={options}
+        onAnswer={handleLetterClick}
         score={score}
         streak={0}
         onPlaySound={() => playSound(currentWord)}
