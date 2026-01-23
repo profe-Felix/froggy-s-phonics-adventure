@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
+import { LETTER_SOUNDS } from '../../data/letterSounds';
 
-const ALL_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
+const ALL_LETTERS = LETTER_SOUNDS;
 
 export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete }) {
   const [currentLetter, setCurrentLetter] = useState(null);
