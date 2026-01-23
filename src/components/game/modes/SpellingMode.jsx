@@ -70,19 +70,25 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   };
 
   const handleLetterClick = (letter, index) => {
-    if (usedIndices.includes(index)) return;
     setBuiltWord(prev => [...prev, letter]);
-    setUsedIndices(prev => [...prev, index]);
+    const actualIndex = options.findIndex((l, idx) => l === letter && !usedIndices.includes(idx));
+    if (actualIndex !== -1) {
+      setUsedIndices(prev => [...prev, actualIndex]);
+      setOptions(prev => prev.filter((_, idx) => idx !== actualIndex));
+    }
   };
 
   const handleUndo = () => {
     if (builtWord.length > 0) {
+      const lastLetter = builtWord[builtWord.length - 1];
       setBuiltWord(prev => prev.slice(0, -1));
+      setOptions(prev => [...prev, lastLetter]);
       setUsedIndices(prev => prev.slice(0, -1));
     }
   };
 
   const handleClear = () => {
+    setOptions(prev => [...prev, ...builtWord]);
     setBuiltWord([]);
     setUsedIndices([]);
   };
@@ -135,19 +141,12 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   if (!currentWord) return null;
 
-  const visibleOptions = options.map((letter, idx) => 
-    usedIndices.includes(idx) ? null : letter
-  ).filter(l => l !== null);
-
   return (
     <>
       <GameCanvas
         currentLetter={currentWord}
-        options={visibleOptions}
-        onAnswer={(letter) => {
-          const originalIndex = options.findIndex((l, idx) => l === letter && !usedIndices.includes(idx));
-          if (originalIndex !== -1) handleLetterClick(letter, originalIndex);
-        }}
+        options={options}
+        onAnswer={handleLetterClick}
         score={score}
         streak={0}
         onPlaySound={() => playSound(currentWord)}

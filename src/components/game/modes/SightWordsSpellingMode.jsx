@@ -70,19 +70,25 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   };
 
   const handleLetterClick = (letter, index) => {
-    if (usedIndices.includes(index)) return;
     setBuiltWord(prev => [...prev, letter]);
-    setUsedIndices(prev => [...prev, index]);
+    const actualIndex = options.findIndex((l, idx) => l === letter && !usedIndices.includes(idx));
+    if (actualIndex !== -1) {
+      setUsedIndices(prev => [...prev, actualIndex]);
+      setOptions(prev => prev.filter((_, idx) => idx !== actualIndex));
+    }
   };
 
   const handleUndo = () => {
     if (builtWord.length > 0) {
+      const lastLetter = builtWord[builtWord.length - 1];
       setBuiltWord(prev => prev.slice(0, -1));
+      setOptions(prev => [...prev, lastLetter]);
       setUsedIndices(prev => prev.slice(0, -1));
     }
   };
 
   const handleClear = () => {
+    setOptions(prev => [...prev, ...builtWord]);
     setBuiltWord([]);
     setUsedIndices([]);
   };

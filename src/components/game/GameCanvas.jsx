@@ -12,7 +12,8 @@ export default function GameCanvas({
   onPlaySound,
   showFeedback,
   isCorrect,
-  mode = 'catch'
+  mode = 'catch',
+  collectedLetters = []
 }) {
   const [tongueActive, setTongueActive] = useState(false);
   const [targetFly, setTargetFly] = useState(null);
@@ -29,7 +30,7 @@ export default function GameCanvas({
   const handleFlyClick = (letter, index, event) => {
     if (animationPhase !== 'idle') return;
     
-    if (mode === 'spelling') {
+    if (mode === 'spelling' || mode === 'case_matching') {
       onAnswer(letter, index);
       return;
     }

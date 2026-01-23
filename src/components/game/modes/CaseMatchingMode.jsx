@@ -39,9 +39,14 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
     setSelectedLetters([]);
   };
 
-  const handleAnswer = async (selectedLetter) => {
+  const handleAnswer = async (selectedLetter, index) => {
     const newSelected = [...selectedLetters, selectedLetter];
     setSelectedLetters(newSelected);
+    
+    const newOptions = options.filter((_, idx) => 
+      idx !== options.findIndex(l => l === selectedLetter && !selectedLetters.includes(l))
+    );
+    setOptions(newOptions);
 
     if (newSelected.length === 2) {
       const [first, second] = newSelected;
@@ -100,13 +105,24 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
 
   return (
     <div className="relative">
-      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/95 rounded-3xl shadow-xl p-6">
+      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/95 rounded-3xl shadow-xl p-6 z-10">
         <p className="text-xl text-gray-600 mb-2">Match uppercase with lowercase!</p>
-        {selectedLetters.length === 1 && (
-          <div className="text-6xl font-bold text-blue-600 mt-2">
-            {selectedLetters[0]} + ?
+        <div className="flex gap-4 justify-center mt-4">
+          <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg flex items-center justify-center border-2 border-green-700">
+            {selectedLetters[0] ? (
+              <span className="text-4xl font-bold text-white">{selectedLetters[0]}</span>
+            ) : (
+              <span className="text-2xl text-white/50">?</span>
+            )}
           </div>
-        )}
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-lg flex items-center justify-center border-2 border-blue-700">
+            {selectedLetters[1] ? (
+              <span className="text-4xl font-bold text-white">{selectedLetters[1]}</span>
+            ) : (
+              <span className="text-2xl text-white/50">?</span>
+            )}
+          </div>
+        </div>
       </div>
       <GameCanvas
         currentLetter={currentLetter}
@@ -117,7 +133,8 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
         onPlaySound={() => {}}
         showFeedback={showFeedback}
         isCorrect={isCorrect}
-        mode="catch"
+        mode="case_matching"
+        collectedLetters={selectedLetters}
       />
     </div>
   );
