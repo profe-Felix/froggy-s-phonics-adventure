@@ -13,7 +13,8 @@ export default function GameCanvas({
   showFeedback,
   isCorrect,
   mode = 'catch',
-  collectedLetters = []
+  collectedLetters = [],
+  usedIndices = []
 }) {
   const [tongueActive, setTongueActive] = useState(false);
   const [targetFly, setTargetFly] = useState(null);
@@ -27,11 +28,13 @@ export default function GameCanvas({
     dingSound.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
   }, []);
 
-  const handleFlyClick = (letter, index, event) => {
+  const handleFlyClick = (item, index, event) => {
     if (animationPhase !== 'idle') return;
     
+    const letter = typeof item === 'string' ? item : item.letter;
+    
     if (mode === 'spelling' || mode === 'case_matching') {
-      onAnswer(letter, index);
+      onAnswer(item, index);
       return;
     }
     
@@ -115,19 +118,27 @@ export default function GameCanvas({
 
       {/* Flies */}
       <AnimatePresence>
-        {options.map((letter, index) => {
+        {options.map((item, index) => {
+          const letter = typeof item === 'string' ? item : item.letter;
+          const itemId = typeof item === 'string' ? index : item.id;
+          const isUsed = usedIndices.includes(itemId);
+          
           const positions = [
             { top: '15%', left: '20%' },
             { top: '25%', left: '60%' },
             { top: '35%', left: '80%' },
-            { top: '45%', left: '30%' }
+            { top: '45%', left: '30%' },
+            { top: '20%', left: '75%' },
+            { top: '40%', left: '15%' },
+            { top: '30%', left: '40%' },
+            { top: '50%', left: '65%' }
           ];
           const pos = positions[index] || { top: '20%', left: '50%' };
-          const isHidden = targetFly === index && (animationPhase === 'extend' || animationPhase === 'retract' || animationPhase === 'process');
+          const isHidden = (targetFly === index && (animationPhase === 'extend' || animationPhase === 'retract' || animationPhase === 'process')) || isUsed;
 
           return (
             <motion.button
-              key={`${letter}-${index}`}
+              key={`${itemId}-${letter}`}
               initial={{ scale: 0, rotate: 0 }}
               animate={{ 
                 scale: isHidden ? 0 : 1,
@@ -144,7 +155,7 @@ export default function GameCanvas({
                 y: { duration: 2.5, repeat: Infinity },
                 rotate: { duration: 2, repeat: Infinity }
               }}
-              onClick={(e) => handleFlyClick(letter, index, e)}
+              onClick={(e) => handleFlyClick(item, index, e)}
               className="absolute"
               style={{ top: pos.top, left: pos.left }}
             >

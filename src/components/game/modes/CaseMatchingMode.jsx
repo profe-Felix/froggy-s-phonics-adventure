@@ -26,32 +26,31 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
     const allKnown = [...mastered, ...learning];
     const knownLetters = allKnown.length > 0 ? allKnown : ['a', 'b', 'c'];
     
-    const targetLetters = knownLetters.sort(() => Math.random() - 0.5).slice(0, 4);
+    const targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
     
-    const allOptions = [];
-    targetLetters.forEach(letter => {
-      allOptions.push(letter.toLowerCase());
-      allOptions.push(letter.toUpperCase());
-    });
+    const allOptions = [
+      { letter: targetLetter.toLowerCase(), id: 0 },
+      { letter: targetLetter.toUpperCase(), id: 1 }
+    ];
     
-    setCurrentLetter(targetLetters[0]);
-    setOptions(allOptions.sort(() => Math.random() - 0.5));
+    setCurrentLetter(targetLetter);
+    setOptions(allOptions);
     setSelectedLetters([]);
   };
 
-  const handleAnswer = async (selectedLetter, index) => {
-    if (selectedLetters.includes(selectedLetter)) return;
+  const handleAnswer = async (letterObj, index) => {
+    if (selectedLetters.some(l => l.id === letterObj.id)) return;
     
-    const newSelected = [...selectedLetters, selectedLetter];
+    const newSelected = [...selectedLetters, letterObj];
     setSelectedLetters(newSelected);
 
     if (newSelected.length === 2) {
       const [first, second] = newSelected;
-      const correct = first.toLowerCase() === second.toLowerCase() && first !== second;
+      const correct = first.letter.toLowerCase() === second.letter.toLowerCase() && first.letter !== second.letter;
       setIsCorrect(correct);
       setShowFeedback(true);
 
-      const letterBase = first.toLowerCase();
+      const letterBase = first.letter.toLowerCase();
       const attempts = { ...modeData.item_attempts };
       const letterStats = attempts[letterBase] || { correct: 0, total: 0 };
       letterStats.total += 1;
@@ -100,23 +99,21 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
 
   if (!currentLetter) return null;
 
-  const visibleOptions = options.filter(l => !selectedLetters.includes(l));
-
   return (
     <div className="relative">
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white/95 rounded-3xl shadow-xl p-4 z-10">
+      <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-xl p-4 z-10">
         <p className="text-sm text-gray-600 mb-2">Match:</p>
         <div className="flex gap-3 justify-center">
           <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg flex items-center justify-center border-2 border-green-700">
             {selectedLetters[0] ? (
-              <span className="text-3xl font-bold text-white">{selectedLetters[0]}</span>
+              <span className="text-3xl font-bold text-white">{selectedLetters[0].letter}</span>
             ) : (
               <span className="text-xl text-white/50">?</span>
             )}
           </div>
           <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl shadow-lg flex items-center justify-center border-2 border-blue-700">
             {selectedLetters[1] ? (
-              <span className="text-3xl font-bold text-white">{selectedLetters[1]}</span>
+              <span className="text-3xl font-bold text-white">{selectedLetters[1].letter}</span>
             ) : (
               <span className="text-xl text-white/50">?</span>
             )}
@@ -125,7 +122,7 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
       </div>
       <GameCanvas
         currentLetter={currentLetter}
-        options={visibleOptions}
+        options={options}
         onAnswer={handleAnswer}
         score={score}
         streak={streak}
@@ -133,7 +130,7 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
         showFeedback={showFeedback}
         isCorrect={isCorrect}
         mode="case_matching"
-        collectedLetters={selectedLetters}
+        usedIndices={selectedLetters.map(l => l.id)}
       />
     </div>
   );

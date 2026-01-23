@@ -13,7 +13,7 @@ export default function SpellingBuildArea({
   isCorrect 
 }) {
   return (
-    <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white/95 rounded-3xl shadow-2xl p-6 min-w-[500px] z-10">
+    <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 min-w-[400px] max-w-[500px] z-10">
       <div className="text-center mb-4">
         <p className="text-gray-600 text-sm mb-2">Build the word:</p>
         <div className="flex justify-center gap-2 min-h-[80px] items-center flex-wrap">
