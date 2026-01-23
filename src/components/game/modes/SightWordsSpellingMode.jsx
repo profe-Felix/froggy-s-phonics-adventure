@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea from '../SpellingBuildArea';
 
-const SPELLING_WORDS = ['casa', 'gato', 'perro', 'mesa', 'silla', 'libro', 'agua', 'sol', 'luna', 'flor'];
-const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
+const SIGHT_WORDS = ['the', 'and', 'a', 'to', 'said', 'in', 'he', 'I', 'of', 'it', 'was', 'you', 'they', 'on', 'she', 'is', 'for', 'at', 'his', 'but'];
 
-export default function SpellingMode({ studentData, onUpdateProgress }) {
+export default function SightWordsSpellingMode({ studentData, onUpdateProgress }) {
   const [currentWord, setCurrentWord] = useState(null);
   const [options, setOptions] = useState([]);
   const [builtWord, setBuiltWord] = useState([]);
@@ -15,9 +14,9 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const [usedIndices, setUsedIndices] = useState([]);
   const audioRef = useRef(null);
 
-  const modeData = studentData?.mode_progress?.spelling || {
+  const modeData = studentData?.mode_progress?.sight_words_spelling || {
     mastered_items: [],
-    learning_items: ['casa', 'gato', 'perro'],
+    learning_items: ['the', 'and', 'a'],
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
@@ -27,7 +26,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
-    const knownWords = allKnown.length > 0 ? allKnown : ['casa', 'gato', 'perro'];
+    const knownWords = allKnown.length > 0 ? allKnown : ['the', 'and', 'a'];
     
     const useKnown = Math.random() < 0.7;
     let targetWord;
@@ -35,7 +34,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     if (useKnown) {
       targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];
     } else {
-      const unknown = SPELLING_WORDS.filter(w => !knownWords.includes(w));
+      const unknown = SIGHT_WORDS.filter(w => !knownWords.includes(w));
       targetWord = unknown[Math.floor(Math.random() * unknown.length)] || knownWords[0];
     }
 
@@ -48,7 +47,8 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       for (let i = 0; i < count; i++) neededLetters.push(letter);
     });
     
-    const distractors = DISTRACTOR_LETTERS
+    const allLettersInWord = 'abcdefghijklmnopqrstuvwxyz'.split('');
+    const distractors = allLettersInWord
       .filter(l => !wordLetters.includes(l))
       .sort(() => Math.random() - 0.5)
       .slice(0, 4);
@@ -65,7 +65,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   const playSound = (word) => {
     if (audioRef.current) audioRef.current.pause();
-    audioRef.current = new Audio(`/spelling-audio/${word}.mp3`);
+    audioRef.current = new Audio(`/sight-word-audio/${word}.mp3`);
     audioRef.current.play().catch(err => console.log('Audio play failed'));
   };
 
@@ -107,7 +107,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
       
       const allKnown = [...updatedMastered, ...updatedLearning];
-      const nextWord = SPELLING_WORDS.find(w => !allKnown.includes(w));
+      const nextWord = SIGHT_WORDS.find(w => !allKnown.includes(w));
       if (nextWord && updatedLearning.length < 5) {
         updatedLearning.push(nextWord);
       }
@@ -115,7 +115,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
     if (correct) setScore(prev => prev + 1);
 
-    await onUpdateProgress('spelling', {
+    await onUpdateProgress('sight_words_spelling', {
       mastered_items: updatedMastered,
       learning_items: updatedLearning,
       item_attempts: attempts,

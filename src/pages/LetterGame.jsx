@@ -5,6 +5,7 @@ import StudentLogin from '../components/game/StudentLogin';
 import ModeSelection from '../components/game/ModeSelection';
 import LetterSoundsMode from '../components/game/modes/LetterSoundsMode';
 import SightWordsEasyMode from '../components/game/modes/SightWordsEasyMode';
+import SightWordsSpellingMode from '../components/game/modes/SightWordsSpellingMode';
 import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import { Button } from "@/components/ui/button";
@@ -186,6 +187,12 @@ export default function LetterGame() {
       )}
       {currentMode === 'sight_words_easy' && (
         <SightWordsEasyMode
+          studentData={studentData}
+          onUpdateProgress={handleUpdateProgress}
+        />
+      )}
+      {currentMode === 'sight_words_spelling' && (
+        <SightWordsSpellingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
         />
