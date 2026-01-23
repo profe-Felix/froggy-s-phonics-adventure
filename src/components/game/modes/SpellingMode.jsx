@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea from '../SpellingBuildArea';
+import { SPELLING_WORDS } from '../../../data/spellingWords';
 
-const SPELLING_WORDS = ['casa', 'gato', 'perro', 'mesa', 'silla', 'libro', 'agua', 'sol', 'luna', 'flor'];
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
 export default function SpellingMode({ studentData, onUpdateProgress }) {

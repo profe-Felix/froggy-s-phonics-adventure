@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
+import { SIGHT_WORDS_EASY } from '../../../data/sightWords';
 
-const SIGHT_WORDS = ['the', 'and', 'a', 'to', 'said', 'in', 'he', 'I', 'of', 'it', 'was', 'you', 'they', 'on', 'she', 'is', 'for', 'at', 'his', 'but'];
+const SIGHT_WORDS = SIGHT_WORDS_EASY;
 
 export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   const [currentWord, setCurrentWord] = useState(null);

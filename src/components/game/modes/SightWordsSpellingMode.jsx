@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea from '../SpellingBuildArea';
+import { SIGHT_WORDS_SPELLING } from '../../../data/sightWords';
 
-const SIGHT_WORDS = ['the', 'and', 'a', 'to', 'said', 'in', 'he', 'I', 'of', 'it', 'was', 'you', 'they', 'on', 'she', 'is', 'for', 'at', 'his', 'but'];
+const SIGHT_WORDS = SIGHT_WORDS_SPELLING;
 
 export default function SightWordsSpellingMode({ studentData, onUpdateProgress }) {
   const [currentWord, setCurrentWord] = useState(null);
