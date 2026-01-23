@@ -53,6 +53,38 @@ export default function LetterGame() {
               total_correct: 0,
               total_attempts: 0,
               unlocked: true
+            },
+            sight_words_easy: {
+              mastered_items: [],
+              learning_items: ['the', 'and', 'a'],
+              item_attempts: {},
+              total_correct: 0,
+              total_attempts: 0,
+              unlocked: true
+            },
+            sight_words_spelling: {
+              mastered_items: [],
+              learning_items: ['the', 'and', 'a'],
+              item_attempts: {},
+              total_correct: 0,
+              total_attempts: 0,
+              unlocked: true
+            },
+            spelling: {
+              mastered_items: [],
+              learning_items: ['casa', 'gato', 'perro'],
+              item_attempts: {},
+              total_correct: 0,
+              total_attempts: 0,
+              unlocked: true
+            },
+            case_matching: {
+              mastered_items: [],
+              learning_items: ['a', 'b', 'c'],
+              item_attempts: {},
+              total_correct: 0,
+              total_attempts: 0,
+              unlocked: true
             }
           },
           current_mode: 'letter_sounds'
