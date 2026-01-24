@@ -24,6 +24,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   };
 
   const generateRound = () => {
+    setCanAnswer(false);
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
