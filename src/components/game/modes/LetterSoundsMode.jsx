@@ -11,7 +11,9 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const [streak, setStreak] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [canAnswer, setCanAnswer] = useState(false);
   const audioRef = useRef(null);
+  const preloadedAudio = useRef({});
 
   const modeData = studentData?.mode_progress?.letter_sounds || {
     mastered_items: [],
@@ -54,15 +56,33 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   };
 
   const playSound = (letter) => {
+    setCanAnswer(false);
     if (audioRef.current) audioRef.current.pause();
-    audioRef.current = new Audio(`/letter-sounds/${letter}.mp3`);
-    audioRef.current.play().catch(err => console.log('Audio play failed'));
+    
+    if (!preloadedAudio.current[letter]) {
+      preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
+      preloadedAudio.current[letter].preload = 'auto';
+    }
+    
+    audioRef.current = preloadedAudio.current[letter];
+    audioRef.current.currentTime = 0;
+    audioRef.current.play()
+      .then(() => {
+        audioRef.current.onended = () => setCanAnswer(true);
+      })
+      .catch(err => {
+        console.log('Audio play failed');
+        setCanAnswer(true);
+      });
   };
 
   const handleAnswer = async (selectedLetter) => {
+    if (!canAnswer || showFeedback) return;
+    
     const correct = selectedLetter === currentLetter;
     setIsCorrect(correct);
     setShowFeedback(true);
+    setCanAnswer(false);
 
     const attempts = { ...modeData.item_attempts };
     const letterStats = attempts[currentLetter] || { correct: 0, total: 0 };
@@ -107,6 +127,15 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   useEffect(() => {
     if (!currentLetter) generateRound();
+    
+    // Preload common letters
+    const commonLetters = ['a', 'e', 'i', 'o', 'u', 'b', 'c', 'd', 'f', 'g'];
+    commonLetters.forEach(letter => {
+      if (!preloadedAudio.current[letter]) {
+        preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
+        preloadedAudio.current[letter].preload = 'auto';
+      }
+    });
   }, []);
 
   if (!currentLetter) return null;
