@@ -37,8 +37,12 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       targetLetter = unknown[Math.floor(Math.random() * unknown.length)] || knownLetters[0];
     }
 
+    // Confusing pairs to avoid
+    const confusingPairs = { 'c': ['k', 's'], 'k': ['c'], 's': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'] };
+    const avoidLetters = confusingPairs[targetLetter] || [];
+
     const wrongOptions = ALL_LETTERS
-      .filter(l => l !== targetLetter)
+      .filter(l => l !== targetLetter && !avoidLetters.includes(l))
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
 
