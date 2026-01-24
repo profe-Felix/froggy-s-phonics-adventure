@@ -51,7 +51,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   const playSound = (letter) => {
     if (audioRef.current) audioRef.current.pause();
-    audioRef.current = new Audio(`/letter-audio/${letter}.mp3`);
+    audioRef.current = new Audio(`/letter-sounds/${letter}.mp3`);
     audioRef.current.play().catch(err => console.log('Audio play failed'));
   };
 
