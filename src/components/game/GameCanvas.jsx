@@ -14,7 +14,8 @@ export default function GameCanvas({
   isCorrect,
   mode = 'catch',
   collectedLetters = [],
-  usedIndices = []
+  usedIndices = [],
+  canAnswer = true
 }) {
   const [tongueActive, setTongueActive] = useState(false);
   const [targetFly, setTargetFly] = useState(null);
@@ -29,7 +30,7 @@ export default function GameCanvas({
   }, []);
 
   const handleFlyClick = (item, index, event) => {
-    if (animationPhase !== 'idle') return;
+    if (animationPhase !== 'idle' || !canAnswer) return;
     
     const letter = typeof item === 'string' ? item : item.letter;
     

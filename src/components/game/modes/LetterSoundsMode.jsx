@@ -152,6 +152,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       showFeedback={showFeedback}
       isCorrect={isCorrect}
       mode="catch"
+      canAnswer={canAnswer}
     />
   );
 }
