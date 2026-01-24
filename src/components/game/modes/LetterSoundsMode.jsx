@@ -58,7 +58,10 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   const playSound = (letter) => {
     setCanAnswer(false);
-    if (audioRef.current) audioRef.current.pause();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+    }
     
     if (!preloadedAudio.current[letter]) {
       preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
@@ -67,10 +70,8 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     
     audioRef.current = preloadedAudio.current[letter];
     audioRef.current.currentTime = 0;
+    audioRef.current.onended = () => setCanAnswer(true);
     audioRef.current.play()
-      .then(() => {
-        audioRef.current.onended = () => setCanAnswer(true);
-      })
       .catch(err => {
         console.log('Audio play failed');
         setCanAnswer(true);
