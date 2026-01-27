@@ -57,7 +57,7 @@ export default function LetterGame() {
             },
             sight_words_easy: {
               mastered_items: [],
-              learning_items: ['the', 'and', 'a'],
+              learning_items: ['el', 'la', 'un'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
@@ -65,7 +65,7 @@ export default function LetterGame() {
             },
             sight_words_spelling: {
               mastered_items: [],
-              learning_items: ['the', 'and', 'a'],
+              learning_items: ['el', 'la', 'un'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
@@ -121,8 +121,8 @@ export default function LetterGame() {
           unlocked: true,
           mastered_items: updatedModeProgress[nextMode].mastered_items || [],
           learning_items: updatedModeProgress[nextMode].learning_items || 
-            (nextMode === 'sight_words_easy' ? ['the', 'and', 'a'] :
-             nextMode === 'sight_words_spelling' ? ['the', 'and', 'a'] :
+            (nextMode === 'sight_words_easy' ? ['el', 'la', 'un'] :
+             nextMode === 'sight_words_spelling' ? ['el', 'la', 'un'] :
              nextMode === 'spelling' ? ['casa', 'gato', 'perro'] :
              ['a', 'b', 'c']),
           item_attempts: updatedModeProgress[nextMode].item_attempts || {},

@@ -15,7 +15,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
 
   const modeData = studentData?.mode_progress?.sight_words_easy || {
     mastered_items: [],
-    learning_items: ['the', 'and', 'a'],
+    learning_items: ['el', 'la', 'un'],
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
@@ -25,7 +25,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
-    const knownWords = allKnown.length > 0 ? allKnown : ['the', 'and', 'a'];
+    const knownWords = allKnown.length > 0 ? allKnown : ['el', 'la', 'un'];
     
     const useKnown = Math.random() < 0.7 || knownWords.length < 4;
     let targetWord;
