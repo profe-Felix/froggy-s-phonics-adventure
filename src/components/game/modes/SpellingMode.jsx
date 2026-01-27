@@ -71,7 +71,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     }
     
     if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/spelling-audio/${word}.mp3`);
+      preloadedAudio.current[word] = new Audio(`/spelling-audio/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
     }
     

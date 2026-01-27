@@ -57,7 +57,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     }
     
     if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${word}.mp3`);
+      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
     }
     
