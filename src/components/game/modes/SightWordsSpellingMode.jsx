@@ -14,6 +14,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
   const audioRef = useRef(null);
+  const preloadedAudio = useRef({});
 
   const modeData = studentData?.mode_progress?.sight_words_spelling || {
     mastered_items: [],
@@ -65,9 +66,20 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   };
 
   const playSound = (word) => {
-    if (audioRef.current) audioRef.current.pause();
-    audioRef.current = new Audio(`/sight-word-audio/${word}.mp3`);
-    audioRef.current.play().catch(err => console.log('Audio play failed'));
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+    }
+    
+    if (!preloadedAudio.current[word]) {
+      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${word}.mp3`);
+      preloadedAudio.current[word].preload = 'auto';
+    }
+    
+    audioRef.current = preloadedAudio.current[word];
+    audioRef.current.currentTime = 0;
+    audioRef.current.play()
+      .catch(err => console.log('Audio play failed:', err));
   };
 
   const handleLetterClick = (letterObj, index) => {
