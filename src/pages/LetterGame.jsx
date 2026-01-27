@@ -73,7 +73,7 @@ export default function LetterGame() {
             },
             spelling: {
               mastered_items: [],
-              learning_items: ['casa', 'gato', 'perro'],
+              learning_items: ['ala', 'ama', 'amo'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
