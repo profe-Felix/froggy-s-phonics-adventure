@@ -1,6 +1,11 @@
+
 // Letter sounds for the Letter Sounds mode
 // Audio files should be placed in: public/letter-sounds/{letter}.mp3
+// Ordered by pedagogical progression for Spanish phonics
 export const LETTER_SOUNDS = [
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-  'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+  'o', 'i', 'a', 'u', 'e',
+  'm', 'p', 's', 'l', 'n', 'd', 't', 'f', 'b',
+  'r', 'c', 'q', 'v', 'r-soft', 'll',
+  'g', 'j', 'y', 'z', 'c-soft', 'ñ', 'g-soft',
+  'ch', 'k', 'x'
 ];

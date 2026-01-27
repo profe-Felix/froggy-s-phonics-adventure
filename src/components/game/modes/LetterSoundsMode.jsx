@@ -17,7 +17,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   const modeData = studentData?.mode_progress?.letter_sounds || {
     mastered_items: [],
-    learning_items: ['a', 'b', 'c'],
+    learning_items: ['o', 'i', 'a'],
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
@@ -28,7 +28,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
-    const knownLetters = allKnown.length > 0 ? allKnown : ['a', 'b', 'c'];
+    const knownLetters = allKnown.length > 0 ? allKnown : ['o', 'i', 'a'];
     
     const useKnown = Math.random() < 0.7 || knownLetters.length < 4;
     let targetLetter;
@@ -41,7 +41,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     }
 
     // Confusing pairs to avoid
-    const confusingPairs = { 'c': ['k', 's'], 'k': ['c'], 's': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'] };
+    const confusingPairs = { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] };
     const avoidLetters = confusingPairs[targetLetter] || [];
 
     const wrongOptions = ALL_LETTERS
@@ -105,8 +105,12 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       updatedMastered.push(currentLetter);
       updatedLearning = updatedLearning.filter(l => l !== currentLetter);
       
+      // Add next letter in progression order
       const allKnown = [...updatedMastered, ...updatedLearning];
-      const nextLetter = ALL_LETTERS.find(l => !allKnown.includes(l));
+      const currentIndex = ALL_LETTERS.indexOf(currentLetter);
+      const nextLettersInOrder = ALL_LETTERS.slice(currentIndex + 1);
+      const nextLetter = nextLettersInOrder.find(l => !allKnown.includes(l));
+      
       if (nextLetter && updatedLearning.length < 5) {
         updatedLearning.push(nextLetter);
       }
