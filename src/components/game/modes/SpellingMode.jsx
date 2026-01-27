@@ -18,7 +18,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   const modeData = studentData?.mode_progress?.spelling || {
     mastered_items: [],
-    learning_items: ['casa', 'gato', 'perro'],
+    learning_items: ['ala', 'ama', 'amo'],
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
