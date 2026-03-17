@@ -19,11 +19,7 @@ export default function Dashboard() {
   const loadStudents = async () => {
     setLoading(true);
     const data = await base44.entities.Student.list('-updated_date', 200);
-    // Fill in all 30 slots with placeholders for students who haven't played
-    const byNumber = {};
-    data.forEach(s => { byNumber[s.student_number] = s; });
-    const all = Array.from({ length: 30 }, (_, i) => byNumber[i + 1] || { student_number: i + 1, _placeholder: true });
-    setStudents(all);
+    setStudents(data);
     setLoading(false);
   };
 
@@ -44,11 +40,22 @@ export default function Dashboard() {
     setAssignMode(false);
   };
 
-  const filtered = selectedClass === 'All'
-    ? students
-    : students.filter(s => s.class_name === selectedClass || (selectedClass === 'Unassigned' && !s.class_name));
+  // For a specific class, fill all 30 slots; for All, show real records only
+  const getDisplayStudents = () => {
+    if (selectedClass === 'All') {
+      return [...students].sort((a, b) => {
+        if (a.class_name < b.class_name) return -1;
+        if (a.class_name > b.class_name) return 1;
+        return a.student_number - b.student_number;
+      });
+    }
+    const classStudents = students.filter(s => s.class_name === selectedClass);
+    const byNumber = {};
+    classStudents.forEach(s => { byNumber[s.student_number] = s; });
+    return Array.from({ length: 30 }, (_, i) => byNumber[i + 1] || { student_number: i + 1, class_name: selectedClass, _placeholder: true });
+  };
 
-  const sorted = [...filtered].sort((a, b) => a.student_number - b.student_number);
+  const sorted = getDisplayStudents();
 
   const handleStudentUpdate = (updated) => {
     setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
