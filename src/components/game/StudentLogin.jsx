@@ -79,7 +79,7 @@ export default function StudentLogin({ onSelectStudent }) {
                 onClick={() => onSelectStudent({ number: num, class_name: selectedClass })}
                 className="h-16 text-xl font-bold bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:scale-110 transition-transform"
               >
-                {num}
+                {selectedClass}{num}
               </Button>
             ))}
           </div>
