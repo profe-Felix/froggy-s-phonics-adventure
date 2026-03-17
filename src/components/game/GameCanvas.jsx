@@ -144,17 +144,11 @@ export default function GameCanvas({
               animate={{ 
                 scale: isHidden ? 0 : 1,
                 opacity: isHidden ? 0 : 1,
-                x: [0, 20, -20, 15, -15, 0],
-                y: [0, -15, 10, -10, 15, 0],
-                rotate: [0, 5, -5, 3, -3, 0]
               }}
               exit={{ scale: 0, opacity: 0 }}
               transition={{
                 scale: { duration: 0.2 },
                 opacity: { duration: 0.2 },
-                x: { duration: 3, repeat: Infinity },
-                y: { duration: 2.5, repeat: Infinity },
-                rotate: { duration: 2, repeat: Infinity }
               }}
               onClick={(e) => handleFlyClick(item, index, e)}
               className="absolute"
