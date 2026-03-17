@@ -30,7 +30,7 @@ export default function StudentCard({ student, onClick }) {
       onClick={() => onClick(student)}
       className={`border rounded-xl p-3 text-left w-full transition hover:scale-105 hover:shadow-md ${colorClass}`}
     >
-      <div className="font-bold text-lg leading-none">{student.class_name}{student.student_number}</div>
+      <div className="font-bold text-lg leading-none">{student.class_name}-{student.student_number}</div>
       {student.name && <div className="text-xs mt-0.5 truncate opacity-70">{student.name}</div>}
       <div className="text-xs mt-1 font-medium">{MODE_LABELS[currentMode]}</div>
       <div className="text-xs opacity-60">{mastered}/{total} mastered</div>
