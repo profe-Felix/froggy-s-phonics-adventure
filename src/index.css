@@ -84,6 +84,6 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Andika', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
   }
 }
