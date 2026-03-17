@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { Link } from 'react-router-dom';
 import StudentCard from '../components/dashboard/StudentCard';
 import StudentDetail from '../components/dashboard/StudentDetail';
 
@@ -127,6 +128,12 @@ export default function Dashboard() {
                 >
                   Assign Classes
                 </button>
+                <Link
+                  to="/QRGenerator"
+                  className="text-sm text-purple-600 border border-purple-200 rounded-lg px-4 py-2 hover:bg-purple-50"
+                >
+                  🔲 QR Codes
+                </Link>
                 <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"
