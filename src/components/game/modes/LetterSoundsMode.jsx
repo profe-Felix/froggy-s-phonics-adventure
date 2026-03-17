@@ -42,7 +42,10 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
 
-    const allOptions = [targetLetter, ...wrongOptions].sort(() => Math.random() - 0.5);
+    const randomCase = (l) => Math.random() < 0.5 ? l.toUpperCase() : l;
+    const allOptions = [targetLetter, ...wrongOptions]
+      .sort(() => Math.random() - 0.5)
+      .map(l => ({ letter: l, display: randomCase(l) }));
     
     setCurrentLetter(targetLetter);
     setOptions(allOptions);
