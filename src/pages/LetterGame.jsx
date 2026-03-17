@@ -12,7 +12,12 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 
 export default function LetterGame() {
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlClass = urlParams.get('class');
+  const urlNumber = parseInt(urlParams.get('number'));
+  const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
+
+  const [selectedStudent, setSelectedStudent] = useState(autoStudent);
   const [studentData, setStudentData] = useState(null);
   const [currentMode, setCurrentMode] = useState(null);
   const queryClient = useQueryClient();
