@@ -45,12 +45,15 @@ export default function LetterGame() {
 
   useEffect(() => {
     if (selectedStudent && students) {
-      const existing = students.find(s => s.student_number === selectedStudent);
+      const existing = students.find(
+        s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name
+      );
       if (existing) {
         setStudentData(existing);
       } else {
         createStudentMutation.mutate({
-          student_number: selectedStudent,
+          student_number: selectedStudent.number,
+          class_name: selectedStudent.class_name,
           mode_progress: {
             letter_sounds: {
               mastered_items: [],

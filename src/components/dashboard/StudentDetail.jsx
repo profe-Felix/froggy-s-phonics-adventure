@@ -25,8 +25,8 @@ function ItemBadge({ item, attempts }) {
 
 export default function StudentDetail({ student, onClose, onUpdate }) {
   const [editing, setEditing] = useState(false);
-  const [className, setClassName] = useState(student.class_name || '');
-  const [customClass, setCustomClass] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(student.name || '');
   const [saving, setSaving] = useState(false);
 
   const mp = student.mode_progress || {};
@@ -40,13 +40,35 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
     setEditing(false);
   };
 
+  const handleSaveName = async () => {
+    await base44.entities.Student.update(student.id, { name: nameInput.trim() });
+    onUpdate({ ...student, name: nameInput.trim() });
+    setEditingName(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b">
           <div>
-            <h2 className="text-xl font-bold">Student {student.student_number}</h2>
-            {student.name && <p className="text-gray-500 text-sm">{student.name}</p>}
+            <h2 className="text-xl font-bold">Student {student.student_number} {student.class_name ? `· Class ${student.class_name}` : ''}</h2>
+            {editingName ? (
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  placeholder="Enter name or initials"
+                  className="border rounded-lg px-2 py-1 text-sm"
+                  autoFocus
+                />
+                <button onClick={handleSaveName} className="text-sm text-blue-600">Save</button>
+                <button onClick={() => setEditingName(false)} className="text-sm text-gray-400">Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setEditingName(true)} className="text-sm text-gray-400 hover:text-blue-600 mt-0.5">
+                {student.name ? student.name : '+ Add name/initials'}
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {!editing ? (
