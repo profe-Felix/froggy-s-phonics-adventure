@@ -16,7 +16,11 @@ export default function Dashboard() {
   const loadStudents = async () => {
     setLoading(true);
     const data = await base44.entities.Student.list('-updated_date', 200);
-    setStudents(data);
+    // Fill in all 30 slots with placeholders for students who haven't played
+    const byNumber = {};
+    data.forEach(s => { byNumber[s.student_number] = s; });
+    const all = Array.from({ length: 30 }, (_, i) => byNumber[i + 1] || { student_number: i + 1, _placeholder: true });
+    setStudents(all);
     setLoading(false);
   };
 
@@ -24,9 +28,8 @@ export default function Dashboard() {
 
   const filtered = selectedClass === 'All'
     ? students
-    : students.filter(s => s.class_name === selectedClass);
+    : students.filter(s => s.class_name === selectedClass || (selectedClass === 'Unassigned' && !s.class_name));
 
-  // Sort by student_number
   const sorted = [...filtered].sort((a, b) => a.student_number - b.student_number);
 
   const handleStudentUpdate = (updated) => {
