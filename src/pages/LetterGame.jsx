@@ -49,7 +49,7 @@ export default function LetterGame() {
           mode_progress: {
             letter_sounds: {
               mastered_items: [],
-              learning_items: ['a', 'b', 'c'],
+              learning_items: ['o', 'i', 'a'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
