@@ -8,6 +8,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState('All');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [assignMode, setAssignMode] = useState(false);
+  const [selectedNumbers, setSelectedNumbers] = useState([]);
+  const [assignClass, setAssignClass] = useState('');
 
   useEffect(() => {
     loadStudents();
@@ -24,7 +27,22 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const classes = ['All', ...Array.from(new Set(students.map(s => s.class_name).filter(Boolean))).sort()];
+  const classes = ['All', ...Array.from(new Set(students.map(s => s.class_name).filter(Boolean))).sort()];  
+
+  const toggleSelect = (num) => {
+    setSelectedNumbers(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
+  };
+
+  const handleBulkAssign = async () => {
+    if (!assignClass.trim()) return;
+    const cls = assignClass.trim().toUpperCase();
+    const toUpdate = students.filter(s => selectedNumbers.includes(s.student_number) && !s._placeholder);
+    await Promise.all(toUpdate.map(s => base44.entities.Student.update(s.id, { class_name: cls })));
+    setStudents(prev => prev.map(s => selectedNumbers.includes(s.student_number) ? { ...s, class_name: cls } : s));
+    setSelectedNumbers([]);
+    setAssignClass('');
+    setAssignMode(false);
+  };
 
   const filtered = selectedClass === 'All'
     ? students
@@ -45,13 +63,53 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold text-gray-800">📊 Progress Dashboard</h1>
             <p className="text-gray-500 mt-1">Click any student to see their detailed progress</p>
           </div>
-          <button
-            onClick={loadStudents}
-            className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"
-          >
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            {assignMode ? (
+              <>
+                <input
+                  value={assignClass}
+                  onChange={e => setAssignClass(e.target.value)}
+                  placeholder="Class letter (e.g. F)"
+                  className="border rounded-lg px-3 py-2 text-sm w-44"
+                />
+                <button
+                  onClick={handleBulkAssign}
+                  disabled={!assignClass.trim() || selectedNumbers.length === 0}
+                  className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-40"
+                >
+                  Assign {selectedNumbers.length > 0 ? `(${selectedNumbers.length})` : ''}
+                </button>
+                <button
+                  onClick={() => { setAssignMode(false); setSelectedNumbers([]); }}
+                  className="border rounded-lg px-4 py-2 text-sm"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setAssignMode(true)}
+                  className="text-sm bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700"
+                >
+                  Assign Classes
+                </button>
+                <button
+                  onClick={loadStudents}
+                  className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"
+                >
+                  Refresh
+                </button>
+              </>
+            )}
+          </div>
         </div>
+
+        {assignMode && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-sm text-blue-700">
+            Select students below, enter a class letter, then click <strong>Assign</strong>.
+          </div>
+        )}
 
         {/* Class tabs */}
         <div className="flex gap-2 flex-wrap mb-6">
@@ -93,7 +151,22 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
             {sorted.map(student => (
-              <StudentCard key={student.id} student={student} onClick={setSelectedStudent} />
+              assignMode ? (
+                <button
+                  key={student.student_number}
+                  onClick={() => toggleSelect(student.student_number)}
+                  className={`border-2 rounded-xl p-3 text-left transition ${
+                    selectedNumbers.includes(student.student_number)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-300'
+                  }`}
+                >
+                  <div className="font-bold text-lg leading-none">{student.student_number}</div>
+                  {student.class_name && <div className="text-xs text-gray-400 mt-0.5">Class {student.class_name}</div>}
+                </button>
+              ) : (
+                <StudentCard key={student.id || student.student_number} student={student} onClick={s => !s._placeholder && setSelectedStudent(s)} />
+              )
             ))}
           </div>
         )}
