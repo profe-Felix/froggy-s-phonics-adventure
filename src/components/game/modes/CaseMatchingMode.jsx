@@ -64,18 +64,32 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
       setIsCorrect(correct);
       setShowFeedback(true);
 
+      // Track upper and lower separately
+      const letterKey = correct
+        ? (first.letter === first.letter.toLowerCase() ? `${first.letter.toLowerCase()}_lower` : `${first.letter.toLowerCase()}_upper`)
+        : first.letter.toLowerCase();
+      // Track both cases separately
+      const lowerKey = `${first.letter.toLowerCase()}_lower`;
+      const upperKey = `${first.letter.toLowerCase()}_upper`;
       const letterBase = first.letter.toLowerCase();
       const attempts = { ...modeData.item_attempts };
+
+      // Determine which case was shown first (the target)
+      // Track per-letter aggregate for mastery
       const letterStats = attempts[letterBase] || { correct: 0, total: 0 };
       letterStats.total += 1;
-      if (correct) {
-        letterStats.correct += 1;
-        setScore(prev => prev + 1);
-        setStreak(prev => prev + 1);
-      } else {
-        setStreak(0);
-      }
+      if (correct) letterStats.correct += 1;
       attempts[letterBase] = letterStats;
+
+      // Also track lower/upper individually
+      const lowerStats = attempts[lowerKey] || { correct: 0, total: 0 };
+      const upperStats = attempts[upperKey] || { correct: 0, total: 0 };
+      const lowerSelected = newSelected.find(l => l.letter === l.letter.toLowerCase() && l.letter !== l.letter.toUpperCase());
+      const upperSelected = newSelected.find(l => l.letter === l.letter.toUpperCase() && l.letter !== l.letter.toLowerCase());
+      if (lowerSelected) { lowerStats.total += 1; if (correct) lowerStats.correct += 1; }
+      if (upperSelected) { upperStats.total += 1; if (correct) upperStats.correct += 1; }
+      attempts[lowerKey] = lowerStats;
+      attempts[upperKey] = upperStats;
 
       let updatedMastered = [...(modeData.mastered_items || [])];
       let updatedLearning = [...(modeData.learning_items || [])];

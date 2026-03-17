@@ -7,6 +7,7 @@ export default function Dashboard() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState('All');
+  const [selectedMode, setSelectedMode] = useState('All');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [assignMode, setAssignMode] = useState(false);
   const [selectedNumbers, setSelectedNumbers] = useState([]);
@@ -25,7 +26,15 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const classes = ['All', ...Array.from(new Set(students.map(s => s.class_name).filter(Boolean))).sort()];  
+  const classes = ['All', ...Array.from(new Set(students.map(s => s.class_name).filter(Boolean))).sort()];
+  const MODE_FILTER_LABELS = {
+    All: 'All Modes',
+    letter_sounds: 'Letter Sounds',
+    sight_words_easy: 'Sight Words (Easy)',
+    sight_words_spelling: 'SW Spelling',
+    spelling: 'Spelling',
+    case_matching: 'Case Matching'
+  };
 
   const toggleSelect = (num) => {
     setSelectedNumbers(prev => prev.includes(num) ? prev.filter(n => n !== num) : [...prev, num]);
@@ -44,14 +53,18 @@ export default function Dashboard() {
 
   // For a specific class, fill all 30 slots; for All, show real records only
   const getDisplayStudents = () => {
+    let base = students;
+    if (selectedMode !== 'All') {
+      base = base.filter(s => (s.current_mode || 'letter_sounds') === selectedMode);
+    }
     if (selectedClass === 'All') {
-      return [...students].sort((a, b) => {
+      return [...base].sort((a, b) => {
         if (a.class_name < b.class_name) return -1;
         if (a.class_name > b.class_name) return 1;
         return a.student_number - b.student_number;
       });
     }
-    const classStudents = students.filter(s => s.class_name === selectedClass);
+    const classStudents = base.filter(s => s.class_name === selectedClass);
     const byNumber = {};
     classStudents.forEach(s => { byNumber[s.student_number] = s; });
     return Array.from({ length: 30 }, (_, i) => byNumber[i + 1] || { student_number: i + 1, class_name: selectedClass, _placeholder: true });
@@ -132,7 +145,7 @@ export default function Dashboard() {
         )}
 
         {/* Class tabs */}
-        <div className="flex gap-2 flex-wrap mb-6">
+        <div className="flex gap-2 flex-wrap mb-3">
           {classes.map(cls => (
             <button
               key={cls}
@@ -170,6 +183,23 @@ export default function Dashboard() {
               <span className="ml-1.5 opacity-60 text-xs">
                 ({cls === 'All' ? students.length : students.filter(s => s.class_name === cls).length})
               </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Mode filter */}
+        <div className="flex gap-2 flex-wrap mb-5">
+          {Object.entries(MODE_FILTER_LABELS).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSelectedMode(key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                selectedMode === key
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'bg-white text-gray-500 border hover:bg-gray-50'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>
