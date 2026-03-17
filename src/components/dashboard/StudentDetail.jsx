@@ -27,6 +27,8 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(student.name || '');
+  const [className, setClassName] = useState(student.class_name || '');
+  const [customClass, setCustomClass] = useState('');
   const [saving, setSaving] = useState(false);
 
   const mp = student.mode_progress || {};
