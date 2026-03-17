@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Volume2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const MODE_LABELS = {
@@ -19,6 +19,23 @@ function ItemBadge({ item, attempts }) {
     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-medium bg-white border shadow-sm">
       <span className="font-bold">{item}</span>
       {pct !== null && <span className="text-xs text-gray-400">{pct}%</span>}
+    </span>
+  );
+}
+
+function CaseBadge({ letter, attempts }) {
+  const lo = attempts?.[`${letter}_lower`] || { correct: 0, total: 0 };
+  const hi = attempts?.[`${letter}_upper`] || { correct: 0, total: 0 };
+  const loPct = lo.total > 0 ? Math.round(lo.correct / lo.total * 100) : null;
+  const hiPct = hi.total > 0 ? Math.round(hi.correct / hi.total * 100) : null;
+  const loColor = loPct === null ? 'text-gray-300' : loPct >= 80 ? 'text-green-600' : loPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+  const hiColor = hiPct === null ? 'text-gray-300' : hiPct >= 80 ? 'text-green-600' : hiPct >= 50 ? 'text-yellow-600' : 'text-red-500';
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-sm bg-white border shadow-sm">
+      <span className="font-bold">{letter}</span>
+      <span className={`text-xs font-medium ${loColor}`}>{letter.toLowerCase()} {loPct !== null ? `${loPct}%` : '–'}</span>
+      <span className="text-gray-300">|</span>
+      <span className={`text-xs font-medium ${hiColor}`}>{letter.toUpperCase()} {hiPct !== null ? `${hiPct}%` : '–'}</span>
     </span>
   );
 }
@@ -132,27 +149,36 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
                   <h3 className="font-semibold">{modeLabel}</h3>
                   <span className="text-sm text-gray-500">{accuracy}% accuracy · {data.total_attempts || 0} attempts</span>
                 </div>
-                {modeKey === 'case_matching' && mastered.length > 0 && (
+
+                {modeKey === 'case_matching' && (mastered.length > 0 || learning.length > 0) && (
                   <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Upper vs Lower breakdown:</p>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Upper vs Lower breakdown (color = accuracy):</p>
                     <div className="flex flex-wrap gap-1">
-                      {mastered.map(letter => {
-                        const lo = attempts[`${letter}_lower`] || { correct: 0, total: 0 };
-                        const hi = attempts[`${letter}_upper`] || { correct: 0, total: 0 };
-                        const loPct = lo.total > 0 ? Math.round(lo.correct/lo.total*100) : null;
-                        const hiPct = hi.total > 0 ? Math.round(hi.correct/hi.total*100) : null;
-                        return (
-                          <span key={letter} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-white border shadow-sm">
-                            <span className="font-bold">{letter}</span>
-                            <span className="text-gray-400">↓{loPct !== null ? `${loPct}%` : '–'}</span>
-                            <span className="text-gray-400">↑{hiPct !== null ? `${hiPct}%` : '–'}</span>
-                          </span>
-                        );
-                      })}
+                      {[...mastered, ...learning].map(letter => (
+                        <CaseBadge key={letter} letter={letter} attempts={attempts} />
+                      ))}
                     </div>
                   </div>
                 )}
+
                 {mastered.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-xs text-green-600 font-medium mb-1">✓ Mastered ({mastered.length})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {mastered.map(item => <ItemBadge key={item} item={item} attempts={attempts} />)}
+                    </div>
+                  </div>
+                )}
+                {learning.length > 0 && (
+                  <div>
+                    <p className="text-xs text-yellow-600 font-medium mb-1">⟳ Learning ({learning.length})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {learning.map(item => <ItemBadge key={item} item={item} attempts={attempts} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
       </div>
