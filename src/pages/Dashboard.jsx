@@ -11,6 +11,8 @@ export default function Dashboard() {
   const [assignMode, setAssignMode] = useState(false);
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [assignClass, setAssignClass] = useState('');
+  const [renamingClass, setRenamingClass] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
     loadStudents();
@@ -56,6 +58,17 @@ export default function Dashboard() {
   };
 
   const sorted = getDisplayStudents();
+
+  const handleRenameClass = async () => {
+    const newName = renameValue.trim();
+    if (!newName || newName === renamingClass) { setRenamingClass(null); return; }
+    const toUpdate = students.filter(s => s.class_name === renamingClass);
+    await Promise.all(toUpdate.map(s => base44.entities.Student.update(s.id, { class_name: newName })));
+    setStudents(prev => prev.map(s => s.class_name === renamingClass ? { ...s, class_name: newName } : s));
+    if (selectedClass === renamingClass) setSelectedClass(newName);
+    setRenamingClass(null);
+    setRenameValue('');
+  };
 
   const handleStudentUpdate = (updated) => {
     setStudents(prev => prev.map(s => s.id === updated.id ? updated : s));
@@ -130,7 +143,30 @@ export default function Dashboard() {
                   : 'bg-white text-gray-600 border hover:bg-gray-50'
               }`}
             >
-              {cls === 'All' ? 'All Classes' : `Class ${cls}`}
+              {cls === 'All' ? 'All Classes' : (
+                renamingClass === cls ? (
+                  <span className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleRenameClass(); if (e.key === 'Escape') setRenamingClass(null); }}
+                      className="w-20 border rounded px-1 py-0 text-gray-800 text-sm"
+                    />
+                    <button onClick={handleRenameClass} className="text-green-600 font-bold">✓</button>
+                    <button onClick={() => setRenamingClass(null)} className="text-red-400">✕</button>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    Class {cls}
+                    <span
+                      onClick={e => { e.stopPropagation(); setRenamingClass(cls); setRenameValue(cls); }}
+                      className="ml-1 opacity-50 hover:opacity-100 text-xs cursor-pointer"
+                      title="Rename class"
+                    >✏️</span>
+                  </span>
+                )
+              )}
               <span className="ml-1.5 opacity-60 text-xs">
                 ({cls === 'All' ? students.length : students.filter(s => s.class_name === cls).length})
               </span>
