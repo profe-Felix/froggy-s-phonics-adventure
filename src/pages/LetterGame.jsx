@@ -35,6 +35,11 @@ export default function LetterGame() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setStudentData(data);
+    },
+    onError: () => {
+      // Student record was deleted, reset so it gets recreated
+      setStudentData(null);
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     }
   });
 
