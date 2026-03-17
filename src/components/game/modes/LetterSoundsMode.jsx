@@ -30,15 +30,8 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     const allKnown = [...mastered, ...learning];
     const knownLetters = allKnown.length > 0 ? allKnown : ['o', 'i', 'a'];
     
-    const useKnown = Math.random() < 0.7 || knownLetters.length < 4;
-    let targetLetter;
-    
-    if (useKnown) {
-      targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
-    } else {
-      const unknown = ALL_LETTERS.filter(l => !knownLetters.includes(l));
-      targetLetter = unknown[Math.floor(Math.random() * unknown.length)] || knownLetters[0];
-    }
+    // Always pick target from known letters only — new letters introduced only via mastery progression
+    const targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
 
     // Confusing pairs to avoid
     const confusingPairs = { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] };
