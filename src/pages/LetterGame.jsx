@@ -79,7 +79,15 @@ export default function LetterGame() {
         s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name
       );
       if (existing) {
-        setStudentData(existing);
+        // If student has no pet assigned yet, give them a random one
+        if (!existing.active_pet || !existing.unlocked_pets?.length) {
+          const p = ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)];
+          const updates = { unlocked_pets: [p.id], active_pet: p.id, pending_pet_unlocks: existing.pending_pet_unlocks || 0 };
+          base44.entities.Student.update(existing.id, updates);
+          setStudentData({ ...existing, ...updates });
+        } else {
+          setStudentData(existing);
+        }
       } else {
         createStudentMutation.mutate({
           student_number: selectedStudent.number,
