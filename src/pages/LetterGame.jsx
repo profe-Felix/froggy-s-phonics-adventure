@@ -186,6 +186,12 @@ export default function LetterGame() {
     setCurrentMode(null);
   };
 
+  const handleSaveCosmetics = async (cosmetics) => {
+    if (!studentData) return;
+    const updated = await base44.entities.Student.update(studentData.id, { cosmetics });
+    setStudentData({ ...studentData, cosmetics });
+  };
+
   const handleLogout = () => {
     setSelectedStudent(null);
     setStudentData(null);
@@ -210,6 +216,7 @@ export default function LetterGame() {
         studentData={studentData}
         onSelectMode={handleModeSelect}
         onLogout={handleLogout}
+        onSaveCosmetics={handleSaveCosmetics}
       />
     );
   }
