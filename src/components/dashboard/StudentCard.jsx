@@ -16,9 +16,9 @@ function getMasteryColor(mastered, total) {
   return 'bg-red-100 text-red-800 border-red-300';
 }
 
-export default function StudentCard({ student, onClick }) {
+export default function StudentCard({ student, displayMode, onClick }) {
   const mp = student.mode_progress || {};
-  const currentMode = student.current_mode || 'letter_sounds';
+  const currentMode = displayMode || student.current_mode || 'letter_sounds';
   const modeData = mp[currentMode] || {};
   const mastered = (modeData.mastered_items || []).length;
   const learning = (modeData.learning_items || []).length;
