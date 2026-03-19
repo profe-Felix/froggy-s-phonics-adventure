@@ -4,11 +4,11 @@ import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { ArrowLeft } from 'lucide-react';
 
-export default function StudentLogin({ onSelectStudent }) {
+export default function StudentLogin({ onSelectStudent, preselectedClass = null }) {
   const numbers = Array.from({ length: 30 }, (_, i) => i + 1);
   const [classes, setClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [loadingClasses, setLoadingClasses] = useState(true);
+  const [selectedClass, setSelectedClass] = useState(preselectedClass);
+  const [loadingClasses, setLoadingClasses] = useState(!preselectedClass);
 
   useEffect(() => {
     base44.entities.Student.list('-updated_date', 200).then(students => {
@@ -40,9 +40,9 @@ export default function StudentLogin({ onSelectStudent }) {
             <p className="text-xl text-gray-600">Choose your class!</p>
           ) : (
             <div className="flex items-center justify-center gap-3">
-              <button onClick={() => setSelectedClass(null)} className="text-gray-400 hover:text-gray-600">
+              {!preselectedClass && <button onClick={() => setSelectedClass(null)} className="text-gray-400 hover:text-gray-600">
                 <ArrowLeft className="w-5 h-5" />
-              </button>
+              </button>}
               <p className="text-xl text-gray-600">Class <strong>{selectedClass}</strong> — pick your number!</p>
             </div>
           )}
