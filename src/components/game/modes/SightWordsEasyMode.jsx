@@ -69,15 +69,8 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     const allKnown = [...mastered, ...learning];
     const knownWords = allKnown.length > 0 ? allKnown : ['el', 'la', 'un'];
     
-    const useKnown = Math.random() < 0.7 || knownWords.length < 4;
-    let targetWord;
-    
-    if (useKnown) {
-      targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];
-    } else {
-      const unknown = SIGHT_WORDS.filter(w => !knownWords.includes(w));
-      targetWord = unknown[Math.floor(Math.random() * unknown.length)] || knownWords[0];
-    }
+    // Always pick from known words (mastered + learning) — new words are only introduced via progress
+    targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];
 
     // 2 real-word distractors — only from words near the target in the ordered list
     const targetIndex = SIGHT_WORDS.indexOf(targetWord);
