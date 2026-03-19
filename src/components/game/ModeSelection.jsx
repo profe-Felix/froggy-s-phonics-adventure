@@ -84,6 +84,15 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-6 mb-4">
             <div className="flex flex-col items-center gap-2">
+              <PetAvatar petId={activePetId} size="lg" showName />
+              <button
+                onClick={() => setCollectionOpen(true)}
+                className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition"
+              >
+                🐾 My Pets ({unlockedPets.length}/{ALL_PETS.length})
+              </button>
+            </div>
+          </div>
           <h1 className="text-4xl font-bold text-green-700 mb-2">Choose Your Game Mode</h1>
           <p className="text-xl text-gray-600">Student #{studentData?.student_number}</p>
         </div>
