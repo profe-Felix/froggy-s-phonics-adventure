@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { ALL_PETS, getPetImageUrl } from './PETS_DATA';
+import { ALL_PETS } from './PETS_DATA';
 import { motion } from 'framer-motion';
 
 export default function PetCollection({ unlockedIds = [], activePetId, onSelectPet, onClose }) {
@@ -29,12 +29,12 @@ export default function PetCollection({ unlockedIds = [], activePetId, onSelectP
                   ${!owned ? 'opacity-40 cursor-not-allowed grayscale' : 'hover:border-green-300 cursor-pointer hover:scale-105'}
                 `}
               >
-                <img
-                  src={getPetImageUrl(pet)}
-                  alt={owned ? pet.name : '???'}
-                  className="w-14 h-14 rounded-full"
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-4xl"
                   style={{ backgroundColor: pet.bg }}
-                />
+                >
+                  {owned ? pet.emoji : '❓'}
+                </div>
                 <span className="text-xs font-medium text-gray-600 truncate w-full text-center">
                   {owned ? pet.name : '???'}
                 </span>
