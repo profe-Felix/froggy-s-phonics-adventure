@@ -22,6 +22,47 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     total_attempts: 0
   };
 
+  const generateWordDistractors = (word, allWords) => {
+    const VOWELS = 'aeiouáéíóú';
+    const distractors = new Set();
+
+    // Type 1: swap a vowel
+    for (let i = 0; i < word.length && distractors.size < 2; i++) {
+      if (VOWELS.includes(word[i])) {
+        const otherVowels = VOWELS.replace(word[i], '').split('');
+        const newVowel = otherVowels[Math.floor(Math.random() * otherVowels.length)];
+        const candidate = word.slice(0, i) + newVowel + word.slice(i + 1);
+        if (!allWords.includes(candidate) && candidate !== word) distractors.add(candidate);
+      }
+    }
+
+    // Type 2: shuffle a chunk of letters
+    if (word.length >= 4 && distractors.size < 2) {
+      const start = Math.floor(Math.random() * (word.length - 2));
+      const chunk = word.slice(start, start + 3).split('').sort(() => Math.random() - 0.5).join('');
+      const candidate = word.slice(0, start) + chunk + word.slice(start + 3);
+      if (!allWords.includes(candidate) && candidate !== word && !distractors.has(candidate)) {
+        distractors.add(candidate);
+      }
+    }
+
+    // Fill remaining with more vowel swaps if needed
+    for (let i = word.length - 1; i >= 0 && distractors.size < 2; i--) {
+      if (VOWELS.includes(word[i])) {
+        const otherVowels = VOWELS.replace(word[i], '').split('');
+        for (const v of otherVowels) {
+          const candidate = word.slice(0, i) + v + word.slice(i + 1);
+          if (!allWords.includes(candidate) && candidate !== word && !distractors.has(candidate)) {
+            distractors.add(candidate);
+            break;
+          }
+        }
+      }
+    }
+
+    return [...distractors].slice(0, 2);
+  };
+
   const generateRound = () => {
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
@@ -38,12 +79,16 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
       targetWord = unknown[Math.floor(Math.random() * unknown.length)] || knownWords[0];
     }
 
-    const wrongOptions = SIGHT_WORDS
-      .filter(w => w !== targetWord)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+    // 2 real-word distractors preferring same first letter
+    const sameStart = SIGHT_WORDS.filter(w => w !== targetWord && w[0] === targetWord[0]);
+    const otherWords = SIGHT_WORDS.filter(w => w !== targetWord && w[0] !== targetWord[0]);
+    const pool = [...sameStart.sort(() => Math.random() - 0.5), ...otherWords.sort(() => Math.random() - 0.5)];
+    const realDistractors = pool.slice(0, 2);
 
-    const allOptions = [targetWord, ...wrongOptions].sort(() => Math.random() - 0.5);
+    // 2 letter-manipulation distractors
+    const fakeDistractors = generateWordDistractors(targetWord, SIGHT_WORDS);
+
+    const allOptions = [targetWord, ...realDistractors, ...fakeDistractors].sort(() => Math.random() - 0.5);
     
     setCurrentWord(targetWord);
     setOptions(allOptions);
