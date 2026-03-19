@@ -79,10 +79,16 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
       targetWord = unknown[Math.floor(Math.random() * unknown.length)] || knownWords[0];
     }
 
-    // 2 real-word distractors preferring same first letter
-    const sameStart = SIGHT_WORDS.filter(w => w !== targetWord && w[0] === targetWord[0]);
-    const otherWords = SIGHT_WORDS.filter(w => w !== targetWord && w[0] !== targetWord[0]);
-    const pool = [...sameStart.sort(() => Math.random() - 0.5), ...otherWords.sort(() => Math.random() - 0.5)];
+    // 2 real-word distractors — only from words near the target in the ordered list
+    const targetIndex = SIGHT_WORDS.indexOf(targetWord);
+    const windowSize = 10;
+    const nearbyWords = SIGHT_WORDS.slice(
+      Math.max(0, targetIndex - windowSize),
+      Math.min(SIGHT_WORDS.length, targetIndex + windowSize + 1)
+    ).filter(w => w !== targetWord);
+    const sameStart = nearbyWords.filter(w => w[0] === targetWord[0]);
+    const otherNearby = nearbyWords.filter(w => w[0] !== targetWord[0]);
+    const pool = [...sameStart.sort(() => Math.random() - 0.5), ...otherNearby.sort(() => Math.random() - 0.5)];
     const realDistractors = pool.slice(0, 2);
 
     // 2 letter-manipulation distractors
