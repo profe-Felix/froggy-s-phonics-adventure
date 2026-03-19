@@ -13,19 +13,34 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
+  const urlStudentId = urlParams.get('studentId');
   const urlClass = urlParams.get('class');
   const urlNumber = parseInt(urlParams.get('number'));
   const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
 
-  const [selectedStudent, setSelectedStudent] = useState(autoStudent);
+  const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
+  const [directStudentId] = useState(urlStudentId);
   const [studentData, setStudentData] = useState(null);
   const [currentMode, setCurrentMode] = useState(null);
   const queryClient = useQueryClient();
 
+  // Direct load by student ID (from QR code)
+  const { data: directStudent } = useQuery({
+    queryKey: ['student-by-id', directStudentId],
+    queryFn: () => base44.entities.Student.filter({ id: directStudentId }),
+    enabled: !!directStudentId,
+    onSuccess: (data) => {
+      if (data?.[0]) {
+        setStudentData(data[0]);
+        setSelectedStudent({ number: data[0].student_number, class_name: data[0].class_name });
+      }
+    }
+  });
+
   const { data: students } = useQuery({
     queryKey: ['students'],
     queryFn: () => base44.entities.Student.list(),
-    enabled: selectedStudent !== null
+    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id'
   });
 
   const createStudentMutation = useMutation({
@@ -49,6 +64,15 @@ export default function LetterGame() {
   });
 
   useEffect(() => {
+    if (directStudentId && directStudent?.[0] && !studentData) {
+      setStudentData(directStudent[0]);
+      setSelectedStudent({ number: directStudent[0].student_number, class_name: directStudent[0].class_name });
+    }
+  }, [directStudent, directStudentId]);
+
+  useEffect(() => {
+    if (!selectedStudent || selectedStudent === 'loading_by_id' || !students) return;
+    if (directStudentId) return; // already handled above
     if (selectedStudent && students) {
       const existing = students.find(
         s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name
