@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
 import { Lock, Star, Trophy } from 'lucide-react';
+import AvatarDisplay from './avatar/AvatarDisplay';
+import AvatarWardrobe from './avatar/AvatarWardrobe';
+import { getDefaultCosmetics } from './avatar/AVATAR_ITEMS';
 
 const MODES = [
   {
@@ -41,8 +44,10 @@ const MODES = [
   }
 ];
 
-export default function ModeSelection({ studentData, onSelectMode, onLogout }) {
+export default function ModeSelection({ studentData, onSelectMode, onLogout, onSaveCosmetics }) {
   const modeProgress = studentData?.mode_progress || {};
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  const cosmetics = studentData?.cosmetics || getDefaultCosmetics();
 
   const getModeStats = (modeId) => {
     const progress = modeProgress[modeId];
@@ -57,18 +62,29 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
+      {wardrobeOpen && (
+        <AvatarWardrobe
+          studentData={studentData}
+          cosmetics={cosmetics}
+          onSave={(c) => { onSaveCosmetics(c); setWardrobeOpen(false); }}
+          onClose={() => setWardrobeOpen(false)}
+        />
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="text-8xl mb-4"
-          >
-            🐸
-          </motion.div>
-          <h1 className="text-4xl font-bold text-green-700 mb-2">
-            Choose Your Game Mode
-          </h1>
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 2, repeat: Infinity }} className="text-8xl">🐸</motion.div>
+            <div className="flex flex-col items-center gap-2">
+              <AvatarDisplay cosmetics={cosmetics} size="md" />
+              <button
+                onClick={() => setWardrobeOpen(true)}
+                className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-full transition"
+              >
+                ✨ Dress Up
+              </button>
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold text-green-700 mb-2">Choose Your Game Mode</h1>
           <p className="text-xl text-gray-600">Student #{studentData?.student_number}</p>
         </div>
 
