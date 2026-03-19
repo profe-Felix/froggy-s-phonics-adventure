@@ -169,13 +169,19 @@ export default function LetterGame() {
       }
     }
 
-    await updateStudentMutation.mutateAsync({
+    const updatedData = await updateStudentMutation.mutateAsync({
       id: studentData.id,
       data: {
         mode_progress: updatedModeProgress,
         current_mode: mode
       }
     });
+    // Check if a new pet milestone was reached
+    const withMilestone = checkPetMilestone({ ...studentData, mode_progress: updatedModeProgress });
+    if (withMilestone.pending_pet_unlocks !== (studentData.pending_pet_unlocks || 0)) {
+      await base44.entities.Student.update(studentData.id, { pending_pet_unlocks: withMilestone.pending_pet_unlocks });
+      setStudentData({ ...studentData, mode_progress: updatedModeProgress, pending_pet_unlocks: withMilestone.pending_pet_unlocks });
+    }
   };
 
   const handleModeSelect = (mode) => {
@@ -186,10 +192,38 @@ export default function LetterGame() {
     setCurrentMode(null);
   };
 
-  const handleSaveCosmetics = async (cosmetics) => {
+  // --- Pet system ---
+  // Check for new milestone and grant pending unlock
+  const checkPetMilestone = (newStudentData) => {
+    const totalMastered = Object.values(newStudentData.mode_progress || {})
+      .flatMap(m => m?.mastered_items || []).length;
+    // Grant 1 mystery box every 5 mastered items
+    const earned = Math.floor(totalMastered / 5);
+    const alreadyUnlocked = (newStudentData.unlocked_pets || []).length - 1; // -1 for starter pet
+    const pending = newStudentData.pending_pet_unlocks || 0;
+    const totalGranted = alreadyUnlocked + pending;
+    if (earned > totalGranted) {
+      return { ...newStudentData, pending_pet_unlocks: pending + (earned - totalGranted) };
+    }
+    return newStudentData;
+  };
+
+  const handlePetUnlock = async (petId, setActive) => {
     if (!studentData) return;
-    const updated = await base44.entities.Student.update(studentData.id, { cosmetics });
-    setStudentData({ ...studentData, cosmetics });
+    const newUnlocked = [...(studentData.unlocked_pets || ['pet_frog']), petId];
+    const updates = {
+      unlocked_pets: newUnlocked,
+      pending_pet_unlocks: Math.max(0, (studentData.pending_pet_unlocks || 1) - 1),
+      ...(setActive ? { active_pet: petId } : {})
+    };
+    await base44.entities.Student.update(studentData.id, updates);
+    setStudentData({ ...studentData, ...updates });
+  };
+
+  const handleSelectPet = async (petId) => {
+    if (!studentData) return;
+    await base44.entities.Student.update(studentData.id, { active_pet: petId });
+    setStudentData({ ...studentData, active_pet: petId });
   };
 
   const handleLogout = () => {
@@ -216,7 +250,8 @@ export default function LetterGame() {
         studentData={studentData}
         onSelectMode={handleModeSelect}
         onLogout={handleLogout}
-        onSaveCosmetics={handleSaveCosmetics}
+        onPetUnlock={handlePetUnlock}
+        onSelectPet={handleSelectPet}
       />
     );
   }
