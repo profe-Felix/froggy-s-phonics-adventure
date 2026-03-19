@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
 import { Lock, Star, Trophy } from 'lucide-react';
-import AvatarDisplay from './avatar/AvatarDisplay';
-import AvatarWardrobe from './avatar/AvatarWardrobe';
-import { getDefaultCosmetics } from './avatar/AVATAR_ITEMS';
+import PetAvatar from './avatar/PetAvatar';
+import PetCollection from './avatar/PetCollection';
+import MysteryBoxReveal from './avatar/MysteryBoxReveal';
+import { ALL_PETS } from './avatar/PETS_DATA';
 
 const MODES = [
   {
@@ -44,10 +45,12 @@ const MODES = [
   }
 ];
 
-export default function ModeSelection({ studentData, onSelectMode, onLogout, onSaveCosmetics }) {
+export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet }) {
   const modeProgress = studentData?.mode_progress || {};
-  const [wardrobeOpen, setWardrobeOpen] = useState(false);
-  const cosmetics = studentData?.cosmetics || getDefaultCosmetics();
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const activePetId = studentData?.active_pet || 'pet_frog';
+  const unlockedPets = studentData?.unlocked_pets || ['pet_frog'];
+  const pendingUnlocks = studentData?.pending_pet_unlocks || 0;
 
   const getModeStats = (modeId) => {
     const progress = modeProgress[modeId];
@@ -62,12 +65,19 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onS
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
-      {wardrobeOpen && (
-        <AvatarWardrobe
+      {collectionOpen && (
+        <PetCollection
+          unlockedIds={unlockedPets}
+          activePetId={activePetId}
+          onSelectPet={(id) => { onSelectPet(id); setCollectionOpen(false); }}
+          onClose={() => setCollectionOpen(false)}
+        />
+      )}
+      {pendingUnlocks > 0 && (
+        <MysteryBoxReveal
           studentData={studentData}
-          cosmetics={cosmetics}
-          onSave={(c) => { onSaveCosmetics(c); setWardrobeOpen(false); }}
-          onClose={() => setWardrobeOpen(false)}
+          onUnlock={(petId, setActive) => onPetUnlock(petId, setActive)}
+          onClose={() => {}}
         />
       )}
       <div className="max-w-6xl mx-auto">
@@ -75,12 +85,12 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onS
           <div className="flex items-center justify-center gap-6 mb-4">
             <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 2, repeat: Infinity }} className="text-8xl">🐸</motion.div>
             <div className="flex flex-col items-center gap-2">
-              <AvatarDisplay cosmetics={cosmetics} size="md" />
+              <PetAvatar petId={activePetId} size="lg" showName />
               <button
-                onClick={() => setWardrobeOpen(true)}
-                className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-full transition"
+                onClick={() => setCollectionOpen(true)}
+                className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition"
               >
-                ✨ Dress Up
+                🐾 My Pets ({unlockedPets.length}/{ALL_PETS.length})
               </button>
             </div>
           </div>
