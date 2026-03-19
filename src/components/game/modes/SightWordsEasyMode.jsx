@@ -23,7 +23,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   };
 
   const generateWordDistractors = (word, allWords) => {
-    const VOWELS = 'aeiouáéíóú';
+    const VOWELS = 'aeiou';
     const distractors = new Set();
 
     // Type 1: swap a vowel
