@@ -17,6 +17,15 @@ function getMasteryColor(mastered, total) {
 }
 
 export default function StudentCard({ student, displayMode, onClick }) {
+  if (student._placeholder) {
+    return (
+      <div className="border border-dashed border-gray-200 rounded-xl p-3 text-left w-full bg-gray-50 opacity-40">
+        <div className="font-bold text-lg leading-none text-gray-400">{student.class_name}-{student.student_number}</div>
+        <div className="text-xs mt-1 text-gray-300">—</div>
+      </div>
+    );
+  }
+
   const mp = student.mode_progress || {};
   const currentMode = displayMode || student.current_mode || 'letter_sounds';
   const modeData = mp[currentMode] || {};
