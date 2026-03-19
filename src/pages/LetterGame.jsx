@@ -127,8 +127,7 @@ export default function LetterGame() {
             }
           },
           current_mode: 'letter_sounds',
-          unlocked_pets: [ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)].id],
-          active_pet: ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)].id,
+          ...(()=>{ const p = ALL_PETS[Math.floor(Math.random()*ALL_PETS.length)]; return { unlocked_pets:[p.id], active_pet:p.id }; })(),
           pending_pet_unlocks: 0
         });
       }
