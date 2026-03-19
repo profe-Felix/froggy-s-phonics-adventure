@@ -125,7 +125,10 @@ export default function LetterGame() {
               unlocked: true
             }
           },
-          current_mode: 'letter_sounds'
+          current_mode: 'letter_sounds',
+          unlocked_pets: ['pet_frog'],
+          active_pet: 'pet_frog',
+          pending_pet_unlocks: 0
         });
       }
     }
