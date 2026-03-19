@@ -241,10 +241,11 @@ export default function LetterGame() {
     setSelectedStudent(null);
     setStudentData(null);
     setCurrentMode(null);
+    // If class is locked via URL, skip class selection on logout
   };
 
   if (!selectedStudent) {
-    return <StudentLogin onSelectStudent={setSelectedStudent} />;
+    return <StudentLogin onSelectStudent={setSelectedStudent} preselectedClass={urlClass || null} />;
   }
 
   if (!studentData) {
