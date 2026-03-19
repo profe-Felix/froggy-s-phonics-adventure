@@ -21,14 +21,12 @@ export const ALL_PETS = [
   { id: 'pet_pig',        name: 'Oinks',      bg: '#fce7f3', emoji: '🐷' },
 ];
 
-// Returns how many pets should be unlocked based on mastered items
 export function getMilestoneCount(studentData) {
   const totalMastered = Object.values(studentData?.mode_progress || {})
     .flatMap(m => m?.mastered_items || []).length;
   return Math.min(Math.floor(totalMastered / 5) + 1, ALL_PETS.length);
 }
 
-// Returns random pets the student doesn't own yet (for mystery box choices)
 export function getRandomNewPets(unlockedPetIds, count = 3) {
   const owned = new Set(unlockedPetIds || []);
   const available = ALL_PETS.filter(p => !owned.has(p.id));
