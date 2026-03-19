@@ -10,6 +10,7 @@ import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
+import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -126,8 +127,8 @@ export default function LetterGame() {
             }
           },
           current_mode: 'letter_sounds',
-          unlocked_pets: ['pet_frog'],
-          active_pet: 'pet_frog',
+          unlocked_pets: [ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)].id],
+          active_pet: ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)].id,
           pending_pet_unlocks: 0
         });
       }
