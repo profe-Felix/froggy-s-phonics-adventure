@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getPetImageUrl, getRandomNewPets } from './PETS_DATA';
+import { getRandomNewPets } from './PETS_DATA';
 import confetti from 'canvas-confetti';
 
 export default function MysteryBoxReveal({ studentData, onUnlock, onClose }) {
@@ -58,16 +58,15 @@ export default function MysteryBoxReveal({ studentData, onUnlock, onClose }) {
               >
                 <AnimatePresence mode="wait">
                   {chosen === i ? (
-                    <motion.img
+                    <motion.span
                       key="revealed"
                       initial={{ scale: 0, rotate: -20 }}
                       animate={{ scale: 1, rotate: 0 }}
                       transition={{ type: 'spring', stiffness: 300 }}
-                      src={getPetImageUrl(pet)}
-                      alt={pet.name}
-                      className="w-20 h-20 rounded-xl"
-                      style={{ backgroundColor: pet.bg }}
-                    />
+                      className="text-5xl"
+                    >
+                      {pet.emoji}
+                    </motion.span>
                   ) : (
                     <motion.span key="box" className="text-4xl select-none">❓</motion.span>
                   )}
