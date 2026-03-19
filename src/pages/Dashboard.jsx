@@ -55,9 +55,6 @@ export default function Dashboard() {
   // For a specific class, fill all 30 slots; for All, show real records only
   const getDisplayStudents = () => {
     let base = students;
-    if (selectedMode !== 'All') {
-      base = base.filter(s => (s.current_mode || 'letter_sounds') === selectedMode);
-    }
     if (selectedClass === 'All') {
       return [...base].sort((a, b) => {
         if (a.class_name < b.class_name) return -1;
@@ -245,7 +242,7 @@ export default function Dashboard() {
                   {student.class_name && <div className="text-xs text-gray-400 mt-0.5">Class {student.class_name}</div>}
                 </button>
               ) : (
-                <StudentCard key={student.id || student.student_number} student={student} onClick={s => !s._placeholder && setSelectedStudent(s)} />
+                <StudentCard key={student.id || student.student_number} student={student} displayMode={selectedMode === 'All' ? null : selectedMode} onClick={s => !s._placeholder && setSelectedStudent(s)} />
               )
             ))}
           </div>
