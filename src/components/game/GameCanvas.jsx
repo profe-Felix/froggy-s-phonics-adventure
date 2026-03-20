@@ -93,7 +93,7 @@ export default function GameCanvas({
       <div className="absolute top-32 left-1/3 text-5xl opacity-50 animate-pulse">☁️</div>
 
       {/* Score Display */}
-      <div className="absolute top-4 left-4 bg-white/90 rounded-2xl px-6 py-3 shadow-lg">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 rounded-2xl px-6 py-3 shadow-lg">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Trophy className="w-6 h-6 text-yellow-500" />
@@ -132,7 +132,12 @@ export default function GameCanvas({
             { top: '20%', left: '75%' },
             { top: '40%', left: '15%' },
             { top: '30%', left: '40%' },
-            { top: '50%', left: '65%' }
+            { top: '50%', left: '65%' },
+            { top: '12%', left: '50%' },
+            { top: '48%', left: '50%' },
+            { top: '55%', left: '25%' },
+            { top: '55%', left: '72%' },
+            { top: '18%', left: '38%' },
           ];
           const pos = positions[index] || { top: '20%', left: '50%' };
           const isHidden = (targetFly === index && (animationPhase === 'extend' || animationPhase === 'retract' || animationPhase === 'process')) || isUsed;
