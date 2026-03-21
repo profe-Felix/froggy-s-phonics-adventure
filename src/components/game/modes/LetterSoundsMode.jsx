@@ -14,6 +14,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const [canAnswer, setCanAnswer] = useState(false);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
+  const audioTimeoutRef = useRef(null);
 
   const modeData = studentData?.mode_progress?.letter_sounds || {
     mastered_items: [],
@@ -51,8 +52,6 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     setOptions(allOptions);
     playSound(targetLetter);
   };
-
-  const audioTimeoutRef = useRef(null);
 
   const playSound = (letter) => {
     setCanAnswer(false);
