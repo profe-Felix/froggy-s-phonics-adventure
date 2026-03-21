@@ -15,7 +15,7 @@ import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
-  const urlClass = urlParams.get('class')?.toUpperCase() || null;
+  const urlClass = urlParams.get('class') || null;
   const urlNumber = parseInt(urlParams.get('number'));
   const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
 
