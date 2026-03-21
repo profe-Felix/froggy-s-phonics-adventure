@@ -52,12 +52,15 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     playSound(targetLetter);
   };
 
+  const audioTimeoutRef = useRef(null);
+
   const playSound = (letter) => {
     setCanAnswer(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
     }
+    if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
     
     if (!preloadedAudio.current[letter]) {
       preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
@@ -66,10 +69,15 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     
     audioRef.current = preloadedAudio.current[letter];
     audioRef.current.currentTime = 0;
-    audioRef.current.onended = () => setCanAnswer(true);
+    audioRef.current.onended = () => {
+      if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+      setCanAnswer(true);
+    };
+    // Safety fallback: always enable answering after 3 seconds
+    audioTimeoutRef.current = setTimeout(() => setCanAnswer(true), 3000);
     audioRef.current.play()
-      .catch(err => {
-        console.log('Audio play failed');
+      .catch(() => {
+        if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
         setCanAnswer(true);
       });
   };
