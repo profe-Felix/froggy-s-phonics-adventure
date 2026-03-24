@@ -114,8 +114,9 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
     if (pendingCompleteRef.current) {
       pendingCompleteRef.current = false;
-      setDrawnPaths(prev => [...prev, currentPathRef.current]);
+      const completedPath = [...currentPathRef.current];
       currentPathRef.current = [];
+      setDrawnPaths(prev => [...prev, completedPath]);
       setCurrentPath([]);
       const newStrokeIdx = strokeIndex + 1;
       if (newStrokeIdx >= strokes.length) {
