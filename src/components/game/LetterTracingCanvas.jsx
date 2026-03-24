@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 
 const CANVAS_W = 300;
-const CANVAS_H = 300;
+const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 16; // pixels to count as hitting a waypoint
 const STRAY_RADIUS = 22; // pixels — restart stroke if user strays this far from path
 
@@ -198,7 +198,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       <svg
         ref={svgRef}
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-        className={`w-72 h-72 rounded-2xl border-4 touch-none ${
+        className={`w-64 rounded-2xl border-4 touch-none aspect-[4/5] ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? 'border-green-400 bg-green-50' :
           'border-white/40 bg-white/10'
