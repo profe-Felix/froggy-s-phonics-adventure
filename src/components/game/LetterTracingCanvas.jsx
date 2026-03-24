@@ -3,6 +3,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 const CANVAS_W = 300;
 const CANVAS_H = 300;
 const HIT_RADIUS = 28; // pixels to count as hitting a waypoint
+const STRAY_RADIUS = 40; // pixels — restart stroke if user strays this far from path
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
@@ -74,6 +75,18 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
+
+    // Check if user has strayed too far from the nearest waypoint on the whole stroke
+    const minDist = Math.min(...currentStrokes.map(wp => dist(pos, scale(wp))));
+    if (minDist > STRAY_RADIUS) {
+      flashError();
+      setCurrentPath([]);
+      setWaypointIndex(0);
+      setDrawing(false);
+      setStatus('idle');
+      return;
+    }
+
     const nextWp = scale(currentStrokes[waypointIndex]);
 
     if (dist(pos, nextWp) < HIT_RADIUS) {
@@ -220,24 +233,16 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
-        {/* Waypoint dots — completed */}
-        {currentStrokeWaypoints.slice(0, waypointIndex).map((wp, i) => {
-          const p = scale(wp);
-          return <circle key={i} cx={p.x} cy={p.y} r="6" fill="#22c55e" opacity="0.6" />;
-        })}
-
-        {/* Next waypoint to hit — pulsing */}
-        {nextWp && !isSuccess && (
+        {/* Start dot — show only when waiting to begin a stroke */}
+        {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           <>
             <circle cx={nextWp.x} cy={nextWp.y} r="18" fill="#6366f1" opacity="0.15">
               <animate attributeName="r" values="14;22;14" dur="1s" repeatCount="indefinite" />
               <animate attributeName="opacity" values="0.2;0.05;0.2" dur="1s" repeatCount="indefinite" />
             </circle>
-            <circle cx={nextWp.x} cy={nextWp.y} r="8" fill={waypointIndex === 0 ? '#6366f1' : '#f59e0b'} />
-            {waypointIndex === 0 && (
-              <text x={nextWp.x} y={nextWp.y + 4} textAnchor="middle" fontSize="9"
-                fill="white" fontWeight="bold">{strokeIndex + 1}</text>
-            )}
+            <circle cx={nextWp.x} cy={nextWp.y} r="8" fill="#6366f1" />
+            <text x={nextWp.x} y={nextWp.y + 4} textAnchor="middle" fontSize="9"
+              fill="white" fontWeight="bold">{strokeIndex + 1}</text>
           </>
         )}
       </svg>
