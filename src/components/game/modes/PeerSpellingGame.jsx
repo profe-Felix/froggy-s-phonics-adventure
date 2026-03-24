@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { SPELLING_WORDS } from '@/components/data/spellingWords';
 import { SIGHT_WORDS_SPELLING } from '@/components/data/sightWords';
+import VoiceChat from '../VoiceChat';
 
 const BOARD_LENGTH = 20;
 
@@ -133,6 +134,13 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
+      {game.status === 'active' && (
+        <VoiceChat
+          gameId={game.id}
+          playerNumber={playerNumber}
+          opponentNumber={otherPlayerNumber}
+        />
+      )}
       {/* Player positions */}
       <div className="w-full bg-white/10 rounded-lg p-3">
         <div className="text-white/60 text-xs mb-2">Board Progress</div>

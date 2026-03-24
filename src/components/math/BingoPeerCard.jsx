@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import TenFrame from './TenFrame';
 import { Button } from '@/components/ui/button';
+import VoiceChat from '../game/VoiceChat';
 
 function buildCells(playerNumber, className, minNumber, maxNumber, freeSpace) {
   const allNums = [];
@@ -160,6 +161,13 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
+      {game.status === 'active' && (
+        <VoiceChat
+          gameId={game.id}
+          playerNumber={playerNumber}
+          opponentNumber={otherPlayerNumber}
+        />
+      )}
       {/* Players status */}
       <div className="flex gap-3 text-sm w-full justify-center">
         <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
