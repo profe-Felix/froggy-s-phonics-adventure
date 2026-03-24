@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import TenFrame from './TenFrame';
 import { Shuffle, RotateCcw, Play, Settings } from 'lucide-react';
 
-export default function BingoTeacher({ game, onUpdate }) {
+export default function BingoTeacher({ game, className, onUpdate }) {
   const [showSettings, setShowSettings] = useState(false);
   const [minVal, setMinVal] = useState(game?.min_number ?? 10);
   const [maxVal, setMaxVal] = useState(game?.max_number ?? 20);
