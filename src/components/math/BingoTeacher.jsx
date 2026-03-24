@@ -8,6 +8,12 @@ export default function BingoTeacher({ game, className, onUpdate }) {
   const [showSettings, setShowSettings] = useState(false);
   const [minVal, setMinVal] = useState(game?.min_number ?? 10);
   const [maxVal, setMaxVal] = useState(game?.max_number ?? 20);
+  const freeSpace = game?.free_space ?? true;
+
+  const toggleFreeSpace = async () => {
+    const updated = await base44.entities.MathBingoGame.update(game.id, { free_space: !freeSpace });
+    onUpdate(updated);
+  };
 
   const calledNumbers = game?.called_numbers || [];
   const currentNumber = game?.current_number;
@@ -78,6 +84,9 @@ export default function BingoTeacher({ game, className, onUpdate }) {
         </Button>
         <Button onClick={() => setShowSettings(v => !v)} variant="outline" className="gap-2 bg-white">
           <Settings className="w-4 h-4" /> Settings
+        </Button>
+        <Button onClick={toggleFreeSpace} variant="outline" className={`gap-2 ${freeSpace ? 'bg-green-100 border-green-400' : 'bg-white'}`}>
+          {freeSpace ? '✅' : '⬜'} Free Space
         </Button>
       </div>
 

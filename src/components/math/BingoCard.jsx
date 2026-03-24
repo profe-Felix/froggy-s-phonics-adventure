@@ -1,13 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import TenFrame from './TenFrame';
+import { base44 } from '@/api/base44Client';
 
-export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber }) {
+export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber, freeSpace, gameId }) {
   const [covered, setCovered] = useState(new Set());
+  const calledAtRef = useRef(null);
+  const lastRecordedRef = useRef(null);
+
+  // Track when a new number is called
+  useEffect(() => {
+    if (currentNumber) {
+      calledAtRef.current = Date.now();
+      lastRecordedRef.current = null;
+    }
+  }, [currentNumber]);
 
   const allNums = [];
   for (let n = minNumber; n <= maxNumber; n++) allNums.push(n);
 
-  // Unique shuffle per student using a unique seed
   function uniqueShuffle(arr, seed) {
     const a = [...arr];
     let s = seed;
@@ -19,23 +29,53 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
     return a;
   }
 
-  // Use student number + class + a large prime to ensure uniqueness
   const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
   const seed = ((studentNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
   const shuffled = uniqueShuffle(allNums, seed);
-  const cells = shuffled.slice(0, 9); // 3x3 = 9 cells
 
-  const toggleCover = (idx) => {
+  // Build 9 cells: if freeSpace, use 8 numbers with FREE in center (index 4)
+  let cells;
+  if (freeSpace) {
+    const eight = shuffled.slice(0, 8);
+    cells = [...eight.slice(0, 4), 'FREE', ...eight.slice(4)];
+  } else {
+    cells = shuffled.slice(0, 9);
+  }
+
+  const handleTileClick = async (num, idx) => {
+    // Toggle counter
     setCovered(prev => {
       const next = new Set(prev);
       next.has(idx) ? next.delete(idx) : next.add(idx);
       return next;
     });
+
+    // Record response data
+    if (!currentNumber || !gameId) return;
+    const isFree = num === 'FREE';
+    // Only record on placement (not removal), and only once per called number
+    const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
+    const isCorrect = !isFree && num === currentNumber;
+
+    // Avoid duplicate records for same called number
+    if (lastRecordedRef.current === currentNumber && !isFree) return;
+    lastRecordedRef.current = currentNumber;
+
+    await base44.entities.MathBingoResponse.create({
+      game_id: gameId,
+      class_name: className,
+      student_number: studentNumber,
+      called_number: currentNumber,
+      clicked_number: isFree ? null : num,
+      is_correct: isFree ? null : isCorrect,
+      response_time_ms: responseTimeMs,
+      free_space_click: isFree,
+    });
   };
 
   return (
     <div className="flex flex-col items-center gap-6 w-full">
-      {/* Current number - ten frame only, no digit */}
+      {/* Calling card — ten frame only */}
       <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-2 min-h-[120px] justify-center">
         {currentNumber ? (
           <TenFrame value={currentNumber} size="md" />
@@ -48,15 +88,19 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
       <div className="grid grid-cols-3 gap-2">
         {cells.map((num, idx) => {
           const isCovered = covered.has(idx);
+          const isFree = num === 'FREE';
           return (
             <button
               key={idx}
-              onClick={() => toggleCover(idx)}
+              onClick={() => handleTileClick(num, idx)}
               className="relative w-20 h-20 sm:w-24 sm:h-24 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-2xl sm:text-3xl text-gray-800 shadow select-none"
             >
-              {num}
+              {isFree ? <span className="text-sm font-bold text-green-600">FREE</span> : num}
               {isCovered && (
                 <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />
+              )}
+              {isFree && !isCovered && (
+                <div className="absolute inset-0 rounded-md bg-green-100/60 pointer-events-none" />
               )}
             </button>
           );

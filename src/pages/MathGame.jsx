@@ -159,6 +159,8 @@ export default function MathGame() {
           maxNumber={gameData.max_number ?? 20}
           calledNumbers={gameData.called_numbers || []}
           currentNumber={gameData.current_number}
+          freeSpace={gameData.free_space ?? true}
+          gameId={gameData.id}
         />
       ) : (
         <div className="text-white text-xl mt-10">Waiting for game to start...</div>
