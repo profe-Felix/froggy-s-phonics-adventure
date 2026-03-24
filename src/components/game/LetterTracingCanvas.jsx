@@ -73,6 +73,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const handlePointerMove = useCallback((e) => {
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
+    if (pendingCompleteRef.current) return; // waiting for pointer-up, ignore moves
     const pos = getPos(e);
     currentPathRef.current = [...currentPathRef.current, pos];
     setCurrentPath(currentPathRef.current);
