@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import TenFrame from './TenFrame';
 import { Shuffle, RotateCcw, Play, Settings } from 'lucide-react';
 
-export default function BingoTeacher({ game, className, onUpdate }) {
+export default function BingoTeacher({ game, className, onUpdate, onReset }) {
   const [showSettings, setShowSettings] = useState(false);
   const [minVal, setMinVal] = useState(game?.min_number ?? 10);
   const [maxVal, setMaxVal] = useState(game?.max_number ?? 20);
@@ -35,12 +35,7 @@ export default function BingoTeacher({ game, className, onUpdate }) {
   };
 
   const resetGame = async () => {
-    const updated = await base44.entities.MathBingoGame.update(game.id, {
-      current_number: null,
-      called_numbers: [],
-      is_active: false,
-    });
-    onUpdate(updated);
+    await onReset({ min_number: game?.min_number ?? 10, max_number: game?.max_number ?? 20, free_space: freeSpace });
   };
 
   const saveSettings = async () => {

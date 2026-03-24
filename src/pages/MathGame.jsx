@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import BingoCard from '../components/math/BingoCard';
 import BingoTeacher from '../components/math/BingoTeacher';
+import BingoPeerLobby from '../components/math/BingoPeerLobby';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -15,6 +16,7 @@ export default function MathGame() {
 
   const [selectedClass, setSelectedClass] = useState(null);
   const [studentNumber, setStudentNumber] = useState(null);
+  const [selfPlay, setSelfPlay] = useState(null); // null=not chosen, true=peer, false=teacher
 
   const queryClient = useQueryClient();
 
@@ -33,19 +35,25 @@ export default function MathGame() {
     }
   }, [games]);
 
-  const createGame = async (cls) => {
+  const createGame = async (cls, settings = {}) => {
     const g = await base44.entities.MathBingoGame.create({
       game_name: 'Bingo',
       class_name: cls,
       is_active: false,
       called_numbers: [],
       current_number: null,
-      min_number: 10,
-      max_number: 20,
+      min_number: settings.min_number ?? 10,
+      max_number: settings.max_number ?? 20,
+      free_space: settings.free_space ?? true,
     });
     setGameData(g);
     queryClient.invalidateQueries({ queryKey: ['math-bingo', cls] });
     return g;
+  };
+
+  // Reset creates a NEW game record for clean per-session data
+  const handleReset = async (settings) => {
+    await createGame(selectedClass, settings);
   };
 
   // ── TEACHER VIEW ──
@@ -87,6 +95,7 @@ export default function MathGame() {
                 game={gameData}
                 className={selectedClass}
                 onUpdate={g => { setGameData(g); queryClient.invalidateQueries({ queryKey: ['math-bingo', selectedClass] }); }}
+                onReset={handleReset}
               />
             )}
           </div>
@@ -142,12 +151,57 @@ export default function MathGame() {
     );
   }
 
-  // ── STUDENT VIEW — Bingo card ──
+  // ── STUDENT VIEW — Step 3: Pick mode ──
+  if (selfPlay === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
+        <button onClick={() => setStudentNumber(null)} className="text-white/80 self-start hover:text-white">← Back</button>
+        <div className="text-5xl">🎱</div>
+        <h2 className="text-2xl font-bold text-white">{selectedClass} — #{studentNumber}</h2>
+        <p className="text-white/80">How do you want to play?</p>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSelfPlay(false)}
+            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
+          >
+            🏫 Teacher Game
+            <span className="text-sm font-normal text-indigo-400">Teacher calls the numbers</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSelfPlay(true)}
+            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
+          >
+            👫 Play with a Friend
+            <span className="text-sm font-normal text-indigo-400">Challenge a classmate</span>
+          </motion.button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STUDENT VIEW — Peer / Self play ──
+  if (selfPlay === true) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-4">
+        <BingoPeerLobby
+          className={selectedClass}
+          studentNumber={studentNumber}
+          onBack={() => setSelfPlay(null)}
+        />
+      </div>
+    );
+  }
+
+  // ── STUDENT VIEW — Teacher game ──
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-4 gap-4">
       <div className="flex items-center justify-between w-full max-w-md">
         <div className="text-white font-bold text-lg">🧮 {selectedClass} #{studentNumber}</div>
-        <Button onClick={() => setStudentNumber(null)} variant="ghost" className="text-white hover:bg-white/20">
+        <Button onClick={() => setSelfPlay(null)} variant="ghost" className="text-white hover:bg-white/20">
           ← Back
         </Button>
       </div>
