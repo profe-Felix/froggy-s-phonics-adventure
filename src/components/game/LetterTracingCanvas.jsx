@@ -185,11 +185,15 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           {letter}
         </text>
 
-        {/* Guide lines */}
+        {/* Primary writing lines */}
+        <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H}
+          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={0.42 * CANVAS_H} x2={CANVAS_W} y2={0.42 * CANVAS_H}
-          stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+          stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
         <line x1="0" y1={0.72 * CANVAS_H} x2={CANVAS_W} y2={0.72 * CANVAS_H}
-          stroke="#cbd5e1" strokeWidth="1" opacity="0.6" />
+          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+        <line x1="0" y1={0.92 * CANVAS_H} x2={CANVAS_W} y2={0.92 * CANVAS_H}
+          stroke="#fca5a5" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
 
         {/* Faint waypoint guide path (all future waypoints) */}
         {strokes.map((stroke, si) => (

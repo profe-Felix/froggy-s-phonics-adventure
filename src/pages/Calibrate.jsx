@@ -254,7 +254,7 @@ export default function Calibrate() {
                 <text
                   x={CANVAS_W / 2} y={BASE_LINE}
                   fontSize={letter === letter.toUpperCase() && letter !== letter.toLowerCase() ? 240 : 220}
-                  fontFamily="serif"
+                  fontFamily="Lexend, sans-serif"
                   fill="rgba(0,0,0,0.06)"
                   textAnchor="middle"
                   dominantBaseline="auto"
