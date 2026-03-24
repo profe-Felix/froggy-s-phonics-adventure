@@ -211,11 +211,12 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         onTouchMove={handlePointerMove}
         onTouchEnd={status === 'lift' ? handleLiftDone : handlePointerUp}
       >
-        {/* Faint letter guide — clipped to sit between top (0.10) and bottom (0.72) lines */}
+        {/* Faint letter guide — baseline on 0.72 line, sized to match calibration ratio */}
         <text
           x={CANVAS_W / 2} y={CANVAS_H * 0.72}
           textAnchor="middle"
-          fontSize="175"
+          dominantBaseline="auto"
+          fontSize={CANVAS_H * 0.6}
           fontFamily="Lexend, sans-serif"
           fill={isSuccess ? '#22c55e' : '#94a3b8'}
           opacity={isSuccess ? 0.3 : 0.15}
