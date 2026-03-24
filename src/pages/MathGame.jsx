@@ -161,6 +161,7 @@ export default function MathGame() {
           currentNumber={gameData.current_number}
           freeSpace={gameData.free_space ?? true}
           gameId={gameData.id}
+          tenFrameSeed={gameData.ten_frame_seed ?? 42}
         />
       ) : (
         <div className="text-white text-xl mt-10">Waiting for game to start...</div>
