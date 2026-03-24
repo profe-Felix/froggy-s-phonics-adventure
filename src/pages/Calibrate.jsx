@@ -32,22 +32,22 @@ function buildSvgPath(stroke) {
 function exportWaypoints(letter, strokes) {
   // Export as array of arrays of {x,y} normalized 0-1
   const result = strokes.map(stroke => {
-    const pts = [stroke.start];
+    const pts = [stroke.start]; // canvas coords during computation
     for (const seg of stroke.segments) {
       if (seg.type === 'L') {
         pts.push(seg.p);
       } else {
-        // Approximate arc with several points
+        // Use last canvas-coord point as bezier start
         const prev = pts[pts.length - 1];
         for (let t = 0.2; t <= 1.01; t += 0.2) {
           const x = (1 - t) * (1 - t) * prev.x + 2 * (1 - t) * t * seg.cp.x + t * t * seg.p.x;
           const y = (1 - t) * (1 - t) * prev.y + 2 * (1 - t) * t * seg.cp.y + t * t * seg.p.y;
-          pts.push({ x: +(x / CANVAS_W).toFixed(4), y: +(y / CANVAS_H).toFixed(4) });
+          pts.push({ x, y }); // still canvas coords
         }
       }
     }
-    // Normalize start too
-    return pts.map((p, i) => i === 0 ? { x: +(p.x / CANVAS_W).toFixed(4), y: +(p.y / CANVAS_H).toFixed(4) } : p);
+    // Normalize all points at the end
+    return pts.map(p => ({ x: +(p.x / CANVAS_W).toFixed(4), y: +(p.y / CANVAS_H).toFixed(4) }));
   });
   const json = JSON.stringify({ [letter]: { strokes: result, hint: '' } }, null, 2);
   navigator.clipboard.writeText(json);
