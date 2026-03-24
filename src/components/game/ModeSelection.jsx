@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
-import { Lock, Star, Trophy } from 'lucide-react';
+import { Lock, Star, Trophy, Users } from 'lucide-react';
+import LiteracyPeerLobby from './LiteracyPeerLobby';
 import PetAvatar from './avatar/PetAvatar';
 import PetCollection from './avatar/PetCollection';
 import MysteryBoxReveal from './avatar/MysteryBoxReveal';
@@ -56,6 +57,7 @@ const MODES = [
 export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet }) {
   const modeProgress = studentData?.mode_progress || {};
   const [collectionOpen, setCollectionOpen] = useState(false);
+  const [peerPlayActive, setPeerPlayActive] = useState(false);
   const activePetId = studentData?.active_pet || 'pet_frog';
   const unlockedPets = studentData?.unlocked_pets || ['pet_frog'];
   const pendingUnlocks = studentData?.pending_pet_unlocks || 0;
@@ -70,6 +72,18 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
     
     return { unlocked, mastered, learning, total: mastered + learning };
   };
+
+  if (peerPlayActive) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
+        <LiteracyPeerLobby
+          className={studentData.class_name}
+          studentNumber={studentData.student_number}
+          onBack={() => setPeerPlayActive(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
@@ -138,13 +152,24 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
                     </div>
                   )}
                   
-                  <Button
-                    onClick={() => stats.unlocked && onSelectMode(mode.id)}
-                    disabled={!stats.unlocked}
-                    className={`w-full ${stats.unlocked ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-300'} text-white py-6 text-lg`}
-                  >
-                    {stats.unlocked ? 'Play' : 'Locked'}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => stats.unlocked && onSelectMode(mode.id)}
+                      disabled={!stats.unlocked}
+                      className={`w-full ${stats.unlocked ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-300'} text-white py-6 text-lg`}
+                    >
+                      {stats.unlocked ? 'Play' : 'Locked'}
+                    </Button>
+                    {stats.unlocked && (mode.id === 'spelling' || mode.id === 'sight_words_spelling') && (
+                      <Button
+                        onClick={() => setPeerPlayActive(true)}
+                        variant="outline"
+                        className="w-full border-2 border-purple-400 text-purple-600 hover:bg-purple-50 py-5 font-bold"
+                      >
+                        <Users className="w-4 h-4 mr-2" /> Play with Friend
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );
