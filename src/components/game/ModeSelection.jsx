@@ -20,7 +20,8 @@ const MODES = [
     title: 'Letter Tracing',
     description: 'Trace letters the right way',
     icon: '✏️',
-    color: 'from-violet-400 to-violet-600'
+    color: 'from-violet-400 to-violet-600',
+    adminOnly: true
   },
   {
     id: 'sight_words_easy',
@@ -105,7 +106,7 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {MODES.map((mode) => {
+          {MODES.filter(mode => !mode.adminOnly).map((mode) => {
             const stats = getModeStats(mode.id);
             
             return (
