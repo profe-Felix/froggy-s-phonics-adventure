@@ -8,6 +8,7 @@ import SightWordsEasyMode from '../components/game/modes/SightWordsEasyMode';
 import SightWordsSpellingMode from '../components/game/modes/SightWordsSpellingMode';
 import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
+import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
@@ -302,6 +303,12 @@ export default function LetterGame() {
       )}
       {currentMode === 'case_matching' && (
         <CaseMatchingMode
+          studentData={studentData}
+          onUpdateProgress={handleUpdateProgress}
+        />
+      )}
+      {currentMode === 'letter_tracing' && (
+        <LetterTracingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
         />

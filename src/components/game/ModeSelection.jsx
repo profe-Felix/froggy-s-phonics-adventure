@@ -16,6 +16,13 @@ const MODES = [
     color: 'from-blue-400 to-blue-600'
   },
   {
+    id: 'letter_tracing',
+    title: 'Letter Tracing',
+    description: 'Trace letters the right way',
+    icon: '✏️',
+    color: 'from-violet-400 to-violet-600'
+  },
+  {
     id: 'sight_words_easy',
     title: 'Sight Words',
     description: 'Catch the word you hear',
