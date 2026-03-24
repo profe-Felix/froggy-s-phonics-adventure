@@ -9,7 +9,7 @@ function seededShuffle(arr, seed) {
   return a;
 }
 
-export default function TenFrame({ value, size = 'md' }) {
+export default function TenFrame({ value, size = 'md', seed = 42 }) {
   if (!value && value !== 0) return null;
 
   const cellSize = size === 'lg' ? 'w-10 h-10' : size === 'sm' ? 'w-5 h-5' : 'w-7 h-7';
@@ -28,7 +28,7 @@ export default function TenFrame({ value, size = 'md' }) {
   // Partial frame — randomize dot positions, seeded by value so it's stable
   if (remainder > 0) {
     const positions = Array.from({ length: 10 }, (_, i) => i);
-    const shuffled = seededShuffle(positions, value * 7919);
+    const shuffled = seededShuffle(positions, seed);
     const dotPositions = new Set(shuffled.slice(0, remainder));
     frames.push(Array.from({ length: 10 }, (_, i) => dotPositions.has(i)));
   }

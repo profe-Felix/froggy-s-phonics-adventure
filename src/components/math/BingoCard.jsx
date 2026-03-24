@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 
 export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber, freeSpace, gameId }) {
   const [covered, setCovered] = useState(new Set());
+  const [tenFrameSeed, setTenFrameSeed] = useState(() => Math.floor(Math.random() * 999999));
   const calledAtRef = useRef(null);
   const lastRecordedRef = useRef(null);
 
@@ -12,6 +13,7 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
     if (currentNumber) {
       calledAtRef.current = Date.now();
       lastRecordedRef.current = null;
+      setTenFrameSeed(Math.floor(Math.random() * 999999));
     }
   }, [currentNumber]);
 
@@ -78,7 +80,7 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
       {/* Calling card — ten frame only */}
       <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-2 min-h-[120px] justify-center">
         {currentNumber ? (
-          <TenFrame value={currentNumber} size="md" />
+          <TenFrame value={currentNumber} size="md" seed={tenFrameSeed} />
         ) : (
           <div className="text-gray-400 text-lg">Waiting for teacher...</div>
         )}
