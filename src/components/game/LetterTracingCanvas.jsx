@@ -2,8 +2,8 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 300;
-const HIT_RADIUS = 20; // pixels to count as hitting a waypoint
-const STRAY_RADIUS = 28; // pixels — restart stroke if user strays this far from path
+const HIT_RADIUS = 16; // pixels to count as hitting a waypoint
+const STRAY_RADIUS = 22; // pixels — restart stroke if user strays this far from path
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
@@ -16,6 +16,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [drawnPaths, setDrawnPaths] = useState([]); // completed stroke paths
   const [currentPath, setCurrentPath] = useState([]);
   const currentPathRef = useRef([]); // always-current ref to avoid stale closure
+  const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
   const svgRef = useRef(null);
@@ -96,20 +97,9 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (dist(pos, nextWp) < HIT_RADIUS) {
       const newWpIdx = waypointIndex + 1;
       if (newWpIdx >= currentStrokes.length) {
-        // Stroke complete!
-        setDrawnPaths(prev => [...prev, currentPathRef.current]);
-        currentPathRef.current = [];
-        setCurrentPath([]);
-        setDrawing(false);
-        const newStrokeIdx = strokeIndex + 1;
-        if (newStrokeIdx >= strokes.length) {
-          setStatus('success');
-          setTimeout(() => onComplete?.(), 800);
-        } else {
-          setStatus('lift');
-          setStrokeIndex(newStrokeIdx);
-          setWaypointIndex(0);
-        }
+        // Last waypoint hit — wait for pointerUp before finalising
+        pendingCompleteRef.current = true;
+        setWaypointIndex(newWpIdx); // advance so dot disappears
       } else {
         setWaypointIndex(newWpIdx);
       }
@@ -120,9 +110,27 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     e.preventDefault();
     if (!drawing) return;
     setDrawing(false);
+
+    if (pendingCompleteRef.current) {
+      pendingCompleteRef.current = false;
+      setDrawnPaths(prev => [...prev, currentPathRef.current]);
+      currentPathRef.current = [];
+      setCurrentPath([]);
+      const newStrokeIdx = strokeIndex + 1;
+      if (newStrokeIdx >= strokes.length) {
+        setStatus('success');
+      } else {
+        setStatus('lift');
+        setStrokeIndex(newStrokeIdx);
+        setWaypointIndex(0);
+      }
+      return;
+    }
+
     if (status === 'tracing' && waypointIndex > 0 && waypointIndex < (strokes[strokeIndex]?.length ?? 0)) {
       // Lifted too early
       flashError();
+      currentPathRef.current = [];
       setCurrentPath([]);
       setWaypointIndex(0);
       setStatus('idle');
@@ -142,6 +150,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setDrawing(false);
     setDrawnPaths([]);
     currentPathRef.current = [];
+    pendingCompleteRef.current = false;
     setCurrentPath([]);
     setStatus('idle');
     setErrorFlash(false);
@@ -167,8 +176,16 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           </div>
         )}
         {status === 'success' && (
-          <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">
-            🎉 Great job!
+          <div className="flex items-center gap-3">
+            <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">
+              🎉 Great job!
+            </div>
+            <button
+              onClick={() => onComplete?.()}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm px-4 py-1 rounded-full"
+            >
+              Next →
+            </button>
           </div>
         )}
         {status === 'idle' && strokeIndex === 0 && waypointIndex === 0 && (
@@ -229,13 +246,13 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
-          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="5"
+          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="8"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         ))}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="5"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="8"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
