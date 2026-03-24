@@ -217,7 +217,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           textAnchor="middle"
           dominantBaseline="auto"
           fontSize={CANVAS_H * 0.6}
-          fontFamily="Lexend, sans-serif"
+          fontFamily="'Edu NSW ACT Foundation', sans-serif"
           fill={isSuccess ? '#22c55e' : '#94a3b8'}
           opacity={isSuccess ? 0.3 : 0.15}
         >

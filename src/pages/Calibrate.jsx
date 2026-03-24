@@ -255,7 +255,7 @@ export default function Calibrate() {
                 <text
                   x={CANVAS_W / 2} y={BASE_LINE}
                   fontSize={letter === letter.toUpperCase() && letter !== letter.toLowerCase() ? 320 : 300}
-                  fontFamily="Lexend, sans-serif"
+                  fontFamily="'Edu NSW ACT Foundation', sans-serif"
                   fill="rgba(0,0,0,0.06)"
                   textAnchor="middle"
                   dominantBaseline="auto"
