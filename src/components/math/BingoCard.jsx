@@ -1,32 +1,29 @@
 import { useState } from 'react';
 import TenFrame from './TenFrame';
 
-function seededShuffle(arr, seed) {
-  const a = [...arr];
-  let s = seed;
-  for (let i = a.length - 1; i > 0; i--) {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    const j = Math.abs(s) % (i + 1);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber }) {
   const [covered, setCovered] = useState(new Set());
-  const [showTenFrame, setShowTenFrame] = useState(false);
 
   const allNums = [];
   for (let n = minNumber; n <= maxNumber; n++) allNums.push(n);
 
-  const seed = (studentNumber || 1) + (className || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const shuffled = seededShuffle(allNums, seed);
+  // Unique shuffle per student using a unique seed
+  function uniqueShuffle(arr, seed) {
+    const a = [...arr];
+    let s = seed;
+    for (let i = a.length - 1; i > 0; i--) {
+      s = ((s ^ (s << 13)) ^ (s >> 7) ^ (s << 17)) >>> 0;
+      const j = s % (i + 1);
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
 
-  // Fill a 4-col grid: use all available numbers, pad with FREE if needed
-  const cols = 4;
-  const rows = Math.ceil(shuffled.length / cols);
-  const cells = [...shuffled];
-  while (cells.length < cols * rows) cells.push('FREE');
+  // Use student number + class + a large prime to ensure uniqueness
+  const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
+  const seed = ((studentNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
+  const shuffled = uniqueShuffle(allNums, seed);
+  const cells = shuffled.slice(0, 9); // 3x3 = 9 cells
 
   const toggleCover = (idx) => {
     setCovered(prev => {
@@ -37,48 +34,36 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
   };
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
-      {/* Current number display */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 flex flex-col items-center gap-2 cursor-pointer"
-        onClick={() => setShowTenFrame(v => !v)}>
+    <div className="flex flex-col items-center gap-6 w-full">
+      {/* Current number - ten frame only, no digit */}
+      <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-2 min-h-[120px] justify-center">
         {currentNumber ? (
-          <>
-            <div className="text-5xl font-bold text-indigo-700">{currentNumber}</div>
-            {showTenFrame && <TenFrame value={currentNumber} size="md" />}
-            <div className="text-xs text-gray-400">tap to {showTenFrame ? 'hide' : 'show'} ten frame</div>
-          </>
+          <TenFrame value={currentNumber} size="md" />
         ) : (
           <div className="text-gray-400 text-lg">Waiting for teacher...</div>
         )}
       </div>
 
-      {/* Bingo card grid */}
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-      >
+      {/* 3x3 Bingo card */}
+      <div className="grid grid-cols-3 gap-2">
         {cells.map((num, idx) => {
-          const isCalled = num !== 'FREE' && calledNumbers?.includes(num);
           const isCovered = covered.has(idx);
           return (
             <button
               key={idx}
               onClick={() => toggleCover(idx)}
-              className="relative w-16 h-16 sm:w-20 sm:h-20 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-xl sm:text-2xl text-gray-800 shadow select-none"
+              className="relative w-20 h-20 sm:w-24 sm:h-24 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-2xl sm:text-3xl text-gray-800 shadow select-none"
             >
-              {num === 'FREE' ? <span className="text-xs font-bold text-green-600">FREE</span> : num}
+              {num}
               {isCovered && (
                 <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />
-              )}
-              {isCalled && !isCovered && (
-                <div className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-green-500" />
               )}
             </button>
           );
         })}
       </div>
 
-      <div className="text-xs text-gray-500">Tap a square to place/remove a counter</div>
+      <div className="text-xs text-white/70">Tap a square to place/remove a counter</div>
     </div>
   );
 }
