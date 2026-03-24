@@ -10,6 +10,7 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
   const localStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const voiceRecordRef = useRef(null);
+  const isPlayer1 = playerNumber < opponentNumber;
 
   useEffect(() => {
     const initializeVoice = async () => {
@@ -34,15 +35,22 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
           remoteAudio.play();
         };
 
+        // Monitor connection state
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === 'connected') {
+            setConnected(true);
+          }
+        };
+
         // Handle ICE candidates
-        const candidates = [];
+        const localCandidates = [];
         pc.onicecandidate = async (event) => {
           if (event.candidate) {
-            candidates.push(JSON.stringify(event.candidate));
+            localCandidates.push(JSON.stringify(event.candidate));
             // Update voice record with new candidates
             if (voiceRecordRef.current) {
               await base44.entities.PeerGameVoice.update(voiceRecordRef.current.id, {
-                ice_candidates: candidates
+                ice_candidates: localCandidates
               });
             }
           }
@@ -56,16 +64,25 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
 
         let voiceRecord;
         if (existing.length === 0) {
-          // Create offer (player initiating)
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
+          // Player 1 creates offer, Player 2 creates answer
+          if (isPlayer1) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
 
-          voiceRecord = await base44.entities.PeerGameVoice.create({
-            game_id: gameId,
-            player_number: playerNumber,
-            webrtc_offer: JSON.stringify(offer),
-            ice_candidates: []
-          });
+            voiceRecord = await base44.entities.PeerGameVoice.create({
+              game_id: gameId,
+              player_number: playerNumber,
+              webrtc_offer: JSON.stringify(offer),
+              ice_candidates: []
+            });
+          } else {
+            // Player 2 waits for player 1's offer
+            voiceRecord = await base44.entities.PeerGameVoice.create({
+              game_id: gameId,
+              player_number: playerNumber,
+              ice_candidates: []
+            });
+          }
         } else {
           voiceRecord = existing[0];
         }
@@ -74,21 +91,14 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
 
         // Subscribe to opponent's updates
         const unsub = base44.entities.PeerGameVoice.subscribe((event) => {
-          const data = event.data;
-          if (data.game_id === gameId && data.player_number === opponentNumber) {
-            handleOpponentUpdate(data, pc, candidates);
+          if (event.data.game_id === gameId && event.data.player_number === opponentNumber) {
+            handleOpponentUpdate(event.data, pc, localCandidates, isPlayer1);
           }
         });
 
-        // Check if opponent already has answer
-        if (voiceRecord.webrtc_answer) {
-          const answer = JSON.parse(voiceRecord.webrtc_answer);
-          pc.setRemoteDescription(new RTCSessionDescription(answer));
-        }
-
         return () => unsub();
       } catch (err) {
-        setError('Microphone access denied or WebRTC error');
+        setError('Microphone access denied');
         console.error(err);
       }
     };
@@ -103,11 +113,18 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
         peerConnectionRef.current.close();
       }
     };
-  }, [gameId, playerNumber, opponentNumber]);
+  }, [gameId, playerNumber, opponentNumber, isPlayer1]);
 
-  const handleOpponentUpdate = async (opponentData, pc, myCandidates) => {
+  const handleOpponentUpdate = async (opponentData, pc, localCandidates, isCaller) => {
     try {
-      if (!pc.currentRemoteDescription && opponentData.webrtc_offer) {
+      // Player 1: receive answer
+      if (isCaller && !pc.currentRemoteDescription && opponentData.webrtc_answer) {
+        const answer = JSON.parse(opponentData.webrtc_answer);
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+
+      // Player 2: receive offer and send answer
+      if (!isCaller && !pc.currentRemoteDescription && opponentData.webrtc_offer) {
         const offer = JSON.parse(opponentData.webrtc_offer);
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
@@ -123,17 +140,15 @@ export default function VoiceChat({ gameId, playerNumber, opponentNumber }) {
       // Add opponent's ICE candidates
       if (opponentData.ice_candidates) {
         for (const candidateStr of opponentData.ice_candidates) {
-          const candidate = JSON.parse(candidateStr);
           try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            const candidate = JSON.parse(candidateStr);
+            if (pc.currentRemoteDescription) {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
           } catch (e) {
-            console.log('ICE candidate error:', e);
+            // Ignore duplicate candidates
           }
         }
-      }
-
-      if (pc.connectionState === 'connected') {
-        setConnected(true);
       }
     } catch (err) {
       console.error('Error handling opponent update:', err);
