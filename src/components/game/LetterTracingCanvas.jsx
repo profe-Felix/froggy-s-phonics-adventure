@@ -249,13 +249,13 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
-          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="12"
+          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="18"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         ))}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="18"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
