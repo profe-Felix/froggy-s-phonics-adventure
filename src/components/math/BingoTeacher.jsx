@@ -28,6 +28,7 @@ export default function BingoTeacher({ game, className, onUpdate }) {
     const updated = await base44.entities.MathBingoGame.update(game.id, {
       current_number: pick,
       called_numbers: [...calledNumbers, pick],
+      ten_frame_seed: Math.floor(Math.random() * 999999),
       is_active: true,
     });
     onUpdate(updated);

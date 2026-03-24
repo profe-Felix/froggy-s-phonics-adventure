@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import TenFrame from './TenFrame';
 import { base44 } from '@/api/base44Client';
 
-export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber, freeSpace, gameId }) {
+export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber, freeSpace, gameId, tenFrameSeed }) {
   const [covered, setCovered] = useState(new Set());
-  const [tenFrameSeed, setTenFrameSeed] = useState(() => Math.floor(Math.random() * 999999));
   const calledAtRef = useRef(null);
   const lastRecordedRef = useRef(null);
 
@@ -13,7 +12,6 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
     if (currentNumber) {
       calledAtRef.current = Date.now();
       lastRecordedRef.current = null;
-      setTenFrameSeed(Math.floor(Math.random() * 999999));
     }
   }, [currentNumber]);
 
