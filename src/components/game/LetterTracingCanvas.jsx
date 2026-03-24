@@ -3,7 +3,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 16; // pixels to count as hitting a waypoint
-const STRAY_RADIUS = 22; // pixels — restart stroke if user strays this far from path
+const STRAY_RADIUS = 35; // pixels — restart stroke if user strays this far from path
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
