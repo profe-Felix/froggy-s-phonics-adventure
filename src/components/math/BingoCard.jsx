@@ -7,6 +7,13 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
   const calledAtRef = useRef(null);
   const lastRecordedRef = useRef(null);
 
+  // Reset covered tiles when game resets (calledNumbers cleared)
+  useEffect(() => {
+    if (calledNumbers.length === 0) {
+      setCovered(new Set());
+    }
+  }, [calledNumbers.length]);
+
   // Track when a new number is called
   useEffect(() => {
     if (currentNumber) {
@@ -33,7 +40,6 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
   const seed = ((studentNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
   const shuffled = uniqueShuffle(allNums, seed);
 
-  // Build 9 cells: if freeSpace, use 8 numbers with FREE in center (index 4)
   let cells;
   if (freeSpace) {
     const eight = shuffled.slice(0, 8);
@@ -43,21 +49,17 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
   }
 
   const handleTileClick = async (num, idx) => {
-    // Toggle counter
     setCovered(prev => {
       const next = new Set(prev);
       next.has(idx) ? next.delete(idx) : next.add(idx);
       return next;
     });
 
-    // Record response data
     if (!currentNumber || !gameId) return;
     const isFree = num === 'FREE';
-    // Only record on placement (not removal), and only once per called number
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
     const isCorrect = !isFree && num === currentNumber;
 
-    // Avoid duplicate records for same called number
     if (lastRecordedRef.current === currentNumber && !isFree) return;
     lastRecordedRef.current = currentNumber;
 
@@ -75,7 +77,6 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
 
   return (
     <div className="flex flex-col items-center gap-6 w-full">
-      {/* Calling card — ten frame only */}
       <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-2 min-h-[120px] justify-center">
         {currentNumber ? (
           <TenFrame value={currentNumber} size="md" seed={tenFrameSeed} />
@@ -84,7 +85,6 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
         )}
       </div>
 
-      {/* 3x3 Bingo card */}
       <div className="grid grid-cols-3 gap-2">
         {cells.map((num, idx) => {
           const isCovered = covered.has(idx);

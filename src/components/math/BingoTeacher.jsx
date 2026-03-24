@@ -63,7 +63,7 @@ export default function BingoTeacher({ game, className, onUpdate }) {
         {currentNumber ? (
           <>
             <div className="text-6xl font-black text-indigo-700">{currentNumber}</div>
-            <TenFrame value={currentNumber} size="lg" />
+            <TenFrame value={currentNumber} size="lg" seed={game?.ten_frame_seed ?? 42} />
           </>
         ) : (
           <div className="text-gray-400 text-xl py-4">No number called yet</div>
