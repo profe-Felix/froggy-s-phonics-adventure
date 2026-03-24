@@ -66,22 +66,23 @@ export default function Calibrate() {
   const [exported, setExported] = useState('');
   const svgRef = useRef();
 
+  const suppressNextClick = useRef(false);
+
   const getSvgPt = useCallback((e) => {
-    const rect = svgRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: Math.round((clientX - rect.left) * (CANVAS_W / rect.width)),
-      y: Math.round((clientY - rect.top) * (CANVAS_H / rect.height))
-    };
+    const pt = svgRef.current.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const svgPt = pt.matrixTransform(svgRef.current.getScreenCTM().inverse());
+    return { x: Math.round(svgPt.x), y: Math.round(svgPt.y) };
   }, []);
 
   const handleCanvasClick = useCallback((e) => {
-    if (dragging) return;
+    if (suppressNextClick.current) { suppressNextClick.current = false; return; }
     const pt = getSvgPt(e);
 
     if (!activeStroke) {
-      // Start new stroke
       setActiveStroke({ start: pt, segments: [] });
       return;
     }
@@ -93,11 +94,10 @@ export default function Calibrate() {
     if (tool === 'line') {
       setActiveStroke(s => ({ ...s, segments: [...s.segments, { type: 'L', p: pt }] }));
     } else {
-      // Arc: place control point midway, endpoint at click
       const cp = { x: Math.round((prevPt.x + pt.x) / 2), y: Math.round((prevPt.y + pt.y) / 2) - 30 };
       setActiveStroke(s => ({ ...s, segments: [...s.segments, { type: 'Q', cp, p: pt }] }));
     }
-  }, [activeStroke, tool, dragging, getSvgPt]);
+  }, [activeStroke, tool, getSvgPt]);
 
   const commitStroke = () => {
     if (!activeStroke || activeStroke.segments.length === 0) return;
@@ -123,6 +123,7 @@ export default function Calibrate() {
   // --- Dragging logic ---
   const onMouseDown = useCallback((e, info) => {
     e.stopPropagation();
+    suppressNextClick.current = true;
     setDragging(info);
   }, []);
 
