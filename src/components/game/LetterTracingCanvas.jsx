@@ -211,18 +211,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         onTouchMove={handlePointerMove}
         onTouchEnd={status === 'lift' ? handleLiftDone : handlePointerUp}
       >
-        {/* Faint letter guide — baseline on 0.72 line, sized to match calibration ratio */}
-        <text
-          x={CANVAS_W / 2} y={CANVAS_H * 0.72}
-          textAnchor="middle"
-          dominantBaseline="auto"
-          fontSize={CANVAS_H * 0.6}
-          fontFamily="'Edu NSW ACT Foundation', sans-serif"
-          fill={isSuccess ? '#22c55e' : '#94a3b8'}
-          opacity={isSuccess ? 0.3 : 0.15}
-        >
-          {letter}
-        </text>
+        {/* Guide letter removed until suitable font is found */}
 
         {/* Primary writing lines */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H}
