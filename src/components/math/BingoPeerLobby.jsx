@@ -23,12 +23,19 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
 
   const gameToShow = activeGame || myGame;
   if (gameToShow) {
+    const handleBack = async () => {
+      // If we created a waiting game, delete it so we can join another
+      if (gameToShow.status === 'waiting' && gameToShow.player1_number === studentNumber) {
+        await base44.entities.MathBingoPeerGame.delete(gameToShow.id);
+      }
+      setActiveGame(null);
+    };
     return (
       <BingoPeerCard
         initialGame={gameToShow}
         playerNumber={studentNumber}
         className={className}
-        onBack={() => setActiveGame(null)}
+        onBack={handleBack}
       />
     );
   }
