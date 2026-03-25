@@ -57,15 +57,18 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
     return unsubscribe;
   }, [game.id]);
 
+  const playAudio = (item) => {
+    const path = mode === 'sight_words_spelling'
+      ? `/sight-word-audio/${encodeURIComponent(item)}.mp3`
+      : `/spelling-words/${encodeURIComponent(item)}.mp3`;
+    const audio = new Audio(path);
+    audio.play().catch(() => {});
+  };
+
   // Play audio when current_item changes
   useEffect(() => {
     if (game.current_item && game.status === 'active') {
-      const folder = mode === 'sight_words_spelling' ? 'sight-words' : 'spelling-words';
-      const src = `/audio/${folder}/${game.current_item.toLowerCase()}.mp3`;
-      if (audioRef.current) {
-        audioRef.current.src = src;
-        audioRef.current.play().catch(() => {});
-      }
+      playAudio(game.current_item);
     }
   }, [game.current_item, game.status]);
 
@@ -171,14 +174,16 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
         </div>
       </div>
 
-      {/* Audio playback */}
-      <audio ref={audioRef} />
+      {/* Audio button - no word shown */}
       <div className="bg-white rounded-2xl shadow-lg p-6 w-full text-center">
-        <div className="text-white/60 text-sm mb-2">Listen and spell the word:</div>
+        <div className="text-gray-500 text-sm mb-3">Listen and spell the word:</div>
         <button
-          onClick={() => audioRef.current?.play()}
-          className="text-5xl hover:scale-110 transition-transform"
-        >🔊</button>
+          onClick={() => game.current_item && playAudio(game.current_item)}
+          className="w-20 h-20 rounded-full bg-indigo-100 hover:bg-indigo-200 active:scale-95 transition flex items-center justify-center text-5xl shadow mx-auto"
+        >
+          🔊
+        </button>
+        <div className="text-xs text-gray-400 mt-2">Tap to hear again</div>
       </div>
 
       {/* Input + Submit */}
