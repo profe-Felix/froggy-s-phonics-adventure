@@ -1,35 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { LETTER_SOUNDS } from '@/components/data/letterSounds';
-import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
+import { buildCard, getCardUnion } from './literacyBingoUtils';
 
-function getItemList(mode) {
-  if (mode === 'letter_sounds') return LETTER_SOUNDS;
-  if (mode === 'sight_words_easy') return SIGHT_WORDS_EASY;
-  return [];
-}
-
-function buildCard(playerNumber, className, mode) {
-  const items = getItemList(mode);
-
-  function shuffle(arr, seed) {
-    const a = [...arr];
-    let s = seed;
-    for (let i = a.length - 1; i > 0; i--) {
-      s = ((s ^ (s << 13)) ^ (s >> 7) ^ (s << 17)) >>> 0;
-      const j = s % (i + 1);
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
-  const seed = ((playerNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
-  const shuffled = shuffle(items, seed);
-  const count = mode === 'letter_sounds' ? 16 : 9;
-  return shuffled.slice(0, count);
-}
 
 
 
@@ -82,10 +55,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   const cells = buildCard(playerNumber, className, game.mode);
 
   const advanceItem = async (currentGame) => {
-    // Only call items that are actually on one of the two players' cards
-    const card1 = buildCard(currentGame.player1_number, currentGame.class_name, currentGame.mode);
-    const card2 = buildCard(currentGame.player2_number, currentGame.class_name, currentGame.mode);
-    const cardUnion = [...new Set([...card1, ...card2])];
+    const cardUnion = getCardUnion(currentGame.player1_number, currentGame.player2_number, currentGame.class_name, currentGame.mode);
     const remaining = cardUnion.filter(i => !(currentGame.called_items || []).includes(i));
     const pick = remaining[Math.floor(Math.random() * remaining.length)];
     await base44.entities.LiteracyBingoGame.update(currentGame.id, {

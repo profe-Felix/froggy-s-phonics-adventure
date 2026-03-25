@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 import LiteracyBingoPeerCard from './LiteracyBingoPeerCard';
+import { getCardUnion } from './literacyBingoUtils';
 
 const BINGO_MODES = [
   { id: 'letter_sounds', label: '🔤 Letter Sounds Bingo', description: 'Find the letter you hear' },
@@ -83,11 +84,9 @@ export default function LiteracyBingoLobby({ className, studentNumber, initialMo
       player2_number: studentNumber,
       status: 'active',
     });
-    // Kick off first item
-    const items = openGame.mode === 'letter_sounds'
-      ? (await import('@/components/data/letterSounds')).LETTER_SOUNDS
-      : (await import('@/components/data/sightWords')).SIGHT_WORDS_EASY;
-    const pick = items[Math.floor(Math.random() * items.length)];
+    // Pick first item only from the union of both players' cards
+    const cardUnion = getCardUnion(openGame.player1_number, studentNumber, openGame.class_name, openGame.mode);
+    const pick = cardUnion[Math.floor(Math.random() * cardUnion.length)];
     const started = await base44.entities.LiteracyBingoGame.update(updated.id, {
       current_item: pick,
       called_items: [pick],
