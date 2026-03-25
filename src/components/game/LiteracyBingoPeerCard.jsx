@@ -82,14 +82,11 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   const cells = buildCard(playerNumber, className, game.mode);
 
   const advanceItem = async (currentGame) => {
-    const items = getItemList(currentGame.mode);
-    const remaining = items.filter(i => !(currentGame.called_items || []).includes(i));
-    if (remaining.length === 0) {
-      await base44.entities.LiteracyBingoGame.update(currentGame.id, {
-        status: 'finished', player1_ready: false, player2_ready: false,
-      });
-      return;
-    }
+    // Only call items that are actually on one of the two players' cards
+    const card1 = buildCard(currentGame.player1_number, currentGame.class_name, currentGame.mode);
+    const card2 = buildCard(currentGame.player2_number, currentGame.class_name, currentGame.mode);
+    const cardUnion = [...new Set([...card1, ...card2])];
+    const remaining = cardUnion.filter(i => !(currentGame.called_items || []).includes(i));
     const pick = remaining[Math.floor(Math.random() * remaining.length)];
     await base44.entities.LiteracyBingoGame.update(currentGame.id, {
       current_item: pick,
