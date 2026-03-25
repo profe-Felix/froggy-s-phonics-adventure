@@ -27,8 +27,8 @@ function buildCard(playerNumber, className, mode) {
   const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
   const seed = ((playerNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
   const shuffled = shuffle(items, seed);
-  // 3x3 = 9 cells
-  return shuffled.slice(0, 9);
+  const count = mode === 'letter_sounds' ? 16 : 9;
+  return shuffled.slice(0, count);
 }
 
 
@@ -201,15 +201,15 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         )}
       </div>
 
-      {/* Bingo card 3x3 */}
-      <div className="grid grid-cols-3 gap-2 w-full">
+      {/* Bingo card */}
+      <div className={`grid gap-2 w-full ${isSightWords ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
-              className="relative h-24 border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-2"
+              className={`relative border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-2 ${isSightWords ? 'h-24' : 'h-16'}`}
             >
               <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-xl font-bold' : 'text-3xl uppercase font-bold'}`}>{item}</span>
               {isCovered && <div className="absolute inset-1 rounded-lg bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
