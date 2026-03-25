@@ -161,8 +161,10 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
 
 
 
+  const isSightWords = game.mode === 'sight_words_easy';
+
   return (
-    <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
+    <div className="flex flex-col items-center gap-4 py-4 px-2 w-full">
       {/* Players */}
       <div className="flex gap-3 text-sm w-full justify-center">
         <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
@@ -200,17 +202,17 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       </div>
 
       {/* Bingo card 4x4 */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-4 gap-2 w-full">
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
-              className="relative w-16 h-16 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none"
+              className="relative aspect-square border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none p-1"
             >
-              <span className="text-sm text-center leading-tight px-1 uppercase">{item}</span>
-              {isCovered && <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
+              <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-base' : 'text-2xl uppercase'}`}>{item}</span>
+              {isCovered && <div className="absolute inset-1 rounded-lg bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
             </button>
           );
         })}
