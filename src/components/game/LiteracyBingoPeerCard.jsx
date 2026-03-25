@@ -27,8 +27,9 @@ function buildCard(playerNumber, className, mode) {
   const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
   const seed = ((playerNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
   const shuffled = shuffle(items, seed);
-  const eight = shuffled.slice(0, 8);
-  return [...eight.slice(0, 4), 'FREE', ...eight.slice(4)];
+  const fifteen = shuffled.slice(0, 15);
+  // 4x4 = 16 cells, FREE in center (index 7)
+  return [...fifteen.slice(0, 7), 'FREE', ...fifteen.slice(7)];
 }
 
 function playLetterAudio(letter) {
@@ -194,8 +195,8 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         )}
       </div>
 
-      {/* Bingo card 3x3 */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Bingo card 4x4 */}
+      <div className="grid grid-cols-4 gap-1.5">
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
           const isFree = item === 'FREE';
@@ -203,11 +204,11 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
-              className="relative w-20 h-20 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none"
+              className="relative w-16 h-16 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none"
             >
               {isFree
                 ? <span className="text-xs font-bold text-green-600">FREE</span>
-                : <span className={isLetterSounds ? 'text-3xl uppercase' : 'text-sm text-center leading-tight px-1'}>{item}</span>
+                : <span className={isLetterSounds ? 'text-2xl uppercase' : 'text-xs text-center leading-tight px-1'}>{item}</span>
               }
               {isCovered && <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
               {isFree && !isCovered && <div className="absolute inset-0 rounded-md bg-green-100/60 pointer-events-none" />}
