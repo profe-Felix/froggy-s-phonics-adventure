@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
 import { Lock, Star, Trophy, Users } from 'lucide-react';
 import LiteracyPeerLobby from './LiteracyPeerLobby';
+import LiteracyBingoLobby from './LiteracyBingoLobby';
 import PetAvatar from './avatar/PetAvatar';
 import PetCollection from './avatar/PetCollection';
 import MysteryBoxReveal from './avatar/MysteryBoxReveal';
@@ -58,6 +59,7 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
   const modeProgress = studentData?.mode_progress || {};
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [peerPlayActive, setPeerPlayActive] = useState(false);
+  const [bingoActive, setBingoActive] = useState(false);
   const activePetId = studentData?.active_pet || 'pet_frog';
   const unlockedPets = studentData?.unlocked_pets || ['pet_frog'];
   const pendingUnlocks = studentData?.pending_pet_unlocks || 0;
@@ -80,6 +82,18 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
           className={studentData.class_name}
           studentNumber={studentData.student_number}
           onBack={() => setPeerPlayActive(false)}
+        />
+      </div>
+    );
+  }
+
+  if (bingoActive) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-indigo-400 via-indigo-300 to-purple-200 p-8">
+        <LiteracyBingoLobby
+          className={studentData.class_name}
+          studentNumber={studentData.student_number}
+          onBack={() => setBingoActive(false)}
         />
       </div>
     );
@@ -167,6 +181,15 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
                         className="w-full border-2 border-purple-400 text-purple-600 hover:bg-purple-50 py-5 font-bold"
                       >
                         <Users className="w-4 h-4 mr-2" /> Play with Friend
+                      </Button>
+                    )}
+                    {stats.unlocked && (mode.id === 'letter_sounds' || mode.id === 'sight_words_easy') && (
+                      <Button
+                        onClick={() => setBingoActive(true)}
+                        variant="outline"
+                        className="w-full border-2 border-indigo-400 text-indigo-600 hover:bg-indigo-50 py-5 font-bold"
+                      >
+                        🎱 Bingo with Friend
                       </Button>
                     )}
                   </div>
