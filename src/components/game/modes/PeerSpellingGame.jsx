@@ -25,8 +25,9 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
   const [rolled, setRolled] = useState(false);
   const [diceValue, setDiceValue] = useState(null);
   const [userInput, setUserInput] = useState('');
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(null); // 'correct' | 'incorrect'
   const [rolling, setRolling] = useState(false);
+  const [gotCorrect, setGotCorrect] = useState(false);
   const audioRef = useRef(null);
 
   const isPlayer1 = playerNumber === game.player1_number;
@@ -52,6 +53,7 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
         setUserInput('');
         setDiceValue(null);
         setFeedback(null);
+        setGotCorrect(false);
       }
     });
     return unsubscribe;
@@ -81,17 +83,18 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
   }, [game.status, game.current_item, mode, game.id]);
 
   const checkAnswer = async () => {
+    if (submitted) return;
     const correct = userInput.toLowerCase().trim() === game.current_item.toLowerCase();
     setFeedback(correct ? 'correct' : 'incorrect');
     setSubmitted(true);
+    setGotCorrect(correct);
     if (correct) {
-      // Mark as ready so can roll
-      const updated = await base44.entities.LiteracyPeerGame.update(game.id, { [myReadyField]: true });
-      if (updated[otherReadyField]) {
-        // Both answered, reset ready states
-        await base44.entities.LiteracyPeerGame.update(updated.id, { player1_ready: false, player2_ready: false });
-      }
+      await base44.entities.LiteracyPeerGame.update(game.id, { [myReadyField]: true });
     }
+  };
+
+  const markReadyAfterWrong = async () => {
+    await base44.entities.LiteracyPeerGame.update(game.id, { [myReadyField]: true });
   };
 
   const rollDice = async () => {
@@ -187,7 +190,7 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
       </div>
 
       {/* Input + Submit */}
-      {!myReady && (
+      {!myReady && !submitted && (
         <div className="w-full flex flex-col gap-3">
           <input
             type="text"
@@ -196,14 +199,38 @@ export default function PeerSpellingGame({ initialGame, playerNumber, className,
             placeholder="Type the word..."
             onKeyDown={e => e.key === 'Enter' && checkAnswer()}
             className="w-full px-4 py-3 rounded-lg text-center text-lg font-bold border-2 border-white/30 focus:outline-none focus:border-white"
+            autoFocus
           />
           <Button
             onClick={checkAnswer}
-            disabled={submitted}
             className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-lg py-3 h-auto w-full"
           >
-            {submitted ? (feedback === 'correct' ? '✅ Correct! Ready to roll?' : '❌ Try again') : 'Submit'}
+            Submit
           </Button>
+        </div>
+      )}
+
+      {/* Incorrect feedback */}
+      {!myReady && submitted && feedback === 'incorrect' && (
+        <div className="w-full flex flex-col gap-3 items-center">
+          <div className="bg-red-100 rounded-2xl p-4 w-full text-center">
+            <div className="text-red-500 font-bold text-lg mb-1">❌ Not quite!</div>
+            <div className="text-gray-500 text-sm">The word was:</div>
+            <div className="text-2xl font-black text-gray-800 mt-1">{game.current_item}</div>
+          </div>
+          <Button
+            onClick={markReadyAfterWrong}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-lg py-3 h-auto w-full"
+          >
+            Ready for next →
+          </Button>
+        </div>
+      )}
+
+      {/* Correct feedback - waiting to roll */}
+      {!myReady && submitted && feedback === 'correct' && (
+        <div className="bg-green-100 rounded-2xl p-4 w-full text-center">
+          <div className="text-green-600 font-bold text-lg">✅ Correct! Waiting for other player...</div>
         </div>
       )}
 
