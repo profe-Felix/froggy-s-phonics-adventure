@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { LETTER_SOUNDS } from '@/components/data/letterSounds';
@@ -27,22 +27,34 @@ function buildCard(playerNumber, className, mode) {
   const classSeed = (className || '').split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 7), 0);
   const seed = ((playerNumber || 1) * 999983 + classSeed * 31337 + 1234567) >>> 0;
   const shuffled = shuffle(items, seed);
-  const fifteen = shuffled.slice(0, 15);
-  // 4x4 = 16 cells, FREE in center (index 7)
-  return [...fifteen.slice(0, 7), 'FREE', ...fifteen.slice(7)];
+  // 4x4 = 16 cells, no FREE space
+  return shuffled.slice(0, 16);
 }
 
-function playLetterAudio(letter) {
-  try {
-    const audio = new Audio(`/letter-sounds/${letter}.mp3`);
-    audio.play();
-  } catch (e) {}
-}
+
 
 export default function LiteracyBingoPeerCard({ initialGame, playerNumber, className, onBack }) {
   const [game, setGame] = useState(initialGame);
   const [covered, setCovered] = useState(new Set());
   const [respondedItem, setRespondedItem] = useState(null);
+  const audioRef = useRef(null);
+  const audioCache = useRef({});
+
+  const playSound = (item, mode) => {
+    const path = mode === 'letter_sounds'
+      ? `/letter-sounds/${encodeURIComponent(item)}.mp3`
+      : `/sight-word-audio/${encodeURIComponent(item)}.mp3`;
+    if (!audioCache.current[path]) {
+      audioCache.current[path] = new Audio(path);
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    audioRef.current = audioCache.current[path];
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(() => {});
+  };
 
   const isPlayer1 = playerNumber === game.player1_number;
   const myReadyField = isPlayer1 ? 'player1_ready' : 'player2_ready';
@@ -63,9 +75,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   useEffect(() => {
     if (game.current_item) {
       setRespondedItem(null);
-      if (game.mode === 'letter_sounds') {
-        playLetterAudio(game.current_item);
-      }
+      playSound(game.current_item, game.mode);
     }
   }, [game.current_item]);
 
@@ -149,7 +159,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     );
   }
 
-  const isLetterSounds = game.mode === 'letter_sounds';
+
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
@@ -164,23 +174,17 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         </span>
       </div>
 
-      {/* Current item display */}
+      {/* Current item display — speaker only, no text */}
       <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-3 w-full min-h-[100px] justify-center">
         {game.current_item ? (
           <>
-            {isLetterSounds ? (
-              <div className="flex flex-col items-center gap-2">
-                <button
-                  onClick={() => playLetterAudio(game.current_item)}
-                  className="text-7xl font-black text-indigo-700 uppercase leading-none"
-                >
-                  {game.current_item}
-                </button>
-                <div className="text-sm text-gray-400">Tap to hear sound again 🔊</div>
-              </div>
-            ) : (
-              <div className="text-4xl font-black text-indigo-700">{game.current_item}</div>
-            )}
+            <button
+              onClick={() => playSound(game.current_item, game.mode)}
+              className="w-20 h-20 rounded-full bg-indigo-100 hover:bg-indigo-200 active:scale-95 transition flex items-center justify-center text-5xl shadow"
+            >
+              🔊
+            </button>
+            <div className="text-xs text-gray-400">Tap to hear again</div>
             {respondedItem !== game.current_item && !myReady && (
               <button
                 onClick={handleNotOnCard}
@@ -199,19 +203,14 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       <div className="grid grid-cols-4 gap-1.5">
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
-          const isFree = item === 'FREE';
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
               className="relative w-16 h-16 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none"
             >
-              {isFree
-                ? <span className="text-xs font-bold text-green-600">FREE</span>
-                : <span className={isLetterSounds ? 'text-2xl uppercase' : 'text-xs text-center leading-tight px-1'}>{item}</span>
-              }
+              <span className="text-sm text-center leading-tight px-1 uppercase">{item}</span>
               {isCovered && <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
-              {isFree && !isCovered && <div className="absolute inset-0 rounded-md bg-green-100/60 pointer-events-none" />}
             </button>
           );
         })}
