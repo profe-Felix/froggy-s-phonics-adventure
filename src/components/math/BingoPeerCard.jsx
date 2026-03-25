@@ -227,21 +227,13 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         )}
       </div>
 
-      {/* Called numbers */}
-      {(game.called_numbers || []).length > 0 && (
-        <div className="bg-white/20 rounded-xl p-3 w-full">
-          <div className="text-white/70 text-xs mb-1">Called: {(game.called_numbers || []).length}</div>
-          <div className="flex flex-wrap gap-1">
-            {(game.called_numbers || []).map(n => (
-              <span key={n} className={`px-2 py-0.5 rounded-full text-xs font-bold ${n === game.current_number ? 'bg-yellow-400 text-gray-900' : 'bg-white/70 text-gray-700'}`}>
-                {n}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <button onClick={onBack} className="text-white/50 hover:text-white text-sm">← Leave Game</button>
+      <button
+        onClick={async () => {
+          await base44.entities.MathBingoPeerGame.update(game.id, { status: 'finished' });
+          onBack();
+        }}
+        className="text-white/50 hover:text-white text-sm"
+      >← Leave Game</button>
     </div>
   );
 }
