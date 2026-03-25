@@ -202,16 +202,16 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       </div>
 
       {/* Bingo card 4x4 */}
-      <div className="grid grid-cols-4 gap-2 w-full">
+      <div className="grid grid-cols-4 gap-1.5 w-full">
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
-              className="relative aspect-square border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none p-1"
+              className="relative h-14 border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-1"
             >
-              <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-base' : 'text-2xl uppercase'}`}>{item}</span>
+              <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-sm font-semibold' : 'text-xl uppercase font-bold'}`}>{item}</span>
               {isCovered && <div className="absolute inset-1 rounded-lg bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
             </button>
           );
