@@ -87,9 +87,25 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
 
   const handleNotOnCard = async () => {
     if (roundDone || myReady) return;
-    setRoundDone(true);
-    setFeedback(null);
-    await submitReady(0);
+    const itemIsOnCard = cells.includes(game.current_item);
+    if (itemIsOnCard) {
+      // Wrong — it IS on their card
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        setFeedback('reveal');
+        setRoundDone(true);
+        await submitReady(0);
+      } else {
+        setFeedback('not_on_card_wrong');
+      }
+    } else {
+      // Correct — it really isn't on their card → award 10 pts
+      setRoundPoints(10);
+      setFeedback('not_on_card_correct');
+      setRoundDone(true);
+      await submitReady(10);
+    }
   };
 
   const handleTileClick = async (item, idx) => {
@@ -191,14 +207,14 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
             </button>
             <div className="text-xs text-gray-400">Tap to hear again</div>
 
-            {feedback === 'wrong' && (
+            {(feedback === 'wrong' || feedback === 'not_on_card_wrong') && (
               <div className="text-red-500 font-bold text-sm bg-red-50 rounded-lg px-3 py-1">
-                ❌ Try again! ({attempts === 1 ? '5pts' : '1pt'} if correct next)
+                {feedback === 'not_on_card_wrong' ? '🔎 It IS on your card! Look again.' : `❌ Try again! (${attempts === 1 ? '5pts' : '1pt'} if correct next)`}
               </div>
             )}
-            {feedback === 'correct' && (
+            {(feedback === 'correct' || feedback === 'not_on_card_correct') && (
               <div className="text-green-600 font-bold text-sm bg-green-50 rounded-lg px-3 py-1">
-                ✅ Correct! +{roundPoints} pts
+                ✅ {feedback === 'not_on_card_correct' ? 'Correct — not on your card!' : 'Correct!'} +{roundPoints} pts
               </div>
             )}
             {feedback === 'reveal' && (
