@@ -1,20 +1,23 @@
 import { LETTER_SOUNDS } from '@/components/data/letterSounds';
 import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
 
-// Letters that sound the same and should not both appear on one card
+// Letters that should NOT appear together on the same card (same/identical sounds)
 const SOUND_GROUPS = [
-  ['c', 's', 'z'],
-  ['c', 'k', 'q'],
-  ['g', 'j'],
-  ['y', 'll'],
+  new Set(['c', 's', 'z']),
+  new Set(['c', 'k', 'q']),
+  new Set(['g', 'j']),
+  new Set(['y', 'll']),
 ];
 
-function getConflicts(letter) {
-  const conflicts = new Set();
+function conflictsWithSelected(letter, selectedSoFar) {
+  // Returns true if 'letter' shares a sound group with any already-selected letter
   for (const group of SOUND_GROUPS) {
-    if (group.includes(letter)) group.forEach(l => conflicts.add(l));
+    if (!group.has(letter)) continue;
+    for (const sel of selectedSoFar) {
+      if (group.has(sel)) return true;
+    }
   }
-  return conflicts;
+  return false;
 }
 
 export function getItemList(mode) {
@@ -43,14 +46,13 @@ export function buildCard(playerNumber, className, mode) {
 
   if (mode !== 'letter_sounds') return shuffled.slice(0, count);
 
-  // Filter out same-sounding letters
+  // Filter out same-sounding letters — no two letters from the same sound group on one card
   const selected = [];
-  const blocked = new Set();
   for (const item of shuffled) {
     if (selected.length >= count) break;
-    if (blocked.has(item)) continue;
-    selected.push(item);
-    getConflicts(item).forEach(c => blocked.add(c));
+    if (!conflictsWithSelected(item, selected)) {
+      selected.push(item);
+    }
   }
   return selected;
 }
