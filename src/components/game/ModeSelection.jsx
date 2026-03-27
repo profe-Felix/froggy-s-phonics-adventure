@@ -176,9 +176,9 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
                     </Button>
                     {stats.unlocked && (mode.id === 'spelling' || mode.id === 'sight_words_spelling') && (
                       <Button
-                        onClick={() => setPeerPlayActive(true)}
+                        disabled
                         variant="outline"
-                        className="w-full border-2 border-purple-400 text-purple-600 hover:bg-purple-50 py-5 font-bold"
+                        className="w-full border-2 border-gray-300 text-gray-400 py-5 font-bold cursor-not-allowed opacity-50"
                       >
                         <Users className="w-4 h-4 mr-2" /> Play with Friend
                       </Button>
