@@ -161,13 +161,49 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     );
   }
 
+  const playAgain = async () => {
+    const cardUnion = getCardUnion(game.player1_number, game.player2_number, game.class_name, game.mode);
+    const firstItem = cardUnion[Math.floor(Math.random() * cardUnion.length)];
+    await base44.entities.LiteracyBingoGame.update(game.id, {
+      status: 'active',
+      called_items: [firstItem],
+      current_item: firstItem,
+      player1_ready: false,
+      player2_ready: false,
+      player1_points: 0,
+      player2_points: 0,
+    });
+    setCovered(new Set());
+    setMyPoints(0);
+    setRoundDone(false);
+    setAttempts(0);
+    setFeedback(null);
+    setRoundPoints(null);
+  };
+
   if (game.status === 'finished') {
+    const p1Points = isPlayer1 ? myPoints : (game.player1_points || 0);
+    const p2Points = !isPlayer1 ? myPoints : (game.player2_points || 0);
+    const myFinalPoints = isPlayer1 ? p1Points : p2Points;
+    const theirFinalPoints = isPlayer1 ? p2Points : p1Points;
+    const iWon = myFinalPoints > theirFinalPoints;
+    const tied = myFinalPoints === theirFinalPoints;
     return (
-      <div className="flex flex-col items-center gap-6 p-6">
-        <div className="text-6xl">🏆</div>
-        <h2 className="text-2xl font-bold text-white">Game Over!</h2>
-        <div className="text-white font-bold text-2xl">Your score: {myPoints} pts</div>
-        <Button onClick={onBack} className="bg-white text-indigo-700 font-bold">Back to Lobby</Button>
+      <div className="flex flex-col items-center gap-5 p-6">
+        <div className="text-6xl">{iWon ? '🏆' : tied ? '🤝' : '⭐'}</div>
+        <h2 className="text-2xl font-bold text-white">{iWon ? 'You Win!' : tied ? 'It\'s a Tie!' : 'Good Game!'}</h2>
+        <div className="bg-white/20 rounded-2xl p-5 w-full max-w-xs flex flex-col gap-3">
+          <div className={`flex justify-between items-center px-4 py-3 rounded-xl font-bold text-lg ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+            <span>#{game.player1_number}{isPlayer1 ? ' (You)' : ''}</span>
+            <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full">{p1Points} pts</span>
+          </div>
+          <div className={`flex justify-between items-center px-4 py-3 rounded-xl font-bold text-lg ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+            <span>#{game.player2_number}{!isPlayer1 ? ' (You)' : ''}</span>
+            <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full">{p2Points} pts</span>
+          </div>
+        </div>
+        <Button onClick={playAgain} className="bg-green-500 hover:bg-green-600 text-white font-bold text-lg px-8 py-4 h-auto w-full max-w-xs rounded-2xl">🔄 Play Again</Button>
+        <Button onClick={onBack} variant="ghost" className="text-white/70 hover:text-white">← Back to Lobby</Button>
       </div>
     );
   }
