@@ -5,8 +5,8 @@ import { motion } from 'framer-motion';
 import PeerSpellingGame from './modes/PeerSpellingGame';
 
 const LITERACY_MODES = [
-  { id: 'spelling', label: '📝 Spelling', description: 'Build words from letters' },
-  { id: 'sight_words_spelling', label: '👀 Sight Words Spelling', description: 'Spell sight words together' },
+  { id: 'spelling', label: '📝 Spelling', description: 'Build words from letters', disabled: true },
+  { id: 'sight_words_spelling', label: '👀 Sight Words Spelling', description: 'Spell sight words together', disabled: true },
 ];
 
 export default function LiteracyPeerLobby({ className, studentNumber, onBack }) {
@@ -44,11 +44,16 @@ export default function LiteracyPeerLobby({ className, studentNumber, onBack }) 
           {LITERACY_MODES.map(m => (
             <motion.button
               key={m.id}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setModeSelected(m.id)}
-              className="bg-white text-indigo-700 font-bold rounded-2xl shadow-lg p-4 flex flex-col items-start gap-1"
+              whileTap={m.disabled ? {} : { scale: 0.95 }}
+              onClick={() => !m.disabled && setModeSelected(m.id)}
+              disabled={m.disabled}
+              className={`bg-white font-bold rounded-2xl shadow-lg p-4 flex flex-col items-start gap-1 ${
+                m.disabled
+                  ? 'opacity-40 cursor-not-allowed text-gray-400'
+                  : 'text-indigo-700'
+              }`}
             >
-              <div className="text-xl">{m.label}</div>
+              <div className="text-xl">{m.label} {m.disabled && <span className="text-xs font-normal">(coming soon)</span>}</div>
               <div className="text-xs font-normal text-indigo-500">{m.description}</div>
             </motion.button>
           ))}
