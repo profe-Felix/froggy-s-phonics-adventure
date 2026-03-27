@@ -41,6 +41,7 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
   }
 
   const createGame = async () => {
+    if (myGame) return; // prevent duplicates on refresh
     const g = await base44.entities.MathBingoPeerGame.create({
       class_name: className,
       player1_number: studentNumber,

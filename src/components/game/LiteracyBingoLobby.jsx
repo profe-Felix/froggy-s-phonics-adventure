@@ -12,7 +12,6 @@ const BINGO_MODES = [
 
 export default function LiteracyBingoLobby({ className, studentNumber, initialMode, onBack }) {
   const [modeSelected, setModeSelected] = useState(initialMode || null);
-  const [activeGame, setActiveGame] = useState(null);
 
   const { data: allGames } = useQuery({
     queryKey: ['literacy-bingo', className, modeSelected],
@@ -23,17 +22,6 @@ export default function LiteracyBingoLobby({ className, studentNumber, initialMo
     enabled: !!modeSelected,
     refetchInterval: 3000,
   });
-
-  if (activeGame) {
-    return (
-      <LiteracyBingoPeerCard
-        initialGame={activeGame}
-        playerNumber={studentNumber}
-        className={className}
-        onBack={() => setActiveGame(null)}
-      />
-    );
-  }
 
   if (!modeSelected) {
     return (
@@ -62,6 +50,19 @@ export default function LiteracyBingoLobby({ className, studentNumber, initialMo
     (g.player1_number === studentNumber || g.player2_number === studentNumber) &&
     (g.status === 'waiting' || g.status === 'active')
   );
+
+  // Auto-resume existing game (handles refresh)
+  if (myGame) {
+    return (
+      <LiteracyBingoPeerCard
+        initialGame={myGame}
+        playerNumber={studentNumber}
+        className={className}
+        onBack={() => setModeSelected(null)}
+      />
+    );
+  }
+
   const joinableGames = (allGames || []).filter(g =>
     g.status === 'waiting' && g.player1_number !== studentNumber
   );
@@ -76,7 +77,7 @@ export default function LiteracyBingoLobby({ className, studentNumber, initialMo
       player2_ready: false,
       called_items: [],
     });
-    setActiveGame(g);
+    void g;
   };
 
   const joinGame = async (openGame) => {
@@ -84,14 +85,12 @@ export default function LiteracyBingoLobby({ className, studentNumber, initialMo
       player2_number: studentNumber,
       status: 'active',
     });
-    // Pick first item only from the union of both players' cards
     const cardUnion = getCardUnion(openGame.player1_number, studentNumber, openGame.class_name, openGame.mode);
     const pick = cardUnion[Math.floor(Math.random() * cardUnion.length)];
-    const started = await base44.entities.LiteracyBingoGame.update(updated.id, {
+    await base44.entities.LiteracyBingoGame.update(updated.id, {
       current_item: pick,
       called_items: [pick],
     });
-    setActiveGame(started);
   };
 
   return (
