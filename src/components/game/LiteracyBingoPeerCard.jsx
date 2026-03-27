@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { buildCard, getCardUnion } from './literacyBingoUtils';
-
-
-
+import { buildCard, getCardUnion, checkBingo, getPointsForAttempt } from './literacyBingoUtils';
 
 export default function LiteracyBingoPeerCard({ initialGame, playerNumber, className, onBack }) {
   const [game, setGame] = useState(initialGame);
   const [covered, setCovered] = useState(new Set());
   const [respondedItem, setRespondedItem] = useState(null);
+  const [attempts, setAttempts] = useState(0); // attempts for current item
+  const [feedback, setFeedback] = useState(null); // 'wrong' | 'correct' | 'reveal'
+  const [myPoints, setMyPoints] = useState(0);
+  const [hasBingo, setHasBingo] = useState(false);
   const audioRef = useRef(null);
   const audioCache = useRef({});
 
@@ -17,13 +18,8 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     const path = mode === 'letter_sounds'
       ? `/letter-sounds/${encodeURIComponent(item)}.mp3`
       : `/sight-word-audio/${encodeURIComponent(item)}.mp3`;
-    if (!audioCache.current[path]) {
-      audioCache.current[path] = new Audio(path);
-    }
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    if (!audioCache.current[path]) audioCache.current[path] = new Audio(path);
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
     audioRef.current = audioCache.current[path];
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {});
@@ -32,6 +28,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   const isPlayer1 = playerNumber === game.player1_number;
   const myReadyField = isPlayer1 ? 'player1_ready' : 'player2_ready';
   const otherReadyField = isPlayer1 ? 'player2_ready' : 'player1_ready';
+  const myPointsField = isPlayer1 ? 'player1_points' : 'player2_points';
   const otherPlayerNumber = isPlayer1 ? game.player2_number : game.player1_number;
   const myReady = game[myReadyField] || false;
   const otherReady = game[otherReadyField] || false;
@@ -45,9 +42,12 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     return unsubscribe;
   }, [game.id]);
 
+  // Reset per-round state when item changes
   useEffect(() => {
     if (game.current_item) {
       setRespondedItem(null);
+      setAttempts(0);
+      setFeedback(null);
       playSound(game.current_item, game.mode);
     }
   }, [game.current_item]);
@@ -66,34 +66,63 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     });
   };
 
-  const markReady = async () => {
+  const markReady = async (extraPoints = 0) => {
     if (myReady) return;
-    const updated = await base44.entities.LiteracyBingoGame.update(game.id, { [myReadyField]: true });
+    const totalPoints = myPoints + extraPoints;
+    const updated = await base44.entities.LiteracyBingoGame.update(game.id, {
+      [myReadyField]: true,
+      [myPointsField]: totalPoints,
+    });
     if (updated[otherReadyField]) {
       await advanceItem(updated);
     }
   };
 
   const handleNotOnCard = async () => {
-    if (!game.current_item || respondedItem === game.current_item) return;
+    if (!game.current_item || respondedItem === game.current_item || myReady) return;
     setRespondedItem(game.current_item);
-    await markReady();
+    await markReady(0);
   };
 
-  const handleTileClick = (item, idx) => {
-    if (item === 'FREE') {
+  const handleTileClick = async (item, idx) => {
+    if (item === 'FREE' || myReady || !game.current_item) return;
+    if (respondedItem === game.current_item) return;
+
+    const isCorrect = item === game.current_item;
+
+    if (isCorrect) {
+      const pts = getPointsForAttempt(attempts);
+      setMyPoints(prev => prev + pts);
       setCovered(prev => {
         const next = new Set(prev);
-        next.has(idx) ? next.delete(idx) : next.add(idx);
+        next.add(idx);
         return next;
       });
-      return;
+      setFeedback('correct');
+      setRespondedItem(game.current_item);
+
+      // Check bingo
+      const nextCovered = new Set(covered);
+      nextCovered.add(idx);
+      const bingo = checkBingo(nextCovered, cells.length);
+      if (bingo && !hasBingo) {
+        setHasBingo(true);
+        await markReady(pts + 5); // +5 for bingo
+        return;
+      }
+      await markReady(pts);
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        // Reveal the answer — highlight correct tile
+        setFeedback('reveal');
+        setRespondedItem(game.current_item);
+        await markReady(0);
+      } else {
+        setFeedback('wrong');
+      }
     }
-    setCovered(prev => {
-      const next = new Set(prev);
-      next.has(idx) ? next.delete(idx) : next.add(idx);
-      return next;
-    });
   };
 
   const leaveGame = async () => {
@@ -121,29 +150,29 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         <div className="text-6xl">🏆</div>
         <h2 className="text-2xl font-bold text-white">Game Over!</h2>
         <p className="text-white/70">Great game!</p>
+        <div className="text-white font-bold text-xl">Your score: {myPoints} pts</div>
         <Button onClick={onBack} className="bg-white text-indigo-700 font-bold">Back to Lobby</Button>
       </div>
     );
   }
 
-
-
   const isSightWords = game.mode === 'sight_words_easy';
+  const correctIdx = cells.indexOf(game.current_item);
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-2 w-full">
-      {/* Players */}
+      {/* Players + points */}
       <div className="flex gap-3 text-sm w-full justify-center">
         <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''}
+          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''} · {isPlayer1 ? myPoints : (game.player1_points || 0)}pts
         </span>
         <span className="text-white/40 self-center">vs</span>
         <span className={`px-3 py-1 rounded-full font-bold ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''}
+          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''} · {!isPlayer1 ? myPoints : (game.player2_points || 0)}pts
         </span>
       </div>
 
-      {/* Current item display — speaker only, no text */}
+      {/* Audio prompt */}
       <div className="bg-white rounded-2xl shadow-lg p-5 flex flex-col items-center gap-3 w-full min-h-[100px] justify-center">
         {game.current_item ? (
           <>
@@ -154,7 +183,16 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
               🔊
             </button>
             <div className="text-xs text-gray-400">Tap to hear again</div>
-            {respondedItem !== game.current_item && !myReady && (
+            {feedback === 'wrong' && (
+              <div className="text-red-500 font-bold text-sm">❌ Try again! ({attempts === 1 ? '5' : '1'} pts if correct)</div>
+            )}
+            {feedback === 'correct' && (
+              <div className="text-green-600 font-bold text-sm">✅ Correct! +{getPointsForAttempt(attempts - 1)} pts{hasBingo ? ' + 5 BINGO!' : ''}</div>
+            )}
+            {feedback === 'reveal' && (
+              <div className="text-orange-500 font-bold text-sm">The answer is highlighted below</div>
+            )}
+            {!respondedItem && !myReady && (
               <button
                 onClick={handleNotOnCard}
                 className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded-full px-4 py-1 font-medium"
@@ -172,14 +210,16 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       <div className={`grid gap-2 w-full ${isSightWords ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
+          const isReveal = feedback === 'reveal' && idx === correctIdx;
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(item, idx)}
-              className={`relative border-2 border-gray-700 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-2 ${isSightWords ? 'h-24' : 'h-16'}`}
+              className={`relative border-2 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-2 ${isSightWords ? 'h-24' : 'h-16'} ${isReveal ? 'border-orange-400' : 'border-gray-700'}`}
             >
               <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-xl font-bold' : 'text-3xl uppercase font-bold'}`}>{item}</span>
               {isCovered && <div className="absolute inset-1 rounded-lg bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
+              {isReveal && <div className="absolute inset-1 rounded-lg bg-orange-300/70 border-2 border-orange-400 pointer-events-none" />}
             </button>
           );
         })}
@@ -193,7 +233,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
           </div>
         ) : (
           <Button
-            onClick={markReady}
+            onClick={() => markReady(0)}
             className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-4 h-auto w-full rounded-2xl"
           >
             ✅ Ready for Next

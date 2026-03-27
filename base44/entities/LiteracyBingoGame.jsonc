@@ -1,0 +1,57 @@
+{
+  "name": "LiteracyBingoGame",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "letter_sounds",
+        "sight_words_easy"
+      ]
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "player1_number": {
+      "type": "integer"
+    },
+    "player2_number": {
+      "type": "integer"
+    },
+    "current_item": {
+      "type": "string"
+    },
+    "called_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "player1_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "player2_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "player1_points": {
+      "type": "integer",
+      "default": 0
+    },
+    "player2_points": {
+      "type": "integer",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active",
+        "finished"
+      ],
+      "default": "waiting"
+    }
+  },
+  "required": []
+}

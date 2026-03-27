@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import TenFrame from './TenFrame';
 import { Button } from '@/components/ui/button';
-
+import { getPointsForAttempt } from '@/components/game/literacyBingoUtils';
 
 function buildCells(playerNumber, className, minNumber, maxNumber, freeSpace) {
   const allNums = [];
@@ -30,20 +30,37 @@ function buildCells(playerNumber, className, minNumber, maxNumber, freeSpace) {
   return shuffled.slice(0, 9);
 }
 
+function checkBingo(coveredSet, cells) {
+  const size = 3;
+  for (let r = 0; r < size; r++) {
+    if ([0, 1, 2].map(c => r * size + c).every(i => coveredSet.has(i))) return true;
+  }
+  for (let c = 0; c < size; c++) {
+    if ([0, 1, 2].map(r => r * size + c).every(i => coveredSet.has(i))) return true;
+  }
+  if ([0, 4, 8].every(i => coveredSet.has(i))) return true;
+  if ([2, 4, 6].every(i => coveredSet.has(i))) return true;
+  return false;
+}
+
 export default function BingoPeerCard({ initialGame, playerNumber, className, onBack }) {
   const [game, setGame] = useState(initialGame);
   const [covered, setCovered] = useState(new Set());
   const [respondedNumber, setRespondedNumber] = useState(null);
+  const [attempts, setAttempts] = useState(0);
+  const [feedback, setFeedback] = useState(null); // 'wrong' | 'correct' | 'reveal'
+  const [myPoints, setMyPoints] = useState(0);
+  const [hasBingo, setHasBingo] = useState(false);
   const calledAtRef = useRef(null);
 
   const isPlayer1 = playerNumber === game.player1_number;
   const myReadyField = isPlayer1 ? 'player1_ready' : 'player2_ready';
   const otherReadyField = isPlayer1 ? 'player2_ready' : 'player1_ready';
+  const myPointsField = isPlayer1 ? 'player1_points' : 'player2_points';
   const otherPlayerNumber = isPlayer1 ? game.player2_number : game.player1_number;
   const myReady = game[myReadyField] || false;
   const otherReady = game[otherReadyField] || false;
 
-  // Real-time sync via subscription
   useEffect(() => {
     const unsubscribe = base44.entities.MathBingoPeerGame.subscribe((event) => {
       if (event.id === game.id && event.type !== 'delete') {
@@ -53,11 +70,12 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     return unsubscribe;
   }, [game.id]);
 
-  // Reset response state on new number
   useEffect(() => {
     if (game.current_number) {
       calledAtRef.current = Date.now();
       setRespondedNumber(null);
+      setAttempts(0);
+      setFeedback(null);
     }
   }, [game.current_number]);
 
@@ -83,57 +101,78 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     });
   };
 
-  const markReady = async () => {
+  const markReady = async (extraPoints = 0) => {
     if (myReady) return;
-    const updated = await base44.entities.MathBingoPeerGame.update(game.id, { [myReadyField]: true });
+    const totalPoints = myPoints + extraPoints;
+    const updated = await base44.entities.MathBingoPeerGame.update(game.id, {
+      [myReadyField]: true,
+      [myPointsField]: totalPoints,
+    });
     if (updated[otherReadyField]) {
       await advanceNumber(updated);
     }
   };
 
   const handleNotOnCard = async () => {
-    if (!game.current_number || respondedNumber === game.current_number) return;
+    if (!game.current_number || respondedNumber === game.current_number || myReady) return;
     setRespondedNumber(game.current_number);
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
     await base44.entities.MathBingoResponse.create({
-      game_id: game.id,
-      class_name: className,
-      student_number: playerNumber,
-      called_number: game.current_number,
-      clicked_number: null,
-      is_correct: false,
-      response_time_ms: responseTimeMs,
-      not_on_card: true,
-      free_space_click: false,
+      game_id: game.id, class_name: className, student_number: playerNumber,
+      called_number: game.current_number, clicked_number: null,
+      is_correct: false, response_time_ms: responseTimeMs,
+      not_on_card: true, free_space_click: false,
     });
-    await markReady();
+    await markReady(0);
   };
 
   const handleTileClick = async (num, idx) => {
-    setCovered(prev => {
-      const next = new Set(prev);
-      next.has(idx) ? next.delete(idx) : next.add(idx);
-      return next;
-    });
     const isFree = num === 'FREE';
-    if (!game.current_number || isFree) return;
+    if (isFree || !game.current_number || myReady) return;
     if (respondedNumber === game.current_number) return;
-    setRespondedNumber(game.current_number);
+
+    const isCorrect = num === game.current_number;
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
+
     await base44.entities.MathBingoResponse.create({
-      game_id: game.id,
-      class_name: className,
-      student_number: playerNumber,
-      called_number: game.current_number,
-      clicked_number: num,
-      is_correct: num === game.current_number,
-      response_time_ms: responseTimeMs,
-      not_on_card: false,
-      free_space_click: false,
+      game_id: game.id, class_name: className, student_number: playerNumber,
+      called_number: game.current_number, clicked_number: num,
+      is_correct: isCorrect, response_time_ms: responseTimeMs,
+      not_on_card: false, free_space_click: false,
     });
+
+    if (isCorrect) {
+      const pts = getPointsForAttempt(attempts);
+      setMyPoints(prev => prev + pts);
+      setCovered(prev => {
+        const next = new Set(prev);
+        next.add(idx);
+        return next;
+      });
+      setFeedback('correct');
+      setRespondedNumber(game.current_number);
+
+      const nextCovered = new Set(covered);
+      nextCovered.add(idx);
+      if (checkBingo(nextCovered, cells) && !hasBingo) {
+        setHasBingo(true);
+        await markReady(pts + 5);
+        return;
+      }
+      await markReady(pts);
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        setFeedback('reveal');
+        setRespondedNumber(game.current_number);
+        await markReady(0);
+      } else {
+        setFeedback('wrong');
+      }
+    }
   };
 
-  // Waiting for player 2
   if (game.status === 'waiting') {
     return (
       <div className="flex flex-col items-center gap-6 p-6 max-w-sm mx-auto w-full">
@@ -154,22 +193,25 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         <div className="text-6xl">🏆</div>
         <h2 className="text-2xl font-bold text-white">All numbers called!</h2>
         <p className="text-white/70">Great game!</p>
+        <div className="text-white font-bold text-xl">Your score: {myPoints} pts</div>
         <Button onClick={onBack} className="bg-white text-indigo-700 font-bold">Back to Lobby</Button>
       </div>
     );
   }
 
+  const correctIdx = cells.indexOf(game.current_number);
+
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
 
-      {/* Players status */}
+      {/* Players + points */}
       <div className="flex gap-3 text-sm w-full justify-center">
         <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''}
+          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''} · {isPlayer1 ? myPoints : (game.player1_points || 0)}pts
         </span>
         <span className="text-white/40 self-center">vs</span>
         <span className={`px-3 py-1 rounded-full font-bold ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''}
+          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''} · {!isPlayer1 ? myPoints : (game.player2_points || 0)}pts
         </span>
       </div>
 
@@ -178,6 +220,15 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         {game.current_number ? (
           <>
             <TenFrame value={game.current_number} size="md" seed={game.ten_frame_seed ?? 42} />
+            {feedback === 'wrong' && (
+              <div className="text-red-500 font-bold text-sm">❌ Try again! ({attempts === 1 ? '5' : '1'} pts if correct)</div>
+            )}
+            {feedback === 'correct' && (
+              <div className="text-green-600 font-bold text-sm">✅ Correct! +{getPointsForAttempt(attempts - 1)} pts{hasBingo ? ' + 5 BINGO!' : ''}</div>
+            )}
+            {feedback === 'reveal' && (
+              <div className="text-orange-500 font-bold text-sm">The answer is highlighted below</div>
+            )}
             {respondedNumber !== game.current_number && !myReady && (
               <button
                 onClick={handleNotOnCard}
@@ -197,15 +248,17 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         {cells.map((num, idx) => {
           const isCovered = covered.has(idx);
           const isFree = num === 'FREE';
+          const isReveal = feedback === 'reveal' && idx === correctIdx;
           return (
             <button
               key={idx}
               onClick={() => handleTileClick(num, idx)}
-              className="relative w-20 h-20 border-2 border-gray-700 rounded-lg bg-white flex items-center justify-center font-bold text-2xl text-gray-800 shadow select-none"
+              className={`relative w-20 h-20 border-2 rounded-lg bg-white flex items-center justify-center font-bold text-2xl text-gray-800 shadow select-none ${isReveal ? 'border-orange-400' : 'border-gray-700'}`}
             >
               {isFree ? <span className="text-xs font-bold text-green-600">FREE</span> : num}
               {isCovered && <div className="absolute inset-1 rounded-md bg-yellow-400/60 border-2 border-yellow-500 pointer-events-none" />}
               {isFree && !isCovered && <div className="absolute inset-0 rounded-md bg-green-100/60 pointer-events-none" />}
+              {isReveal && <div className="absolute inset-1 rounded-md bg-orange-300/70 border-2 border-orange-400 pointer-events-none" />}
             </button>
           );
         })}
@@ -219,7 +272,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
           </div>
         ) : (
           <Button
-            onClick={markReady}
+            onClick={() => markReady(0)}
             className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-4 h-auto w-full rounded-2xl"
           >
             ✅ Ready for Next

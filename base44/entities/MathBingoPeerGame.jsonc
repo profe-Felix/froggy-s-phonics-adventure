@@ -1,0 +1,65 @@
+{
+  "name": "MathBingoPeerGame",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string"
+    },
+    "player1_number": {
+      "type": "integer"
+    },
+    "player2_number": {
+      "type": "integer"
+    },
+    "called_numbers": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "current_number": {
+      "type": "integer"
+    },
+    "ten_frame_seed": {
+      "type": "integer"
+    },
+    "player1_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "player2_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "player1_points": {
+      "type": "integer",
+      "default": 0
+    },
+    "player2_points": {
+      "type": "integer",
+      "default": 0
+    },
+    "min_number": {
+      "type": "integer",
+      "default": 10
+    },
+    "max_number": {
+      "type": "integer",
+      "default": 20
+    },
+    "free_space": {
+      "type": "boolean",
+      "default": true
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active",
+        "finished"
+      ],
+      "default": "waiting"
+    }
+  },
+  "required": []
+}
