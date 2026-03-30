@@ -215,7 +215,7 @@ export default function MathGames() {
 
   // ── STUDENT VIEW — Number Recognition ──
   if (gameMode === 'numbers') {
-    return <NumberBuildingMode onBack={() => setGameMode(null)} />;
+    return <NumberBuildingMode onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
   }
 
   // ── STUDENT VIEW — Bingo sub-mode ──
