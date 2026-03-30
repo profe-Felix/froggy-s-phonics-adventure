@@ -51,7 +51,7 @@ export default function NumberHearingMode({ studentData, onUpdateProgress }) {
   const audioCache = useRef({});
 
   const playSound = (num) => {
-    const path = `/number-audio/${num}.mp3`;
+    const path = `/numbers-audio/${num}.mp3`;
     if (!audioCache.current[path]) {
       audioCache.current[path] = new Audio(path);
       audioCache.current[path].preload = 'auto';
