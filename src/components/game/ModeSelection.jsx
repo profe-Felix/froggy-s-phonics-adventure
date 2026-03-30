@@ -52,6 +52,13 @@ const MODES = [
     description: 'Match uppercase with lowercase',
     icon: '🔄',
     color: 'from-pink-400 to-pink-600'
+  },
+  {
+    id: 'number_hearing',
+    title: 'Number Sounds',
+    description: 'Catch the number you hear (0–20)',
+    icon: '🔢',
+    color: 'from-teal-400 to-teal-600'
   }
 ];
 
