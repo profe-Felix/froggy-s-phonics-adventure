@@ -153,33 +153,61 @@ export default function MathGames() {
     );
   }
 
-  // ── STUDENT VIEW — Step 3: Pick game type ──
+  // ── STUDENT VIEW — Step 3: Pick game type (tile cards) ──
   if (gameMode === null) {
+    const MATH_MODES = [
+      {
+        id: 'bingo',
+        title: 'Bingo',
+        description: 'Teacher or friend calls numbers',
+        icon: '🎱',
+        color: 'from-indigo-400 to-indigo-600',
+      },
+      {
+        id: 'numbers',
+        title: 'Number Recognition',
+        description: 'Hear a number and catch it',
+        icon: '🔢',
+        color: 'from-teal-400 to-teal-600',
+      },
+    ];
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
-        <button onClick={() => setStudentNumber(null)} className="text-white/80 self-start hover:text-white">← Back</button>
-        <div className="text-5xl">🧮</div>
-        <h2 className="text-2xl font-bold text-white">{selectedClass} — #{studentNumber}</h2>
-        <p className="text-white/80">Choose a game:</p>
-        <div className="flex flex-col gap-4 w-full max-w-xs">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setGameMode('bingo')}
-            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
-          >
-            🎱 Bingo
-            <span className="text-sm font-normal text-indigo-400">Teacher or friend calls numbers</span>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setGameMode('numbers')}
-            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
-          >
-            🔢 Number Recognition
-            <span className="text-sm font-normal text-indigo-400">Hear a number and catch it</span>
-          </motion.button>
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-green-700 mb-2">Math Games 🧮</h1>
+            <p className="text-xl text-gray-600">{selectedClass} — Student #{studentNumber}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {MATH_MODES.map((m) => (
+              <motion.div
+                key={m.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                className="relative"
+              >
+                <div className="bg-white rounded-3xl shadow-xl p-6">
+                  <div className={`w-full h-32 bg-gradient-to-br ${m.color} rounded-2xl flex items-center justify-center text-6xl mb-4 shadow-lg`}>
+                    {m.icon}
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-2">{m.title}</h3>
+                  <p className="text-gray-600 mb-4">{m.description}</p>
+                  <Button
+                    onClick={() => setGameMode(m.id)}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white py-6 text-lg"
+                  >
+                    Play
+                  </Button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <div className="text-center">
+            <Button onClick={() => setStudentNumber(null)} variant="outline" className="px-8 py-4 text-lg">
+              ← Back
+            </Button>
+          </div>
         </div>
       </div>
     );

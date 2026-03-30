@@ -64,7 +64,6 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/Dashboard" element={<Dashboard />} />
       <Route path="/QRGenerator" element={<QRGenerator />} />
-      <Route path="/MathGame" element={<MathGames />} />
       <Route path="/MathGames" element={<MathGames />} />
       <Route path="/Calibrate" element={<Calibrate />} />
       <Route path="*" element={<PageNotFound />} />
