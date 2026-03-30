@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import StrokeReplay from '../components/math/StrokeReplay';
 import StruggleGroups from '../components/math/StruggleGroups';
 import StudentAccuracyView from '../components/math/StudentAccuracyView';
+import BingoStudentView from '../components/math/BingoStudentView';
+import BingoStruggleGroups from '../components/math/BingoStruggleGroups';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
@@ -26,6 +28,14 @@ export default function MathDashboard() {
     queryFn: () => base44.entities.NumberAttempt.filter({ class_name: selectedClass }, '-created_date', 1000),
     refetchInterval: 10000,
   });
+
+  const { data: bingoResponses = [] } = useQuery({
+    queryKey: ['bingo-responses', selectedClass],
+    queryFn: () => base44.entities.MathBingoResponse.filter({ class_name: selectedClass }, '-created_date', 2000),
+    refetchInterval: 10000,
+  });
+
+  const [bingoSubTab, setBingoSubTab] = useState(0);
 
   const numbers = [...new Set(samples.map(s => s.number))].sort((a, b) => a - b);
   const filtered = filterNumber !== null ? samples.filter(s => s.number === filterNumber) : samples;
@@ -154,13 +164,20 @@ export default function MathDashboard() {
         {/* ── BINGO TAB ── */}
         {activeTab === 3 && (
           <div className="bg-white rounded-2xl p-6 shadow-xl">
-            <p className="text-gray-500 mb-4">Manage the Bingo game for {selectedClass}:</p>
-            <a
-              href="/MathGames?mode=teacher"
-              className="inline-block bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700"
-            >
-              Open Bingo Teacher View →
-            </a>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex gap-2">
+                {['👥 By Student', '🔴 Struggle Groups'].map((t, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setBingoSubTab(i)}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${bingoSubTab === i ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >{t}</button>
+                ))}
+              </div>
+              <a href="/MathGames?mode=teacher" className="text-indigo-600 text-sm font-bold hover:underline">Open Bingo →</a>
+            </div>
+            {bingoSubTab === 0 && <BingoStudentView responses={bingoResponses} />}
+            {bingoSubTab === 1 && <BingoStruggleGroups responses={bingoResponses} />}
           </div>
         )}
       </div>
