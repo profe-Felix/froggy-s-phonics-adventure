@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
 import NumberWritingCanvas from './NumberWritingCanvas';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -102,6 +103,14 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
       setIsCorrect(correct);
       setShowResult(true);
       if (correct) setScore(s => s + 1);
+
+      // Save to DB
+      base44.entities.NumberAttempt.create({
+        student_number: studentNumber,
+        class_name: className,
+        number: currentNumber,
+        correct,
+      }).catch(() => {});
 
       setAttempts(prev => {
         const s = prev[currentNumber] || { correct: 0, total: 0 };

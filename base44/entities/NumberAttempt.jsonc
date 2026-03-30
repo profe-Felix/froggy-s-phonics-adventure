@@ -1,0 +1,24 @@
+{
+  "name": "NumberAttempt",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "number": {
+      "type": "integer"
+    },
+    "correct": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "number",
+    "correct"
+  ]
+}

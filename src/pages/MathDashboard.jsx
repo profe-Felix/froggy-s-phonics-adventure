@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import StrokeReplay from '../components/math/StrokeReplay';
+import StruggleGroups from '../components/math/StruggleGroups';
+import StudentAccuracyView from '../components/math/StudentAccuracyView';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
-const TABS = ['✏️ Writing Samples', '🎱 Bingo'];
+const TABS = ['✏️ Writing Samples', '👥 By Student', '🔴 Struggle Groups', '🎱 Bingo'];
 
 export default function MathDashboard() {
   const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
@@ -16,6 +18,12 @@ export default function MathDashboard() {
   const { data: samples = [], isLoading } = useQuery({
     queryKey: ['writing-samples', selectedClass],
     queryFn: () => base44.entities.NumberWritingSample.filter({ class_name: selectedClass }, '-created_date', 300),
+    refetchInterval: 10000,
+  });
+
+  const { data: attempts = [] } = useQuery({
+    queryKey: ['number-attempts', selectedClass],
+    queryFn: () => base44.entities.NumberAttempt.filter({ class_name: selectedClass }, '-created_date', 1000),
     refetchInterval: 10000,
   });
 
@@ -125,8 +133,26 @@ export default function MathDashboard() {
           </div>
         )}
 
-        {/* ── BINGO TAB ── */}
+        {/* ── BY STUDENT TAB ── */}
         {activeTab === 1 && (
+          <div className="bg-white rounded-2xl p-6 shadow-xl">
+            <StudentAccuracyView
+              attempts={attempts}
+              samples={samples}
+              onViewSample={setLightbox}
+            />
+          </div>
+        )}
+
+        {/* ── STRUGGLE GROUPS TAB ── */}
+        {activeTab === 2 && (
+          <div className="bg-white rounded-2xl p-6 shadow-xl">
+            <StruggleGroups attempts={attempts} />
+          </div>
+        )}
+
+        {/* ── BINGO TAB ── */}
+        {activeTab === 3 && (
           <div className="bg-white rounded-2xl p-6 shadow-xl">
             <p className="text-gray-500 mb-4">Manage the Bingo game for {selectedClass}:</p>
             <a
