@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Calibrate from './pages/Calibrate';
 import MathGames from './pages/MathGame';
 import QRGenerator from './pages/QRGenerator';
+import MathDashboard from './pages/MathDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -66,6 +67,7 @@ const AuthenticatedApp = () => {
       <Route path="/QRGenerator" element={<QRGenerator />} />
       <Route path="/MathGames" element={<MathGames />} />
       <Route path="/Calibrate" element={<Calibrate />} />
+      <Route path="/MathDashboard" element={<MathDashboard />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
