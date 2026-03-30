@@ -7,7 +7,6 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
   const [strokeCount, setStrokeCount] = useState(0);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [saving, setSaving] = useState(false);
-  const lastPos = useRef(null);
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
@@ -27,7 +26,6 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     const ctx = canvas.getContext('2d');
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
-    lastPos.current = pos;
     setDrawing(true);
     setHasDrawn(true);
   }, []);
@@ -43,7 +41,6 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     ctx.strokeStyle = '#4338ca';
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
-    lastPos.current = pos;
   }, [drawing]);
 
   const endDraw = useCallback((e) => {
@@ -83,9 +80,9 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     <div className="flex flex-col items-center gap-4 select-none">
       <p className="text-white/80 text-lg font-medium">Write the number you heard:</p>
 
-      <div className="relative bg-amber-50 rounded-2xl border-4 border-amber-200 overflow-hidden" style={{width:280, height:320}}>
+      <div className="relative rounded-2xl border-4 border-amber-200 overflow-hidden" style={{ width: 280, height: 320, background: '#fffbf0' }}>
         <svg className="absolute inset-0" width="280" height="320">
-          {[80,140,200,260].map(y => (
+          {[80, 140, 200, 260].map(y => (
             <line key={y} x1="0" y1={y} x2="280" y2={y} stroke="#c7b99a" strokeWidth="1" />
           ))}
           <line x1="0" y1="220" x2="280" y2="220" stroke="#a87c5a" strokeWidth="1.5" />
