@@ -4,18 +4,20 @@ import { base44 } from '@/api/base44Client';
 import BingoCard from '../components/math/BingoCard';
 import BingoTeacher from '../components/math/BingoTeacher';
 import BingoPeerLobby from '../components/math/BingoPeerLobby';
+import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
-export default function MathGame() {
+export default function MathGames() {
   const urlParams = new URLSearchParams(window.location.search);
   const mode = urlParams.get('mode');
 
   const [selectedClass, setSelectedClass] = useState(null);
   const [studentNumber, setStudentNumber] = useState(null);
+  const [gameMode, setGameMode] = useState(null); // null=tiles, 'bingo', 'numbers'
   const [selfPlay, setSelfPlay] = useState(null); // null=not chosen, true=peer, false=teacher
 
   const queryClient = useQueryClient();
@@ -151,14 +153,61 @@ export default function MathGame() {
     );
   }
 
-  // ── STUDENT VIEW — Step 3: Pick mode ──
-  if (selfPlay === null) {
+  // ── STUDENT VIEW — Step 3: Pick game type ──
+  if (gameMode === null) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
         <button onClick={() => setStudentNumber(null)} className="text-white/80 self-start hover:text-white">← Back</button>
+        <div className="text-5xl">🧮</div>
+        <h2 className="text-2xl font-bold text-white">{selectedClass} — #{studentNumber}</h2>
+        <p className="text-white/80">Choose a game:</p>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setGameMode('bingo')}
+            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
+          >
+            🎱 Bingo
+            <span className="text-sm font-normal text-indigo-400">Teacher or friend calls numbers</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setGameMode('numbers')}
+            className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1"
+          >
+            🔢 Number Recognition
+            <span className="text-sm font-normal text-indigo-400">Hear a number and catch it</span>
+          </motion.button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STUDENT VIEW — Number Recognition ──
+  if (gameMode === 'numbers') {
+    return (
+      <div className="relative">
+        <NumberHearingMode studentData={null} onUpdateProgress={() => {}} />
+        <Button
+          onClick={() => setGameMode(null)}
+          className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
+        >
+          ← Back
+        </Button>
+      </div>
+    );
+  }
+
+  // ── STUDENT VIEW — Bingo sub-mode ──
+  if (selfPlay === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
+        <button onClick={() => { setSelfPlay(null); setGameMode(null); }} className="text-white/80 self-start hover:text-white">← Back</button>
         <div className="text-5xl">🎱</div>
         <h2 className="text-2xl font-bold text-white">{selectedClass} — #{studentNumber}</h2>
-        <p className="text-white/80">How do you want to play?</p>
+        <p className="text-white/80">How do you want to play Bingo?</p>
         <div className="flex flex-col gap-4 w-full max-w-xs">
           <motion.button
             whileHover={{ scale: 1.03 }}
@@ -201,7 +250,7 @@ export default function MathGame() {
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-4 gap-4">
       <div className="flex items-center justify-between w-full max-w-md">
         <div className="text-white font-bold text-lg">🧮 {selectedClass} #{studentNumber}</div>
-        <Button onClick={() => setSelfPlay(null)} variant="ghost" className="text-white hover:bg-white/20">
+        <Button onClick={() => { setSelfPlay(null); }} variant="ghost" className="text-white hover:bg-white/20">
           ← Back
         </Button>
       </div>
