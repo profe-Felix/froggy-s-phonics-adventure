@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import NumberWritingCanvas from './NumberWritingCanvas';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Primary pool: 10–20. Support pool: 0–9 (added if student struggles with a teen)
@@ -10,7 +11,8 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const STRUGGLE_THRESHOLD = 0.5;
 const MIN_ATTEMPTS = 3;
 
-export default function NumberBuildingMode({ onBack }) {
+export default function NumberBuildingMode({ onBack, studentNumber, className }) {
+  const [phase, setPhase] = useState('writing'); // 'writing' | 'building'
   const [pool, setPool] = useState(PRIMARY_NUMBERS); // active practice pool
   const [currentNumber, setCurrentNumber] = useState(null);
   const [builtDigits, setBuiltDigits] = useState([]);
@@ -129,6 +131,30 @@ export default function NumberBuildingMode({ onBack }) {
   };
 
   if (currentNumber === null) return null;
+
+  if (phase === 'writing') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center justify-between py-6 px-4">
+        <div className="w-full flex items-center justify-between max-w-sm">
+          <button onClick={onBack} className="text-gray-600 hover:text-gray-800 font-bold text-lg">← Back</button>
+          <div className="text-2xl font-bold text-green-700">⭐ {score}</div>
+        </div>
+        <div className="flex flex-col items-center gap-4 mt-4 w-full">
+          <button
+            onClick={() => playSound(currentNumber)}
+            className="w-20 h-20 rounded-full bg-white shadow-xl flex items-center justify-center text-4xl border-4 border-sky-300"
+          >🔊</button>
+          <NumberWritingCanvas
+            number={currentNumber}
+            studentNumber={studentNumber}
+            className={className}
+            onDone={() => setPhase('building')}
+          />
+        </div>
+        <div className="pb-4" />
+      </div>
+    );
+  }
 
   const target = String(currentNumber);
   const targetLen = target.length;
