@@ -4,7 +4,7 @@ import StruggleGroups from '../components/math/StruggleGroups';
 import StudentAccuracyView from '../components/math/StudentAccuracyView';
 import BingoStudentView from '../components/math/BingoStudentView';
 import BingoStruggleGroups from '../components/math/BingoStruggleGroups';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 
@@ -36,6 +36,18 @@ export default function MathDashboard() {
   });
 
   const [bingoSubTab, setBingoSubTab] = useState(0);
+  const [resetting, setResetting] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleResetBingo = async () => {
+    if (!window.confirm(`Delete all Bingo data for ${selectedClass}? This cannot be undone.`)) return;
+    setResetting(true);
+    for (const r of bingoResponses) {
+      await base44.entities.MathBingoResponse.delete(r.id);
+    }
+    await queryClient.invalidateQueries(['bingo-responses', selectedClass]);
+    setResetting(false);
+  };
 
   const numbers = [...new Set(samples.map(s => s.number))].sort((a, b) => a - b);
   const filtered = filterNumber !== null ? samples.filter(s => s.number === filterNumber) : samples;
@@ -174,7 +186,16 @@ export default function MathDashboard() {
                   >{t}</button>
                 ))}
               </div>
-              <a href="/MathGames?mode=teacher" className="text-indigo-600 text-sm font-bold hover:underline">Open Bingo →</a>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleResetBingo}
+                  disabled={resetting || bingoResponses.length === 0}
+                  className="px-3 py-1.5 rounded-lg text-sm font-bold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:opacity-40 transition-colors"
+                >
+                  {resetting ? 'Resetting…' : '🗑 Reset Data'}
+                </button>
+                <a href="/MathGames?mode=teacher" className="text-indigo-600 text-sm font-bold hover:underline">Open Bingo →</a>
+              </div>
             </div>
             {bingoSubTab === 0 && <BingoStudentView responses={bingoResponses} />}
             {bingoSubTab === 1 && <BingoStruggleGroups responses={bingoResponses} />}
