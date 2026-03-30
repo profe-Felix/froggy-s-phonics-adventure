@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import StrokeReplay from '../components/math/StrokeReplay';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
@@ -155,9 +156,11 @@ export default function MathDashboard() {
               </div>
               <button onClick={() => setLightbox(null)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
             </div>
-            {lightbox.image_url && (
+            {lightbox.strokes_data ? (
+              <StrokeReplay strokesData={lightbox.strokes_data} />
+            ) : lightbox.image_url ? (
               <img src={lightbox.image_url} alt="Writing sample" className="w-full rounded-xl border border-gray-200" />
-            )}
+            ) : null}
             <div className="mt-3 text-sm text-gray-500">
               {lightbox.stroke_count} stroke{lightbox.stroke_count !== 1 ? 's' : ''}
               {' · '}

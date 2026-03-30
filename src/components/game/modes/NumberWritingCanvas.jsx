@@ -4,9 +4,13 @@ import { base44 } from '@/api/base44Client';
 export default function NumberWritingCanvas({ number, studentNumber, className, onDone }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
-  const [strokeCount, setStrokeCount] = useState(0);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Stroke recording
+  const allStrokes = useRef([]); // array of strokes, each stroke = [{x,y,t}, ...]
+  const currentStroke = useRef([]);
+  const lastPos = useRef(null);
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
@@ -16,6 +20,7 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     return {
       x: (src.clientX - rect.left) * scaleX,
       y: (src.clientY - rect.top) * scaleY,
+      t: Date.now(),
     };
   };
 
@@ -26,6 +31,8 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     const ctx = canvas.getContext('2d');
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos;
+    currentStroke.current = [pos];
     setDrawing(true);
     setHasDrawn(true);
   }, []);
@@ -36,25 +43,41 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     const canvas = canvasRef.current;
     const pos = getPos(e, canvas);
     const ctx = canvas.getContext('2d');
+
     ctx.lineWidth = 6;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.strokeStyle = '#4338ca';
-    ctx.lineTo(pos.x, pos.y);
+
+    // Smooth with quadratic bezier using midpoint
+    const prev = lastPos.current;
+    const midX = (prev.x + pos.x) / 2;
+    const midY = (prev.y + pos.y) / 2;
+    ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(midX, midY);
+
+    lastPos.current = pos;
+    currentStroke.current.push(pos);
   }, [drawing]);
 
   const endDraw = useCallback((e) => {
     e.preventDefault();
     if (!drawing) return;
     setDrawing(false);
-    setStrokeCount(s => s + 1);
+    if (currentStroke.current.length > 0) {
+      allStrokes.current = [...allStrokes.current, currentStroke.current];
+      currentStroke.current = [];
+    }
   }, [drawing]);
 
   const clear = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setStrokeCount(0);
+    allStrokes.current = [];
+    currentStroke.current = [];
     setHasDrawn(false);
   };
 
@@ -70,7 +93,8 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
       class_name: className,
       number,
       image_url: file_url,
-      stroke_count: strokeCount,
+      stroke_count: allStrokes.current.length,
+      strokes_data: JSON.stringify(allStrokes.current),
     });
     setSaving(false);
     onDone();
@@ -80,12 +104,11 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     <div className="flex flex-col items-center gap-4 select-none">
       <p className="text-white/80 text-lg font-medium">Write the number you heard:</p>
 
-      <div className="relative rounded-2xl border-4 border-amber-200 overflow-hidden" style={{ width: 280, height: 320, background: '#fffbf0' }}>
-        <svg className="absolute inset-0" width="280" height="320">
-          {/* Repeat 2 sets of primary lines */}
+      <div className="relative rounded-2xl border-4 border-blue-200 overflow-hidden" style={{ width: 280, height: 320, background: '#f8fbff' }}>
+        <svg className="absolute inset-0 pointer-events-none" width="280" height="320">
           {[0, 1].map(set => {
-            const top = 40 + set * 140;
-            const mid = top + 50;
+            const top  = 40  + set * 140;
+            const mid  = top + 50;
             const base = top + 100;
             const desc = top + 130;
             return (
@@ -98,7 +121,7 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
             );
           })}
         </svg>
-        <div className="absolute top-2 right-3 text-2xl opacity-40 pointer-events-none">✏️</div>
+        <div className="absolute top-2 right-3 text-2xl opacity-30 pointer-events-none">✏️</div>
         <canvas
           ref={canvasRef}
           width={280}

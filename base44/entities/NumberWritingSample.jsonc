@@ -1,0 +1,31 @@
+{
+  "name": "NumberWritingSample",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "number": {
+      "type": "integer"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Canvas snapshot URL"
+    },
+    "stroke_count": {
+      "type": "integer"
+    },
+    "strokes_data": {
+      "type": "string",
+      "description": "JSON-encoded array of strokes, each stroke is an array of {x,y,t} points"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "number"
+  ]
+}
