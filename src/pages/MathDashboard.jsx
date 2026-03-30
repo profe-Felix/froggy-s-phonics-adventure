@@ -42,8 +42,10 @@ export default function MathDashboard() {
   const handleResetBingo = async () => {
     if (!window.confirm(`Delete all Bingo data for ${selectedClass}? This cannot be undone.`)) return;
     setResetting(true);
-    for (const r of bingoResponses) {
-      await base44.entities.MathBingoResponse.delete(r.id);
+    // Delete in batches of 5 to avoid rate limits
+    const ids = bingoResponses.map(r => r.id);
+    for (let i = 0; i < ids.length; i += 5) {
+      await Promise.all(ids.slice(i, i + 5).map(id => base44.entities.MathBingoResponse.delete(id)));
     }
     await queryClient.invalidateQueries(['bingo-responses', selectedClass]);
     setResetting(false);
