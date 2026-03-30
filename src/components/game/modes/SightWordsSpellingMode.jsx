@@ -18,7 +18,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   const modeData = studentData?.mode_progress?.sight_words_spelling || {
     mastered_items: [],
-    learning_items: ['el', 'la', 'un'],
+    learning_items: ['el', 'la', 'un', 'una', 'en'],
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
