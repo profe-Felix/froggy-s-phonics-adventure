@@ -36,7 +36,7 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     const canvas = canvasRef.current;
     const pos = getPos(e, canvas);
     const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 18;
+    ctx.lineWidth = 6;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#4338ca';
     ctx.lineTo(pos.x, pos.y);
@@ -82,10 +82,21 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
 
       <div className="relative rounded-2xl border-4 border-amber-200 overflow-hidden" style={{ width: 280, height: 320, background: '#fffbf0' }}>
         <svg className="absolute inset-0" width="280" height="320">
-          {[80, 140, 200, 260].map(y => (
-            <line key={y} x1="0" y1={y} x2="280" y2={y} stroke="#c7b99a" strokeWidth="1" />
-          ))}
-          <line x1="0" y1="220" x2="280" y2="220" stroke="#a87c5a" strokeWidth="1.5" />
+          {/* Repeat 2 sets of primary lines */}
+          {[0, 1].map(set => {
+            const top = 40 + set * 140;
+            const mid = top + 50;
+            const base = top + 100;
+            const desc = top + 130;
+            return (
+              <g key={set}>
+                <line x1="0" y1={top}  x2="280" y2={top}  stroke="#aac4e0" strokeWidth="1" />
+                <line x1="0" y1={mid}  x2="280" y2={mid}  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
+                <line x1="0" y1={base} x2="280" y2={base} stroke="#3b82f6" strokeWidth="1.5" />
+                <line x1="0" y1={desc} x2="280" y2={desc} stroke="#aac4e0" strokeWidth="1" />
+              </g>
+            );
+          })}
         </svg>
         <div className="absolute top-2 right-3 text-2xl opacity-40 pointer-events-none">✏️</div>
         <canvas
