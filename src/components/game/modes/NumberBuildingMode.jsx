@@ -23,6 +23,7 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
   const lastNumberRef = useRef(null);
   const audioRef = useRef(null);
   const audioCache = useRef({});
+  const attemptsRef = useRef({});
 
   const playSound = (num) => {
     const path = `/numbers-audio/${num}.mp3`;
@@ -108,16 +109,17 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
           ...prev,
           [currentNumber]: { correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }
         };
+        attemptsRef.current = updated;
         updatePool(currentNumber, updated);
         return updated;
       });
 
       setTimeout(() => {
-        setPhase('writing');
         setPool(p => {
-          startRound(p, attempts);
+          startRound(p, attemptsRef.current);
           return p;
         });
+        setPhase('writing');
       }, 1500);
     }
   };
