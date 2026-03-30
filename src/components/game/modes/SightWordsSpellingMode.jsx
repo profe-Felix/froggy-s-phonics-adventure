@@ -13,6 +13,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
+  const lastWordRef = useRef(null);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
 
@@ -44,18 +45,22 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
       : ['el', 'la', 'un'];
     const attempts = modeData.item_attempts || {};
 
+    // Exclude last word if there are other options
+    const pool = learning.length > 1 ? learning.filter(w => w !== lastWordRef.current) : learning;
+
     // Weighted pick: words with fewer correct attempts get higher weight
-    const weights = learning.map(w => {
+    const weights = pool.map(w => {
       const stats = attempts[w] || { correct: 0, total: 0 };
       return Math.max(1, 5 - stats.correct);
     });
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     let rand = Math.random() * totalWeight;
-    let targetWord = learning[0];
-    for (let i = 0; i < learning.length; i++) {
+    let targetWord = pool[0];
+    for (let i = 0; i < pool.length; i++) {
       rand -= weights[i];
-      if (rand <= 0) { targetWord = learning[i]; break; }
+      if (rand <= 0) { targetWord = pool[i]; break; }
     }
+    lastWordRef.current = targetWord;
 
     const wordLetters = targetWord.split('');
     const letterCounts = {};
