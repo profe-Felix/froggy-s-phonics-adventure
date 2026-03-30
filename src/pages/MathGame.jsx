@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import BingoCard from '../components/math/BingoCard';
 import BingoTeacher from '../components/math/BingoTeacher';
 import BingoPeerLobby from '../components/math/BingoPeerLobby';
-import NumberHearingMode from '../components/game/modes/NumberHearingMode';
+import NumberBuildingMode from '../components/game/modes/NumberBuildingMode';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -215,17 +215,7 @@ export default function MathGames() {
 
   // ── STUDENT VIEW — Number Recognition ──
   if (gameMode === 'numbers') {
-    return (
-      <div className="relative">
-        <NumberHearingMode studentData={null} onUpdateProgress={() => {}} />
-        <Button
-          onClick={() => setGameMode(null)}
-          className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
-        >
-          ← Back
-        </Button>
-      </div>
-    );
+    return <NumberBuildingMode onBack={() => setGameMode(null)} />;
   }
 
   // ── STUDENT VIEW — Bingo sub-mode ──
