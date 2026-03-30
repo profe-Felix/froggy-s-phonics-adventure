@@ -113,6 +113,7 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
       });
 
       setTimeout(() => {
+        setPhase('writing');
         setPool(p => {
           startRound(p, attempts);
           return p;

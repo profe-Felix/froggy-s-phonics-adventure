@@ -83,16 +83,20 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     <div className="flex flex-col items-center gap-4 select-none">
       <p className="text-white/80 text-lg font-medium">Write the number you heard:</p>
 
-      <div className="relative">
-        {/* Ghost guide number */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-[120px] font-bold text-white/10 leading-none">{number}</span>
-        </div>
+      <div className="relative bg-amber-50 rounded-2xl border-4 border-amber-200 overflow-hidden" style={{width:280, height:320}}>
+        <svg className="absolute inset-0" width="280" height="320">
+          {[80,140,200,260].map(y => (
+            <line key={y} x1="0" y1={y} x2="280" y2={y} stroke="#c7b99a" strokeWidth="1" />
+          ))}
+          <line x1="0" y1="220" x2="280" y2="220" stroke="#a87c5a" strokeWidth="1.5" />
+        </svg>
+        <div className="absolute top-2 right-3 text-2xl opacity-40 pointer-events-none">✏️</div>
         <canvas
           ref={canvasRef}
           width={280}
           height={320}
-          className="rounded-2xl border-4 border-white/40 bg-white/10 touch-none cursor-crosshair"
+          className="absolute inset-0 touch-none cursor-crosshair"
+          style={{ background: 'transparent' }}
           onMouseDown={startDraw}
           onMouseMove={draw}
           onMouseUp={endDraw}
