@@ -24,39 +24,56 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     total_attempts: 0
   };
 
+  const playSound = (word) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+    }
+    if (!preloadedAudio.current[word]) {
+      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
+      preloadedAudio.current[word].preload = 'auto';
+    }
+    audioRef.current = preloadedAudio.current[word];
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(err => console.log('Audio play failed:', err));
+  };
+
   const generateRound = () => {
-    const mastered = modeData.mastered_items || [];
-    const learning = modeData.learning_items || [];
-    const allKnown = [...mastered, ...learning];
-    const knownWords = allKnown.length > 0 ? allKnown : ['el', 'la', 'un'];
-    
-    const useKnown = Math.random() < 0.7;
-    let targetWord;
-    
-    if (useKnown) {
-      targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];
-    } else {
-      const unknown = SIGHT_WORDS.filter(w => !knownWords.includes(w));
-      targetWord = unknown[Math.floor(Math.random() * unknown.length)] || knownWords[0];
+    const learning = modeData.learning_items?.length > 0
+      ? modeData.learning_items
+      : ['el', 'la', 'un'];
+    const attempts = modeData.item_attempts || {};
+
+    // Weighted pick: words with fewer correct attempts get higher weight
+    const weights = learning.map(w => {
+      const stats = attempts[w] || { correct: 0, total: 0 };
+      return Math.max(1, 5 - stats.correct);
+    });
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let rand = Math.random() * totalWeight;
+    let targetWord = learning[0];
+    for (let i = 0; i < learning.length; i++) {
+      rand -= weights[i];
+      if (rand <= 0) { targetWord = learning[i]; break; }
     }
 
     const wordLetters = targetWord.split('');
     const letterCounts = {};
     wordLetters.forEach(l => letterCounts[l] = (letterCounts[l] || 0) + 1);
-    
+
     const neededLetters = [];
     Object.entries(letterCounts).forEach(([letter, count]) => {
       for (let i = 0; i < count; i++) neededLetters.push(letter);
     });
-    
+
     const allLettersInWord = 'abcdefghijklmnopqrstuvwxyz'.split('');
     const distractors = allLettersInWord
       .filter(l => !wordLetters.includes(l))
       .sort(() => Math.random() - 0.5)
       .slice(0, 4);
-    
+
     const allLetters = [...neededLetters, ...distractors].sort(() => Math.random() - 0.5);
-    
+
     setCurrentWord(targetWord);
     setOptions(allLetters.map((letter, idx) => ({ letter, id: idx })));
     setBuiltWord([]);
@@ -65,24 +82,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     playSound(targetWord);
   };
 
-  const playSound = (word) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-    }
-    
-    if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
-      preloadedAudio.current[word].preload = 'auto';
-    }
-    
-    audioRef.current = preloadedAudio.current[word];
-    audioRef.current.currentTime = 0;
-    audioRef.current.play()
-      .catch(err => console.log('Audio play failed:', err));
-  };
-
-  const handleLetterClick = (letterObj, index) => {
+  const handleLetterClick = (letterObj) => {
     if (!usedIndices.includes(letterObj.id)) {
       setBuiltWord(prev => [...prev, letterObj.letter]);
       setUsedIndices(prev => [...prev, letterObj.id]);
@@ -117,7 +117,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     if (correct && wordStats.correct / wordStats.total >= 0.8 && wordStats.total >= 3 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
-      
+
       const allKnown = [...updatedMastered, ...updatedLearning];
       const nextWord = SIGHT_WORDS.find(w => !allKnown.includes(w));
       if (nextWord && updatedLearning.length < 5) {
