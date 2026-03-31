@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
@@ -7,6 +7,7 @@ import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 let cloneCounter = 0;
+const CS = 26; // draggable cube size
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -49,30 +50,30 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-// Ten-frame ghost-slot display: two rows of 10 ghost slots, filled cubes shown
-const S = 22;
+// Ten-frame ghost-slot display: fluid width, two rows of 10
 function DisplayCubes({ count }) {
+  const SLOT_H = 24;
   const FilledCube = () => (
-    <div style={{ width: S, height: S, position: 'relative', flexShrink: 0 }}>
+    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
       <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
       <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
     </div>
   );
   const GhostSlot = () => (
-    <div style={{ width: S, height: S, flexShrink: 0 }}
+    <div style={{ flex: 1, height: '100%' }}
       className="rounded border border-dashed border-blue-300 bg-blue-100/40" />
   );
   const row1Count = Math.min(count, 10);
   const row2Count = Math.max(0, count - 10);
   return (
-    <div className="flex flex-col" style={{ gap: 0 }}>
-      <div className="flex gap-0.5">
+    <div className="flex flex-col w-full" style={{ gap: 8 }}>
+      <div className="flex gap-0.5 w-full" style={{ height: SLOT_H }}>
         {Array.from({ length: 10 }).map((_, i) =>
           i < row1Count ? <FilledCube key={i} /> : <GhostSlot key={i} />
         )}
       </div>
-      <div className="flex gap-0.5" style={{ marginTop: 10 }}>
+      <div className="flex gap-0.5 w-full" style={{ height: SLOT_H }}>
         {Array.from({ length: 10 }).map((_, i) =>
           i < row2Count ? <FilledCube key={i} /> : <GhostSlot key={i} />
         )}
@@ -80,8 +81,6 @@ function DisplayCubes({ count }) {
     </div>
   );
 }
-
-const CS = 26; // draggable cube size
 
 // Cube for the bank — drag to clone
 function BankCube({ index }) {
@@ -92,9 +91,9 @@ function BankCube({ index }) {
           style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
           className="flex-shrink-0 cursor-grab">
           <div style={{ width: CS, height: CS, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
+            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
+            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
+            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
           </div>
         </div>
       )}
@@ -103,14 +102,14 @@ function BankCube({ index }) {
 }
 
 // Cube placed in the built zone — green, reorderable
-function BuiltCube({ draggableId, index }) {
+function BuiltCube({ draggableId, index, useFlex }) {
   return (
     <Draggable draggableId={draggableId} index={index}>
       {(provided, snapshot) => (
         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
-          className="flex-shrink-0 cursor-grab">
-          <div style={{ width: CS, height: CS, position: 'relative' }}>
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, flex: useFlex ? 1 : undefined, height: '100%' }}
+          className="cursor-grab">
+          <div style={{ width: useFlex ? '100%' : CS, height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
             <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
             <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
@@ -130,14 +129,13 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
 
-  // Built zone: array of unique IDs
   const [built, setBuilt] = useState([]);
 
-  const [startWritePhase, setStartWritePhase] = useState('write'); // write | enter | done
+  const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
   const [startStrokes, setStartStrokes] = useState(null);
 
-  const [resultWritePhase, setResultWritePhase] = useState('write'); // write | enter | done
+  const [resultWritePhase, setResultWritePhase] = useState('write');
   const [resultWritten, setResultWritten] = useState(null);
   const [resultStrokes, setResultStrokes] = useState(null);
 
@@ -154,7 +152,6 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     if (!result.destination) return;
     const { source, destination } = result;
 
-    // Clone from bank into built
     if (source.droppableId === 'bank' && destination.droppableId === 'built') {
       const newId = `built-${++cloneCounter}`;
       setBuilt(prev => {
@@ -165,7 +162,6 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
       return;
     }
 
-    // Reorder within built
     if (source.droppableId === 'built' && destination.droppableId === 'built') {
       setBuilt(prev => {
         const next = [...prev];
@@ -176,7 +172,6 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
       return;
     }
 
-    // Drag from built back to bank → remove it
     if (source.droppableId === 'built' && destination.droppableId === 'bank') {
       setBuilt(prev => prev.filter((_, i) => i !== source.index));
       return;
@@ -206,10 +201,6 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
 
   const showResult = resultWritePhase === 'done' && resultWritten !== null;
 
-  // Ten-frame layout for built cubes: render in rows of 10 with gap
-  const builtRow1 = built.slice(0, 10);
-  const builtRow2 = built.slice(10, 20);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-3">
       <div className="w-full max-w-4xl">
@@ -228,10 +219,9 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               <DisplayCubes count={startNumber} />
             </div>
 
-            {/* Write phase — canvas stays visible after done */}
             <div className="w-full flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write the number you see:</p>
-              <SimpleWritingCanvas onDone={(strokes, url) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
+              <SimpleWritingCanvas onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
             </div>
 
             {startWritePhase === 'enter' && (
@@ -266,7 +256,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             )}
 
             <DragDropContext onDragEnd={onDragEnd}>
-              {/* Built zone — ten-frame grid with ghost slots */}
+              {/* Built zone — ten-frame grid with ghost slots, fluid width */}
               <div>
                 <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
                 {/* Row 1: slots 0-9 */}
@@ -275,40 +265,32 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors overflow-hidden ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-                      style={{ minHeight: CS + 12 }}
+                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
+                      style={{ height: CS + 12 }}
                     >
                       {Array.from({ length: 10 }).map((_, i) => {
                         const id = built[i];
-                        if (id) {
-                          return <BuiltCube key={id} draggableId={id} index={i} />;
-                        }
-                        return (
-                          <div key={`ghost-${i}`} style={{ width: CS, height: CS, flexShrink: 0 }}
-                            className="rounded border border-dashed border-gray-300 bg-gray-200/50" />
-                        );
+                        if (id) return <BuiltCube key={id} draggableId={id} index={i} useFlex />;
+                        return <div key={`ghost-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
                       })}
                       <div style={{ display: 'none' }}>{provided.placeholder}</div>
                     </div>
                   )}
                 </Droppable>
-                {/* Row 2: slots 10-19, static visual only */}
-                <div className="flex gap-0.5 p-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50 mt-2">
+                {/* Row 2: slots 10-19 */}
+                <div className="flex gap-0.5 p-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50 mt-2" style={{ height: CS + 12 }}>
                   {Array.from({ length: 10 }).map((_, i) => {
                     const id = built[10 + i];
                     if (id) {
                       return (
-                        <div key={id} style={{ width: CS, height: CS, position: 'relative', flexShrink: 0 }}>
+                        <div key={id} style={{ flex: 1, height: '100%', position: 'relative' }}>
                           <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
                           <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
                           <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
                         </div>
                       );
                     }
-                    return (
-                      <div key={`ghost2-${i}`} style={{ width: CS, height: CS, flexShrink: 0 }}
-                        className="rounded border border-dashed border-gray-300 bg-gray-200/50" />
-                    );
+                    return <div key={`ghost2-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
                   })}
                 </div>
               </div>
@@ -332,11 +314,10 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </Droppable>
             </DragDropContext>
 
-            {/* Write result — canvas stays */}
             {spinDone && resultWritePhase === 'write' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write how many you built:</p>
-                <SimpleWritingCanvas onDone={(strokes, url) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+                <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
               </motion.div>
             )}
             {spinDone && resultWritePhase === 'enter' && (
