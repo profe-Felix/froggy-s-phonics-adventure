@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
 import OneLessMoreSpinner from './OneLessMoreSpinner';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+let cloneCounter = 0;
+const BANK_CUBES = Array.from({ length: 10 }, (_, i) => i);
+const CS = 36; // cube size px
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -79,30 +83,45 @@ function DisplayCubes({ count }) {
   );
 }
 
-// Tap-based cube components
-function AddCubeButton({ onClick }) {
+function BankCube({ index }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.85 }}
-      onClick={onClick}
-      className="w-14 h-14 rounded-xl bg-indigo-600 text-white text-3xl font-bold shadow-lg hover:bg-indigo-700 select-none"
-      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-    >
-      +
-    </motion.button>
+    <Draggable draggableId={`bank-src-${index}`} index={index}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+        >
+          <div style={{ width: CS, height: CS, position: 'relative', opacity: snapshot.isDragging ? 0.7 : 1 }}>
+            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
+            <div style={{ position: 'absolute', top: 7, left: 0, right: 4, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 2 }} />
+            <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
+          </div>
+        </div>
+      )}
+    </Draggable>
   );
 }
 
-function RemoveCubeButton({ onClick }) {
+function BuiltCube({ draggableId, index }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.85 }}
-      onClick={onClick}
-      className="w-14 h-14 rounded-xl bg-red-400 text-white text-3xl font-bold shadow-lg hover:bg-red-500 select-none"
-      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
-    >
-      −
-    </motion.button>
+    <Draggable draggableId={draggableId} index={index}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, flex: 1, height: '100%', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', opacity: snapshot.isDragging ? 0.7 : 1 }}
+        >
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
+            <div style={{ position: 'absolute', top: 7, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 2 }} />
+            <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+          </div>
+        </div>
+      )}
+    </Draggable>
   );
 }
 
@@ -113,7 +132,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
 
-  const [builtCount, setBuiltCount] = useState(0);
+  const [built, setBuilt] = useState([]);
 
   const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
@@ -131,7 +150,8 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     setSpinDone(false);
     setSpinResult(null);
     setTargetNumber(null);
-    setBuiltCount(0);
+    setBuilt([]);
+    cloneCounter = 0;
     setStartWritePhase('write');
     setStartWritten(null);
     setStartStrokes(null);
@@ -149,6 +169,18 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     setTargetNumber(result === 'more' ? startNumber + 1 : startNumber - 1);
   };
 
+  const onDragEnd = (result) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    if (source.droppableId === 'bank' && destination.droppableId === 'built') {
+      const newId = `built-${++cloneCounter}`;
+      setBuilt(prev => { const next = [...prev]; next.splice(destination.index, 0, newId); return next; });
+    } else if (source.droppableId === 'built' && destination.droppableId === 'built') {
+      setBuilt(prev => { const next = [...prev]; const [item] = next.splice(source.index, 1); next.splice(destination.index, 0, item); return next; });
+    } else if (source.droppableId === 'built' && destination.droppableId === 'bank') {
+      setBuilt(prev => prev.filter((_, i) => i !== source.index));
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -227,40 +259,62 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             )}
 
-            {/* Ten-frame display of built cubes */}
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
-              <div className="flex flex-col gap-1">
-                {[0, 1].map(row => (
-                  <div key={row} className="flex gap-0.5">
-                    {Array.from({ length: 10 }).map((_, i) => {
-                      const idx = row * 10 + i;
-                      const filled = idx < builtCount;
-                      return (
-                        <div key={i} style={{ flex: 1, height: 24, position: 'relative' }}>
-                          {filled ? (
-                            <>
-                              <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-                              <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-                              <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-                            </>
-                          ) : (
-                            <div className="w-full h-full rounded border border-dashed border-gray-300 bg-gray-200/50" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+            <DragDropContext onDragEnd={onDragEnd}>
+              {/* Built area — two rows of 10 slots */}
+              <div>
+                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
+                <Droppable droppableId="built" direction="horizontal">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      style={{ display: 'flex', gap: 2, padding: 6, height: CS + 12, touchAction: 'none', userSelect: 'none' }}
+                      className={`rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      {Array.from({ length: 10 }).map((_, i) => {
+                        const id = built[i];
+                        if (id) return <BuiltCube key={id} draggableId={id} index={i} />;
+                        return <div key={`ghost-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
+                      })}
+                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
+                    </div>
+                  )}
+                </Droppable>
+                {/* Second row (overflow) */}
+                <div style={{ display: 'flex', gap: 2, padding: 6, height: CS + 12, marginTop: 4 }}
+                  className="rounded-xl border border-dashed border-gray-200 bg-gray-50">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const id = built[10 + i];
+                    if (id) return (
+                      <div key={id} style={{ flex: 1, height: '100%', position: 'relative' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
+                        <div style={{ position: 'absolute', top: 7, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 2 }} />
+                        <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+                      </div>
+                    );
+                    return <div key={`ghost2-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
+                  })}
+                </div>
               </div>
-            </div>
 
-            {/* Add / Remove buttons */}
-            <div className="flex items-center justify-center gap-6 mt-1">
-              <RemoveCubeButton onClick={() => setBuiltCount(c => Math.max(0, c - 1))} />
-              <span className="text-3xl font-bold text-gray-700 w-10 text-center">{builtCount}</span>
-              <AddCubeButton onClick={() => setBuiltCount(c => Math.min(20, c + 1))} />
-            </div>
+              {/* Bank */}
+              <Droppable droppableId="bank" direction="horizontal">
+                {(provided, snapshot) => (
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold mb-1">Cube bank — drag to build, drag back to remove</p>
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 8, minHeight: CS + 16, touchAction: 'none', userSelect: 'none' }}
+                      className={`rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      {BANK_CUBES.map((_, i) => <BankCube key={i} index={i} />)}
+                      {provided.placeholder}
+                    </div>
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
 
             {spinDone && (
               <div className="flex flex-col items-center gap-2">
