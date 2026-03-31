@@ -260,35 +260,52 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             )}
 
             <DragDropContext onDragEnd={onDragEnd}>
-              {/* Built zone — ten-frame layout, but using Droppable for drag target */}
-              <Droppable droppableId="built" direction="horizontal">
-                {(provided, snapshot) => (
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
-                    {/* Row 1: first 10 */}
+              {/* Built zone — ten-frame grid with ghost slots */}
+              <div>
+                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
+                {/* Row 1: slots 0-9 */}
+                <Droppable droppableId="built" direction="horizontal">
+                  {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex flex-nowrap gap-0.5 p-2 rounded-xl border-2 transition-colors min-h-10 ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
+                      style={{ minHeight: CS + 12 }}
                     >
-                      {built.length === 0 && <p className="text-gray-300 text-xs self-center w-full text-center">Drag cubes here…</p>}
-                      {builtRow1.map((id, i) => <BuiltCube key={id} draggableId={id} index={i} />)}
-                      {provided.placeholder}
+                      {Array.from({ length: 10 }).map((_, i) => {
+                        const id = built[i];
+                        if (id) {
+                          return <BuiltCube key={id} draggableId={id} index={i} />;
+                        }
+                        return (
+                          <div key={`ghost-${i}`} style={{ width: CS, height: CS, flexShrink: 0 }}
+                            className="rounded border border-dashed border-gray-300 bg-gray-200/50" />
+                        );
+                      })}
+                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
                     </div>
-                    {builtRow2.length > 0 && (
-                      <div className="flex flex-nowrap gap-0.5 p-2 rounded-xl bg-gray-50 border border-dashed border-gray-200 mt-3">
-                        {builtRow2.map((id, i) => (
-                          <div key={id} style={{ width: CS, height: CS, position: 'relative', flexShrink: 0 }}>
-                            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-                            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-                            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Droppable>
+                  )}
+                </Droppable>
+                {/* Row 2: slots 10-19, static visual only */}
+                <div className="flex gap-0.5 p-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50 mt-2">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const id = built[10 + i];
+                    if (id) {
+                      return (
+                        <div key={id} style={{ width: CS, height: CS, position: 'relative', flexShrink: 0 }}>
+                          <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
+                          <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
+                          <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={`ghost2-${i}`} style={{ width: CS, height: CS, flexShrink: 0 }}
+                        className="rounded border border-dashed border-gray-300 bg-gray-200/50" />
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Bank — fixed cubes, drag = clone */}
               <Droppable droppableId="bank" direction="horizontal">
