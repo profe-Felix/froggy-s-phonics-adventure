@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import OneLessMoreSpinner from './OneLessMoreSpinner';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-let cubeCounter = 0;
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -24,7 +23,7 @@ function SingleDigitEntry({ onSubmit }) {
           <motion.button key={d} whileTap={{ scale: 0.85 }}
             onClick={() => handleDigit(d)}
             disabled={done || built.length >= 2}
-            className="h-10 rounded-xl bg-white shadow text-lg font-bold text-indigo-700 border-2 border-indigo-200 hover:border-indigo-400 disabled:opacity-40">
+            className="h-10 rounded-xl bg-white shadow text-lg font-bold text-indigo-700 border-2 border-indigo-200 disabled:opacity-40">
             {d}
           </motion.button>
         ))}
@@ -33,25 +32,99 @@ function SingleDigitEntry({ onSubmit }) {
         <button onClick={handleUndo} disabled={done || !built}
           className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold disabled:opacity-30">⌫</button>
         <button onClick={handleSubmit} disabled={done || !built}
-          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-30 hover:bg-indigo-700">✓</button>
+          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-30">✓</button>
       </div>
     </div>
   );
 }
 
-function CubeBlock({ color = 'green', size = 26 }) {
-  const s = size;
-  const topH = Math.round(s * 0.19);
-  const sideW = Math.round(s * 0.12);
-  const offset = Math.round(s * 0.12);
-  const colors = color === 'green'
-    ? { top: '#4ade80', topDark: '#166534', front: '#16a34a', side: '#166534' }
-    : { top: '#60a5fa', topDark: '#1e3a8a', front: '#2d4fa1', side: '#1e3a8a' };
+// The 3D cube visual
+function CubeVisual({ color = 'blue', size = 26 }) {
+  const topH = Math.round(size * 0.19);
+  const side = Math.round(size * 0.12);
+  const off  = Math.round(size * 0.12);
+  const c = color === 'green'
+    ? { top: '#4ade80', dk: '#166534', front: '#16a34a' }
+    : { top: '#60a5fa', dk: '#1e3a8a', front: '#2d4fa1' };
   return (
-    <div style={{ width: s, height: s, position: 'relative', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', top: 0, left: offset, right: 0, height: topH, background: colors.top, clipPath: `polygon(0 100%, ${offset}px 0, 100% 0, calc(100% - ${offset}px) 100%)`, borderTop: `1px solid ${colors.topDark}` }} />
-      <div style={{ position: 'absolute', top: topH, left: 0, right: sideW, bottom: 0, background: colors.front, border: `1px solid ${colors.topDark}`, borderRadius: 1 }} />
-      <div style={{ position: 'absolute', top: topH, right: 0, width: sideW, bottom: 0, background: colors.side, borderRadius: '0 1px 1px 0' }} />
+    <div style={{ width: size, height: size, position: 'relative', flexShrink: 0, pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: 0, left: off, right: 0, height: topH, background: c.top, clipPath: `polygon(0 100%, ${off}px 0, 100% 0, calc(100% - ${off}px) 100%)`, borderTop: `1px solid ${c.dk}` }} />
+      <div style={{ position: 'absolute', top: topH, left: 0, right: side, bottom: 0, background: c.front, border: `1px solid ${c.dk}`, borderRadius: 1 }} />
+      <div style={{ position: 'absolute', top: topH, right: 0, width: side, bottom: 0, background: c.dk, borderRadius: '0 1px 1px 0' }} />
+    </div>
+  );
+}
+
+// A bank cube that clones on drag using raw pointer events
+function BankCube({ trayRef, onDrop }) {
+  const cubeRef = useRef(null);
+
+  const handlePointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Create a floating clone
+    const clone = document.createElement('div');
+    clone.style.cssText = `
+      position: fixed;
+      width: 26px; height: 26px;
+      pointer-events: none;
+      z-index: 9999;
+      touch-action: none;
+    `;
+    // Blue cube faces
+    clone.innerHTML = `
+      <div style="position:absolute;top:0;left:3px;right:0;height:5px;background:#60a5fa;clip-path:polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%);border-top:1px solid #1e3a8a"></div>
+      <div style="position:absolute;top:5px;left:0;right:3px;bottom:0;background:#2d4fa1;border:1px solid #1e3a8a;border-radius:1px"></div>
+      <div style="position:absolute;top:5px;right:0;width:3px;bottom:0;background:#1e3a8a;border-radius:0 1px 1px 0"></div>
+    `;
+    document.body.appendChild(clone);
+
+    const move = (ex, ey) => {
+      clone.style.left = (ex - 13) + 'px';
+      clone.style.top  = (ey - 13) + 'px';
+    };
+    move(e.clientX, e.clientY);
+
+    const onMove = (ev) => {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      move(cx, cy);
+    };
+
+    const onUp = (ev) => {
+      const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
+      const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
+      clone.remove();
+
+      // Check if released over tray
+      if (trayRef.current) {
+        const rect = trayRef.current.getBoundingClientRect();
+        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+          onDrop();
+        }
+      }
+
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchend', onUp);
+  };
+
+  return (
+    <div
+      ref={cubeRef}
+      onPointerDown={handlePointerDown}
+      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+    >
+      <CubeVisual color="blue" size={26} />
     </div>
   );
 }
@@ -62,7 +135,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [spinDone, setSpinDone] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
-  const [built, setBuilt] = useState([]); // array of unique ids
+  const [builtCount, setBuiltCount] = useState(0);
   const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
   const [startStrokes, setStartStrokes] = useState(null);
@@ -72,10 +145,12 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const trayRef = useRef(null);
+
   const resetRound = () => {
     setStartNumber(Math.floor(Math.random() * 17) + 2);
     setSpinDone(false); setSpinResult(null); setTargetNumber(null);
-    setBuilt([]); cubeCounter = 0;
+    setBuiltCount(0);
     setStartWritePhase('write'); setStartWritten(null); setStartStrokes(null);
     setResultWritePhase('write'); setResultWritten(null); setResultStrokes(null);
     setSaving(false); setSaved(false);
@@ -88,17 +163,13 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     setTargetNumber(result === 'more' ? startNumber + 1 : startNumber - 1);
   };
 
-  const addCubes = (n) => {
-    setBuilt(prev => {
-      const toAdd = Math.min(n, 20 - prev.length);
-      if (toAdd <= 0) return prev;
-      const newIds = Array.from({ length: toAdd }, () => `c-${++cubeCounter}`);
-      return [...prev, ...newIds];
-    });
+  const handleDrop = () => {
+    setBuiltCount(c => Math.min(c + 1, 20));
   };
 
-  const removeCube = (id) => {
-    setBuilt(prev => prev.filter(c => c !== id));
+  const removeCube = (idx) => {
+    // Remove the last cube (or by index — simplest: remove last)
+    setBuiltCount(c => Math.max(0, c - 1));
   };
 
   const handleSave = async () => {
@@ -117,6 +188,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   };
 
   const showResult = resultWritePhase === 'done' && resultWritten !== null;
+  const CS = 26;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-3"
@@ -141,7 +213,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                   <div key={i} style={{ flex: 1, height: '100%', position: 'relative' }}>
                     <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
                     <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
-                    <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
+                    <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a' }} />
                   </div>
                 );
                 const GhostSlot = (i) => <div key={`g${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-blue-300 bg-blue-100/40" />;
@@ -188,43 +260,42 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             )}
 
-            {/* Two fixed rows of 10 slots */}
-            <div className="flex flex-col gap-1">
-              {[0, 1].map(row => (
-                <div key={row} className="flex gap-0.5 p-1 rounded-xl border-2 border-gray-200 bg-gray-50" style={{ height: 38 }}>
-                  {Array.from({ length: 10 }).map((_, col) => {
-                    const idx = row * 10 + col;
-                    const id = built[idx];
-                    return id ? (
-                      <motion.button key={id} initial={{ scale: 0.5 }} animate={{ scale: 1 }}
-                        onClick={() => removeCube(id)}
-                        style={{ flex: 1, height: '100%', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
-                        title="Tap to remove">
-                        <CubeBlock color="green" size={26} />
-                      </motion.button>
-                    ) : (
-                      <div key={`empty-${row}-${col}`} style={{ flex: 1, height: '100%' }}
-                        className="rounded border border-dashed border-gray-300 bg-gray-200/40" />
-                    );
-                  })}
-                </div>
-              ))}
-              <p className="text-xs text-gray-400 text-center">{built.length} cubes · tap to remove</p>
+            {/* Drop tray — two rows of 10 */}
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
+              <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50 min-h-[40px]">
+                {[0, 1].map(row => (
+                  <div key={row} className="flex gap-0.5" style={{ height: CS + 4 }}>
+                    {Array.from({ length: 10 }).map((_, col) => {
+                      const idx = row * 10 + col;
+                      const filled = idx < builtCount;
+                      return filled ? (
+                        <button key={col}
+                          onClick={() => removeCube(idx)}
+                          style={{ flex: 1, height: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                          title="Tap to remove">
+                          <CubeVisual color="green" size={CS} />
+                        </button>
+                      ) : (
+                        <div key={col} style={{ flex: 1, height: '100%' }}
+                          className="rounded border border-dashed border-green-200 bg-green-100/30" />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-300 mt-1 text-center">Tap cube to remove</p>
             </div>
 
-            {/* Add buttons */}
-            <div className="flex gap-1.5">
-              {[1, 5, 10].map(n => (
-                <motion.button key={n} whileTap={{ scale: 0.9 }}
-                  onClick={() => addCubes(n)}
-                  disabled={built.length >= 20}
-                  className="flex-1 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-sm border-2 border-indigo-200 hover:bg-indigo-200 disabled:opacity-30 flex flex-col items-center gap-0.5">
-                  <CubeBlock color="blue" size={20} />
-                  +{n}
-                </motion.button>
-              ))}
+            {/* Bank — drag from here */}
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-1">Drag cubes to tray ↑</p>
+              <div className="flex gap-1 p-2 rounded-xl border-2 border-gray-200 bg-gray-50 flex-wrap">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <BankCube key={i} trayRef={trayRef} onDrop={handleDrop} />
+                ))}
+              </div>
             </div>
-            <button onClick={() => setBuilt([])} className="text-xs text-gray-400 hover:text-red-400 text-center">Clear all</button>
 
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write how many you built:</p>
