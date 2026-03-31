@@ -284,7 +284,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-                      style={{ height: CS + 12 }}
+                      style={{ height: CS + 12, touchAction: 'none' }}
                     >
                       {Array.from({ length: 10 }).map((_, i) => {
                         const id = built[i];
@@ -322,6 +322,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={`flex gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                      style={{ touchAction: 'none' }}
                     >
                       {BANK_CUBES.map((_, i) => <BankCube key={i} index={i} />)}
                       {provided.placeholder}
