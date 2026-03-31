@@ -88,7 +88,7 @@ function BankCube({ index }) {
     <Draggable draggableId={`bank-src-${index}`} index={index}>
       {(provided, snapshot) => (
         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, touchAction: 'none' }}
           className="flex-shrink-0 cursor-grab">
           <div style={{ width: CS, height: CS, position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
@@ -107,7 +107,7 @@ function BuiltCube({ draggableId, index, useFlex }) {
     <Draggable draggableId={draggableId} index={index}>
       {(provided, snapshot) => (
         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, flex: useFlex ? 1 : undefined, height: '100%' }}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, flex: useFlex ? 1 : undefined, height: '100%', touchAction: 'none' }}
           className="cursor-grab">
           <div style={{ width: useFlex ? '100%' : CS, height: '100%', position: 'relative' }}>
             <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
