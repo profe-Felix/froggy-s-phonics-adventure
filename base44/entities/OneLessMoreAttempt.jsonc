@@ -22,12 +22,10 @@
       "type": "integer"
     },
     "student_wrote_start": {
-      "type": "integer",
-      "description": "Number student wrote for the starting number"
+      "type": "integer"
     },
     "student_wrote_result": {
-      "type": "integer",
-      "description": "Number student wrote for the result number"
+      "type": "integer"
     },
     "is_correct_start": {
       "type": "boolean"
@@ -36,12 +34,18 @@
       "type": "boolean"
     },
     "start_canvas_url": {
-      "type": "string",
-      "description": "Canvas snapshot of writing starting number"
+      "type": "string"
     },
     "result_canvas_url": {
+      "type": "string"
+    },
+    "start_strokes_data": {
       "type": "string",
-      "description": "Canvas snapshot of writing result number"
+      "description": "JSON-encoded strokes for start number writing"
+    },
+    "result_strokes_data": {
+      "type": "string",
+      "description": "JSON-encoded strokes for result number writing"
     }
   },
   "required": [

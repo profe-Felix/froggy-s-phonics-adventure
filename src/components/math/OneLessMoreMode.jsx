@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
@@ -7,7 +7,6 @@ import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-// Generate an initial pool of 20 unique cube IDs for the bank
 function makeCubes(count, prefix) {
   return Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
 }
@@ -57,26 +56,19 @@ function SingleDigitEntry({ onSubmit }) {
 
 function CubeBlock({ draggableId, index, color = 'blue' }) {
   const colors = {
-    blue: { front: '#2d4fa1', top: '#4a6fc7', side: '#1e3a8a', border: '#1e3a8a' },
-    green: { front: '#166534', top: '#22c55e', side: '#14532d', border: '#14532d' },
+    blue: { front: '#2d4fa1', top: '#4a6fc7', side: '#1e3a8a' },
+    green: { front: '#166534', top: '#22c55e', side: '#14532d' },
   };
   const c = colors[color];
   return (
     <Draggable draggableId={draggableId} index={index}>
       {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          style={{
-            ...provided.draggableProps.style,
-            opacity: snapshot.isDragging ? 0.85 : 1,
-          }}
-          className="flex-shrink-0"
-        >
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.85 : 1 }}
+          className="flex-shrink-0">
           <div style={{ width: 36, height: 36, position: 'relative', cursor: 'grab' }}>
-            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: c.top, clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: `1px solid ${c.border}` }} />
-            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: c.front, border: `1.5px solid ${c.border}`, borderRadius: 2 }} />
+            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: c.top, clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: `1px solid ${c.side}` }} />
+            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: c.front, border: `1.5px solid ${c.side}`, borderRadius: 2 }} />
             <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: c.side, borderRadius: '0 2px 2px 0' }} />
           </div>
         </div>
@@ -91,15 +83,10 @@ function CubeZone({ droppableId, cubes, label, placeholder, color, minHeight = 6
       {(provided, snapshot) => (
         <div>
           {label && <p className="text-xs text-gray-400 font-semibold mb-1">{label}</p>}
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
+          <div ref={provided.innerRef} {...provided.droppableProps}
             className={`flex flex-wrap gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-indigo-400 bg-indigo-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
-            style={{ minHeight }}
-          >
-            {cubes.length === 0 && (
-              <p className="text-gray-300 text-xs self-center w-full text-center">{placeholder}</p>
-            )}
+            style={{ minHeight }}>
+            {cubes.length === 0 && <p className="text-gray-300 text-xs self-center w-full text-center">{placeholder}</p>}
             {cubes.map((id, i) => <CubeBlock key={id} draggableId={id} index={i} color={color} />)}
             {provided.placeholder}
           </div>
@@ -110,8 +97,6 @@ function CubeZone({ droppableId, cubes, label, placeholder, color, minHeight = 6
 }
 
 function DisplayCubes({ count }) {
-  const row1 = Math.min(count, 10);
-  const row2 = Math.max(0, count - 10);
   const Cube = () => (
     <div style={{ width: 34, height: 34, position: 'relative', flexShrink: 0 }}>
       <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
@@ -119,6 +104,8 @@ function DisplayCubes({ count }) {
       <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
     </div>
   );
+  const row1 = Math.min(count, 10);
+  const row2 = Math.max(0, count - 10);
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap gap-0.5">{Array.from({ length: row1 }).map((_, i) => <Cube key={i} />)}</div>
@@ -128,21 +115,22 @@ function DisplayCubes({ count }) {
 }
 
 export default function OneLessMoreMode({ studentNumber, className: classProp, onBack }) {
-  const [startNumber] = useState(() => Math.floor(Math.random() * 17) + 2); // 2–18 so +1/-1 stays 1–19
+  const [startNumber] = useState(() => Math.floor(Math.random() * 17) + 2);
   const [spinDone, setSpinDone] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
 
-  // Drag-drop state
-  // bank: spare cubes not placed yet, built: cubes student has placed
   const [bank, setBank] = useState(() => makeCubes(20, 'cube'));
   const [built, setBuilt] = useState([]);
 
-  // Writing / digit entry state
-  const [startWritePhase, setStartWritePhase] = useState('write'); // 'write' | 'enter' | 'done'
+  const [startWritePhase, setStartWritePhase] = useState('write'); // write | enter | done
   const [startWritten, setStartWritten] = useState(null);
-  const [resultWritePhase, setResultWritePhase] = useState('write'); // 'write' | 'enter' | 'done'
+  const [startStrokes, setStartStrokes] = useState(null);
+
+  const [resultWritePhase, setResultWritePhase] = useState('write'); // write | enter | done
   const [resultWritten, setResultWritten] = useState(null);
+  const [resultStrokes, setResultStrokes] = useState(null);
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -157,14 +145,11 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     if (!result.destination) return;
     const { source, destination } = result;
     if (source.droppableId === destination.droppableId) {
-      // Reorder within same list
       const list = source.droppableId === 'bank' ? [...bank] : [...built];
       const [item] = list.splice(source.index, 1);
       list.splice(destination.index, 0, item);
-      if (source.droppableId === 'bank') setBank(list);
-      else setBuilt(list);
+      if (source.droppableId === 'bank') setBank(list); else setBuilt(list);
     } else {
-      // Move between lists
       const srcList = source.droppableId === 'bank' ? [...bank] : [...built];
       const dstList = destination.droppableId === 'bank' ? [...bank] : [...built];
       const [item] = srcList.splice(source.index, 1);
@@ -187,6 +172,8 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
         student_wrote_result: resultWritten,
         is_correct_start: startWritten === startNumber,
         is_correct_result: resultWritten === targetNumber,
+        start_strokes_data: startStrokes ? JSON.stringify(startStrokes) : null,
+        result_strokes_data: resultStrokes ? JSON.stringify(resultStrokes) : null,
       });
     } catch (e) { console.error(e); }
     setSaving(false);
@@ -198,14 +185,12 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-3">
       <div className="w-full max-w-4xl">
-        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <button onClick={onBack} className="text-white/80 hover:text-white font-medium">← Back</button>
           <h1 className="text-xl font-bold text-white">🧊 1 More / 1 Less</h1>
           <span className="text-white/70 text-sm">#{studentNumber}</span>
         </div>
 
-        {/* 3-column layout */}
         <div className="grid grid-cols-3 gap-4 items-start">
 
           {/* LEFT — Starting number */}
@@ -218,7 +203,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             {startWritePhase === 'write' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write the number you see:</p>
-                <SimpleWritingCanvas onDone={() => setStartWritePhase('enter')} />
+                <SimpleWritingCanvas onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
               </motion.div>
             )}
             {startWritePhase === 'enter' && (
@@ -230,7 +215,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             {startWritePhase === 'done' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className={`text-3xl font-bold px-4 py-2 rounded-xl ${startWritten === startNumber ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}>
-                {startWritten} {startWritten === startNumber ? '✓' : `✗`}
+                {startWritten} {startWritten === startNumber ? '✓' : '✗'}
                 {startWritten !== startNumber && <span className="text-base ml-1 text-gray-400">(was {startNumber})</span>}
               </motion.div>
             )}
@@ -260,7 +245,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             {spinDone && resultWritePhase === 'write' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write how many you built:</p>
-                <SimpleWritingCanvas onDone={() => setResultWritePhase('enter')} />
+                <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
               </motion.div>
             )}
             {spinDone && resultWritePhase === 'enter' && (
@@ -272,14 +257,13 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             {showResult && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className={`text-3xl font-bold text-center px-4 py-2 rounded-xl ${resultWritten === targetNumber ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}>
-                {resultWritten} {resultWritten === targetNumber ? '✓' : `✗`}
+                {resultWritten} {resultWritten === targetNumber ? '✓' : '✗'}
                 {resultWritten !== targetNumber && <span className="text-base ml-1 text-gray-400">(answer: {targetNumber})</span>}
               </motion.div>
             )}
           </div>
         </div>
 
-        {/* Bottom actions */}
         {showResult && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-center gap-4 mt-6">
             {!saved ? (
