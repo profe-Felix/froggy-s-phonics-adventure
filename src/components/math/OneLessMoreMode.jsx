@@ -261,24 +261,23 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                 <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount})</p>
                 <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50">
                   {[0, 1].map(row => (
-                    <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2 }}>
+                    <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2, height: 24 }}>
                       {Array.from({ length: 10 }).map((_, col) => {
                         const idx = row * 10 + col;
                         const filled = idx < builtCount;
                         return filled ? (
                           <button key={col} onClick={() => removeCube(idx)}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1', width: '100%' }}>
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', height: '100%' }}>
                             <CubeVisual color="green" size={null} fluid />
                           </button>
                         ) : (
-                          <div key={col} style={{ aspectRatio: '1', width: '100%' }}
+                          <div key={col} style={{ width: '100%', height: '100%' }}
                             className="rounded border border-dashed border-green-200 bg-green-100/30" />
                         );
                       })}
                     </div>
                   ))}
-                </div>
-                <p className="text-xs text-gray-300 mt-0.5 text-center">Tap to remove</p>
+                  <p className="text-xs text-gray-300 mt-0.5 text-center">Tap to remove</p>
               </div>
             </div>
 
