@@ -96,6 +96,25 @@ function BankCube({ index }) {
   );
 }
 
+// Cube placed in the built zone — green, reorderable
+function BuiltCube({ draggableId, index }) {
+  return (
+    <Draggable draggableId={draggableId} index={index}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
+          className="flex-shrink-0 cursor-grab">
+          <div style={{ width: CS, height: CS, position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
+            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
+            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
+          </div>
+        </div>
+      )}
+    </Draggable>
+  );
+}
+
 // Fixed bank of 5 cubes — dragging from here CLONES into built
 const BANK_CUBES = Array.from({ length: 5 }, (_, i) => i);
 
