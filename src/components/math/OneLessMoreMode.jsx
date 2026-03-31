@@ -314,11 +314,11 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </Droppable>
             </DragDropContext>
 
-            {spinDone && resultWritePhase === 'write' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2">
+            {spinDone && (
+              <div className="flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write how many you built:</p>
                 <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
-              </motion.div>
+              </div>
             )}
             {spinDone && resultWritePhase === 'enter' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
