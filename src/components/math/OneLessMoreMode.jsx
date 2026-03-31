@@ -49,28 +49,34 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-// Ten-frame style cubes: row of 10 then gap then remainder — small cubes, no wrap
+// Ten-frame ghost-slot display: two rows of 10 ghost slots, filled cubes shown
+const S = 22;
 function DisplayCubes({ count }) {
-  const S = 22; // cube size px
-  const Cube = () => (
+  const FilledCube = () => (
     <div style={{ width: S, height: S, position: 'relative', flexShrink: 0 }}>
       <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
       <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
       <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
     </div>
   );
-  const row1 = Math.min(count, 10);
-  const row2 = Math.max(0, count - 10);
+  const GhostSlot = () => (
+    <div style={{ width: S, height: S, flexShrink: 0 }}
+      className="rounded border border-dashed border-blue-300 bg-blue-100/40" />
+  );
+  const row1Count = Math.min(count, 10);
+  const row2Count = Math.max(0, count - 10);
   return (
     <div className="flex flex-col" style={{ gap: 0 }}>
-      <div className="flex flex-nowrap" style={{ gap: 2 }}>
-        {Array.from({ length: row1 }).map((_, i) => <Cube key={i} />)}
+      <div className="flex gap-0.5">
+        {Array.from({ length: 10 }).map((_, i) =>
+          i < row1Count ? <FilledCube key={i} /> : <GhostSlot key={i} />
+        )}
       </div>
-      {row2 > 0 && (
-        <div className="flex flex-nowrap" style={{ gap: 2, marginTop: 14 }}>
-          {Array.from({ length: row2 }).map((_, i) => <Cube key={i} />)}
-        </div>
-      )}
+      <div className="flex gap-0.5" style={{ marginTop: 10 }}>
+        {Array.from({ length: 10 }).map((_, i) =>
+          i < row2Count ? <FilledCube key={i} /> : <GhostSlot key={i} />
+        )}
+      </div>
     </div>
   );
 }
@@ -218,7 +224,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
           {/* LEFT — Starting number */}
           <div className="bg-white rounded-3xl p-4 shadow-xl flex flex-col items-center gap-3">
             <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Starting</p>
-            <div className="bg-sky-50 rounded-xl p-3 border border-sky-200 w-full flex justify-center">
+            <div className="bg-sky-50 rounded-xl p-3 border border-sky-200 w-full overflow-hidden">
               <DisplayCubes count={startNumber} />
             </div>
 
@@ -269,7 +275,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
+                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors overflow-hidden ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
                       style={{ minHeight: CS + 12 }}
                     >
                       {Array.from({ length: 10 }).map((_, i) => {
