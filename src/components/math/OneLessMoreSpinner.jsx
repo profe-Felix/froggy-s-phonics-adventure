@@ -12,12 +12,13 @@ export default function OneLessMoreSpinner({ onResult }) {
     const totalSpin = 360 * (4 + Math.floor(Math.random() * 3)) + extraDeg;
     const newAngle = arrowAngle + totalSpin;
 
-    // Determine result based on where arrow ends up
-    // Arrow at 0° = top. Wheel sectors (static): TL=More, TR=Less, BR=More, BL=Less
-    // Arrow pointing up lands on TL quadrant (More) when angle mod 360 is 315–360 or 0–45
-    // More sectors: 315–45 (top), 135–225 (bottom) → simplified: angle in [315,360)∪[0,45) or [135,225)
+    // Arrow at 0° points UP. Going clockwise:
+    // 0°–90° = upper-right = TR = Less
+    // 90°–180° = lower-right = BR = More
+    // 180°–270° = lower-left = BL = Less
+    // 270°–360° = upper-left = TL = More
     const finalAngle = ((newAngle % 360) + 360) % 360;
-    const inMore = (finalAngle >= 315 || finalAngle < 45) || (finalAngle >= 135 && finalAngle < 225);
+    const inMore = (finalAngle >= 90 && finalAngle < 180) || (finalAngle >= 270);
     const spinResult = inMore ? 'more' : 'less';
 
     setArrowAngle(newAngle);
