@@ -39,13 +39,24 @@ function SingleDigitEntry({ onSubmit }) {
 }
 
 // The 3D cube visual
-function CubeVisual({ color = 'blue', size = 26 }) {
-  const topH = Math.round(size * 0.19);
-  const side = Math.round(size * 0.12);
-  const off  = Math.round(size * 0.12);
+function CubeVisual({ color = 'blue', size = 26, fluid = false }) {
   const c = color === 'green'
     ? { top: '#4ade80', dk: '#166534', front: '#16a34a' }
     : { top: '#60a5fa', dk: '#1e3a8a', front: '#2d4fa1' };
+  if (fluid) {
+    return (
+      <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <div style={{ position: 'absolute', top: 0, left: '12%', right: 0, height: '19%', background: c.top, clipPath: 'polygon(0 100%, 12% 0, 100% 0, 88% 100%)', borderTop: `1px solid ${c.dk}` }} />
+          <div style={{ position: 'absolute', top: '19%', left: 0, right: '12%', bottom: 0, background: c.front, border: `1px solid ${c.dk}`, borderRadius: 1 }} />
+          <div style={{ position: 'absolute', top: '19%', right: 0, width: '12%', bottom: 0, background: c.dk }} />
+        </div>
+      </div>
+    );
+  }
+  const topH = Math.round(size * 0.19);
+  const side = Math.round(size * 0.12);
+  const off  = Math.round(size * 0.12);
   return (
     <div style={{ width: size, height: size, position: 'relative', flexShrink: 0, pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', top: 0, left: off, right: 0, height: topH, background: c.top, clipPath: `polygon(0 100%, ${off}px 0, 100% 0, calc(100% - ${off}px) 100%)`, borderTop: `1px solid ${c.dk}` }} />
@@ -241,19 +252,19 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
               <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50 min-h-[40px]">
                 {[0, 1].map(row => (
-                  <div key={row} className="flex gap-0.5" style={{ height: CS + 4 }}>
+                  <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2 }}>
                     {Array.from({ length: 10 }).map((_, col) => {
                       const idx = row * 10 + col;
                       const filled = idx < builtCount;
                       return filled ? (
                         <button key={col}
                           onClick={() => removeCube(idx)}
-                          style={{ flex: 1, height: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1', width: '100%' }}
                           title="Tap to remove">
-                          <CubeVisual color="green" size={CS} />
+                          <CubeVisual color="green" size={null} fluid />
                         </button>
                       ) : (
-                        <div key={col} style={{ flex: 1, height: '100%' }}
+                        <div key={col} style={{ aspectRatio: '1', width: '100%' }}
                           className="rounded border border-dashed border-green-200 bg-green-100/30" />
                       );
                     })}
