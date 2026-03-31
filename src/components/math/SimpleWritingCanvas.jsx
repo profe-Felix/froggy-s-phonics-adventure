@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback } from 'react';
 
-// onDone(strokesData) — strokesData is array of strokes, each stroke = [{x,y,t},...]
+// onDone(strokesData, dataUrl)
 export default function SimpleWritingCanvas({ onDone }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
@@ -8,6 +8,8 @@ export default function SimpleWritingCanvas({ onDone }) {
   const allStrokes = useRef([]);
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [done, setDone] = useState(false);
+  const [dataUrl, setDataUrl] = useState(null);
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -19,6 +21,7 @@ export default function SimpleWritingCanvas({ onDone }) {
   };
 
   const startDraw = useCallback((e) => {
+    if (done) return;
     e.preventDefault();
     const pos = getPos(e);
     const ctx = canvasRef.current.getContext('2d');
@@ -28,9 +31,10 @@ export default function SimpleWritingCanvas({ onDone }) {
     currentStroke.current = [pos];
     drawing.current = true;
     setHasDrawn(true);
-  }, []);
+  }, [done]);
 
   const draw = useCallback((e) => {
+    if (done) return;
     e.preventDefault();
     if (!drawing.current) return;
     const pos = getPos(e);
@@ -48,9 +52,10 @@ export default function SimpleWritingCanvas({ onDone }) {
     ctx.moveTo(midX, midY);
     lastPos.current = pos;
     currentStroke.current.push(pos);
-  }, []);
+  }, [done]);
 
   const endDraw = useCallback((e) => {
+    if (done) return;
     e.preventDefault();
     if (!drawing.current) return;
     drawing.current = false;
@@ -58,9 +63,10 @@ export default function SimpleWritingCanvas({ onDone }) {
       allStrokes.current = [...allStrokes.current, currentStroke.current];
       currentStroke.current = [];
     }
-  }, []);
+  }, [done]);
 
   const clear = () => {
+    if (done) return;
     const canvas = canvasRef.current;
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
     allStrokes.current = [];
@@ -69,12 +75,17 @@ export default function SimpleWritingCanvas({ onDone }) {
   };
 
   const handleDone = () => {
-    onDone(allStrokes.current);
+    const canvas = canvasRef.current;
+    const url = canvas.toDataURL('image/png');
+    setDataUrl(url);
+    setDone(true);
+    onDone(allStrokes.current, url);
   };
 
   return (
     <div className="flex flex-col items-center gap-3 select-none">
-      <div className="relative rounded-2xl border-4 border-indigo-200 overflow-hidden" style={{ width: 260, height: 180, background: '#f8fbff' }}>
+      <div className="relative rounded-2xl border-4 overflow-hidden"
+        style={{ width: 260, height: 180, background: '#f8fbff', borderColor: done ? '#6366f1' : '#c7d2fe' }}>
         <svg className="absolute inset-0 pointer-events-none" width="260" height="180">
           <line x1="0" y1="30"  x2="260" y2="30"  stroke="#aac4e0" strokeWidth="1" />
           <line x1="0" y1="80"  x2="260" y2="80"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
@@ -85,8 +96,8 @@ export default function SimpleWritingCanvas({ onDone }) {
           ref={canvasRef}
           width={260}
           height={180}
-          className="absolute inset-0 touch-none cursor-crosshair"
-          style={{ background: 'transparent' }}
+          className="absolute inset-0 touch-none"
+          style={{ background: 'transparent', cursor: done ? 'default' : 'crosshair' }}
           onMouseDown={startDraw}
           onMouseMove={draw}
           onMouseUp={endDraw}
@@ -95,19 +106,24 @@ export default function SimpleWritingCanvas({ onDone }) {
           onTouchMove={draw}
           onTouchEnd={endDraw}
         />
+        {done && (
+          <div className="absolute top-1 right-2 text-green-500 font-bold text-lg">✓</div>
+        )}
       </div>
-      <div className="flex gap-3">
-        <button onClick={clear} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">
-          🗑 Clear
-        </button>
-        <button
-          onClick={handleDone}
-          disabled={!hasDrawn}
-          className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow disabled:opacity-40 hover:bg-indigo-700"
-        >
-          Next →
-        </button>
-      </div>
+      {!done && (
+        <div className="flex gap-3">
+          <button onClick={clear} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">
+            🗑 Clear
+          </button>
+          <button
+            onClick={handleDone}
+            disabled={!hasDrawn}
+            className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow disabled:opacity-40 hover:bg-indigo-700"
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

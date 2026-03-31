@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
@@ -6,10 +6,7 @@ import OneLessMoreSpinner from './OneLessMoreSpinner';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-function makeCubes(count, prefix) {
-  return Array.from({ length: count }, (_, i) => `${prefix}-${i}`);
-}
+let cloneCounter = 0;
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -19,9 +16,7 @@ function SingleDigitEntry({ onSubmit }) {
     if (done || built.length >= 2) return;
     setBuilt(b => b + String(d));
   };
-
   const handleUndo = () => { if (!done) setBuilt(b => b.slice(0, -1)); };
-
   const handleSubmit = () => {
     if (!built || done) return;
     setDone(true);
@@ -54,51 +49,10 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-function CubeBlock({ draggableId, index, color = 'blue' }) {
-  const colors = {
-    blue: { front: '#2d4fa1', top: '#4a6fc7', side: '#1e3a8a' },
-    green: { front: '#166534', top: '#22c55e', side: '#14532d' },
-  };
-  const c = colors[color];
-  return (
-    <Draggable draggableId={draggableId} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.85 : 1 }}
-          className="flex-shrink-0">
-          <div style={{ width: 36, height: 36, position: 'relative', cursor: 'grab' }}>
-            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: c.top, clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: `1px solid ${c.side}` }} />
-            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: c.front, border: `1.5px solid ${c.side}`, borderRadius: 2 }} />
-            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: c.side, borderRadius: '0 2px 2px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
-}
-
-function CubeZone({ droppableId, cubes, label, placeholder, color, minHeight = 60 }) {
-  return (
-    <Droppable droppableId={droppableId} direction="horizontal">
-      {(provided, snapshot) => (
-        <div>
-          {label && <p className="text-xs text-gray-400 font-semibold mb-1">{label}</p>}
-          <div ref={provided.innerRef} {...provided.droppableProps}
-            className={`flex flex-wrap gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-indigo-400 bg-indigo-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
-            style={{ minHeight }}>
-            {cubes.length === 0 && <p className="text-gray-300 text-xs self-center w-full text-center">{placeholder}</p>}
-            {cubes.map((id, i) => <CubeBlock key={id} draggableId={id} index={i} color={color} />)}
-            {provided.placeholder}
-          </div>
-        </div>
-      )}
-    </Droppable>
-  );
-}
-
+// Ten-frame style cubes: row of up to 10, then a gap, then the rest
 function DisplayCubes({ count }) {
-  const Cube = () => (
-    <div style={{ width: 34, height: 34, position: 'relative', flexShrink: 0 }}>
+  const Cube = ({ key: k }) => (
+    <div key={k} style={{ width: 34, height: 34, position: 'relative', flexShrink: 0 }}>
       <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
       <div style={{ position: 'absolute', top: 7, left: 0, right: 4, bottom: 0, background: '#2d4fa1', border: '1.5px solid #1e3a8a', borderRadius: 2 }} />
       <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
@@ -107,12 +61,59 @@ function DisplayCubes({ count }) {
   const row1 = Math.min(count, 10);
   const row2 = Math.max(0, count - 10);
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap gap-0.5">{Array.from({ length: row1 }).map((_, i) => <Cube key={i} />)}</div>
-      {row2 > 0 && <div className="flex flex-wrap gap-0.5">{Array.from({ length: row2 }).map((_, i) => <Cube key={i} />)}</div>}
+    <div className="flex flex-col" style={{ gap: 0 }}>
+      <div className="flex flex-wrap gap-0.5">
+        {Array.from({ length: row1 }).map((_, i) => <Cube key={i} />)}
+      </div>
+      {row2 > 0 && (
+        <div className="flex flex-wrap gap-0.5" style={{ marginTop: 18 }}>
+          {Array.from({ length: row2 }).map((_, i) => <Cube key={i} />)}
+        </div>
+      )}
     </div>
   );
 }
+
+// Cube for the bank — drag to clone
+function BankCube({ index }) {
+  return (
+    <Draggable draggableId={`bank-src-${index}`} index={index}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
+          className="flex-shrink-0 cursor-grab">
+          <div style={{ width: 36, height: 36, position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
+            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#2d4fa1', border: '1.5px solid #1e3a8a', borderRadius: 2 }} />
+            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
+          </div>
+        </div>
+      )}
+    </Draggable>
+  );
+}
+
+// Cube placed in the built zone — green, reorderable
+function BuiltCube({ draggableId, index }) {
+  return (
+    <Draggable draggableId={draggableId} index={index}>
+      {(provided, snapshot) => (
+        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
+          className="flex-shrink-0 cursor-grab">
+          <div style={{ width: 36, height: 36, position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
+            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1.5px solid #166534', borderRadius: 2 }} />
+            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+          </div>
+        </div>
+      )}
+    </Draggable>
+  );
+}
+
+// Fixed bank of 5 cubes — dragging from here CLONES into built
+const BANK_CUBES = Array.from({ length: 5 }, (_, i) => i);
 
 export default function OneLessMoreMode({ studentNumber, className: classProp, onBack }) {
   const [startNumber] = useState(() => Math.floor(Math.random() * 17) + 2);
@@ -120,7 +121,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
 
-  const [bank, setBank] = useState(() => makeCubes(20, 'cube'));
+  // Built zone: array of unique IDs
   const [built, setBuilt] = useState([]);
 
   const [startWritePhase, setStartWritePhase] = useState('write'); // write | enter | done
@@ -137,25 +138,39 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const handleSpinResult = (result) => {
     setSpinResult(result);
     setSpinDone(true);
-    const target = result === 'more' ? startNumber + 1 : startNumber - 1;
-    setTargetNumber(target);
+    setTargetNumber(result === 'more' ? startNumber + 1 : startNumber - 1);
   };
 
   const onDragEnd = (result) => {
     if (!result.destination) return;
     const { source, destination } = result;
-    if (source.droppableId === destination.droppableId) {
-      const list = source.droppableId === 'bank' ? [...bank] : [...built];
-      const [item] = list.splice(source.index, 1);
-      list.splice(destination.index, 0, item);
-      if (source.droppableId === 'bank') setBank(list); else setBuilt(list);
-    } else {
-      const srcList = source.droppableId === 'bank' ? [...bank] : [...built];
-      const dstList = destination.droppableId === 'bank' ? [...bank] : [...built];
-      const [item] = srcList.splice(source.index, 1);
-      dstList.splice(destination.index, 0, item);
-      if (source.droppableId === 'bank') { setBank(srcList); setBuilt(dstList); }
-      else { setBuilt(srcList); setBank(dstList); }
+
+    // Clone from bank into built
+    if (source.droppableId === 'bank' && destination.droppableId === 'built') {
+      const newId = `built-${++cloneCounter}`;
+      setBuilt(prev => {
+        const next = [...prev];
+        next.splice(destination.index, 0, newId);
+        return next;
+      });
+      return;
+    }
+
+    // Reorder within built
+    if (source.droppableId === 'built' && destination.droppableId === 'built') {
+      setBuilt(prev => {
+        const next = [...prev];
+        const [item] = next.splice(source.index, 1);
+        next.splice(destination.index, 0, item);
+        return next;
+      });
+      return;
+    }
+
+    // Drag from built back to bank → remove it
+    if (source.droppableId === 'built' && destination.droppableId === 'bank') {
+      setBuilt(prev => prev.filter((_, i) => i !== source.index));
+      return;
     }
   };
 
@@ -182,6 +197,10 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
 
   const showResult = resultWritePhase === 'done' && resultWritten !== null;
 
+  // Ten-frame layout for built cubes: render in rows of 10 with gap
+  const builtRow1 = built.slice(0, 10);
+  const builtRow2 = built.slice(10, 20);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-3">
       <div className="w-full max-w-4xl">
@@ -200,12 +219,12 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               <DisplayCubes count={startNumber} />
             </div>
 
-            {startWritePhase === 'write' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex flex-col items-center gap-2">
-                <p className="text-xs text-gray-400">Write the number you see:</p>
-                <SimpleWritingCanvas onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
-              </motion.div>
-            )}
+            {/* Write phase — canvas stays visible after done */}
+            <div className="w-full flex flex-col items-center gap-2">
+              <p className="text-xs text-gray-400">Write the number you see:</p>
+              <SimpleWritingCanvas onDone={(strokes, url) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
+            </div>
+
             {startWritePhase === 'enter' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="w-full">
                 <p className="text-xs text-gray-400 text-center mb-2">Now type it:</p>
@@ -238,14 +257,61 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             )}
 
             <DragDropContext onDragEnd={onDragEnd}>
-              <CubeZone droppableId="built" cubes={built} label={`Your build (${built.length} cubes)`} placeholder="Drag cubes here…" color="green" minHeight={72} />
-              <CubeZone droppableId="bank" cubes={bank} label="Cube bank" placeholder="" color="blue" minHeight={48} />
+              {/* Built zone — ten-frame layout, but using Droppable for drag target */}
+              <Droppable droppableId="built" direction="horizontal">
+                {(provided, snapshot) => (
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
+                    {/* Row 1: first 10 */}
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`flex flex-wrap gap-0.5 p-2 rounded-xl border-2 transition-colors min-h-12 ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                    >
+                      {built.length === 0 && <p className="text-gray-300 text-xs self-center w-full text-center">Drag cubes here…</p>}
+                      {builtRow1.map((id, i) => <BuiltCube key={id} draggableId={id} index={i} />)}
+                      {provided.placeholder}
+                    </div>
+                    {/* Row 2: overflow beyond 10, with gap */}
+                    {builtRow2.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 p-2 rounded-xl bg-gray-50 border border-dashed border-gray-200 mt-4">
+                        {builtRow2.map((id, i) => (
+                          <div key={id} style={{ width: 36, height: 36, position: 'relative', flexShrink: 0 }}>
+                            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
+                            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1.5px solid #166534', borderRadius: 2 }} />
+                            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Droppable>
+
+              {/* Bank — fixed cubes, drag = clone */}
+              <Droppable droppableId="bank" direction="horizontal">
+                {(provided, snapshot) => (
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold mb-1">Cube bank — drag to build</p>
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`flex gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      {BANK_CUBES.map((_, i) => <BankCube key={i} index={i} />)}
+                      {provided.placeholder}
+                    </div>
+                    <p className="text-xs text-gray-300 mt-1 text-center">Drag back to remove</p>
+                  </div>
+                )}
+              </Droppable>
             </DragDropContext>
 
+            {/* Write result — canvas stays */}
             {spinDone && resultWritePhase === 'write' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write how many you built:</p>
-                <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+                <SimpleWritingCanvas onDone={(strokes, url) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
               </motion.div>
             )}
             {spinDone && resultWritePhase === 'enter' && (
