@@ -82,8 +82,8 @@ export default function OneLessMoreSpinner({ onResult }) {
       )}
       {spinning && <p className="text-lg font-bold text-indigo-600 animate-pulse">Spinning…</p>}
       {result && (
-        <div className={`text-2xl font-bold px-6 py-3 rounded-xl shadow ${result === 'more' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-          1 {result === 'more' ? 'More ➕' : 'Less ➖'}
+        <div className="text-2xl font-bold px-6 py-3 rounded-xl shadow bg-gray-100 text-gray-700">
+          1 {result === 'more' ? 'More' : 'Less'}
         </div>
       )}
     </div>
