@@ -155,7 +155,14 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     setTargetNumber(result === 'more' ? startNumber + 1 : startNumber - 1);
   };
 
+  const onDragStart = () => {
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+  };
+
   const onDragEnd = (result) => {
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
     if (!result.destination) return;
     const { source, destination } = result;
     if (source.droppableId === 'bank' && destination.droppableId === 'built') {
@@ -241,7 +248,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             )}
           </div>
 
-          <DragDropContext onDragEnd={onDragEnd}>
+          <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
             {/* Built tray */}
             <div>
               <p className="text-xs text-gray-400 font-semibold mb-2">Your build — {built.length} cube{built.length !== 1 ? 's' : ''}</p>
