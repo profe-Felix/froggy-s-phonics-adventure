@@ -242,8 +242,8 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
           <div className={`bg-white rounded-3xl p-4 shadow-xl flex flex-col gap-3 transition-opacity ${spinDone ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             <p className="text-sm font-bold text-gray-500 uppercase tracking-wide text-center">Build It!</p>
             {spinDone && (
-              <div className={`text-center text-base font-bold px-3 py-1.5 rounded-xl ${spinResult === 'more' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-                1 {spinResult === 'more' ? 'More ➕' : 'Less ➖'}
+              <div className="text-center text-base font-bold px-3 py-1.5 rounded-xl bg-gray-100 text-gray-700">
+                1 {spinResult === 'more' ? 'More' : 'Less'}
               </div>
             )}
 
@@ -252,13 +252,10 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               {/* Left: vertical bank */}
               <div className="flex flex-col gap-1.5 flex-shrink-0 items-center">
                 <p className="text-xs text-gray-400 font-semibold">Add</p>
-                {[1, 5, 10].map(n => (
-                  <BankCube key={n} count={n} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + n, 20))} />
-                ))}
+                <BankCube count={1} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + 1, 20))} />
               </div>
               {/* Right: drop tray */}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount})</p>
                 <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50">
                   {[0, 1].map(row => (
                     <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 26px)', gap: 2, height: 26 }}>
@@ -298,9 +295,11 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             )}
             {showResult && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className={`text-3xl font-bold text-center px-4 py-2 rounded-xl ${resultWritten === targetNumber ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}>
-                {resultWritten} {resultWritten === targetNumber ? '✓' : '✗'}
-                {resultWritten !== targetNumber && <span className="text-base ml-1 text-gray-400">(answer: {targetNumber})</span>}
+                className={`text-3xl font-bold text-center px-4 py-2 rounded-xl ${resultWritten === targetNumber && builtCount === targetNumber ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'}`}>
+                {resultWritten} {resultWritten === targetNumber && builtCount === targetNumber ? '✓' : '✗'}
+                {(resultWritten !== targetNumber || builtCount !== targetNumber) && (
+                  <span className="text-base ml-1 text-gray-400">(answer: {targetNumber})</span>
+                )}
               </motion.div>
             )}
           </div>
