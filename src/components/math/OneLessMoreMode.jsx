@@ -108,9 +108,10 @@ function BankCube({ trayRef, onDrop, count = 1 }) {
       ref={cubeRef}
       onPointerDown={handlePointerDown}
       style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
-      className="flex items-center justify-center w-9 h-7 rounded-lg border border-blue-300 bg-blue-100 hover:bg-blue-200 text-xs font-bold text-blue-700"
+      className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100"
     >
-      +{count}
+      <CubeVisual color="blue" size={18} />
+      <span className="text-xs font-bold text-blue-700 leading-none">+{count}</span>
     </button>
   );
 }
@@ -186,7 +187,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
           <span className="text-white/70 text-sm">#{studentNumber}</span>
         </div>
 
-        <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
+        <div className="grid grid-cols-3 gap-4 items-start">
 
           {/* LEFT — Starting number */}
           <div className="bg-white rounded-3xl p-4 shadow-xl flex flex-col items-center gap-3">
@@ -281,10 +282,12 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             </div>
 
-            {/* Writing canvas */}
+            {/* Writing canvas — scaled down */}
             <div className="flex flex-col items-center gap-1">
               <p className="text-xs text-gray-400">Write how many you built:</p>
-              <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+              <div style={{ transform: 'scale(0.75)', transformOrigin: 'top center', width: '133%', marginLeft: '-16.5%', marginBottom: '-44px' }}>
+                <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+              </div>
             </div>
 
             {resultWritePhase === 'enter' && (
