@@ -6,6 +6,8 @@ import BingoTeacher from '../components/math/BingoTeacher';
 import BingoPeerLobby from '../components/math/BingoPeerLobby';
 import NumberBuildingMode from '../components/game/modes/NumberBuildingMode';
 import OneLessMoreMode from '../components/math/OneLessMoreMode';
+import OneLessMoreTeacher from '../components/math/OneLessMoreTeacher';
+import OneLessMoreLessonStudent from '../components/math/OneLessMoreLessonStudent';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -61,29 +63,49 @@ export default function MathGames() {
 
   // ── TEACHER VIEW ──
   if (mode === 'teacher') {
+    // 1 More / 1 Less teacher (needs class selected first via state)
+    if (gameMode === 'onelessmore' && selectedClass) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-indigo-600 to-purple-700 py-8 px-4">
+          <OneLessMoreTeacher className={selectedClass} onBack={() => setGameMode(null)} />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gradient-to-b from-indigo-600 to-purple-700 py-8 px-4">
         {!selectedClass ? (
           <div className="flex flex-col items-center gap-6 max-w-sm mx-auto">
-            <h1 className="text-3xl font-bold text-white">🎱 Bingo — Teacher</h1>
-            <p className="text-white/70">Select a class to manage:</p>
+            <h1 className="text-3xl font-bold text-white">🏫 Teacher Dashboard</h1>
+            <p className="text-white/70">Select a class:</p>
             <div className="flex flex-col gap-3 w-full">
               {CLASSES.map(cls => (
-                <Button
-                  key={cls}
-                  onClick={() => setSelectedClass(cls)}
-                  className="bg-white text-indigo-700 font-bold text-xl py-6 h-auto rounded-2xl hover:bg-indigo-50"
-                >
+                <button key={cls} onClick={() => { setSelectedClass(cls); setGameData(null); }}
+                  className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">
                   {cls}
-                </Button>
+                </button>
               ))}
             </div>
           </div>
+        ) : gameMode === null ? (
+          <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
+            <button onClick={() => setSelectedClass(null)} className="text-white/70 hover:text-white self-start text-sm">← Classes</button>
+            <h2 className="text-2xl font-bold text-white">{selectedClass}</h2>
+            <div className="flex flex-col gap-3 w-full">
+              <button onClick={() => setGameMode('bingo')}
+                className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">
+                🎱 Bingo
+              </button>
+              <button onClick={() => setGameMode('onelessmore')}
+                className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">
+                🧊 1 More / 1 Less
+              </button>
+            </div>
+          </div>
         ) : (
+          // Bingo teacher
           <div>
-            <button onClick={() => { setSelectedClass(null); setGameData(null); }}
-              className="text-white/80 hover:text-white mb-4 flex items-center gap-1 ml-4">
-              ← Back to classes
+            <button onClick={() => setGameMode(null)} className="text-white/80 hover:text-white mb-4 flex items-center gap-1 ml-4">
+              ← Back
             </button>
             {!gameData ? (
               <div className="flex flex-col items-center gap-4">
@@ -228,7 +250,34 @@ export default function MathGames() {
 
   // ── STUDENT VIEW — 1 More / 1 Less ──
   if (gameMode === 'onelessmore') {
-    return <OneLessMoreMode onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
+    if (selfPlay === null) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
+          <button onClick={() => setGameMode(null)} className="text-white/80 self-start hover:text-white">← Back</button>
+          <div className="text-5xl">🧊</div>
+          <h2 className="text-2xl font-bold text-white">1 More / 1 Less</h2>
+          <p className="text-white/80">How do you want to play?</p>
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelfPlay(false)}
+              className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🏫 Teacher Lesson
+              <span className="text-sm font-normal text-indigo-400">Teacher controls the pace</span>
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelfPlay(true)}
+              className="bg-white text-indigo-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🎮 Solo Practice
+              <span className="text-sm font-normal text-indigo-400">Spin and build on your own</span>
+            </motion.button>
+          </div>
+        </div>
+      );
+    }
+    if (selfPlay === true) {
+      return <OneLessMoreMode onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
+    }
+    return <OneLessMoreLessonStudent onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
   }
 
   // ── STUDENT VIEW — Bingo sub-mode ──

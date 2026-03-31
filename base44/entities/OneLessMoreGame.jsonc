@@ -1,0 +1,42 @@
+{
+  "name": "OneLessMoreGame",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": false
+    },
+    "current_number": {
+      "type": "integer"
+    },
+    "spinner_result": {
+      "type": "string",
+      "enum": [
+        "more",
+        "less"
+      ]
+    },
+    "target_number": {
+      "type": "integer"
+    },
+    "round_number": {
+      "type": "integer",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active",
+        "done"
+      ],
+      "default": "waiting"
+    }
+  },
+  "required": [
+    "class_name"
+  ]
+}
