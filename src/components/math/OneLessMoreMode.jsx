@@ -278,6 +278,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                     </div>
                   ))}
                   <p className="text-xs text-gray-300 mt-0.5 text-center">Tap to remove</p>
+                </div>
               </div>
             </div>
 
