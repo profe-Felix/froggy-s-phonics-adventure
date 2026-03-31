@@ -107,11 +107,10 @@ function BankCube({ trayRef, onDrop, count = 1 }) {
     <button
       ref={cubeRef}
       onPointerDown={handlePointerDown}
-      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab', background: 'none', border: 'none', padding: 0 }}
-      className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 w-12"
+      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+      className="flex items-center justify-center w-9 h-7 rounded-lg border border-blue-300 bg-blue-100 hover:bg-blue-200 text-xs font-bold text-blue-700"
     >
-      <CubeVisual color="blue" size={26} />
-      <span className="text-xs font-bold text-blue-700">+{count}</span>
+      +{count}
     </button>
   );
 }
@@ -180,14 +179,14 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-3"
       style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-5xl">
         <div className="flex items-center justify-between mb-4">
           <button onClick={onBack} className="text-white/80 hover:text-white font-medium">← Back</button>
           <h1 className="text-xl font-bold text-white">🧊 1 More / 1 Less</h1>
           <span className="text-white/70 text-sm">#{studentNumber}</span>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 items-start">
+        <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
 
           {/* LEFT — Starting number */}
           <div className="bg-white rounded-3xl p-4 shadow-xl flex flex-col items-center gap-3">
@@ -282,12 +281,10 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             </div>
 
-            {/* Writing canvas — smaller */}
+            {/* Writing canvas */}
             <div className="flex flex-col items-center gap-1">
               <p className="text-xs text-gray-400">Write how many you built:</p>
-              <div style={{ transform: 'scale(0.75)', transformOrigin: 'top center', width: '133%', marginLeft: '-16.5%', marginBottom: '-44px' }}>
-                <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
-              </div>
+              <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
             </div>
 
             {resultWritePhase === 'enter' && (
