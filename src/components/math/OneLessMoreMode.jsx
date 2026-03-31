@@ -1,135 +1,119 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
-import LinkingCubes from './LinkingCubes';
+import { LinkingCubesDisplay, LinkingCubesInteractive } from './LinkingCubes';
 import OneLessMoreSpinner from './OneLessMoreSpinner';
 
 // PHASES:
-// 1. 'view_start'  - see starting cubes, write the number
-// 2. 'spin'        - spin the spinner
-// 3. 'view_result' - see result cubes, write the new number
-// 4. 'done'        - show both side by side, save data, offer next round
+// 'view_start'  → see starting cubes, enter the number with digit pad
+// 'spin'        → spin the spinner
+// 'build_result'→ build the new amount with interactive cubes, enter number with digit pad
+// 'done'        → side-by-side summary
 
-const CANVAS_W = 220;
-const CANVAS_H = 130;
+const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
 
-function WritingCanvas({ onSubmit, placeholder }) {
-  const canvasRef = useRef(null);
-  const drawing = useRef(false);
-  const [hasStrokes, setHasStrokes] = useState(false);
-  const [value, setValue] = useState('');
+function DigitPad({ target, onCorrect, onWrong }) {
+  const [built, setBuilt] = useState([]);
+  const [result, setResult] = useState(null); // null | 'correct' | 'wrong'
+  const targetStr = String(target);
 
-  const getPos = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  const handleDigit = (d) => {
+    if (result) return;
+    const next = [...built, String(d)];
+    setBuilt(next);
+    if (next.length === targetStr.length) {
+      const correct = next.join('') === targetStr;
+      setResult(correct ? 'correct' : 'wrong');
+      setTimeout(() => {
+        if (correct) onCorrect(parseInt(next.join('')));
+        else { setBuilt([]); setResult(null); onWrong(parseInt(next.join(''))); }
+      }, 900);
+    }
   };
 
-  const startDraw = (e) => {
-    e.preventDefault();
-    drawing.current = true;
-    const ctx = canvasRef.current.getContext('2d');
-    const { x, y } = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const draw = (e) => {
-    e.preventDefault();
-    if (!drawing.current) return;
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1e293b';
-    const { x, y } = getPos(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    setHasStrokes(true);
-  };
-
-  const endDraw = () => { drawing.current = false; };
-
-  const clear = () => {
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    setHasStrokes(false);
-  };
-
-  const handleSubmit = () => {
-    const imageUrl = canvasRef.current.toDataURL('image/png');
-    onSubmit(parseInt(value) || null, imageUrl);
-  };
+  const handleUndo = () => { if (!result) setBuilt(b => b.slice(0, -1)); };
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <p className="text-sm text-gray-500 font-medium">{placeholder}</p>
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_W}
-        height={CANVAS_H}
-        className="border-2 border-dashed border-indigo-300 rounded-xl bg-white touch-none"
-        onMouseDown={startDraw}
-        onMouseMove={draw}
-        onMouseUp={endDraw}
-        onTouchStart={startDraw}
-        onTouchMove={draw}
-        onTouchEnd={endDraw}
-      />
-      <div className="flex gap-2 items-center">
-        <input
-          type="number"
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          placeholder="Type answer"
-          className="w-24 border-2 border-indigo-200 rounded-lg px-3 py-2 text-center text-xl font-bold focus:outline-none focus:border-indigo-500"
-        />
-        <button onClick={clear} className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">Clear</button>
-        <button
-          onClick={handleSubmit}
-          disabled={!value}
-          className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition"
-        >
-          ✓ Submit
-        </button>
+    <div className="flex flex-col items-center gap-3 w-full max-w-xs">
+      {/* Display boxes */}
+      <div className="flex gap-3 justify-center">
+        {Array.from({ length: targetStr.length }).map((_, i) => {
+          const digit = built[i];
+          return (
+            <motion.div
+              key={i}
+              animate={result ? { scale: [1, 1.2, 1] } : {}}
+              className={`w-20 h-24 rounded-2xl border-4 flex items-center justify-center text-5xl font-bold shadow-md
+                ${digit !== undefined
+                  ? result === 'correct' ? 'border-green-400 bg-green-50 text-green-700'
+                    : result === 'wrong' ? 'border-red-400 bg-red-50 text-red-600'
+                    : 'border-sky-400 bg-white text-sky-700'
+                  : i === built.length
+                    ? 'border-dashed border-sky-400 bg-sky-50'
+                    : 'border-dashed border-gray-300 bg-gray-50'
+                }`}
+            >{digit ?? ''}</motion.div>
+          );
+        })}
       </div>
+      {result === 'correct' && <p className="text-green-600 font-bold text-xl">🎉 ¡Correcto!</p>}
+      {result === 'wrong' && <p className="text-red-500 font-bold text-xl">Try again!</p>}
+      {/* Digit pad */}
+      <div className="grid grid-cols-5 gap-2 w-full">
+        {DIGITS.map(d => (
+          <motion.button
+            key={d}
+            whileTap={{ scale: 0.88 }}
+            onClick={() => handleDigit(d)}
+            disabled={!!result || built.length >= targetStr.length}
+            className="h-14 rounded-2xl bg-white shadow-md text-2xl font-bold text-indigo-700 border-2 border-indigo-200 hover:border-indigo-400 disabled:opacity-40 transition-colors"
+          >{d}</motion.button>
+        ))}
+      </div>
+      <button
+        onClick={handleUndo}
+        disabled={!!result || built.length === 0}
+        className="w-full py-2.5 rounded-xl bg-white/70 text-gray-600 font-bold shadow disabled:opacity-30"
+      >⌫ Undo</button>
     </div>
   );
 }
 
-export default function OneLessMoreMode({ studentNumber, className: classNameProp, onBack }) {
+export default function OneLessMoreMode({ studentNumber, className: classProp, onBack }) {
   const [phase, setPhase] = useState('view_start');
-  const [startNumber, setStartNumber] = useState(() => Math.floor(Math.random() * 19) + 1);
-  const [spinResult, setSpinResult] = useState(null); // 'more' | 'less'
+  const [startNumber] = useState(() => Math.floor(Math.random() * 19) + 1);
+  const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
+  const [builtCount, setBuiltCount] = useState(0);
   const [startWritten, setStartWritten] = useState(null);
-  const [startCanvas, setStartCanvas] = useState(null);
   const [resultWritten, setResultWritten] = useState(null);
-  const [resultCanvas, setResultCanvas] = useState(null);
+  const [wrongStart, setWrongStart] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [roundCount, setRoundCount] = useState(0);
 
-  const handleStartSubmit = (num, imgUrl) => {
+  // Phase 1: student enters starting number
+  const handleStartCorrect = (num) => {
     setStartWritten(num);
-    setStartCanvas(imgUrl);
     setPhase('spin');
   };
 
+  // Phase 2: spinner done
   const handleSpinResult = (result) => {
     setSpinResult(result);
     const target = result === 'more' ? startNumber + 1 : startNumber - 1;
     setTargetNumber(target);
-    // Small delay so they see the result, then move on
-    setTimeout(() => setPhase('view_result'), 1200);
+    setBuiltCount(startNumber); // start with starting count — student adds/removes 1
+    setTimeout(() => setPhase('build_result'), 1000);
   };
 
-  const handleResultSubmit = async (num, imgUrl) => {
+  // Phase 3: student submits their built number and writes it
+  const handleResultCorrect = async (num) => {
     setResultWritten(num);
-    setResultCanvas(imgUrl);
+    const isCorrectBuild = builtCount === targetNumber;
     setSaving(true);
     try {
       await base44.entities.OneLessMoreAttempt.create({
         student_number: studentNumber,
-        class_name: classNameProp,
+        class_name: classProp,
         starting_number: startNumber,
         spinner_result: spinResult,
         target_number: targetNumber,
@@ -137,53 +121,37 @@ export default function OneLessMoreMode({ studentNumber, className: classNamePro
         student_wrote_result: num,
         is_correct_start: startWritten === startNumber,
         is_correct_result: num === targetNumber,
-        start_canvas_url: startCanvas,
-        result_canvas_url: imgUrl,
       });
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
     setSaving(false);
     setPhase('done');
   };
 
-  const nextRound = () => {
-    let next = Math.floor(Math.random() * 19) + 1;
-    setStartNumber(next);
-    setSpinResult(null);
-    setTargetNumber(null);
-    setStartWritten(null);
-    setStartCanvas(null);
-    setResultWritten(null);
-    setResultCanvas(null);
-    setRoundCount(r => r + 1);
-    setPhase('view_start');
+  const handleNextRound = () => {
+    window.location.reload(); // simplest reset for now
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center py-6 px-4">
-      <div className="w-full max-w-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="w-full max-w-lg">
+        <div className="flex items-center justify-between mb-5">
           <button onClick={onBack} className="text-white/80 hover:text-white font-medium">← Back</button>
-          <h1 className="text-2xl font-bold text-white">🧊 1 More / 1 Less</h1>
+          <h1 className="text-xl font-bold text-white">🧊 1 More / 1 Less</h1>
           <span className="text-white/70 text-sm">#{studentNumber}</span>
         </div>
 
         <AnimatePresence mode="wait">
 
-          {/* PHASE 1: View start number, write it */}
+          {/* PHASE 1: View starting cubes, enter the number */}
           {phase === 'view_start' && (
             <motion.div key="view_start" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center gap-6">
               <p className="text-lg font-bold text-gray-600">How many cubes do you see?</p>
-              <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
-                <LinkingCubes count={startNumber} />
+              <div className="bg-sky-50 rounded-2xl p-5 border border-sky-200">
+                <LinkingCubesDisplay count={startNumber} />
               </div>
-              <WritingCanvas
-                placeholder="Write the number you see, then type it below"
-                onSubmit={handleStartSubmit}
-              />
+              <p className="text-sm text-gray-400">Press the digits to enter your answer:</p>
+              <DigitPad target={startNumber} onCorrect={handleStartCorrect} onWrong={() => setWrongStart(true)} />
             </motion.div>
           )}
 
@@ -196,61 +164,51 @@ export default function OneLessMoreMode({ studentNumber, className: classNamePro
             </motion.div>
           )}
 
-          {/* PHASE 3: View result, write it */}
-          {phase === 'view_result' && (
-            <motion.div key="view_result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          {/* PHASE 3: Build result with interactive cubes, enter number */}
+          {phase === 'build_result' && (
+            <motion.div key="build_result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center gap-6">
               <div className={`px-4 py-2 rounded-xl font-bold text-lg ${spinResult === 'more' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
                 1 {spinResult === 'more' ? 'More ➕' : 'Less ➖'}
               </div>
-              <p className="text-gray-500 text-sm">Build the new amount. How many now?</p>
-              <div className="bg-sky-50 rounded-2xl p-4 border border-sky-200">
-                <LinkingCubes count={targetNumber} highlightLast={true} />
+              <p className="text-gray-500 text-sm text-center">Use the + and − buttons to build the new amount,<br/>then enter the number.</p>
+              <div className="bg-sky-50 rounded-2xl p-5 border border-sky-200">
+                <LinkingCubesInteractive count={builtCount} onChange={setBuiltCount} max={20} min={0} />
               </div>
-              <WritingCanvas
-                placeholder="Write the new number, then type it below"
-                onSubmit={handleResultSubmit}
-              />
-              {saving && <p className="text-indigo-500 animate-pulse text-sm">Saving…</p>}
+              <p className="text-sm text-gray-400">Now enter the number you built:</p>
+              <DigitPad target={targetNumber} onCorrect={handleResultCorrect} onWrong={() => {}} />
+              {saving && <p className="text-indigo-400 animate-pulse text-sm">Saving…</p>}
             </motion.div>
           )}
 
-          {/* PHASE 4: Done — show side by side */}
+          {/* PHASE 4: Done — side by side */}
           {phase === 'done' && (
             <motion.div key="done" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
               className="bg-white rounded-3xl p-6 shadow-2xl flex flex-col items-center gap-6">
-              <div className="text-3xl">🎉</div>
-              <p className="font-bold text-gray-700 text-lg">Great job! Here's what you did:</p>
-
-              <div className="flex gap-6 items-start justify-center flex-wrap">
+              <div className="text-4xl">🎉</div>
+              <p className="font-bold text-gray-700 text-lg">Here's what you did!</p>
+              <div className="flex gap-4 items-center justify-center flex-wrap">
                 {/* Starting */}
-                <div className="flex flex-col items-center gap-3 bg-gray-50 rounded-2xl p-4 border">
-                  <p className="text-sm font-bold text-gray-500">Starting</p>
-                  <LinkingCubes count={startNumber} />
+                <div className="flex flex-col items-center gap-2 bg-gray-50 rounded-2xl p-4 border">
+                  <p className="text-xs font-bold text-gray-400 uppercase">Starting</p>
+                  <LinkingCubesDisplay count={startNumber} />
                   <div className={`text-2xl font-bold ${startWritten === startNumber ? 'text-green-600' : 'text-red-500'}`}>
-                    {startWritten ?? '?'} {startWritten === startNumber ? '✓' : `✗ (was ${startNumber})`}
+                    {startNumber} {startWritten === startNumber ? '✓' : '✗'}
                   </div>
-                  {startCanvas && <img src={startCanvas} alt="start writing" className="w-36 rounded-lg border" />}
                 </div>
-
-                <div className="flex flex-col items-center justify-center text-3xl font-bold text-indigo-400 mt-8">
-                  {spinResult === 'more' ? '➕1' : '➖1'}
-                </div>
-
+                <div className="text-3xl font-bold text-indigo-300">{spinResult === 'more' ? '+1' : '−1'}</div>
                 {/* Result */}
-                <div className="flex flex-col items-center gap-3 bg-gray-50 rounded-2xl p-4 border">
-                  <p className="text-sm font-bold text-gray-500">New Amount</p>
-                  <LinkingCubes count={targetNumber} />
+                <div className="flex flex-col items-center gap-2 bg-gray-50 rounded-2xl p-4 border">
+                  <p className="text-xs font-bold text-gray-400 uppercase">New Amount</p>
+                  <LinkingCubesDisplay count={targetNumber} highlightLast />
                   <div className={`text-2xl font-bold ${resultWritten === targetNumber ? 'text-green-600' : 'text-red-500'}`}>
-                    {resultWritten ?? '?'} {resultWritten === targetNumber ? '✓' : `✗ (was ${targetNumber})`}
+                    {targetNumber} {resultWritten === targetNumber ? '✓' : '✗'}
                   </div>
-                  {resultCanvas && <img src={resultCanvas} alt="result writing" className="w-36 rounded-lg border" />}
                 </div>
               </div>
-
               <button
-                onClick={nextRound}
-                className="mt-2 px-8 py-4 bg-indigo-600 text-white font-bold text-xl rounded-2xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg"
+                onClick={handleNextRound}
+                className="px-8 py-4 bg-indigo-600 text-white font-bold text-xl rounded-2xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg"
               >
                 Next Round 🎲
               </button>
