@@ -124,7 +124,8 @@ function BuiltCube({ draggableId, index, useFlex }) {
 const BANK_CUBES = Array.from({ length: 5 }, (_, i) => i);
 
 export default function OneLessMoreMode({ studentNumber, className: classProp, onBack }) {
-  const [startNumber] = useState(() => Math.floor(Math.random() * 17) + 2);
+  const [roundKey, setRoundKey] = useState(0);
+  const [startNumber, setStartNumber] = useState(() => Math.floor(Math.random() * 17) + 2);
   const [spinDone, setSpinDone] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
@@ -141,6 +142,23 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const resetRound = () => {
+    setStartNumber(Math.floor(Math.random() * 17) + 2);
+    setSpinDone(false);
+    setSpinResult(null);
+    setTargetNumber(null);
+    setBuilt([]);
+    setStartWritePhase('write');
+    setStartWritten(null);
+    setStartStrokes(null);
+    setResultWritePhase('write');
+    setResultWritten(null);
+    setResultStrokes(null);
+    setSaving(false);
+    setSaved(false);
+    setRoundKey(k => k + 1);
+  };
 
   const handleSpinResult = (result) => {
     setSpinResult(result);
@@ -221,7 +239,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
 
             <div className="w-full flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write the number you see:</p>
-              <SimpleWritingCanvas onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
+              <SimpleWritingCanvas key={`start-${roundKey}`} onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
             </div>
 
             {startWritePhase === 'enter' && (
@@ -242,7 +260,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
           {/* CENTER — Spinner */}
           <div className="bg-white rounded-3xl p-4 shadow-xl flex flex-col items-center gap-3">
             <p className="text-sm font-bold text-gray-500 uppercase tracking-wide">Spin!</p>
-            <OneLessMoreSpinner onResult={handleSpinResult} />
+            <OneLessMoreSpinner key={`spinner-${roundKey}`} onResult={handleSpinResult} />
           </div>
 
           {/* RIGHT — Build area */}
@@ -317,7 +335,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
             {spinDone && (
               <div className="flex flex-col items-center gap-2">
                 <p className="text-xs text-gray-400">Write how many you built:</p>
-                <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+                <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
               </div>
             )}
             {spinDone && resultWritePhase === 'enter' && (
@@ -344,7 +362,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                 {saving ? 'Saving…' : '💾 Save & Next'}
               </button>
             ) : (
-              <button onClick={() => window.location.reload()}
+              <button onClick={resetRound}
                 className="px-8 py-4 bg-indigo-600 text-white font-bold text-xl rounded-2xl hover:bg-indigo-700 active:scale-95 shadow-lg">
                 Next Round 🎲
               </button>
