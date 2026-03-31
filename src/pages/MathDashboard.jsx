@@ -4,12 +4,13 @@ import StruggleGroups from '../components/math/StruggleGroups';
 import StudentAccuracyView from '../components/math/StudentAccuracyView';
 import BingoStudentView from '../components/math/BingoStudentView';
 import BingoStruggleGroups from '../components/math/BingoStruggleGroups';
+import OneLessMoreDashboard from '../components/math/OneLessMoreDashboard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
-const TABS = ['✏️ Writing Samples', '👥 By Student', '🔴 Struggle Groups', '🎱 Bingo'];
+const TABS = ['✏️ Writing Samples', '👥 By Student', '🔴 Struggle Groups', '🎱 Bingo', '🧊 1 More/Less'];
 
 export default function MathDashboard() {
   const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
@@ -32,6 +33,12 @@ export default function MathDashboard() {
   const { data: bingoResponses = [] } = useQuery({
     queryKey: ['bingo-responses', selectedClass],
     queryFn: () => base44.entities.MathBingoResponse.filter({ class_name: selectedClass }, '-created_date', 2000),
+    refetchInterval: 10000,
+  });
+
+  const { data: oneLessMoreAttempts = [] } = useQuery({
+    queryKey: ['one-less-more', selectedClass],
+    queryFn: () => base44.entities.OneLessMoreAttempt.filter({ class_name: selectedClass }, '-created_date', 500),
     refetchInterval: 10000,
   });
 
@@ -201,6 +208,13 @@ export default function MathDashboard() {
             </div>
             {bingoSubTab === 0 && <BingoStudentView responses={bingoResponses} />}
             {bingoSubTab === 1 && <BingoStruggleGroups responses={bingoResponses} />}
+          </div>
+        )}
+
+        {/* ── 1 MORE / 1 LESS TAB ── */}
+        {activeTab === 4 && (
+          <div className="bg-white rounded-2xl p-6 shadow-xl">
+            <OneLessMoreDashboard attempts={oneLessMoreAttempts} />
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import BingoCard from '../components/math/BingoCard';
 import BingoTeacher from '../components/math/BingoTeacher';
 import BingoPeerLobby from '../components/math/BingoPeerLobby';
 import NumberBuildingMode from '../components/game/modes/NumberBuildingMode';
+import OneLessMoreMode from '../components/math/OneLessMoreMode';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -170,6 +171,13 @@ export default function MathGames() {
         icon: '🔢',
         color: 'from-teal-400 to-teal-600',
       },
+      {
+        id: 'onelessmore',
+        title: '1 More / 1 Less',
+        description: 'Build with linking cubes',
+        icon: '🧊',
+        color: 'from-sky-400 to-blue-600',
+      },
     ];
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
@@ -216,6 +224,11 @@ export default function MathGames() {
   // ── STUDENT VIEW — Number Recognition ──
   if (gameMode === 'numbers') {
     return <NumberBuildingMode onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
+  }
+
+  // ── STUDENT VIEW — 1 More / 1 Less ──
+  if (gameMode === 'onelessmore') {
+    return <OneLessMoreMode onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
   }
 
   // ── STUDENT VIEW — Bingo sub-mode ──

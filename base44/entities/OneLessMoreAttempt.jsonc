@@ -1,0 +1,52 @@
+{
+  "name": "OneLessMoreAttempt",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "starting_number": {
+      "type": "integer"
+    },
+    "spinner_result": {
+      "type": "string",
+      "enum": [
+        "more",
+        "less"
+      ]
+    },
+    "target_number": {
+      "type": "integer"
+    },
+    "student_wrote_start": {
+      "type": "integer",
+      "description": "Number student wrote for the starting number"
+    },
+    "student_wrote_result": {
+      "type": "integer",
+      "description": "Number student wrote for the result number"
+    },
+    "is_correct_start": {
+      "type": "boolean"
+    },
+    "is_correct_result": {
+      "type": "boolean"
+    },
+    "start_canvas_url": {
+      "type": "string",
+      "description": "Canvas snapshot of writing starting number"
+    },
+    "result_canvas_url": {
+      "type": "string",
+      "description": "Canvas snapshot of writing result number"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "starting_number"
+  ]
+}
