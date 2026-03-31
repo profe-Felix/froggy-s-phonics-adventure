@@ -1,75 +1,126 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-// Static wheel — arrow needle spins around center
+const ITEMS = ['1 More', '1 Less', '1 More', '1 Less', '1 More', '1 Less', '1 More', '1 Less'];
+const ITEM_H = 72; // px height of each item in the reel
+
 export default function OneLessMoreSpinner({ onResult }) {
   const [spinning, setSpinning] = useState(false);
-  const [arrowAngle, setArrowAngle] = useState(0);
   const [result, setResult] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const animRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const startOffsetRef = useRef(0);
+  const targetOffsetRef = useRef(0);
+  const durationRef = useRef(2800);
 
   const spin = () => {
     if (spinning || result) return;
-    const extraDeg = Math.floor(Math.random() * 360);
-    const totalSpin = 360 * (4 + Math.floor(Math.random() * 3)) + extraDeg;
-    const newAngle = arrowAngle + totalSpin;
 
-    // Arrow at 0° points UP. Going clockwise:
-    // 0°–90° = upper-right = TR = Less
-    // 90°–180° = lower-right = BR = More
-    // 180°–270° = lower-left = BL = Less
-    // 270°–360° = upper-left = TL = More
-    const finalAngle = ((newAngle % 360) + 360) % 360;
-    const inMore = (finalAngle >= 90 && finalAngle < 180) || (finalAngle >= 270);
-    const spinResult = inMore ? 'more' : 'less';
+    // Pick a random result
+    const spinResult = Math.random() < 0.5 ? 'more' : 'less';
+    // Target index: scroll enough loops then land on the result
+    const loops = 4 + Math.floor(Math.random() * 3);
+    const resultIndex = spinResult === 'more' ? 0 : 1; // More=0, Less=1 in ITEMS
+    const totalItems = loops * ITEMS.length + resultIndex;
+    const target = startOffsetRef.current + totalItems * ITEM_H;
 
-    setArrowAngle(newAngle);
+    targetOffsetRef.current = target;
+    startOffsetRef.current = offset;
+    startTimeRef.current = null;
+    durationRef.current = 2600 + Math.random() * 400;
+
     setSpinning(true);
 
-    setTimeout(() => {
-      setSpinning(false);
-      setResult(spinResult);
-      onResult(spinResult);
-    }, 2800);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+    const animate = (ts) => {
+      if (!startTimeRef.current) startTimeRef.current = ts;
+      const elapsed = ts - startTimeRef.current;
+      const progress = Math.min(elapsed / durationRef.current, 1);
+      const easedProgress = easeOut(progress);
+      const currentOffset = startOffsetRef.current + (targetOffsetRef.current - startOffsetRef.current) * easedProgress;
+      setOffset(currentOffset);
+
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(animate);
+      } else {
+        setOffset(targetOffsetRef.current);
+        startOffsetRef.current = targetOffsetRef.current;
+        setSpinning(false);
+        setResult(spinResult);
+        onResult(spinResult);
+      }
+    };
+
+    animRef.current = requestAnimationFrame(animate);
   };
 
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative" style={{ width: 220, height: 220 }}>
-        {/* Static wheel */}
-        <svg width="220" height="220" viewBox="0 0 220 220" style={{ position: 'absolute', top: 0, left: 0 }}>
-          {/* Sectors */}
-          <path d="M110,110 L110,0 A110,110 0 0,0 0,110 Z" fill="#dbeafe"/>
-          <path d="M110,110 L220,110 A110,110 0 0,0 110,0 Z" fill="#fce7f3"/>
-          <path d="M110,110 L110,220 A110,110 0 0,0 220,110 Z" fill="#dbeafe"/>
-          <path d="M110,110 L0,110 A110,110 0 0,0 110,220 Z" fill="#fce7f3"/>
-          {/* Dividers */}
-          <line x1="110" y1="0" x2="110" y2="220" stroke="#1e293b" strokeWidth="2.5"/>
-          <line x1="0" y1="110" x2="220" y2="110" stroke="#1e293b" strokeWidth="2.5"/>
-          {/* Outer ring */}
-          <circle cx="110" cy="110" r="109" fill="none" stroke="#1e293b" strokeWidth="2"/>
-          {/* Labels */}
-          <text x="55" y="72" textAnchor="middle" fontSize="15" fontWeight="bold" fill="#1e40af">1 More</text>
-          <text x="165" y="72" textAnchor="middle" fontSize="15" fontWeight="bold" fill="#9d174d">1 Less</text>
-          <text x="165" y="158" textAnchor="middle" fontSize="15" fontWeight="bold" fill="#1e40af">1 More</text>
-          <text x="55" y="158" textAnchor="middle" fontSize="15" fontWeight="bold" fill="#9d174d">1 Less</text>
-        </svg>
+  useEffect(() => () => cancelAnimationFrame(animRef.current), []);
 
-        {/* Spinning arrow */}
-        <svg
-          width="220" height="220" viewBox="0 0 220 220"
-          style={{
-            position: 'absolute', top: 0, left: 0,
-            transform: `rotate(${arrowAngle}deg)`,
-            transformOrigin: '110px 110px',
-            transition: spinning ? 'transform 2.8s cubic-bezier(0.15, 0.85, 0.3, 1)' : 'none',
-          }}
-        >
-          {/* Arrow pointing up from center */}
-          <polygon points="110,18 103,65 117,65" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1.5"/>
-          <rect x="106" y="60" width="8" height="60" rx="4" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1"/>
-          {/* Center cap */}
-          <circle cx="110" cy="110" r="10" fill="#1e293b"/>
-          <circle cx="110" cy="110" r="5" fill="#ffffff"/>
-        </svg>
+  // Which items are visible in the window (show 3 at a time, center is active)
+  const windowH = ITEM_H * 3;
+  // The reel translates by -offset, modulo the full reel height
+  const reelH = ITEMS.length * ITEM_H;
+  const translateY = -(offset % reelH);
+
+  // Build a long enough reel by repeating items
+  const reelItems = [...ITEMS, ...ITEMS, ...ITEMS];
+
+  return (
+    <div className="flex flex-col items-center gap-5">
+      {/* Slot window */}
+      <div
+        style={{
+          width: 180,
+          height: windowH,
+          overflow: 'hidden',
+          position: 'relative',
+          borderRadius: 16,
+          border: '3px solid #1e293b',
+          background: '#f8fafc',
+          boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.12)',
+        }}
+      >
+        {/* Highlight bar for center item */}
+        <div style={{
+          position: 'absolute',
+          top: ITEM_H,
+          left: 0,
+          right: 0,
+          height: ITEM_H,
+          background: 'rgba(99,102,241,0.10)',
+          borderTop: '2px solid #6366f1',
+          borderBottom: '2px solid #6366f1',
+          pointerEvents: 'none',
+          zIndex: 2,
+        }} />
+
+        {/* Fade top/bottom */}
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none',
+          background: 'linear-gradient(to bottom, rgba(248,250,252,0.85) 0%, transparent 30%, transparent 70%, rgba(248,250,252,0.85) 100%)'
+        }} />
+
+        {/* Reel */}
+        <div style={{
+          transform: `translateY(${translateY}px)`,
+          willChange: 'transform',
+        }}>
+          {reelItems.map((label, i) => (
+            <div key={i} style={{
+              height: ITEM_H,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 20,
+              fontWeight: 800,
+              color: '#1e293b',
+              letterSpacing: '-0.5px',
+            }}>
+              {label}
+            </div>
+          ))}
+        </div>
       </div>
 
       {!result && !spinning && (
@@ -83,7 +134,7 @@ export default function OneLessMoreSpinner({ onResult }) {
       {spinning && <p className="text-lg font-bold text-indigo-600 animate-pulse">Spinning…</p>}
       {result && (
         <div className="text-2xl font-bold px-6 py-3 rounded-xl shadow bg-gray-100 text-gray-700">
-          1 {result === 'more' ? 'More' : 'Less'}
+          {result === 'more' ? '1 More' : '1 Less'}
         </div>
       )}
     </div>
