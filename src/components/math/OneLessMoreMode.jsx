@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
 import OneLessMoreSpinner from './OneLessMoreSpinner';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
-const CS = 26;
-let cloneCounter = 0;
-const BANK_CUBES = Array.from({ length: 10 }, (_, i) => i);
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+let cubeCounter = 0;
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -42,39 +39,20 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-function BankCube({ index }) {
+function CubeBlock({ color = 'green', size = 26 }) {
+  const s = size;
+  const topH = Math.round(s * 0.19);
+  const sideW = Math.round(s * 0.12);
+  const offset = Math.round(s * 0.12);
+  const colors = color === 'green'
+    ? { top: '#4ade80', topDark: '#166534', front: '#16a34a', side: '#166534' }
+    : { top: '#60a5fa', topDark: '#1e3a8a', front: '#2d4fa1', side: '#1e3a8a' };
   return (
-    <Draggable draggableId={`bank-src-${index}`} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, touchAction: 'none', userSelect: 'none' }}
-          className="flex-shrink-0 cursor-grab">
-          <div style={{ width: CS, height: CS, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
-            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
-            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
-}
-
-function BuiltCube({ draggableId, index }) {
-  return (
-    <Draggable draggableId={draggableId} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, flex: 1, height: '100%', touchAction: 'none', userSelect: 'none' }}
-          className="cursor-grab">
-          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
+    <div style={{ width: s, height: s, position: 'relative', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', top: 0, left: offset, right: 0, height: topH, background: colors.top, clipPath: `polygon(0 100%, ${offset}px 0, 100% 0, calc(100% - ${offset}px) 100%)`, borderTop: `1px solid ${colors.topDark}` }} />
+      <div style={{ position: 'absolute', top: topH, left: 0, right: sideW, bottom: 0, background: colors.front, border: `1px solid ${colors.topDark}`, borderRadius: 1 }} />
+      <div style={{ position: 'absolute', top: topH, right: 0, width: sideW, bottom: 0, background: colors.side, borderRadius: '0 1px 1px 0' }} />
+    </div>
   );
 }
 
@@ -84,7 +62,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const [spinDone, setSpinDone] = useState(false);
   const [spinResult, setSpinResult] = useState(null);
   const [targetNumber, setTargetNumber] = useState(null);
-  const [built, setBuilt] = useState([]);
+  const [built, setBuilt] = useState([]); // array of unique ids
   const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
   const [startStrokes, setStartStrokes] = useState(null);
@@ -97,7 +75,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
   const resetRound = () => {
     setStartNumber(Math.floor(Math.random() * 17) + 2);
     setSpinDone(false); setSpinResult(null); setTargetNumber(null);
-    setBuilt([]); cloneCounter = 0;
+    setBuilt([]); cubeCounter = 0;
     setStartWritePhase('write'); setStartWritten(null); setStartStrokes(null);
     setResultWritePhase('write'); setResultWritten(null); setResultStrokes(null);
     setSaving(false); setSaved(false);
@@ -110,24 +88,17 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     setTargetNumber(result === 'more' ? startNumber + 1 : startNumber - 1);
   };
 
-  const onDragStart = () => {
-    document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
+  const addCubes = (n) => {
+    setBuilt(prev => {
+      const toAdd = Math.min(n, 20 - prev.length);
+      if (toAdd <= 0) return prev;
+      const newIds = Array.from({ length: toAdd }, () => `c-${++cubeCounter}`);
+      return [...prev, ...newIds];
+    });
   };
 
-  const onDragEnd = (result) => {
-    document.body.style.overflow = '';
-    document.body.style.touchAction = '';
-    if (!result.destination) return;
-    const { source, destination } = result;
-    if (source.droppableId === 'bank' && destination.droppableId === 'built') {
-      const newId = `built-${++cloneCounter}`;
-      setBuilt(prev => { const next = [...prev]; next.splice(destination.index, 0, newId); return next; });
-    } else if (source.droppableId === 'built' && destination.droppableId === 'built') {
-      setBuilt(prev => { const next = [...prev]; const [item] = next.splice(source.index, 1); next.splice(destination.index, 0, item); return next; });
-    } else if (source.droppableId === 'built' && destination.droppableId === 'bank') {
-      setBuilt(prev => prev.filter((_, i) => i !== source.index));
-    }
+  const removeCube = (id) => {
+    setBuilt(prev => prev.filter(c => c !== id));
   };
 
   const handleSave = async () => {
@@ -217,53 +188,43 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             )}
 
-            <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-              <div>
-                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
-                <Droppable droppableId="built" direction="horizontal">
-                  {(provided, snapshot) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps}
-                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-                      style={{ height: CS + 12, touchAction: 'none' }}>
-                      {Array.from({ length: 10 }).map((_, i) => {
-                        const id = built[i];
-                        if (id) return <BuiltCube key={id} draggableId={id} index={i} />;
-                        return <div key={`ghost-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
-                      })}
-                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
-                    </div>
-                  )}
-                </Droppable>
-                <div className="flex gap-0.5 p-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50 mt-2" style={{ height: CS + 12 }}>
-                  {Array.from({ length: 10 }).map((_, i) => {
-                    const id = built[10 + i];
-                    if (id) return (
-                      <div key={id} style={{ flex: 1, height: '100%', position: 'relative' }}>
-                        <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-                        <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-                        <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-                      </div>
+            {/* Two fixed rows of 10 slots */}
+            <div className="flex flex-col gap-1">
+              {[0, 1].map(row => (
+                <div key={row} className="flex gap-0.5 p-1 rounded-xl border-2 border-gray-200 bg-gray-50" style={{ height: 38 }}>
+                  {Array.from({ length: 10 }).map((_, col) => {
+                    const idx = row * 10 + col;
+                    const id = built[idx];
+                    return id ? (
+                      <motion.button key={id} initial={{ scale: 0.5 }} animate={{ scale: 1 }}
+                        onClick={() => removeCube(id)}
+                        style={{ flex: 1, height: '100%', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                        title="Tap to remove">
+                        <CubeBlock color="green" size={26} />
+                      </motion.button>
+                    ) : (
+                      <div key={`empty-${row}-${col}`} style={{ flex: 1, height: '100%' }}
+                        className="rounded border border-dashed border-gray-300 bg-gray-200/40" />
                     );
-                    return <div key={`ghost2-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
                   })}
                 </div>
-              </div>
+              ))}
+              <p className="text-xs text-gray-400 text-center">{built.length} cubes · tap to remove</p>
+            </div>
 
-              <Droppable droppableId="bank" direction="horizontal">
-                {(provided, snapshot) => (
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold mb-1">Cube bank — drag to build</p>
-                    <div ref={provided.innerRef} {...provided.droppableProps}
-                      className={`flex gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}
-                      style={{ touchAction: 'none' }}>
-                      {BANK_CUBES.map((_, i) => <BankCube key={i} index={i} />)}
-                      {provided.placeholder}
-                    </div>
-                    <p className="text-xs text-gray-300 mt-1 text-center">Drag back to remove</p>
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+            {/* Add buttons */}
+            <div className="flex gap-1.5">
+              {[1, 5, 10].map(n => (
+                <motion.button key={n} whileTap={{ scale: 0.9 }}
+                  onClick={() => addCubes(n)}
+                  disabled={built.length >= 20}
+                  className="flex-1 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-sm border-2 border-indigo-200 hover:bg-indigo-200 disabled:opacity-30 flex flex-col items-center gap-0.5">
+                  <CubeBlock color="blue" size={20} />
+                  +{n}
+                </motion.button>
+              ))}
+            </div>
+            <button onClick={() => setBuilt([])} className="text-xs text-gray-400 hover:text-red-400 text-center">Clear all</button>
 
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write how many you built:</p>
