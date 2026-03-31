@@ -218,7 +218,7 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
 
             <div className="w-full flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write the number you see:</p>
-              <SimpleWritingCanvas onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
+              <SimpleWritingCanvas key={`start-${roundKey}`} onDone={(strokes) => { setStartStrokes(strokes); setStartWritePhase('enter'); }} />
             </div>
             {startWritePhase === 'enter' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="w-full">
@@ -305,7 +305,7 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
 
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write how many you built:</p>
-              <SimpleWritingCanvas onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+              <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
             </div>
             {resultWritePhase === 'enter' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
