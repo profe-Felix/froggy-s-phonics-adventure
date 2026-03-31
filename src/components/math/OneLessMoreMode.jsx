@@ -108,7 +108,7 @@ function BankCube({ trayRef, onDrop, count = 1 }) {
       ref={cubeRef}
       onPointerDown={handlePointerDown}
       style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab', background: 'none', border: 'none', padding: 0 }}
-      className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100"
+      className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 w-12"
     >
       <CubeVisual color="blue" size={26} />
       <span className="text-xs font-bold text-blue-700">+{count}</span>
@@ -247,47 +247,49 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               </div>
             )}
 
-            {/* Drop tray — two rows of 10 */}
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
-              <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50 min-h-[40px]">
-                {[0, 1].map(row => (
-                  <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2 }}>
-                    {Array.from({ length: 10 }).map((_, col) => {
-                      const idx = row * 10 + col;
-                      const filled = idx < builtCount;
-                      return filled ? (
-                        <button key={col}
-                          onClick={() => removeCube(idx)}
-                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1', width: '100%' }}
-                          title="Tap to remove">
-                          <CubeVisual color="green" size={null} fluid />
-                        </button>
-                      ) : (
-                        <div key={col} style={{ aspectRatio: '1', width: '100%' }}
-                          className="rounded border border-dashed border-green-200 bg-green-100/30" />
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-gray-300 mt-1 text-center">Tap cube to remove</p>
-            </div>
-
-            {/* Bank — 3 drag-to-add buttons */}
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-1">Drag to tray ↑</p>
-              <div className="flex gap-2">
+            {/* Tray + vertical bank side by side */}
+            <div className="flex gap-2 items-start">
+              {/* Left: vertical bank */}
+              <div className="flex flex-col gap-1.5 flex-shrink-0 items-center">
+                <p className="text-xs text-gray-400 font-semibold">Add</p>
                 {[1, 5, 10].map(n => (
                   <BankCube key={n} count={n} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + n, 20))} />
                 ))}
               </div>
+              {/* Right: drop tray */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount})</p>
+                <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50">
+                  {[0, 1].map(row => (
+                    <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2 }}>
+                      {Array.from({ length: 10 }).map((_, col) => {
+                        const idx = row * 10 + col;
+                        const filled = idx < builtCount;
+                        return filled ? (
+                          <button key={col} onClick={() => removeCube(idx)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', aspectRatio: '1', width: '100%' }}>
+                            <CubeVisual color="green" size={null} fluid />
+                          </button>
+                        ) : (
+                          <div key={col} style={{ aspectRatio: '1', width: '100%' }}
+                            className="rounded border border-dashed border-green-200 bg-green-100/30" />
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-300 mt-0.5 text-center">Tap to remove</p>
+              </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2">
+            {/* Writing canvas — smaller */}
+            <div className="flex flex-col items-center gap-1">
               <p className="text-xs text-gray-400">Write how many you built:</p>
-              <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+              <div style={{ transform: 'scale(0.75)', transformOrigin: 'top center', width: '133%', marginLeft: '-16.5%', marginBottom: '-44px' }}>
+                <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
+              </div>
             </div>
+
             {resultWritePhase === 'enter' && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                 <p className="text-xs text-gray-400 text-center mb-2">Now type it:</p>
