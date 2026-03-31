@@ -56,7 +56,7 @@ function CubeVisual({ color = 'blue', size = 26 }) {
 }
 
 // A bank cube that clones on drag using raw pointer events
-function BankCube({ trayRef, onDrop }) {
+function BankCube({ trayRef, onDrop, count = 1 }) {
   const cubeRef = useRef(null);
 
   const handlePointerDown = (e) => {
@@ -64,16 +64,8 @@ function BankCube({ trayRef, onDrop }) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Create a floating clone
     const clone = document.createElement('div');
-    clone.style.cssText = `
-      position: fixed;
-      width: 26px; height: 26px;
-      pointer-events: none;
-      z-index: 9999;
-      touch-action: none;
-    `;
-    // Blue cube faces
+    clone.style.cssText = `position:fixed;width:26px;height:26px;pointer-events:none;z-index:9999;touch-action:none;`;
     clone.innerHTML = `
       <div style="position:absolute;top:0;left:3px;right:0;height:5px;background:#60a5fa;clip-path:polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%);border-top:1px solid #1e3a8a"></div>
       <div style="position:absolute;top:5px;left:0;right:3px;bottom:0;background:#2d4fa1;border:1px solid #1e3a8a;border-radius:1px"></div>
@@ -81,51 +73,35 @@ function BankCube({ trayRef, onDrop }) {
     `;
     document.body.appendChild(clone);
 
-    const move = (ex, ey) => {
-      clone.style.left = (ex - 13) + 'px';
-      clone.style.top  = (ey - 13) + 'px';
-    };
+    const move = (ex, ey) => { clone.style.left = (ex - 13) + 'px'; clone.style.top = (ey - 13) + 'px'; };
     move(e.clientX, e.clientY);
 
-    const onMove = (ev) => {
-      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
-      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      move(cx, cy);
-    };
-
+    const onMove = (ev) => { const cx = ev.touches ? ev.touches[0].clientX : ev.clientX; const cy = ev.touches ? ev.touches[0].clientY : ev.clientY; move(cx, cy); };
     const onUp = (ev) => {
       const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
       const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
       clone.remove();
-
-      // Check if released over tray
       if (trayRef.current) {
         const rect = trayRef.current.getBoundingClientRect();
-        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
-          onDrop();
-        }
+        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) onDrop();
       }
-
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend', onUp);
     };
-
     document.addEventListener('pointermove', onMove, { passive: true });
     document.addEventListener('pointerup', onUp);
-    document.addEventListener('touchmove', onMove, { passive: true });
-    document.addEventListener('touchend', onUp);
   };
 
   return (
-    <div
+    <button
       ref={cubeRef}
       onPointerDown={handlePointerDown}
-      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab', background: 'none', border: 'none', padding: 0 }}
+      className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100"
     >
       <CubeVisual color="blue" size={26} />
-    </div>
+      <span className="text-xs font-bold text-blue-700">+{count}</span>
+    </button>
   );
 }
 
@@ -287,12 +263,12 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               <p className="text-xs text-gray-300 mt-1 text-center">Tap cube to remove</p>
             </div>
 
-            {/* Bank — drag from here */}
+            {/* Bank — 3 drag-to-add buttons */}
             <div>
-              <p className="text-xs text-gray-400 font-semibold mb-1">Drag cubes to tray ↑</p>
-              <div className="flex gap-1 p-2 rounded-xl border-2 border-gray-200 bg-gray-50 flex-wrap">
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <BankCube key={i} trayRef={trayRef} onDrop={handleDrop} />
+              <p className="text-xs text-gray-400 font-semibold mb-1">Drag to tray ↑</p>
+              <div className="flex gap-2">
+                {[1, 5, 10].map(n => (
+                  <BankCube key={n} count={n} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + n, 20))} />
                 ))}
               </div>
             </div>
