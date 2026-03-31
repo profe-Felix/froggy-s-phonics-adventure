@@ -257,9 +257,9 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                 ))}
               </div>
               {/* Right: drop tray */}
-              <div className="flex-1 min-w-0">
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount})</p>
-                <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50" style={{ overflowX: 'auto' }}>
+                <div ref={trayRef} className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50" style={{ width: 'max-content', minWidth: '100%' }}>
                   {[0, 1].map(row => (
                     <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 26px)', gap: 2, height: 26 }}>
                       {Array.from({ length: 10 }).map((_, col) => {
