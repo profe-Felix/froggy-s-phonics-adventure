@@ -49,30 +49,33 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-// Ten-frame style cubes: row of up to 10, then a gap, then the rest
+// Ten-frame style cubes: row of 10 then gap then remainder — small cubes, no wrap
 function DisplayCubes({ count }) {
-  const Cube = ({ key: k }) => (
-    <div key={k} style={{ width: 34, height: 34, position: 'relative', flexShrink: 0 }}>
-      <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 7, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
-      <div style={{ position: 'absolute', top: 7, left: 0, right: 4, bottom: 0, background: '#2d4fa1', border: '1.5px solid #1e3a8a', borderRadius: 2 }} />
-      <div style={{ position: 'absolute', top: 7, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
+  const S = 22; // cube size px
+  const Cube = () => (
+    <div style={{ width: S, height: S, position: 'relative', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
+      <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
+      <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
     </div>
   );
   const row1 = Math.min(count, 10);
   const row2 = Math.max(0, count - 10);
   return (
     <div className="flex flex-col" style={{ gap: 0 }}>
-      <div className="flex flex-wrap gap-0.5">
+      <div className="flex flex-nowrap" style={{ gap: 2 }}>
         {Array.from({ length: row1 }).map((_, i) => <Cube key={i} />)}
       </div>
       {row2 > 0 && (
-        <div className="flex flex-wrap gap-0.5" style={{ marginTop: 18 }}>
+        <div className="flex flex-nowrap" style={{ gap: 2, marginTop: 14 }}>
           {Array.from({ length: row2 }).map((_, i) => <Cube key={i} />)}
         </div>
       )}
     </div>
   );
 }
+
+const CS = 26; // draggable cube size
 
 // Cube for the bank — drag to clone
 function BankCube({ index }) {
@@ -82,29 +85,10 @@ function BankCube({ index }) {
         <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
           style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
           className="flex-shrink-0 cursor-grab">
-          <div style={{ width: 36, height: 36, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4a6fc7', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #1e3a8a' }} />
-            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#2d4fa1', border: '1.5px solid #1e3a8a', borderRadius: 2 }} />
-            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#1e3a8a', borderRadius: '0 2px 2px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
-}
-
-// Cube placed in the built zone — green, reorderable
-function BuiltCube({ draggableId, index }) {
-  return (
-    <Draggable draggableId={draggableId} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
-          className="flex-shrink-0 cursor-grab">
-          <div style={{ width: 36, height: 36, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
-            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1.5px solid #166534', borderRadius: 2 }} />
-            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+          <div style={{ width: CS, height: CS, position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
+            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
+            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
           </div>
         </div>
       )}
@@ -266,20 +250,19 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex flex-wrap gap-0.5 p-2 rounded-xl border-2 transition-colors min-h-12 ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                      className={`flex flex-nowrap gap-0.5 p-2 rounded-xl border-2 transition-colors min-h-10 ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}
                     >
                       {built.length === 0 && <p className="text-gray-300 text-xs self-center w-full text-center">Drag cubes here…</p>}
                       {builtRow1.map((id, i) => <BuiltCube key={id} draggableId={id} index={i} />)}
                       {provided.placeholder}
                     </div>
-                    {/* Row 2: overflow beyond 10, with gap */}
                     {builtRow2.length > 0 && (
-                      <div className="flex flex-wrap gap-0.5 p-2 rounded-xl bg-gray-50 border border-dashed border-gray-200 mt-4">
+                      <div className="flex flex-nowrap gap-0.5 p-2 rounded-xl bg-gray-50 border border-dashed border-gray-200 mt-3">
                         {builtRow2.map((id, i) => (
-                          <div key={id} style={{ width: 36, height: 36, position: 'relative', flexShrink: 0 }}>
-                            <div style={{ position: 'absolute', top: 0, left: 4, right: 0, height: 8, background: '#4ade80', clipPath: 'polygon(0 100%, 4px 0, 100% 0, calc(100% - 4px) 100%)', borderTop: '1px solid #166534' }} />
-                            <div style={{ position: 'absolute', top: 8, left: 0, right: 4, bottom: 0, background: '#16a34a', border: '1.5px solid #166534', borderRadius: 2 }} />
-                            <div style={{ position: 'absolute', top: 8, right: 0, width: 4, bottom: 0, background: '#166534', borderRadius: '0 2px 2px 0' }} />
+                          <div key={id} style={{ width: CS, height: CS, position: 'relative', flexShrink: 0 }}>
+                            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
+                            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
+                            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
                           </div>
                         ))}
                       </div>
