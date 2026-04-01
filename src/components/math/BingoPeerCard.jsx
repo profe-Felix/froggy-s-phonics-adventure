@@ -48,18 +48,15 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
   const [covered, setCovered] = useState(new Set());
   const [respondedNumber, setRespondedNumber] = useState(null);
   const [attempts, setAttempts] = useState(0);
-  const [feedback, setFeedback] = useState(null); // 'wrong' | 'correct' | 'reveal'
+  const [feedback, setFeedback] = useState(null);
   const [myPoints, setMyPoints] = useState(0);
   const [hasBingo, setHasBingo] = useState(false);
   const calledAtRef = useRef(null);
 
-  const isPlayer1 = playerNumber === game.player1_number;
-  const myReadyField = isPlayer1 ? 'player1_ready' : 'player2_ready';
-  const otherReadyField = isPlayer1 ? 'player2_ready' : 'player1_ready';
-  const myPointsField = isPlayer1 ? 'player1_points' : 'player2_points';
-  const otherPlayerNumber = isPlayer1 ? game.player2_number : game.player1_number;
-  const myReady = game[myReadyField] || false;
-  const otherReady = game[otherReadyField] || false;
+  const players = game.players || [];
+  const readyPlayers = game.ready_players || [];
+  const playerPoints = game.player_points || {};
+  const amReady = readyPlayers.includes(playerNumber);
 
   useEffect(() => {
     const unsubscribe = base44.entities.MathBingoPeerGame.subscribe((event) => {
@@ -87,7 +84,8 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     const remaining = allNums.filter(n => !(currentGame.called_numbers || []).includes(n));
     if (remaining.length === 0) {
       await base44.entities.MathBingoPeerGame.update(currentGame.id, {
-        status: 'finished', player1_ready: false, player2_ready: false,
+        status: 'finished',
+        ready_players: [],
       });
       return;
     }
@@ -96,25 +94,32 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
       current_number: pick,
       called_numbers: [...(currentGame.called_numbers || []), pick],
       ten_frame_seed: Math.floor(Math.random() * 999999),
-      player1_ready: false,
-      player2_ready: false,
+      ready_players: [],
     });
   };
 
   const markReady = async (extraPoints = 0) => {
-    if (myReady) return;
+    if (amReady) return;
     const totalPoints = myPoints + extraPoints;
+    const newReadyPlayers = [...readyPlayers, playerNumber];
+    const newPlayerPoints = { ...playerPoints, [String(playerNumber)]: totalPoints };
+
     const updated = await base44.entities.MathBingoPeerGame.update(game.id, {
-      [myReadyField]: true,
-      [myPointsField]: totalPoints,
+      ready_players: newReadyPlayers,
+      player_points: newPlayerPoints,
     });
-    if (updated[otherReadyField]) {
+
+    // If all players are ready, advance
+    const gamePlayers = updated.players || [];
+    const nowReady = updated.ready_players || [];
+    const allReady = gamePlayers.length > 0 && gamePlayers.every(p => nowReady.includes(p));
+    if (allReady) {
       await advanceNumber(updated);
     }
   };
 
   const handleNotOnCard = async () => {
-    if (!game.current_number || respondedNumber === game.current_number || myReady) return;
+    if (!game.current_number || respondedNumber === game.current_number || amReady) return;
     setRespondedNumber(game.current_number);
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
     await base44.entities.MathBingoResponse.create({
@@ -128,7 +133,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
 
   const handleTileClick = async (num, idx) => {
     const isFree = num === 'FREE';
-    if (isFree || !game.current_number || myReady) return;
+    if (isFree || !game.current_number || amReady) return;
     if (respondedNumber === game.current_number) return;
 
     const isCorrect = num === game.current_number;
@@ -144,14 +149,9 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     if (isCorrect) {
       const pts = getPointsForAttempt(attempts);
       setMyPoints(prev => prev + pts);
-      setCovered(prev => {
-        const next = new Set(prev);
-        next.add(idx);
-        return next;
-      });
+      setCovered(prev => { const next = new Set(prev); next.add(idx); return next; });
       setFeedback('correct');
       setRespondedNumber(game.current_number);
-
       const nextCovered = new Set(covered);
       nextCovered.add(idx);
       if (checkBingo(nextCovered, cells) && !hasBingo) {
@@ -173,46 +173,39 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     }
   };
 
-  if (game.status === 'waiting') {
+  if (game.status === 'finished') {
+    // Sort players by points descending
+    const sorted = [...players].sort((a, b) => (playerPoints[String(b)] || 0) - (playerPoints[String(a)] || 0));
     return (
       <div className="flex flex-col items-center gap-6 p-6 max-w-sm mx-auto w-full">
-        <h2 className="text-2xl font-bold text-white">⏳ Waiting for Friend...</h2>
-        <div className="bg-white/20 rounded-2xl p-8 text-center w-full">
-          <div className="text-5xl mb-4">👋</div>
-          <p className="text-white text-lg font-bold">You are #{playerNumber}</p>
-          <p className="text-white/70 mt-2">Tell a classmate to join your game in the lobby!</p>
-        </div>
-        <button onClick={onBack} className="text-white/70 hover:text-white text-sm">← Cancel</button>
-      </div>
-    );
-  }
-
-  if (game.status === 'finished') {
-    return (
-      <div className="flex flex-col items-center gap-6 p-6">
         <div className="text-6xl">🏆</div>
-        <h2 className="text-2xl font-bold text-white">All numbers called!</h2>
-        <p className="text-white/70">Great game!</p>
-        <div className="text-white font-bold text-xl">Your score: {myPoints} pts</div>
+        <h2 className="text-2xl font-bold text-white">Game Over!</h2>
+        <div className="bg-white/20 rounded-2xl p-4 w-full flex flex-col gap-2">
+          {sorted.map((p, i) => (
+            <div key={p} className={`flex items-center justify-between px-4 py-2 rounded-xl font-bold ${p === playerNumber ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+              <span>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} #{p}{p === playerNumber ? ' (you)' : ''}</span>
+              <span>{playerPoints[String(p)] || 0} pts</span>
+            </div>
+          ))}
+        </div>
         <Button onClick={onBack} className="bg-white text-indigo-700 font-bold">Back to Lobby</Button>
       </div>
     );
   }
 
   const correctIdx = cells.indexOf(game.current_number);
+  const waitingFor = players.filter(p => !readyPlayers.includes(p) && p !== playerNumber);
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-4 w-full max-w-sm mx-auto">
 
-      {/* Players + points */}
-      <div className="flex gap-3 text-sm w-full justify-center">
-        <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''} · {isPlayer1 ? myPoints : (game.player1_points || 0)}pts
-        </span>
-        <span className="text-white/40 self-center">vs</span>
-        <span className={`px-3 py-1 rounded-full font-bold ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''} · {!isPlayer1 ? myPoints : (game.player2_points || 0)}pts
-        </span>
+      {/* All players scoreboard */}
+      <div className="flex flex-wrap gap-2 justify-center w-full">
+        {players.map(p => (
+          <span key={p} className={`px-3 py-1 rounded-full font-bold text-sm ${p === playerNumber ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+            #{p}{p === playerNumber ? ' (You)' : ''} {readyPlayers.includes(p) ? '✅' : ''} · {p === playerNumber ? myPoints : (playerPoints[String(p)] || 0)}pts
+          </span>
+        ))}
       </div>
 
       {/* Ten frame display */}
@@ -229,7 +222,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
             {feedback === 'reveal' && (
               <div className="text-orange-500 font-bold text-sm">The answer is highlighted below</div>
             )}
-            {respondedNumber !== game.current_number && !myReady && (
+            {respondedNumber !== game.current_number && !amReady && (
               <button
                 onClick={handleNotOnCard}
                 className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded-full px-4 py-1 font-medium"
@@ -264,11 +257,11 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         })}
       </div>
 
-      {/* Ready button */}
+      {/* Ready status */}
       <div className="w-full">
-        {myReady ? (
-          <div className="text-center text-white font-bold text-lg py-3">
-            ✅ Ready! {otherReady ? '🎲 Next number coming...' : `Waiting for #${otherPlayerNumber}...`}
+        {amReady ? (
+          <div className="text-center text-white font-bold text-base py-3">
+            ✅ Ready! {waitingFor.length > 0 ? `Waiting for ${waitingFor.map(p => '#' + p).join(', ')}…` : '🎲 Next number coming…'}
           </div>
         ) : (
           <Button

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import BingoCard from '../components/math/BingoCard';
 import BingoTeacher from '../components/math/BingoTeacher';
-import BingoPeerLobby from '../components/math/BingoPeerLobby';
+import BingoPeerLobby from '../components/math/BingoPeerLobby.jsx';
 import NumberBuildingMode from '../components/game/modes/NumberBuildingMode';
 import OneLessMoreMode from '../components/math/OneLessMoreMode';
 import OneLessMoreTeacher from '../components/math/OneLessMoreTeacher';
