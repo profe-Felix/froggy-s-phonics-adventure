@@ -122,13 +122,18 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     if (!game.current_number || respondedNumber === game.current_number || amReady) return;
     setRespondedNumber(game.current_number);
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
+    const numberOnCard = cells.some(c => c === game.current_number);
+    const isCorrect = !numberOnCard;
+    const pts = isCorrect ? getPointsForAttempt(attempts) : 0;
+    if (isCorrect) setMyPoints(prev => prev + pts);
+    setFeedback(isCorrect ? 'correct' : 'wrong');
     await base44.entities.MathBingoResponse.create({
       game_id: game.id, class_name: className, student_number: playerNumber,
       called_number: game.current_number, clicked_number: null,
-      is_correct: false, response_time_ms: responseTimeMs,
+      is_correct: isCorrect, response_time_ms: responseTimeMs,
       not_on_card: true, free_space_click: false,
     });
-    await markReady(0);
+    await markReady(pts);
   };
 
   const handleTileClick = async (num, idx) => {
@@ -217,7 +222,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
               <div className="text-red-500 font-bold text-sm">❌ Try again! ({attempts === 1 ? '5' : '1'} pts if correct)</div>
             )}
             {feedback === 'correct' && (
-              <div className="text-green-600 font-bold text-sm">✅ Correct! +{getPointsForAttempt(attempts - 1)} pts{hasBingo ? ' + 5 BINGO!' : ''}</div>
+              <div className="text-green-600 font-bold text-sm">✅ Correct! +{getPointsForAttempt(attempts)} pts{hasBingo ? ' + 5 BINGO!' : ''}</div>
             )}
             {feedback === 'reveal' && (
               <div className="text-orange-500 font-bold text-sm">The answer is highlighted below</div>
