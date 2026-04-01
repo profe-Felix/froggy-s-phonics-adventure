@@ -38,31 +38,9 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     return unsubscribe;
   }, [game.id]);
 
-  const prevItemRef = useRef(null);
-
   useEffect(() => {
-    if (!game.current_item) return;
-    if (prevItemRef.current === null) {
-      // First load — play immediately
-      prevItemRef.current = game.current_item;
-      setRoundDone(false);
-      setAttempts(0);
-      setFeedback(null);
-      setRoundPoints(null);
+    if (game.current_item) {
       playSound(game.current_item, game.mode);
-      return;
-    }
-    if (game.current_item !== prevItemRef.current) {
-      prevItemRef.current = game.current_item;
-      // Delay reset so results stay visible briefly
-      const timer = setTimeout(() => {
-        setRoundDone(false);
-        setAttempts(0);
-        setFeedback(null);
-        setRoundPoints(null);
-        playSound(game.current_item, game.mode);
-      }, 1500);
-      return () => clearTimeout(timer);
     }
   }, [game.current_item]);
 
@@ -85,6 +63,11 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
 
   const markReady = async (extraPoints = 0) => {
     if (amReady) return;
+    // Reset round state immediately so UI is clean
+    setRoundDone(false);
+    setAttempts(0);
+    setFeedback(null);
+    setRoundPoints(null);
     const total = myPoints + extraPoints;
     const newReadyPlayers = [...readyPlayers, playerNumber];
     const newPlayerPoints = { ...playerPoints, [String(playerNumber)]: total };
@@ -280,7 +263,16 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
 
       <button
         onClick={async () => {
-          await base44.entities.LiteracyBingoGame.update(game.id, { status: 'finished' });
+          const remaining = (game.players || []).filter(p => p !== playerNumber);
+          if (remaining.length === 0) {
+            await base44.entities.LiteracyBingoGame.update(game.id, { status: 'finished' });
+          } else {
+            await base44.entities.LiteracyBingoGame.update(game.id, {
+              players: remaining,
+              host_number: game.host_number === playerNumber ? remaining[0] : game.host_number,
+              ready_players: (game.ready_players || []).filter(p => p !== playerNumber),
+            });
+          }
           onBack();
         }}
         className="text-white/50 hover:text-white text-sm"
