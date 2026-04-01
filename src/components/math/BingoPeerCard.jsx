@@ -120,17 +120,35 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
 
   const handleNotOnCard = async () => {
     if (!game.current_number || respondedNumber === game.current_number || amReady) return;
-    setRespondedNumber(game.current_number);
-    const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
     const numberOnCard = cells.some(c => c === game.current_number);
-    const isCorrect = !numberOnCard;
-    const pts = isCorrect ? getPointsForAttempt(attempts) : 0;
-    if (isCorrect) setMyPoints(prev => prev + pts);
-    setFeedback(isCorrect ? 'correct' : 'wrong');
+    if (numberOnCard) {
+      // Wrong — it IS on their card, penalize like a wrong tile click
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (newAttempts >= 3) {
+        setFeedback('reveal');
+        setRespondedNumber(game.current_number);
+        await base44.entities.MathBingoResponse.create({
+          game_id: game.id, class_name: className, student_number: playerNumber,
+          called_number: game.current_number, clicked_number: null,
+          is_correct: false, response_time_ms: calledAtRef.current ? Date.now() - calledAtRef.current : null,
+          not_on_card: true, free_space_click: false,
+        });
+        await markReady(0);
+      } else {
+        setFeedback('check_again');
+      }
+      return;
+    }
+    // Correct — it's genuinely not on their card
+    setRespondedNumber(game.current_number);
+    const pts = getPointsForAttempt(attempts);
+    setMyPoints(prev => prev + pts);
+    setFeedback('correct');
     await base44.entities.MathBingoResponse.create({
       game_id: game.id, class_name: className, student_number: playerNumber,
       called_number: game.current_number, clicked_number: null,
-      is_correct: isCorrect, response_time_ms: responseTimeMs,
+      is_correct: true, response_time_ms: calledAtRef.current ? Date.now() - calledAtRef.current : null,
       not_on_card: true, free_space_click: false,
     });
     await markReady(pts);
@@ -220,6 +238,9 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
             <TenFrame value={game.current_number} size="md" seed={game.ten_frame_seed ?? 42} />
             {feedback === 'wrong' && (
               <div className="text-red-500 font-bold text-sm">❌ Try again! ({attempts === 1 ? '5' : '1'} pts if correct)</div>
+            )}
+            {feedback === 'check_again' && (
+              <div className="text-orange-500 font-bold text-sm">👀 Check again — it IS on your card! ({attempts === 1 ? '5' : '1'} pts if correct)</div>
             )}
             {feedback === 'correct' && (
               <div className="text-green-600 font-bold text-sm">✅ Correct! +{getPointsForAttempt(attempts)} pts{hasBingo ? ' + 5 BINGO!' : ''}</div>
