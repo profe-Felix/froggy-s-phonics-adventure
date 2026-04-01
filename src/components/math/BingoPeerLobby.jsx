@@ -22,18 +22,6 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
     g.status === 'waiting' && !(g.players || []).includes(studentNumber)
   );
 
-  const gameToShow = myGame;
-  if (gameToShow && gameToShow.status === 'active') {
-    return (
-      <BingoPeerCard
-        initialGame={gameToShow}
-        playerNumber={studentNumber}
-        className={className}
-        onBack={() => setActiveGameId(null)}
-      />
-    );
-  }
-
   const createGame = async () => {
     if (myGame) return;
     const g = await base44.entities.MathBingoPeerGame.create({
@@ -53,9 +41,7 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
 
   const joinGame = async (openGame) => {
     const updatedPlayers = [...(openGame.players || []), studentNumber];
-    await base44.entities.MathBingoPeerGame.update(openGame.id, {
-      players: updatedPlayers,
-    });
+    await base44.entities.MathBingoPeerGame.update(openGame.id, { players: updatedPlayers });
     setActiveGameId(openGame.id);
     refetch();
   };
@@ -88,7 +74,20 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
     refetch();
   };
 
-  // Waiting room view
+  // Active or finished game — show BingoPeerCard (stays until student clicks Back)
+  const gameToShow = myGame;
+  if (gameToShow && (gameToShow.status === 'active' || gameToShow.status === 'finished')) {
+    return (
+      <BingoPeerCard
+        initialGame={gameToShow}
+        playerNumber={studentNumber}
+        className={className}
+        onBack={() => setActiveGameId(null)}
+      />
+    );
+  }
+
+  // Waiting room
   if (myGame && myGame.status === 'waiting') {
     const isHost = myGame.host_number === studentNumber;
     const players = myGame.players || [];
@@ -123,7 +122,7 @@ export default function BingoPeerLobby({ className, studentNumber, onBack }) {
     );
   }
 
-  // Lobby view
+  // Lobby
   return (
     <div className="flex flex-col items-center gap-6 p-6 max-w-sm mx-auto w-full">
       <h2 className="text-2xl font-bold text-white">🎱 Bingo Lobby</h2>
