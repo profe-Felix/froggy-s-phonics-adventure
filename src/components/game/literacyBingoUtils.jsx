@@ -10,7 +10,6 @@ const SOUND_GROUPS = [
 ];
 
 function conflictsWithSelected(letter, selectedSoFar) {
-  // Returns true if 'letter' shares a sound group with any already-selected letter
   for (const group of SOUND_GROUPS) {
     if (!group.has(letter)) continue;
     for (const sel of selectedSoFar) {
@@ -46,21 +45,18 @@ export function buildCard(playerNumber, className, mode) {
 
   if (mode !== 'letter_sounds') return shuffled.slice(0, count);
 
-  // Filter out same-sounding letters — no two letters from the same sound group on one card
   const selected = [];
   for (const item of shuffled) {
     if (selected.length >= count) break;
-    if (!conflictsWithSelected(item, selected)) {
-      selected.push(item);
-    }
+    if (!conflictsWithSelected(item, selected)) selected.push(item);
   }
   return selected;
 }
 
-export function getCardUnion(player1Number, player2Number, className, mode) {
-  const card1 = buildCard(player1Number, className, mode);
-  const card2 = buildCard(player2Number, className, mode);
-  return [...new Set([...card1, ...card2])];
+// Accepts an array of player numbers
+export function getCardUnion(playerNumbers, className, mode) {
+  const all = playerNumbers.flatMap(p => buildCard(p, className, mode));
+  return [...new Set(all)];
 }
 
 export function checkBingo(coveredSet, totalCells) {

@@ -6,12 +6,12 @@ import { buildCard, getCardUnion, checkBingo, getPointsForAttempt } from './lite
 export default function LiteracyBingoPeerCard({ initialGame, playerNumber, className, onBack }) {
   const [game, setGame] = useState(initialGame);
   const [covered, setCovered] = useState(new Set());
-  // Per-round state
-  const [roundDone, setRoundDone] = useState(false);   // true once answered (correct or revealed)
-  const [attempts, setAttempts] = useState(0);          // wrong attempts so far this round
-  const [feedback, setFeedback] = useState(null);       // 'wrong' | 'correct' | 'reveal'
-  const [roundPoints, setRoundPoints] = useState(null); // pts earned this round
+  const [roundDone, setRoundDone] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [feedback, setFeedback] = useState(null);
+  const [roundPoints, setRoundPoints] = useState(null);
   const [myPoints, setMyPoints] = useState(0);
+  const [hasBingo, setHasBingo] = useState(false);
   const audioRef = useRef(null);
   const audioCache = useRef({});
 
@@ -26,24 +26,18 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     audioRef.current.play().catch(() => {});
   };
 
-  const isPlayer1 = playerNumber === game.player1_number;
-  const myReadyField = isPlayer1 ? 'player1_ready' : 'player2_ready';
-  const otherReadyField = isPlayer1 ? 'player2_ready' : 'player1_ready';
-  const myPointsField = isPlayer1 ? 'player1_points' : 'player2_points';
-  const otherPlayerNumber = isPlayer1 ? game.player2_number : game.player1_number;
-  const myReady = game[myReadyField] || false;
-  const otherReady = game[otherReadyField] || false;
+  const players = game.players || [];
+  const readyPlayers = game.ready_players || [];
+  const playerPoints = game.player_points || {};
+  const amReady = readyPlayers.includes(playerNumber);
 
   useEffect(() => {
     const unsubscribe = base44.entities.LiteracyBingoGame.subscribe((event) => {
-      if (event.id === game.id && event.type !== 'delete') {
-        setGame(event.data);
-      }
+      if (event.id === game.id && event.type !== 'delete') setGame(event.data);
     });
     return unsubscribe;
   }, [game.id]);
 
-  // Reset per-round state when item changes
   useEffect(() => {
     if (game.current_item) {
       setRoundDone(false);
@@ -57,178 +51,130 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   const cells = buildCard(playerNumber, className, game.mode);
 
   const advanceItem = async (currentGame) => {
-    const cardUnion = getCardUnion(currentGame.player1_number, currentGame.player2_number, currentGame.class_name, currentGame.mode);
+    const cardUnion = getCardUnion(currentGame.players || [], currentGame.class_name, currentGame.mode);
     const remaining = cardUnion.filter(i => !(currentGame.called_items || []).includes(i));
     if (remaining.length === 0) {
-      await base44.entities.LiteracyBingoGame.update(currentGame.id, { status: 'finished' });
+      await base44.entities.LiteracyBingoGame.update(currentGame.id, { status: 'finished', ready_players: [] });
       return;
     }
     const pick = remaining[Math.floor(Math.random() * remaining.length)];
     await base44.entities.LiteracyBingoGame.update(currentGame.id, {
       current_item: pick,
       called_items: [...(currentGame.called_items || []), pick],
-      player1_ready: false,
-      player2_ready: false,
+      ready_players: [],
     });
   };
 
-  const submitReady = async (earnedPoints) => {
-    if (myReady) return;
-    const newTotal = myPoints + earnedPoints;
-    setMyPoints(newTotal);
+  const markReady = async (extraPoints = 0) => {
+    if (amReady) return;
+    const total = myPoints + extraPoints;
+    const newReadyPlayers = [...readyPlayers, playerNumber];
+    const newPlayerPoints = { ...playerPoints, [String(playerNumber)]: total };
+
     const updated = await base44.entities.LiteracyBingoGame.update(game.id, {
-      [myReadyField]: true,
-      [myPointsField]: newTotal,
+      ready_players: newReadyPlayers,
+      player_points: newPlayerPoints,
     });
-    if (updated[otherReadyField]) {
-      await advanceItem(updated);
-    }
+
+    const gamePlayers = updated.players || [];
+    const nowReady = updated.ready_players || [];
+    const allReady = gamePlayers.length > 0 && gamePlayers.every(p => nowReady.includes(p));
+    if (allReady) await advanceItem(updated);
   };
 
   const handleNotOnCard = async () => {
-    if (roundDone || myReady) return;
+    if (roundDone || amReady) return;
     const itemIsOnCard = cells.includes(game.current_item);
     if (itemIsOnCard) {
-      // Wrong — it IS on their card
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       if (newAttempts >= 3) {
         setFeedback('reveal');
         setRoundDone(true);
-        await submitReady(0);
+        await markReady(0);
       } else {
         setFeedback('not_on_card_wrong');
       }
     } else {
-      // Correct — it really isn't on their card → award 10 pts
       setRoundPoints(10);
       setFeedback('not_on_card_correct');
       setRoundDone(true);
-      await submitReady(10);
+      setMyPoints(prev => prev + 10);
+      await markReady(10);
     }
   };
 
   const handleTileClick = async (item, idx) => {
-    if (roundDone || myReady || !game.current_item) return;
-
+    if (roundDone || amReady || !game.current_item) return;
     const isCorrect = item === game.current_item;
-
     if (isCorrect) {
       const pts = getPointsForAttempt(attempts);
       setRoundPoints(pts);
       setFeedback('correct');
       setRoundDone(true);
-
-      // Cover the tile
       const nextCovered = new Set(covered);
       nextCovered.add(idx);
       setCovered(nextCovered);
-
-      // Check bingo
       const bingo = checkBingo(nextCovered, cells.length);
-      await submitReady(pts + (bingo ? 5 : 0));
+      if (bingo && !hasBingo) setHasBingo(true);
+      setMyPoints(prev => prev + pts + (bingo ? 5 : 0));
+      await markReady(pts + (bingo ? 5 : 0));
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
-
       if (newAttempts >= 3) {
-        // Reveal answer — highlight correct tile, no points
         setFeedback('reveal');
         setRoundDone(true);
-        await submitReady(0);
+        await markReady(0);
       } else {
         setFeedback('wrong');
       }
     }
   };
 
-  const leaveGame = async () => {
-    await base44.entities.LiteracyBingoGame.update(game.id, { status: 'finished' });
-    onBack();
-  };
-
-  if (game.status === 'waiting') {
+  // Finished screen — stays until student clicks
+  if (game.status === 'finished') {
+    const sorted = [...players].sort((a, b) =>
+      (b === playerNumber ? myPoints : (playerPoints[String(b)] || 0)) -
+      (a === playerNumber ? myPoints : (playerPoints[String(a)] || 0))
+    );
     return (
       <div className="flex flex-col items-center gap-6 p-6 max-w-sm mx-auto w-full">
-        <h2 className="text-2xl font-bold text-white">⏳ Waiting for Friend...</h2>
-        <div className="bg-white/20 rounded-2xl p-8 text-center w-full">
-          <div className="text-5xl mb-4">👋</div>
-          <p className="text-white text-lg font-bold">You are #{playerNumber}</p>
-          <p className="text-white/70 mt-2">Tell a classmate to join your game!</p>
+        <div className="text-6xl">🏆</div>
+        <h2 className="text-2xl font-bold text-white">Game Over!</h2>
+        <div className="bg-white/20 rounded-2xl p-4 w-full flex flex-col gap-2">
+          {sorted.map((p, i) => {
+            const pts = p === playerNumber ? myPoints : (playerPoints[String(p)] || 0);
+            return (
+              <div key={p} className={`flex items-center justify-between px-4 py-2 rounded-xl font-bold ${p === playerNumber ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+                <span>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} #{p}{p === playerNumber ? ' (you)' : ''}</span>
+                <span>{pts} pts</span>
+              </div>
+            );
+          })}
         </div>
-        <button onClick={leaveGame} className="text-white/70 hover:text-white text-sm">← Cancel</button>
-      </div>
-    );
-  }
-
-  const playAgain = async () => {
-    const cardUnion = getCardUnion(game.player1_number, game.player2_number, game.class_name, game.mode);
-    const firstItem = cardUnion[Math.floor(Math.random() * cardUnion.length)];
-    await base44.entities.LiteracyBingoGame.update(game.id, {
-      status: 'active',
-      called_items: [firstItem],
-      current_item: firstItem,
-      player1_ready: false,
-      player2_ready: false,
-      player1_points: 0,
-      player2_points: 0,
-    });
-    setCovered(new Set());
-    setMyPoints(0);
-    setRoundDone(false);
-    setAttempts(0);
-    setFeedback(null);
-    setRoundPoints(null);
-  };
-
-  if (game.status === 'finished') {
-    const p1Points = isPlayer1 ? myPoints : (game.player1_points || 0);
-    const p2Points = !isPlayer1 ? myPoints : (game.player2_points || 0);
-    const myFinalPoints = isPlayer1 ? p1Points : p2Points;
-    const theirFinalPoints = isPlayer1 ? p2Points : p1Points;
-    const iWon = myFinalPoints > theirFinalPoints;
-    const tied = myFinalPoints === theirFinalPoints;
-    return (
-      <div className="flex flex-col items-center gap-5 p-6">
-        <div className="text-6xl">{iWon ? '🏆' : tied ? '🤝' : '⭐'}</div>
-        <h2 className="text-2xl font-bold text-white">{iWon ? 'You Win!' : tied ? 'It\'s a Tie!' : 'Good Game!'}</h2>
-        <div className="bg-white/20 rounded-2xl p-5 w-full max-w-xs flex flex-col gap-3">
-          <div className={`flex justify-between items-center px-4 py-3 rounded-xl font-bold text-lg ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-            <span>#{game.player1_number}{isPlayer1 ? ' (You)' : ''}</span>
-            <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full">{p1Points} pts</span>
-          </div>
-          <div className={`flex justify-between items-center px-4 py-3 rounded-xl font-bold text-lg ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-            <span>#{game.player2_number}{!isPlayer1 ? ' (You)' : ''}</span>
-            <span className="bg-yellow-300 text-yellow-900 px-3 py-1 rounded-full">{p2Points} pts</span>
-          </div>
-        </div>
-        <Button onClick={playAgain} className="bg-green-500 hover:bg-green-600 text-white font-bold text-lg px-8 py-4 h-auto w-full max-w-xs rounded-2xl">🔄 Play Again</Button>
-        <Button onClick={onBack} variant="ghost" className="text-white/70 hover:text-white">← Back to Lobby</Button>
+        <Button onClick={onBack} className="bg-white text-indigo-700 font-bold">Back to Lobby</Button>
       </div>
     );
   }
 
   const isSightWords = game.mode === 'sight_words_easy';
   const correctIdx = cells.indexOf(game.current_item);
+  const waitingFor = players.filter(p => !readyPlayers.includes(p) && p !== playerNumber);
 
   return (
     <div className="flex flex-col items-center gap-4 py-4 px-2 w-full">
 
-      {/* Players + points */}
-      <div className="flex gap-2 text-sm w-full justify-center flex-wrap">
-        <span className={`px-3 py-1 rounded-full font-bold ${isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player1_number}{isPlayer1 ? ' (You)' : ''} {game.player1_ready ? '✅' : ''}
-          <span className="ml-1 bg-yellow-300 text-yellow-900 px-2 rounded-full text-xs font-black">
-            {isPlayer1 ? myPoints : (game.player1_points || 0)}pts
+      {/* Scoreboard */}
+      <div className="flex flex-wrap gap-2 justify-center w-full">
+        {players.map(p => (
+          <span key={p} className={`px-3 py-1 rounded-full font-bold text-sm ${p === playerNumber ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
+            #{p}{p === playerNumber ? ' (You)' : ''} {readyPlayers.includes(p) ? '✅' : ''}
+            <span className="ml-1 bg-yellow-300 text-yellow-900 px-2 rounded-full text-xs font-black">
+              {p === playerNumber ? myPoints : (playerPoints[String(p)] || 0)}pts
+            </span>
           </span>
-        </span>
-        <span className="text-white/40 self-center">vs</span>
-        <span className={`px-3 py-1 rounded-full font-bold ${!isPlayer1 ? 'bg-white text-indigo-700' : 'bg-white/20 text-white'}`}>
-          #{game.player2_number}{!isPlayer1 ? ' (You)' : ''} {game.player2_ready ? '✅' : ''}
-          <span className="ml-1 bg-yellow-300 text-yellow-900 px-2 rounded-full text-xs font-black">
-            {!isPlayer1 ? myPoints : (game.player2_points || 0)}pts
-          </span>
-        </span>
+        ))}
       </div>
 
       {/* Audio prompt + feedback */}
@@ -250,7 +196,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
             )}
             {(feedback === 'correct' || feedback === 'not_on_card_correct') && (
               <div className="text-green-600 font-bold text-sm bg-green-50 rounded-lg px-3 py-1">
-                ✅ {feedback === 'not_on_card_correct' ? 'Correct — not on your card!' : 'Correct!'} +{roundPoints} pts
+                ✅ {feedback === 'not_on_card_correct' ? 'Correct — not on your card!' : 'Correct!'} +{roundPoints} pts{hasBingo ? ' + 5 BINGO!' : ''}
               </div>
             )}
             {feedback === 'reveal' && (
@@ -259,7 +205,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
               </div>
             )}
 
-            {!roundDone && !myReady && (
+            {!roundDone && !amReady && (
               <button
                 onClick={handleNotOnCard}
                 className="text-sm bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded-full px-4 py-1 font-medium mt-1"
@@ -278,8 +224,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
           const isReveal = feedback === 'reveal' && idx === correctIdx;
-          // Disable clicking if round is done or already covered
-          const clickable = !roundDone && !myReady && !isCovered;
+          const clickable = !roundDone && !amReady && !isCovered;
           return (
             <button
               key={idx}
@@ -299,15 +244,15 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         })}
       </div>
 
-      {/* Ready button */}
+      {/* Ready */}
       <div className="w-full">
-        {myReady ? (
-          <div className="text-center text-white font-bold text-lg py-3">
-            ✅ Ready! {otherReady ? '➡️ Next...' : `Waiting for #${otherPlayerNumber}...`}
+        {amReady ? (
+          <div className="text-center text-white font-bold text-base py-3">
+            ✅ Ready! {waitingFor.length > 0 ? `Waiting for ${waitingFor.map(p => '#' + p).join(', ')}…` : '🎲 Next item coming…'}
           </div>
         ) : (
           <Button
-            onClick={() => submitReady(0)}
+            onClick={() => markReady(0)}
             className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-4 h-auto w-full rounded-2xl"
           >
             ✅ Ready for Next
@@ -315,7 +260,13 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
         )}
       </div>
 
-      <button onClick={leaveGame} className="text-white/50 hover:text-white text-sm">← Leave Game</button>
+      <button
+        onClick={async () => {
+          await base44.entities.LiteracyBingoGame.update(game.id, { status: 'finished' });
+          onBack();
+        }}
+        className="text-white/50 hover:text-white text-sm"
+      >← Leave Game</button>
     </div>
   );
 }

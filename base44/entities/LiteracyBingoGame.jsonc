@@ -12,11 +12,30 @@
     "class_name": {
       "type": "string"
     },
-    "player1_number": {
-      "type": "integer"
+    "host_number": {
+      "type": "integer",
+      "description": "Player number of the room creator"
     },
-    "player2_number": {
-      "type": "integer"
+    "players": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "All player numbers in this game",
+      "default": []
+    },
+    "ready_players": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Player numbers who clicked Ready this round",
+      "default": []
+    },
+    "player_points": {
+      "type": "object",
+      "description": "Map of playerNumber (string key) -> points",
+      "default": {}
     },
     "current_item": {
       "type": "string"
@@ -26,22 +45,6 @@
       "items": {
         "type": "string"
       }
-    },
-    "player1_ready": {
-      "type": "boolean",
-      "default": false
-    },
-    "player2_ready": {
-      "type": "boolean",
-      "default": false
-    },
-    "player1_points": {
-      "type": "integer",
-      "default": 0
-    },
-    "player2_points": {
-      "type": "integer",
-      "default": 0
     },
     "status": {
       "type": "string",
