@@ -38,13 +38,31 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     return unsubscribe;
   }, [game.id]);
 
+  const prevItemRef = useRef(null);
+
   useEffect(() => {
-    if (game.current_item) {
+    if (!game.current_item) return;
+    if (prevItemRef.current === null) {
+      // First load — play immediately
+      prevItemRef.current = game.current_item;
       setRoundDone(false);
       setAttempts(0);
       setFeedback(null);
       setRoundPoints(null);
       playSound(game.current_item, game.mode);
+      return;
+    }
+    if (game.current_item !== prevItemRef.current) {
+      prevItemRef.current = game.current_item;
+      // Delay reset so results stay visible briefly
+      const timer = setTimeout(() => {
+        setRoundDone(false);
+        setAttempts(0);
+        setFeedback(null);
+        setRoundPoints(null);
+        playSound(game.current_item, game.mode);
+      }, 1500);
+      return () => clearTimeout(timer);
     }
   }, [game.current_item]);
 
