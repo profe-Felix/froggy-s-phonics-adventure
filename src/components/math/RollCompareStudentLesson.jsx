@@ -72,17 +72,17 @@ function DoubleTenFrame({ count, onChange }) {
       </div>
       <div ref={trayRef} className="flex flex-col gap-4 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
         {[0, 1].map(frame => (
-          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 28px)' }}>
+          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 42px)' }}>
             {Array.from({ length: 10 }).map((_, cell) => {
               const idx = frame * 10 + cell;
               const filled = idx < count;
               return filled ? (
                 <button key={cell} onClick={() => onChange(count - 1)}
-                  style={{ width: 28, height: 28, padding: 0, cursor: 'pointer', background: 'none', border: 'none' }}>
-                  <Cookie size={26} />
+                  style={{ width: 42, height: 42, padding: 0, cursor: 'pointer', background: 'none', border: 'none' }}>
+                  <Cookie size={40} />
                 </button>
               ) : (
-                <div key={cell} style={{ width: 28, height: 28 }}
+                <div key={cell} style={{ width: 42, height: 42 }}
                   className="rounded border border-dashed border-amber-200 bg-amber-100/30" />
               );
             })}
