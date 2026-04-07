@@ -9,6 +9,8 @@ import OneLessMoreMode from '../components/math/OneLessMoreMode';
 import OneLessMoreTeacher from '../components/math/OneLessMoreTeacher';
 import OneLessMoreLessonStudent from '../components/math/OneLessMoreLessonStudent';
 import RollCompareGame from '../components/math/RollCompareGame';
+import RollCompareTeacherLesson from '../components/math/RollCompareTeacherLesson';
+import RollCompareStudentLesson from '../components/math/RollCompareStudentLesson';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -100,8 +102,14 @@ export default function MathGames() {
                 className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">
                 🧊 1 More / 1 Less
               </button>
+              <button onClick={() => setGameMode('rollcompare')}
+                className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">
+                🍪 Roll & Compare
+              </button>
             </div>
           </div>
+        ) : gameMode === 'rollcompare' && selectedClass ? (
+          <RollCompareTeacherLesson className={selectedClass} onBack={() => setGameMode(null)} />
         ) : (
           // Bingo teacher
           <div>
@@ -253,7 +261,33 @@ export default function MathGames() {
 
   // ── STUDENT VIEW — Roll & Compare ──
   if (gameMode === 'rollcompare') {
-    return <RollCompareGame onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
+    if (selfPlay === null) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-amber-200 to-orange-300 flex flex-col items-center justify-center gap-6 p-6">
+          <button onClick={() => setGameMode(null)} className="text-amber-900/80 self-start hover:text-amber-900">← Back</button>
+          <div className="text-5xl">🍪</div>
+          <h2 className="text-2xl font-bold text-amber-900">Roll & Compare</h2>
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelfPlay(false)}
+              className="bg-white text-amber-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🏫 Teacher Lesson
+              <span className="text-sm font-normal text-amber-400">Teacher controls the spinner</span>
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelfPlay(true)}
+              className="bg-white text-amber-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              👫 Play with a Partner
+              <span className="text-sm font-normal text-amber-400">Roll & compare with a classmate</span>
+            </motion.button>
+          </div>
+        </div>
+      );
+    }
+    if (selfPlay === true) {
+      return <RollCompareGame onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
+    }
+    return <RollCompareStudentLesson onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
   }
 
   // ── STUDENT VIEW — Number Recognition ──

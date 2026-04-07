@@ -1,0 +1,31 @@
+{
+  "name": "RollCompareLesson",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string"
+    },
+    "teacher_number": {
+      "type": "integer",
+      "description": "The reference number teacher spun"
+    },
+    "comparison": {
+      "type": "string",
+      "description": "is_greater_than, is_less_than, or is_equal_to"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "number_set",
+        "comparison_set",
+        "building",
+        "done"
+      ],
+      "default": "waiting"
+    }
+  },
+  "required": [
+    "class_name"
+  ]
+}
