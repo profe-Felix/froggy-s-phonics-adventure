@@ -282,6 +282,7 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
               {[1, 5, 10].map(n => (
                 <motion.button key={n} whileTap={{ scale: 0.85 }}
                   onClick={() => setBuiltCount(c => Math.min(c + n, 20))}
+                  style={{ touchAction: 'auto' }}
                   className="flex-1 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold border-2 border-blue-300">
                   +{n}
                 </motion.button>
