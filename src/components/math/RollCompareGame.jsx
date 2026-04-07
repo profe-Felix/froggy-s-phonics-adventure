@@ -178,14 +178,20 @@ function DropZone({ onDrop, filled }) {
   );
 }
 
-function DragWord({ label, value, onDrop, dropped }) {
+function DragWord({ label, value, onDrop, dropped, onAudioClick }) {
+  const handleClick = () => {
+    if (dropped) return;
+    // TODO: play audio for this comparison word
+    if (onAudioClick) onAudioClick(value);
+  };
+
   return (
     <motion.div
       draggable={!dropped}
       onDragStart={(e) => e.dataTransfer.setData('comparison', value)}
       whileHover={{ scale: dropped ? 1 : 1.05 }}
       whileTap={{ scale: 0.95 }}
-      onClick={() => !dropped && onDrop(value)}
+      onClick={handleClick}
       className={`px-4 py-3 rounded-2xl font-black text-base cursor-grab select-none shadow-lg transition-all
         ${dropped ? 'opacity-30 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
     >
@@ -321,9 +327,9 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
               <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} />
-              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} />
-              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} />
+              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
+              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
+              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
             </div>
             <p className="text-center text-xs text-gray-400 mt-3">Tap or drag a word into the blank</p>
           </motion.div>
