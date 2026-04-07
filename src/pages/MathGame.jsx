@@ -8,6 +8,7 @@ import NumberBuildingMode from '../components/game/modes/NumberBuildingMode';
 import OneLessMoreMode from '../components/math/OneLessMoreMode';
 import OneLessMoreTeacher from '../components/math/OneLessMoreTeacher';
 import OneLessMoreLessonStudent from '../components/math/OneLessMoreLessonStudent';
+import RollCompareGame from '../components/math/RollCompareGame';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -200,6 +201,13 @@ export default function MathGames() {
         icon: '🧊',
         color: 'from-sky-400 to-blue-600',
       },
+      {
+        id: 'rollcompare',
+        title: 'Roll & Compare',
+        description: 'Roll, build cookies, compare with a partner',
+        icon: '🍪',
+        color: 'from-amber-400 to-orange-500',
+      },
     ];
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
@@ -241,6 +249,11 @@ export default function MathGames() {
         </div>
       </div>
     );
+  }
+
+  // ── STUDENT VIEW — Roll & Compare ──
+  if (gameMode === 'rollcompare') {
+    return <RollCompareGame onBack={() => setGameMode(null)} studentNumber={studentNumber} className={selectedClass} />;
   }
 
   // ── STUDENT VIEW — Number Recognition ──
