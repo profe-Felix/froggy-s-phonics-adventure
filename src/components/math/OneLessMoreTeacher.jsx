@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 import DisplayCubes from './DisplayCubesPanel';
+import OneLessMoreSpinner from './OneLessMoreSpinner';
 
 const SPINNER_OPTIONS = ['more', 'less'];
 
@@ -14,6 +15,8 @@ export default function OneLessMoreTeacher({ className, onBack }) {
   const [spinning, setSpinning] = useState(false);
   const [minNum, setMinNum] = useState(2);
   const [maxNum, setMaxNum] = useState(18);
+  const [pendingSpinTo, setPendingSpinTo] = useState(null); // triggers spinner
+  const [pendingData, setPendingData] = useState(null);     // data to save after spin
 
   const createGame = async () => {
     const g = await base44.entities.OneLessMoreGame.create({
@@ -25,24 +28,29 @@ export default function OneLessMoreTeacher({ className, onBack }) {
     setGame(g);
   };
 
-  const nextRound = async () => {
-    setSpinning(true);
+  const nextRound = () => {
+    if (spinning) return;
     const num = randomBetween(minNum, maxNum);
     const result = SPINNER_OPTIONS[Math.floor(Math.random() * 2)];
     const target = result === 'more' ? num + 1 : num - 1;
+    setSpinning(true);
+    setPendingData({ num, result, target });
+    setPendingSpinTo(result + '_' + Date.now()); // unique trigger each time
+  };
 
-    // Animate briefly then update
-    setTimeout(async () => {
-      const updated = await base44.entities.OneLessMoreGame.update(game.id, {
-        current_number: num,
-        spinner_result: result,
-        target_number: target,
-        round_number: (game.round_number || 0) + 1,
-        status: 'active',
-      });
-      setGame(updated);
-      setSpinning(false);
-    }, 600);
+  const handleSpinDone = async (spinResult) => {
+    if (!pendingData) return;
+    const { num, target } = pendingData;
+    const updated = await base44.entities.OneLessMoreGame.update(game.id, {
+      current_number: num,
+      spinner_result: spinResult,
+      target_number: target,
+      round_number: (game.round_number || 0) + 1,
+      status: 'active',
+    });
+    setGame(updated);
+    setSpinning(false);
+    setPendingData(null);
   };
 
   const endGame = async () => {
@@ -83,9 +91,10 @@ export default function OneLessMoreTeacher({ className, onBack }) {
       </div>
 
       {game.status === 'waiting' && (
-        <div className="bg-white rounded-3xl p-8 shadow-xl text-center w-full">
-          <p className="text-2xl font-bold text-gray-600 mb-2">Ready to begin!</p>
-          <p className="text-gray-400 mb-6">Students are waiting. Press "Next Round" to start.</p>
+        <div className="bg-white rounded-3xl p-8 shadow-xl text-center w-full flex flex-col items-center gap-5">
+          <OneLessMoreSpinner key="waiting" spinTo={null} onResult={() => {}} />
+          <p className="text-2xl font-bold text-gray-600">Ready to begin!</p>
+          <p className="text-gray-400">Students are waiting. Press "Next Round" to start.</p>
           <button onClick={nextRound}
             className="px-10 py-4 bg-indigo-600 text-white font-bold text-xl rounded-2xl hover:bg-indigo-700 shadow-lg">
             Next Round →
@@ -95,24 +104,35 @@ export default function OneLessMoreTeacher({ className, onBack }) {
 
       {game.status === 'active' && (
         <div className="bg-white rounded-3xl p-6 shadow-xl w-full flex flex-col items-center gap-5">
-          <div className="flex gap-6 items-center flex-wrap justify-center">
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-xs font-bold text-gray-400 uppercase">Starting Number</span>
-              <span className="text-6xl font-bold text-indigo-700">{game.current_number}</span>
-            </div>
-            <div className={`text-2xl font-bold px-6 py-3 rounded-2xl ${game.spinner_result === 'more' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
-              1 {game.spinner_result === 'more' ? 'More ➕' : 'Less ➖'}
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-xs font-bold text-gray-400 uppercase">Answer</span>
-              <span className="text-6xl font-bold text-green-600">{game.target_number}</span>
-            </div>
-          </div>
+          {/* Spinner — auto-spins when nextRound is pressed */}
+          {/* Key forces remount each round so spinner resets */}
+          <OneLessMoreSpinner
+            key={game.round_number}
+            spinTo={pendingData?.result || null}
+            onResult={handleSpinDone}
+          />
 
-          <div className="w-full bg-sky-50 rounded-2xl p-4 border border-sky-200">
-            <p className="text-xs text-gray-400 font-bold mb-2">Ten-frame ({game.current_number} cubes):</p>
-            <DisplayCubes count={game.current_number} />
-          </div>
+          {!spinning && game.spinner_result && (
+            <>
+              <div className="flex gap-6 items-center flex-wrap justify-center">
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Starting Number</span>
+                  <span className="text-6xl font-bold text-indigo-700">{game.current_number}</span>
+                </div>
+                <div className={`text-2xl font-bold px-6 py-3 rounded-2xl ${game.spinner_result === 'more' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                  1 {game.spinner_result === 'more' ? 'More ➕' : 'Less ➖'}
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Answer</span>
+                  <span className="text-6xl font-bold text-green-600">{game.target_number}</span>
+                </div>
+              </div>
+              <div className="w-full bg-sky-50 rounded-2xl p-4 border border-sky-200">
+                <p className="text-xs text-gray-400 font-bold mb-2">Ten-frame ({game.current_number} cubes):</p>
+                <DisplayCubes count={game.current_number} />
+              </div>
+            </>
+          )}
 
           <div className="flex gap-3 w-full">
             <button onClick={nextRound} disabled={spinning}
