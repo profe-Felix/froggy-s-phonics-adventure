@@ -15,8 +15,11 @@ export default function GameCanvas({
   mode = 'catch',
   collectedLetters = [],
   usedIndices = [],
-  canAnswer = true
+  canAnswer = true,
+  onRetry
 }) {
+  const [milestoneStreak, setMilestoneStreak] = useState(null);
+  const prevStreak = useRef(0);
   const [tongueActive, setTongueActive] = useState(false);
   const [targetFly, setTargetFly] = useState(null);
   const [flyPosition, setFlyPosition] = useState({ x: 0, y: 0 });
@@ -24,6 +27,14 @@ export default function GameCanvas({
   const [animationPhase, setAnimationPhase] = useState('idle'); // idle, extend, retract, swallow, spit
   const frogRef = useRef(null);
   const dingSound = useRef(null);
+
+  useEffect(() => {
+    if (streak > prevStreak.current && [3, 5, 10, 15, 20].includes(streak)) {
+      setMilestoneStreak(streak);
+      setTimeout(() => setMilestoneStreak(null), 2000);
+    }
+    prevStreak.current = streak;
+  }, [streak]);
 
   useEffect(() => {
     dingSound.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
@@ -97,17 +108,35 @@ export default function GameCanvas({
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Trophy className="w-6 h-6 text-yellow-500" />
-            <span className="text-2xl font-bold text-gray-800">{score}</span>
+            <motion.span key={score} initial={{ scale: 1.5, color: '#f59e0b' }} animate={{ scale: 1, color: '#1f2937' }} className="text-2xl font-bold">{score}</motion.span>
           </div>
           {streak > 0 && (
             <div className="flex items-center gap-1">
+              <span className="text-orange-500 font-bold text-sm">🔥 {streak}</span>
               {Array.from({ length: Math.min(streak, 5) }).map((_, i) => (
-                <Star key={i} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Streak Milestone Celebration */}
+      <AnimatePresence>
+        {milestoneStreak && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0, y: 50 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0, opacity: 0, y: -50 }}
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+          >
+            <div className="bg-gradient-to-r from-orange-400 to-yellow-400 text-white font-black text-4xl px-10 py-6 rounded-3xl shadow-2xl text-center">
+              🔥 {milestoneStreak} in a row!
+              <div className="text-2xl mt-1">Amazing!</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Sound Button */}
       <Button
@@ -301,9 +330,20 @@ export default function GameCanvas({
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4"
           >
-            <div className="text-9xl animate-pulse">❌</div>
+            <div className="text-8xl">❌</div>
+            {onRetry && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                onClick={onRetry}
+                className="px-8 py-4 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-black text-2xl rounded-2xl shadow-xl active:scale-95 transition-transform"
+              >
+                🔄 Try Again!
+              </motion.button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

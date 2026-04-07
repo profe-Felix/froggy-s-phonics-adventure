@@ -128,6 +128,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       unlocked: true
     });
 
+    if (!correct) return; // wait for retry or auto-advance handled by onRetry
     setTimeout(() => {
       setShowFeedback(false);
       generateRound();
@@ -149,6 +150,11 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   if (!currentLetter) return null;
 
+  const handleRetry = () => {
+    setShowFeedback(false);
+    playSound(currentLetter);
+  };
+
   return (
     <GameCanvas
       currentLetter={currentLetter}
@@ -161,6 +167,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       isCorrect={isCorrect}
       mode="catch"
       canAnswer={canAnswer}
+      onRetry={handleRetry}
     />
   );
 }
