@@ -163,40 +163,27 @@ function SlotRoller({ onResult }) {
 }
 
 // ── Drop zone ─────────────────────────────────────────────────────
-function DropZone({ onDrop, filled }) {
-  const [over, setOver] = useState(false);
+function DropZone({ filled }) {
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); const val = e.dataTransfer.getData('comparison'); if (val) onDrop(val); }}
-      className={`min-w-[160px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-base transition-all
-        ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : over ? 'border-indigo-400 bg-indigo-50 text-gray-400' : 'border-gray-300 bg-gray-50 text-gray-400'}`}
-    >
-      {filled || 'drop here'}
+    <div className={`min-w-[160px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-base transition-all
+      ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
+      {filled || 'tap a word'}
     </div>
   );
 }
 
-function DragWord({ label, value, onDrop, dropped, onAudioClick }) {
-  const handleClick = () => {
-    if (dropped) return;
-    // TODO: play audio for this comparison word
-    if (onAudioClick) onAudioClick(value);
-  };
-
+function DragWord({ label, value, onDrop, dropped }) {
   return (
-    <motion.div
-      draggable={!dropped}
-      onDragStart={(e) => e.dataTransfer.setData('comparison', value)}
+    <motion.button
       whileHover={{ scale: dropped ? 1 : 1.05 }}
       whileTap={{ scale: 0.95 }}
-      onClick={handleClick}
-      className={`px-4 py-3 rounded-2xl font-black text-base cursor-grab select-none shadow-lg transition-all
-        ${dropped ? 'opacity-30 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+      onClick={() => { if (!dropped) onDrop(value); }}
+      disabled={dropped}
+      className={`px-4 py-3 rounded-2xl font-black text-base select-none shadow-lg transition-all
+        ${dropped ? 'opacity-30 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'}`}
     >
       {label}
-    </motion.div>
+    </motion.button>
   );
 }
 
@@ -327,11 +314,11 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
               <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
-              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
-              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
+              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} />
+              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} />
+              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} />
             </div>
-            <p className="text-center text-xs text-gray-400 mt-3">Tap or drag a word into the blank</p>
+            <p className="text-center text-xs text-gray-400 mt-3">Tap a word to fill in the blank</p>
           </motion.div>
         )}
       </AnimatePresence>
