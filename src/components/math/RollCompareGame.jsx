@@ -163,37 +163,72 @@ function SlotRoller({ onResult }) {
 }
 
 // ── Drop zone ─────────────────────────────────────────────────────
-function DropZone({ filled, selected, onPlace }) {
+function DropZone({ filled, selected, onPlace, dropRef }) {
   return (
     <div
+      ref={dropRef}
       onClick={() => { if (!filled && selected) onPlace(selected); }}
       className={`min-w-[160px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-base transition-all
         ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
           : selected ? 'border-indigo-400 bg-indigo-50 text-indigo-500 cursor-pointer'
           : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
-      {filled || (selected ? `tap to place` : 'select a word')}
+      {filled || (selected ? 'tap to place' : 'drag or tap a word')}
     </div>
   );
 }
 
-function DragWord({ label, value, dropped, selected, onSelect }) {
+function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }) {
+  const handlePointerDown = (e) => {
+    if (dropped) return;
+    e.preventDefault();
+    // play audio on tap/drag start
+    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
+    onSelect(value);
+
+    const startX = e.clientX, startY = e.clientY;
+    let moved = false;
+
+    const clone = document.createElement('div');
+    clone.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:12px 16px;background:#4f46e5;color:white;font-weight:900;border-radius:16px;font-size:14px;white-space:nowrap;';
+    clone.textContent = label;
+    document.body.appendChild(clone);
+    const move = (cx, cy) => { clone.style.left = (cx - clone.offsetWidth / 2) + 'px'; clone.style.top = (cy - 24) + 'px'; };
+    move(e.clientX, e.clientY);
+
+    const onMove = (ev) => {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      if (Math.abs(cx - startX) > 6 || Math.abs(cy - startY) > 6) moved = true;
+      move(cx, cy);
+    };
+    const onUp = (ev) => {
+      const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
+      const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
+      clone.remove();
+      if (moved && dropRef?.current) {
+        const rect = dropRef.current.getBoundingClientRect();
+        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+          onDrop(value);
+        }
+      }
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerup', onUp);
+  };
+
   return (
-    <motion.button
-      whileHover={{ scale: dropped ? 1 : 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => {
-        if (dropped) return;
-        new Audio(`/audio/${value}.mp3`).play().catch(() => {});
-        onSelect(value);
-      }}
-      disabled={dropped}
-      className={`px-4 py-3 rounded-2xl font-black text-base select-none shadow-lg transition-all
+    <div
+      onPointerDown={handlePointerDown}
+      style={{ touchAction: 'none', userSelect: 'none' }}
+      className={`px-4 py-3 rounded-2xl font-black text-base select-none shadow-lg transition-all cursor-grab
         ${dropped ? 'opacity-30 cursor-not-allowed'
-          : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500 cursor-pointer'
-          : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'}`}
+          : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500'
+          : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
     >
       {label}
-    </motion.button>
+    </div>
   );
 }
 
@@ -205,6 +240,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const dropRef = useRef(null);
 
   const roundNum = game.round_number || 1;
 
@@ -322,13 +358,13 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
             <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
               <span className="bg-amber-100 px-3 py-2 rounded-xl">{storedMyRoll}</span>
-              <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} />
+              <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
               <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} />
-              <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} />
-              <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} />
+              <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+              <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+              <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
             </div>
             <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
           </motion.div>
