@@ -141,26 +141,26 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
 
-  const playAudioBlob = (src, onDone) => {
-    fetch(src)
-      .then(r => r.blob())
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = new Audio(url);
-        a.onended = () => { URL.revokeObjectURL(url); onDone(); };
-        a.onerror = () => { URL.revokeObjectURL(url); onDone(); };
-        a.play().catch(onDone);
-      })
-      .catch(onDone);
-  };
-
   const playFullPrompt = () => {
     if (!lesson?.comparison || !lesson?.teacher_number) return;
-    playAudioBlob('/audio/Build_a_set_that.mp3', () => {
-      playAudioBlob(`/audio/${lesson.comparison}.mp3`, () => {
-        playAudioBlob(`/numbers-audio/${lesson.teacher_number}.mp3`, () => {});
+    const srcs = [
+      '/audio/Build_a_set_that.mp3',
+      `/audio/${lesson.comparison}.mp3`,
+      `/numbers-audio/${lesson.teacher_number}.mp3`,
+    ];
+    // Pre-fetch all blobs in parallel, then play sequentially
+    Promise.all(srcs.map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
+      .then(urls => {
+        let i = 0;
+        const playNext = () => {
+          if (i >= urls.length) return;
+          const url = urls[i++];
+          const a = new Audio(url);
+          a.onended = () => { URL.revokeObjectURL(url); playNext(); };
+          a.play().catch(playNext);
+        };
+        playNext();
       });
-    });
   };
 
   return (
