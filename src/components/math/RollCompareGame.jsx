@@ -163,24 +163,34 @@ function SlotRoller({ onResult }) {
 }
 
 // ── Drop zone ─────────────────────────────────────────────────────
-function DropZone({ filled }) {
+function DropZone({ filled, selected, onPlace }) {
   return (
-    <div className={`min-w-[160px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-base transition-all
-      ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700' : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
-      {filled || 'tap a word'}
+    <div
+      onClick={() => { if (!filled && selected) onPlace(selected); }}
+      className={`min-w-[160px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-base transition-all
+        ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
+          : selected ? 'border-indigo-400 bg-indigo-50 text-indigo-500 cursor-pointer'
+          : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
+      {filled || (selected ? `tap to place` : 'select a word')}
     </div>
   );
 }
 
-function DragWord({ label, value, onDrop, dropped }) {
+function DragWord({ label, value, dropped, selected, onSelect }) {
   return (
     <motion.button
       whileHover={{ scale: dropped ? 1 : 1.05 }}
       whileTap={{ scale: 0.95 }}
-      onClick={() => { if (!dropped) onDrop(value); }}
+      onClick={() => {
+        if (dropped) return;
+        new Audio(`/audio/${value}.mp3`).play().catch(() => {});
+        onSelect(value);
+      }}
       disabled={dropped}
       className={`px-4 py-3 rounded-2xl font-black text-base select-none shadow-lg transition-all
-        ${dropped ? 'opacity-30 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'}`}
+        ${dropped ? 'opacity-30 cursor-not-allowed'
+          : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500 cursor-pointer'
+          : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'}`}
     >
       {label}
     </motion.button>
@@ -192,6 +202,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const [myRoll, setMyRoll] = useState(null);
   const [builtCount, setBuiltCount] = useState(0);
   const [placed, setPlaced] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -202,6 +213,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
     setMyRoll(null);
     setBuiltCount(0);
     setPlaced(null);
+    setSelected(null);
     setResult(null);
   }, [roundNum]);
 
@@ -310,15 +322,15 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
             <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
               <span className="bg-amber-100 px-3 py-2 rounded-xl">{storedMyRoll}</span>
-              <DropZone filled={placed} onDrop={handlePlace} />
+              <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} />
               <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} />
-              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} />
-              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} />
+              <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} />
+              <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} />
+              <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} />
             </div>
-            <p className="text-center text-xs text-gray-400 mt-3">Tap a word to fill in the blank</p>
+            <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
           </motion.div>
         )}
       </AnimatePresence>
