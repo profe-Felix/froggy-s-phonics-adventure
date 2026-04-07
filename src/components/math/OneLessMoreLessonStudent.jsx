@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,6 +6,49 @@ import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const CS = 26;
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+function BankCube({ count, trayRef, onDrop }) {
+  const handlePointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const clone = document.createElement('div');
+    clone.style.cssText = `position:fixed;width:26px;height:26px;pointer-events:none;z-index:9999;touch-action:none;`;
+    clone.innerHTML = `
+      <div style="position:absolute;top:0;left:3px;right:0;height:5px;background:#60a5fa;clip-path:polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%);border-top:1px solid #1e3a8a"></div>
+      <div style="position:absolute;top:5px;left:0;right:3px;bottom:0;background:#2d4fa1;border:1px solid #1e3a8a;border-radius:1px"></div>
+      <div style="position:absolute;top:5px;right:0;width:3px;bottom:0;background:#1e3a8a"></div>
+    `;
+    document.body.appendChild(clone);
+    const move = (ex, ey) => { clone.style.left = (ex - 13) + 'px'; clone.style.top = (ey - 13) + 'px'; };
+    move(e.clientX, e.clientY);
+    const onMove = (ev) => { const cx = ev.touches ? ev.touches[0].clientX : ev.clientX; const cy = ev.touches ? ev.touches[0].clientY : ev.clientY; move(cx, cy); };
+    const onUp = (ev) => {
+      const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
+      const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
+      clone.remove();
+      if (trayRef.current) {
+        const rect = trayRef.current.getBoundingClientRect();
+        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) onDrop();
+      }
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerup', onUp);
+  };
+  return (
+    <button onPointerDown={handlePointerDown}
+      style={{ touchAction: 'none', userSelect: 'none', cursor: 'grab' }}
+      className="flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100">
+      <div style={{ width: 18, height: 18, position: 'relative', flexShrink: 0, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 0, left: 2, right: 0, height: 3, background: '#60a5fa', clipPath: 'polygon(0 100%, 2px 0, 100% 0, calc(100% - 2px) 100%)', borderTop: '1px solid #1e3a8a' }} />
+        <div style={{ position: 'absolute', top: 3, left: 0, right: 2, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
+        <div style={{ position: 'absolute', top: 3, right: 0, width: 2, bottom: 0, background: '#1e3a8a' }} />
+      </div>
+      <span className="text-xs font-bold text-blue-700 leading-none">+{count}</span>
+    </button>
+  );
+}
 
 function SingleDigitEntry({ onSubmit }) {
   const [built, setBuilt] = useState('');
@@ -44,6 +87,7 @@ function SingleDigitEntry({ onSubmit }) {
 export default function OneLessMoreLessonStudent({ studentNumber, className: classProp, onBack }) {
   const [roundKey, setRoundKey] = useState(null);
   const [builtCount, setBuiltCount] = useState(0);
+  const trayRef = useRef(null);
   const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
   const [startStrokes, setStartStrokes] = useState(null);
@@ -199,28 +243,38 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
               1 {game.spinner_result === 'more' ? 'More ➕' : 'Less ➖'}
             </div>
 
-            {/* Cube tray */}
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
-              {[0, 1].map(row => (
-                <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2, height: CS + 4, marginBottom: 4 }}>
-                  {Array.from({ length: 10 }).map((_, col) => {
-                    const idx = row * 10 + col;
-                    const filled = idx < builtCount;
-                    return filled ? (
-                      <button key={col} onClick={() => setBuiltCount(c => Math.max(0, c - 1))}
-                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', height: CS }}>
-                        <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-                        <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-                        <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534' }} />
-                      </button>
-                    ) : (
-                      <div key={col} style={{ height: CS }} className="rounded border border-dashed border-green-200 bg-green-100/30" />
-                    );
-                  })}
-                </div>
-              ))}
-              <p className="text-xs text-gray-300 text-center">Tap cube to remove</p>
+            {/* Cube tray + drag bank */}
+            <div className="flex gap-2 items-start">
+              {/* Drag bank */}
+              <div className="flex flex-col gap-1.5 flex-shrink-0 items-center">
+                <p className="text-xs text-gray-400 font-semibold">Drag</p>
+                {[1, 5, 10].map(n => (
+                  <BankCube key={n} count={n} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + n, 20))} />
+                ))}
+              </div>
+              {/* Tray */}
+              <div ref={trayRef} style={{ minWidth: 0, flex: 1 }}>
+                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount})</p>
+                {[0, 1].map(row => (
+                  <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2, height: CS + 4, marginBottom: 4 }}>
+                    {Array.from({ length: 10 }).map((_, col) => {
+                      const idx = row * 10 + col;
+                      const filled = idx < builtCount;
+                      return filled ? (
+                        <button key={col} onClick={() => setBuiltCount(c => Math.max(0, c - 1))}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', height: CS }}>
+                          <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
+                          <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
+                          <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534' }} />
+                        </button>
+                      ) : (
+                        <div key={col} style={{ height: CS }} className="rounded border border-dashed border-green-200 bg-green-100/30" />
+                      );
+                    })}
+                  </div>
+                ))}
+                <p className="text-xs text-gray-300 text-center">Tap cube to remove</p>
+              </div>
             </div>
 
             {/* Tap buttons */}
