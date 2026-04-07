@@ -141,30 +141,26 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
 
+  const playAudioBlob = (src, onDone) => {
+    fetch(src)
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = new Audio(url);
+        a.onended = () => { URL.revokeObjectURL(url); onDone(); };
+        a.onerror = () => { URL.revokeObjectURL(url); onDone(); };
+        a.play().catch(onDone);
+      })
+      .catch(onDone);
+  };
+
   const playFullPrompt = () => {
     if (!lesson?.comparison || !lesson?.teacher_number) return;
-
-    const playAudio = (src, onDone) => {
-      const a = new Audio(src);
-      a.onended = onDone;
-      a.onerror = onDone;
-      a.play().catch(onDone);
-    };
-
-    // Use speech synthesis for "Build a set that" since the file can't be served
-    const utt = new SpeechSynthesisUtterance('Build a set that');
-    utt.rate = 0.85;
-    utt.onend = () => {
-      playAudio(`/audio/${lesson.comparison}.mp3`, () => {
-        playAudio(`/numbers-audio/${lesson.teacher_number}.mp3`, () => {});
+    playAudioBlob('/audio/Build_a_set_that.mp3', () => {
+      playAudioBlob(`/audio/${lesson.comparison}.mp3`, () => {
+        playAudioBlob(`/numbers-audio/${lesson.teacher_number}.mp3`, () => {});
       });
-    };
-    utt.onerror = () => {
-      playAudio(`/audio/${lesson.comparison}.mp3`, () => {
-        playAudio(`/numbers-audio/${lesson.teacher_number}.mp3`, () => {});
-      });
-    };
-    window.speechSynthesis.speak(utt);
+    });
   };
 
   return (
