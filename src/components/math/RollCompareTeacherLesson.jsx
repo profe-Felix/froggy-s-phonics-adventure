@@ -50,21 +50,22 @@ function SlotRoller({ items, onResult, label }) {
   );
 }
 
+function TenFrameGrid({ filled }) {
+  return (
+    <div className="inline-grid p-1.5 rounded-lg border-2 border-white/50 bg-white/10" style={{ gridTemplateColumns: 'repeat(5, 24px)', gap: 3 }}>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} style={{ width: 24, height: 24 }}
+          className={`rounded border ${i < filled ? 'bg-amber-300 border-amber-500' : 'border-dashed border-white/30 bg-white/10'}`} />
+      ))}
+    </div>
+  );
+}
+
 function DoubleTenFrameDisplay({ count }) {
   return (
-    <div className="flex flex-col gap-1 p-2 rounded-xl border-2 border-dashed border-white/40 bg-white/10">
-      {[0, 1].map(row => (
-        <div key={row} className="flex gap-1">
-          {Array.from({ length: 10 }).map((_, col) => {
-            const idx = row * 10 + col;
-            const filled = idx < count;
-            return (
-              <div key={col} style={{ width: 24, height: 24 }}
-                className={`rounded border ${filled ? 'bg-amber-300 border-amber-500' : 'border-dashed border-white/30 bg-white/10'}`} />
-            );
-          })}
-        </div>
-      ))}
+    <div className="flex gap-3">
+      <TenFrameGrid filled={Math.min(count, 10)} />
+      <TenFrameGrid filled={Math.max(0, count - 10)} />
     </div>
   );
 }
