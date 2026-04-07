@@ -75,6 +75,9 @@ function BankCube({ trayRef, onDrop, count = 1 }) {
     e.preventDefault();
     e.stopPropagation();
 
+    const startX = e.clientX, startY = e.clientY;
+    let moved = false;
+
     const clone = document.createElement('div');
     clone.style.cssText = `position:fixed;width:26px;height:26px;pointer-events:none;z-index:9999;touch-action:none;`;
     clone.innerHTML = `
@@ -87,12 +90,20 @@ function BankCube({ trayRef, onDrop, count = 1 }) {
     const move = (ex, ey) => { clone.style.left = (ex - 13) + 'px'; clone.style.top = (ey - 13) + 'px'; };
     move(e.clientX, e.clientY);
 
-    const onMove = (ev) => { const cx = ev.touches ? ev.touches[0].clientX : ev.clientX; const cy = ev.touches ? ev.touches[0].clientY : ev.clientY; move(cx, cy); };
+    const onMove = (ev) => {
+      const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      if (Math.abs(cx - startX) > 8 || Math.abs(cy - startY) > 8) moved = true;
+      move(cx, cy);
+    };
     const onUp = (ev) => {
       const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
       const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
       clone.remove();
-      if (trayRef.current) {
+      if (!moved) {
+        // It's a tap — add directly
+        onDrop();
+      } else if (trayRef.current) {
         const rect = trayRef.current.getBoundingClientRect();
         if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) onDrop();
       }
