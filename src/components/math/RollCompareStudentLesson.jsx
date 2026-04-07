@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,7 +57,8 @@ function DoubleTenFrame({ count, onChange }) {
     <div className="flex flex-col gap-2">
       <div className="flex gap-2 items-center flex-wrap">
         {[1, 5, 10].map(n => (
-          <button key={n} onPointerDown={n === 1 ? handlePointerDown : undefined}
+          <button key={n}
+            onPointerDown={n === 1 ? handlePointerDown : undefined}
             onClick={n !== 1 ? () => onChange(Math.min(count + n, 20)) : undefined}
             style={n === 1 ? { touchAction: 'none', userSelect: 'none', cursor: 'grab' } : {}}
             className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100">
@@ -109,7 +110,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
   const [builtCount, setBuiltCount] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
-  const [lastLessonId, setLastLessonId] = useState(null);
+  const [lastRoundKey, setLastRoundKey] = useState(null);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['rc-lesson', classProp],
@@ -119,27 +120,22 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
 
   const lesson = lessons[0] || null;
 
-  // Reset when teacher starts a new round
-  if (lesson && lesson.id !== lastLessonId && lesson.status === 'building') {
-    if (lastLessonId !== null) {
-      setBuiltCount(0);
-      setSubmitted(false);
-      setIsCorrect(null);
-    }
-    setLastLessonId(lesson.id);
-  } else if (lesson && lesson.status === 'waiting' && lastLessonId !== null) {
+  // Reset when teacher spins a new round
+  const roundKey = lesson ? `${lesson.teacher_number}-${lesson.comparison}-${lesson.status}` : null;
+
+  useEffect(() => {
+    if (!roundKey || roundKey === lastRoundKey) return;
+    setLastRoundKey(roundKey);
     setBuiltCount(0);
     setSubmitted(false);
     setIsCorrect(null);
-    setLastLessonId(null);
-  }
+  }, [roundKey]);
 
   const handleSubmit = () => {
     if (!lesson || submitted) return;
     const correct = checkAnswer(builtCount, lesson.teacher_number, lesson.comparison);
     setIsCorrect(correct);
     setSubmitted(true);
-    // play audio for comparison
     new Audio(`/audio/${lesson.comparison}.mp3`).play().catch(() => {});
   };
 
@@ -180,23 +176,20 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
             </div>
 
             {/* Build area */}
-            <AnimatePresence>
-              {!submitted && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-3xl p-5 shadow-xl mb-4">
-                  <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
-                  <DoubleTenFrame count={builtCount} onChange={setBuiltCount} />
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-lg font-bold text-gray-600">Count: {builtCount}</span>
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
-                      disabled={builtCount === 0}
-                      className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
-                      ✓ Submit
-                    </motion.button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {!submitted && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-3xl p-5 shadow-xl mb-4">
+                <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
+                <DoubleTenFrame count={builtCount} onChange={setBuiltCount} />
+                <div className="flex justify-end mt-3">
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
+                    disabled={builtCount === 0}
+                    className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
+                    ✓ Submit
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
 
             {/* Result */}
             <AnimatePresence>
@@ -207,10 +200,11 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                   <p className={`text-2xl font-black ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
                     {isCorrect ? 'Correct!' : 'Not quite!'}
                   </p>
-                  <p className="text-gray-600 mt-1 font-semibold">
-                    You built: <strong>{builtCount}</strong>
-                    {!isCorrect && <span> · {compLabel} {lesson.teacher_number}</span>}
-                  </p>
+                  {!isCorrect && (
+                    <p className="text-gray-600 mt-1 font-semibold">
+                      Needs to be {compLabel} {lesson.teacher_number}
+                    </p>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
