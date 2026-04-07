@@ -3,6 +3,26 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 
+function TenFrameGrid({ filled }) {
+  return (
+    <div className="inline-grid p-1.5 rounded-lg border-2 border-amber-300 bg-amber-50" style={{ gridTemplateColumns: 'repeat(5, 26px)', gap: 3 }}>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} style={{ width: 26, height: 26 }}
+          className={`rounded border ${i < filled ? 'bg-amber-400 border-amber-600' : 'border-dashed border-amber-200 bg-white'}`} />
+      ))}
+    </div>
+  );
+}
+
+function TenFrameDisplay({ count }) {
+  return (
+    <div className="flex gap-3 justify-center">
+      <TenFrameGrid filled={Math.min(count, 10)} />
+      <TenFrameGrid filled={Math.max(0, count - 10)} />
+    </div>
+  );
+}
+
 function Cookie({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
@@ -158,21 +178,23 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
         ) : lesson.status === 'number_set' ? (
           <div className="bg-white rounded-3xl p-8 shadow-xl text-center">
             <p className="text-sm font-bold text-gray-400 uppercase mb-2">Teacher's number</p>
-            <div className="text-7xl font-black text-indigo-700 mb-2">{lesson.teacher_number}</div>
-            <p className="text-gray-400 animate-pulse">Waiting for comparison…</p>
+            <div className="text-7xl font-black text-indigo-700 mb-3">{lesson.teacher_number}</div>
+            <TenFrameDisplay count={lesson.teacher_number} />
+            <p className="text-gray-400 animate-pulse mt-3">Waiting for comparison…</p>
           </div>
         ) : (
           <>
             {/* Prompt */}
             <div className="bg-white rounded-3xl p-5 shadow-xl mb-4 text-center">
-              <p className="text-sm font-bold text-gray-400 uppercase mb-2">Build a set that…</p>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
+              <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build a set that…</p>
+              <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
                 <button onClick={() => new Audio(`/audio/${lesson.comparison}.mp3`).play().catch(() => {})}
                   className="bg-indigo-600 text-white font-black text-lg px-4 py-2 rounded-2xl shadow hover:bg-indigo-700">
                   🔊 {compLabel}
                 </button>
                 <span className="bg-amber-100 px-4 py-2 rounded-xl text-2xl font-black text-amber-800">{lesson.teacher_number}</span>
               </div>
+              <TenFrameDisplay count={lesson.teacher_number} />
             </div>
 
             {/* Build area */}
