@@ -110,7 +110,7 @@ function DoubleTenFrame({ count, onChange }) {
           </div>
         ))}
       </div>
-      <p className="text-xs text-amber-700 font-bold text-center">{count} cookies built</p>
+
     </div>
   );
 }
