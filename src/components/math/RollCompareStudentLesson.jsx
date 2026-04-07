@@ -141,6 +141,22 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
 
+  const playFullPrompt = () => {
+    const clips = [
+      '/audio/build_a_set_that.mp3',
+      `/audio/${lesson.comparison}.mp3`,
+      `/audio/${lesson.teacher_number}.mp3`,
+    ];
+    let i = 0;
+    const playNext = () => {
+      if (i >= clips.length) return;
+      const a = new Audio(clips[i++]);
+      a.onended = playNext;
+      a.play().catch(playNext);
+    };
+    playNext();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-200 to-orange-300 flex flex-col items-center py-6 px-3">
       <div className="w-full max-w-md">
@@ -165,7 +181,11 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
           <>
             {/* Prompt */}
             <div className="bg-white rounded-3xl p-5 shadow-xl mb-4 text-center">
-              <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build a set that…</p>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <p className="text-sm font-bold text-gray-400 uppercase">Build a set that…</p>
+                <button onClick={playFullPrompt}
+                  className="text-indigo-500 hover:text-indigo-700 text-xl" title="Read aloud">🔊</button>
+              </div>
               <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
                 <button onClick={() => new Audio(`/audio/${lesson.comparison}.mp3`).play().catch(() => {})}
                   className="bg-indigo-600 text-white font-black text-lg px-4 py-2 rounded-2xl shadow hover:bg-indigo-700">
