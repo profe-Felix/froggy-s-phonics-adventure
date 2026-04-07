@@ -50,6 +50,25 @@ function SlotRoller({ items, onResult, label }) {
   );
 }
 
+function DoubleTenFrameDisplay({ count }) {
+  return (
+    <div className="flex flex-col gap-1 p-2 rounded-xl border-2 border-dashed border-white/40 bg-white/10">
+      {[0, 1].map(row => (
+        <div key={row} className="flex gap-1">
+          {Array.from({ length: 10 }).map((_, col) => {
+            const idx = row * 10 + col;
+            const filled = idx < count;
+            return (
+              <div key={col} style={{ width: 24, height: 24 }}
+                className={`rounded border ${filled ? 'bg-amber-300 border-amber-500' : 'border-dashed border-white/30 bg-white/10'}`} />
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const NUMBER_ITEMS = Array.from({ length: 12 }, (_, i) => i + 9); // 9–20
 const COMPARISON_ITEMS = ['is greater than', 'is less than', 'is equal to'];
 const COMPARISON_MAP = {
@@ -136,7 +155,10 @@ export default function RollCompareTeacherLesson({ className: classProp, onBack 
               onResult={handleNumberResult}
             />
             {numberDone && lesson?.teacher_number && (
-              <p className="text-white/70 text-sm">Number set to <strong className="text-white">{lesson.teacher_number}</strong></p>
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-white/70 text-sm">Number set to <strong className="text-white">{lesson.teacher_number}</strong></p>
+                <DoubleTenFrameDisplay count={lesson.teacher_number} />
+              </div>
             )}
           </div>
 
