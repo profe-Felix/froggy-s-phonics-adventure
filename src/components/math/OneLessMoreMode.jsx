@@ -253,6 +253,8 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
               <div className="flex flex-col gap-1.5 flex-shrink-0 items-center">
                 <p className="text-xs text-gray-400 font-semibold">Add</p>
                 <BankCube count={1} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + 1, 20))} />
+                <BankCube count={5} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + 5, 20))} />
+                <BankCube count={10} trayRef={trayRef} onDrop={() => setBuiltCount(c => Math.min(c + 10, 20))} />
               </div>
               {/* Right: drop tray */}
               <div style={{ minWidth: 0, flex: 1 }}>

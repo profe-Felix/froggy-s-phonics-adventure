@@ -2,12 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 const CS = 26;
-let cloneCounter = 0;
-const BANK_CUBES = Array.from({ length: 5 }, (_, i) => i);
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 function SingleDigitEntry({ onSubmit }) {
@@ -42,45 +39,11 @@ function SingleDigitEntry({ onSubmit }) {
   );
 }
 
-function BankCube({ index }) {
-  return (
-    <Draggable draggableId={`bank-src-${index}`} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1 }}
-          className="flex-shrink-0 cursor-grab">
-          <div style={{ width: CS, height: CS, position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4a6fc7', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #1e3a8a' }} />
-            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#2d4fa1', border: '1px solid #1e3a8a', borderRadius: 1 }} />
-            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#1e3a8a', borderRadius: '0 1px 1px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
-}
 
-function BuiltCube({ draggableId, index }) {
-  return (
-    <Draggable draggableId={draggableId} index={index}>
-      {(provided, snapshot) => (
-        <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-          style={{ ...provided.draggableProps.style, opacity: snapshot.isDragging ? 0.7 : 1, flex: 1, height: '100%' }}
-          className="cursor-grab">
-          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
-            <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-            <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-          </div>
-        </div>
-      )}
-    </Draggable>
-  );
-}
 
 export default function OneLessMoreLessonStudent({ studentNumber, className: classProp, onBack }) {
-  const [roundKey, setRoundKey] = useState(null); // track round changes
-  const [built, setBuilt] = useState([]);
+  const [roundKey, setRoundKey] = useState(null);
+  const [builtCount, setBuiltCount] = useState(0);
   const [startWritePhase, setStartWritePhase] = useState('write');
   const [startWritten, setStartWritten] = useState(null);
   const [startStrokes, setStartStrokes] = useState(null);
@@ -98,13 +61,12 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
 
   const game = games[0] || null;
 
-  // Reset student state when teacher moves to new round
   useEffect(() => {
     if (!game) return;
     const key = `${game.id}-${game.round_number}`;
     if (key !== roundKey) {
       setRoundKey(key);
-      setBuilt([]);
+      setBuiltCount(0);
       setStartWritePhase('write');
       setStartWritten(null);
       setStartStrokes(null);
@@ -112,27 +74,8 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
       setResultWritten(null);
       setResultStrokes(null);
       setSaved(false);
-      cloneCounter = 0;
     }
   }, [game?.id, game?.round_number]);
-
-  const onDragEnd = (result) => {
-    if (!result.destination) return;
-    const { source, destination } = result;
-    if (source.droppableId === 'bank' && destination.droppableId === 'built') {
-      const newId = `built-${++cloneCounter}`;
-      setBuilt(prev => { const next = [...prev]; next.splice(destination.index, 0, newId); return next; });
-    } else if (source.droppableId === 'built' && destination.droppableId === 'built') {
-      setBuilt(prev => {
-        const next = [...prev];
-        const [item] = next.splice(source.index, 1);
-        next.splice(destination.index, 0, item);
-        return next;
-      });
-    } else if (source.droppableId === 'built' && destination.droppableId === 'bank') {
-      setBuilt(prev => prev.filter((_, i) => i !== source.index));
-    }
-  };
 
   const handleSave = async () => {
     if (!game) return;
@@ -256,53 +199,42 @@ export default function OneLessMoreLessonStudent({ studentNumber, className: cla
               1 {game.spinner_result === 'more' ? 'More ➕' : 'Less ➖'}
             </div>
 
-            <DragDropContext onDragEnd={onDragEnd}>
-              <div>
-                <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({built.length} cubes)</p>
-                <Droppable droppableId="built" direction="horizontal">
-                  {(provided, snapshot) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps}
-                      className={`flex gap-0.5 p-1.5 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-                      style={{ height: CS + 12 }}>
-                      {Array.from({ length: 10 }).map((_, i) => {
-                        const id = built[i];
-                        if (id) return <BuiltCube key={id} draggableId={id} index={i} />;
-                        return <div key={`ghost-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
-                      })}
-                      <div style={{ display: 'none' }}>{provided.placeholder}</div>
-                    </div>
-                  )}
-                </Droppable>
-                <div className="flex gap-0.5 p-1.5 rounded-xl border border-dashed border-gray-200 bg-gray-50 mt-2" style={{ height: CS + 12 }}>
-                  {Array.from({ length: 10 }).map((_, i) => {
-                    const id = built[10 + i];
-                    if (id) return (
-                      <div key={id} style={{ flex: 1, height: '100%', position: 'relative' }}>
+            {/* Cube tray */}
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-1">Your build ({builtCount} cubes)</p>
+              {[0, 1].map(row => (
+                <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 2, height: CS + 4, marginBottom: 4 }}>
+                  {Array.from({ length: 10 }).map((_, col) => {
+                    const idx = row * 10 + col;
+                    const filled = idx < builtCount;
+                    return filled ? (
+                      <button key={col} onClick={() => setBuiltCount(c => Math.max(0, c - 1))}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative', height: CS }}>
                         <div style={{ position: 'absolute', top: 0, left: 3, right: 0, height: 5, background: '#4ade80', clipPath: 'polygon(0 100%, 3px 0, 100% 0, calc(100% - 3px) 100%)', borderTop: '1px solid #166534' }} />
                         <div style={{ position: 'absolute', top: 5, left: 0, right: 3, bottom: 0, background: '#16a34a', border: '1px solid #166534', borderRadius: 1 }} />
-                        <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534', borderRadius: '0 1px 1px 0' }} />
-                      </div>
+                        <div style={{ position: 'absolute', top: 5, right: 0, width: 3, bottom: 0, background: '#166534' }} />
+                      </button>
+                    ) : (
+                      <div key={col} style={{ height: CS }} className="rounded border border-dashed border-green-200 bg-green-100/30" />
                     );
-                    return <div key={`ghost2-${i}`} style={{ flex: 1, height: '100%' }} className="rounded border border-dashed border-gray-300 bg-gray-200/50" />;
                   })}
                 </div>
-              </div>
+              ))}
+              <p className="text-xs text-gray-300 text-center">Tap cube to remove</p>
+            </div>
 
-              <Droppable droppableId="bank" direction="horizontal">
-                {(provided, snapshot) => (
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold mb-1">Cube bank — drag to build</p>
-                    <div ref={provided.innerRef} {...provided.droppableProps}
-                      className={`flex gap-1 p-2 rounded-xl border-2 transition-colors ${snapshot.isDraggingOver ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
-                      {BANK_CUBES.map((_, i) => <BankCube key={i} index={i} />)}
-                      {provided.placeholder}
-                    </div>
-                    <p className="text-xs text-gray-300 mt-1 text-center">Drag back to remove</p>
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+            {/* Tap buttons */}
+            <div className="flex gap-2 justify-center">
+              {[1, 5, 10].map(n => (
+                <motion.button key={n} whileTap={{ scale: 0.85 }}
+                  onClick={() => setBuiltCount(c => Math.min(c + n, 20))}
+                  className="flex-1 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold border-2 border-blue-300">
+                  +{n}
+                </motion.button>
+              ))}
+            </div>
 
+            {/* Writing */}
             <div className="flex flex-col items-center gap-2">
               <p className="text-xs text-gray-400">Write how many you built:</p>
               <SimpleWritingCanvas key={`result-${roundKey}`} onDone={(strokes) => { setResultStrokes(strokes); setResultWritePhase('enter'); }} />
