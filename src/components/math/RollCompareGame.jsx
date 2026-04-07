@@ -327,9 +327,9 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
               <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
-              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
-              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} onAudioClick={() => {}} />
+              <DragWord label="is greater than" value="is_greater_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
+              <DragWord label="is less than" value="is_less_than" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
+              <DragWord label="is equal to" value="is_equal_to" onDrop={handlePlace} dropped={!!placed} onAudioClick={(v) => { new Audio(`/audio/${v}.mp3`).play().catch(() => {}); }} />
             </div>
             <p className="text-center text-xs text-gray-400 mt-3">Tap or drag a word into the blank</p>
           </motion.div>
