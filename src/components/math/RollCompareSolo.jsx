@@ -73,20 +73,20 @@ function DoubleTenFrame({ count, onChange }) {
           )}
         </div>
       )}
-      <div ref={trayRef} className="flex flex-col gap-4 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
+      <div ref={trayRef} className="flex flex-col gap-2 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
         {[0, 1].map(frame => (
-          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 38px)' }}>
+          <div key={frame} className="grid gap-0.5" style={{ gridTemplateColumns: 'repeat(5, 30px)' }}>
             {Array.from({ length: 10 }).map((_, cell) => {
               const idx = frame * 10 + cell;
               const filled = idx < count;
               return filled ? (
                 <button key={cell} onClick={() => onChange && onChange(count - 1)}
                   disabled={!onChange}
-                  style={{ width: 38, height: 38, padding: 0, cursor: onChange ? 'pointer' : 'default', background: 'none', border: 'none' }}>
-                  <Cookie size={36} />
+                  style={{ width: 30, height: 30, padding: 0, cursor: onChange ? 'pointer' : 'default', background: 'none', border: 'none' }}>
+                  <Cookie size={28} />
                 </button>
               ) : (
-                <div key={cell} style={{ width: 38, height: 38 }}
+                <div key={cell} style={{ width: 30, height: 30 }}
                   className="rounded border border-dashed border-amber-200 bg-amber-100/30" />
               );
             })}
@@ -318,7 +318,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
     setResult(value === correctValue ? 'correct' : 'wrong');
     playSequence([
       `/numbers-audio/${myRoll}.mp3`,
-      `/audio/${value}.mp3`,
+      `/audio/${correctValue}.mp3`,
       `/numbers-audio/${computerRoll}.mp3`,
     ]);
   };
@@ -368,22 +368,26 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
           </div>
         </div>
 
-        {/* Build both sets — stay on screen */}
+        {/* Build both sets — side by side */}
         {bothRolled && (
-          <>
-            <BuildSection
-              label="Build your number"
-              targetNumber={myRoll}
-              locked={false}
-              onDone={() => setMyBuildDone(true)}
-            />
-            <BuildSection
-              label="Build computer's number"
-              targetNumber={computerRoll}
-              locked={!myBuildDone}
-              onDone={() => setComputerBuildDone(true)}
-            />
-          </>
+          <div className="flex gap-3 mb-0">
+            <div className="flex-1 min-w-0">
+              <BuildSection
+                label="Your number"
+                targetNumber={myRoll}
+                locked={false}
+                onDone={() => setMyBuildDone(true)}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <BuildSection
+                label="Computer's number"
+                targetNumber={computerRoll}
+                locked={!myBuildDone}
+                onDone={() => setComputerBuildDone(true)}
+              />
+            </div>
+          </div>
         )}
 
         {/* Sentence completion */}
