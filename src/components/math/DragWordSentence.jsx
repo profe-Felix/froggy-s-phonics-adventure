@@ -119,24 +119,25 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
           className="mt-4 space-y-3"
         >
           {result === 'wrong' && (
-            <div className="flex flex-col gap-2">
-              <div className="p-3 rounded-xl bg-red-100 text-red-700 text-center">
-                <span className="text-xl mr-2">❌</span>
-                <span className="font-black">Your answer: </span>
-                <span className="font-bold">{placed}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-green-100 text-green-700 text-center">
-                <span className="text-xl mr-2">✓</span>
-                <span className="font-black">Correct answer: </span>
-                <span className="font-bold">{labelMap[correctComparison]}</span>
-              </div>
-            </div>
+           <div className="flex flex-col gap-3">
+             <div className="p-4 rounded-2xl bg-red-100 border-4 border-red-400 text-center">
+               <p className="text-2xl font-black text-red-700">
+                 ✗ {studentNumber} {placed} {teacherNumber}
+               </p>
+             </div>
+             <div className="p-4 rounded-2xl bg-green-100 border-4 border-green-400 text-center">
+               <p className="text-xs text-green-600 font-bold mb-1">Read it like this:</p>
+               <p className="text-2xl font-black text-green-700">
+                 ✓ {studentNumber} {labelMap[correctComparison]} {teacherNumber}
+               </p>
+             </div>
+           </div>
           )}
           {result === 'correct' && (
-            <div className="p-3 rounded-xl bg-green-100 text-green-700 text-center">
-              <span className="text-2xl mr-2">🎉</span>
-              <span className="font-black">Correct!</span>
-            </div>
+           <div className="p-4 rounded-2xl bg-green-100 text-center">
+             <span className="text-3xl mr-2">🎉</span>
+             <p className="text-xl font-black text-green-700 mt-2">{studentNumber} {placed} {teacherNumber}</p>
+           </div>
           )}
           <motion.button
             whileTap={{ scale: 0.95 }}
