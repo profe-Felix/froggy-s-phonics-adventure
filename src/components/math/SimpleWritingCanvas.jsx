@@ -76,10 +76,59 @@ export default function SimpleWritingCanvas({ onDone }) {
 
   const handleDone = () => {
     const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    // Draw guide lines onto canvas before snapshot
+    const w = canvas.width;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-over'; // draw behind strokes
+    // fill white background
+    ctx.fillStyle = '#f8fbff';
+    ctx.fillRect(0, 0, w, canvas.height);
+    ctx.restore();
+    // draw lines on top (visually behind strokes via ordering below)
+    const drawLine = (y, color, dash, width) => {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      if (dash) ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+      ctx.restore();
+    };
+    // re-draw strokes on top of lines
+    const strokes = allStrokes.current;
+    // first clear and redraw everything in order: bg -> lines -> strokes
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#f8fbff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawLine(18, '#aac4e0', null, 1);
+    drawLine(50, '#aac4e0', [6, 4], 1);
+    drawLine(82, '#3b82f6', null, 1.5);
+    drawLine(100, '#aac4e0', null, 1);
+    // redraw strokes
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#4338ca';
+    strokes.forEach(stroke => {
+      if (stroke.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(stroke[0].x, stroke[0].y);
+      for (let i = 1; i < stroke.length; i++) {
+        const prev = stroke[i - 1];
+        const cur = stroke[i];
+        const midX = (prev.x + cur.x) / 2;
+        const midY = (prev.y + cur.y) / 2;
+        ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+      }
+      ctx.stroke();
+    });
     const url = canvas.toDataURL('image/png');
     setDataUrl(url);
     setDone(true);
-    onDone(allStrokes.current, url);
+    onDone(strokes, url);
   };
 
   return (
