@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BuildCheckOverlay from './BuildCheckOverlay';
+import NumberWritingAndVerify from './NumberWritingAndVerify';
 
 function Cookie({ size = 28 }) {
   return (
@@ -55,36 +56,37 @@ function DoubleTenFrame({ count, onChange }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-2 items-center flex-wrap">
-        {[1, 5, 10].map(n => (
-          <button key={n}
-            onPointerDown={n === 1 ? handlePointerDown : undefined}
-            onClick={n !== 1 ? () => onChange && onChange(Math.min(count + n, 20)) : undefined}
-            style={n === 1 ? { touchAction: 'none', userSelect: 'none', cursor: onChange ? 'grab' : 'default' } : {}}
-            disabled={!onChange}
-            className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 disabled:opacity-50">
-            <Cookie size={18} />
-            <span className="text-xs font-bold text-amber-700 leading-none">+{n}</span>
-          </button>
-        ))}
-        {count > 0 && onChange && (
-          <button onClick={() => onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
-        )}
-      </div>
+      {onChange && (
+        <div className="flex gap-2 items-center flex-wrap">
+          {[1, 5, 10].map(n => (
+            <button key={n}
+              onPointerDown={n === 1 ? handlePointerDown : undefined}
+              onClick={n !== 1 ? () => onChange(Math.min(count + n, 20)) : undefined}
+              style={n === 1 ? { touchAction: 'none', userSelect: 'none', cursor: 'grab' } : {}}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100">
+              <Cookie size={18} />
+              <span className="text-xs font-bold text-amber-700 leading-none">+{n}</span>
+            </button>
+          ))}
+          {count > 0 && (
+            <button onClick={() => onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
+          )}
+        </div>
+      )}
       <div ref={trayRef} className="flex flex-col gap-4 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
         {[0, 1].map(frame => (
-          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 42px)' }}>
+          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 38px)' }}>
             {Array.from({ length: 10 }).map((_, cell) => {
               const idx = frame * 10 + cell;
               const filled = idx < count;
               return filled ? (
                 <button key={cell} onClick={() => onChange && onChange(count - 1)}
                   disabled={!onChange}
-                  style={{ width: 42, height: 42, padding: 0, cursor: onChange ? 'pointer' : 'default', background: 'none', border: 'none' }}>
-                  <Cookie size={40} />
+                  style={{ width: 38, height: 38, padding: 0, cursor: onChange ? 'pointer' : 'default', background: 'none', border: 'none' }}>
+                  <Cookie size={36} />
                 </button>
               ) : (
-                <div key={cell} style={{ width: 42, height: 42 }}
+                <div key={cell} style={{ width: 38, height: 38 }}
                   className="rounded border border-dashed border-amber-200 bg-amber-100/30" />
               );
             })}
@@ -147,11 +149,11 @@ function DropZone({ filled, selected, onPlace, dropRef }) {
     <div
       ref={dropRef}
       onClick={() => { if (!filled && selected) onPlace(selected); }}
-      className={`min-w-[140px] h-12 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-sm transition-all
+      className={`min-w-[130px] h-10 rounded-xl border-4 border-dashed flex items-center justify-center font-black text-sm transition-all
         ${filled ? 'border-indigo-500 bg-indigo-100 text-indigo-700'
           : selected ? 'border-indigo-400 bg-indigo-50 text-indigo-500 cursor-pointer'
           : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
-      {filled || (selected ? 'tap to place' : 'drag or tap')}
+      {filled || (selected ? 'tap' : '—')}
     </div>
   );
 }
@@ -166,10 +168,10 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
     let moved = false;
 
     const clone = document.createElement('div');
-    clone.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:10px 14px;background:#4f46e5;color:white;font-weight:900;border-radius:14px;font-size:13px;white-space:nowrap;';
+    clone.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;padding:8px 14px;background:#4f46e5;color:white;font-weight:900;border-radius:12px;font-size:13px;white-space:nowrap;';
     clone.textContent = label;
     document.body.appendChild(clone);
-    const move = (cx, cy) => { clone.style.left = (cx - clone.offsetWidth / 2) + 'px'; clone.style.top = (cy - 20) + 'px'; };
+    const move = (cx, cy) => { clone.style.left = (cx - clone.offsetWidth / 2) + 'px'; clone.style.top = (cy - 18) + 'px'; };
     move(e.clientX, e.clientY);
 
     const onMove = (ev) => {
@@ -201,12 +203,93 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
     <div
       onPointerDown={handlePointerDown}
       style={{ touchAction: 'none', userSelect: 'none' }}
-      className={`px-3 py-2 rounded-xl font-black text-sm select-none shadow-lg transition-all cursor-grab
-        ${dropped ? 'opacity-30 cursor-not-allowed'
-          : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500'
-          : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+      className={`px-3 py-2 rounded-lg font-semibold text-sm select-none transition-all cursor-grab
+        ${dropped ? 'opacity-30 cursor-not-allowed text-gray-400'
+          : selected ? 'bg-indigo-50 text-indigo-700 border-2 border-indigo-400 font-black'
+          : 'text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 border-2 border-transparent'}`}
     >
       {label}
+    </div>
+  );
+}
+
+const LABEL_MAP = {
+  is_greater_than: 'is greater than',
+  is_less_than: 'is less than',
+  is_equal_to: 'is equal to',
+};
+
+function playSequence(srcs) {
+  Promise.all(srcs.map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
+    .then(urls => {
+      let i = 0;
+      const next = () => {
+        if (i >= urls.length) return;
+        const url = urls[i++];
+        const a = new Audio(url);
+        a.onended = () => { URL.revokeObjectURL(url); next(); };
+        a.play().catch(next);
+      };
+      next();
+    });
+}
+
+// --- Build section (stays visible after done) ---
+function BuildSection({ label, targetNumber, locked, onDone }) {
+  const [count, setCount] = useState(0);
+  const [wrong, setWrong] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [writeVerifyDone, setWriteVerifyDone] = useState(false);
+
+  const handleSubmit = () => {
+    if (count !== targetNumber) {
+      setWrong(true);
+    } else {
+      setVerified(true);
+      setWrong(false);
+    }
+  };
+
+  const handleWriteDone = () => {
+    setWriteVerifyDone(true);
+    onDone();
+  };
+
+  return (
+    <div className={`bg-white rounded-3xl p-5 shadow-xl mb-4 transition-opacity ${locked ? 'opacity-60' : ''}`}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-bold text-gray-400 uppercase">{label}</p>
+        <span className="text-2xl font-black text-indigo-700 bg-indigo-50 px-3 py-1 rounded-xl">{targetNumber}</span>
+      </div>
+
+      {wrong ? (
+        <BuildCheckOverlay studentCount={count} targetCount={targetNumber} onTryAgain={() => { setCount(0); setWrong(false); }} />
+      ) : (
+        <DoubleTenFrame count={count} onChange={verified ? undefined : setCount} />
+      )}
+
+      {!wrong && !verified && (
+        <div className="flex justify-end mt-3">
+          <motion.button whileTap={{ scale: 0.95 }}
+            onClick={handleSubmit}
+            disabled={count === 0 || locked}
+            className="bg-indigo-600 text-white font-black text-base px-5 py-2.5 rounded-2xl shadow-lg disabled:opacity-40">
+            ✓ Done building
+          </motion.button>
+        </div>
+      )}
+
+      {verified && !writeVerifyDone && (
+        <div className="mt-4">
+          <NumberWritingAndVerify targetNumber={targetNumber} onComplete={handleWriteDone} disabled={false} />
+        </div>
+      )}
+
+      {writeVerifyDone && (
+        <div className="mt-3 flex items-center gap-2 text-green-600 font-bold text-sm">
+          <span className="text-lg">✅</span> {targetNumber} — done!
+        </div>
+      )}
     </div>
   );
 }
@@ -214,9 +297,8 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
 export default function RollCompareSolo({ studentNumber, onBack }) {
   const [myRoll, setMyRoll] = useState(null);
   const [computerRoll, setComputerRoll] = useState(null);
-  const [builtCount, setBuiltCount] = useState(0);
-  const [builtSubmitted, setBuiltSubmitted] = useState(false);
-  const [buildWrong, setBuildWrong] = useState(false);
+  const [myBuildDone, setMyBuildDone] = useState(false);
+  const [computerBuildDone, setComputerBuildDone] = useState(false);
   const [placed, setPlaced] = useState(null);
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
@@ -224,64 +306,33 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
   const dropRef = useRef(null);
 
   const bothRolled = myRoll !== null && computerRoll !== null;
+  const bothBuilt = myBuildDone && computerBuildDone;
 
-  const playSequence = (srcs) => {
-    Promise.all(srcs.map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
-      .then(urls => {
-        let i = 0;
-        const next = () => {
-          if (i >= urls.length) return;
-          const url = urls[i++];
-          const a = new Audio(url);
-          a.onended = () => { URL.revokeObjectURL(url); next(); };
-          a.play().catch(next);
-        };
-        next();
-      });
-  };
+  const correctValue = myRoll && computerRoll
+    ? (myRoll > computerRoll ? 'is_greater_than' : myRoll < computerRoll ? 'is_less_than' : 'is_equal_to')
+    : null;
 
   const handlePlace = (value) => {
-    if (!builtCount || !computerRoll || placed) return;
-    const correct = builtCount > computerRoll ? 'is_greater_than' : builtCount < computerRoll ? 'is_less_than' : 'is_equal_to';
-    const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
-    setPlaced(labelMap[value]);
-    setResult(value === correct ? 'correct' : 'wrong');
+    if (placed) return;
+    setPlaced(LABEL_MAP[value]);
+    setResult(value === correctValue ? 'correct' : 'wrong');
     playSequence([
-      `/numbers-audio/${builtCount}.mp3`,
+      `/numbers-audio/${myRoll}.mp3`,
       `/audio/${value}.mp3`,
       `/numbers-audio/${computerRoll}.mp3`,
     ]);
   };
 
-  const handleBuildSubmit = () => {
-    if (builtCount !== myRoll) {
-      setBuildWrong(true);
-    } else {
-      setBuiltSubmitted(true);
-      setBuildWrong(false);
-    }
-  };
-
-  const handleTryAgain = () => {
-    setBuiltCount(0);
-    setBuildWrong(false);
-  };
-
   const handleNextRound = () => {
     setMyRoll(null);
     setComputerRoll(null);
-    setBuiltCount(0);
-    setBuiltSubmitted(false);
-    setBuildWrong(false);
+    setMyBuildDone(false);
+    setComputerBuildDone(false);
     setPlaced(null);
     setSelected(null);
     setResult(null);
     setRoundNum(r => r + 1);
   };
-
-  const correctLabel = builtCount && computerRoll
-    ? (builtCount > computerRoll ? 'is greater than' : builtCount < computerRoll ? 'is less than' : 'is equal to')
-    : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-200 to-orange-300 flex flex-col items-center py-6 px-3">
@@ -298,9 +349,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
             {myRoll !== null ? (
               <>
                 <p className="font-black text-gray-500 text-sm uppercase mb-2">You</p>
-                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">
-                  {myRoll}
-                </div>
+                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">{myRoll}</div>
               </>
             ) : (
               <SlotRoller onResult={setMyRoll} label="You" />
@@ -311,9 +360,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
             {computerRoll !== null ? (
               <>
                 <p className="font-black text-gray-500 text-sm uppercase mb-2">Computer</p>
-                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">
-                  {computerRoll}
-                </div>
+                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">{computerRoll}</div>
               </>
             ) : (
               <SlotRoller onResult={setComputerRoll} label="Computer" />
@@ -321,69 +368,73 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
           </div>
         </div>
 
-        {/* Build + Compare phase */}
-        <AnimatePresence>
-          {bothRolled && !result && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
-              <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Build your cookies!</p>
-              {buildWrong ? (
-                <BuildCheckOverlay studentCount={builtCount} targetCount={myRoll} onTryAgain={handleTryAgain} />
-              ) : (
-                <>
-                  <div className="mb-4">
-                    <p className="text-xs font-bold text-amber-700 mb-2">Your number: {myRoll}</p>
-                    <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
-                  </div>
-                  {builtSubmitted ? (
-                    <div className="mt-4">
-                      <p className="text-center text-sm font-bold text-gray-400 uppercase mb-3">Complete the sentence!</p>
-                      <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black text-gray-800 mb-4">
-                        <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
-                        <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                        <span className="bg-orange-100 px-3 py-2 rounded-xl">{computerRoll}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                        <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                        <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                      </div>
-                      <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it</p>
-                    </div>
-                  ) : (
-                    <div className="flex justify-end mt-3">
-                      <motion.button whileTap={{ scale: 0.95 }}
-                        onClick={handleBuildSubmit}
-                        disabled={builtCount === 0}
-                        className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
-                        ✓ I'm done building!
-                      </motion.button>
-                    </div>
-                  )}
-                </>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Build both sets — stay on screen */}
+        {bothRolled && (
+          <>
+            <BuildSection
+              label="Build your number"
+              targetNumber={myRoll}
+              locked={false}
+              onDone={() => setMyBuildDone(true)}
+            />
+            <BuildSection
+              label="Build computer's number"
+              targetNumber={computerRoll}
+              locked={!myBuildDone}
+              onDone={() => setComputerBuildDone(true)}
+            />
+          </>
+        )}
 
-        {/* Result */}
-        <AnimatePresence>
-          {result && (
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              className={`rounded-3xl p-6 shadow-xl text-center ${result === 'correct' ? 'bg-green-100 border-4 border-green-400' : 'bg-red-100 border-4 border-red-400'}`}>
-              <div className="text-5xl mb-2">{result === 'correct' ? '🎉' : '🤔'}</div>
-              <p className={`text-2xl font-black ${result === 'correct' ? 'text-green-700' : 'text-red-700'}`}>
-                {result === 'correct' ? 'Correct!' : 'Not quite!'}
-              </p>
-              <p className="text-gray-600 mt-2 text-lg font-semibold">
-                {builtCount} {correctLabel} {computerRoll}
-              </p>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={handleNextRound}
-                className="mt-5 bg-amber-500 text-white font-black text-xl px-8 py-4 rounded-2xl shadow-lg">
-                🎰 Next Round!
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Sentence completion */}
+        {bothBuilt && !result && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl p-5 shadow-xl mb-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-4">Complete the sentence</p>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-lg font-black text-gray-800 mb-5">
+              <span className="bg-amber-100 px-3 py-1.5 rounded-lg">{myRoll}</span>
+              <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+              <span className="bg-orange-100 px-3 py-1.5 rounded-lg">{computerRoll}</span>
+            </div>
+            <div className="flex flex-wrap gap-1 justify-center mb-3">
+              {['is_greater_than', 'is_less_than', 'is_equal_to'].map(v => (
+                <DragWord key={v} label={LABEL_MAP[v]} value={v}
+                  dropped={!!placed} selected={selected === v}
+                  onSelect={setSelected}
+                  onDrop={(val) => { handlePlace(val); setSelected(null); }}
+                  dropRef={dropRef} />
+              ))}
+            </div>
+            <p className="text-center text-xs text-gray-400">🔊 tap to hear • drag or tap to place</p>
+          </motion.div>
+        )}
+
+        {/* Result — inline */}
+        {result && (
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className={`rounded-3xl p-5 shadow-xl mb-4 ${result === 'correct' ? 'bg-green-100' : 'bg-red-50'}`}>
+            {result === 'correct' ? (
+              <div className="text-center">
+                <div className="text-4xl mb-1">🎉</div>
+                <p className="text-xl font-black text-green-700">Correct!</p>
+                <p className="text-lg font-bold text-gray-700 mt-1">{myRoll} {placed} {computerRoll}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="p-3 rounded-xl bg-red-100 border-2 border-red-400 text-center">
+                  <p className="text-base font-black text-red-700">✗ {myRoll} {placed} {computerRoll}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-green-100 border-2 border-green-400 text-center">
+                  <p className="text-base font-black text-green-700">✓ {myRoll} {LABEL_MAP[correctValue]} {computerRoll}</p>
+                </div>
+              </div>
+            )}
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleNextRound}
+              className="mt-4 w-full bg-green-600 text-white font-black text-lg py-3 rounded-2xl shadow-lg">
+              🎰 Next Round!
+            </motion.button>
+          </motion.div>
+        )}
       </div>
     </div>
   );
