@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 import BuildCheckOverlay from './BuildCheckOverlay';
+import NumberWritingAndVerify from './NumberWritingAndVerify';
+import DragWordSentence from './DragWordSentence';
 
 function Cookie({ size = 28 }) {
   return (
@@ -111,6 +113,8 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
   const [builtCount, setBuiltCount] = useState(0);
   const [builtSubmitted, setBuiltSubmitted] = useState(false);
   const [buildWrong, setBuildWrong] = useState(false);
+  const [verifyStarted, setVerifyStarted] = useState(false);
+  const [verifyComplete, setVerifyComplete] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
   const [lastRoundKey, setLastRoundKey] = useState(null);
@@ -132,16 +136,23 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     setBuiltCount(0);
     setBuiltSubmitted(false);
     setBuildWrong(false);
+    setVerifyStarted(false);
+    setVerifyComplete(false);
     setSubmitted(false);
     setIsCorrect(null);
   }, [roundKey]);
 
-  const handleSubmit = () => {
-    if (!lesson || submitted || !builtSubmitted) return;
+  const handleVerifyComplete = (verified) => {
+    setVerifyComplete(true);
     const correct = checkAnswer(builtCount, lesson.teacher_number, lesson.comparison);
-    setIsCorrect(correct);
-    setSubmitted(true);
-    new Audio(`/audio/${lesson.comparison}.mp3`).play().catch(() => {});
+    if (verified && correct) {
+      setIsCorrect(true);
+      setSubmitted(true);
+    } else {
+      // Let them try again
+      setVerifyStarted(false);
+      setVerifyComplete(false);
+    }
   };
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
@@ -207,7 +218,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
             </div>
 
             {/* Build area */}
-            {!submitted && (
+            {!submitted && !verifyStarted && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 className="bg-white rounded-3xl p-5 shadow-xl mb-4">
                 {buildWrong ? (
@@ -227,9 +238,9 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                       </div>
                     ) : (
                       <div className="flex justify-end mt-3">
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => setVerifyStarted(true)}
                           className="bg-green-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg">
-                          ✓ Submit Answer
+                          ✓ Next: Write & Compare
                         </motion.button>
                       </div>
                     )}
@@ -237,6 +248,23 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                     )}
                     </motion.div>
                     )}
+
+            {/* Verify area: write number + type + sentence */}
+            {!submitted && verifyStarted && !verifyComplete && (
+              <>
+                <NumberWritingAndVerify targetNumber={builtCount} onComplete={() => setVerifyComplete(true)} disabled={false} />
+              </>
+            )}
+
+            {!submitted && verifyStarted && verifyComplete && (
+              <DragWordSentence
+                studentNumber={builtCount}
+                teacherNumber={lesson.teacher_number}
+                correctComparison={lesson.comparison}
+                onComplete={handleVerifyComplete}
+                disabled={false}
+              />
+            )}
 
             {/* Result */}
             <AnimatePresence>
