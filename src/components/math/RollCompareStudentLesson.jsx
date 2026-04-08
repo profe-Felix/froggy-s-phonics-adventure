@@ -143,9 +143,18 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     setIsCorrect(null);
   }, [roundKey]);
 
-  const handleVerifyComplete = () => {
+  const handleVerifyComplete = async () => {
     setVerifyComplete(true);
     setSubmitted(true);
+    // Mark this student as ready
+    if (lesson?.id && studentNumber) {
+      const ready = lesson.ready_students || [];
+      if (!ready.includes(studentNumber)) {
+        await base44.entities.RollCompareLesson.update(lesson.id, {
+          ready_students: [...ready, studentNumber]
+        });
+      }
+    }
   };
 
 
@@ -173,6 +182,13 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
         playNext();
       });
   };
+
+  // Update when ready_students changes
+  useEffect(() => {
+    if (lesson?.ready_students && studentNumber && lesson.ready_students.includes(studentNumber)) {
+      setSubmitted(true);
+    }
+  }, [lesson?.ready_students]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-200 to-orange-300 flex flex-col items-center py-6 px-3">
@@ -261,15 +277,16 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
               />
             )}
 
-            {/* Result */}
+            {/* Submitted - waiting for next round */}
             <AnimatePresence>
               {submitted && (
                 <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                  className="rounded-3xl p-6 shadow-xl text-center bg-green-100 border-4 border-green-400">
-                  <div className="text-5xl mb-2">🎉</div>
-                  <p className="text-2xl font-black text-green-700">
-                    Correct!
+                  className="rounded-3xl p-6 shadow-xl text-center bg-blue-100 border-4 border-blue-400">
+                  <div className="text-5xl mb-2">✓</div>
+                  <p className="text-2xl font-black text-blue-700">
+                    Ready for next round
                   </p>
+                  <p className="text-sm text-blue-600 mt-2">Waiting for teacher...</p>
                 </motion.div>
               )}
             </AnimatePresence>

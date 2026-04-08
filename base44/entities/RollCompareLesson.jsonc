@@ -13,6 +13,14 @@
       "type": "string",
       "description": "is_greater_than, is_less_than, or is_equal_to"
     },
+    "ready_students": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Student numbers who have reviewed feedback and are ready",
+      "default": []
+    },
     "status": {
       "type": "string",
       "enum": [

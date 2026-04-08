@@ -118,7 +118,7 @@ export default function RollCompareTeacherLesson({ className: classProp, onBack 
   };
 
   const handleReset = async () => {
-    if (lesson) await base44.entities.RollCompareLesson.update(lesson.id, { teacher_number: null, comparison: null, status: 'waiting' });
+    if (lesson) await base44.entities.RollCompareLesson.update(lesson.id, { teacher_number: null, comparison: null, ready_students: [], status: 'waiting' });
     setNumberDone(false);
     setCompDone(false);
     setRoundKey(k => k + 1);
@@ -143,6 +143,12 @@ export default function RollCompareTeacherLesson({ className: classProp, onBack 
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             className="bg-white/20 rounded-2xl p-4 mb-6 text-center text-white text-xl font-black">
             Build a number that {compLabel} <span className="bg-white text-indigo-700 px-2 py-0.5 rounded-xl">{lesson.teacher_number}</span>
+            <div className="mt-3 flex justify-center gap-4">
+              <div className="bg-white/30 rounded-xl px-4 py-2">
+                <p className="text-sm text-white/80">Students Ready</p>
+                <p className="text-3xl font-black text-white">{lesson.ready_students?.length || 0}</p>
+              </div>
+            </div>
           </motion.div>
         )}
 
@@ -176,6 +182,16 @@ export default function RollCompareTeacherLesson({ className: classProp, onBack 
             )}
           </div>
         </div>
+
+        {/* Status indicator */}
+        {lesson?.status === 'building' && (lesson.ready_students?.length || 0) > 0 && (
+          <div className="flex justify-center mt-4 gap-3">
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleReset}
+              className="bg-green-500 hover:bg-green-600 text-white font-bold text-lg px-8 py-4 rounded-2xl shadow-lg">
+              ✓ All Ready - Next
+            </motion.button>
+          </div>
+        )}
 
         <div className="flex justify-center mt-8">
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleReset}
