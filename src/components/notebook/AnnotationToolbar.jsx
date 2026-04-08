@@ -45,9 +45,9 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         initial={{ x: side === 'left' ? -80 : 80, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1 p-2 rounded-2xl shadow-2xl
+        className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl
           ${side === 'left' ? 'left-2' : 'right-2'}`}
-        style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
+        style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
       >
         <button
           onClick={onSideToggle}
@@ -59,7 +59,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
         {TOOLS.map(t => (
           <button key={t.id} onClick={() => setTool(t.id)} title={t.title}
-            className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all
+            className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all
               ${tool === t.id ? 'bg-indigo-600 shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}>
             {t.label}
           </button>
@@ -68,25 +68,25 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         <div className="h-px bg-indigo-800 my-1" />
 
         <button onClick={() => setShowColors(v => !v)} title="Color"
-          className="w-10 h-10 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
+          className="w-9 h-9 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
           style={{ background: color }} />
 
         <div className="h-px bg-indigo-800 my-1" />
 
         {SIZES.map(s => (
           <button key={s} onClick={() => setSize(s)} title={`Size ${s}`}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all
               ${size === s ? 'bg-indigo-600' : 'hover:bg-indigo-900'}`}>
-            <div className="rounded-full bg-white" style={{ width: Math.min(s * 2, 20), height: Math.min(s * 2, 20) }} />
+            <div className="rounded-full bg-white" style={{ width: Math.min(s * 2, 18), height: Math.min(s * 2, 18) }} />
           </button>
         ))}
 
         <div className="h-px bg-indigo-800 my-1" />
 
         <button onClick={onUndo} title="Undo"
-          className="w-10 h-10 rounded-xl hover:bg-indigo-900 text-white text-lg flex items-center justify-center">↩</button>
+          className="w-9 h-9 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↩</button>
         <button onClick={onClear} title="Clear page"
-          className="w-10 h-10 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
+          className="w-9 h-9 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
       </motion.div>
 
       {showColors && (
