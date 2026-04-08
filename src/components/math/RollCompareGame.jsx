@@ -109,6 +109,7 @@ function DoubleTenFrame({ count, onChange }) {
             })}
           </div>
         ))}
+      </div>
     </div>
   );
 }
