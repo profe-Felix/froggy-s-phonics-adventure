@@ -11,6 +11,7 @@ import OneLessMoreLessonStudent from '../components/math/OneLessMoreLessonStuden
 import RollCompareGame from '../components/math/RollCompareGame';
 import RollCompareTeacherLesson from '../components/math/RollCompareTeacherLesson';
 import RollCompareStudentLesson from '../components/math/RollCompareStudentLesson';
+import RollCompareSolo from '../components/math/RollCompareSolo';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -280,9 +281,18 @@ export default function MathGames() {
               👫 Play with a Partner
               <span className="text-sm font-normal text-amber-400">Roll & compare with a classmate</span>
             </motion.button>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+              onClick={() => setSelfPlay('solo')}
+              className="bg-white text-amber-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🎮 Solo Practice
+              <span className="text-sm font-normal text-amber-400">Practice against the computer</span>
+            </motion.button>
           </div>
         </div>
       );
+    }
+    if (selfPlay === 'solo') {
+      return <RollCompareSolo onBack={() => setSelfPlay(null)} studentNumber={studentNumber} />;
     }
     if (selfPlay === true) {
       return <RollCompareGame onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
