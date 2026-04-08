@@ -265,7 +265,24 @@ function BuildSection({ label, targetNumber, locked, onDone }) {
       {wrong ? (
         <BuildCheckOverlay studentCount={count} targetCount={targetNumber} onTryAgain={() => { setCount(0); setWrong(false); }} />
       ) : (
-        <DoubleTenFrame count={count} onChange={verified ? undefined : setCount} />
+        <div className="flex gap-3 items-start">
+          <div className="flex-shrink-0">
+            <DoubleTenFrame count={count} onChange={verified ? undefined : setCount} />
+          </div>
+          {verified && !writeVerifyDone && (
+            <div className="flex-1 flex flex-col justify-center">
+              <NumberWritingAndVerify targetNumber={targetNumber} onComplete={handleWriteDone} disabled={false} />
+            </div>
+          )}
+          {writeVerifyDone && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-1 text-green-600 font-bold text-sm">
+                <span className="text-3xl">✅</span>
+                <span>{targetNumber} — done!</span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!wrong && !verified && (
@@ -276,18 +293,6 @@ function BuildSection({ label, targetNumber, locked, onDone }) {
             className="bg-indigo-600 text-white font-black text-base px-5 py-2.5 rounded-2xl shadow-lg disabled:opacity-40">
             ✓ Done building
           </motion.button>
-        </div>
-      )}
-
-      {verified && !writeVerifyDone && (
-        <div className="mt-4">
-          <NumberWritingAndVerify targetNumber={targetNumber} onComplete={handleWriteDone} disabled={false} />
-        </div>
-      )}
-
-      {writeVerifyDone && (
-        <div className="mt-3 flex items-center gap-2 text-green-600 font-bold text-sm">
-          <span className="text-lg">✅</span> {targetNumber} — done!
         </div>
       )}
     </div>
