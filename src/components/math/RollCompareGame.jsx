@@ -349,62 +349,40 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             {/* Build area OR correction overlay */}
             {buildWrong ? (
               <BuildCheckOverlay studentCount={builtCount} targetCount={storedMyRoll} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
-            ) : builtSubmitted ? (
+            ) : (
               <>
                 <div className="flex flex-col gap-4 mb-4">
                   <div>
                     <p className="text-xs font-bold text-amber-700 mb-2">Your number: {storedMyRoll}</p>
-                    <DoubleTenFrame count={builtCount} onChange={undefined} />
+                    <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
                   </div>
                 </div>
-                <div className="mt-5">
-                  <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
-                    <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
-                    <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
+                {builtSubmitted ? (
+                  <div className="mt-5">
+                    <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
+                    <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
+                      <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
+                      <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                    </div>
+                    <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                ) : (
+                  <div className="flex justify-end mt-3">
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => { if (builtCount !== storedMyRoll) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
+                      disabled={builtCount === 0}
+                      className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
+                      ✓ I'm done building!
+                    </motion.button>
                   </div>
-                  <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
-                </div>
+                )}
               </>
-            ) : (
-              <div className="flex justify-end mt-3">
-                <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => { if (builtCount !== storedMyRoll) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
-                  disabled={builtCount === 0}
-                  className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
-                  ✓ I'm done building!
-                </motion.button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Result */}
-      <AnimatePresence>
-        {result && (
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className={`rounded-3xl p-6 shadow-xl text-center ${result === 'correct' ? 'bg-green-100 border-4 border-green-400' : 'bg-red-100 border-4 border-red-400'}`}>
-            <div className="text-5xl mb-2">{result === 'correct' ? '🎉' : '🤔'}</div>
-            <p className={`text-2xl font-black ${result === 'correct' ? 'text-green-700' : 'text-red-700'}`}>
-              {result === 'correct' ? 'Correct!' : 'Not quite!'}
-            </p>
-            <p className="text-gray-600 mt-2 text-lg font-semibold">
-              {displayMyRoll} {correctLabel} {storedTheirRoll}
-            </p>
-            {!bothAnswered ? (
-              <p className="mt-4 text-amber-600 font-bold animate-pulse">⏳ Waiting for partner to finish…</p>
-            ) : (
-              <motion.button whileTap={{ scale: 0.95 }} onClick={handleNextRound}
-                className="mt-5 bg-amber-500 text-white font-black text-xl px-8 py-4 rounded-2xl shadow-lg">
-                🎰 Next Round!
-              </motion.button>
             )}
           </motion.div>
         )}
