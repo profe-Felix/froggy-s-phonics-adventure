@@ -77,22 +77,20 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
 
 export default function DragWordSentence({ studentNumber, teacherNumber, correctComparison, onComplete, disabled }) {
   const [placed, setPlaced] = useState(null);
+  const [placedValue, setPlacedValue] = useState(null);
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
   const dropRef = useRef(null);
+  const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
 
   const handlePlace = (value) => {
     if (placed || disabled) return;
-    const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
     setPlaced(labelMap[value]);
+    setPlacedValue(value);
     const correct = value === correctComparison;
     setResult(correct ? 'correct' : 'wrong');
     new Audio(`/audio/${value}.mp3`).play().catch(() => {});
-    if (correct) {
-      setTimeout(() => onComplete(true), 1200);
-    } else {
-      setTimeout(() => onComplete(false), 1500);
-    }
+    // Don't auto-advance — let student review
   };
 
   return (
@@ -118,10 +116,35 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className={`mt-4 p-3 rounded-xl text-center ${result === 'correct' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+          className="mt-4 space-y-3"
         >
-          <span className="text-2xl mr-2">{result === 'correct' ? '🎉' : '🤔'}</span>
-          <span className="font-black">{result === 'correct' ? 'Correct!' : 'Try again!'}</span>
+          {result === 'wrong' && (
+            <div className="flex flex-col gap-2">
+              <div className="p-3 rounded-xl bg-red-100 text-red-700 text-center">
+                <span className="text-xl mr-2">❌</span>
+                <span className="font-black">Your answer: </span>
+                <span className="font-bold">{placed}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-green-100 text-green-700 text-center">
+                <span className="text-xl mr-2">✓</span>
+                <span className="font-black">Correct answer: </span>
+                <span className="font-bold">{labelMap[correctComparison]}</span>
+              </div>
+            </div>
+          )}
+          {result === 'correct' && (
+            <div className="p-3 rounded-xl bg-green-100 text-green-700 text-center">
+              <span className="text-2xl mr-2">🎉</span>
+              <span className="font-black">Correct!</span>
+            </div>
+          )}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onComplete(result === 'correct')}
+            className={`w-full py-3 rounded-2xl font-black text-lg text-white shadow-lg ${result === 'correct' ? 'bg-green-600' : 'bg-indigo-600'}`}
+          >
+            ✓ I'm Ready
+          </motion.button>
         </motion.div>
       )}
     </motion.div>
