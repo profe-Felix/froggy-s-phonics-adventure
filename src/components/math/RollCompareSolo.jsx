@@ -336,7 +336,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-200 to-orange-300 flex flex-col items-center py-6 px-3">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-3xl">
         <div className="flex items-center justify-between mb-4">
           <button onClick={onBack} className="text-amber-900/70 hover:text-amber-900 font-medium">← Back</button>
           <h1 className="text-xl font-black text-amber-900">🍪 Solo Practice</h1>
@@ -344,23 +344,23 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
         </div>
 
         {/* Roll phase */}
-        <div className="bg-white rounded-3xl p-5 shadow-xl flex items-center justify-around mb-4">
+        <div className="bg-white rounded-2xl px-6 py-3 shadow-xl flex items-center justify-around mb-4">
           <div className="flex flex-col items-center">
             {myRoll !== null ? (
               <>
-                <p className="font-black text-gray-500 text-sm uppercase mb-2">You</p>
-                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">{myRoll}</div>
+                <p className="font-black text-gray-500 text-xs uppercase mb-1">You</p>
+                <div className="w-14 h-14 rounded-xl shadow border-4 border-green-400 bg-green-50 flex items-center justify-center text-2xl font-black text-green-700">{myRoll}</div>
               </>
             ) : (
               <SlotRoller onResult={setMyRoll} label="You" />
             )}
           </div>
-          <div className="text-3xl font-black text-gray-300">VS</div>
+          <div className="text-2xl font-black text-gray-300">VS</div>
           <div className="flex flex-col items-center">
             {computerRoll !== null ? (
               <>
-                <p className="font-black text-gray-500 text-sm uppercase mb-2">Computer</p>
-                <div className="w-24 h-24 rounded-2xl shadow-2xl border-4 border-green-400 bg-green-50 flex items-center justify-center text-4xl font-black text-green-700">{computerRoll}</div>
+                <p className="font-black text-gray-500 text-xs uppercase mb-1">Computer</p>
+                <div className="w-14 h-14 rounded-xl shadow border-4 border-green-400 bg-green-50 flex items-center justify-center text-2xl font-black text-green-700">{computerRoll}</div>
               </>
             ) : (
               <SlotRoller onResult={setComputerRoll} label="Computer" />

@@ -85,17 +85,17 @@ export default function SimpleWritingCanvas({ onDone }) {
   return (
     <div className="flex flex-col items-center gap-3 select-none">
       <div className="relative rounded-2xl border-4 overflow-hidden"
-        style={{ width: 260, height: 180, background: '#f8fbff', borderColor: done ? '#6366f1' : '#c7d2fe' }}>
-        <svg className="absolute inset-0 pointer-events-none" width="260" height="180">
-          <line x1="0" y1="30"  x2="260" y2="30"  stroke="#aac4e0" strokeWidth="1" />
-          <line x1="0" y1="80"  x2="260" y2="80"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
-          <line x1="0" y1="130" x2="260" y2="130" stroke="#3b82f6" strokeWidth="1.5" />
-          <line x1="0" y1="160" x2="260" y2="160" stroke="#aac4e0" strokeWidth="1" />
+        style={{ width: 180, height: 120, background: '#f8fbff', borderColor: done ? '#6366f1' : '#c7d2fe' }}>
+        <svg className="absolute inset-0 pointer-events-none" width="180" height="120">
+          <line x1="0" y1="20"  x2="180" y2="20"  stroke="#aac4e0" strokeWidth="1" />
+          <line x1="0" y1="55"  x2="180" y2="55"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
+          <line x1="0" y1="88" x2="180" y2="88" stroke="#3b82f6" strokeWidth="1.5" />
+          <line x1="0" y1="108" x2="180" y2="108" stroke="#aac4e0" strokeWidth="1" />
         </svg>
         <canvas
           ref={canvasRef}
-          width={260}
-          height={180}
+          width={180}
+          height={120}
           className="absolute inset-0 touch-none"
           style={{ background: 'transparent', cursor: done ? 'default' : 'crosshair' }}
           onMouseDown={startDraw}
