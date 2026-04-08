@@ -53,7 +53,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1 p-2 rounded-2xl shadow-2xl
         ${side === 'left' ? 'left-2' : 'right-2'}`}
-      style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
+      style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
     >
       {/* Side toggle */}
       <button
