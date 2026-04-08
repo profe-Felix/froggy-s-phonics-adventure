@@ -75,6 +75,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
 
     const onDown = (e) => {
       if (mode !== 'draw') return;
+      // Allow 2-finger scroll to pass through
+      if (e.touches && e.touches.length >= 2) return;
       e.preventDefault();
       const p = getPos(e);
       current.current = { color, size, tool: tool === 'eraser' ? 'eraser' : tool === 'highlighter' ? 'highlighter' : 'pen', pts: [p] };
@@ -83,6 +85,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     };
     const onMove = (e) => {
       if (!drawing.current || !current.current) return;
+      // Allow 2-finger scroll
+      if (e.touches && e.touches.length >= 2) { drawing.current = false; current.current = null; redraw(); return; }
       e.preventDefault();
       const p = getPos(e);
       current.current.pts.push(p);
@@ -100,7 +104,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp);
     c.addEventListener('mouseleave', onUp);
-    c.addEventListener('touchstart', onDown, { passive: false });
+    c.addEventListener('touchstart', onDown, { passive: true });
     c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
     return () => {
@@ -146,7 +150,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       style={{
         position: 'absolute', inset: 0, zIndex: 10,
         width: width + 'px', height: height + 'px',
-        touchAction: mode === 'draw' ? 'none' : 'auto',
+        touchAction: mode === 'draw' ? 'pan-y pinch-zoom' : 'auto',
         cursor: mode === 'draw' ? (tool === 'eraser' ? 'cell' : 'crosshair') : 'default',
         background: 'transparent',
       }}

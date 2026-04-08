@@ -2,15 +2,37 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 const COLORS = [
-  { label: 'Black', value: '#1a1a2e' },
-  { label: 'Indigo', value: '#4338ca' },
+  // Dark / neutrals
+  { label: 'Black', value: '#000000' },
+  { label: 'Dark Grey', value: '#374151' },
+  { label: 'Grey', value: '#9ca3af' },
+  { label: 'White', value: '#ffffff' },
+  // Blues
+  { label: 'Navy', value: '#1e3a8a' },
   { label: 'Blue', value: '#2563eb' },
-  { label: 'Teal', value: '#0d9488' },
+  { label: 'Sky', value: '#38bdf8' },
+  // Greens
+  { label: 'Dark Green', value: '#166534' },
   { label: 'Green', value: '#16a34a' },
-  { label: 'Orange', value: '#ea580c' },
+  { label: 'Lime', value: '#84cc16' },
+  // Reds / pinks
   { label: 'Red', value: '#dc2626' },
-  { label: 'Pink', value: '#db2777' },
+  { label: 'Pink', value: '#ec4899' },
+  { label: 'Rose', value: '#fda4af' },
+  // Warm
+  { label: 'Orange', value: '#ea580c' },
+  { label: 'Yellow', value: '#facc15' },
+  { label: 'Brown', value: '#78350f' },
+  // Purples
   { label: 'Purple', value: '#9333ea' },
+  { label: 'Violet', value: '#6d28d9' },
+  // Skin tones
+  { label: 'Skin 1', value: '#fddbb4' },
+  { label: 'Skin 2', value: '#f5c89a' },
+  { label: 'Skin 3', value: '#e8a87c' },
+  { label: 'Skin 4', value: '#c68642' },
+  { label: 'Skin 5', value: '#8d5524' },
+  { label: 'Skin 6', value: '#4a2010' },
 ];
 
 const SIZES = [2, 4, 7, 12];
