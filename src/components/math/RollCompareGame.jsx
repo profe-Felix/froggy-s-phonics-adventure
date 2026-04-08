@@ -90,8 +90,8 @@ function DoubleTenFrame({ count, onChange }) {
           <button onClick={() => onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
         )}
       </div>
-      {/* Tray — two ten-frames side by side, each 5×2 */}
-      <div ref={trayRef} className="flex gap-3 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
+      {/* Tray — two ten-frames stacked, each 5×2 */}
+      <div ref={trayRef} className="flex flex-col gap-4 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
         {[0, 1].map(frame => (
           <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 36px)' }}>
             {Array.from({ length: 10 }).map((_, cell) => {
@@ -109,8 +109,6 @@ function DoubleTenFrame({ count, onChange }) {
             })}
           </div>
         ))}
-      </div>
-
     </div>
   );
 }
