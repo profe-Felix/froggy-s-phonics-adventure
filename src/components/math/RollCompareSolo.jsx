@@ -160,7 +160,6 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
   const handlePointerDown = (e) => {
     if (dropped) return;
     e.preventDefault();
-    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
     onSelect(value);
 
     const startX = e.clientX, startY = e.clientY;
@@ -183,7 +182,9 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
       const cx = ev.changedTouches ? ev.changedTouches[0].clientX : ev.clientX;
       const cy = ev.changedTouches ? ev.changedTouches[0].clientY : ev.clientY;
       clone.remove();
-      if (moved && dropRef?.current) {
+      if (!moved) {
+        new Audio(`/audio/${value}.mp3`).play().catch(() => {});
+      } else if (dropRef?.current) {
         const rect = dropRef.current.getBoundingClientRect();
         if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
           onDrop(value);
