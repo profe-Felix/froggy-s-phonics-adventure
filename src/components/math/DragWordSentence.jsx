@@ -119,19 +119,18 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
           className="mt-4 space-y-3"
         >
           {result === 'wrong' && (
-           <div className="flex flex-col gap-3">
-             <div className="p-4 rounded-2xl bg-red-100 border-4 border-red-400 text-center">
-               <p className="text-2xl font-black text-red-700">
-                 ✗ {studentNumber} {placed} {teacherNumber}
-               </p>
-             </div>
-             <div className="p-4 rounded-2xl bg-green-100 border-4 border-green-400 text-center">
-               <p className="text-xs text-green-600 font-bold mb-1">Read it like this:</p>
-               <p className="text-2xl font-black text-green-700">
-                 ✓ {studentNumber} {labelMap[correctComparison]} {teacherNumber}
-               </p>
-             </div>
-           </div>
+            <div className="flex flex-col gap-3">
+              <div className="p-3 rounded-xl bg-red-100 border-2 border-red-400 text-center">
+                <p className="text-lg font-black text-red-700">
+                  ✗ {studentNumber} {placed} {teacherNumber}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-green-100 border-2 border-green-400 text-center">
+                <p className="text-lg font-black text-green-700">
+                  ✓ {studentNumber} {labelMap[correctComparison]} {teacherNumber}
+                </p>
+              </div>
+            </div>
           )}
           {result === 'correct' && (
            <div className="p-4 rounded-2xl bg-green-100 text-center">
