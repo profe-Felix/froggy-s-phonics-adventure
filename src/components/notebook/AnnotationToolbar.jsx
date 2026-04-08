@@ -81,16 +81,19 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         style={{ background: color }} />
 
       {showColors && (
-        <div className={`absolute top-0 flex flex-col gap-1 p-2 rounded-2xl shadow-xl z-50
+        <div className={`absolute flex flex-col z-50
           ${side === 'left' ? 'left-14' : 'right-14'}`}
-          style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
-          {COLORS.map(c => (
-            <button key={c.value} onClick={() => { setColor(c.value); setShowColors(false); }}
-              title={c.label}
-              className={`w-8 h-8 rounded-full border-4 transition-all hover:scale-110
-                ${color === c.value ? 'border-white scale-110' : 'border-transparent'}`}
-              style={{ background: c.value }} />
-          ))}
+          style={{ top: 0, background: '#1a1a2e', border: '2px solid #4338ca', borderRadius: 16, padding: 8, width: 96, maxHeight: '80vh', overflowY: 'auto' }}>
+          <p className="text-indigo-300 text-xs font-bold text-center mb-1">Crayons</p>
+          <div className="grid grid-cols-2 gap-1">
+            {COLORS.map(c => (
+              <button key={c.value} onClick={() => { setColor(c.value); setShowColors(false); }}
+                title={c.label}
+                className={`w-9 h-9 rounded-xl border-4 transition-all hover:scale-110
+                  ${color === c.value ? 'border-white scale-110' : 'border-transparent'}`}
+                style={{ background: c.value }} />
+            ))}
+          </div>
         </div>
       )}
 
