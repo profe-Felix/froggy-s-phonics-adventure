@@ -225,12 +225,32 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
 
   const bothRolled = myRoll !== null && computerRoll !== null;
 
+  const playSequence = (srcs) => {
+    Promise.all(srcs.map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
+      .then(urls => {
+        let i = 0;
+        const next = () => {
+          if (i >= urls.length) return;
+          const url = urls[i++];
+          const a = new Audio(url);
+          a.onended = () => { URL.revokeObjectURL(url); next(); };
+          a.play().catch(next);
+        };
+        next();
+      });
+  };
+
   const handlePlace = (value) => {
     if (!builtCount || !computerRoll || placed) return;
     const correct = builtCount > computerRoll ? 'is_greater_than' : builtCount < computerRoll ? 'is_less_than' : 'is_equal_to';
     const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
     setPlaced(labelMap[value]);
     setResult(value === correct ? 'correct' : 'wrong');
+    playSequence([
+      `/numbers-audio/${builtCount}.mp3`,
+      `/audio/${value}.mp3`,
+      `/numbers-audio/${computerRoll}.mp3`,
+    ]);
   };
 
   const handleBuildSubmit = () => {

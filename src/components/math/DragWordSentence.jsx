@@ -85,12 +85,32 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
   const dropRef = useRef(null);
   const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
 
+  const playSequence = (srcs) => {
+    Promise.all(srcs.map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
+      .then(urls => {
+        let i = 0;
+        const next = () => {
+          if (i >= urls.length) return;
+          const url = urls[i++];
+          const a = new Audio(url);
+          a.onended = () => { URL.revokeObjectURL(url); next(); };
+          a.play().catch(next);
+        };
+        next();
+      });
+  };
+
   const handlePlace = (value) => {
     if (placed || disabled) return;
     setPlaced(labelMap[value]);
     setPlacedValue(value);
     const correct = value === correctComparison;
     setResult(correct ? 'correct' : 'wrong');
+    playSequence([
+      `/numbers-audio/${studentNumber}.mp3`,
+      `/audio/${value}.mp3`,
+      `/numbers-audio/${teacherNumber}.mp3`,
+    ]);
   };
 
   return (
