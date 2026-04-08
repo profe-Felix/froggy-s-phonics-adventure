@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import BuildCheckOverlay from './BuildCheckOverlay';
 
 function Cookie({ size = 28 }) {
   return (
@@ -214,6 +215,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
   const [computerRoll, setComputerRoll] = useState(null);
   const [builtCount, setBuiltCount] = useState(0);
   const [builtSubmitted, setBuiltSubmitted] = useState(false);
+  const [buildWrong, setBuildWrong] = useState(false);
   const [placed, setPlaced] = useState(null);
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
@@ -230,11 +232,26 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
     setResult(value === correct ? 'correct' : 'wrong');
   };
 
+  const handleBuildSubmit = () => {
+    if (builtCount !== myRoll) {
+      setBuildWrong(true);
+    } else {
+      setBuiltSubmitted(true);
+      setBuildWrong(false);
+    }
+  };
+
+  const handleTryAgain = () => {
+    setBuiltCount(0);
+    setBuildWrong(false);
+  };
+
   const handleNextRound = () => {
     setMyRoll(null);
     setComputerRoll(null);
     setBuiltCount(0);
     setBuiltSubmitted(false);
+    setBuildWrong(false);
     setPlaced(null);
     setSelected(null);
     setResult(null);
@@ -293,7 +310,11 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
                 <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
               </div>
 
-              {builtSubmitted ? (
+              {buildWrong ? (
+                <div className="mt-4">
+                  <BuildCheckOverlay studentCount={builtCount} targetCount={myRoll} onTryAgain={handleTryAgain} />
+                </div>
+              ) : builtSubmitted ? (
                 <div className="mt-4">
                   <p className="text-center text-sm font-bold text-gray-400 uppercase mb-3">Complete the sentence!</p>
                   <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black text-gray-800 mb-4">
@@ -311,7 +332,7 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
               ) : (
                 <div className="flex justify-end mt-3">
                   <motion.button whileTap={{ scale: 0.95 }}
-                    onClick={() => setBuiltSubmitted(true)}
+                    onClick={handleBuildSubmit}
                     disabled={builtCount === 0}
                     className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
                     ✓ I'm done building!

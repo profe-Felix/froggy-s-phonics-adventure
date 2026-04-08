@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
+import BuildCheckOverlay from './BuildCheckOverlay';
 
 function Cookie({ size = 28 }) {
   return (
@@ -109,6 +110,7 @@ function checkAnswer(count, teacherNumber, comparison) {
 export default function RollCompareStudentLesson({ studentNumber, className: classProp, onBack }) {
   const [builtCount, setBuiltCount] = useState(0);
   const [builtSubmitted, setBuiltSubmitted] = useState(false);
+  const [buildWrong, setBuildWrong] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
   const [lastRoundKey, setLastRoundKey] = useState(null);
@@ -129,6 +131,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     setLastRoundKey(roundKey);
     setBuiltCount(0);
     setBuiltSubmitted(false);
+    setBuildWrong(false);
     setSubmitted(false);
     setIsCorrect(null);
   }, [roundKey]);
@@ -209,10 +212,14 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                 className="bg-white rounded-3xl p-5 shadow-xl mb-4">
                 <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
                 <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
-                {!builtSubmitted ? (
+                {buildWrong ? (
+                  <div className="mt-4">
+                    <BuildCheckOverlay studentCount={builtCount} targetCount={lesson.teacher_number} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
+                  </div>
+                ) : !builtSubmitted ? (
                   <div className="flex justify-end mt-3">
                     <motion.button whileTap={{ scale: 0.95 }}
-                      onClick={() => setBuiltSubmitted(true)}
+                      onClick={() => { if (builtCount !== lesson.teacher_number) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
                       disabled={builtCount === 0}
                       className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
                       ✓ I'm done building!

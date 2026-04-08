@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
+import BuildCheckOverlay from './BuildCheckOverlay';
 
 // ── Cookie SVG ────────────────────────────────────────────────────
 function Cookie({ size = 28 }) {
@@ -241,6 +242,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [builtSubmitted, setBuiltSubmitted] = useState(false);
+  const [buildWrong, setBuildWrong] = useState(false);
   const dropRef = useRef(null);
 
   const roundNum = game.round_number || 1;
@@ -253,6 +255,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
     setSelected(null);
     setResult(null);
     setBuiltSubmitted(false);
+    setBuildWrong(false);
   }, [roundNum]);
 
   const isPlayer1 = game.player1_number === studentNumber;
@@ -351,7 +354,11 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             </div>
 
             {/* Compare sentence — shown after student submits their build */}
-            {builtSubmitted ? (
+            {buildWrong ? (
+              <div className="mt-4">
+                <BuildCheckOverlay studentCount={builtCount} targetCount={storedMyRoll} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
+              </div>
+            ) : builtSubmitted ? (
               <div className="mt-5">
                 <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
                 <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
@@ -369,7 +376,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             ) : (
               <div className="flex justify-end mt-3">
                 <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={() => setBuiltSubmitted(true)}
+                  onClick={() => { if (builtCount !== storedMyRoll) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
                   disabled={builtCount === 0}
                   className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
                   ✓ I'm done building!
