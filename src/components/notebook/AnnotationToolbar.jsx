@@ -83,9 +83,22 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
           style={{ background: color }} />
 
         {showColors && (
-          <div className={`absolute z-[200] flex flex-col
-            ${side === 'left' ? 'left-12' : 'right-12'}`}
-            style={{ top: 0, background: '#1a1a2e', border: '2px solid #4338ca', borderRadius: 16, padding: 8, width: 104, maxHeight: '80vh', overflowY: 'auto' }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              ...(side === 'left' ? { left: 64 } : { right: 64 }),
+              background: '#1a1a2e',
+              border: '2px solid #4338ca',
+              borderRadius: 16,
+              padding: 8,
+              width: 104,
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              zIndex: 9999,
+            }}
+          >
             <p className="text-indigo-300 text-xs font-bold text-center mb-1">Crayons</p>
             <div className="grid grid-cols-2 gap-1">
               {COLORS.map(c => (
