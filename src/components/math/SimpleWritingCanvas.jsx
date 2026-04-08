@@ -86,11 +86,11 @@ export default function SimpleWritingCanvas({ onDone }) {
     <div className="flex flex-col items-center gap-3 select-none">
       <div className="relative rounded-2xl border-4 overflow-hidden"
         style={{ width: 150, height: 110, background: '#f8fbff', borderColor: done ? '#6366f1' : '#c7d2fe' }}>
-        <svg className="absolute inset-0 pointer-events-none" width="180" height="120">
-          <line x1="0" y1="20"  x2="180" y2="20"  stroke="#aac4e0" strokeWidth="1" />
-          <line x1="0" y1="55"  x2="180" y2="55"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
-          <line x1="0" y1="88" x2="180" y2="88" stroke="#3b82f6" strokeWidth="1.5" />
-          <line x1="0" y1="108" x2="180" y2="108" stroke="#aac4e0" strokeWidth="1" />
+        <svg className="absolute inset-0 pointer-events-none" width="150" height="110">
+          <line x1="0" y1="18"  x2="150" y2="18"  stroke="#aac4e0" strokeWidth="1" />
+          <line x1="0" y1="50"  x2="150" y2="50"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
+          <line x1="0" y1="82" x2="150" y2="82" stroke="#3b82f6" strokeWidth="1.5" />
+          <line x1="0" y1="100" x2="150" y2="100" stroke="#aac4e0" strokeWidth="1" />
         </svg>
         <canvas
           ref={canvasRef}
@@ -111,14 +111,14 @@ export default function SimpleWritingCanvas({ onDone }) {
         )}
       </div>
       {!done && (
-        <div className="flex gap-3">
-          <button onClick={clear} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">
+        <div className="flex gap-2 w-full" style={{ width: 150 }}>
+          <button onClick={clear} className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">
             🗑 Clear
           </button>
           <button
             onClick={handleDone}
             disabled={!hasDrawn}
-            className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow disabled:opacity-40 hover:bg-indigo-700"
+            className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow disabled:opacity-40 hover:bg-indigo-700 text-sm"
           >
             Next →
           </button>
