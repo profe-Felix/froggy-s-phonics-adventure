@@ -143,21 +143,12 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     setIsCorrect(null);
   }, [roundKey]);
 
-  const handleVerifyComplete = (verified) => {
+  const handleVerifyComplete = () => {
     setVerifyComplete(true);
-    const correct = checkAnswer(builtCount, lesson.teacher_number, lesson.comparison);
-    if (verified && correct) {
-      setIsCorrect(true);
-      setShowingFeedback(true);
-    } else {
-      // Show feedback for wrong answer too
-      setShowingFeedback(true);
-    }
-  };
-
-  const handleSubmitFeedback = () => {
     setSubmitted(true);
   };
+
+
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
 
@@ -260,7 +251,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
               </>
             )}
 
-            {!submitted && verifyStarted && verifyComplete && !showingFeedback && (
+            {!submitted && verifyStarted && verifyComplete && (
               <DragWordSentence
                 studentNumber={builtCount}
                 teacherNumber={lesson.teacher_number}
@@ -268,25 +259,6 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                 onComplete={handleVerifyComplete}
                 disabled={false}
               />
-            )}
-
-            {/* Feedback review */}
-            {showingFeedback && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-3xl p-5 shadow-xl text-center">
-                <div className="text-5xl mb-3">{isCorrect ? '✅' : '❌'}</div>
-                <p className={`text-2xl font-bold mb-2 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                  {isCorrect ? 'Correct!' : 'Incorrect'}
-                </p>
-                <p className="text-gray-600 mb-4">
-                  Target sentence: {builtCount} {compLabel} {lesson.teacher_number}
-                </p>
-                <motion.button whileTap={{ scale: 0.95 }}
-                  onClick={handleSubmitFeedback}
-                  className={`text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg ${isCorrect ? 'bg-green-600' : 'bg-red-600'}`}>
-                  ✓ I'm Ready
-                </motion.button>
-              </motion.div>
             )}
 
             {/* Result */}
