@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BuildCheckOverlay from './BuildCheckOverlay';
-import NumberWritingAndVerify from './NumberWritingAndVerify';
+import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 function Cookie({ size = 28 }) {
   return (
@@ -234,25 +234,33 @@ function playSequence(srcs) {
     });
 }
 
+const DIGITS = [0,1,2,3,4,5,6,7,8,9];
+
 // --- Build section (stays visible after done) ---
 function BuildSection({ label, targetNumber, locked, onDone }) {
   const [count, setCount] = useState(0);
   const [wrong, setWrong] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [writeVerifyDone, setWriteVerifyDone] = useState(false);
+  const [step, setStep] = useState('build'); // build | write | type | done
+  const [drawnUrl, setDrawnUrl] = useState(null);
+  const [typedDigits, setTypedDigits] = useState('');
 
-  const handleSubmit = () => {
-    if (count !== targetNumber) {
-      setWrong(true);
-    } else {
-      setVerified(true);
-      setWrong(false);
-    }
+  const handleBuildSubmit = () => {
+    if (count !== targetNumber) { setWrong(true); }
+    else { setVerified(true); setStep('write'); }
   };
 
-  const handleWriteDone = () => {
-    setWriteVerifyDone(true);
-    onDone();
+  const handleCanvasDone = (strokes, dataUrl) => {
+    setDrawnUrl(dataUrl);
+    setStep('type');
+    setTypedDigits('');
+  };
+
+  const handleDigit = (d) => { if (typedDigits.length < 2) setTypedDigits(t => t + String(d)); };
+  const handleUndo = () => setTypedDigits(t => t.slice(0, -1));
+  const handleTypeSubmit = () => {
+    if (parseInt(typedDigits) === targetNumber) { setStep('done'); onDone(); }
+    else { setStep('write'); setDrawnUrl(null); setTypedDigits(''); }
   };
 
   return (
@@ -265,35 +273,74 @@ function BuildSection({ label, targetNumber, locked, onDone }) {
       {wrong ? (
         <BuildCheckOverlay studentCount={count} targetCount={targetNumber} onTryAgain={() => { setCount(0); setWrong(false); }} />
       ) : (
-        <div className="flex gap-3 items-start">
-          <div className="flex-shrink-0">
-            <DoubleTenFrame count={count} onChange={verified ? undefined : setCount} />
-          </div>
-          {verified && !writeVerifyDone && (
-            <div className="flex-1 flex flex-col justify-center">
-              <NumberWritingAndVerify targetNumber={targetNumber} onComplete={handleWriteDone} disabled={false} />
+        <>
+          {/* Top row: ten frame + canvas area */}
+          <div className="flex gap-3 items-start">
+            <div className="flex-shrink-0">
+              <DoubleTenFrame count={count} onChange={step === 'build' ? setCount : undefined} />
             </div>
-          )}
-          {writeVerifyDone && (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-1 text-green-600 font-bold text-sm">
-                <span className="text-3xl">✅</span>
-                <span>{targetNumber} — done!</span>
+            <div className="flex-1 flex flex-col gap-2">
+              {step === 'write' && (
+                <>
+                  <p className="text-xs font-bold text-gray-400 uppercase text-center">Write the number {targetNumber}</p>
+                  <SimpleWritingCanvas onDone={handleCanvasDone} />
+                </>
+              )}
+              {(step === 'type' || step === 'done') && drawnUrl && (
+                <>
+                  <p className="text-xs font-bold text-gray-400 uppercase text-center">You wrote:</p>
+                  <img src={drawnUrl} alt="written number"
+                    className="rounded-xl border-2 border-indigo-200 w-full"
+                    style={{ height: 100, objectFit: 'contain', background: '#f8fbff' }} />
+                </>
+              )}
+              {step === 'done' && (
+                <div className="flex flex-col items-center gap-1 text-green-600 font-bold text-sm mt-1">
+                  <span className="text-2xl">✅</span>
+                  <span>{targetNumber} — done!</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Full-width digit pad below */}
+          {step === 'type' && (
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="text-xs font-bold text-gray-400 uppercase text-center">Type the number you built</p>
+              <div className={`w-16 h-16 rounded-2xl border-4 flex items-center justify-center text-3xl font-bold mx-auto
+                ${typedDigits ? 'border-sky-400 bg-white text-sky-700' : 'border-dashed border-sky-300 bg-sky-50 text-sky-200'}`}>
+                {typedDigits || '?'}
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {DIGITS.map(d => (
+                  <motion.button key={d} whileTap={{ scale: 0.85 }}
+                    onClick={() => handleDigit(d)}
+                    disabled={typedDigits.length >= 2}
+                    className="h-11 rounded-xl bg-white shadow text-lg font-bold text-indigo-700 border-2 border-indigo-200 disabled:opacity-40">
+                    {d}
+                  </motion.button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleUndo} disabled={!typedDigits}
+                  className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold disabled:opacity-30 text-lg">⌫</button>
+                <button onClick={handleTypeSubmit} disabled={!typedDigits}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-30 text-lg">✓</button>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {!wrong && !verified && (
-        <div className="flex justify-end mt-3">
-          <motion.button whileTap={{ scale: 0.95 }}
-            onClick={handleSubmit}
-            disabled={count === 0 || locked}
-            className="bg-indigo-600 text-white font-black text-base px-5 py-2.5 rounded-2xl shadow-lg disabled:opacity-40">
-            ✓ Done building
-          </motion.button>
-        </div>
+          {step === 'build' && (
+            <div className="flex justify-end mt-3">
+              <motion.button whileTap={{ scale: 0.95 }}
+                onClick={handleBuildSubmit}
+                disabled={count === 0 || locked}
+                className="bg-indigo-600 text-white font-black text-base px-5 py-2.5 rounded-2xl shadow-lg disabled:opacity-40">
+                ✓ Done building
+              </motion.button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
