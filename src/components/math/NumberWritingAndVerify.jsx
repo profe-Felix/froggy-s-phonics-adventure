@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 function DigitPad({ onComplete, disabled }) {
   const [digits, setDigits] = useState('');
@@ -46,68 +47,14 @@ function DigitPad({ onComplete, disabled }) {
 }
 
 function WriteNumberCanvas({ targetNumber, onComplete, disabled }) {
-  const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-
-  const startDrawing = (e) => {
-    if (disabled) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing || disabled) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#1f2937';
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const handleCanvasDone = () => {
+    onComplete();
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 items-center">
       <p className="text-xs font-bold text-gray-500 text-center uppercase">Write the number {targetNumber}</p>
-      <canvas
-        ref={canvasRef}
-        width={280}
-        height={140}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        style={{ touchAction: 'none', cursor: disabled ? 'default' : 'crosshair' }}
-        className="border-4 border-dashed border-amber-300 bg-white rounded-xl"
-      />
-      <button onClick={clearCanvas} disabled={disabled}
-        className="bg-amber-400 text-amber-900 font-black py-2 rounded-lg disabled:opacity-50">
-        🗑 Clear
-      </button>
-      <motion.button whileTap={{ scale: 0.95 }} onClick={onComplete} disabled={disabled}
-        className="bg-indigo-600 text-white font-black py-3 rounded-lg disabled:opacity-50">
-        ✓ Continue
-      </motion.button>
+      <SimpleWritingCanvas onDone={handleCanvasDone} />
     </div>
   );
 }
