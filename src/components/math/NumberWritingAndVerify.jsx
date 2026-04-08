@@ -1,46 +1,38 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 function DigitPad({ onComplete, disabled }) {
-  const [digits, setDigits] = useState('');
-
-  const handleDigit = (d) => {
-    if (digits.length < 2) setDigits(digits + d);
-  };
-
-  const handleBackspace = () => {
-    setDigits(digits.slice(0, -1));
-  };
-
-  const handleSubmit = () => {
-    if (digits) onComplete(parseInt(digits));
-  };
-
+  const [built, setBuilt] = useState('');
+  const [done, setDone] = useState(false);
+  
+  const handleDigit = (d) => { if (!done && built.length < 2) setBuilt(b => b + String(d)); };
+  const handleUndo = () => { if (!done) setBuilt(b => b.slice(0, -1)); };
+  const handleSubmit = () => { if (!built || done) return; setDone(true); onComplete(parseInt(built)); };
+  
   return (
-    <div className="flex flex-col gap-3">
-      <div className="bg-gray-100 rounded-xl p-4 text-center text-3xl font-black text-gray-800 min-h-[60px] flex items-center justify-center">
-        {digits || '?'}
+    <div className="flex flex-col items-center gap-2 w-full">
+      <div className={`w-16 h-16 rounded-2xl border-4 flex items-center justify-center text-3xl font-bold
+        ${done ? 'border-green-400 bg-green-50 text-green-700' : built ? 'border-sky-400 bg-white text-sky-700' : 'border-dashed border-sky-300 bg-sky-50 text-sky-200'}`}>
+        {built || '?'}
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => (
-          <button key={d}
+      <div className="grid grid-cols-5 gap-1.5 w-full">
+        {DIGITS.map(d => (
+          <motion.button key={d} whileTap={{ scale: 0.85 }}
             onClick={() => handleDigit(d)}
-            disabled={disabled || digits.length >= 2}
-            className="bg-indigo-600 text-white font-black text-xl py-3 rounded-lg disabled:opacity-50">
+            disabled={done || built.length >= 2}
+            className="h-10 rounded-xl bg-white shadow text-lg font-bold text-indigo-700 border-2 border-indigo-200 disabled:opacity-40">
             {d}
-          </button>
+          </motion.button>
         ))}
       </div>
-      <div className="flex gap-2">
-        <button onClick={handleBackspace} disabled={disabled || !digits}
-          className="flex-1 bg-red-400 text-white font-black py-2 rounded-lg disabled:opacity-50">
-          ← Back
-        </button>
-        <button onClick={handleSubmit} disabled={disabled || !digits}
-          className="flex-1 bg-green-600 text-white font-black py-2 rounded-lg disabled:opacity-50">
-          ✓ OK
-        </button>
+      <div className="flex gap-2 w-full">
+        <button onClick={handleUndo} disabled={done || !built}
+          className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold disabled:opacity-30">⌫</button>
+        <button onClick={handleSubmit} disabled={done || !built}
+          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-30">✓</button>
       </div>
     </div>
   );
