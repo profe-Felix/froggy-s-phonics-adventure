@@ -24,12 +24,12 @@ function DropZone({ filled, selected, onPlace, dropRef }) {
 function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }) {
   const playAudio = (e) => {
     e.stopPropagation();
-    e.preventDefault();
     new Audio(`/audio/${value}.mp3`).play().catch(() => {});
   };
 
   const handlePointerDown = (e) => {
     if (dropped) return;
+    if (e.target.closest('button')) return;
     e.preventDefault();
     onSelect(value);
 
@@ -75,7 +75,7 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
           : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500'
           : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
     >
-      {!dropped && <button onPointerDown={playAudio} className="text-base leading-none">🔊</button>}
+      {!dropped && <button onClick={playAudio} className="text-base leading-none">🔊</button>}
       {label}
     </div>
   );
