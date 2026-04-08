@@ -53,8 +53,9 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col gap-1 p-2 rounded-2xl shadow-2xl
         ${side === 'left' ? 'left-2' : 'right-2'}`}
-      style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}
+      style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'visible' }}
     >
+      <div style={{ overflowY: 'auto', overflowX: 'visible', maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {/* Side toggle */}
       <button
         onClick={onSideToggle}
@@ -76,26 +77,28 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       <div className="h-px bg-indigo-800 my-1" />
 
       {/* Color picker toggle */}
-      <button onClick={() => setShowColors(v => !v)} title="Color"
-        className="w-10 h-10 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
-        style={{ background: color }} />
+      <div className="relative">
+        <button onClick={() => setShowColors(v => !v)} title="Color"
+          className="w-10 h-10 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
+          style={{ background: color }} />
 
-      {showColors && (
-        <div className={`absolute flex flex-col z-50
-          ${side === 'left' ? 'left-14' : 'right-14'}`}
-          style={{ top: 0, background: '#1a1a2e', border: '2px solid #4338ca', borderRadius: 16, padding: 8, width: 96, maxHeight: '80vh', overflowY: 'auto' }}>
-          <p className="text-indigo-300 text-xs font-bold text-center mb-1">Crayons</p>
-          <div className="grid grid-cols-2 gap-1">
-            {COLORS.map(c => (
-              <button key={c.value} onClick={() => { setColor(c.value); setShowColors(false); }}
-                title={c.label}
-                className={`w-9 h-9 rounded-xl border-4 transition-all hover:scale-110
-                  ${color === c.value ? 'border-white scale-110' : 'border-transparent'}`}
-                style={{ background: c.value }} />
-            ))}
+        {showColors && (
+          <div className={`absolute z-[200] flex flex-col
+            ${side === 'left' ? 'left-12' : 'right-12'}`}
+            style={{ top: 0, background: '#1a1a2e', border: '2px solid #4338ca', borderRadius: 16, padding: 8, width: 104, maxHeight: '80vh', overflowY: 'auto' }}>
+            <p className="text-indigo-300 text-xs font-bold text-center mb-1">Crayons</p>
+            <div className="grid grid-cols-2 gap-1">
+              {COLORS.map(c => (
+                <button key={c.value} onClick={() => { setColor(c.value); setShowColors(false); }}
+                  title={c.label}
+                  className={`w-10 h-10 rounded-xl border-4 transition-all hover:scale-110
+                    ${color === c.value ? 'border-white scale-110' : 'border-transparent'}`}
+                  style={{ background: c.value }} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="h-px bg-indigo-800 my-1" />
 
@@ -115,6 +118,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         className="w-10 h-10 rounded-xl hover:bg-indigo-900 text-white text-lg flex items-center justify-center">↩</button>
       <button onClick={onClear} title="Clear page"
         className="w-10 h-10 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
+      </div>
     </motion.div>
   );
 }
