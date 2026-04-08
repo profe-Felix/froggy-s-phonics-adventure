@@ -1,0 +1,69 @@
+{
+  "name": "DigitalNotebookAssignment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "URL of the uploaded PDF"
+    },
+    "pdf_page_count": {
+      "type": "integer",
+      "default": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "closed"
+      ],
+      "default": "draft"
+    },
+    "page_mode": {
+      "type": "string",
+      "enum": [
+        "locked",
+        "free"
+      ],
+      "default": "free",
+      "description": "locked = teacher controls page, free = student picks"
+    },
+    "locked_page": {
+      "type": "integer",
+      "default": 1,
+      "description": "Current page when mode=locked"
+    },
+    "page_range_start": {
+      "type": "integer",
+      "description": "First allowed page (free mode)"
+    },
+    "page_range_end": {
+      "type": "integer",
+      "description": "Last allowed page (free mode)"
+    },
+    "audio_instructions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {page, url, label}"
+    },
+    "video_instructions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {page, url, label, type}"
+    }
+  },
+  "required": [
+    "title",
+    "class_name"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "NotebookSession",
+  "type": "object",
+  "properties": {
+    "assignment_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "current_page": {
+      "type": "integer",
+      "default": 1
+    },
+    "strokes_by_page": {
+      "type": "object",
+      "description": "Map of page number (string key) -> strokes JSON array"
+    },
+    "last_active": {
+      "type": "string",
+      "description": "ISO timestamp"
+    }
+  },
+  "required": [
+    "assignment_id",
+    "class_name",
+    "student_number"
+  ]
+}

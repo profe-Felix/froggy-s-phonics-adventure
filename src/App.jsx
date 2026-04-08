@@ -10,6 +10,7 @@ import Calibrate from './pages/Calibrate';
 import MathGames from './pages/MathGame';
 import QRGenerator from './pages/QRGenerator';
 import MathDashboard from './pages/MathDashboard';
+import DigitalNotebook from './pages/DigitalNotebook';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -68,6 +69,7 @@ const AuthenticatedApp = () => {
       <Route path="/MathGames" element={<MathGames />} />
       <Route path="/Calibrate" element={<Calibrate />} />
       <Route path="/MathDashboard" element={<MathDashboard />} />
+      <Route path="/DigitalNotebook" element={<DigitalNotebook />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

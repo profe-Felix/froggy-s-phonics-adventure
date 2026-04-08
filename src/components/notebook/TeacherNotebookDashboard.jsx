@@ -1,0 +1,464 @@
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import AnnotationCanvas from './AnnotationCanvas';
+
+const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+
+function AudioRecorder({ onSave, onCancel }) {
+  const [recording, setRecording] = useState(false);
+  const [blob, setBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const mediaRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  const start = async () => {
+    chunksRef.current = [];
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRef.current = new MediaRecorder(stream);
+    mediaRef.current.ondataavailable = e => chunksRef.current.push(e.data);
+    mediaRef.current.onstop = () => {
+      const b = new Blob(chunksRef.current, { type: 'audio/webm' });
+      setBlob(b);
+      setAudioUrl(URL.createObjectURL(b));
+    };
+    mediaRef.current.start();
+    setRecording(true);
+  };
+
+  const stop = () => { mediaRef.current?.stop(); setRecording(false); };
+
+  const handleSave = async () => {
+    if (!blob) return;
+    const file = new File([blob], 'instruction.webm', { type: 'audio/webm' });
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    onSave(file_url);
+  };
+
+  return (
+    <div className="p-4 rounded-2xl bg-indigo-900 border border-indigo-500 flex flex-col gap-3">
+      <p className="text-white font-bold text-sm">🎙 Record Audio Instruction</p>
+      {!blob && (
+        <button onClick={recording ? stop : start}
+          className={`py-2 rounded-xl font-bold text-white ${recording ? 'bg-red-600 animate-pulse' : 'bg-indigo-600'}`}>
+          {recording ? '⏹ Stop Recording' : '🎙 Start Recording'}
+        </button>
+      )}
+      {audioUrl && (
+        <>
+          <audio controls src={audioUrl} className="w-full" />
+          <div className="flex gap-2">
+            <button onClick={handleSave} className="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Save</button>
+            <button onClick={onCancel} className="flex-1 py-2 rounded-xl bg-gray-600 text-white font-bold">Cancel</button>
+          </div>
+        </>
+      )}
+      {!blob && !recording && (
+        <button onClick={onCancel} className="py-2 rounded-xl bg-gray-700 text-white font-bold">Cancel</button>
+      )}
+    </div>
+  );
+}
+
+function VideoUrlInput({ onSave, onCancel }) {
+  const [url, setUrl] = useState('');
+  const [label, setLabel] = useState('');
+  return (
+    <div className="p-4 rounded-2xl bg-indigo-900 border border-indigo-500 flex flex-col gap-3">
+      <p className="text-white font-bold text-sm">🎬 Add Video Instruction</p>
+      <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (e.g. Letter Formation)"
+        className="px-3 py-2 rounded-xl bg-indigo-800 text-white border border-indigo-500 text-sm" />
+      <input value={url} onChange={e => setUrl(e.target.value)} placeholder="YouTube or video URL"
+        className="px-3 py-2 rounded-xl bg-indigo-800 text-white border border-indigo-500 text-sm" />
+      <div className="flex gap-2">
+        <button onClick={() => url && onSave(url, label)} className="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold disabled:opacity-40" disabled={!url}>Save</button>
+        <button onClick={onCancel} className="flex-1 py-2 rounded-xl bg-gray-600 text-white font-bold">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
+  const page = session.current_page || 1;
+  const hasWork = session.strokes_by_page && Object.keys(session.strokes_by_page).length > 0;
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl p-3 flex flex-col gap-2"
+      style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+      <div className="flex items-center justify-between">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-lg"
+          style={{ background: '#4338ca' }}>
+          {session.student_number}
+        </div>
+        <span className="text-xs text-indigo-300">Page {page}</span>
+      </div>
+      <div className="flex gap-1">
+        {hasWork && <>
+          <button onClick={() => onViewWork(session)} className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#2563eb' }}>
+            👁 View
+          </button>
+          <button onClick={() => onReplayStrokes(session)} className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: '#9333ea' }}>
+            ▶ Replay
+          </button>
+        </>}
+        {!hasWork && <span className="text-xs text-indigo-500 italic">No work yet</span>}
+      </div>
+    </motion.div>
+  );
+}
+
+export default function TeacherNotebookDashboard({ onBack }) {
+  const qc = useQueryClient();
+  const [className, setClassName] = useState('F');
+  const [tab, setTab] = useState('assignments'); // assignments | manage | students
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [showAudio, setShowAudio] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+  const [audioPage, setAudioPage] = useState(1);
+  const [videoBroadcast, setVideoBroadcast] = useState('');
+  const [viewingSession, setViewingSession] = useState(null);
+  const [replaySession, setReplaySession] = useState(null);
+  const [newTitle, setNewTitle] = useState('');
+  const canvasRef = useRef(null);
+
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['notebook-assignments', className],
+    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
+    refetchInterval: 5000,
+  });
+
+  const { data: sessions = [] } = useQuery({
+    queryKey: ['notebook-sessions', selectedAssignment?.id],
+    queryFn: () => base44.entities.NotebookSession.filter({ assignment_id: selectedAssignment.id }),
+    enabled: !!selectedAssignment,
+    refetchInterval: 5000,
+  });
+
+  const updateAssignment = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.DigitalNotebookAssignment.update(id, data),
+    onSuccess: () => qc.invalidateQueries(['notebook-assignments', className]),
+  });
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || file.type !== 'application/pdf') return alert('Please drop a PDF file');
+    if (!newTitle.trim()) return alert('Please enter a title first');
+    setUploading(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    await base44.entities.DigitalNotebookAssignment.create({
+      title: newTitle.trim(), class_name: className, pdf_url: file_url,
+      status: 'draft', page_mode: 'free',
+    });
+    setNewTitle('');
+    setUploading(false);
+    qc.invalidateQueries(['notebook-assignments', className]);
+  };
+
+  const handleSaveAudio = async (url) => {
+    const existing = selectedAssignment.audio_instructions || [];
+    await updateAssignment.mutateAsync({
+      id: selectedAssignment.id,
+      data: { audio_instructions: [...existing, { page: audioPage, url, label: `Page ${audioPage} instruction` }] }
+    });
+    setShowAudio(false);
+    const refreshed = assignments.find(a => a.id === selectedAssignment.id);
+    if (refreshed) setSelectedAssignment(refreshed);
+  };
+
+  const handleSaveVideo = async (url, label) => {
+    const existing = selectedAssignment.video_instructions || [];
+    await updateAssignment.mutateAsync({
+      id: selectedAssignment.id,
+      data: { video_instructions: [...existing, { page: audioPage, url, label: label || 'Video', type: 'url' }] }
+    });
+    setShowVideo(false);
+  };
+
+  const setPageMode = (mode) => {
+    updateAssignment.mutate({ id: selectedAssignment.id, data: { page_mode: mode } });
+    setSelectedAssignment(a => ({ ...a, page_mode: mode }));
+  };
+
+  const setLockedPage = (page) => {
+    updateAssignment.mutate({ id: selectedAssignment.id, data: { locked_page: page } });
+    setSelectedAssignment(a => ({ ...a, locked_page: page }));
+  };
+
+  const setStatus = (status) => {
+    updateAssignment.mutate({ id: selectedAssignment.id, data: { status } });
+    setSelectedAssignment(a => ({ ...a, status }));
+  };
+
+  const broadcastVideo = () => {
+    if (!videoBroadcast.trim() || !selectedAssignment) return;
+    updateAssignment.mutate({ id: selectedAssignment.id, data: { broadcast_video: videoBroadcast.trim() } });
+  };
+
+  // Load replay
+  useEffect(() => {
+    if (!replaySession || !canvasRef.current) return;
+    const pageStrokes = replaySession.strokes_by_page?.[String(replaySession.current_page)];
+    if (!pageStrokes) return;
+    canvasRef.current.loadStrokes(JSON.parse(pageStrokes));
+  }, [replaySession]);
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a', color: 'white' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
+        <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold">← Back</button>
+        <h1 className="text-lg font-black text-white flex-1">📓 Digital Notebook</h1>
+        <select value={className} onChange={e => setClassName(e.target.value)}
+          className="px-3 py-1.5 rounded-xl font-bold text-white border border-indigo-500"
+          style={{ background: '#1a1a2e' }}>
+          {CLASS_NAMES.map(c => <option key={c} value={c}>Class {c}</option>)}
+        </select>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-0 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
+        {[['assignments', '📋 Assignments'], ['manage', '⚙️ Manage'], ['students', '👥 Students']].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`px-5 py-2.5 font-bold text-sm transition-all ${tab === id ? 'text-white border-b-2 border-indigo-400' : 'text-indigo-400 hover:text-white'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 p-4 overflow-auto">
+
+        {/* ASSIGNMENTS TAB */}
+        {tab === 'assignments' && (
+          <div className="max-w-2xl mx-auto flex flex-col gap-4">
+            <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+              <p className="font-bold text-indigo-200 text-sm">Create New Assignment</p>
+              <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Assignment title..."
+                className="px-3 py-2 rounded-xl border border-indigo-500 text-white text-sm"
+                style={{ background: '#0f0f1a' }} />
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                className={`h-32 rounded-2xl border-4 border-dashed flex flex-col items-center justify-center gap-2 transition-all cursor-pointer
+                  ${dragging ? 'border-indigo-400 bg-indigo-900/30' : 'border-indigo-700 hover:border-indigo-500'}`}>
+                {uploading ? <div className="w-6 h-6 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                  : <><span className="text-3xl">📄</span><p className="text-indigo-300 text-sm font-bold">Drop PDF here</p></>}
+              </div>
+            </div>
+
+            {assignments.map(a => (
+              <motion.div key={a.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="rounded-2xl p-4 flex items-center justify-between cursor-pointer"
+                style={{ background: selectedAssignment?.id === a.id ? '#2563eb22' : '#1a1a2e', border: `1px solid ${selectedAssignment?.id === a.id ? '#2563eb' : '#4338ca'}` }}
+                onClick={() => { setSelectedAssignment(a); setTab('manage'); }}>
+                <div>
+                  <p className="font-black text-white">{a.title}</p>
+                  <p className="text-xs text-indigo-300">{a.status} • {a.page_mode} mode</p>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold
+                  ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
+                  {a.status}
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* MANAGE TAB */}
+        {tab === 'manage' && (
+          <div className="max-w-2xl mx-auto flex flex-col gap-4">
+            {!selectedAssignment ? (
+              <p className="text-indigo-400 text-center mt-8">Select an assignment from the Assignments tab</p>
+            ) : (
+              <>
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+                  <p className="font-black text-white text-lg">{selectedAssignment.title}</p>
+
+                  {/* Status */}
+                  <div className="flex gap-2">
+                    {['draft', 'active', 'closed'].map(s => (
+                      <button key={s} onClick={() => setStatus(s)}
+                        className={`flex-1 py-2 rounded-xl font-bold text-sm ${selectedAssignment.status === s ? 'bg-indigo-600 text-white' : 'text-indigo-300 border border-indigo-700'}`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Page mode */}
+                  <p className="text-indigo-300 text-xs font-bold uppercase mt-1">Page Control</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setPageMode('free')}
+                      className={`flex-1 py-2 rounded-xl font-bold text-sm ${selectedAssignment.page_mode === 'free' ? 'bg-indigo-600 text-white' : 'text-indigo-300 border border-indigo-700'}`}>
+                      🆓 Student Free
+                    </button>
+                    <button onClick={() => setPageMode('locked')}
+                      className={`flex-1 py-2 rounded-xl font-bold text-sm ${selectedAssignment.page_mode === 'locked' ? 'bg-orange-600 text-white' : 'text-indigo-300 border border-indigo-700'}`}>
+                      🔒 Teacher Controls
+                    </button>
+                  </div>
+                  {selectedAssignment.page_mode === 'locked' && (
+                    <div className="flex items-center gap-3">
+                      <label className="text-indigo-300 text-sm">Go to page:</label>
+                      <input type="number" min="1" value={selectedAssignment.locked_page || 1}
+                        onChange={e => setLockedPage(parseInt(e.target.value))}
+                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                        style={{ background: '#0f0f1a' }} />
+                    </div>
+                  )}
+                  {selectedAssignment.page_mode === 'free' && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-indigo-300 text-sm">Page range:</label>
+                      <input type="number" min="1" placeholder="From"
+                        value={selectedAssignment.page_range_start || ''}
+                        onChange={e => updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: parseInt(e.target.value) } })}
+                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                        style={{ background: '#0f0f1a' }} />
+                      <span className="text-indigo-400">–</span>
+                      <input type="number" min="1" placeholder="To"
+                        value={selectedAssignment.page_range_end || ''}
+                        onChange={e => updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: parseInt(e.target.value) } })}
+                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                        style={{ background: '#0f0f1a' }} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Instructions */}
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+                  <p className="text-indigo-200 font-bold text-sm">Instructions</p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-indigo-300 text-xs">For page:</label>
+                    <input type="number" min="1" value={audioPage} onChange={e => setAudioPage(parseInt(e.target.value))}
+                      className="w-16 px-2 py-1 rounded-lg border border-indigo-500 text-white text-center text-sm"
+                      style={{ background: '#0f0f1a' }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowAudio(true)} className="flex-1 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#4338ca' }}>🎙 Record Audio</button>
+                    <button onClick={() => setShowVideo(true)} className="flex-1 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#9333ea' }}>🎬 Add Video</button>
+                  </div>
+
+                  {showAudio && <AudioRecorder onSave={handleSaveAudio} onCancel={() => setShowAudio(false)} />}
+                  {showVideo && <VideoUrlInput onSave={handleSaveVideo} onCancel={() => setShowVideo(false)} />}
+
+                  {/* Existing audio */}
+                  {(selectedAssignment.audio_instructions || []).map((ai, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#0f0f1a' }}>
+                      <span className="text-xs text-indigo-300">Pg {ai.page}:</span>
+                      <audio controls src={ai.url} className="flex-1 h-8" />
+                    </div>
+                  ))}
+                  {(selectedAssignment.video_instructions || []).map((vi, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#0f0f1a' }}>
+                      <span className="text-xs text-indigo-300">Pg {vi.page}:</span>
+                      <span className="text-xs text-white flex-1 truncate">{vi.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Broadcast video */}
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+                  <p className="text-indigo-200 font-bold text-sm">📡 Broadcast Video to All Students</p>
+                  <input value={videoBroadcast} onChange={e => setVideoBroadcast(e.target.value)}
+                    placeholder="Paste YouTube/video URL..."
+                    className="px-3 py-2 rounded-xl border border-indigo-500 text-white text-sm"
+                    style={{ background: '#0f0f1a' }} />
+                  <div className="flex gap-2">
+                    <button onClick={broadcastVideo} className="flex-1 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563eb' }}>📡 Send to Students</button>
+                    <button onClick={() => updateAssignment.mutate({ id: selectedAssignment.id, data: { broadcast_video: null } })}
+                      className="flex-1 py-2 rounded-xl font-bold text-sm text-red-300 border border-red-800">Stop</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* STUDENTS TAB */}
+        {tab === 'students' && (
+          <div className="max-w-3xl mx-auto">
+            {!selectedAssignment ? (
+              <p className="text-indigo-400 text-center mt-8">Select an assignment first</p>
+            ) : (
+              <>
+                <p className="text-indigo-300 text-sm mb-4 font-bold">{sessions.length} student{sessions.length !== 1 ? 's' : ''} joined</p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-6">
+                  {sessions.map(s => (
+                    <StudentCard key={s.id} session={s} assignment={selectedAssignment}
+                      onViewWork={setViewingSession}
+                      onReplayStrokes={setReplaySession} />
+                  ))}
+                </div>
+
+                {/* View work modal */}
+                {viewingSession && (
+                  <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setViewingSession(null)}>
+                    <div className="rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }} onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-white">Student #{viewingSession.student_number} — Page {viewingSession.current_page}</p>
+                        <button onClick={() => setViewingSession(null)} className="text-indigo-300 hover:text-white">✕</button>
+                      </div>
+                      <p className="text-indigo-400 text-xs">{Object.keys(viewingSession.strokes_by_page || {}).length} pages with work</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.keys(viewingSession.strokes_by_page || {}).map(pg => (
+                          <span key={pg} className="px-3 py-1 rounded-full text-xs font-bold text-white" style={{ background: '#4338ca' }}>Page {pg}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Replay modal */}
+                {replaySession && (
+                  <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setReplaySession(null)}>
+                    <div className="rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }} onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between">
+                        <p className="font-black text-white">Replay — Student #{replaySession.student_number}</p>
+                        <button onClick={() => setReplaySession(null)} className="text-indigo-300 hover:text-white">✕</button>
+                      </div>
+                      <p className="text-xs text-indigo-400">Stroke replay for Page {replaySession.current_page}</p>
+                      <div className="relative rounded-xl overflow-hidden" style={{ width: 400, height: 280, background: 'white' }}>
+                        <AnnotationCanvas ref={canvasRef} width={400} height={280} color="#4338ca" size={4} tool="pen" mode="scroll" />
+                      </div>
+                      <button onClick={() => {
+                        const pageStrokes = replaySession.strokes_by_page?.[String(replaySession.current_page)];
+                        if (!pageStrokes || !canvasRef.current) return;
+                        const data = JSON.parse(pageStrokes);
+                        canvasRef.current.clearStrokes();
+                        // Replay stroke by stroke with delay
+                        const strokes = data.strokes || [];
+                        let si = 0;
+                        const nextStroke = () => {
+                          if (si >= strokes.length) return;
+                          const s = strokes[si++];
+                          let pi = 0;
+                          const drawPt = () => {
+                            if (!canvasRef.current) return;
+                            // We patch in pts one at a time
+                            if (pi >= s.pts.length) { setTimeout(nextStroke, 150); return; }
+                            pi++;
+                            requestAnimationFrame(drawPt);
+                          };
+                          // Load up to si strokes
+                          canvasRef.current.loadStrokes({ strokes: strokes.slice(0, si) });
+                          setTimeout(nextStroke, 200);
+                        };
+                        nextStroke();
+                      }} className="py-2 rounded-xl font-bold text-white" style={{ background: '#9333ea' }}>
+                        ▶ Replay Strokes
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
