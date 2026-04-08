@@ -22,10 +22,15 @@ function DropZone({ filled, selected, onPlace, dropRef }) {
 }
 
 function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }) {
+  const playAudio = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
+  };
+
   const handlePointerDown = (e) => {
     if (dropped) return;
     e.preventDefault();
-    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
     onSelect(value);
 
     const startX = e.clientX, startY = e.clientY;
@@ -65,11 +70,12 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef }
     <div
       onPointerDown={handlePointerDown}
       style={{ touchAction: 'none', userSelect: 'none' }}
-      className={`px-3 py-2 rounded-xl font-black text-sm select-none shadow-md transition-all cursor-grab
+      className={`px-3 py-2 rounded-xl font-black text-sm select-none shadow-md transition-all cursor-grab flex items-center gap-1.5
         ${dropped ? 'opacity-30 cursor-not-allowed'
           : selected ? 'bg-white text-indigo-700 border-4 border-indigo-500'
           : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
     >
+      {!dropped && <button onPointerDown={playAudio} className="text-base leading-none">🔊</button>}
       {label}
     </div>
   );
@@ -90,7 +96,6 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
     setPlacedValue(value);
     const correct = value === correctComparison;
     setResult(correct ? 'correct' : 'wrong');
-    // No audio playback here
   };
 
   return (
@@ -110,7 +115,7 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
         <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
         <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
       </div>
-      <p className="text-center text-xs text-gray-400">Tap to hear • drag or tap to place</p>
+      <p className="text-center text-xs text-gray-400">🔊 tap to hear • drag or tap to place</p>
 
       {result && (
         <motion.div
@@ -133,10 +138,10 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
             </div>
           )}
           {result === 'correct' && (
-           <div className="p-4 rounded-2xl bg-green-100 text-center">
-             <span className="text-3xl mr-2">🎉</span>
-             <p className="text-xl font-black text-green-700 mt-2">{studentNumber} {placed} {teacherNumber}</p>
-           </div>
+            <div className="p-4 rounded-2xl bg-green-100 text-center">
+              <span className="text-3xl mr-2">🎉</span>
+              <p className="text-xl font-black text-green-700 mt-2">{studentNumber} {placed} {teacherNumber}</p>
+            </div>
           )}
           <motion.button
             whileTap={{ scale: 0.95 }}
@@ -144,7 +149,7 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
             disabled={submitted}
             className={`w-full py-3 rounded-2xl font-black text-lg text-white shadow-lg ${submitted ? 'bg-gray-400 cursor-not-allowed' : result === 'correct' ? 'bg-green-600' : 'bg-indigo-600'}`}
           >
-            ✓ {submitted ? 'Waiting...' : 'I\'m Ready'}
+            ✓ {submitted ? 'Waiting...' : "I'm Ready"}
           </motion.button>
         </motion.div>
       )}

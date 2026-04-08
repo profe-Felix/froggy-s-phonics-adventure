@@ -113,8 +113,6 @@ export default function RollCompareTeacherLesson({ className: classProp, onBack 
     const value = COMPARISON_MAP[label];
     const updated = await base44.entities.RollCompareLesson.update(lesson.id, { comparison: value, status: 'building' });
     setLesson(updated);
-    // play audio
-    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
   };
 
   const handleReset = async () => {
