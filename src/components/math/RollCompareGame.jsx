@@ -341,12 +341,34 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
         </div>
       </div>
 
+      {/* Result phase */}
+      {result && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className={`rounded-3xl p-6 shadow-xl mb-4 text-center ${result === 'correct' ? 'bg-green-50 border-4 border-green-400' : 'bg-red-50 border-4 border-red-300'}`}>
+          <div className="text-5xl mb-2">{result === 'correct' ? '🎉' : '🤔'}</div>
+          <p className="text-2xl font-black mb-1">{result === 'correct' ? 'Correct!' : 'Not quite…'}</p>
+          <p className="text-gray-600 mb-1">
+            {storedMyRoll} <strong>{placed}</strong> {storedTheirRoll}
+          </p>
+          {result !== 'correct' && (
+            <p className="text-sm text-gray-500 mb-3">The answer was: <strong>{correctLabel}</strong></p>
+          )}
+          {bothAnswered ? (
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleNextRound}
+              className="mt-3 bg-indigo-600 text-white font-black text-lg px-8 py-3 rounded-2xl shadow-lg">
+              Next Round →
+            </motion.button>
+          ) : (
+            <p className="text-sm text-gray-400 animate-pulse mt-3">Waiting for partner to finish…</p>
+          )}
+        </motion.div>
+      )}
+
       {/* Build + Compare phase */}
       <AnimatePresence>
         {bothRolled && !result && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
             <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Build your cookies!</p>
-            {/* Build area OR correction overlay */}
             {buildWrong ? (
               <BuildCheckOverlay studentCount={builtCount} targetCount={storedMyRoll} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
             ) : (
