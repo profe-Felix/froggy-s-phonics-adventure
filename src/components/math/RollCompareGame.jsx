@@ -239,6 +239,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [builtSubmitted, setBuiltSubmitted] = useState(false);
   const dropRef = useRef(null);
 
   const roundNum = game.round_number || 1;
@@ -250,6 +251,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
     setPlaced(null);
     setSelected(null);
     setResult(null);
+    setBuiltSubmitted(false);
   }, [roundNum]);
 
   const isPlayer1 = game.player1_number === studentNumber;
@@ -271,9 +273,9 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   };
 
   const handlePlace = async (value) => {
-    if (!displayMyRoll || !storedTheirRoll || placed || submitting) return;
+    if (!builtCount || !storedTheirRoll || placed || submitting) return;
     setSubmitting(true);
-    const myVal = displayMyRoll;
+    const myVal = builtCount;
     const theirVal = storedTheirRoll;
     const correct = myVal > theirVal ? 'is_greater_than' : myVal < theirVal ? 'is_less_than' : 'is_equal_to';
     const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
@@ -295,8 +297,8 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
     refetch();
   };
 
-  const correctLabel = displayMyRoll && storedTheirRoll
-    ? (displayMyRoll > storedTheirRoll ? 'is greater than' : displayMyRoll < storedTheirRoll ? 'is less than' : 'is equal to')
+  const correctLabel = builtCount && storedTheirRoll
+    ? (builtCount > storedTheirRoll ? 'is greater than' : builtCount < storedTheirRoll ? 'is less than' : 'is equal to')
     : '';
 
   return (
@@ -335,7 +337,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
         </div>
       </div>
 
-      {/* Build phase */}
+      {/* Build + Compare phase */}
       <AnimatePresence>
         {bothRolled && !result && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
@@ -346,32 +348,33 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
                 <DoubleTenFrame count={builtCount} onChange={setBuiltCount} />
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Compare phase — only after student has built their number */}
-      <AnimatePresence>
-        {bothRolled && !result && builtCount === storedMyRoll && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
-            <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
-            <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
-              <span className="bg-amber-100 px-3 py-2 rounded-xl">{storedMyRoll}</span>
-              <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-              <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
-            </div>
-            <div className="flex flex-wrap gap-2 justify-center">
-              <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-              <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-              <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-            </div>
-            <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
-          </motion.div>
-        )}
-        {bothRolled && !result && builtCount !== storedMyRoll && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="text-center text-amber-700 font-bold py-3">
-            👆 Build your {storedMyRoll} cookies above to continue!
+            {/* Compare sentence — shown after student submits their build */}
+            {builtSubmitted ? (
+              <div className="mt-5">
+                <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
+                <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
+                  <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
+                  <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                  <span className="bg-orange-100 px-3 py-2 rounded-xl">{storedTheirRoll}</span>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                  <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                  <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                </div>
+                <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
+              </div>
+            ) : (
+              <div className="flex justify-end mt-3">
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={() => setBuiltSubmitted(true)}
+                  disabled={builtCount === 0}
+                  className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
+                  ✓ I'm done building!
+                </motion.button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

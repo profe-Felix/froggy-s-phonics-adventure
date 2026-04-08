@@ -108,6 +108,7 @@ function checkAnswer(count, teacherNumber, comparison) {
 
 export default function RollCompareStudentLesson({ studentNumber, className: classProp, onBack }) {
   const [builtCount, setBuiltCount] = useState(0);
+  const [builtSubmitted, setBuiltSubmitted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
   const [lastRoundKey, setLastRoundKey] = useState(null);
@@ -127,12 +128,13 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     if (!roundKey || roundKey === lastRoundKey) return;
     setLastRoundKey(roundKey);
     setBuiltCount(0);
+    setBuiltSubmitted(false);
     setSubmitted(false);
     setIsCorrect(null);
   }, [roundKey]);
 
   const handleSubmit = () => {
-    if (!lesson || submitted) return;
+    if (!lesson || submitted || !builtSubmitted) return;
     const correct = checkAnswer(builtCount, lesson.teacher_number, lesson.comparison);
     setIsCorrect(correct);
     setSubmitted(true);
@@ -206,14 +208,24 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 className="bg-white rounded-3xl p-5 shadow-xl mb-4">
                 <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
-                <DoubleTenFrame count={builtCount} onChange={setBuiltCount} />
-                <div className="flex justify-end mt-3">
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
-                    disabled={builtCount === 0}
-                    className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
-                    ✓ Submit
-                  </motion.button>
-                </div>
+                <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
+                {!builtSubmitted ? (
+                  <div className="flex justify-end mt-3">
+                    <motion.button whileTap={{ scale: 0.95 }}
+                      onClick={() => setBuiltSubmitted(true)}
+                      disabled={builtCount === 0}
+                      className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
+                      ✓ I'm done building!
+                    </motion.button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end mt-3">
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
+                      className="bg-green-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg">
+                      ✓ Submit Answer
+                    </motion.button>
+                  </div>
+                )}
               </motion.div>
             )}
 
