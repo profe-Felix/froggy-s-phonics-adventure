@@ -345,7 +345,7 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
             <div className="flex flex-col gap-4">
               <div>
                 <p className="text-xs font-bold text-amber-700 mb-2">Your number: {storedMyRoll}</p>
-                <DoubleTenFrame count={builtCount} onChange={setBuiltCount} />
+                <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
               </div>
             </div>
 
