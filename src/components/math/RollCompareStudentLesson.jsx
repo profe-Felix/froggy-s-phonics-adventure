@@ -219,7 +219,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                     {!builtSubmitted ? (
                       <div className="flex justify-end mt-3">
                         <motion.button whileTap={{ scale: 0.95 }}
-                          onClick={() => { if (builtCount !== lesson.teacher_number) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
+                          onClick={() => { if (!checkAnswer(builtCount, lesson.teacher_number, lesson.comparison)) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
                           disabled={builtCount === 0}
                           className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
                           ✓ I'm done building!
@@ -233,10 +233,10 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
                         </motion.button>
                       </div>
                     )}
-                  </>
-                )}
-              </motion.div>
-            )}
+                    </>
+                    )}
+                    </motion.div>
+                    )}
 
             {/* Result */}
             <AnimatePresence>
