@@ -80,6 +80,7 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
   const [placedValue, setPlacedValue] = useState(null);
   const [selected, setSelected] = useState(null);
   const [result, setResult] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
   const dropRef = useRef(null);
   const labelMap = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
 
@@ -89,8 +90,7 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
     setPlacedValue(value);
     const correct = value === correctComparison;
     setResult(correct ? 'correct' : 'wrong');
-    new Audio(`/audio/${value}.mp3`).play().catch(() => {});
-    // Don't auto-advance — let student review
+    // No audio playback here
   };
 
   return (
@@ -140,10 +140,11 @@ export default function DragWordSentence({ studentNumber, teacherNumber, correct
           )}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => onComplete(result === 'correct')}
-            className={`w-full py-3 rounded-2xl font-black text-lg text-white shadow-lg ${result === 'correct' ? 'bg-green-600' : 'bg-indigo-600'}`}
+            onClick={() => { setSubmitted(true); onComplete(result === 'correct'); }}
+            disabled={submitted}
+            className={`w-full py-3 rounded-2xl font-black text-lg text-white shadow-lg ${submitted ? 'bg-gray-400 cursor-not-allowed' : result === 'correct' ? 'bg-green-600' : 'bg-indigo-600'}`}
           >
-            ✓ I'm Ready
+            ✓ {submitted ? 'Waiting...' : 'I\'m Ready'}
           </motion.button>
         </motion.div>
       )}
