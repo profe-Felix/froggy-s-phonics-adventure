@@ -39,8 +39,8 @@ function DigitPad({ onComplete, disabled }) {
 }
 
 function WriteNumberCanvas({ targetNumber, onComplete, disabled }) {
-  const handleCanvasDone = () => {
-    onComplete();
+  const handleCanvasDone = (strokes, dataUrl) => {
+    onComplete(strokes, dataUrl);
   };
 
   return (
@@ -53,8 +53,10 @@ function WriteNumberCanvas({ targetNumber, onComplete, disabled }) {
 
 export default function NumberWritingAndVerify({ targetNumber, onComplete, disabled }) {
   const [step, setStep] = useState('write');
+  const [drawnUrl, setDrawnUrl] = useState(null);
 
-  const handleWriteComplete = () => {
+  const handleWriteComplete = (strokes, dataUrl) => {
+    setDrawnUrl(dataUrl);
     setStep('type');
   };
 
@@ -62,25 +64,31 @@ export default function NumberWritingAndVerify({ targetNumber, onComplete, disab
     if (typedNumber === targetNumber) {
       onComplete();
     } else {
-      // Reset and let them try again
       setStep('write');
+      setDrawnUrl(null);
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-3xl p-5 shadow-xl"
-    >
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3">
       {step === 'write' && (
         <WriteNumberCanvas targetNumber={targetNumber} onComplete={handleWriteComplete} disabled={disabled} />
       )}
       {step === 'type' && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-bold text-gray-400 uppercase text-center">Type the number you built</p>
-          <DigitPad onComplete={handleTypeComplete} disabled={disabled} />
-        </div>
+        <>
+          {drawnUrl && (
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-xs font-bold text-gray-400 uppercase">You wrote:</p>
+              <img src={drawnUrl} alt="written number"
+                className="rounded-xl border-2 border-indigo-200"
+                style={{ width: 180, height: 120, objectFit: 'contain', background: '#f8fbff' }} />
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold text-gray-400 uppercase text-center">Type the number you built</p>
+            <DigitPad onComplete={handleTypeComplete} disabled={disabled} />
+          </div>
+        </>
       )}
     </motion.div>
   );
