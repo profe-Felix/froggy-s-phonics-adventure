@@ -22,6 +22,7 @@ function DoubleTenFrame({ count, onChange }) {
   const trayRef = useRef(null);
 
   const handlePointerDown = (e) => {
+    if (!onChange) return;
     if (e.button !== undefined && e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX, startY = e.clientY;
@@ -73,21 +74,21 @@ function DoubleTenFrame({ count, onChange }) {
           <span className="text-xs font-bold text-amber-700 leading-none">+1</span>
         </button>
         <button
-          onClick={() => onChange(Math.min(count + 5, 20))}
+          onClick={() => onChange && onChange(Math.min(count + 5, 20))}
           className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100"
         >
           <Cookie size={18} />
           <span className="text-xs font-bold text-amber-700 leading-none">+5</span>
         </button>
         <button
-          onClick={() => onChange(Math.min(count + 10, 20))}
+          onClick={() => onChange && onChange(Math.min(count + 10, 20))}
           className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100"
         >
           <Cookie size={18} />
           <span className="text-xs font-bold text-amber-700 leading-none">+10</span>
         </button>
         {count > 0 && (
-          <button onClick={() => onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
+          <button onClick={() => onChange && onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
         )}
       </div>
       {/* Tray — two ten-frames stacked, each 5×2 */}
@@ -98,8 +99,8 @@ function DoubleTenFrame({ count, onChange }) {
               const idx = frame * 10 + cell;
               const filled = idx < count;
               return filled ? (
-                <button key={cell} onClick={() => onChange(count - 1)}
-                  style={{ width: 36, height: 36, padding: 0, cursor: 'pointer', background: 'none', border: 'none' }}>
+                <button key={cell} onClick={() => onChange && onChange(count - 1)}
+                  style={{ width: 36, height: 36, padding: 0, cursor: onChange ? 'pointer' : 'default', background: 'none', border: 'none' }}>
                   <Cookie size={34} />
                 </button>
               ) : (
