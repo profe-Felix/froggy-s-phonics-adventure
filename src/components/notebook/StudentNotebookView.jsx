@@ -159,7 +159,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const pageVideo = selectedAssignment?.video_instructions?.filter(v => v.page === currentPage) || [];
 
   const minPage = selectedAssignment?.page_range_start || 1;
-  const maxPage = selectedAssignment?.page_range_end || (selectedAssignment?.pdf_page_count || 50);
+  const maxPage = selectedAssignment?.page_range_end || 999;
 
   if (!selectedAssignment) {
     return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} />;
