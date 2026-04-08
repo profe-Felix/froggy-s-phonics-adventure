@@ -210,28 +210,30 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
             {!submitted && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 className="bg-white rounded-3xl p-5 shadow-xl mb-4">
-                <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
-                <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
                 {buildWrong ? (
-                  <div className="mt-4">
-                    <BuildCheckOverlay studentCount={builtCount} targetCount={lesson.teacher_number} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
-                  </div>
-                ) : !builtSubmitted ? (
-                  <div className="flex justify-end mt-3">
-                    <motion.button whileTap={{ scale: 0.95 }}
-                      onClick={() => { if (builtCount !== lesson.teacher_number) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
-                      disabled={builtCount === 0}
-                      className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
-                      ✓ I'm done building!
-                    </motion.button>
-                  </div>
+                  <BuildCheckOverlay studentCount={builtCount} targetCount={lesson.teacher_number} onTryAgain={() => { setBuiltCount(0); setBuildWrong(false); }} />
                 ) : (
-                  <div className="flex justify-end mt-3">
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
-                      className="bg-green-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg">
-                      ✓ Submit Answer
-                    </motion.button>
-                  </div>
+                  <>
+                    <p className="text-sm font-bold text-gray-400 uppercase mb-3">Build your cookies</p>
+                    <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
+                    {!builtSubmitted ? (
+                      <div className="flex justify-end mt-3">
+                        <motion.button whileTap={{ scale: 0.95 }}
+                          onClick={() => { if (builtCount !== lesson.teacher_number) { setBuildWrong(true); } else { setBuiltSubmitted(true); } }}
+                          disabled={builtCount === 0}
+                          className="bg-indigo-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg disabled:opacity-40">
+                          ✓ I'm done building!
+                        </motion.button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end mt-3">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={handleSubmit}
+                          className="bg-green-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg">
+                          ✓ Submit Answer
+                        </motion.button>
+                      </div>
+                    )}
+                  </>
                 )}
               </motion.div>
             )}

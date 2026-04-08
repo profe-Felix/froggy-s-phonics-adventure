@@ -305,30 +305,29 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
           {bothRolled && !result && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
               <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Build your cookies!</p>
-              <div className="mb-4">
-                <p className="text-xs font-bold text-amber-700 mb-2">Your number: {myRoll}</p>
-                <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
-              </div>
-
               {buildWrong ? (
-                <div className="mt-4">
-                  <BuildCheckOverlay studentCount={builtCount} targetCount={myRoll} onTryAgain={handleTryAgain} />
-                </div>
+                <BuildCheckOverlay studentCount={builtCount} targetCount={myRoll} onTryAgain={handleTryAgain} />
               ) : builtSubmitted ? (
-                <div className="mt-4">
-                  <p className="text-center text-sm font-bold text-gray-400 uppercase mb-3">Complete the sentence!</p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black text-gray-800 mb-4">
-                    <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
-                    <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <span className="bg-orange-100 px-3 py-2 rounded-xl">{computerRoll}</span>
+                <>
+                  <div className="mb-4">
+                    <p className="text-xs font-bold text-amber-700 mb-2">Your number: {myRoll}</p>
+                    <DoubleTenFrame count={builtCount} onChange={undefined} />
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-                    <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                  <div className="mt-4">
+                    <p className="text-center text-sm font-bold text-gray-400 uppercase mb-3">Complete the sentence!</p>
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black text-gray-800 mb-4">
+                      <span className="bg-amber-100 px-3 py-2 rounded-xl">{builtCount}</span>
+                      <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <span className="bg-orange-100 px-3 py-2 rounded-xl">{computerRoll}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <DragWord label="is greater than" value="is_greater_than" dropped={!!placed} selected={selected === 'is_greater_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                      <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
+                    </div>
+                    <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it</p>
                   </div>
-                  <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it</p>
-                </div>
+                </>
               ) : (
                 <div className="flex justify-end mt-3">
                   <motion.button whileTap={{ scale: 0.95 }}
