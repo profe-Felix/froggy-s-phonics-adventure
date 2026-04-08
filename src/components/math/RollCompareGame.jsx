@@ -90,20 +90,20 @@ function DoubleTenFrame({ count, onChange }) {
           <button onClick={() => onChange(0)} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">✕ clear</button>
         )}
       </div>
-      {/* Tray */}
-      <div ref={trayRef} className="flex flex-col gap-1 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
-        {[0, 1].map(row => (
-          <div key={row} className="flex gap-1">
-            {Array.from({ length: 10 }).map((_, col) => {
-              const idx = row * 10 + col;
+      {/* Tray — two ten-frames side by side, each 5×2 */}
+      <div ref={trayRef} className="flex gap-3 p-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50">
+        {[0, 1].map(frame => (
+          <div key={frame} className="grid gap-1" style={{ gridTemplateColumns: 'repeat(5, 36px)' }}>
+            {Array.from({ length: 10 }).map((_, cell) => {
+              const idx = frame * 10 + cell;
               const filled = idx < count;
               return filled ? (
-                <button key={col} onClick={() => onChange(count - 1)}
-                  style={{ width: 28, height: 28, padding: 0, cursor: 'pointer', background: 'none', border: 'none' }}>
-                  <Cookie size={26} />
+                <button key={cell} onClick={() => onChange(count - 1)}
+                  style={{ width: 36, height: 36, padding: 0, cursor: 'pointer', background: 'none', border: 'none' }}>
+                  <Cookie size={34} />
                 </button>
               ) : (
-                <div key={col} style={{ width: 28, height: 28 }}
+                <div key={cell} style={{ width: 36, height: 36 }}
                   className="rounded border border-dashed border-amber-200 bg-amber-100/30" />
               );
             })}
@@ -351,9 +351,9 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
         )}
       </AnimatePresence>
 
-      {/* Compare phase */}
+      {/* Compare phase — only after student has built their number */}
       <AnimatePresence>
-        {bothRolled && !result && (
+        {bothRolled && !result && builtCount === storedMyRoll && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl p-5 shadow-xl mb-4">
             <p className="text-center text-sm font-bold text-gray-400 uppercase mb-4">Complete the sentence!</p>
             <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800 mb-5">
@@ -367,6 +367,12 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
               <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
             </div>
             <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
+          </motion.div>
+        )}
+        {bothRolled && !result && builtCount !== storedMyRoll && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="text-center text-amber-700 font-bold py-3">
+            👆 Build your {storedMyRoll} cookies above to continue!
           </motion.div>
         )}
       </AnimatePresence>
