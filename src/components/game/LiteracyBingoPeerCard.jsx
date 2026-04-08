@@ -90,16 +90,18 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       if (newAttempts >= 3) {
-        setFeedback('reveal_wrong');
+        setFeedback('reveal');
         setRoundDone(true);
+        await markReady(0);
       } else {
         setFeedback('not_on_card_wrong');
       }
     } else {
       setRoundPoints(10);
-      setFeedback('not_on_card_correct_show');
+      setFeedback('not_on_card_correct');
       setRoundDone(true);
       setMyPoints(prev => prev + 10);
+      await markReady(10);
     }
   };
 
@@ -109,7 +111,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
     if (isCorrect) {
       const pts = getPointsForAttempt(attempts);
       setRoundPoints(pts);
-      setFeedback('correct_show');
+      setFeedback('correct');
       setRoundDone(true);
       const nextCovered = new Set(covered);
       nextCovered.add(idx);
@@ -117,27 +119,17 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       const bingo = checkBingo(nextCovered, cells.length);
       if (bingo && !hasBingo) setHasBingo(true);
       setMyPoints(prev => prev + pts + (bingo ? 5 : 0));
+      await markReady(pts + (bingo ? 5 : 0));
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       if (newAttempts >= 3) {
-        setFeedback('incorrect_show');
+        setFeedback('reveal');
         setRoundDone(true);
+        await markReady(0);
       } else {
         setFeedback('wrong');
       }
-    }
-  };
-
-  const handleContinueAfterFeedback = async () => {
-    if (feedback === 'correct_show') {
-      const pts = roundPoints || 0;
-      const bonus = hasBingo ? 5 : 0;
-      await markReady(pts + bonus);
-    } else if (feedback === 'not_on_card_correct_show') {
-      await markReady(10);
-    } else if (feedback === 'reveal_wrong' || feedback === 'incorrect_show') {
-      await markReady(0);
     }
   };
 
@@ -203,17 +195,12 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
                 {feedback === 'not_on_card_wrong' ? '🔎 It IS on your card! Look again.' : `❌ Try again! (${attempts === 1 ? '5pts' : '1pt'} if correct next)`}
               </div>
             )}
-            {feedback === 'correct_show' && (
+            {(feedback === 'correct' || feedback === 'not_on_card_correct') && (
               <div className="text-green-600 font-bold text-sm bg-green-50 rounded-lg px-3 py-1">
-                ✅ Correct! +{roundPoints} pts{hasBingo ? ' + 5 BINGO!' : ''}
+                ✅ {feedback === 'not_on_card_correct' ? 'Correct — not on your card!' : 'Correct!'} +{roundPoints} pts{hasBingo ? ' + 5 BINGO!' : ''}
               </div>
             )}
-            {feedback === 'not_on_card_correct_show' && (
-              <div className="text-green-600 font-bold text-sm bg-green-50 rounded-lg px-3 py-1">
-                ✅ Correct — not on your card! +10 pts
-              </div>
-            )}
-            {(feedback === 'reveal_wrong' || feedback === 'incorrect_show') && (
+            {feedback === 'reveal' && (
               <div className="text-orange-500 font-bold text-sm bg-orange-50 rounded-lg px-3 py-1">
                 The answer is highlighted below
               </div>
@@ -234,66 +221,46 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
       </div>
 
       {/* Bingo card */}
-      <div className={`grid gap-2 w-full relative ${isSightWords ? 'grid-cols-3' : 'grid-cols-4'}`}>
+      <div className={`grid gap-2 w-full ${isSightWords ? 'grid-cols-3' : 'grid-cols-4'}`}>
         {cells.map((item, idx) => {
           const isCovered = covered.has(idx);
-          const isCorrect = idx === correctIdx;
-          const showCorrectOverlay = (feedback === 'reveal_wrong' || feedback === 'incorrect_show') && isCorrect;
-          const showWrongOverlay = (feedback === 'incorrect_show' || feedback === 'not_on_card_correct_show') && idx === cells.indexOf(cells.find((c, i) => i !== correctIdx && !covered.has(i)));
-          const clickable = !roundDone && !amReady && !isCovered && feedback !== 'correct_show' && feedback !== 'not_on_card_correct_show' && feedback !== 'reveal_wrong' && feedback !== 'incorrect_show';
+          const isReveal = feedback === 'reveal' && idx === correctIdx;
+          const clickable = !roundDone && !amReady && !isCovered;
           return (
             <button
               key={idx}
               onClick={() => clickable && handleTileClick(item, idx)}
               className={`relative border-2 rounded-xl bg-white flex items-center justify-center font-bold text-gray-800 shadow select-none px-2
                 ${isSightWords ? 'h-24' : 'h-16'}
-                ${showCorrectOverlay ? 'border-green-500' : 'border-gray-700'}
+                ${isReveal ? 'border-orange-400' : 'border-gray-700'}
                 ${!clickable ? 'cursor-default' : 'active:scale-95 transition-transform'}`}
             >
               <span className={`text-center leading-tight break-words w-full ${isSightWords ? 'text-xl font-bold' : 'text-3xl uppercase font-bold'}`}>
                 {item}
               </span>
               {isCovered && <div className="absolute inset-1 rounded-lg bg-yellow-400/70 border-2 border-yellow-500 pointer-events-none" />}
-              {showCorrectOverlay && <div className="absolute inset-1 rounded-lg bg-green-400/70 border-2 border-green-500 pointer-events-none flex items-center justify-center"><span className="text-white font-bold text-sm">✓</span></div>}
+              {isReveal && <div className="absolute inset-1 rounded-lg bg-orange-300/70 border-2 border-orange-400 pointer-events-none" />}
             </button>
           );
         })}
       </div>
 
-      {/* Persistent feedback overlay with continue button */}
-      {roundDone && (feedback === 'correct_show' || feedback === 'not_on_card_correct_show' || feedback === 'reveal_wrong' || feedback === 'incorrect_show') && (
-        <div className="w-full">
-          <button
-            onClick={handleContinueAfterFeedback}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-lg font-bold px-8 py-4 h-auto w-full rounded-2xl"
-          >
-            ✓ Continue
-          </button>
-        </div>
-      )}
-
       {/* Ready */}
-      {!roundDone && (
-        <div className="w-full">
-          {amReady ? (
-            <div className="text-center text-white font-bold text-base py-3">
-              ✅ Ready! {waitingFor.length > 0 ? `Waiting for ${waitingFor.map(p => '#' + p).join(', ')}…` : '🎲 Next item coming…'}
-            </div>
-          ) : (
-            <Button
-              onClick={() => markReady(0)}
-              className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-4 h-auto w-full rounded-2xl"
-            >
-              ✅ Ready for Next
-            </Button>
-          )}
-        </div>
-      )}
-      {amReady && (
-        <div className="text-center text-white font-bold text-base py-3">
-          ✅ Ready! {waitingFor.length > 0 ? `Waiting for ${waitingFor.map(p => '#' + p).join(', ')}…` : '🎲 Next item coming…'}
-        </div>
-      )}
+      {/* Ready */}
+      <div className="w-full">
+        {amReady ? (
+          <div className="text-center text-white font-bold text-base py-3">
+            ✅ Ready! {waitingFor.length > 0 ? `Waiting for ${waitingFor.map(p => '#' + p).join(', ')}…` : '🎲 Next item coming…'}
+          </div>
+        ) : (
+          <Button
+            onClick={() => markReady(0)}
+            className="bg-green-500 hover:bg-green-600 text-white text-lg px-8 py-4 h-auto w-full rounded-2xl"
+          >
+            ✅ Ready for Next
+          </Button>
+        )}
+      </div>
 
       <button
         onClick={async () => {

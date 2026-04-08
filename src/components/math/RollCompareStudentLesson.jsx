@@ -118,6 +118,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(null);
   const [lastRoundKey, setLastRoundKey] = useState(null);
+  const [showingFeedback, setShowingFeedback] = useState(false);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['rc-lesson', classProp],
@@ -147,12 +148,17 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
     const correct = checkAnswer(builtCount, lesson.teacher_number, lesson.comparison);
     if (verified && correct) {
       setIsCorrect(true);
-      setSubmitted(true);
+      setShowingFeedback(true);
     } else {
       // Let them try again
       setVerifyStarted(false);
       setVerifyComplete(false);
     }
+  };
+
+  const handleSubmitFeedback = () => {
+    setSubmitted(true);
+    setShowingFeedback(false);
   };
 
   const compLabel = lesson?.comparison ? COMPARISON_LABELS[lesson.comparison] : null;
@@ -256,7 +262,7 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
               </>
             )}
 
-            {!submitted && verifyStarted && verifyComplete && (
+            {!submitted && verifyStarted && verifyComplete && !showingFeedback && (
               <DragWordSentence
                 studentNumber={builtCount}
                 teacherNumber={lesson.teacher_number}
@@ -266,20 +272,30 @@ export default function RollCompareStudentLesson({ studentNumber, className: cla
               />
             )}
 
+            {/* Feedback review */}
+            {showingFeedback && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-3xl p-5 shadow-xl text-center">
+                <div className="text-5xl mb-3">✅</div>
+                <p className="text-2xl font-bold text-green-700 mb-2">Correct!</p>
+                <p className="text-gray-600 mb-4">Your sentence: {builtCount} {compLabel} {lesson.teacher_number}</p>
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={handleSubmitFeedback}
+                  className="bg-green-600 text-white font-black text-lg px-6 py-3 rounded-2xl shadow-lg">
+                  ✓ I'm Ready
+                </motion.button>
+              </motion.div>
+            )}
+
             {/* Result */}
             <AnimatePresence>
               {submitted && (
                 <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                  className={`rounded-3xl p-6 shadow-xl text-center ${isCorrect ? 'bg-green-100 border-4 border-green-400' : 'bg-red-100 border-4 border-red-400'}`}>
-                  <div className="text-5xl mb-2">{isCorrect ? '🎉' : '🤔'}</div>
-                  <p className={`text-2xl font-black ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                    {isCorrect ? 'Correct!' : 'Not quite!'}
+                  className="rounded-3xl p-6 shadow-xl text-center bg-green-100 border-4 border-green-400">
+                  <div className="text-5xl mb-2">🎉</div>
+                  <p className="text-2xl font-black text-green-700">
+                    Correct!
                   </p>
-                  {!isCorrect && (
-                    <p className="text-gray-600 mt-1 font-semibold">
-                      Needs to be {compLabel} {lesson.teacher_number}
-                    </p>
-                  )}
                 </motion.div>
               )}
             </AnimatePresence>
