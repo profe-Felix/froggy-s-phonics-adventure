@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AnnotationToolbar from './AnnotationToolbar';
 import AnnotationCanvas from './AnnotationCanvas';
+import PdfPageRenderer from './PdfPageRenderer';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -241,11 +242,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       <div ref={containerRef} className="flex-1 relative overflow-hidden" style={{ background: '#e8e8e8' }}>
         {/* PDF rendered as iframe for now (or show placeholder) */}
         {selectedAssignment.pdf_url ? (
-          <iframe
-            src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedAssignment.pdf_url)}&embedded=true`}
-            className="absolute inset-0 w-full h-full border-0 pointer-events-none"
-            title="PDF"
-          />
+          <div className="absolute inset-0 overflow-auto bg-white flex justify-center" style={{ pointerEvents: 'none' }}>
+            <PdfPageRenderer pdfUrl={selectedAssignment.pdf_url} pageNumber={currentPage} />
+          </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-white">
             <p className="text-gray-400 text-lg">No PDF uploaded</p>
