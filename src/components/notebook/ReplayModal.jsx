@@ -1,14 +1,22 @@
 import { useRef, useEffect, useState } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
 
-function drawAllStrokes(canvas, strokesData) {
+function setupCanvas(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+function drawAllStrokes(canvas, strokesData, w, h) {
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const strokes = data?.strokes || [];
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.scale(dpr, dpr);
+  const ctx = setupCanvas(canvas, w, h);
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
     ctx.beginPath();
@@ -21,7 +29,6 @@ function drawAllStrokes(canvas, strokesData) {
     for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
     ctx.stroke();
   }
-  ctx.restore();
 }
 
 export default function ReplayModal({ session, assignment, onClose }) {
@@ -37,78 +44,41 @@ export default function ReplayModal({ session, assignment, onClose }) {
   // Draw all strokes statically once PDF is sized
   useEffect(() => {
     if (!pdfSize || !overlayCanvasRef.current || !strokesData) return;
-    const c = overlayCanvasRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    c.width = pdfSize.w * dpr;
-    c.height = pdfSize.h * dpr;
-    c.style.width = pdfSize.w + 'px';
-    c.style.height = pdfSize.h + 'px';
-    drawAllStrokes(c, strokesData);
+    drawAllStrokes(overlayCanvasRef.current, strokesData, pdfSize.w, pdfSize.h);
   }, [pdfSize, strokesData]);
 
   const handleReplay = () => {
     if (playing || !overlayCanvasRef.current || !strokesData || !pdfSize) return;
     const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
-    const strokes = data?.strokes || [];
+    const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
 
-    // Build flat list of points with stroke metadata
+    const ctx = setupCanvas(overlayCanvasRef.current, pdfSize.w, pdfSize.h);
+    setPlaying(true);
+
+    // Build timeline: each entry is one segment to draw
     const timeline = [];
     for (const s of strokes) {
-      if (!s.pts || s.pts.length < 2) continue;
-      for (let i = 0; i < s.pts.length; i++) {
-        timeline.push({ stroke: s, ptIdx: i });
+      for (let i = 1; i < s.pts.length; i++) {
+        timeline.push({ s, i });
       }
     }
 
-    const c = overlayCanvasRef.current;
-    const dpr = window.devicePixelRatio || 1;
-    const ctx = c.getContext('2d');
-
-    // Clear
-    ctx.clearRect(0, 0, c.width, c.height);
-
-    setPlaying(true);
-    let i = 0;
-
+    let idx = 0;
     const step = () => {
-      if (i >= timeline.length) { setPlaying(false); return; }
-
-      const { stroke: s, ptIdx } = timeline[i];
-
-      if (ptIdx === 0) {
-        // Begin new stroke
-        ctx.save();
-        ctx.beginPath();
-        ctx.strokeStyle = s.color || '#4338ca';
-        ctx.lineWidth = Math.max(1, s.size || 4) * dpr;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-        ctx.scale(dpr, dpr);
-        ctx.moveTo(s.pts[0].x, s.pts[0].y);
-        ctx.restore();
-      } else {
-        // Continue stroke
-        const prev = s.pts[ptIdx - 1];
-        const curr = s.pts[ptIdx];
-        ctx.save();
-        ctx.beginPath();
-        ctx.strokeStyle = s.color || '#4338ca';
-        ctx.lineWidth = Math.max(1, s.size || 4);
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-        ctx.scale(dpr, dpr);
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(curr.x, curr.y);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      i++;
+      if (idx >= timeline.length) { setPlaying(false); return; }
+      const { s, i } = timeline[idx];
+      ctx.beginPath();
+      ctx.strokeStyle = s.color || '#4338ca';
+      ctx.lineWidth = Math.max(1, s.size || 4);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
+      ctx.moveTo(s.pts[i - 1].x, s.pts[i - 1].y);
+      ctx.lineTo(s.pts[i].x, s.pts[i].y);
+      ctx.stroke();
+      idx++;
       animRef.current = setTimeout(() => requestAnimationFrame(step), 8);
     };
-
     requestAnimationFrame(step);
   };
 

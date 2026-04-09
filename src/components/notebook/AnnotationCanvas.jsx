@@ -104,7 +104,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp);
     c.addEventListener('mouseleave', onUp);
-    c.addEventListener('touchstart', onDown, { passive: true });
+    c.addEventListener('touchstart', onDown, { passive: false });
     c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
     return () => {
@@ -150,7 +150,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       style={{
         position: 'absolute', inset: 0, zIndex: 10,
         width: width + 'px', height: height + 'px',
-        touchAction: mode === 'draw' ? 'pan-y pinch-zoom' : 'auto',
+        touchAction: mode === 'draw' ? 'none' : 'auto',
         cursor: mode === 'draw' ? (tool === 'eraser' ? 'cell' : 'crosshair') : 'default',
         background: 'transparent',
       }}

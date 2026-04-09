@@ -68,7 +68,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
   return (
     <canvas
       ref={canvasRef}
-      style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '100%', objectFit: 'contain' }}
+      style={{ display: 'block' }}
     />
   );
 }
