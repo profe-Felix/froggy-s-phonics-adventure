@@ -70,7 +70,8 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const [items, setItems] = useState(() => generateCollection(seed, count));
   const [placedTools, setPlacedTools] = useState([]);
   const [drawMode, setDrawMode] = useState(false);
-  const [strokeCount, setStrokeCount] = useState(0); // triggers display re-render
+  const [eraserMode, setEraserMode] = useState(false);
+  const [strokeCount, setStrokeCount] = useState(0);
   const strokesRef = useRef([]);
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
@@ -110,13 +111,28 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     };
 
     const onDown = (e) => { e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)]; };
-    const onMove = (e) => { if (!isDrawing.current) return; e.preventDefault(); currentStroke.current.push(getPos(e)); redraw(); };
+    const onMove = (e) => {
+      if (!isDrawing.current) return;
+      e.preventDefault();
+      currentStroke.current.push(getPos(e));
+      if (eraserMode) {
+        // erase strokes that come near current pointer
+        const pt = currentStroke.current[currentStroke.current.length - 1];
+        strokesRef.current = strokesRef.current.filter(stroke =>
+          !stroke.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 18)
+        );
+        setStrokeCount(n => n); // trigger redraw
+      }
+      redraw();
+    };
     const onUp = () => {
       if (!isDrawing.current) return;
       isDrawing.current = false;
-      if (currentStroke.current.length >= 2) {
+      if (!eraserMode && currentStroke.current.length >= 2) {
         strokesRef.current = [...strokesRef.current, [...currentStroke.current]];
         setStrokeCount(n => n + 1);
+      } else {
+        setStrokeCount(n => n + 1); // force redraw after erase
       }
       currentStroke.current = [];
       redraw();
@@ -138,7 +154,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onUp);
     };
-  }, [drawMode]);
+  }, [drawMode, eraserMode]);
 
   const addTool = (type) => {
     setPlacedTools(t => [...t, { id: nextToolId.current++, type, x: 20 + (nextToolId.current % 3) * 100, y: 10 }]);
@@ -160,12 +176,21 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
             {t.label}
           </button>
         ))}
-        <button onClick={() => { setDrawMode(d => !d); }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}>
-          ✏️ {drawMode ? 'Drawing ON' : 'Circle/Draw'}
+        <button onClick={() => { setDrawMode(d => !d); setEraserMode(false); }}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode && !eraserMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}>
+          ✏️ {drawMode && !eraserMode ? 'Drawing ON' : 'Draw'}
         </button>
+        {drawMode && (
+          <button onClick={() => setEraserMode(e => !e)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${eraserMode ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+            🧹 Eraser
+          </button>
+        )}
         {strokeCount > 0 && (
-          <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => n - 1); }} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
+          <>
+            <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => Math.max(0, n - 1)); }} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
+            <button onClick={() => { strokesRef.current = []; setStrokeCount(0); }} className="px-2 py-1 text-xs text-red-400 hover:text-red-600">🗑 Clear</button>
+          </>
         )}
         {!hideButton && (
           <button onClick={onDone}
@@ -191,7 +216,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
 
         {/* Draw overlay */}
         {drawMode && (
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: 'crosshair' }} />
+          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'cell' : 'crosshair' }} />
         )}
         {!drawMode && strokeCount > 0 && (
           <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
