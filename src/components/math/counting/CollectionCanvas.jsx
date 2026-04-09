@@ -66,7 +66,7 @@ function FrameContainer({ tool, onMove, onRemove }) {
   );
 }
 
-export default function CollectionCanvas({ seed, count, onDone }) {
+export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const [items, setItems] = useState(() => generateCollection(seed, count));
   const [placedTools, setPlacedTools] = useState([]);
   const [drawMode, setDrawMode] = useState(false);
@@ -167,10 +167,12 @@ export default function CollectionCanvas({ seed, count, onDone }) {
         {strokeCount > 0 && (
           <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => n - 1); }} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
         )}
-        <button onClick={onDone}
-          className="ml-auto px-4 py-1.5 bg-green-500 text-white font-bold rounded-lg text-sm shadow hover:bg-green-600">
-          ✓ I counted them!
-        </button>
+        {!hideButton && (
+          <button onClick={onDone}
+            className="ml-auto px-4 py-1.5 bg-green-500 text-white font-bold rounded-lg text-sm shadow hover:bg-green-600">
+            ✓ I counted them!
+          </button>
+        )}
       </div>
 
       {/* Canvas area */}

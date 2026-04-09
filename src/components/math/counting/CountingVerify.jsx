@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-function HandwritingCanvas({ onStrokeDone }) {
+function HandwritingCanvas() {
   const canvasRef = useRef(null);
   const isDrawing = useRef(false);
   const currentStroke = useRef([]);
@@ -17,10 +17,20 @@ function HandwritingCanvas({ onStrokeDone }) {
     ctx.scale(dpr, dpr);
 
     const redraw = () => {
-      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-      // guide lines
-      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
-      [c.offsetHeight * 0.5 / dpr].forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.offsetWidth / dpr, y); ctx.stroke(); });
+      const W = c.offsetWidth / dpr;
+      const H = c.offsetHeight / dpr;
+      ctx.clearRect(0, 0, W, H);
+      // Primary lines
+      const top = H * 0.08, mid = H * 0.5, base = H * 0.88;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#93c5fd'; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(W, top); ctx.stroke();
+      ctx.strokeStyle = '#93c5fd'; ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#3b82f6';
+      ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(W, base); ctx.stroke();
+      // Strokes
       const all = [...strokesRef.current, currentStroke.current].filter(s => s && s.length >= 2);
       all.forEach(pts => {
         ctx.beginPath(); ctx.strokeStyle = '#1e40af'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -34,7 +44,7 @@ function HandwritingCanvas({ onStrokeDone }) {
     const getPos = (e) => {
       const r = c.getBoundingClientRect();
       const src = e.touches ? e.touches[0] : e;
-      return { x: (src.clientX - r.left), y: (src.clientY - r.top) };
+      return { x: src.clientX - r.left, y: src.clientY - r.top };
     };
     const onDown = (e) => { e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)]; };
     const onMove = (e) => { if (!isDrawing.current) return; e.preventDefault(); currentStroke.current.push(getPos(e)); redraw(); };
@@ -44,7 +54,6 @@ function HandwritingCanvas({ onStrokeDone }) {
       if (currentStroke.current.length >= 2) strokesRef.current = [...strokesRef.current, [...currentStroke.current]];
       currentStroke.current = [];
       redraw();
-      if (onStrokeDone) onStrokeDone();
     };
     c.addEventListener('mousedown', onDown); c.addEventListener('mousemove', onMove); c.addEventListener('mouseup', onUp); c.addEventListener('mouseleave', onUp);
     c.addEventListener('touchstart', onDown, { passive: false }); c.addEventListener('touchmove', onMove, { passive: false }); c.addEventListener('touchend', onUp);
@@ -54,7 +63,15 @@ function HandwritingCanvas({ onStrokeDone }) {
     };
   }, []);
 
-  const clear = () => { strokesRef.current = []; const c = canvasRef.current; if (c) { const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height); } };
+  const clear = () => {
+    strokesRef.current = [];
+    const c = canvasRef.current;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    const ctx = c.getContext('2d');
+    const W = c.offsetWidth / dpr, H = c.offsetHeight / dpr;
+    ctx.clearRect(0, 0, W, H);
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -62,7 +79,7 @@ function HandwritingCanvas({ onStrokeDone }) {
         <p className="text-xs font-bold text-blue-700">✏️ Write the number:</p>
         <button onClick={clear} className="text-xs text-gray-400 hover:text-red-500">Clear</button>
       </div>
-      <canvas ref={canvasRef} style={{ width: '100%', height: 90, background: '#f8fafc', borderRadius: 12, border: '2px solid #bfdbfe', cursor: 'crosshair', touchAction: 'none', display: 'block' }} />
+      <canvas ref={canvasRef} style={{ width: '100%', height: 70, background: '#f8fafc', borderRadius: 10, border: '2px solid #bfdbfe', cursor: 'crosshair', touchAction: 'none', display: 'block' }} />
     </div>
   );
 }
@@ -97,7 +114,7 @@ function DigitPad({ onSubmit }) {
 
 // targetCount = real answer, onVerified(answer) called when correct, onGoBack called when wrong
 export default function CountingVerify({ targetCount, onVerified, onGoBack }) {
-  const [phase, setPhase] = useState('type'); // 'type' | 'wrong' | 'done'
+  const [phase, setPhase] = useState('type');
   const [attempt, setAttempt] = useState(null);
 
   const handleSubmit = (val) => {
@@ -112,32 +129,33 @@ export default function CountingVerify({ targetCount, onVerified, onGoBack }) {
 
   if (phase === 'done') {
     return (
-      <div className="flex flex-col items-center gap-3 py-4">
+      <div className="flex flex-col items-center justify-center h-full gap-3 p-4">
         <div className="text-5xl">🎉</div>
-        <p className="text-2xl font-black text-green-700">That's right! {targetCount}</p>
+        <p className="text-xl font-black text-green-700">That's right! {targetCount}</p>
       </div>
     );
   }
 
   if (phase === 'wrong') {
     return (
-      <div className="flex flex-col items-center gap-4 py-4">
+      <div className="flex flex-col items-center justify-center h-full gap-4 p-4">
         <div className="text-4xl">🤔</div>
-        <p className="text-lg font-bold text-red-600">Hmm, try counting again!</p>
-        <p className="text-gray-500 text-sm">You said <strong>{attempt}</strong> — scroll up and recount.</p>
+        <p className="text-base font-bold text-red-600">Try again!</p>
+        <p className="text-gray-500 text-sm text-center">You said <strong>{attempt}</strong> — look at the collection and recount.</p>
         <motion.button whileTap={{ scale: 0.95 }} onClick={() => { setPhase('type'); if (onGoBack) onGoBack(); }}
-          className="bg-indigo-500 text-white font-bold px-6 py-3 rounded-2xl shadow">
-          ↑ Go Back & Recount
+          className="bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-2xl shadow">
+          ← Recount
         </motion.button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 p-4 h-full">
+      <p className="text-sm font-bold text-gray-500 uppercase tracking-wide text-center">Write &amp; Enter your count</p>
       <HandwritingCanvas />
-      <div className="flex flex-col items-center gap-4">
-        <p className="text-base font-bold text-gray-700">How many did you count?</p>
+      <div className="flex flex-col items-center gap-3 flex-1">
+        <p className="text-sm font-bold text-gray-700">How many?</p>
         <DigitPad onSubmit={handleSubmit} />
       </div>
     </div>
