@@ -39,14 +39,14 @@ function drawAllStrokes(canvas, strokesData, w, h) {
   }
 }
 
-export default function ReplayModal({ session, assignment, onClose }) {
+export default function ReplayModal({ session, assignment, onClose, pageOverride }) {
   const overlayCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const [pdfSize, setPdfSize] = useState(null);
   const [playing, setPlaying] = useState(false);
   const animRef = useRef(null);
 
-  const pageKey = String(session.current_page || 1);
+  const pageKey = String(pageOverride || session.current_page || 1);
   const strokesData = session.strokes_by_page?.[pageKey];
 
   // Draw all strokes statically once PDF is sized
@@ -104,7 +104,7 @@ export default function ReplayModal({ session, assignment, onClose }) {
         <div className="flex items-center justify-between shrink-0">
           <div>
             <p className="font-black text-white">Replay — Student #{session.student_number}</p>
-            <p className="text-xs text-indigo-400">Page {session.current_page}</p>
+            <p className="text-xs text-indigo-400">Page {pageOverride || session.current_page}</p>
           </div>
           <button onClick={onClose} className="text-indigo-300 hover:text-white text-xl">✕</button>
         </div>

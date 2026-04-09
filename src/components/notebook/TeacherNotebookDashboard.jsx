@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReplayModal from './ReplayModal';
+import StudentThumbnail from './StudentThumbnail';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -123,6 +124,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [viewingSession, setViewingSession] = useState(null);
   const [replaySession, setReplaySession] = useState(null);
   const [replayAssignment, setReplayAssignment] = useState(null);
+  const [replayPage, setReplayPage] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
@@ -374,50 +376,36 @@ export default function TeacherNotebookDashboard({ onBack }) {
 
         {/* STUDENTS TAB */}
         {tab === 'students' && (
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             {!selectedAssignment ? (
               <p className="text-indigo-400 text-center mt-8">Select an assignment first</p>
             ) : (
               <>
                 <p className="text-indigo-300 text-sm mb-4 font-bold">{sessions.length} student{sessions.length !== 1 ? 's' : ''} joined</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
                   {sessions.map(s => (
-                    <StudentCard key={s.id} session={s} assignment={selectedAssignment}
-                      onViewWork={setViewingSession}
-                      onReplayStrokes={(s) => { setReplaySession(s); setReplayAssignment(selectedAssignment); }} />
+                    <StudentThumbnail
+                      key={s.id}
+                      session={s}
+                      assignment={selectedAssignment}
+                      onOpen={(sess, pg) => { setReplaySession(sess); setReplayAssignment(selectedAssignment); setReplayPage(pg); }}
+                    />
                   ))}
                 </div>
 
-                {/* View work modal */}
-                {viewingSession && (
-                  <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setViewingSession(null)}>
-                    <div className="rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }} onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-between">
-                        <p className="font-black text-white">Student #{viewingSession.student_number} — Page {viewingSession.current_page}</p>
-                        <button onClick={() => setViewingSession(null)} className="text-indigo-300 hover:text-white">✕</button>
-                      </div>
-                      <p className="text-indigo-400 text-xs">{Object.keys(viewingSession.strokes_by_page || {}).length} pages with work</p>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.keys(viewingSession.strokes_by_page || {}).map(pg => (
-                          <span key={pg} className="px-3 py-1 rounded-full text-xs font-bold text-white" style={{ background: '#4338ca' }}>Page {pg}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Replay modal */}
                 {replaySession && (
                   <ReplayModal
                     session={replaySession}
                     assignment={replayAssignment}
-                    onClose={() => setReplaySession(null)}
+                    pageOverride={replayPage}
+                    onClose={() => { setReplaySession(null); setReplayPage(null); }}
                   />
                 )}
               </>
             )}
           </div>
         )}
+
       </div>
     </div>
   );
