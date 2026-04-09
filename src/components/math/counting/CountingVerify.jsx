@@ -34,13 +34,15 @@ function DigitPad({ onSubmit }) {
 export default function CountingVerify({ targetCount, onVerified, onGoBack }) {
   const [phase, setPhase] = useState('type');
   const [attempt, setAttempt] = useState(null);
+  const [isFirstTry, setIsFirstTry] = useState(true);
 
   const handleSubmit = (val) => {
     setAttempt(val);
     if (val === targetCount) {
       setPhase('done');
-      setTimeout(() => onVerified(val), 800);
+      setTimeout(() => onVerified(isFirstTry), 800);
     } else {
+      setIsFirstTry(false);
       setPhase('wrong');
     }
   };
@@ -60,7 +62,7 @@ export default function CountingVerify({ targetCount, onVerified, onGoBack }) {
         <div className="text-4xl">🤔</div>
         <p className="text-base font-bold text-red-600">Try again!</p>
         <p className="text-gray-500 text-sm text-center">You said <strong>{attempt}</strong> — look at the collection and recount.</p>
-        <motion.button whileTap={{ scale: 0.95 }} onClick={() => { setPhase('type'); if (onGoBack) onGoBack(); }}
+        <motion.button whileTap={{ scale: 0.95 }} onClick={() => { setPhase('type'); setIsFirstTry(false); if (onGoBack) onGoBack(); }}
           className="bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-2xl shadow">
           ← Recount
         </motion.button>

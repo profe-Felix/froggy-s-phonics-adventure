@@ -150,7 +150,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const moveItem = (id, x, y) => setItems(prev => prev.map(it => it.id === id ? { ...it, x, y } : it));
 
   return (
-    <div className="flex flex-col gap-0 w-full" style={{ userSelect: 'none' }}>
+    <div className="flex flex-col gap-0 w-full h-full" style={{ userSelect: 'none' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-200 rounded-t-2xl flex-wrap">
         <span className="text-xs font-bold text-indigo-600 mr-1">Add tool:</span>
@@ -176,7 +176,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       </div>
 
       {/* Canvas area */}
-      <div style={{ position: 'relative', width: '100%', minHeight: 280, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
         {/* Placed organizer tools */}
         {placedTools.map(tool =>
           tool.type === 'plate'
