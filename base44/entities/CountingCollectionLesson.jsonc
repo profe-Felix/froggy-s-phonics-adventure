@@ -1,0 +1,37 @@
+{
+  "name": "CountingCollectionLesson",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Random seed for collection generation"
+    },
+    "target_count": {
+      "type": "integer",
+      "description": "How many objects in the collection"
+    },
+    "same_number": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true all students get same collection, if false each gets unique"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active"
+      ],
+      "default": "waiting"
+    },
+    "round_number": {
+      "type": "integer",
+      "default": 1
+    }
+  },
+  "required": [
+    "class_name"
+  ]
+}
