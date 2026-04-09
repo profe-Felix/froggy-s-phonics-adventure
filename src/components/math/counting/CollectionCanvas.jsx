@@ -78,6 +78,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const currentStroke = useRef([]);
   const nextToolId = useRef(0);
   const ctxRef = useRef(null);
+  const containerRef = useRef(null);
 
   // Setup canvas only when drawMode changes (avoids clearing on each stroke)
   useEffect(() => {
@@ -163,7 +164,33 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const moveTool = (id, x, y) => setPlacedTools(t => t.map(tool => tool.id === id ? { ...tool, x, y } : tool));
   const removeTool = (id) => setPlacedTools(t => t.filter(tool => tool.id !== id));
 
-  const moveItem = (id, x, y) => setItems(prev => prev.map(it => it.id === id ? { ...it, x, y } : it));
+  const clamp = (x, y) => {
+    const el = containerRef.current;
+    if (!el) return { x, y };
+    const { width, height } = el.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(x, width - 36)), y: Math.max(0, Math.min(y, height - 36)) };
+  };
+
+  const moveItem = (id, x, y) => {
+    const c = clamp(x, y);
+    setItems(prev => prev.map(it => it.id === id ? { ...it, x: c.x, y: c.y } : it));
+  };
+
+  // Re-clamp all items when container resizes (e.g. orientation change)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const { width, height } = el.getBoundingClientRect();
+      setItems(prev => prev.map(it => ({
+        ...it,
+        x: Math.max(0, Math.min(it.x, width - 36)),
+        y: Math.max(0, Math.min(it.y, height - 36)),
+      })));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div className="flex flex-col gap-0 w-full h-full" style={{ userSelect: 'none' }}>
@@ -201,7 +228,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       </div>
 
       {/* Canvas area */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
+      <div ref={containerRef} style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
         {/* Placed organizer tools */}
         {placedTools.map(tool =>
           tool.type === 'plate'
