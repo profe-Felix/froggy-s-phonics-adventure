@@ -242,7 +242,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         {/* PDF rendered as iframe for now (or show placeholder) */}
         {selectedAssignment.pdf_url ? (
           <iframe
-            src={`${selectedAssignment.pdf_url}#page=${currentPage}&toolbar=0&navpanes=0`}
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(selectedAssignment.pdf_url)}&embedded=true`}
             className="absolute inset-0 w-full h-full border-0 pointer-events-none"
             title="PDF"
           />
