@@ -13,9 +13,13 @@ function setupCanvas(canvas, w, h) {
   return ctx;
 }
 
+function scalePoint(p, sx, sy) { return { x: p.x * sx, y: p.y * sy }; }
+
 function drawAllStrokes(canvas, strokesData, w, h) {
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const strokes = data?.strokes || [];
+  const sx = data?.canvasWidth ? w / data.canvasWidth : 1;
+  const sy = data?.canvasHeight ? h / data.canvasHeight : 1;
   const ctx = setupCanvas(canvas, w, h);
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
@@ -25,8 +29,12 @@ function drawAllStrokes(canvas, strokesData, w, h) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-    ctx.moveTo(s.pts[0].x, s.pts[0].y);
-    for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
+    const p0 = scalePoint(s.pts[0], sx, sy);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < s.pts.length; i++) {
+      const p = scalePoint(s.pts[i], sx, sy);
+      ctx.lineTo(p.x, p.y);
+    }
     ctx.stroke();
   }
 }
@@ -53,6 +61,8 @@ export default function ReplayModal({ session, assignment, onClose }) {
     const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
 
     const ctx = setupCanvas(overlayCanvasRef.current, pdfSize.w, pdfSize.h);
+    const sx = data?.canvasWidth ? pdfSize.w / data.canvasWidth : 1;
+    const sy = data?.canvasHeight ? pdfSize.h / data.canvasHeight : 1;
     setPlaying(true);
 
     // Build timeline: each entry is one segment to draw
@@ -73,8 +83,8 @@ export default function ReplayModal({ session, assignment, onClose }) {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-      ctx.moveTo(s.pts[i - 1].x, s.pts[i - 1].y);
-      ctx.lineTo(s.pts[i].x, s.pts[i].y);
+      ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
+      ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
       ctx.stroke();
       idx++;
       animRef.current = setTimeout(() => requestAnimationFrame(step), 8);

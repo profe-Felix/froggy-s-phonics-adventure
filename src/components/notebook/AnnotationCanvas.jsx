@@ -119,7 +119,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
   }, [mode, color, size, tool]);
 
   useImperativeHandle(ref, () => ({
-    getStrokes: () => ({ strokes: strokes.current }),
+    getStrokes: () => ({ strokes: strokes.current, canvasWidth: width, canvasHeight: height }),
     loadStrokes: (data) => {
       strokes.current = (data && data.strokes) ? data.strokes : [];
       current.current = null;
