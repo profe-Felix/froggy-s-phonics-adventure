@@ -92,9 +92,9 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
 
     const redraw = () => {
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-      const all = [...strokesRef.current, currentStroke.current].filter(s => s && s.length >= 2);
+      const all = [...strokesRef.current, ...(eraserMode ? [] : [currentStroke.current])].filter(s => s && s.length >= 2);
       all.forEach(pts => {
-        ctx.beginPath(); ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.moveTo(pts[0].x, pts[0].y);
         pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
         ctx.stroke();
@@ -177,7 +177,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
           </button>
         ))}
         <button onClick={() => { setDrawMode(d => !d); setEraserMode(false); }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode && !eraserMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}>
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode && !eraserMode ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}>
           ✏️ {drawMode && !eraserMode ? 'Drawing ON' : 'Draw'}
         </button>
         {drawMode && (
@@ -275,7 +275,7 @@ function DrawingDisplay({ strokes, strokeCount }) {
     const ctx = c.getContext('2d');
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-    ctx.strokeStyle = '#f97316';
+    ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     strokes.forEach(pts => {
