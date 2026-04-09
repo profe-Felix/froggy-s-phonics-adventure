@@ -183,7 +183,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
         {drawMode && (
           <button onClick={() => setEraserMode(e => !e)}
             className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${eraserMode ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-            🧹 Eraser
+            ⬜ Eraser
           </button>
         )}
         {strokeCount > 0 && (
@@ -215,8 +215,9 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
         ))}
 
         {/* Draw overlay */}
+        {drawMode && eraserMode && <EraserCursor />}
         {drawMode && (
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'cell' : 'crosshair' }} />
+          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair' }} />
         )}
         {!drawMode && strokeCount > 0 && (
           <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
@@ -244,6 +245,22 @@ function DraggableItem({ item, onMove, frozen }) {
       style={{ position: 'absolute', left: item.x, top: item.y, transform: `rotate(${item.rotation}deg)`, fontSize: 28, cursor: frozen ? 'default' : 'grab', touchAction: 'none', zIndex: 10, lineHeight: 1 }}>
       {item.emoji}
     </div>
+  );
+}
+
+function EraserCursor() {
+  const [pos, setPos] = useState({ x: -100, y: -100 });
+  useEffect(() => {
+    const move = (e) => {
+      const src = e.touches ? e.touches[0] : e;
+      setPos({ x: src.clientX, y: src.clientY });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, { passive: true });
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('touchmove', move); };
+  }, []);
+  return (
+    <div style={{ position: 'fixed', left: pos.x - 18, top: pos.y - 18, width: 36, height: 36, borderRadius: '50%', background: 'rgba(150,150,150,0.5)', border: '2px solid #999', pointerEvents: 'none', zIndex: 9999 }} />
   );
 }
 
