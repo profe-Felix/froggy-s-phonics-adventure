@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReplayModal from './ReplayModal';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import AnnotationCanvas from './AnnotationCanvas';
+
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 
@@ -121,9 +122,8 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [videoBroadcast, setVideoBroadcast] = useState('');
   const [viewingSession, setViewingSession] = useState(null);
   const [replaySession, setReplaySession] = useState(null);
+  const [replayAssignment, setReplayAssignment] = useState(null);
   const [newTitle, setNewTitle] = useState('');
-  const canvasRef = useRef(null);
-
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
@@ -199,13 +199,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
     updateAssignment.mutate({ id: selectedAssignment.id, data: { broadcast_video: videoBroadcast.trim() } });
   };
 
-  // Load replay
-  useEffect(() => {
-    if (!replaySession || !canvasRef.current) return;
-    const pageStrokes = replaySession.strokes_by_page?.[String(replaySession.current_page)];
-    if (!pageStrokes) return;
-    canvasRef.current.loadStrokes(JSON.parse(pageStrokes));
-  }, [replaySession]);
+
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a', color: 'white' }}>
@@ -390,7 +384,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   {sessions.map(s => (
                     <StudentCard key={s.id} session={s} assignment={selectedAssignment}
                       onViewWork={setViewingSession}
-                      onReplayStrokes={setReplaySession} />
+                      onReplayStrokes={(s) => { setReplaySession(s); setReplayAssignment(selectedAssignment); }} />
                   ))}
                 </div>
 
@@ -414,45 +408,11 @@ export default function TeacherNotebookDashboard({ onBack }) {
 
                 {/* Replay modal */}
                 {replaySession && (
-                  <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setReplaySession(null)}>
-                    <div className="rounded-2xl p-4 max-w-lg w-full flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }} onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-between">
-                        <p className="font-black text-white">Replay — Student #{replaySession.student_number}</p>
-                        <button onClick={() => setReplaySession(null)} className="text-indigo-300 hover:text-white">✕</button>
-                      </div>
-                      <p className="text-xs text-indigo-400">Stroke replay for Page {replaySession.current_page}</p>
-                      <div className="relative rounded-xl overflow-hidden" style={{ width: 400, height: 280, background: 'white' }}>
-                        <AnnotationCanvas ref={canvasRef} width={400} height={280} color="#4338ca" size={4} tool="pen" mode="scroll" />
-                      </div>
-                      <button onClick={() => {
-                        const pageStrokes = replaySession.strokes_by_page?.[String(replaySession.current_page)];
-                        if (!pageStrokes || !canvasRef.current) return;
-                        const data = JSON.parse(pageStrokes);
-                        canvasRef.current.clearStrokes();
-                        // Replay stroke by stroke with delay
-                        const strokes = data.strokes || [];
-                        let si = 0;
-                        const nextStroke = () => {
-                          if (si >= strokes.length) return;
-                          const s = strokes[si++];
-                          let pi = 0;
-                          const drawPt = () => {
-                            if (!canvasRef.current) return;
-                            // We patch in pts one at a time
-                            if (pi >= s.pts.length) { setTimeout(nextStroke, 150); return; }
-                            pi++;
-                            requestAnimationFrame(drawPt);
-                          };
-                          // Load up to si strokes
-                          canvasRef.current.loadStrokes({ strokes: strokes.slice(0, si) });
-                          setTimeout(nextStroke, 200);
-                        };
-                        nextStroke();
-                      }} className="py-2 rounded-xl font-bold text-white" style={{ background: '#9333ea' }}>
-                        ▶ Replay Strokes
-                      </button>
-                    </div>
-                  </div>
+                  <ReplayModal
+                    session={replaySession}
+                    assignment={replayAssignment}
+                    onClose={() => setReplaySession(null)}
+                  />
                 )}
               </>
             )}

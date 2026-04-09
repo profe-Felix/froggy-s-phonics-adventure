@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-export default function PdfPageRenderer({ pdfUrl, pageNumber }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
   const canvasRef = useRef(null);
   const [error, setError] = useState(null);
   const renderTask = useRef(null);
@@ -34,6 +34,8 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber }) {
 
         canvas.width = scaled.width;
         canvas.height = scaled.height;
+        canvas.style.width = scaled.width + 'px';
+        canvas.style.height = scaled.height + 'px';
 
         if (renderTask.current) {
           renderTask.current.cancel();
@@ -45,6 +47,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber }) {
         });
 
         await renderTask.current.promise;
+        if (!cancelled && onRendered) onRendered(scaled.width, scaled.height);
       } catch (e) {
         if (e?.name !== 'RenderingCancelledException') {
           setError('Failed to load PDF');

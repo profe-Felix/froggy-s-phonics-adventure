@@ -6,6 +6,7 @@ import AnnotationToolbar from './AnnotationToolbar';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 
+
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
@@ -49,6 +50,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
+  const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const saveTimer = useRef(null);
 
   const { data: assignments = [] } = useQuery({
@@ -239,27 +241,32 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       />
 
       {/* PDF + Canvas area */}
-      <div ref={containerRef} className="flex-1 relative overflow-hidden" style={{ background: '#e8e8e8' }}>
-        {/* PDF rendered as iframe for now (or show placeholder) */}
+      <div ref={containerRef} className="flex-1 relative overflow-auto" style={{ background: '#e8e8e8' }}>
+        {/* PDF rendered as canvas */}
         {selectedAssignment.pdf_url ? (
-          <div className="absolute inset-0 overflow-auto bg-white flex justify-center" style={{ pointerEvents: 'none' }}>
-            <PdfPageRenderer pdfUrl={selectedAssignment.pdf_url} pageNumber={currentPage} />
+          <div className="relative inline-block">
+            <PdfPageRenderer
+              pdfUrl={selectedAssignment.pdf_url}
+              pageNumber={currentPage}
+              onRendered={(w, h) => setPdfRenderedSize({ w, h })}
+            />
+            {pdfRenderedSize && (
+              <AnnotationCanvas
+                ref={canvasRef}
+                width={pdfRenderedSize.w}
+                height={pdfRenderedSize.h}
+                color={color}
+                size={size}
+                tool={tool}
+                mode="draw"
+              />
+            )}
           </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-white">
             <p className="text-gray-400 text-lg">No PDF uploaded</p>
           </div>
         )}
-
-        <AnnotationCanvas
-          ref={canvasRef}
-          width={canvasSize.w}
-          height={canvasSize.h}
-          color={color}
-          size={size}
-          tool={tool}
-          mode="draw"
-        />
       </div>
 
       {/* Page navigation */}
