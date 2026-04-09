@@ -29,7 +29,7 @@ function Plate({ tool, onMove, onRemove }) {
   return (
     <div ref={ref} onPointerDown={onPointerDown}
       style={{ position: 'absolute', left: tool.x, top: tool.y, touchAction: 'none', cursor: 'move', zIndex: 5 }}>
-      <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px dashed #94a3b8', background: 'rgba(148,163,184,0.15)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 120, height: 120, borderRadius: '50%', border: '3px dashed #94a3b8', background: 'rgba(148,163,184,0.15)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <button data-remove="1" onClick={() => onRemove(tool.id)} style={{ position: 'absolute', top: -8, right: -8, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', color: 'white', border: 'none', cursor: 'pointer', fontSize: 10, lineHeight: '18px', textAlign: 'center' }}>✕</button>
       </div>
     </div>
@@ -70,13 +70,15 @@ export default function CollectionCanvas({ seed, count, onDone }) {
   const [items, setItems] = useState(() => generateCollection(seed, count));
   const [placedTools, setPlacedTools] = useState([]);
   const [drawMode, setDrawMode] = useState(false);
-  const [strokes, setStrokes] = useState([]);
+  const [strokeCount, setStrokeCount] = useState(0); // triggers display re-render
+  const strokesRef = useRef([]);
   const canvasRef = useRef(null);
-  const drawingRef = useRef(false);
+  const isDrawing = useRef(false);
   const currentStroke = useRef([]);
   const nextToolId = useRef(0);
+  const ctxRef = useRef(null);
 
-  // Drawing
+  // Setup canvas only when drawMode changes (avoids clearing on each stroke)
   useEffect(() => {
     if (!drawMode || !canvasRef.current) return;
     const c = canvasRef.current;
@@ -85,20 +87,20 @@ export default function CollectionCanvas({ seed, count, onDone }) {
     c.height = c.offsetHeight * dpr;
     const ctx = c.getContext('2d');
     ctx.scale(dpr, dpr);
+    ctxRef.current = ctx;
 
     const redraw = () => {
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-      ctx.strokeStyle = '#f97316';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      [...strokes, drawingRef.strokeData].filter(Boolean).forEach(pts => {
-        if (!pts || pts.length < 2) return;
-        ctx.beginPath();
+      const all = [...strokesRef.current, currentStroke.current].filter(s => s && s.length >= 2);
+      all.forEach(pts => {
+        ctx.beginPath(); ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.moveTo(pts[0].x, pts[0].y);
         pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
         ctx.stroke();
       });
     };
+
+    // draw existing strokes immediately
     redraw();
 
     const getPos = (e) => {
@@ -107,13 +109,23 @@ export default function CollectionCanvas({ seed, count, onDone }) {
       return { x: src.clientX - r.left, y: src.clientY - r.top };
     };
 
-    const onDown = (e) => { e.preventDefault(); drawingRef.current = true; currentStroke.current = [getPos(e)]; drawingRef.strokeData = currentStroke.current; };
-    const onMove = (e) => { if (!drawingRef.current) return; e.preventDefault(); currentStroke.current.push(getPos(e)); drawingRef.strokeData = currentStroke.current; redraw(); };
-    const onUp = () => { if (!drawingRef.current) return; drawingRef.current = false; setStrokes(s => [...s, [...currentStroke.current]]); currentStroke.current = []; drawingRef.strokeData = null; redraw(); };
+    const onDown = (e) => { e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)]; };
+    const onMove = (e) => { if (!isDrawing.current) return; e.preventDefault(); currentStroke.current.push(getPos(e)); redraw(); };
+    const onUp = () => {
+      if (!isDrawing.current) return;
+      isDrawing.current = false;
+      if (currentStroke.current.length >= 2) {
+        strokesRef.current = [...strokesRef.current, [...currentStroke.current]];
+        setStrokeCount(n => n + 1);
+      }
+      currentStroke.current = [];
+      redraw();
+    };
 
     c.addEventListener('mousedown', onDown);
     c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp);
+    c.addEventListener('mouseleave', onUp);
     c.addEventListener('touchstart', onDown, { passive: false });
     c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
@@ -121,11 +133,12 @@ export default function CollectionCanvas({ seed, count, onDone }) {
       c.removeEventListener('mousedown', onDown);
       c.removeEventListener('mousemove', onMove);
       c.removeEventListener('mouseup', onUp);
+      c.removeEventListener('mouseleave', onUp);
       c.removeEventListener('touchstart', onDown);
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onUp);
     };
-  }, [drawMode, strokes]);
+  }, [drawMode]);
 
   const addTool = (type) => {
     setPlacedTools(t => [...t, { id: nextToolId.current++, type, x: 20 + (nextToolId.current % 3) * 100, y: 10 }]);
@@ -151,8 +164,8 @@ export default function CollectionCanvas({ seed, count, onDone }) {
           className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-600 border-orange-300 hover:bg-orange-50'}`}>
           ✏️ {drawMode ? 'Drawing ON' : 'Circle/Draw'}
         </button>
-        {strokes.length > 0 && (
-          <button onClick={() => setStrokes(s => s.slice(0, -1))} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
+        {strokeCount > 0 && (
+          <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => n - 1); }} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
         )}
         <button onClick={onDone}
           className="ml-auto px-4 py-1.5 bg-green-500 text-white font-bold rounded-lg text-sm shadow hover:bg-green-600">
@@ -178,8 +191,8 @@ export default function CollectionCanvas({ seed, count, onDone }) {
         {drawMode && (
           <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: 'crosshair' }} />
         )}
-        {!drawMode && strokes.length > 0 && (
-          <DrawingDisplay strokes={strokes} />
+        {!drawMode && strokeCount > 0 && (
+          <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
         )}
       </div>
     </div>
@@ -207,7 +220,7 @@ function DraggableItem({ item, onMove, frozen }) {
   );
 }
 
-function DrawingDisplay({ strokes }) {
+function DrawingDisplay({ strokes, strokeCount }) {
   const ref = useRef(null);
   useEffect(() => {
     const c = ref.current;
@@ -228,6 +241,6 @@ function DrawingDisplay({ strokes }) {
       pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
       ctx.stroke();
     });
-  }, [strokes]);
+  }, [strokes, strokeCount]);
   return <canvas ref={ref} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 15, pointerEvents: 'none' }} />;
 }

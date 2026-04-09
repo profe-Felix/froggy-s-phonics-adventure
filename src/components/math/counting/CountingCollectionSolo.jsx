@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import CollectionCanvas from './CollectionCanvas';
 import CountingVerify from './CountingVerify';
 import { motion } from 'framer-motion';
@@ -9,15 +9,18 @@ function randomCount() { return Math.floor(Math.random() * 10) + 11; } // 11-20
 export default function CountingCollectionSolo({ onBack }) {
   const [seed, setSeed] = useState(randomSeed);
   const [count, setCount] = useState(randomCount);
-  const [phase, setPhase] = useState('count'); // 'count' | 'verify' | 'done'
+  const [showVerify, setShowVerify] = useState(false);
+  const [done, setDone] = useState(false);
+  const topRef = useRef(null);
 
   const handleNewRound = () => {
     setSeed(randomSeed());
     setCount(randomCount());
-    setPhase('count');
+    setShowVerify(false);
+    setDone(false);
   };
 
-  if (phase === 'done') {
+  if (done) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-green-300 to-teal-400 flex flex-col items-center justify-center gap-6 p-6">
         <div className="text-6xl">⭐</div>
@@ -40,16 +43,19 @@ export default function CountingCollectionSolo({ onBack }) {
         <h1 className="text-xl font-black text-teal-900">🔢 Count the Collection</h1>
         <div />
       </div>
-      <div className="flex-1 flex flex-col px-3 pb-4 gap-3">
+      <div ref={topRef} className="flex-1 flex flex-col px-3 pb-4 gap-3">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {phase === 'count' ? (
-            <CollectionCanvas seed={seed} count={count} onDone={() => setPhase('verify')} />
-          ) : (
-            <div className="p-6">
-              <CountingVerify targetCount={count} onVerified={() => setPhase('done')} />
-            </div>
-          )}
+          <CollectionCanvas seed={seed} count={count} onDone={() => setShowVerify(true)} />
         </div>
+        {showVerify && (
+          <div className="bg-white rounded-2xl shadow-xl p-5">
+            <CountingVerify
+              targetCount={count}
+              onVerified={() => setDone(true)}
+              onGoBack={() => { topRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
