@@ -1,6 +1,6 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 
-function drawStroke(ctx, s) {
+function drawStroke(ctx, s, w, h) {
   if (!s.pts || s.pts.length === 0) return;
   ctx.save();
   ctx.lineCap = 'round';
@@ -29,8 +29,10 @@ function drawStroke(ctx, s) {
   ctx.beginPath();
   for (let i = 0; i < s.pts.length; i++) {
     const p = s.pts[i];
-    if (i === 0) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
+    const px = p.x * w;
+    const py = p.y * h;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
   }
   ctx.stroke();
   ctx.restore();
@@ -59,10 +61,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, c.width, c.height);
-    for (const s of strokes.current) drawStroke(ctx, s);
-    if (current.current) drawStroke(ctx, current.current);
+    for (const s of strokes.current) drawStroke(ctx, s, width, height);
+    if (current.current) drawStroke(ctx, current.current, width, height);
   };
 
   useEffect(() => { setupCanvas(); redraw(); }, [width, height]);
@@ -71,7 +72,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     const c = canvasRef.current;
     const r = c.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - r.left, y: src.clientY - r.top, t: Date.now() };
+    return { x: (src.clientX - r.left) / width, y: (src.clientY - r.top) / height, t: Date.now() };
   };
 
   useEffect(() => {
@@ -125,9 +126,21 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
   }, [mode, color, size, tool]);
 
   useImperativeHandle(ref, () => ({
-    getStrokes: () => ({ strokes: strokes.current, canvasWidth: width, canvasHeight: height }),
+    getStrokes: () => ({ strokes: strokes.current }),
     loadStrokes: (data) => {
-      strokes.current = (data && data.strokes) ? data.strokes : [];
+      if (!data) { strokes.current = []; redraw(); return; }
+      const raw = data.strokes || (Array.isArray(data) ? data : []);
+      const sw = data.canvasWidth;
+      const sh = data.canvasHeight;
+      if (sw && sh) {
+        // normalize old absolute-coord saves to 0-1 range
+        strokes.current = raw.map(s => ({
+          ...s,
+          pts: s.pts.map(p => ({ ...p, x: p.x / sw, y: p.y / sh }))
+        }));
+      } else {
+        strokes.current = raw;
+      }
       current.current = null;
       redraw();
     },

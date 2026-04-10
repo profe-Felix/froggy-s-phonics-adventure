@@ -136,7 +136,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
 
   // Load strokes for current page
   useEffect(() => {
-    if (!session || !canvasRef.current) return;
+    if (!session || !canvasRef.current || !pdfRenderedSize) return;
     const pageData = session.strokes_by_page?.[String(currentPage)];
     if (pageData) {
       try { canvasRef.current.loadStrokes(JSON.parse(pageData)); }
@@ -144,7 +144,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
     } else {
       canvasRef.current.clearStrokes();
     }
-  }, [currentPage, session?.id]);
+  }, [currentPage, session?.id, pdfRenderedSize]);
 
   const saveStrokes = useCallback(async () => {
     if (!session || !canvasRef.current) return;

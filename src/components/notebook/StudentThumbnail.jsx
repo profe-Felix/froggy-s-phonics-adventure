@@ -5,8 +5,10 @@ function drawStrokes(canvas, strokesData, w, h) {
   if (!canvas || !strokesData) return;
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const strokes = data?.strokes || [];
-  const sx = data?.canvasWidth ? w / data.canvasWidth : 1;
-  const sy = data?.canvasHeight ? h / data.canvasHeight : 1;
+  // If canvasWidth present, coords are absolute — scale to display size
+  // If not present, coords are normalized 0-1 — multiply by display size
+  const sx = data?.canvasWidth ? w / data.canvasWidth : w;
+  const sy = data?.canvasHeight ? h / data.canvasHeight : h;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
