@@ -278,7 +278,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
           {/* PDF + canvas */}
           <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8' }}>
             {selectedAssignment.pdf_url ? (
-              <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
+              <div style={{ position: 'relative', display: 'block', width: '100%' }}>
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
