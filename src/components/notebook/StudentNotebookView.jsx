@@ -55,6 +55,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const pinchRef = useRef({ active: false, startDist: 0, startZoom: 1 });
   const saveTimer = useRef(null);
 
   const { data: assignments = [] } = useQuery({
@@ -276,9 +278,27 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
           </div>
 
           {/* PDF + canvas */}
-          <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8' }}>
+          <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8' }}
+            onTouchStart={(e) => {
+              if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                pinchRef.current = { active: true, startDist: Math.hypot(dx, dy), startZoom: zoom };
+              }
+            }}
+            onTouchMove={(e) => {
+              if (e.touches.length === 2 && pinchRef.current.active) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.hypot(dx, dy);
+                const newZoom = Math.min(4, Math.max(0.5, pinchRef.current.startZoom * (dist / pinchRef.current.startDist)));
+                setZoom(newZoom);
+              }
+            }}
+            onTouchEnd={() => { pinchRef.current.active = false; }}
+          >
             {selectedAssignment.pdf_url ? (
-              <div style={{ position: 'relative', display: 'block', width: '100%' }}>
+              <div style={{ position: 'relative', display: 'block', width: '100%', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
