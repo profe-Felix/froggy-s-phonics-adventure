@@ -34,7 +34,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
   const [pdfSize, setPdfSize] = useState(null);
   const displayPage = viewPage || session.current_page || 1;
   const studentPage = session.current_page || 1;
-  const page = displayPage;
   const strokesData = session.strokes_by_page?.[String(displayPage)];
   const hasWork = session.strokes_by_page && Object.keys(session.strokes_by_page).length > 0;
   const voiceNoteUrl = session.voice_notes_by_page?.[String(displayPage)];
@@ -52,7 +51,7 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
     <div
       className="rounded-2xl overflow-hidden cursor-pointer flex flex-col"
       style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}
-      onClick={() => onOpen(session, page)}
+      onClick={() => onOpen(session, displayPage)}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-2 py-1.5 shrink-0" style={{ background: '#0f0f1a' }}>
@@ -74,7 +73,7 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
           <>
             <PdfPageRenderer
               pdfUrl={assignment.pdf_url}
-              pageNumber={page}
+              pageNumber={displayPage}
               onRendered={(w, h) => setPdfSize({ w, h })}
             />
             {pdfSize && (
