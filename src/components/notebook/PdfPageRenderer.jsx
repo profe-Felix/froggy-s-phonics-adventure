@@ -8,54 +8,70 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
   const [error, setError] = useState(null);
   const renderTask = useRef(null);
   const pdfDoc = useRef(null);
+  const lastWidth = useRef(0);
+
+  const renderPage = async (cancelled) => {
+    try {
+      if (!pdfDoc.current) {
+        pdfDoc.current = await pdfjsLib.getDocument({ url: pdfUrl, withCredentials: false }).promise;
+      }
+      if (cancelled?.value) return;
+
+      const page = await pdfDoc.current.getPage(pageNumber);
+      if (cancelled?.value) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const container = canvas.parentElement;
+      const containerWidth = container?.clientWidth || window.innerWidth;
+      if (containerWidth < 10) return;
+      lastWidth.current = containerWidth;
+
+      const viewport = page.getViewport({ scale: 1 });
+      const scale = containerWidth / viewport.width;
+      const scaled = page.getViewport({ scale });
+
+      canvas.width = scaled.width;
+      canvas.height = scaled.height;
+      canvas.style.width = scaled.width + 'px';
+      canvas.style.height = scaled.height + 'px';
+
+      if (renderTask.current) renderTask.current.cancel();
+
+      renderTask.current = page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport: scaled,
+      });
+
+      await renderTask.current.promise;
+      if (!cancelled?.value && onRendered) onRendered(scaled.width, scaled.height);
+    } catch (e) {
+      if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
+    }
+  };
 
   useEffect(() => {
     if (!pdfUrl) return;
-    let cancelled = false;
+    const cancelled = { value: false };
+    renderPage(cancelled);
+    return () => { cancelled.value = true; };
+  }, [pdfUrl, pageNumber]);
 
-    (async () => {
-      try {
-        if (!pdfDoc.current) {
-          pdfDoc.current = await pdfjsLib.getDocument({ url: pdfUrl, withCredentials: false }).promise;
-        }
-        if (cancelled) return;
-
-        const page = await pdfDoc.current.getPage(pageNumber);
-        if (cancelled) return;
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const container = canvas.parentElement;
-        const containerWidth = container?.clientWidth || 800;
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / viewport.width;
-        const scaled = page.getViewport({ scale });
-
-        canvas.width = scaled.width;
-        canvas.height = scaled.height;
-        canvas.style.width = scaled.width + 'px';
-        canvas.style.height = scaled.height + 'px';
-
-        if (renderTask.current) {
-          renderTask.current.cancel();
-        }
-
-        renderTask.current = page.render({
-          canvasContext: canvas.getContext('2d'),
-          viewport: scaled,
-        });
-
-        await renderTask.current.promise;
-        if (!cancelled && onRendered) onRendered(scaled.width, scaled.height);
-      } catch (e) {
-        if (e?.name !== 'RenderingCancelledException') {
-          setError('Failed to load PDF');
-        }
+  // Re-render on container resize (handles orientation change)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const container = canvas.parentElement;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      const w = container.clientWidth;
+      if (w > 10 && Math.abs(w - lastWidth.current) > 5) {
+        renderPage({ value: false });
       }
-    })();
-
-    return () => { cancelled = true; };
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
   }, [pdfUrl, pageNumber]);
 
   // Reset doc if url changes
