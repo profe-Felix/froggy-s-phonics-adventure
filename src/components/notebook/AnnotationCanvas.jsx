@@ -66,7 +66,11 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     if (current.current) drawStroke(ctx, current.current, width, height);
   };
 
-  useEffect(() => { setupCanvas(); redraw(); }, [width, height]);
+  useEffect(() => {
+    setupCanvas();
+    redraw();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height]);
 
   const getPos = (e) => {
     const c = canvasRef.current;

@@ -57,6 +57,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const saveTimer = useRef(null);
+  const loadedKeyRef = useRef(null);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['student-notebook-assignments', className],
@@ -134,9 +135,12 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
     })();
   }, [selectedAssignment]);
 
-  // Load strokes for current page
+  // Load strokes for current page — only when page/session changes, NOT on resize
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
+    const key = `${session.id}-${currentPage}`;
+    if (loadedKeyRef.current === key) return; // resize only — AnnotationCanvas redraws itself
+    loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
     if (pageData) {
       try { canvasRef.current.loadStrokes(JSON.parse(pageData)); }
