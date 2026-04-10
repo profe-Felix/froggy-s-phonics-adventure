@@ -316,21 +316,35 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     </div>
                   )}
                   {selectedAssignment.page_mode === 'free' && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <label className="text-indigo-300 text-sm">Page range:</label>
-                      <input type="number" min="1" placeholder="From"
-                        value={rangeStart}
-                        onChange={e => setRangeStart(e.target.value)}
-                        onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: v } }); setSelectedAssignment(a => ({ ...a, page_range_start: v })); } }}
-                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                        style={{ background: '#0f0f1a' }} />
-                      <span className="text-indigo-400">–</span>
-                      <input type="number" min="1" placeholder="To"
-                        value={rangeEnd}
-                        onChange={e => setRangeEnd(e.target.value)}
-                        onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: v } }); setSelectedAssignment(a => ({ ...a, page_range_end: v })); } }}
-                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                        style={{ background: '#0f0f1a' }} />
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={!!selectedAssignment.limit_pages}
+                          onChange={e => {
+                            const v = e.target.checked;
+                            updateAssignment.mutate({ id: selectedAssignment.id, data: { limit_pages: v } });
+                            setSelectedAssignment(a => ({ ...a, limit_pages: v }));
+                          }}
+                          className="w-4 h-4 accent-indigo-500" />
+                        <span className="text-indigo-300 text-sm font-bold">Limit pages</span>
+                      </label>
+                      {selectedAssignment.limit_pages && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <label className="text-indigo-300 text-sm">Page range:</label>
+                          <input type="number" min="1" placeholder="From"
+                            value={rangeStart}
+                            onChange={e => setRangeStart(e.target.value)}
+                            onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: v } }); setSelectedAssignment(a => ({ ...a, page_range_start: v })); } }}
+                            className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                            style={{ background: '#0f0f1a' }} />
+                          <span className="text-indigo-400">–</span>
+                          <input type="number" min="1" placeholder="To"
+                            value={rangeEnd}
+                            onChange={e => setRangeEnd(e.target.value)}
+                            onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: v } }); setSelectedAssignment(a => ({ ...a, page_range_end: v })); } }}
+                            className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                            style={{ background: '#0f0f1a' }} />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

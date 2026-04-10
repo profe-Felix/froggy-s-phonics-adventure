@@ -39,13 +39,18 @@
       "default": 1,
       "description": "Current page when mode=locked"
     },
+    "limit_pages": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, restrict students to page_range_start..page_range_end"
+    },
     "page_range_start": {
       "type": "integer",
-      "description": "First allowed page (free mode)"
+      "description": "First allowed page (free mode, when limit_pages=true)"
     },
     "page_range_end": {
       "type": "integer",
-      "description": "Last allowed page (free mode)"
+      "description": "Last allowed page (free mode, when limit_pages=true)"
     },
     "audio_instructions": {
       "type": "array",

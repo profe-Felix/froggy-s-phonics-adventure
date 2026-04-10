@@ -7,6 +7,8 @@ import VoiceNoteRecorder from './VoiceNoteRecorder';
 import LaserRecordView from './LaserRecordView';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
+import PageNavBar from './PageNavBar';
+import PageNavBar from './PageNavBar';
 
 
 function getYouTubeEmbedUrl(url) {
@@ -73,6 +75,13 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       // Sync locked page
       if (a.page_mode === 'locked' && a.locked_page && a.locked_page !== currentPage) {
         setCurrentPage(a.locked_page);
+      }
+      // Clamp to range
+      if (a.limit_pages && a.page_range_start && currentPage < a.page_range_start) {
+        setCurrentPage(a.page_range_start);
+      }
+      if (a.limit_pages && a.page_range_end && currentPage > a.page_range_end) {
+        setCurrentPage(a.page_range_end);
       }
       // Broadcast video
       if (a.broadcast_video && a.broadcast_video !== broadcastUrl) {
@@ -187,8 +196,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const pageAudio = selectedAssignment?.audio_instructions?.filter(a => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter(v => v.page === currentPage) || [];
 
-  const minPage = selectedAssignment?.page_range_start || 1;
-  const maxPage = selectedAssignment?.page_range_end || 999;
+  const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
+  const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
+  const maxPage = limitActive ? (selectedAssignment?.page_range_end || 999) : 999;
 
   if (!selectedAssignment) {
     return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} />;
@@ -334,16 +344,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
 
       {/* Page navigation */}
       {selectedAssignment.page_mode !== 'locked' && (
-        <div className="flex items-center justify-center gap-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderTop: '2px solid #4338ca' }}>
-          <button disabled={currentPage <= minPage} onClick={() => goToPage(currentPage - 1)}
-            className="px-4 py-1.5 rounded-xl font-bold text-white disabled:opacity-30"
-            style={{ background: '#4338ca' }}>‹ Prev</button>
-          <span className="text-white font-black text-sm">{currentPage} / {maxPage}</span>
-          <button disabled={currentPage >= maxPage} onClick={() => goToPage(currentPage + 1)}
-            className="px-4 py-1.5 rounded-xl font-bold text-white disabled:opacity-30"
-            style={{ background: '#4338ca' }}>Next ›</button>
-        </div>
-      )}
+        <PageNavBar currentPage={currentPage} minPage={minPage} maxPage={maxPage} onGo={goToPage} />)
+      }
     </div>
   );
 }
