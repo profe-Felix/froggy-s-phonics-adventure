@@ -29,12 +29,18 @@ function drawStrokes(canvas, strokesData, w, h) {
   }
 }
 
-export default function StudentThumbnail({ session, assignment, onOpen }) {
+export default function StudentThumbnail({ session, assignment, viewPage, onOpen }) {
   const overlayRef = useRef(null);
   const [pdfSize, setPdfSize] = useState(null);
-  const page = session.current_page || 1;
-  const strokesData = session.strokes_by_page?.[String(page)];
+  const displayPage = viewPage || session.current_page || 1;
+  const studentPage = session.current_page || 1;
+  const page = displayPage;
+  const strokesData = session.strokes_by_page?.[String(displayPage)];
   const hasWork = session.strokes_by_page && Object.keys(session.strokes_by_page).length > 0;
+  const voiceNoteUrl = session.voice_notes_by_page?.[String(displayPage)];
+
+  // Reset pdfSize when page changes so PdfPageRenderer re-renders
+  useEffect(() => { setPdfSize(null); }, [displayPage]);
 
   useEffect(() => {
     if (pdfSize && overlayRef.current) {
@@ -53,7 +59,12 @@ export default function StudentThumbnail({ session, assignment, onOpen }) {
         <div className="w-7 h-7 rounded-full flex items-center justify-center font-black text-white text-sm" style={{ background: '#4338ca' }}>
           {session.student_number}
         </div>
-        <span className="text-xs text-indigo-300 font-bold">Pg {page}</span>
+        <div className="flex items-center gap-1">
+          {viewPage && displayPage !== studentPage && (
+            <span className="text-xs text-yellow-400" title={`Student is on pg ${studentPage}`}>✦{studentPage}</span>
+          )}
+          <span className="text-xs text-indigo-300 font-bold">Pg {displayPage}</span>
+        </div>
         {!hasWork && <span className="text-xs text-indigo-500 italic">No work</span>}
       </div>
 
@@ -78,6 +89,16 @@ export default function StudentThumbnail({ session, assignment, onOpen }) {
         )}
       </div>
 
+      {/* Voice note player */}
+      {voiceNoteUrl && (
+        <div className="px-2 py-1" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-purple-300">🎙</span>
+            <audio controls src={voiceNoteUrl} className="w-full h-7" style={{ minWidth: 0 }} />
+          </div>
+        </div>
+      )}
+
       {/* Page dots */}
       {hasWork && (
         <div className="flex flex-wrap gap-1 px-2 py-1.5">
@@ -86,7 +107,7 @@ export default function StudentThumbnail({ session, assignment, onOpen }) {
               key={pg}
               onClick={e => { e.stopPropagation(); onOpen(session, parseInt(pg)); }}
               className="px-1.5 py-0.5 rounded text-xs font-bold text-white"
-              style={{ background: parseInt(pg) === page ? '#9333ea' : '#4338ca' }}
+              style={{ background: parseInt(pg) === displayPage ? '#9333ea' : '#4338ca' }}
             >
               {pg}
             </button>

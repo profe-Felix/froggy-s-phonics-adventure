@@ -286,17 +286,17 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         )}
       </div>
 
-      {/* Voice note button */}
+      {/* Voice note button — opposite side from toolbar */}
       <button
         onClick={() => setShowVoiceNote(v => !v)}
-        className="fixed bottom-20 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+        className={`fixed bottom-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl ${side === 'left' ? 'right-4' : 'left-4'}`}
         style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
       >
         🎙
       </button>
 
       {showVoiceNote && (
-        <div className="fixed bottom-36 left-4 z-40 w-72">
+        <div className={`fixed bottom-36 z-40 w-72 ${side === 'left' ? 'right-4' : 'left-4'}`}>
           <VoiceNoteRecorder
             existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
             onSaved={saveVoiceNote}

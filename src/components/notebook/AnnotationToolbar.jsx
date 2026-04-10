@@ -45,9 +45,9 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         initial={{ x: side === 'left' ? -80 : 80, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl
+        className={`fixed top-16 z-50 flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl overflow-y-auto
           ${side === 'left' ? 'left-2' : 'right-2'}`}
-        style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
+        style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: 'calc(100vh - 5rem)' }}
       >
         <button
           onClick={onSideToggle}
