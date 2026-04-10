@@ -13,30 +13,52 @@ function setupCanvas(canvas, w, h) {
   return ctx;
 }
 
-function scalePoint(p, sx, sy) { return { x: p.x * sx, y: p.y * sy }; }
+function getScale(data, w, h) {
+  // old saves: canvasWidth present, coords are absolute pixels
+  // new saves: no canvasWidth, coords are normalized 0-1
+  return {
+    sx: data?.canvasWidth ? w / data.canvasWidth : w,
+    sy: data?.canvasHeight ? h / data.canvasHeight : h,
+  };
+}
 
-function drawAllStrokes(canvas, strokesData, w, h) {
-  const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
-  const strokes = data?.strokes || [];
-  const sx = data?.canvasWidth ? w / data.canvasWidth : 1;
-  const sy = data?.canvasHeight ? h / data.canvasHeight : 1;
-  const ctx = setupCanvas(canvas, w, h);
+function buildTimeline(data) {
+  const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
+  const timeline = [];
   for (const s of strokes) {
-    if (!s.pts || s.pts.length < 2) continue;
+    for (let i = 1; i < s.pts.length; i++) timeline.push({ s, i });
+  }
+  return timeline;
+}
+
+function renderToFrame(ctx, timeline, upTo, sx, sy) {
+  const dpr = window.devicePixelRatio || 1;
+  // clear
+  const c = ctx.canvas;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.restore();
+  for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
+    const { s, i } = timeline[idx];
     ctx.beginPath();
     ctx.strokeStyle = s.color || '#4338ca';
-    ctx.lineWidth = Math.max(1, (s.size || 4));
+    ctx.lineWidth = Math.max(1, s.size || 4);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-    const p0 = scalePoint(s.pts[0], sx, sy);
-    ctx.moveTo(p0.x, p0.y);
-    for (let i = 1; i < s.pts.length; i++) {
-      const p = scalePoint(s.pts[i], sx, sy);
-      ctx.lineTo(p.x, p.y);
-    }
+    ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
+    ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
     ctx.stroke();
   }
+}
+
+function drawAllStrokes(canvas, strokesData, w, h) {
+  const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
+  const { sx, sy } = getScale(data, w, h);
+  const timeline = buildTimeline(data);
+  const ctx = setupCanvas(canvas, w, h);
+  renderToFrame(ctx, timeline, timeline.length, sx, sy);
 }
 
 export default function ReplayModal({ session, assignment, onClose, pageOverride }) {
@@ -46,6 +68,11 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
   const [playing, setPlaying] = useState(false);
   const animRef = useRef(null);
   const [activePage, setActivePage] = useState(pageOverride || session.current_page || 1);
+  const [scrubPos, setScrubPos] = useState(0);
+  const [totalPts, setTotalPts] = useState(0);
+  const timelineRef = useRef([]);
+  const ctxRef = useRef(null);
+  const scaleRef = useRef({ sx: 1, sy: 1 });
 
   const allPages = Object.keys(session.strokes_by_page || {}).map(Number).sort((a, b) => a - b);
   const pageKey = String(activePage);
@@ -61,41 +88,53 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
   // Draw all strokes statically once PDF is sized
   useEffect(() => {
     if (!pdfSize || !overlayCanvasRef.current || !strokesData) return;
-    drawAllStrokes(overlayCanvasRef.current, strokesData, pdfSize.w, pdfSize.h);
+    const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
+    const { sx, sy } = getScale(data, pdfSize.w, pdfSize.h);
+    const tl = buildTimeline(data);
+    timelineRef.current = tl;
+    scaleRef.current = { sx, sy };
+    setTotalPts(tl.length);
+    const ctx = setupCanvas(overlayCanvasRef.current, pdfSize.w, pdfSize.h);
+    ctxRef.current = ctx;
+    const pos = tl.length;
+    setScrubPos(pos);
+    renderToFrame(ctx, tl, pos, sx, sy);
   }, [pdfSize, strokesData]);
 
-  const handleReplay = () => {
-    if (playing || !overlayCanvasRef.current || !strokesData || !pdfSize) return;
-    const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
-    const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
-
-    const ctx = setupCanvas(overlayCanvasRef.current, pdfSize.w, pdfSize.h);
-    const sx = data?.canvasWidth ? pdfSize.w / data.canvasWidth : 1;
-    const sy = data?.canvasHeight ? pdfSize.h / data.canvasHeight : 1;
-    setPlaying(true);
-
-    // Build timeline: each entry is one segment to draw
-    const timeline = [];
-    for (const s of strokes) {
-      for (let i = 1; i < s.pts.length; i++) {
-        timeline.push({ s, i });
-      }
+  const handleScrub = (val) => {
+    const pos = parseInt(val);
+    setScrubPos(pos);
+    if (ctxRef.current && timelineRef.current.length > 0) {
+      const { sx, sy } = scaleRef.current;
+      renderToFrame(ctxRef.current, timelineRef.current, pos, sx, sy);
     }
+  };
 
-    let idx = 0;
+  const handleReplay = () => {
+    if (playing || !ctxRef.current || timelineRef.current.length === 0) return;
+    clearTimeout(animRef.current);
+    const tl = timelineRef.current;
+    const { sx, sy } = scaleRef.current;
+    let idx = scrubPos >= tl.length ? 0 : scrubPos;
+    if (idx === 0) renderToFrame(ctxRef.current, tl, 0, sx, sy);
+    setPlaying(true);
     const step = () => {
-      if (idx >= timeline.length) { setPlaying(false); return; }
-      const { s, i } = timeline[idx];
-      ctx.beginPath();
-      ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, s.size || 4);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
-      ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
-      ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
-      ctx.stroke();
-      idx++;
+      if (idx >= tl.length) { setPlaying(false); setScrubPos(tl.length); return; }
+      const batch = Math.min(3, tl.length - idx);
+      for (let b = 0; b < batch; b++) {
+        const { s, i } = tl[idx + b];
+        ctxRef.current.beginPath();
+        ctxRef.current.strokeStyle = s.color || '#4338ca';
+        ctxRef.current.lineWidth = Math.max(1, s.size || 4);
+        ctxRef.current.lineCap = 'round';
+        ctxRef.current.lineJoin = 'round';
+        ctxRef.current.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
+        ctxRef.current.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
+        ctxRef.current.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
+        ctxRef.current.stroke();
+      }
+      idx += batch;
+      setScrubPos(idx);
       animRef.current = setTimeout(() => requestAnimationFrame(step), 8);
     };
     requestAnimationFrame(step);
@@ -159,14 +198,37 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           )}
         </div>
 
-        <button
-          onClick={handleReplay}
-          disabled={playing || !strokesData}
-          className="py-2 rounded-xl font-bold text-white shrink-0 disabled:opacity-50 transition-all"
-          style={{ background: '#9333ea' }}
-        >
-          {playing ? '▶ Playing…' : '▶ Replay Strokes'}
-        </button>
+        {/* Scrub slider */}
+        {totalPts > 0 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-indigo-400 w-6">0</span>
+            <input
+              type="range" min={0} max={totalPts} value={scrubPos}
+              onChange={e => handleScrub(e.target.value)}
+              disabled={playing}
+              className="flex-1 accent-purple-500"
+            />
+            <span className="text-xs text-indigo-400 w-8 text-right">{totalPts}</span>
+          </div>
+        )}
+        <div className="flex gap-2 shrink-0">
+          <button
+            onClick={handleReplay}
+            disabled={playing || !strokesData}
+            className="flex-1 py-2 rounded-xl font-bold text-white disabled:opacity-50 transition-all"
+            style={{ background: '#9333ea' }}
+          >
+            {playing ? '▶ Playing…' : '▶ Play'}
+          </button>
+          <button
+            onClick={() => { clearTimeout(animRef.current); setPlaying(false); setScrubPos(0); if (ctxRef.current && timelineRef.current.length) renderToFrame(ctxRef.current, timelineRef.current, 0, scaleRef.current.sx, scaleRef.current.sy); }}
+            disabled={playing}
+            className="px-4 py-2 rounded-xl font-bold text-white disabled:opacity-50"
+            style={{ background: '#4338ca' }}
+          >
+            ↩ Reset
+          </button>
+        </div>
       </div>
     </div>
   );
