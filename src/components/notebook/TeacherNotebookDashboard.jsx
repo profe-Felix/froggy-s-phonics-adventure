@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import LaserRecordView from './LaserRecordView';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReplayModal from './ReplayModal';
 import StudentThumbnail from './StudentThumbnail';
@@ -219,7 +220,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
 
       {/* Tabs */}
       <div className="flex gap-0 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-        {[['assignments', '📋 Assignments'], ['manage', '⚙️ Manage'], ['students', '👥 Students']].map(([id, label]) => (
+        {[['assignments', '📋 Assignments'], ['manage', '⚙️ Manage'], ['students', '👥 Students'], ['record', '🎥 Record']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-5 py-2.5 font-bold text-sm transition-all ${tab === id ? 'text-white border-b-2 border-indigo-400' : 'text-indigo-400 hover:text-white'}`}>
             {label}
@@ -417,6 +418,11 @@ export default function TeacherNotebookDashboard({ onBack }) {
               </>
             )}
           </div>
+        )}
+
+        {/* RECORD TAB */}
+        {tab === 'record' && (
+          <LaserRecordView assignment={selectedAssignment} />
         )}
 
       </div>
