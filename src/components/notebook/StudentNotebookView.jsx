@@ -8,7 +8,6 @@ import LaserRecordView from './LaserRecordView';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 import PageNavBar from './PageNavBar';
-import PageNavBar from './PageNavBar';
 
 
 function getYouTubeEmbedUrl(url) {
