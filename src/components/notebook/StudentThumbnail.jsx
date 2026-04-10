@@ -37,6 +37,7 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
   const strokesData = session.strokes_by_page?.[String(displayPage)];
   const hasWork = session.strokes_by_page && Object.keys(session.strokes_by_page).length > 0;
   const voiceNoteUrl = session.voice_notes_by_page?.[String(displayPage)];
+  const recordingUrl = session.recordings_by_page?.[String(displayPage)];
 
   // Reset pdfSize when page changes so PdfPageRenderer re-renders
   useEffect(() => { setPdfSize(null); }, [displayPage]);
@@ -95,6 +96,16 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
             <span className="text-xs text-purple-300">🎙</span>
             <audio controls src={voiceNoteUrl} className="w-full h-7" style={{ minWidth: 0 }} />
           </div>
+        </div>
+      )}
+
+      {/* Video recording player */}
+      {recordingUrl && (
+        <div className="px-2 py-1" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1 mb-1">
+            <span className="text-xs text-green-300">🎥 Recording</span>
+          </div>
+          <video controls src={recordingUrl} className="w-full rounded" style={{ maxHeight: 80 }} />
         </div>
       )}
 

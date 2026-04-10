@@ -255,7 +255,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       {/* Main content area: toolbar + PDF side by side */}
       {showLaserRecord ? (
         <div className="flex-1 overflow-auto">
-          <LaserRecordView assignment={selectedAssignment} />
+          <LaserRecordView
+            assignment={selectedAssignment}
+            session={session}
+            onRecordingSaved={(updated) => setSession(s => ({ ...s, recordings_by_page: updated }))}
+          />
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>

@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
+import { base44 } from '@/api/base44Client';
 
-export default function LaserRecordView({ assignment }) {
+export default function LaserRecordView({ assignment, session, onRecordingSaved }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [laserOn, setLaserOn] = useState(false);
   const [laserPos, setLaserPos] = useState(null);
   const [recording, setRecording] = useState(false);
   const [recordedUrl, setRecordedUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [laserTrail, setLaserTrail] = useState([]);
 
   const containerRef = useRef(null);
@@ -98,12 +100,24 @@ export default function LaserRecordView({ assignment }) {
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
     const mr = new MediaRecorder(combined, { mimeType });
     mr.ondataavailable = e => chunksRef.current.push(e.data);
-    mr.onstop = () => {
+    mr.onstop = async () => {
       cancelAnimationFrame(animFrameRef.current);
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      setRecordedUrl(URL.createObjectURL(blob));
       tracks.forEach(t => t.stop());
       setRecording(false);
+      setUploading(true);
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      const localUrl = URL.createObjectURL(blob);
+      setRecordedUrl(localUrl);
+      try {
+        const file = new File([blob], `recording-p${currentPage}.webm`, { type: 'video/webm' });
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        if (session && onRecordingSaved) {
+          const updated = { ...(session.recordings_by_page || {}), [String(currentPage)]: file_url };
+          await base44.entities.NotebookSession.update(session.id, { recordings_by_page: updated });
+          onRecordingSaved(updated);
+        }
+      } catch (e) { console.error(e); }
+      setUploading(false);
     };
     mr.start(100);
     mediaRecorderRef.current = mr;
@@ -142,6 +156,7 @@ export default function LaserRecordView({ assignment }) {
           </button>
         )}
         {recording && <span className="text-xs text-red-400 font-bold animate-pulse">● REC</span>}
+      {uploading && <span className="text-xs text-yellow-400 font-bold animate-pulse">⬆ Uploading…</span>}
 
         <div className="flex items-center gap-2 ml-auto">
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))}

@@ -19,6 +19,14 @@
       "type": "object",
       "description": "Map of page number (string key) -> strokes JSON array"
     },
+    "voice_notes_by_page": {
+      "type": "object",
+      "description": "Map of page number (string key) -> audio URL"
+    },
+    "recordings_by_page": {
+      "type": "object",
+      "description": "Map of page number (string key) -> video URL"
+    },
     "last_active": {
       "type": "string",
       "description": "ISO timestamp"
