@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AnnotationToolbar from './AnnotationToolbar';
 import VoiceNoteRecorder from './VoiceNoteRecorder';
+import LaserRecordView from './LaserRecordView';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 
@@ -49,6 +50,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const [broadcastUrl, setBroadcastUrl] = useState(null);
   const [showAudioHint, setShowAudioHint] = useState(false);
   const [showVoiceNote, setShowVoiceNote] = useState(false);
+  const [showLaserRecord, setShowLaserRecord] = useState(false);
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
@@ -195,6 +197,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
         <button onClick={saveStrokes} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#4338ca' }}>💾 Save</button>
+        <button onClick={() => setShowLaserRecord(v => !v)}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+          style={{ background: showLaserRecord ? '#9333ea' : '#4338ca' }}>🎥 Record</button>
       </div>
 
       {/* Broadcast video overlay */}
@@ -257,36 +262,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         side={side} onSideToggle={() => setSide(s => s === 'left' ? 'right' : 'left')}
       />
 
-      {/* PDF + Canvas area */}
-      <div ref={containerRef} className="flex-1 relative overflow-auto" style={{ background: '#e8e8e8' }}>
-        {/* PDF rendered as canvas */}
-        {selectedAssignment.pdf_url ? (
-          <div style={{ position: 'relative' }}>
-            <PdfPageRenderer
-              pdfUrl={selectedAssignment.pdf_url}
-              pageNumber={currentPage}
-              onRendered={(w, h) => setPdfRenderedSize({ w, h })}
-            />
-            {pdfRenderedSize && (
-              <AnnotationCanvas
-                ref={canvasRef}
-                width={pdfRenderedSize.w}
-                height={pdfRenderedSize.h}
-                color={color}
-                size={size}
-                tool={tool}
-                mode="draw"
-              />
-            )}
-          </div>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-white">
-            <p className="text-gray-400 text-lg">No PDF uploaded</p>
-          </div>
-        )}
-      </div>
+      {/* Laser+Record overlay mode */}
+      {showLaserRecord && (
+        <div className="flex-1 overflow-auto p-3" style={{ background: '#0f0f1a' }}>
+          <LaserRecordView assignment={selectedAssignment} />
+        </div>
+      )}
 
-      {/* Voice note button — opposite side from toolbar */}
+      {/* PDF + Canvas area */}
       <button
         onClick={() => setShowVoiceNote(v => !v)}
         className={`fixed bottom-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl ${side === 'left' ? 'right-4' : 'left-4'}`}

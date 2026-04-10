@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
 
 export default function LaserRecordView({ assignment }) {
@@ -12,7 +12,7 @@ export default function LaserRecordView({ assignment }) {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
-  const maxPage = assignment?.page_range_end || assignment?.pdf_page_count || 99;
+  const maxPage = assignment?.page_range_end || assignment?.pdf_page_count || 999;
   const minPage = assignment?.page_range_start || 1;
 
   const getPos = (e) => {
@@ -94,10 +94,10 @@ export default function LaserRecordView({ assignment }) {
 
         {/* Page nav */}
         <div className="flex items-center gap-2 ml-auto">
-          <button disabled={currentPage <= minPage} onClick={() => { setPdfSize(null); setCurrentPage(p => p - 1); }}
+          <button disabled={currentPage <= minPage} onClick={() => setCurrentPage(p => Math.max(minPage, p - 1))}
             className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30 flex items-center justify-center" style={{ background: '#4338ca' }}>‹</button>
           <span className="text-white font-black text-sm">Pg {currentPage}</span>
-          <button disabled={currentPage >= maxPage} onClick={() => { setPdfSize(null); setCurrentPage(p => p + 1); }}
+          <button disabled={currentPage >= maxPage} onClick={() => setCurrentPage(p => Math.min(maxPage, p + 1))}
             className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30 flex items-center justify-center" style={{ background: '#4338ca' }}>›</button>
         </div>
       </div>
