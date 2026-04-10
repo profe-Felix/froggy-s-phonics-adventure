@@ -122,12 +122,13 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [showVideo, setShowVideo] = useState(false);
   const [audioPage, setAudioPage] = useState(1);
   const [videoBroadcast, setVideoBroadcast] = useState('');
-  const [viewingSession, setViewingSession] = useState(null);
+  const [globalViewPage, setGlobalViewPage] = useState(null);
   const [replaySession, setReplaySession] = useState(null);
   const [replayAssignment, setReplayAssignment] = useState(null);
   const [replayPage, setReplayPage] = useState(null);
-  const [globalViewPage, setGlobalViewPage] = useState(null);
   const [newTitle, setNewTitle] = useState('');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
@@ -182,6 +183,12 @@ export default function TeacherNotebookDashboard({ onBack }) {
     });
     setShowVideo(false);
   };
+
+  // Sync range inputs when assignment changes
+  useEffect(() => {
+    setRangeStart(selectedAssignment?.page_range_start ?? '');
+    setRangeEnd(selectedAssignment?.page_range_end ?? '');
+  }, [selectedAssignment?.id]);
 
   const setPageMode = (mode) => {
     updateAssignment.mutate({ id: selectedAssignment.id, data: { page_mode: mode } });
@@ -312,14 +319,16 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <label className="text-indigo-300 text-sm">Page range:</label>
                       <input type="number" min="1" placeholder="From"
-                        value={selectedAssignment.page_range_start || ''}
-                        onChange={e => updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: parseInt(e.target.value) } })}
+                        value={rangeStart}
+                        onChange={e => setRangeStart(e.target.value)}
+                        onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: v } }); setSelectedAssignment(a => ({ ...a, page_range_start: v })); } }}
                         className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
                         style={{ background: '#0f0f1a' }} />
                       <span className="text-indigo-400">–</span>
                       <input type="number" min="1" placeholder="To"
-                        value={selectedAssignment.page_range_end || ''}
-                        onChange={e => updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: parseInt(e.target.value) } })}
+                        value={rangeEnd}
+                        onChange={e => setRangeEnd(e.target.value)}
+                        onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: v } }); setSelectedAssignment(a => ({ ...a, page_range_end: v })); } }}
                         className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
                         style={{ background: '#0f0f1a' }} />
                     </div>

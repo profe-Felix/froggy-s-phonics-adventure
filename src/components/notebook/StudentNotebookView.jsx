@@ -333,7 +333,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       )}
 
       {/* Page navigation */}
-      {selectedAssignment.page_mode === 'free' && (
+      {selectedAssignment.page_mode !== 'locked' && (
         <div className="flex items-center justify-center gap-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderTop: '2px solid #4338ca' }}>
           <button disabled={currentPage <= minPage} onClick={() => goToPage(currentPage - 1)}
             className="px-4 py-1.5 rounded-xl font-bold text-white disabled:opacity-30"
