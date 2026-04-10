@@ -258,6 +258,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
           <LaserRecordView
             assignment={selectedAssignment}
             session={session}
+            initialPage={currentPage}
             onRecordingSaved={(updated) => setSession(s => ({ ...s, recordings_by_page: updated }))}
           />
         </div>

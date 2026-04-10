@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef } from 'react';
 
 const COLORS = [
   { label: 'Black', value: '#000000' },
@@ -38,6 +37,8 @@ const TOOLS = [
 
 export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear }) {
   const [showColors, setShowColors] = useState(false);
+  const [colorBtnPos, setColorBtnPos] = useState(null);
+  const colorBtnRef = useRef(null);
 
   return (
     <div className="relative flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl overflow-y-auto shrink-0"
@@ -53,13 +54,33 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
       <div className="h-px bg-indigo-800 my-1" />
 
-      <button onClick={() => setShowColors(v => !v)} title="Color"
+      <button
+        ref={colorBtnRef}
+        onClick={() => {
+          if (!showColors && colorBtnRef.current) {
+            const r = colorBtnRef.current.getBoundingClientRect();
+            setColorBtnPos({ top: r.top, left: r.right + 4 });
+          }
+          setShowColors(v => !v);
+        }}
+        title="Color"
         className="w-9 h-9 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
-        style={{ background: color }} />
+        style={{ background: color }}
+      />
 
-      {showColors && (
-        <div className="absolute left-full top-0 ml-1 z-50"
-          style={{ background: '#1a1a2e', border: '2px solid #4338ca', borderRadius: 16, padding: 8, width: 108 }}>
+      {showColors && colorBtnPos && (
+        <div
+          className="fixed z-50"
+          style={{
+            top: Math.min(colorBtnPos.top, window.innerHeight - 320),
+            left: colorBtnPos.left,
+            background: '#1a1a2e',
+            border: '2px solid #4338ca',
+            borderRadius: 16,
+            padding: 8,
+            width: 120,
+          }}
+        >
           <p className="text-indigo-300 text-xs font-bold text-center mb-2">Crayons</p>
           <div className="grid grid-cols-2 gap-1">
             {COLORS.map(c => (

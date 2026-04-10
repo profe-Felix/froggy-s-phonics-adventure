@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
 import { base44 } from '@/api/base44Client';
 
-export default function LaserRecordView({ assignment, session, onRecordingSaved }) {
-  const [currentPage, setCurrentPage] = useState(1);
+export default function LaserRecordView({ assignment, session, onRecordingSaved, initialPage = 1 }) {
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [laserOn, setLaserOn] = useState(false);
   const [laserPos, setLaserPos] = useState(null);
   const [recording, setRecording] = useState(false);
