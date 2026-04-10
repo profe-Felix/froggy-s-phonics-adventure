@@ -48,8 +48,10 @@ function StudentLogin({ onEnter }) {
 }
 
 export default function DigitalNotebook() {
-  const [role, setRole] = useState(null); // null | 'teacher' | 'student'
-  const [studentInfo, setStudentInfo] = useState(null); // { className, number }
+  const params = new URLSearchParams(window.location.search);
+  const isTeacherMode = params.get('mode') === 'teacher';
+  const [role, setRole] = useState(isTeacherMode ? 'teacher' : null);
+  const [studentInfo, setStudentInfo] = useState(null);
 
   if (role === 'teacher') {
     return <TeacherNotebookDashboard onBack={() => setRole(null)} />;
@@ -87,12 +89,14 @@ export default function DigitalNotebook() {
         <p className="text-indigo-300">Annotate PDFs, record instructions, review student work</p>
       </div>
       <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
-        <motion.button whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.03 }} onClick={() => setRole('teacher')}
-          className="flex-1 py-6 rounded-3xl font-black text-white text-xl shadow-2xl flex flex-col items-center gap-2"
-          style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
-          <span className="text-3xl">👩‍🏫</span>
-          Teacher
-        </motion.button>
+        {isTeacherMode && (
+          <motion.button whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.03 }} onClick={() => setRole('teacher')}
+            className="flex-1 py-6 rounded-3xl font-black text-white text-xl shadow-2xl flex flex-col items-center gap-2"
+            style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
+            <span className="text-3xl">👩‍🏫</span>
+            Teacher
+          </motion.button>
+        )}
         <motion.button whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.03 }} onClick={() => setRole('student')}
           className="flex-1 py-6 rounded-3xl font-black text-white text-xl shadow-2xl flex flex-col items-center gap-2"
           style={{ background: '#2563eb', border: '3px solid #0d9488' }}>
