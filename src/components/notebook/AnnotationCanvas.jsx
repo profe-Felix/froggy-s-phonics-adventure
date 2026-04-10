@@ -10,10 +10,15 @@ function drawStroke(ctx, s) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = Math.max(1, s.size * 2.5);
     ctx.globalAlpha = 0.35;
-  } else if (s.tool === 'eraser') {
+  } else if (s.tool === 'eraser_object') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = Math.max(1, s.size * 2.5);
+    ctx.lineWidth = Math.max(1, s.size * 6);
+    ctx.globalAlpha = 1;
+  } else if (s.tool === 'eraser_pixel') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(1, s.size * 1.5);
     ctx.globalAlpha = 1;
   } else {
     ctx.globalCompositeOperation = 'source-over';
@@ -79,7 +84,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       if (e.touches && e.touches.length >= 2) return;
       e.preventDefault();
       const p = getPos(e);
-      current.current = { color, size, tool: tool === 'eraser' ? 'eraser' : tool === 'highlighter' ? 'highlighter' : 'pen', pts: [p] };
+      const toolName = tool === 'highlighter' ? 'highlighter' : tool === 'eraser_object' ? 'eraser_object' : tool === 'eraser_pixel' ? 'eraser_pixel' : 'pen';
+      current.current = { color, size, tool: toolName, pts: [p] };
       drawing.current = true;
       redraw();
     };
@@ -151,7 +157,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
         position: 'absolute', inset: 0, zIndex: 10,
         width: width + 'px', height: height + 'px',
         touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
-        cursor: mode === 'draw' ? (tool === 'eraser' ? 'cell' : 'crosshair') : 'default',
+        cursor: mode === 'draw' ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair') : 'default',
         background: 'transparent',
       }}
     />

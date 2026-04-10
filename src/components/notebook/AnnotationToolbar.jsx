@@ -32,7 +32,8 @@ const SIZES = [2, 4, 7, 12];
 const TOOLS = [
   { id: 'pen', label: '✏️', title: 'Pen' },
   { id: 'highlighter', label: '🖍', title: 'Highlighter' },
-  { id: 'eraser', label: '⬜', title: 'Eraser' },
+  { id: 'eraser_object', label: '🧹', title: 'Object Eraser (big)' },
+  { id: 'eraser_pixel', label: '◻️', title: 'Pixel Eraser (fine)' },
 ];
 
 export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear }) {
