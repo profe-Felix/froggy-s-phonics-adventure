@@ -3,13 +3,16 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
+// Module-level cache so re-mounting never re-downloads the same PDF
+const pdfCache = {};
+
 export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
   const renderTask = useRef(null);
-  const pdfDoc = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   // Watch container width via ResizeObserver
   useEffect(() => {
@@ -23,24 +26,28 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
     return () => obs.disconnect();
   }, []);
 
-  // Reset doc on url change
-  useEffect(() => {
-    pdfDoc.current = null;
-  }, [pdfUrl]);
 
   // Render whenever url, page, or container width changes
   useEffect(() => {
     if (!pdfUrl || containerWidth < 10) return;
     let cancelled = false;
 
+    setLoading(true);
     (async () => {
       try {
-        if (!pdfDoc.current) {
-          pdfDoc.current = await pdfjsLib.getDocument({ url: pdfUrl, withCredentials: false }).promise;
+        if (!pdfCache[pdfUrl]) {
+          pdfCache[pdfUrl] = pdfjsLib.getDocument({
+            url: pdfUrl,
+            withCredentials: false,
+            disableAutoFetch: true,   // don't pre-download all pages
+            disableStream: false,
+            rangeChunkSize: 65536,    // fetch in 64KB chunks on demand
+          }).promise;
         }
+        const doc = await pdfCache[pdfUrl];
         if (cancelled) return;
 
-        const page = await pdfDoc.current.getPage(pageNumber);
+        const page = await doc.getPage(pageNumber);
         if (cancelled) return;
 
         const canvas = canvasRef.current;
@@ -63,7 +70,10 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
         });
 
         await renderTask.current.promise;
-        if (!cancelled && onRendered) onRendered(scaled.width, scaled.height);
+        if (!cancelled) {
+          setLoading(false);
+          if (onRendered) onRendered(scaled.width, scaled.height);
+        }
       } catch (e) {
         if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
       }
@@ -75,8 +85,16 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} />
+    <div ref={containerRef} style={{ width: '100%', position: 'relative' }}>
+      {loading && (
+        <div style={{ position: 'absolute', inset: 0, minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div className="w-10 h-10 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            <span style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 13 }}>Loading page…</span>
+          </div>
+        </div>
+      )}
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', opacity: loading ? 0 : 1 }} />
     </div>
   );
 }
