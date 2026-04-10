@@ -270,15 +270,47 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
       )}
 
       {/* PDF + Canvas area */}
-      <button
-        onClick={() => setShowVoiceNote(v => !v)}
-        className={`fixed bottom-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl ${side === 'left' ? 'right-4' : 'left-4'}`}
-        style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
-      >
-        🎙
-      </button>
+      {!showLaserRecord && (
+        <div ref={containerRef} className="flex-1 relative overflow-auto" style={{ background: '#e8e8e8' }}>
+          {selectedAssignment.pdf_url ? (
+            <div style={{ position: 'relative' }}>
+              <PdfPageRenderer
+                pdfUrl={selectedAssignment.pdf_url}
+                pageNumber={currentPage}
+                onRendered={(w, h) => setPdfRenderedSize({ w, h })}
+              />
+              {pdfRenderedSize && (
+                <AnnotationCanvas
+                  ref={canvasRef}
+                  width={pdfRenderedSize.w}
+                  height={pdfRenderedSize.h}
+                  color={color}
+                  size={size}
+                  tool={tool}
+                  mode="draw"
+                />
+              )}
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-white">
+              <p className="text-gray-400 text-lg">No PDF uploaded</p>
+            </div>
+          )}
+        </div>
+      )}
 
-      {showVoiceNote && (
+      {/* Voice note button — opposite side from toolbar */}
+      {!showLaserRecord && (
+        <button
+          onClick={() => setShowVoiceNote(v => !v)}
+          className={`fixed bottom-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl ${side === 'left' ? 'right-4' : 'left-4'}`}
+          style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
+        >
+          🎙
+        </button>
+      )}
+
+      {showVoiceNote && !showLaserRecord && (
         <div className={`fixed bottom-36 z-40 w-72 ${side === 'left' ? 'right-4' : 'left-4'}`}>
           <VoiceNoteRecorder
             existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
