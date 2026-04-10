@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AnnotationToolbar from './AnnotationToolbar';
+import VoiceNoteRecorder from './VoiceNoteRecorder';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 
@@ -47,6 +48,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastUrl, setBroadcastUrl] = useState(null);
   const [showAudioHint, setShowAudioHint] = useState(false);
+  const [showVoiceNote, setShowVoiceNote] = useState(false);
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
@@ -149,6 +151,21 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
     });
     setSession(s => ({ ...s, strokes_by_page: updated, current_page: currentPage }));
     setSaving(false);
+  }, [session, currentPage]);
+
+  const saveVoiceNote = useCallback(async (url) => {
+    if (!session) return;
+    const updated = { ...(session.voice_notes_by_page || {}), [String(currentPage)]: url };
+    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
+    setSession(s => ({ ...s, voice_notes_by_page: updated }));
+  }, [session, currentPage]);
+
+  const deleteVoiceNote = useCallback(async () => {
+    if (!session) return;
+    const updated = { ...(session.voice_notes_by_page || {}) };
+    delete updated[String(currentPage)];
+    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
+    setSession(s => ({ ...s, voice_notes_by_page: updated }));
   }, [session, currentPage]);
 
   // Auto-save on page change
@@ -268,6 +285,25 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
           </div>
         )}
       </div>
+
+      {/* Voice note button */}
+      <button
+        onClick={() => setShowVoiceNote(v => !v)}
+        className="fixed bottom-20 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+        style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
+      >
+        🎙
+      </button>
+
+      {showVoiceNote && (
+        <div className="fixed bottom-36 left-4 z-40 w-72">
+          <VoiceNoteRecorder
+            existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
+            onSaved={saveVoiceNote}
+            onDelete={deleteVoiceNote}
+          />
+        </div>
+      )}
 
       {/* Page navigation */}
       {selectedAssignment.page_mode === 'free' && (

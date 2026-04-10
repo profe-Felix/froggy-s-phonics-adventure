@@ -125,6 +125,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [replaySession, setReplaySession] = useState(null);
   const [replayAssignment, setReplayAssignment] = useState(null);
   const [replayPage, setReplayPage] = useState(null);
+  const [globalViewPage, setGlobalViewPage] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
@@ -381,13 +382,25 @@ export default function TeacherNotebookDashboard({ onBack }) {
               <p className="text-indigo-400 text-center mt-8">Select an assignment first</p>
             ) : (
               <>
-                <p className="text-indigo-300 text-sm mb-4 font-bold">{sessions.length} student{sessions.length !== 1 ? 's' : ''} joined</p>
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                  <p className="text-indigo-300 text-sm font-bold">{sessions.length} student{sessions.length !== 1 ? 's' : ''} joined</p>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-indigo-400 text-xs font-bold">View page:</span>
+                    <button onClick={() => setGlobalViewPage(v => Math.max(1, (v || (selectedAssignment?.locked_page || 1)) - 1))}
+                      className="w-8 h-8 rounded-lg font-bold text-white flex items-center justify-center" style={{ background: '#4338ca' }}>‹</button>
+                    <span className="text-white font-black text-sm w-6 text-center">{globalViewPage || '—'}</span>
+                    <button onClick={() => setGlobalViewPage(v => (v || (selectedAssignment?.locked_page || 1)) + 1)}
+                      className="w-8 h-8 rounded-lg font-bold text-white flex items-center justify-center" style={{ background: '#4338ca' }}>›</button>
+                    {globalViewPage && <button onClick={() => setGlobalViewPage(null)} className="text-xs text-indigo-400 hover:text-white font-bold">Reset</button>}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
                   {sessions.map(s => (
                     <StudentThumbnail
                       key={s.id}
                       session={s}
                       assignment={selectedAssignment}
+                      viewPage={globalViewPage}
                       onOpen={(sess, pg) => { setReplaySession(sess); setReplayAssignment(selectedAssignment); setReplayPage(pg); }}
                     />
                   ))}
