@@ -60,6 +60,14 @@
         "type": "object"
       },
       "description": "Array of {page, url, label, type}"
+    },
+    "recording_pages": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Pages where students can record voice/video notes",
+      "default": []
     }
   },
   "required": [

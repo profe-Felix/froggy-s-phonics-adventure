@@ -358,6 +358,29 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   ))}
                 </div>
 
+                {/* Recording pages */}
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
+                  <p className="text-indigo-200 font-bold text-sm">🎙 Recording — Enabled Pages</p>
+                  <p className="text-indigo-400 text-xs">Students can only record voice notes on pages you enable here.</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {Array.from({ length: selectedAssignment.page_range_end || selectedAssignment.pdf_page_count || 10 }, (_, i) => i + (selectedAssignment.page_range_start || 1)).map(pg => {
+                      const enabled = (selectedAssignment.recording_pages || []).includes(pg);
+                      const toggle = () => {
+                        const current = selectedAssignment.recording_pages || [];
+                        const next = enabled ? current.filter(p => p !== pg) : [...current, pg];
+                        updateAssignment.mutate({ id: selectedAssignment.id, data: { recording_pages: next } });
+                        setSelectedAssignment(a => ({ ...a, recording_pages: next }));
+                      };
+                      return (
+                        <button key={pg} onClick={toggle}
+                          className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${enabled ? 'bg-indigo-600 text-white' : 'text-indigo-400 border border-indigo-700'}`}>
+                          {pg}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Broadcast video */}
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="text-indigo-200 font-bold text-sm">📡 Broadcast Video to All Students</p>

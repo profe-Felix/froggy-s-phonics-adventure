@@ -170,6 +170,13 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
     setSession(s => ({ ...s, voice_notes_by_page: updated }));
   }, [session, currentPage]);
 
+  // Auto-save every 20 seconds
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => { saveStrokes(); }, 20000);
+    return () => clearInterval(interval);
+  }, [saveStrokes, session]);
+
   // Auto-save on page change
   const goToPage = async (p) => {
     await saveStrokes();
@@ -197,9 +204,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
         <button onClick={saveStrokes} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#4338ca' }}>💾 Save</button>
-        <button onClick={() => setShowLaserRecord(v => !v)}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
-          style={{ background: showLaserRecord ? '#9333ea' : '#4338ca' }}>🎥 Record</button>
+
       </div>
 
       {/* Broadcast video overlay */}
@@ -304,24 +309,26 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
             )}
           </div>
 
-          {/* Voice note button */}
-          <button
-            onClick={() => setShowVoiceNote(v => !v)}
-            className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
-            style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
-          >
-            🎙
-          </button>
+          {/* Voice/Record buttons — only shown if teacher enabled recording on this page */}
+          {(selectedAssignment.recording_pages || []).includes(currentPage) && (<>
+            <button
+              onClick={() => setShowVoiceNote(v => !v)}
+              className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+              style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
+            >
+              🎙
+            </button>
 
-          {showVoiceNote && (
-            <div className="absolute bottom-36 right-4 z-40 w-72">
-              <VoiceNoteRecorder
-                existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
-                onSaved={saveVoiceNote}
-                onDelete={deleteVoiceNote}
-              />
-            </div>
-          )}
+            {showVoiceNote && (
+              <div className="absolute bottom-36 right-4 z-40 w-72">
+                <VoiceNoteRecorder
+                  existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
+                  onSaved={saveVoiceNote}
+                  onDelete={deleteVoiceNote}
+                />
+              </div>
+            )}
+          </>)}
         </div>
       )}
 
