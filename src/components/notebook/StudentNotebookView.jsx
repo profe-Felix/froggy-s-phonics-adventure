@@ -252,71 +252,70 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
         </div>
       )}
 
-      {/* Toolbar */}
-      <AnnotationToolbar
-        tool={tool} setTool={setTool}
-        color={color} setColor={setColor}
-        size={size} setSize={setSize}
-        onUndo={() => canvasRef.current?.undo()}
-        onClear={() => canvasRef.current?.clearStrokes()}
-        side={side} onSideToggle={() => setSide(s => s === 'left' ? 'right' : 'left')}
-      />
-
-      {/* Laser+Record overlay mode */}
-      {showLaserRecord && (
-        <div className="flex-1 overflow-auto p-3" style={{ background: '#0f0f1a' }}>
+      {/* Main content area: toolbar + PDF side by side */}
+      {showLaserRecord ? (
+        <div className="flex-1 overflow-auto">
           <LaserRecordView assignment={selectedAssignment} />
         </div>
-      )}
+      ) : (
+        <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
+          {/* Sidebar toolbar */}
+          <div className="p-1.5 overflow-y-auto shrink-0" style={{ background: '#1a1a2e' }}>
+            <AnnotationToolbar
+              tool={tool} setTool={setTool}
+              color={color} setColor={setColor}
+              size={size} setSize={setSize}
+              onUndo={() => canvasRef.current?.undo()}
+              onClear={() => canvasRef.current?.clearStrokes()}
+            />
+          </div>
 
-      {/* PDF + Canvas area */}
-      {!showLaserRecord && (
-        <div ref={containerRef} className="flex-1 relative overflow-auto" style={{ background: '#e8e8e8' }}>
-          {selectedAssignment.pdf_url ? (
-            <div style={{ position: 'relative' }}>
-              <PdfPageRenderer
-                pdfUrl={selectedAssignment.pdf_url}
-                pageNumber={currentPage}
-                onRendered={(w, h) => setPdfRenderedSize({ w, h })}
-              />
-              {pdfRenderedSize && (
-                <AnnotationCanvas
-                  ref={canvasRef}
-                  width={pdfRenderedSize.w}
-                  height={pdfRenderedSize.h}
-                  color={color}
-                  size={size}
-                  tool={tool}
-                  mode="draw"
+          {/* PDF + canvas */}
+          <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8' }}>
+            {selectedAssignment.pdf_url ? (
+              <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
+                <PdfPageRenderer
+                  pdfUrl={selectedAssignment.pdf_url}
+                  pageNumber={currentPage}
+                  onRendered={(w, h) => setPdfRenderedSize({ w, h })}
                 />
-              )}
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-white">
-              <p className="text-gray-400 text-lg">No PDF uploaded</p>
+                {pdfRenderedSize && (
+                  <AnnotationCanvas
+                    ref={canvasRef}
+                    width={pdfRenderedSize.w}
+                    height={pdfRenderedSize.h}
+                    color={color}
+                    size={size}
+                    tool={tool}
+                    mode="draw"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full bg-white">
+                <p className="text-gray-400 text-lg">No PDF uploaded</p>
+              </div>
+            )}
+          </div>
+
+          {/* Voice note button */}
+          <button
+            onClick={() => setShowVoiceNote(v => !v)}
+            className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+            style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
+          >
+            🎙
+          </button>
+
+          {showVoiceNote && (
+            <div className="absolute bottom-36 right-4 z-40 w-72">
+              <VoiceNoteRecorder
+                existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
+                onSaved={saveVoiceNote}
+                onDelete={deleteVoiceNote}
+              />
             </div>
           )}
-        </div>
-      )}
-
-      {/* Voice note button — opposite side from toolbar */}
-      {!showLaserRecord && (
-        <button
-          onClick={() => setShowVoiceNote(v => !v)}
-          className={`fixed bottom-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl ${side === 'left' ? 'right-4' : 'left-4'}`}
-          style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
-        >
-          🎙
-        </button>
-      )}
-
-      {showVoiceNote && !showLaserRecord && (
-        <div className={`fixed bottom-36 z-40 w-72 ${side === 'left' ? 'right-4' : 'left-4'}`}>
-          <VoiceNoteRecorder
-            existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
-            onSaved={saveVoiceNote}
-            onDelete={deleteVoiceNote}
-          />
         </div>
       )}
 
