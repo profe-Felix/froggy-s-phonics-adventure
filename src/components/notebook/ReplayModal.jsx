@@ -45,9 +45,18 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
   const [pdfSize, setPdfSize] = useState(null);
   const [playing, setPlaying] = useState(false);
   const animRef = useRef(null);
+  const [activePage, setActivePage] = useState(pageOverride || session.current_page || 1);
 
-  const pageKey = String(pageOverride || session.current_page || 1);
+  const allPages = Object.keys(session.strokes_by_page || {}).map(Number).sort((a, b) => a - b);
+  const pageKey = String(activePage);
   const strokesData = session.strokes_by_page?.[pageKey];
+
+  // Reset pdf size when page changes so PdfPageRenderer re-triggers onRendered
+  useEffect(() => {
+    setPdfSize(null);
+    setPlaying(false);
+    clearTimeout(animRef.current);
+  }, [activePage]);
 
   // Draw all strokes statically once PDF is sized
   useEffect(() => {
@@ -103,11 +112,27 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
       >
         <div className="flex items-center justify-between shrink-0">
           <div>
-            <p className="font-black text-white">Replay — Student #{session.student_number}</p>
-            <p className="text-xs text-indigo-400">Page {pageOverride || session.current_page}</p>
+            <p className="font-black text-white">Student #{session.student_number}</p>
+            <p className="text-xs text-indigo-400">Page {activePage}</p>
           </div>
           <button onClick={onClose} className="text-indigo-300 hover:text-white text-xl">✕</button>
         </div>
+
+        {/* Page switcher */}
+        {allPages.length > 1 && (
+          <div className="flex gap-2 flex-wrap shrink-0">
+            {allPages.map(pg => (
+              <button
+                key={pg}
+                onClick={() => setActivePage(pg)}
+                className="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                style={{ background: pg === activePage ? '#9333ea' : '#4338ca', color: 'white', opacity: pg === activePage ? 1 : 0.6 }}
+              >
+                Pg {pg}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* PDF + stroke overlay */}
         <div
@@ -117,8 +142,9 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
         >
           {assignment?.pdf_url ? (
             <PdfPageRenderer
+              key={activePage}
               pdfUrl={assignment.pdf_url}
-              pageNumber={session.current_page || 1}
+              pageNumber={activePage}
               onRendered={(w, h) => setPdfSize({ w, h })}
             />
           ) : (
