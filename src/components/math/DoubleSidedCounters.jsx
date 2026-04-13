@@ -28,20 +28,20 @@ function DigitPad({ value, onChange, color }) {
     }
   };
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="w-16 h-16 rounded-2xl border-4 flex items-center justify-center text-3xl font-black"
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-14 h-14 rounded-2xl border-4 flex items-center justify-center text-3xl font-black"
         style={{ borderColor: color, color }}>
         {value ?? '?'}
       </div>
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-3 gap-0.5">
         {digits.map((d, i) => (
           <button key={i} onClick={() => handleDigit(d)}
             disabled={d === null}
-            className="w-9 h-9 rounded-xl font-bold text-base flex items-center justify-center shadow-sm transition-all active:scale-90"
+            className="w-8 h-8 rounded-lg font-bold text-sm flex items-center justify-center shadow-sm transition-all active:scale-90"
             style={{
               background: d === null ? 'transparent' : d === 'del' ? '#fee2e2' : '#f1f5f9',
               color: d === 'del' ? '#dc2626' : '#334155',
-              border: d === null ? 'none' : '1.5px solid #e2e8f0',
+              border: d === null ? 'none' : '1px solid #e2e8f0',
             }}>
             {d === 'del' ? '⌫' : d === null ? '' : d}
           </button>
@@ -51,47 +51,72 @@ function DigitPad({ value, onChange, color }) {
   );
 }
 
-// ── Counter Canvas ──
-function CounterCanvas({ counters, onCountsChange }) {
+// ── Counter Canvas with tools ──
+function CounterCanvas({ counters }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const itemsRef = useRef([]);
+  const strokesRef = useRef([]); // [{pts, color, width}]
+  const currentStrokeRef = useRef(null);
   const lassoRef = useRef(null);
   const isDraggingRef = useRef(false);
   const isLassoRef = useRef(false);
-  const dragGroupRef = useRef([]); // [{id, offsetX, offsetY}]
-  const dragStartRef = useRef(null);
-  const toolRef = useRef('move'); // 'move' | 'lasso'
+  const isDrawingRef = useRef(false);
+  const dragGroupRef = useRef([]);
+  const selectedIdsRef = useRef(new Set());
+  const toolRef = useRef('move');
+  const drawColorRef = useRef('#2563eb');
+  const drawWidthRef = useRef(3);
   const [tool, setToolState] = useState('move');
-  const [lassoActive, setLassoActive] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const animRef = useRef(null);
-  const COUNTER_R = 22;
+  const [selectedCount, setSelectedCount] = useState(0);
+  const [strokeCount, setStrokeCount] = useState(0);
+  const COUNTER_R = 18;
 
   const setTool = (t) => {
     toolRef.current = t;
     setToolState(t);
-    if (t === 'move') {
+    if (t !== 'lasso') {
       lassoRef.current = null;
-      setLassoActive(false);
     }
-    setSelectedIds(new Set());
+    selectedIdsRef.current = new Set();
+    setSelectedCount(0);
+    draw();
   };
 
-  // Spread counters randomly across canvas on first render / when counters change
-  useEffect(() => {
+  // Draw five-frame (1x5 grid)
+  const drawFiveFrame = (ctx, x, y, w = 110, h = 44) => {
+    ctx.strokeStyle = '#1e40af'; ctx.lineWidth = 2; ctx.fillStyle = 'white';
+    ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+    for (let i = 1; i < 5; i++) {
+      ctx.beginPath(); ctx.moveTo(x + i * w / 5, y); ctx.lineTo(x + i * w / 5, y + h); ctx.stroke();
+    }
+  };
+
+  // Draw ten-frame (2x5 grid)
+  const drawTenFrame = (ctx, x, y, w = 110, h = 80) => {
+    ctx.strokeStyle = '#1e40af'; ctx.lineWidth = 2; ctx.fillStyle = 'white';
+    ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
+    for (let i = 1; i < 5; i++) {
+      ctx.beginPath(); ctx.moveTo(x + i * w / 5, y); ctx.lineTo(x + i * w / 5, y + h); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+  };
+
+  // Draw circle
+  const drawCircle = (ctx, x, y, r = 30) => {
+    ctx.strokeStyle = '#1e40af'; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(219,234,254,0.5)';
+    ctx.beginPath(); ctx.arc(x + r, y + r, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  };
+
+  const placedShapesRef = useRef([]); // [{type, x, y}]
+
+  const addShape = (type) => {
     const el = containerRef.current;
     if (!el) return;
     const { width, height } = el.getBoundingClientRect();
-    itemsRef.current = counters.map((color, i) => ({
-      id: i,
-      color,
-      x: COUNTER_R + Math.random() * (width - COUNTER_R * 2),
-      y: COUNTER_R + Math.random() * (height - COUNTER_R * 2),
-      rotation: Math.random() * 30 - 15,
-    }));
+    placedShapesRef.current = [...placedShapesRef.current, { type, x: width / 2 - 55, y: height / 2 - 40, id: Date.now() }];
     draw();
-  }, [counters]);
+  };
 
   const draw = useCallback(() => {
     const c = canvasRef.current;
@@ -101,18 +126,44 @@ function CounterCanvas({ counters, onCountsChange }) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
 
+    // Draw shapes
+    for (const shape of placedShapesRef.current) {
+      if (shape.type === 'fiveframe') drawFiveFrame(ctx, shape.x, shape.y);
+      else if (shape.type === 'tenframe') drawTenFrame(ctx, shape.x, shape.y);
+      else if (shape.type === 'circle') drawCircle(ctx, shape.x, shape.y);
+    }
+
+    // Draw strokes
+    for (const stroke of strokesRef.current) {
+      if (!stroke.pts || stroke.pts.length < 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color || '#2563eb';
+      ctx.lineWidth = stroke.width || 3;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+      stroke.pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+    }
+    // Current stroke
+    if (currentStrokeRef.current && currentStrokeRef.current.length > 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = toolRef.current === 'eraser' ? '#f1f5f9' : drawColorRef.current;
+      ctx.lineWidth = toolRef.current === 'eraser' ? 18 : drawWidthRef.current;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.moveTo(currentStrokeRef.current[0].x, currentStrokeRef.current[0].y);
+      currentStrokeRef.current.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+    }
+
     // Draw counters
     for (const item of itemsRef.current) {
-      const selected = selectedIds.has(item.id);
+      const selected = selectedIdsRef.current.has(item.id);
       ctx.save();
       ctx.translate(item.x, item.y);
-      ctx.rotate((item.rotation * Math.PI) / 180);
-      // Shadow
-      ctx.shadowColor = 'rgba(0,0,0,0.25)';
-      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(0,0,0,0.2)';
+      ctx.shadowBlur = 5;
       ctx.shadowOffsetY = 2;
-      // Fill
-      const grad = ctx.createRadialGradient(-8, -8, 2, 0, 0, COUNTER_R);
+      const grad = ctx.createRadialGradient(-6, -6, 2, 0, 0, COUNTER_R);
       if (item.color === 'red') {
         grad.addColorStop(0, '#ff6b6b');
         grad.addColorStop(1, '#dc2626');
@@ -125,14 +176,12 @@ function CounterCanvas({ counters, onCountsChange }) {
       ctx.arc(0, 0, COUNTER_R, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowColor = 'transparent';
-      // Border
       ctx.strokeStyle = item.color === 'red' ? '#991b1b' : '#92400e';
-      ctx.lineWidth = selected ? 3.5 : 2.5;
+      ctx.lineWidth = 2;
       ctx.stroke();
-      // Selection ring
       if (selected) {
         ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         ctx.setLineDash([4, 3]);
         ctx.beginPath();
         ctx.arc(0, 0, COUNTER_R + 4, 0, Math.PI * 2);
@@ -158,50 +207,12 @@ function CounterCanvas({ counters, onCountsChange }) {
       ctx.setLineDash([]);
       ctx.restore();
     }
-  }, [selectedIds]);
-
-  // Redraw whenever selectedIds changes
-  useEffect(() => { draw(); }, [selectedIds, draw]);
-
-  const getPos = (e, c) => {
-    const r = c.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - r.left, y: src.clientY - r.top };
-  };
-
-  const hitTest = (x, y) => {
-    // find topmost counter under point
-    for (let i = itemsRef.current.length - 1; i >= 0; i--) {
-      const it = itemsRef.current[i];
-      if (Math.hypot(x - it.x, y - it.y) <= COUNTER_R + 2) return it.id;
-    }
-    return null;
-  };
-
-  const pointInPoly = (px, py, poly) => {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const xi = poly[i].x, yi = poly[i].y;
-      const xj = poly[j].x, yj = poly[j].y;
-      const intersect = ((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  };
-
-  // Report counts up
-  const reportCounts = useCallback(() => {
-    const red = itemsRef.current.filter(i => i.color === 'red').length;
-    const yellow = itemsRef.current.filter(i => i.color === 'yellow').length;
-    onCountsChange && onCountsChange(red, yellow);
-  }, [onCountsChange]);
+  }, []);
 
   useEffect(() => {
     const c = canvasRef.current;
     const el = containerRef.current;
     if (!c || !el) return;
-
-    // Size canvas
     const sizeCanvas = () => {
       const dpr = window.devicePixelRatio || 1;
       c.width = el.offsetWidth * dpr;
@@ -213,44 +224,116 @@ function CounterCanvas({ counters, onCountsChange }) {
     sizeCanvas();
     const ro = new ResizeObserver(sizeCanvas);
     ro.observe(el);
+    return () => ro.disconnect();
+  }, [draw]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    itemsRef.current = counters.map((color, i) => ({
+      id: i, color,
+      x: COUNTER_R + Math.random() * (width - COUNTER_R * 2),
+      y: COUNTER_R + Math.random() * (height - COUNTER_R * 2),
+    }));
+    draw();
+  }, [counters, draw]);
+
+  const getPos = (e, c) => {
+    const r = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  };
+
+  const hitTest = (x, y) => {
+    for (let i = itemsRef.current.length - 1; i >= 0; i--) {
+      const it = itemsRef.current[i];
+      if (Math.hypot(x - it.x, y - it.y) <= COUNTER_R + 2) return it.id;
+    }
+    return null;
+  };
+
+  const pointInPoly = (px, py, poly) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+      const intersect = ((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    const el = containerRef.current;
+    if (!c || !el) return;
 
     const onDown = (e) => {
       e.preventDefault();
       const pos = getPos(e, c);
-      dragStartRef.current = pos;
 
-      if (toolRef.current === 'lasso') {
-        isLassoRef.current = true;
-        lassoRef.current = [pos];
-        setLassoActive(true);
+      // Draw / eraser
+      if (toolRef.current === 'pencil' || toolRef.current === 'eraser') {
+        isDrawingRef.current = true;
+        currentStrokeRef.current = [pos];
         draw();
         return;
       }
 
-      // Move tool — check if clicking a selected counter (group drag) or a single counter
+      // Lasso tool
+      if (toolRef.current === 'lasso') {
+        const hitId = hitTest(pos.x, pos.y);
+        // If clicking a selected item in lasso mode → start drag instead
+        if (hitId !== null && selectedIdsRef.current.has(hitId)) {
+          isDraggingRef.current = true;
+          const ids = [...selectedIdsRef.current];
+          dragGroupRef.current = ids.map(id => {
+            const it = itemsRef.current.find(x => x.id === id);
+            return { id, offsetX: pos.x - it.x, offsetY: pos.y - it.y };
+          });
+          return;
+        }
+        // Otherwise start a new lasso
+        isLassoRef.current = true;
+        lassoRef.current = [pos];
+        selectedIdsRef.current = new Set();
+        setSelectedCount(0);
+        draw();
+        return;
+      }
+
+      // Move tool
       const hitId = hitTest(pos.x, pos.y);
       if (hitId !== null) {
         isDraggingRef.current = true;
         let ids;
-        if (selectedIds.has(hitId)) {
-          ids = [...selectedIds];
+        if (selectedIdsRef.current.has(hitId)) {
+          ids = [...selectedIdsRef.current];
         } else {
           ids = [hitId];
-          setSelectedIds(new Set([hitId]));
+          selectedIdsRef.current = new Set([hitId]);
+          setSelectedCount(1);
         }
         dragGroupRef.current = ids.map(id => {
           const it = itemsRef.current.find(x => x.id === id);
           return { id, offsetX: pos.x - it.x, offsetY: pos.y - it.y };
         });
       } else {
-        // Clicked empty space — deselect
-        setSelectedIds(new Set());
+        selectedIdsRef.current = new Set();
+        setSelectedCount(0);
+        draw();
       }
     };
 
     const onMove = (e) => {
       e.preventDefault();
       const pos = getPos(e, c);
+
+      if (isDrawingRef.current) {
+        currentStrokeRef.current.push(pos);
+        draw();
+        return;
+      }
 
       if (isLassoRef.current && lassoRef.current) {
         lassoRef.current.push(pos);
@@ -270,20 +353,31 @@ function CounterCanvas({ counters, onCountsChange }) {
       }
     };
 
-    const onUp = (e) => {
-      if (isLassoRef.current && lassoRef.current) {
-        // Select all counters inside lasso
-        const poly = lassoRef.current;
-        const inside = new Set(
-          itemsRef.current.filter(it => pointInPoly(it.x, it.y, poly)).map(it => it.id)
-        );
-        setSelectedIds(inside);
-        lassoRef.current = null;
-        isLassoRef.current = false;
-        setLassoActive(false);
+    const onUp = () => {
+      if (isDrawingRef.current) {
+        if (currentStrokeRef.current && currentStrokeRef.current.length > 1) {
+          const color = toolRef.current === 'eraser' ? '#f1f5f9' : drawColorRef.current;
+          const width = toolRef.current === 'eraser' ? 18 : drawWidthRef.current;
+          strokesRef.current = [...strokesRef.current, { pts: [...currentStrokeRef.current], color, width }];
+          setStrokeCount(n => n + 1);
+        }
+        currentStrokeRef.current = null;
+        isDrawingRef.current = false;
         draw();
         return;
       }
+
+      if (isLassoRef.current && lassoRef.current) {
+        const poly = lassoRef.current;
+        const inside = new Set(itemsRef.current.filter(it => pointInPoly(it.x, it.y, poly)).map(it => it.id));
+        selectedIdsRef.current = inside;
+        setSelectedCount(inside.size);
+        lassoRef.current = null;
+        isLassoRef.current = false;
+        draw();
+        return;
+      }
+
       isDraggingRef.current = false;
     };
 
@@ -294,9 +388,7 @@ function CounterCanvas({ counters, onCountsChange }) {
     c.addEventListener('touchstart', onDown, { passive: false });
     c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
-
     return () => {
-      ro.disconnect();
       c.removeEventListener('mousedown', onDown);
       c.removeEventListener('mousemove', onMove);
       c.removeEventListener('mouseup', onUp);
@@ -305,28 +397,39 @@ function CounterCanvas({ counters, onCountsChange }) {
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onUp);
     };
-  }, [selectedIds, draw]);
+  }, [draw]);
 
-  const cursorStyle = tool === 'lasso' ? 'crosshair' : 'grab';
+  const cursorStyle = tool === 'lasso' ? 'crosshair' : tool === 'pencil' ? 'crosshair' : tool === 'eraser' ? 'cell' : 'grab';
+
+  const TOOLS = [
+    { id: 'move', label: '✋' },
+    { id: 'lasso', label: '🪤' },
+    { id: 'pencil', label: '✏️' },
+    { id: 'eraser', label: '⬜' },
+  ];
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/* Mini toolbar */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-50 border-b border-amber-200 rounded-t-2xl">
-        <button onClick={() => setTool('move')}
-          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${tool === 'move' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300'}`}>
-          ✋ Move
-        </button>
-        <button onClick={() => setTool('lasso')}
-          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${tool === 'lasso' ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white text-indigo-700 border-indigo-300'}`}>
-          🪤 Lasso
-        </button>
-        {selectedIds.size > 0 && (
-          <span className="text-xs text-indigo-500 font-bold">{selectedIds.size} selected — drag to move group</span>
-        )}
+      {/* Toolbar */}
+      <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 border-b border-amber-200 flex-wrap">
+        {TOOLS.map(t => (
+          <button key={t.id} onClick={() => setTool(t.id)} title={t.id}
+            className={`w-8 h-8 rounded-lg text-base flex items-center justify-center border transition-all ${tool === t.id ? 'bg-amber-500 border-amber-500 shadow-inner' : 'bg-white border-amber-200 hover:bg-amber-100'}`}>
+            {t.label}
+          </button>
+        ))}
+        <div className="w-px h-5 bg-amber-200 mx-0.5" />
+        <button onClick={() => addShape('circle')} className="px-2 py-1 rounded-lg text-xs bg-white border border-amber-200 hover:bg-amber-50 font-bold text-amber-700">⭕ Circle</button>
+        <button onClick={() => addShape('fiveframe')} className="px-2 py-1 rounded-lg text-xs bg-white border border-amber-200 hover:bg-amber-50 font-bold text-amber-700">5-Frame</button>
+        <button onClick={() => addShape('tenframe')} className="px-2 py-1 rounded-lg text-xs bg-white border border-amber-200 hover:bg-amber-50 font-bold text-amber-700">10-Frame</button>
+        {strokeCount > 0 && <>
+          <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => Math.max(0, n - 1)); draw(); }} className="px-2 py-1 text-xs text-gray-500 hover:text-orange-500 font-bold">↩ Undo</button>
+          <button onClick={() => { strokesRef.current = []; setStrokeCount(0); placedShapesRef.current = []; draw(); }} className="px-2 py-1 text-xs text-red-400 hover:text-red-600 font-bold">🗑 Clear</button>
+        </>}
+        {selectedCount > 0 && <span className="text-xs text-indigo-500 font-bold ml-1">{selectedCount} selected</span>}
       </div>
       <div ref={containerRef} className="flex-1 relative rounded-b-2xl overflow-hidden"
-        style={{ background: '#fefce8', border: '2px dashed #fbbf24', minHeight: 180 }}>
+        style={{ background: '#fffbeb', border: '2px dashed #fbbf24', minHeight: 0 }}>
         <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, cursor: cursorStyle, touchAction: 'none' }} />
       </div>
     </div>
@@ -338,11 +441,9 @@ export default function DoubleSidedCounters({ onBack }) {
   const [shaking, setShaking] = useState(false);
   const [spilled, setSpilled] = useState(false);
   const [total, setTotal] = useState(null);
-
   const [redInput, setRedInput] = useState(0);
   const [yellowInput, setYellowInput] = useState(0);
   const [selectedComparison, setSelectedComparison] = useState(null);
-
   const [submitted, setSubmitted] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [rounds, setRounds] = useState([]);
@@ -370,15 +471,14 @@ export default function DoubleSidedCounters({ onBack }) {
     if (!spilled || selectedComparison === null) return;
     const redOk = redInput === actualRed;
     const yellowOk = yellowInput === actualYellow;
-    const correctComp = actualRed > actualYellow ? 'Greater Than'
-      : actualRed < actualYellow ? 'Less Than' : 'Equal To';
+    const correctComp = actualRed > actualYellow ? '>' : actualRed < actualYellow ? '<' : '=';
     const compOk = selectedComparison === correctComp;
     setFeedback({ redOk, yellowOk, compOk, correctComp, actualRed, actualYellow });
     setSubmitted(true);
     setRounds(r => [...r, { red: actualRed, yellow: actualYellow, studentRed: redInput, studentYellow: yellowInput, comparison: selectedComparison, correctComp, redOk, yellowOk, compOk }]);
   };
 
-  const COMPARISON_OPTIONS = [
+  const COMPARISONS = [
     { label: 'Greater Than', symbol: '>' },
     { label: 'Less Than', symbol: '<' },
     { label: 'Equal To', symbol: '=' },
@@ -387,18 +487,17 @@ export default function DoubleSidedCounters({ onBack }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde8e8 100%)' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3" style={{ background: '#d97706' }}>
+      <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: '#d97706' }}>
         <button onClick={onBack} className="text-white/80 hover:text-white font-bold text-sm">← Back</button>
-        <h1 className="text-lg font-black text-white flex-1 text-center">🟡🔴 Double-Sided Counters</h1>
+        <h1 className="text-base font-black text-white flex-1 text-center">🟡🔴 Double-Sided Counters</h1>
       </div>
 
-      {/* Cup + Shake */}
-      <div className="flex flex-col items-center gap-2 py-3">
+      {/* Cup + Shake — compact */}
+      <div className="flex items-center justify-center gap-4 py-2">
         <motion.div
           animate={shaking ? { rotate: [0, -20, 20, -20, 20, 0], y: [0, -10, 5, -10, 5, 0] } : {}}
-          transition={{ duration: 0.7 }}
-        >
-          <svg width="80" height="90" viewBox="0 0 100 110">
+          transition={{ duration: 0.7 }}>
+          <svg width="56" height="64" viewBox="0 0 100 110">
             <path d="M15 10 L85 10 L72 100 L28 100 Z" fill="#d97706" stroke="#92400e" strokeWidth="3" />
             <path d="M15 10 L85 10" stroke="#92400e" strokeWidth="4" strokeLinecap="round" />
             {!spilled && Array.from({ length: Math.min(total || 0, 6) }).map((_, i) => (
@@ -408,95 +507,78 @@ export default function DoubleSidedCounters({ onBack }) {
           </svg>
         </motion.div>
         <button onClick={shake} disabled={shaking}
-          className="px-8 py-2.5 rounded-2xl font-black text-white text-base shadow-lg active:scale-95 transition-all disabled:opacity-60"
+          className="px-6 py-2 rounded-2xl font-black text-white text-sm shadow-lg active:scale-95 transition-all disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg, #d97706, #dc2626)' }}>
           {shaking ? '🫙 Shaking…' : spilled ? '🔄 Shake Again' : '🫙 Shake & Spill!'}
         </button>
+        {total && <span className="text-sm font-black text-amber-700">{total} counters</span>}
       </div>
 
-      {/* Main content area: canvas + input side by side on tablet+ */}
+      {/* Main area: RED pad | CANVAS | COMPARISON | YELLOW pad */}
       <AnimatePresence>
         {spilled && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="flex-1 flex flex-col md:flex-row gap-3 px-3 pb-4" style={{ minHeight: 0 }}>
+            className="flex-1 flex flex-row gap-2 px-2 pb-3" style={{ minHeight: 0 }}>
 
-            {/* Canvas */}
-            <div className="flex-1 rounded-2xl overflow-hidden shadow-lg flex flex-col" style={{ minHeight: 240 }}>
-              <p className="text-center text-xs font-bold text-amber-700 py-1 bg-amber-50">
-                {total} counters — sort & count them!
-              </p>
-              <div className="flex-1">
-                <CounterCanvas counters={counters} />
-              </div>
+            {/* RED side */}
+            <div className="flex flex-col items-center justify-center gap-1 bg-white rounded-2xl shadow-lg px-2 py-2 shrink-0">
+              <span className="text-xs font-black text-red-600">🔴 Red</span>
+              <DigitPad value={redInput} onChange={setRedInput} color="#dc2626" />
+              {submitted && (
+                <span className={`text-xs font-bold ${feedback?.redOk ? 'text-green-600' : 'text-red-500'}`}>
+                  {feedback?.redOk ? '✅' : `Ans: ${actualRed}`}
+                </span>
+              )}
             </div>
 
-            {/* Input panel */}
-            <div className="flex flex-col items-center gap-4 bg-white rounded-2xl shadow-xl p-4 w-full md:w-64">
-              {/* Red count */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-black text-red-600">🔴 Red</span>
-                <DigitPad value={redInput} onChange={setRedInput} color="#dc2626" />
-              </div>
+            {/* Canvas — center, takes remaining space */}
+            <div className="flex-1 rounded-2xl overflow-hidden shadow-lg flex flex-col" style={{ minHeight: 200 }}>
+              <CounterCanvas counters={counters} />
+            </div>
 
-              {/* VS + Comparison stacked */}
-              <div className="flex flex-col items-center gap-2 w-full">
-                <span className="text-xs font-black text-gray-400">VERSUS</span>
-                {COMPARISON_OPTIONS.map(opt => {
-                  let bg = 'bg-gray-100 text-gray-600 border-gray-200';
-                  if (selectedComparison === opt.label && !submitted) bg = 'bg-indigo-500 text-white border-indigo-500';
-                  if (submitted && feedback) {
-                    if (opt.label === feedback.correctComp) bg = 'bg-green-500 text-white border-green-500';
-                    else if (opt.label === selectedComparison && !feedback.compOk) bg = 'bg-red-400 text-white border-red-400';
-                    else bg = 'bg-gray-100 text-gray-300 border-gray-200';
-                  }
-                  return (
-                    <button key={opt.label} onClick={() => !submitted && setSelectedComparison(opt.label)} disabled={submitted}
-                      className={`w-full py-2 rounded-xl font-bold border-2 text-sm transition-all ${bg}`}>
-                      {opt.symbol} {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Yellow count */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-black text-amber-600">🟡 Yellow</span>
-                <DigitPad value={yellowInput} onChange={setYellowInput} color="#ca8a04" />
-              </div>
-
-              {/* Feedback */}
-              {submitted && feedback && (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-xl p-3 text-center w-full"
-                  style={{ background: (feedback.redOk && feedback.yellowOk && feedback.compOk) ? '#dcfce7' : '#fef2f2' }}>
-                  <p className="font-black text-base">
-                    {feedback.redOk && feedback.yellowOk && feedback.compOk ? '🎉 Perfect!' : '📝 Check it!'}
-                  </p>
-                  <div className="text-xs font-bold mt-1 space-y-0.5">
-                    <p className={feedback.redOk ? 'text-green-600' : 'text-red-500'}>
-                      Red: {feedback.actualRed} {!feedback.redOk && `(you: ${redInput})`}
-                    </p>
-                    <p className={feedback.yellowOk ? 'text-green-600' : 'text-red-500'}>
-                      Yellow: {feedback.actualYellow} {!feedback.yellowOk && `(you: ${yellowInput})`}
-                    </p>
-                    {!feedback.compOk && <p className="text-red-500">Answer: {feedback.correctComp}</p>}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Submit / Next */}
+            {/* COMPARISON — middle column */}
+            <div className="flex flex-col items-center justify-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-black text-gray-400">VS</span>
+              {COMPARISONS.map(opt => {
+                let bg = '#f1f5f9', color = '#475569', border = '#cbd5e1';
+                if (selectedComparison === opt.symbol && !submitted) { bg = '#6366f1'; color = 'white'; border = '#6366f1'; }
+                if (submitted && feedback) {
+                  if (opt.symbol === feedback.correctComp) { bg = '#22c55e'; color = 'white'; border = '#22c55e'; }
+                  else if (opt.symbol === selectedComparison && !feedback.compOk) { bg = '#ef4444'; color = 'white'; border = '#ef4444'; }
+                  else { bg = '#f1f5f9'; color = '#9ca3af'; border = '#e5e7eb'; }
+                }
+                return (
+                  <button key={opt.symbol} onClick={() => !submitted && setSelectedComparison(opt.symbol)}
+                    disabled={submitted}
+                    style={{ background: bg, color, border: `2px solid ${border}`, width: 52, height: 44 }}
+                    className="rounded-xl font-black text-xl transition-all active:scale-95">
+                    {opt.symbol}
+                  </button>
+                );
+              })}
               {!submitted ? (
                 <button onClick={handleSubmit} disabled={selectedComparison === null}
-                  className="w-full py-2.5 rounded-xl font-black text-white text-sm disabled:opacity-40 transition-all"
-                  style={{ background: 'linear-gradient(135deg, #4338ca, #7c3aed)' }}>
-                  ✅ Check Answer
+                  className="mt-1 px-2 py-1.5 rounded-xl font-black text-white text-xs disabled:opacity-40"
+                  style={{ background: '#4338ca', fontSize: 10 }}>
+                  ✅ Check
                 </button>
               ) : (
                 <button onClick={shake}
-                  className="w-full py-2.5 rounded-xl font-black text-white text-sm"
-                  style={{ background: 'linear-gradient(135deg, #d97706, #dc2626)' }}>
-                  🔄 New Round
+                  className="mt-1 px-2 py-1.5 rounded-xl font-black text-white text-xs"
+                  style={{ background: '#d97706', fontSize: 10 }}>
+                  🔄 New
                 </button>
+              )}
+            </div>
+
+            {/* YELLOW side */}
+            <div className="flex flex-col items-center justify-center gap-1 bg-white rounded-2xl shadow-lg px-2 py-2 shrink-0">
+              <span className="text-xs font-black text-amber-600">🟡 Yellow</span>
+              <DigitPad value={yellowInput} onChange={setYellowInput} color="#ca8a04" />
+              {submitted && (
+                <span className={`text-xs font-bold ${feedback?.yellowOk ? 'text-green-600' : 'text-red-500'}`}>
+                  {feedback?.yellowOk ? '✅' : `Ans: ${actualYellow}`}
+                </span>
               )}
             </div>
           </motion.div>
@@ -505,14 +587,14 @@ export default function DoubleSidedCounters({ onBack }) {
 
       {/* Round history */}
       {rounds.length > 0 && (
-        <div className="mx-3 mb-4 bg-white rounded-2xl shadow p-3">
-          <p className="font-black text-gray-600 mb-2 text-xs">📋 Round History</p>
+        <div className="mx-2 mb-3 bg-white rounded-2xl shadow p-2">
+          <p className="font-black text-gray-600 mb-1 text-xs">📋 History</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b">
                   <th className="py-1 px-2 text-red-500">Red</th>
-                  <th className="py-1 px-2 text-gray-500">Comparison</th>
+                  <th className="py-1 px-2 text-gray-500">vs</th>
                   <th className="py-1 px-2 text-amber-600">Yellow</th>
                   <th className="py-1 px-2 text-gray-400">✓</th>
                 </tr>
@@ -520,10 +602,10 @@ export default function DoubleSidedCounters({ onBack }) {
               <tbody>
                 {rounds.map((r, i) => (
                   <tr key={i} className="border-b border-gray-100 text-center">
-                    <td className={`py-1.5 px-2 font-bold ${r.redOk ? 'text-green-600' : 'text-red-400'}`}>{r.actualRed}</td>
-                    <td className={`py-1.5 px-2 font-bold ${r.compOk ? 'text-green-600' : 'text-red-400'}`}>{r.comparison}</td>
-                    <td className={`py-1.5 px-2 font-bold ${r.yellowOk ? 'text-green-600' : 'text-amber-400'}`}>{r.actualYellow}</td>
-                    <td className="py-1.5 px-2">{r.redOk && r.yellowOk && r.compOk ? '✅' : '❌'}</td>
+                    <td className={`py-1 px-2 font-bold ${r.redOk ? 'text-green-600' : 'text-red-400'}`}>{r.actualRed}</td>
+                    <td className={`py-1 px-2 font-bold ${r.compOk ? 'text-green-600' : 'text-red-400'}`}>{r.comparison}</td>
+                    <td className={`py-1 px-2 font-bold ${r.yellowOk ? 'text-green-600' : 'text-amber-400'}`}>{r.actualYellow}</td>
+                    <td className="py-1 px-2">{r.redOk && r.yellowOk && r.compOk ? '✅' : '❌'}</td>
                   </tr>
                 ))}
               </tbody>
