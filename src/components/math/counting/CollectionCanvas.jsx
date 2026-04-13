@@ -228,9 +228,32 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
     };
 
-    const onDown = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
-    const onMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
+    const onDown = (e) => {
+      e.preventDefault();
+      dragging = true;
+      lassoPoints = [getPos(e)];
+      // attach move/up to document so moving outside canvas doesn't abort lasso
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      e.preventDefault();
+      lassoPoints.push(getPos(e));
+      redrawLasso();
+    };
     const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
+      lassoPoints = [];
+      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    };
+    const onTouchStart = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onTouchMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
+    const onTouchEnd = () => {
       if (!dragging) return;
       dragging = false;
       c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
@@ -238,15 +261,17 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
     };
 
-    c.addEventListener('mousedown', onDown); c.addEventListener('mousemove', onMove);
-    c.addEventListener('mouseup', onUp); c.addEventListener('mouseleave', onUp);
-    c.addEventListener('touchstart', onDown, { passive: false }); c.addEventListener('touchmove', onMove, { passive: false });
-    c.addEventListener('touchend', onUp);
+    c.addEventListener('mousedown', onDown);
+    c.addEventListener('touchstart', onTouchStart, { passive: false });
+    c.addEventListener('touchmove', onTouchMove, { passive: false });
+    c.addEventListener('touchend', onTouchEnd);
     return () => {
-      c.removeEventListener('mousedown', onDown); c.removeEventListener('mousemove', onMove);
-      c.removeEventListener('mouseup', onUp); c.removeEventListener('mouseleave', onUp);
-      c.removeEventListener('touchstart', onDown); c.removeEventListener('touchmove', onMove);
-      c.removeEventListener('touchend', onUp);
+      c.removeEventListener('mousedown', onDown);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      c.removeEventListener('touchstart', onTouchStart);
+      c.removeEventListener('touchmove', onTouchMove);
+      c.removeEventListener('touchend', onTouchEnd);
     };
   }, [drawMode]);
 

@@ -322,7 +322,11 @@ export default function LetterGame() {
         />
       )}
       {currentMode === 'spanish_reading' && (
-        <SpanishReadingGame onBack={handleBackToModes} />
+        <SpanishReadingGame
+          onBack={handleBackToModes}
+          studentNumber={selectedStudent?.number}
+          className={selectedStudent?.class_name}
+        />
       )}
 
       <Button

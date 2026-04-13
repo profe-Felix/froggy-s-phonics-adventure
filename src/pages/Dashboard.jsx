@@ -131,6 +131,12 @@ export default function Dashboard() {
                 >
                   🔲 QR Codes
                 </Link>
+                <Link
+                  to="/SpanishReadingDashboard"
+                  className="text-sm text-indigo-600 border border-indigo-200 rounded-lg px-4 py-2 hover:bg-indigo-50"
+                >
+                  📖 Spanish Reading
+                </Link>
                 <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"

@@ -1,0 +1,38 @@
+{
+  "name": "SpanishReadingSession",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "list_name": {
+      "type": "string",
+      "description": "Which list was practiced (e.g. 'S\u00edlabas - A', 'Palabras - Set 1')"
+    },
+    "recording_url": {
+      "type": "string",
+      "description": "URL of the uploaded screen+audio recording"
+    },
+    "duration_seconds": {
+      "type": "integer",
+      "description": "Length of recording in seconds"
+    },
+    "reviewed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Teacher has reviewed this session"
+    },
+    "teacher_note": {
+      "type": "string",
+      "description": "Teacher feedback note"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "list_name"
+  ]
+}

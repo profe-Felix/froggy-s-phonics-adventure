@@ -384,9 +384,26 @@ function CounterCanvas({ counters }) {
       ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
     };
 
-    const onDown = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onDown = (e) => {
+      e.preventDefault();
+      dragging = true;
+      lassoPoints = [getPos(e)];
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
     const onMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
     const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
+      lassoPoints = [];
+      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    };
+    const onTouchStart = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onTouchMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
+    const onTouchEnd = () => {
       if (!dragging) return;
       dragging = false;
       c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
@@ -394,15 +411,17 @@ function CounterCanvas({ counters }) {
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
     };
 
-    c.addEventListener('mousedown', onDown); c.addEventListener('mousemove', onMove);
-    c.addEventListener('mouseup', onUp); c.addEventListener('mouseleave', onUp);
-    c.addEventListener('touchstart', onDown, { passive: false }); c.addEventListener('touchmove', onMove, { passive: false });
-    c.addEventListener('touchend', onUp);
+    c.addEventListener('mousedown', onDown);
+    c.addEventListener('touchstart', onTouchStart, { passive: false });
+    c.addEventListener('touchmove', onTouchMove, { passive: false });
+    c.addEventListener('touchend', onTouchEnd);
     return () => {
-      c.removeEventListener('mousedown', onDown); c.removeEventListener('mousemove', onMove);
-      c.removeEventListener('mouseup', onUp); c.removeEventListener('mouseleave', onUp);
-      c.removeEventListener('touchstart', onDown); c.removeEventListener('touchmove', onMove);
-      c.removeEventListener('touchend', onUp);
+      c.removeEventListener('mousedown', onDown);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      c.removeEventListener('touchstart', onTouchStart);
+      c.removeEventListener('touchmove', onTouchMove);
+      c.removeEventListener('touchend', onTouchEnd);
     };
   }, [drawMode]);
 
@@ -564,7 +583,7 @@ function DropZone({ filled, selected, onPlace, dropRef, feedback, submitted }) {
   }
   return (
     <div ref={dropRef} onClick={() => { if (!filled && selected) onPlace(selected); }}
-      className={`min-w-[140px] h-14 rounded-2xl border-4 border-dashed flex items-center justify-center font-black text-sm transition-all ${borderColor} ${bg} ${textColor} ${(!filled && selected) ? 'cursor-pointer' : ''}`}>
+      className={`min-w-[110px] h-10 rounded-xl border-4 border-dashed flex items-center justify-center font-black text-xs transition-all ${borderColor} ${bg} ${textColor} ${(!filled && selected) ? 'cursor-pointer' : ''}`}>
       {filled || (selected ? 'tap to place' : 'drag or tap')}
     </div>
   );
@@ -624,11 +643,11 @@ function DragWord({ label, value, dropped, selected, onSelect, onDrop, dropRef, 
   );
 }
 
-// ── Sentence phase — identical structure to RollCompareGame ──
+// ── Sentence phase ──
 function SentencePhase({ redCount, yellowCount, attempts, onAttempt, onNewRound }) {
   const [placed, setPlaced] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [result, setResult] = useState(null); // 'correct'|'wrong'
+  const [result, setResult] = useState(null);
   const dropRef = useRef(null);
 
   const CORRECT_VALUE = redCount > yellowCount ? 'is_greater_than' : redCount < yellowCount ? 'is_less_than' : 'is_equal_to';
@@ -638,33 +657,32 @@ function SentencePhase({ redCount, yellowCount, attempts, onAttempt, onNewRound 
   const handlePlace = (value) => {
     if (placed) return;
     const correct = value === CORRECT_VALUE;
-    const newAttempts = attempts + 1;
     setPlaced(LABEL_MAP[value]);
     setResult(correct ? 'correct' : 'wrong');
-    onAttempt(newAttempts, correct);
+    onAttempt(attempts + 1, correct);
   };
 
   const submitted = !!placed;
-  const showAnswer = result === 'wrong' && attempts >= 3;
+  const showAnswer = result === 'wrong' && attempts >= 2;
 
   return (
-    <div className="flex flex-col items-center gap-4 bg-white rounded-3xl p-5 shadow-xl mx-3 mt-2">
+    <div className="flex flex-col items-center gap-2 bg-white rounded-2xl px-3 py-3 shadow-lg mx-2 mb-2">
       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Complete the Sentence!</p>
 
       {/* Numbers + blank */}
-      <div className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black text-gray-800">
-        <span className="bg-amber-100 px-3 py-2 rounded-xl">{redCount}</span>
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black text-gray-800">
+        <span className="bg-amber-100 px-2 py-1 rounded-lg">{redCount}</span>
         <DropZone filled={placed} selected={selected ? LABEL_MAP[selected] : null}
           onPlace={() => handlePlace(selected)}
           dropRef={dropRef}
           feedback={{ compOk: result === 'correct' }}
           submitted={submitted} />
-        <span className="bg-amber-100 px-3 py-2 rounded-xl">{yellowCount}</span>
+        <span className="bg-amber-100 px-2 py-1 rounded-lg">{yellowCount}</span>
       </div>
 
       {/* Drag words */}
       {!submitted && (
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div className="flex flex-wrap gap-1.5 justify-center">
           {['is_greater_than', 'is_less_than', 'is_equal_to'].map(v => (
             <DragWord key={v} label={LABEL_MAP[v]} value={v}
               dropped={false} selected={selected === v}
@@ -676,30 +694,26 @@ function SentencePhase({ redCount, yellowCount, attempts, onAttempt, onNewRound 
           ))}
         </div>
       )}
-      <p className="text-center text-xs text-gray-400">Tap a word to hear it · tap again or the blank to place it</p>
 
       {/* Result */}
       {result && (
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-          className={`w-full rounded-2xl p-4 text-center ${result === 'correct' ? 'bg-green-50 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}>
-          <div className="text-4xl mb-1">{result === 'correct' ? '🎉' : '🤔'}</div>
-          <p className="text-xl font-black">{result === 'correct' ? 'Correct!' : 'Not quite…'}</p>
-          {result === 'correct' && (
-            <p className="text-sm text-gray-600 mt-1">
-              {attempts === 1 ? '⭐⭐⭐ 10 pts!' : attempts === 2 ? '⭐⭐ 5 pts' : '⭐ Keep practicing!'}
-            </p>
-          )}
-          {showAnswer && (
-            <p className="text-sm text-gray-500 mt-1">The answer was: <strong>{CORRECT_LABEL}</strong></p>
-          )}
+          className={`w-full rounded-xl px-3 py-2 flex items-center justify-between gap-2 ${result === 'correct' ? 'bg-green-50 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{result === 'correct' ? '🎉' : '🤔'}</span>
+            <div>
+              <p className="font-black text-sm">{result === 'correct' ? 'Correct!' : 'Not quite…'}</p>
+              {showAnswer && <p className="text-xs text-gray-500">Answer: <strong>{CORRECT_LABEL}</strong></p>}
+            </div>
+          </div>
           {result === 'correct' || showAnswer ? (
             <button onClick={onNewRound}
-              className="mt-3 bg-indigo-600 text-white font-black text-base px-7 py-2.5 rounded-2xl shadow-lg">
+              className="bg-indigo-600 text-white font-black text-xs px-4 py-2 rounded-xl shadow">
               🔄 New Round
             </button>
           ) : (
             <button onClick={() => { setPlaced(null); setSelected(null); setResult(null); }}
-              className="mt-3 bg-orange-500 text-white font-black text-base px-7 py-2.5 rounded-2xl shadow-lg">
+              className="bg-orange-500 text-white font-black text-xs px-4 py-2 rounded-xl shadow">
               Try Again
             </button>
           )}
@@ -720,6 +734,8 @@ export default function DoubleSidedCounters({ onBack }) {
   const [countSubmitted, setCountSubmitted] = useState(false);
   const [countFeedback, setCountFeedback] = useState(null);
   const [sentenceAttempts, setSentenceAttempts] = useState(0);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [streak, setStreak] = useState(0);
 
   const actualRed = counters.filter(c => c === 'red').length;
   const actualYellow = counters.filter(c => c === 'yellow').length;
@@ -752,6 +768,10 @@ export default function DoubleSidedCounters({ onBack }) {
       <div className="flex items-center gap-3 px-4 py-2" style={{ background: '#d97706' }}>
         <button onClick={onBack} className="text-white/80 hover:text-white font-bold text-sm">← Back</button>
         <h1 className="text-base font-black text-white flex-1 text-center">🟡🔴 Double-Sided Counters</h1>
+        <div className="flex items-center gap-2">
+          {streak >= 2 && <span className="text-sm font-black">🔥{streak}</span>}
+          <span className="text-sm font-black text-yellow-200">⭐{totalPoints}</span>
+        </div>
       </div>
 
       {/* Cup + Shake */}
@@ -833,7 +853,16 @@ export default function DoubleSidedCounters({ onBack }) {
                 redCount={actualRed}
                 yellowCount={actualYellow}
                 attempts={sentenceAttempts}
-                onAttempt={(newAttempts) => setSentenceAttempts(newAttempts)}
+                onAttempt={(newAttempts, correct) => {
+                  setSentenceAttempts(newAttempts);
+                  if (correct) {
+                    const pts = newAttempts === 1 ? 10 : newAttempts === 2 ? 5 : 2;
+                    setTotalPoints(p => p + pts);
+                    setStreak(s => s + 1);
+                  } else {
+                    setStreak(0);
+                  }
+                }}
                 onNewRound={shake}
               />
             )}
