@@ -59,6 +59,14 @@ const MODES = [
     description: 'Catch the number you hear (0–20)',
     icon: '🔢',
     color: 'from-teal-400 to-teal-600'
+  },
+  {
+    id: 'spanish_reading',
+    title: 'Spanish Reading',
+    description: 'Slide & read Spanish words with balloon fluency',
+    icon: '📖',
+    color: 'from-sky-400 to-blue-600',
+    alwaysUnlocked: true
   }
 ];
 
@@ -72,12 +80,13 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
   const pendingUnlocks = studentData?.pending_pet_unlocks || 0;
 
   const getModeStats = (modeId) => {
+    const modeDef = MODES.find(m => m.id === modeId);
     const progress = modeProgress[modeId];
-    if (!progress) return { unlocked: modeId === 'letter_sounds', mastered: 0, total: 0 };
+    if (!progress) return { unlocked: modeId === 'letter_sounds' || !!modeDef?.alwaysUnlocked, mastered: 0, total: 0 };
     
     const mastered = progress.mastered_items?.length || 0;
     const learning = progress.learning_items?.length || 0;
-    const unlocked = progress.unlocked !== false;
+    const unlocked = progress.unlocked !== false || !!modeDef?.alwaysUnlocked;
     
     return { unlocked, mastered, learning, total: mastered + learning };
   };

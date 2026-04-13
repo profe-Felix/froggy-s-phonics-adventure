@@ -16,6 +16,7 @@ import CountingCollectionSolo from '../components/math/counting/CountingCollecti
 import CountingCollectionStudentLesson from '../components/math/counting/CountingCollectionStudentLesson';
 import CountingCollectionPartner from '../components/math/counting/CountingCollectionPartner';
 import CountingCollectionTeacherDash from '../components/math/counting/CountingCollectionTeacherDash';
+import DoubleSidedCounters from '../components/math/DoubleSidedCounters';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -112,6 +113,7 @@ export default function MathGames() {
               <button onClick={() => setGameMode('onelessmore')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🧊 1 More / 1 Less</button>
               <button onClick={() => setGameMode('rollcompare')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🍪 Roll & Compare</button>
               <button onClick={() => setGameMode('countcollection')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🔢 Count Collections</button>
+              <button onClick={() => setGameMode('doublesided')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🟡🔴 Double-Sided Counters</button>
             </div>
           </div>
         ) : (
@@ -218,6 +220,13 @@ export default function MathGames() {
         icon: '🔢',
         color: 'from-teal-400 to-green-500',
       },
+      {
+        id: 'doublesided',
+        title: 'Double-Sided Counters',
+        description: 'Shake & spill — count red & yellow, then compare!',
+        icon: '🟡',
+        color: 'from-red-400 to-amber-500',
+      },
     ];
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
@@ -259,6 +268,11 @@ export default function MathGames() {
         </div>
       </div>
     );
+  }
+
+  // ── STUDENT VIEW — Double-Sided Counters ──
+  if (gameMode === 'doublesided') {
+    return <DoubleSidedCounters onBack={() => setGameMode(null)} />;
   }
 
   // ── STUDENT VIEW — Count Collections ──
