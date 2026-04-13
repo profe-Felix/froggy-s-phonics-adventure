@@ -69,8 +69,10 @@ function FrameContainer({ tool, onMove, onRemove }) {
 export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const [items, setItems] = useState(() => generateCollection(seed, count));
   const [placedTools, setPlacedTools] = useState([]);
-  const [drawMode, setDrawMode] = useState(false);
-  const [eraserMode, setEraserMode] = useState(false);
+  const [activeTool, setActiveTool] = useState('move'); // 'move' | 'draw' | 'eraser' | 'lasso'
+  const drawMode = activeTool === 'draw' || activeTool === 'eraser';
+  const eraserMode = activeTool === 'eraser';
+  const lassoMode = activeTool === 'lasso';
   const [strokeCount, setStrokeCount] = useState(0);
   const strokesRef = useRef([]);
   const canvasRef = useRef(null);
@@ -79,6 +81,87 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const nextToolId = useRef(0);
   const ctxRef = useRef(null);
   const containerRef = useRef(null);
+  // Lasso state
+  const lassoPathRef = useRef([]);
+  const [selectedItemIds, setSelectedItemIds] = useState(new Set());
+  const lassoDragRef = useRef(null); // {ids, startX, startY, origPositions}
+  const [lassoActive, setLassoActive] = useState(false);
+
+  // Setup canvas only when drawMode OR lassoMode changes
+  useEffect(() => {
+    if (!lassoMode || !canvasRef.current) return;
+    const c = canvasRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = c.offsetWidth * dpr;
+    c.height = c.offsetHeight * dpr;
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctxRef.current = ctx;
+
+    let lassoPoints = [];
+    let dragging = false;
+
+    const getPos = (e) => {
+      const r = c.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: src.clientX - r.left, y: src.clientY - r.top };
+    };
+
+    const redrawLasso = () => {
+      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+      if (lassoPoints.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.fillStyle = 'rgba(99,102,241,0.08)';
+      ctx.moveTo(lassoPoints[0].x, lassoPoints[0].y);
+      lassoPoints.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    };
+
+    const pointInPoly = (px, py, poly) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+        const intersect = ((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    };
+
+    const onDown = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      // compute bounds of each item element for hit testing — use item positions from state
+      // We'll dispatch a custom event with the lasso polygon
+      c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
+      lassoPoints = [];
+      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    };
+
+    c.addEventListener('mousedown', onDown);
+    c.addEventListener('mousemove', onMove);
+    c.addEventListener('mouseup', onUp);
+    c.addEventListener('mouseleave', onUp);
+    c.addEventListener('touchstart', onDown, { passive: false });
+    c.addEventListener('touchmove', onMove, { passive: false });
+    c.addEventListener('touchend', onUp);
+    return () => {
+      c.removeEventListener('mousedown', onDown);
+      c.removeEventListener('mousemove', onMove);
+      c.removeEventListener('mouseup', onUp);
+      c.removeEventListener('mouseleave', onUp);
+      c.removeEventListener('touchstart', onDown);
+      c.removeEventListener('touchmove', onMove);
+      c.removeEventListener('touchend', onUp);
+    };
+  }, [lassoMode]);
 
   // Setup canvas only when drawMode changes (avoids clearing on each stroke)
   useEffect(() => {
@@ -176,6 +259,32 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, x: c.x, y: c.y } : it));
   };
 
+  // Listen for lasso-complete events from the canvas
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const handler = (e) => {
+      const poly = e.detail?.poly || [];
+      if (!poly.length) return;
+      const pointInPoly = (px, py, pts) => {
+        let inside = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+          const intersect = ((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi) + xi);
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      };
+      setItems(prev => {
+        const inside = new Set(prev.filter(it => pointInPoly(it.x, it.y, poly)).map(it => it.id));
+        setSelectedItemIds(inside);
+        return prev;
+      });
+    };
+    c.addEventListener('lasso-complete', handler);
+    return () => c.removeEventListener('lasso-complete', handler);
+  }, [lassoMode]);
+
   // Re-clamp all items when container resizes (e.g. orientation change)
   useEffect(() => {
     const el = containerRef.current;
@@ -196,22 +305,28 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     <div className="flex flex-col gap-0 w-full h-full" style={{ userSelect: 'none' }}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-200 rounded-t-2xl flex-wrap">
-        <span className="text-xs font-bold text-indigo-600 mr-1">Add tool:</span>
+        <span className="text-xs font-bold text-indigo-600 mr-1">Add:</span>
         {TOOL_TEMPLATES.map(t => (
           <button key={t.type} onClick={() => addTool(t.type)}
             className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm">
             {t.label}
           </button>
         ))}
-        <button onClick={() => { setDrawMode(d => !d); setEraserMode(false); }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${drawMode && !eraserMode ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}>
-          ✏️ {drawMode && !eraserMode ? 'Drawing ON' : 'Draw'}
+        <div className="w-px h-5 bg-indigo-200 mx-1" />
+        <button onClick={() => setActiveTool(activeTool === 'draw' ? 'move' : 'draw')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}>
+          ✏️ Draw
         </button>
-        {drawMode && (
-          <button onClick={() => setEraserMode(e => !e)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${eraserMode ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-            ⬜ Eraser
-          </button>
+        <button onClick={() => setActiveTool(activeTool === 'eraser' ? 'move' : 'eraser')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'eraser' ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+          ⬜ Eraser
+        </button>
+        <button onClick={() => setActiveTool(activeTool === 'lasso' ? 'move' : 'lasso')}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'lasso' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}>
+          🪤 Lasso
+        </button>
+        {selectedItemIds.size > 0 && (
+          <span className="text-xs text-indigo-500 font-bold">{selectedItemIds.size} selected — drag to move</span>
         )}
         {strokeCount > 0 && (
           <>
@@ -228,7 +343,8 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       </div>
 
       {/* Canvas area */}
-      <div ref={containerRef} style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
+      <div ref={containerRef}
+        style={{ position: 'relative', flex: 1, minHeight: 0, background: '#fefce8', borderRadius: '0 0 16px 16px', overflow: 'hidden', border: '1px solid #fde68a' }}>
         {/* Placed organizer tools */}
         {placedTools.map(tool =>
           tool.type === 'plate'
@@ -238,15 +354,32 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
 
         {/* Items */}
         {items.map(item => (
-          <DraggableItem key={item.id} item={item} onMove={moveItem} frozen={drawMode} />
+          <DraggableItem key={item.id} item={item} onMove={moveItem}
+            frozen={drawMode || lassoMode}
+            selected={selectedItemIds.has(item.id)}
+            onGroupDragStart={(id, startX, startY) => {
+              // Store original positions for entire group
+              const group = items.filter(it => selectedItemIds.has(it.id));
+              lassoDragRef.current = { ids: group.map(i => i.id), startX, startY, origPositions: Object.fromEntries(group.map(i => [i.id, { x: i.x, y: i.y }])) };
+            }}
+            onGroupDragMove={(dx, dy) => {
+              if (!lassoDragRef.current) return;
+              const { ids, origPositions } = lassoDragRef.current;
+              setItems(prev => prev.map(it => ids.includes(it.id) ? { ...it, x: origPositions[it.id].x + dx, y: origPositions[it.id].y + dy } : it));
+            }}
+            onGroupDragEnd={() => { lassoDragRef.current = null; }}
+          />
         ))}
 
         {/* Draw overlay */}
         {drawMode && eraserMode && <EraserCursor />}
-        {drawMode && (
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair' }} />
+        {(drawMode || lassoMode) && (
+          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : lassoMode ? 'crosshair' : 'crosshair' }} />
         )}
-        {!drawMode && strokeCount > 0 && (
+        {!drawMode && !lassoMode && strokeCount > 0 && (
+          <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
+        )}
+        {!drawMode && lassoMode && strokeCount > 0 && (
           <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
         )}
       </div>
@@ -254,22 +387,41 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   );
 }
 
-function DraggableItem({ item, onMove, frozen }) {
+function DraggableItem({ item, onMove, frozen, selected, onGroupDragStart, onGroupDragMove, onGroupDragEnd }) {
   const onPointerDown = (e) => {
     if (frozen) return;
     e.preventDefault();
     e.stopPropagation();
-    const ox = item.x, oy = item.y;
     const mx = e.clientX, my = e.clientY;
-    const onMoveEvt = (ev) => onMove(item.id, ox + ev.clientX - mx, oy + ev.clientY - my);
-    const onUp = () => { document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
-    document.addEventListener('pointermove', onMoveEvt);
-    document.addEventListener('pointerup', onUp);
+    if (selected && onGroupDragStart) {
+      onGroupDragStart(item.id, mx, my);
+      const onMoveEvt = (ev) => onGroupDragMove && onGroupDragMove(ev.clientX - mx, ev.clientY - my);
+      const onUp = () => {
+        onGroupDragEnd && onGroupDragEnd();
+        document.removeEventListener('pointermove', onMoveEvt);
+        document.removeEventListener('pointerup', onUp);
+      };
+      document.addEventListener('pointermove', onMoveEvt);
+      document.addEventListener('pointerup', onUp);
+    } else {
+      const ox = item.x, oy = item.y;
+      const onMoveEvt = (ev) => onMove(item.id, ox + ev.clientX - mx, oy + ev.clientY - my);
+      const onUp = () => { document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
+      document.addEventListener('pointermove', onMoveEvt);
+      document.addEventListener('pointerup', onUp);
+    }
   };
 
   return (
     <div onPointerDown={onPointerDown}
-      style={{ position: 'absolute', left: item.x, top: item.y, transform: `rotate(${item.rotation}deg)`, fontSize: 28, cursor: frozen ? 'default' : 'grab', touchAction: 'none', zIndex: 10, lineHeight: 1 }}>
+      style={{
+        position: 'absolute', left: item.x, top: item.y,
+        transform: `rotate(${item.rotation}deg)`,
+        fontSize: 28, cursor: frozen ? 'default' : 'grab',
+        touchAction: 'none', zIndex: 10, lineHeight: 1,
+        outline: selected ? '3px dashed #6366f1' : 'none',
+        borderRadius: 6,
+      }}>
       {item.emoji}
     </div>
   );

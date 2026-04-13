@@ -37,7 +37,7 @@ function AssignmentPicker({ assignments, onSelect }) {
   );
 }
 
-export default function StudentNotebookView({ studentNumber, className, onBack }) {
+export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName }) {
   const qc = useQueryClient();
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,6 +63,15 @@ export default function StudentNotebookView({ studentNumber, className, onBack }
     queryKey: ['student-notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className, status: 'active' }),
     refetchInterval: 5000,
+    onSuccess: (data) => {
+      // Auto-select if a directAssignmentName was passed via URL
+      if (directAssignmentName && !selectedAssignment) {
+        const match = data.find(a =>
+          a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
+        );
+        if (match) setSelectedAssignment(match);
+      }
+    }
   });
 
   // Poll assignment for page lock changes & broadcast

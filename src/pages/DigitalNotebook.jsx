@@ -1,13 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import TeacherNotebookDashboard from '../components/notebook/TeacherNotebookDashboard';
 import StudentNotebookView from '../components/notebook/StudentNotebookView';
+import { base44 } from '@/api/base44Client';
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
-function StudentLogin({ onEnter }) {
-  const [className, setClassName] = useState(null);
+// Map single-letter codes used in URL to full class names
+// e.g. ?class=Felix or ?class=F both work
+const CLASS_MAP = {
+  'felix': 'Felix', 'f': 'F',
+  'valero': 'Valero', 'v': 'V',
+  'campos': 'Campos', 'c': 'C',
+  'a': 'A', 'b': 'B', 'd': 'D',
+};
+
+function parseClassParam(raw) {
+  if (!raw) return null;
+  return CLASS_MAP[raw.toLowerCase()] || (raw.charAt(0).toUpperCase() + raw.slice(1));
+}
+
+function StudentLogin({ onEnter, preselectedClass }) {
+  const [className, setClassName] = useState(preselectedClass || null);
   const [studentNumber, setStudentNumber] = useState(null);
 
   if (!className) {
@@ -30,7 +45,9 @@ function StudentLogin({ onEnter }) {
   return (
     <div className="flex flex-col items-center gap-6 py-10 px-4">
       <div className="flex items-center gap-3">
-        <button onClick={() => setClassName(null)} className="text-indigo-300 hover:text-white font-bold">←</button>
+        {!preselectedClass && (
+          <button onClick={() => setClassName(null)} className="text-indigo-300 hover:text-white font-bold">←</button>
+        )}
         <h2 className="text-2xl font-black text-white">Class {className} — Your Number</h2>
       </div>
       <div className="grid grid-cols-5 gap-2 max-w-sm">
@@ -50,8 +67,25 @@ function StudentLogin({ onEnter }) {
 export default function DigitalNotebook() {
   const params = new URLSearchParams(window.location.search);
   const isTeacherMode = params.get('mode') === 'teacher';
+
+  // QR / URL deep-link params
+  // e.g. /DigitalNotebook?class=Felix&assignment=Aprende+y+demuestra&number=3
+  const urlClass = parseClassParam(params.get('class'));
+  const urlAssignment = params.get('assignment') || params.get('Assignment') || null;
+  const urlNumber = parseInt(params.get('number') || params.get('student'));
+
   const [role, setRole] = useState(isTeacherMode ? 'teacher' : null);
   const [studentInfo, setStudentInfo] = useState(null);
+  const [autoResolved, setAutoResolved] = useState(false);
+
+  // If class + student number are in URL, skip the login screens entirely
+  useEffect(() => {
+    if (urlClass && !isNaN(urlNumber) && urlNumber > 0 && !autoResolved) {
+      setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment });
+      setRole('student');
+      setAutoResolved(true);
+    }
+  }, [urlClass, urlNumber, urlAssignment, autoResolved]);
 
   if (role === 'teacher') {
     return <TeacherNotebookDashboard onBack={() => setRole(null)} />;
@@ -62,6 +96,7 @@ export default function DigitalNotebook() {
       <StudentNotebookView
         studentNumber={studentInfo.number}
         className={studentInfo.className}
+        directAssignmentName={studentInfo.directAssignment || null}
         onBack={() => { setStudentInfo(null); setRole(null); }}
       />
     );
@@ -74,7 +109,10 @@ export default function DigitalNotebook() {
           <button onClick={() => setRole(null)} className="text-indigo-300 hover:text-white font-bold">← Back</button>
           <h1 className="text-lg font-black text-white">📓 Digital Notebook</h1>
         </div>
-        <StudentLogin onEnter={(className, number) => setStudentInfo({ className, number })} />
+        <StudentLogin
+          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment })}
+          preselectedClass={urlClass}
+        />
       </div>
     );
   }
@@ -104,6 +142,10 @@ export default function DigitalNotebook() {
           Student
         </motion.button>
       </div>
+      {/* QR hint */}
+      <p className="text-indigo-400 text-xs text-center max-w-xs">
+        Tip: QR codes can include <code className="text-indigo-300">/DigitalNotebook?class=Felix&amp;number=3&amp;assignment=My+Lesson</code>
+      </p>
     </div>
   );
 }

@@ -1,38 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { base44 } from '@/api/base44Client';
 
-// ── Supabase config (same project as the original game) ──
 const SUPABASE_URL = "https://dmlsiyyqpcupbizpxwhp.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbHNpeXlxcGN1cGJpenB4d2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDI1NjUsImV4cCI6MjA3Mzk3ODU2NX0.mkgeUtjC8ulLyHHVVOic4LmhhQP_JJtMi2JQztdzjsg";
 
-let sbClient = null;
-function getSB() {
-  if (sbClient) return sbClient;
-  if (window.supabase) {
-    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-  return sbClient;
-}
-
-// ── Spanish grapheme parser ──
+// ── Spanish helpers ──
 const DIGRAPHS = ["ch", "ll", "rr", "qu"];
-function parseWord(word) {
-  const out = [];
-  const w = word || "";
-  for (let i = 0; i < w.length;) {
-    const ch = w[i];
-    if (ch === " ") { out.push({ text: " ", isSpace: true }); i++; continue; }
-    if (/[.,!?;]/.test(ch)) { out.push({ text: ch, isPunct: true }); i++; continue; }
-    const lower = w.toLowerCase();
-    const dg = DIGRAPHS.find(d => lower.startsWith(d, i));
-    if (dg) { out.push({ text: dg }); i += dg.length; }
-    else { out.push({ text: w[i] }); i++; }
-  }
-  return out;
-}
-
 function getSyllables(word) {
-  // Simple CV syllabification for Spanish
   const vowels = new Set(['a','e','i','o','u','á','é','í','ó','ú']);
   const text = (word || "").toLowerCase();
   const syls = [];
@@ -41,76 +15,200 @@ function getSyllables(word) {
     cur += text[i];
     const isV = vowels.has(text[i]);
     const nextIsV = i + 1 < text.length && vowels.has(text[i + 1]);
-    const nextNextIsV = i + 2 < text.length && vowels.has(text[i + 2]);
-    if (isV && (!nextIsV || i === text.length - 1)) {
-      syls.push(cur);
-      cur = "";
-    } else if (!isV && nextIsV && nextNextIsV) {
-      // consonant before two vowels — split before it
-    }
+    if (isV && (!nextIsV || i === text.length - 1)) { syls.push(cur); cur = ""; }
   }
   if (cur) syls.push(cur);
   return syls.filter(s => s.trim());
 }
 
-// ── Balloon component ──
-function Balloon({ inflation, color = '#ef4444', deflating }) {
-  // inflation 0-1
-  const size = 40 + inflation * 120;
-  const opacity = 0.3 + inflation * 0.7;
+// ── Balloon ──
+function Balloon({ inflation }) {
+  const size = 36 + inflation * 100;
+  const color = inflation > 0.7 ? '#22c55e' : inflation > 0.4 ? '#3b82f6' : '#ef4444';
   return (
-    <motion.div className="flex flex-col items-center" animate={{ scale: deflating ? [1, 0.85, 1] : 1 }}>
+    <div className="flex flex-col items-center">
       <motion.div
         animate={{ width: size, height: size * 1.15 }}
-        transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+        transition={{ type: 'spring', stiffness: 180, damping: 15 }}
         style={{
           borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%',
-          background: `radial-gradient(circle at 35% 30%, ${color}cc, ${color})`,
-          opacity,
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: `0 4px 20px ${color}44`,
-        }}
-      >
-        <span style={{ fontSize: size * 0.28, fontWeight: 900, color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+          background: `radial-gradient(circle at 35% 30%, ${color}bb, ${color})`,
+          boxShadow: `0 4px 18px ${color}55`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+        <span style={{ fontSize: Math.max(10, size * 0.26), fontWeight: 900, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
           {Math.round(inflation * 100)}%
         </span>
       </motion.div>
-      {/* Knot */}
-      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, opacity: opacity * 0.8 }} />
-      {/* String */}
-      <div style={{ width: 2, height: 30, background: '#9ca3af' }} />
-    </motion.div>
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, opacity: 0.8, marginTop: 1 }} />
+      <div style={{ width: 2, height: 24, background: '#9ca3af' }} />
+    </div>
   );
 }
 
-// ── Word card ──
-function WordCard({ word, syllables, onFluencyChange }) {
-  const graphemes = parseWord(word).filter(g => !g.isSpace && !g.isPunct).map(g => g.text);
+// ── Recording Canvas ──
+function RecordingCanvas({ onRecordingComplete }) {
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const strokesRef = useRef([]);
+  const currentRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const startTimeRef = useRef(null);
+  const [recording, setRecording] = useState(false);
+  const [recordedUrl, setRecordedUrl] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const draw = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
+    const all = [...strokesRef.current, currentRef.current].filter(Boolean);
+    all.forEach(pts => {
+      if (!pts || pts.length < 2) return;
+      ctx.beginPath(); ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.moveTo(pts[0].x, pts[0].y);
+      pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    const c = canvasRef.current;
+    if (!el || !c) return;
+    const size = () => {
+      const dpr = window.devicePixelRatio || 1;
+      c.width = el.offsetWidth * dpr;
+      c.height = el.offsetHeight * dpr;
+      c.style.width = el.offsetWidth + 'px';
+      c.style.height = el.offsetHeight + 'px';
+      draw();
+    };
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [draw]);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const getPos = (e) => {
+      const r = c.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return { x: src.clientX - r.left, y: src.clientY - r.top };
+    };
+    const onDown = (e) => { e.preventDefault(); currentRef.current = [getPos(e)]; draw(); };
+    const onMove = (e) => { e.preventDefault(); if (!currentRef.current) return; currentRef.current.push(getPos(e)); draw(); };
+    const onUp = () => { if (currentRef.current && currentRef.current.length > 1) strokesRef.current.push([...currentRef.current]); currentRef.current = null; draw(); };
+    c.addEventListener('mousedown', onDown);
+    c.addEventListener('mousemove', onMove);
+    c.addEventListener('mouseup', onUp);
+    c.addEventListener('mouseleave', onUp);
+    c.addEventListener('touchstart', onDown, { passive: false });
+    c.addEventListener('touchmove', onMove, { passive: false });
+    c.addEventListener('touchend', onUp);
+    return () => {
+      c.removeEventListener('mousedown', onDown);
+      c.removeEventListener('mousemove', onMove);
+      c.removeEventListener('mouseup', onUp);
+      c.removeEventListener('mouseleave', onUp);
+      c.removeEventListener('touchstart', onDown);
+      c.removeEventListener('touchmove', onMove);
+      c.removeEventListener('touchend', onUp);
+    };
+  }, [draw]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunksRef.current = [];
+      startTimeRef.current = Date.now();
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      mr.ondataavailable = e => chunksRef.current.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setRecordedUrl(url);
+        setSaving(true);
+        try {
+          const file = new File([blob], 'reading.webm', { type: 'audio/webm' });
+          const { file_url } = await base44.integrations.Core.UploadFile({ file });
+          onRecordingComplete && onRecordingComplete({ audioUrl: file_url, strokes: strokesRef.current, duration: (Date.now() - startTimeRef.current) / 1000 });
+        } catch (err) {
+          console.warn('Upload failed, using local url', err);
+          onRecordingComplete && onRecordingComplete({ audioUrl: url, strokes: strokesRef.current, duration: (Date.now() - startTimeRef.current) / 1000 });
+        }
+        setSaving(false);
+      };
+      mr.start();
+      setRecording(true);
+    } catch (e) {
+      alert('Microphone access needed for recording.');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  const clear = () => {
+    strokesRef.current = [];
+    currentRef.current = null;
+    setRecordedUrl(null);
+    draw();
+  };
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="text-5xl font-black tracking-widest" style={{ fontFamily: 'Andika, sans-serif', color: '#1e1b4b' }}>
-        {word}
+    <div className="flex flex-col gap-2 w-full">
+      <div ref={containerRef} className="relative w-full rounded-xl overflow-hidden border-2 border-blue-200 bg-white"
+        style={{ height: 110 }}>
+        <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, cursor: 'crosshair', touchAction: 'none' }} />
+        {strokesRef.current.length === 0 && !recording && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-blue-200 text-sm font-bold">✏️ Draw / write here</span>
+          </div>
+        )}
       </div>
-      <div className="flex gap-2 mt-1">
-        {syllables.map((syl, i) => (
-          <span key={i} className="px-3 py-1 rounded-lg text-lg font-bold"
-            style={{
-              background: i % 2 === 0 ? '#e0e7ff' : '#fce7f3',
-              color: i % 2 === 0 ? '#3730a3' : '#9d174d',
-              fontFamily: 'Andika, sans-serif'
-            }}>
-            {syl}
-          </span>
-        ))}
+      <div className="flex items-center gap-2">
+        {!recording ? (
+          <button onClick={startRecording}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white shadow-md transition-all active:scale-95"
+            style={{ background: '#dc2626' }}>
+            🎙 Record Reading
+          </button>
+        ) : (
+          <button onClick={stopRecording}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white shadow-md animate-pulse"
+            style={{ background: '#7c3aed' }}>
+            ⏹ Stop
+          </button>
+        )}
+        {recording && <span className="text-xs text-red-500 font-bold animate-pulse">● Recording…</span>}
+        {saving && <span className="text-xs text-blue-500 font-bold animate-pulse">Saving…</span>}
+        {recordedUrl && !saving && (
+          <>
+            <audio src={recordedUrl} controls className="h-8 flex-1" />
+            <button onClick={clear} className="text-xs text-gray-400 hover:text-red-500 font-bold">✕ Clear</button>
+          </>
+        )}
+        {strokesRef.current.length > 0 && !recording && (
+          <button onClick={clear} className="text-xs text-gray-400 hover:text-red-500 font-bold ml-auto">🗑</button>
+        )}
       </div>
     </div>
   );
 }
 
+// ── Main game ──
 export default function SpanishReadingGame({ onBack }) {
   const [lists, setLists] = useState({});
   const [selectedList, setSelectedList] = useState('');
@@ -118,27 +216,22 @@ export default function SpanishReadingGame({ onBack }) {
   const [wordIndex, setWordIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState('read'); // 'read' | 'spell'
-  const [gameMode, setGameMode] = useState('slider'); // 'slider' | 'balloon'
-
-  // Balloon/fluency state
-  const [inflation, setInflation] = useState(0);
-  const [deflating, setDeflating] = useState(false);
-  const [isReading, setIsReading] = useState(false);
-  const lastSoundTime = useRef(null);
-  const animFrameRef = useRef(null);
-  const PAUSE_DEFLATE_MS = 600; // gap longer than this deflates balloon
-
-  // Slider state (canvas-based from original)
-  const canvasRef = useRef(null);
-  const sliderXRef = useRef(0);
-  const isDraggingRef = useRef(false);
   const [sliderPct, setSliderPct] = useState(0);
-
-  // Spelling state
   const [userInput, setUserInput] = useState('');
   const [spellingResult, setSpellingResult] = useState(null);
 
-  // Load lists from Supabase storage
+  // Balloon / mic
+  const [inflation, setInflation] = useState(0);
+  const [isReading, setIsReading] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const micStreamRef = useRef(null);
+  const analyserRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const lastSoundRef = useRef(null);
+  const PAUSE_MS = 500;
+
+  // Load lists
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -150,14 +243,11 @@ export default function SpanishReadingGame({ onBack }) {
           const first = Object.keys(data)[0];
           if (first) setSelectedList(first);
         }
-      } catch (e) {
-        console.warn('Could not load lists from Supabase', e);
-      }
+      } catch (e) { console.warn('Could not load lists', e); }
       setLoading(false);
     })();
   }, []);
 
-  // Load words when list changes
   useEffect(() => {
     if (!selectedList || !lists[selectedList]) return;
     const entry = lists[selectedList];
@@ -165,41 +255,27 @@ export default function SpanishReadingGame({ onBack }) {
     if (arr && !Array.isArray(arr) && arr.new) arr = arr.new;
     if (!Array.isArray(arr)) arr = [];
     const wordStrs = arr.map(w => typeof w === 'object' ? w.text : w).filter(Boolean);
-    const shuffled = wordStrs.slice().sort(() => Math.random() - 0.5);
-    setWords(shuffled);
+    setWords(wordStrs.slice().sort(() => Math.random() - 0.5));
     setWordIndex(0);
-    setInflation(0);
+    resetWord();
+  }, [selectedList, lists]);
+
+  const resetWord = () => {
     setSliderPct(0);
+    setInflation(0);
+    setIsReading(false);
     setUserInput('');
     setSpellingResult(null);
-  }, [selectedList, lists]);
+    lastSoundRef.current = null;
+  };
 
   const currentWord = words[wordIndex] || '';
   const syllables = getSyllables(currentWord);
 
-  const nextWord = () => {
-    setWordIndex(i => (i + 1) % words.length);
-    setInflation(0);
-    setSliderPct(0);
-    setUserInput('');
-    setSpellingResult(null);
-    setIsReading(false);
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-  };
+  const nextWord = () => { setWordIndex(i => (i + 1) % words.length); resetWord(); };
+  const prevWord = () => { setWordIndex(i => (i - 1 + words.length) % words.length); resetWord(); };
 
-  const prevWord = () => {
-    setWordIndex(i => (i - 1 + words.length) % words.length);
-    setInflation(0);
-    setSliderPct(0);
-    setUserInput('');
-    setSpellingResult(null);
-  };
-
-  // Balloon: mic-based inflation via Web Audio API
-  const micStreamRef = useRef(null);
-  const analyserRef = useRef(null);
-  const audioCtxRef = useRef(null);
-
+  // Mic / balloon
   const startMic = useCallback(async () => {
     if (micStreamRef.current) return;
     try {
@@ -212,78 +288,68 @@ export default function SpanishReadingGame({ onBack }) {
       analyser.fftSize = 256;
       src.connect(analyser);
       analyserRef.current = analyser;
-
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
-        analyserRef.current.getByteFrequencyData(data);
+        analyserRef.current?.getByteFrequencyData(data);
         const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        const normalized = Math.min(avg / 40, 1); // 0-1
-
-        if (normalized > 0.1) {
-          lastSoundTime.current = Date.now();
-          setDeflating(false);
+        const norm = Math.min(avg / 35, 1);
+        if (norm > 0.12) {
+          lastSoundRef.current = Date.now();
           setIsReading(true);
-          setInflation(prev => Math.min(1, prev + normalized * 0.04));
+          setInflation(p => Math.min(1, p + norm * 0.05));
         } else {
-          const gap = Date.now() - (lastSoundTime.current || 0);
-          if (gap > PAUSE_DEFLATE_MS && lastSoundTime.current !== null) {
-            setDeflating(true);
-            setInflation(prev => Math.max(0, prev - 0.03));
+          const gap = Date.now() - (lastSoundRef.current || 0);
+          if (gap > PAUSE_MS && lastSoundRef.current !== null) {
+            setIsReading(false);
+            setInflation(p => Math.max(0, p - 0.04));
           }
         }
         animFrameRef.current = requestAnimationFrame(tick);
       };
       animFrameRef.current = requestAnimationFrame(tick);
-    } catch (e) {
-      console.warn('Mic access denied', e);
-    }
+      setMicOn(true);
+    } catch (e) { console.warn('Mic denied', e); }
   }, []);
 
   const stopMic = useCallback(() => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     micStreamRef.current?.getTracks().forEach(t => t.stop());
     micStreamRef.current = null;
-    audioCtxRef.current?.close();
+    audioCtxRef.current?.close().catch(() => {});
     audioCtxRef.current = null;
     analyserRef.current = null;
+    setMicOn(false);
     setIsReading(false);
-    lastSoundTime.current = null;
   }, []);
 
-  useEffect(() => {
-    if (gameMode === 'balloon') startMic();
-    else stopMic();
-    return () => stopMic();
-  }, [gameMode]);
+  useEffect(() => () => stopMic(), [stopMic]);
 
-  // Play audio
   const playAudio = () => {
-    const normWord = (currentWord || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const candidates = [
+    const norm = (currentWord || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const urls = [
       `${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/audio/${encodeURIComponent(currentWord)}.mp3`,
-      `${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/audio/${normWord}.mp3`,
+      `${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/audio/${norm}.mp3`,
     ];
     let i = 0;
-    const tryNext = () => {
-      if (i >= candidates.length) return;
-      const a = new Audio(candidates[i++]);
-      a.onerror = tryNext;
-      a.play().catch(tryNext);
-    };
+    const tryNext = () => { if (i >= urls.length) return; const a = new Audio(urls[i++]); a.onerror = tryNext; a.play().catch(tryNext); };
     tryNext();
   };
 
-  // Spelling check
   const checkSpelling = () => {
     const clean = s => (s || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     setSpellingResult(clean(userInput) === clean(currentWord) ? 'correct' : 'incorrect');
   };
 
-  const listNames = Object.keys(lists);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #e0f2fe, #f0fdf4)' }}>
+        <div className="text-2xl animate-pulse">Loading lists…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)' }}>
-      {/* Load Andika font */}
       <link href="https://fonts.googleapis.com/css2?family=Andika&display=swap" rel="stylesheet" />
 
       {/* Header */}
@@ -292,138 +358,127 @@ export default function SpanishReadingGame({ onBack }) {
         <h1 className="text-lg font-black text-blue-900 flex-1">📖 Spanish Reading</h1>
         <select value={selectedList} onChange={e => setSelectedList(e.target.value)}
           className="text-sm border border-blue-200 rounded-lg px-2 py-1 bg-white">
-          {listNames.map(n => <option key={n} value={n}>{n}</option>)}
+          {Object.keys(lists).map(n => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
 
       {/* Mode tabs */}
-      <div className="flex gap-0 bg-white border-b border-blue-100">
-        {[['slider', '📖 Read (Slider)'], ['balloon', '🎈 Read (Balloon)'], ['spell', '✏️ Spell']].map(([id, label]) => (
-          <button key={id} onClick={() => setMode(id === 'spell' ? 'spell' : 'read') || setGameMode(id)}
-            className={`px-5 py-2.5 font-bold text-sm transition-all ${(id === 'spell' ? mode === 'spell' : gameMode === id && mode === 'read') ? 'text-blue-700 border-b-2 border-blue-500 bg-blue-50' : 'text-gray-400 hover:text-gray-600'}`}>
+      <div className="flex bg-white border-b border-blue-100">
+        {[['read', '📖 Read'], ['spell', '✏️ Spell']].map(([id, label]) => (
+          <button key={id} onClick={() => setMode(id)}
+            className={`px-6 py-2.5 font-bold text-sm transition-all ${mode === id ? 'text-blue-700 border-b-2 border-blue-500 bg-blue-50' : 'text-gray-400 hover:text-gray-600'}`}>
             {label}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-2xl animate-pulse">Loading lists…</div>
-        </div>
-      ) : words.length === 0 ? (
+      {words.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-lg">Select a word list to begin</div>
       ) : (
-        <div className="flex-1 flex flex-col items-center gap-6 p-6">
+        <div className="flex-1 flex flex-col items-center gap-4 p-4 max-w-xl mx-auto w-full">
 
-          {/* Word display */}
-          <div className="bg-white rounded-3xl shadow-xl p-8 w-full max-w-lg flex flex-col items-center gap-4">
+          {/* Word display + audio */}
+          <div className="bg-white rounded-3xl shadow-xl p-6 w-full flex flex-col items-center gap-3">
             <p className="text-xs text-gray-400 font-bold">{wordIndex + 1} / {words.length}</p>
-            <WordCard word={currentWord} syllables={syllables} />
+            <div className="text-5xl font-black" style={{ fontFamily: 'Andika, sans-serif', color: '#1e1b4b' }}>
+              {currentWord}
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center">
+              {syllables.map((syl, i) => (
+                <span key={i} className="px-3 py-1 rounded-lg text-lg font-bold"
+                  style={{ background: i % 2 === 0 ? '#e0e7ff' : '#fce7f3', color: i % 2 === 0 ? '#3730a3' : '#9d174d', fontFamily: 'Andika, sans-serif' }}>
+                  {syl}
+                </span>
+              ))}
+            </div>
             <button onClick={playAudio}
-              className="px-4 py-2 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm hover:bg-blue-200 transition-all">
+              className="px-4 py-1.5 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm hover:bg-blue-200">
               🔊 Play Audio
             </button>
           </div>
 
-          {/* BALLOON MODE */}
-          {mode === 'read' && gameMode === 'balloon' && (
-            <div className="flex flex-col items-center gap-4 w-full max-w-lg">
-              <div className="bg-white rounded-3xl shadow-lg p-6 w-full flex flex-col items-center gap-4">
-                <p className="text-sm font-bold text-gray-500 text-center">
-                  Read the word smoothly — the balloon inflates as long as you keep reading!
-                  <br/>
-                  <span className="text-red-500">Pausing deflates the balloon.</span>
-                </p>
-
-                <Balloon inflation={inflation} deflating={deflating}
-                  color={inflation > 0.7 ? '#22c55e' : inflation > 0.4 ? '#3b82f6' : '#ef4444'} />
-
-                {inflation >= 0.95 && (
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-                    className="text-2xl font-black text-green-600">
-                    🎉 Great fluency!
-                  </motion.div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${isReading ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-                  <span className="text-xs text-gray-500">{isReading ? 'Reading detected…' : 'Start reading aloud!'}</span>
-                </div>
+          {/* READ MODE */}
+          {mode === 'read' && (
+            <>
+              {/* Recording canvas + mic — before reading */}
+              <div className="bg-white rounded-2xl shadow-lg p-4 w-full">
+                <p className="text-xs font-bold text-gray-500 mb-2">📝 Write / draw, then record yourself reading:</p>
+                <RecordingCanvas onRecordingComplete={(data) => console.log('Recording saved', data)} />
               </div>
-            </div>
-          )}
 
-          {/* SLIDER MODE */}
-          {mode === 'read' && gameMode === 'slider' && (
-            <div className="bg-white rounded-3xl shadow-lg p-6 w-full max-w-lg flex flex-col items-center gap-4">
-              <p className="text-sm font-bold text-gray-500 text-center">Drag the slider across as you read each sound</p>
-              <div className="w-full relative h-12 flex items-center">
-                {/* Slider track with syllable segments */}
+              {/* Slider */}
+              <div className="bg-white rounded-2xl shadow-lg p-4 w-full flex flex-col gap-3">
+                <p className="text-xs font-bold text-gray-500 text-center">Drag the slider as you read each syllable</p>
                 <div className="w-full relative">
-                  <div className="flex w-full h-4 rounded-full overflow-hidden">
-                    {syllables.map((syl, i) => (
+                  <div className="flex w-full h-5 rounded-full overflow-hidden">
+                    {syllables.map((_, i) => (
                       <div key={i} className="flex-1 h-full"
                         style={{ background: i % 2 === 0 ? '#c7d2fe' : '#fbcfe8' }} />
                     ))}
                   </div>
-                  {/* Thumb */}
                   <input type="range" min={0} max={100} value={sliderPct}
                     onChange={e => setSliderPct(Number(e.target.value))}
-                    className="absolute inset-0 w-full opacity-0 cursor-pointer h-4"
-                    style={{ height: '100%' }}
-                  />
-                  {/* Visual thumb */}
+                    className="absolute inset-0 w-full opacity-0 cursor-pointer" style={{ height: '100%' }} />
                   <div className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-indigo-600 shadow-lg border-2 border-white pointer-events-none"
                     style={{ left: `calc(${sliderPct}% - 14px)` }} />
                 </div>
+                {/* Syllable highlight + Balloon side by side */}
+                <div className="flex items-end gap-4">
+                  <div className="flex gap-2 flex-wrap flex-1">
+                    {syllables.map((syl, i) => {
+                      const start = (i / syllables.length) * 100;
+                      const end = ((i + 1) / syllables.length) * 100;
+                      const active = sliderPct >= start && sliderPct < end;
+                      return (
+                        <span key={i} className="px-3 py-1.5 rounded-xl font-black text-lg transition-all"
+                          style={{
+                            fontFamily: 'Andika, sans-serif',
+                            background: active ? (i % 2 === 0 ? '#6366f1' : '#ec4899') : (i % 2 === 0 ? '#e0e7ff' : '#fce7f3'),
+                            color: active ? 'white' : (i % 2 === 0 ? '#3730a3' : '#9d174d'),
+                            transform: active ? 'scale(1.15)' : 'scale(1)',
+                            boxShadow: active ? '0 4px 12px rgba(0,0,0,0.18)' : 'none',
+                          }}>
+                          {syl}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {/* Balloon */}
+                  <div className="flex flex-col items-center gap-1">
+                    <Balloon inflation={inflation} />
+                    <button
+                      onClick={micOn ? stopMic : startMic}
+                      className="px-2 py-1 rounded-lg text-xs font-bold transition-all"
+                      style={{ background: micOn ? '#dc2626' : '#e0f2fe', color: micOn ? 'white' : '#0369a1' }}>
+                      {micOn ? '🔴 Mic On' : '🎙 Balloon'}
+                    </button>
+                    {micOn && (
+                      <span className={`text-xs font-bold ${isReading ? 'text-green-500' : 'text-gray-400'}`}>
+                        {isReading ? '🗣 Reading…' : '⏸ Paused'}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              {/* Syllable highlight based on slider position */}
-              <div className="flex gap-2 flex-wrap justify-center">
-                {syllables.map((syl, i) => {
-                  const start = (i / syllables.length) * 100;
-                  const end = ((i + 1) / syllables.length) * 100;
-                  const active = sliderPct >= start && sliderPct < end;
-                  return (
-                    <span key={i}
-                      className="px-4 py-2 rounded-xl font-black text-xl transition-all"
-                      style={{
-                        fontFamily: 'Andika, sans-serif',
-                        background: active ? (i % 2 === 0 ? '#6366f1' : '#ec4899') : (i % 2 === 0 ? '#e0e7ff' : '#fce7f3'),
-                        color: active ? 'white' : (i % 2 === 0 ? '#3730a3' : '#9d174d'),
-                        transform: active ? 'scale(1.15)' : 'scale(1)',
-                        boxShadow: active ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
-                      }}>
-                      {syl}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+            </>
           )}
 
-          {/* SPELLING MODE */}
+          {/* SPELL MODE */}
           {mode === 'spell' && (
-            <div className="bg-white rounded-3xl shadow-lg p-6 w-full max-w-lg flex flex-col gap-4">
-              <p className="text-sm font-bold text-gray-500 text-center">Type the word you hear/see</p>
+            <div className="bg-white rounded-2xl shadow-lg p-5 w-full flex flex-col gap-4">
+              <p className="text-sm font-bold text-gray-500 text-center">Type the word</p>
               <div className="flex gap-3">
-                <input
-                  value={userInput}
-                  onChange={e => { setUserInput(e.target.value); setSpellingResult(null); }}
+                <input value={userInput} onChange={e => { setUserInput(e.target.value); setSpellingResult(null); }}
                   onKeyDown={e => e.key === 'Enter' && checkSpelling()}
-                  placeholder="Type here…"
-                  autoCapitalize="none"
-                  spellCheck={false}
+                  placeholder="Type here…" autoCapitalize="none" spellCheck={false}
                   className="flex-1 border-2 border-blue-200 rounded-xl px-4 py-3 text-2xl font-bold focus:outline-none focus:border-blue-500"
-                  style={{ fontFamily: 'Andika, sans-serif' }}
-                />
+                  style={{ fontFamily: 'Andika, sans-serif' }} />
                 <button onClick={checkSpelling}
-                  className="px-5 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all">
-                  ✅
-                </button>
+                  className="px-5 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">✅</button>
               </div>
               <AnimatePresence>
                 {spellingResult && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                     className={`rounded-2xl p-4 text-center font-black text-xl ${spellingResult === 'correct' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
                     {spellingResult === 'correct' ? '🎉 ¡Correcto!' : `❌ Correct: "${currentWord}"`}
                   </motion.div>
@@ -433,16 +488,10 @@ export default function SpanishReadingGame({ onBack }) {
           )}
 
           {/* Navigation */}
-          <div className="flex gap-4 items-center">
-            <button onClick={prevWord}
-              className="px-5 py-3 rounded-xl bg-white shadow font-bold text-gray-700 hover:bg-gray-50 transition-all">
-              ⟵ Prev
-            </button>
+          <div className="flex gap-4 items-center pb-2">
+            <button onClick={prevWord} className="px-5 py-3 rounded-xl bg-white shadow font-bold text-gray-700 hover:bg-gray-50">⟵ Prev</button>
             <span className="text-gray-500 text-sm font-bold">{wordIndex + 1}/{words.length}</span>
-            <button onClick={nextWord}
-              className="px-5 py-3 rounded-xl bg-indigo-600 text-white shadow font-bold hover:bg-indigo-700 transition-all">
-              Next ⟶
-            </button>
+            <button onClick={nextWord} className="px-5 py-3 rounded-xl bg-indigo-600 text-white shadow font-bold hover:bg-indigo-700">Next ⟶</button>
           </div>
         </div>
       )}
