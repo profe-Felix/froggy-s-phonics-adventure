@@ -266,7 +266,9 @@ function CounterCanvas({ counters }) {
   const lassoDragRef = useRef(null);
 
   const [items, setItems] = useState([]);
+  const itemsRef = useRef([]);
   const [placedTools, setPlacedTools] = useState([]);
+  const selectedIdsRef = useRef(new Set());
   const [selectedItemIds, setSelectedItemIds] = useState(new Set());
   const [activeTool, setActiveTool] = useState('move');
   const [strokeCount, setStrokeCount] = useState(0);
@@ -274,29 +276,40 @@ function CounterCanvas({ counters }) {
   const drawMode = activeTool === 'draw' || activeTool === 'eraser';
   const eraserMode = activeTool === 'eraser';
 
-  // Spread counters — grid layout to prevent overlap
+  // Spread counters — random but no overlap
   useEffect(() => {
     const el = containerRef.current; if (!el) return;
     const { width, height } = el.getBoundingClientRect();
-    const size = COUNTER_R * 2 + 4; // spacing
-    const cols = Math.floor((width - 10) / size);
-    const placed = counters.map((color, i) => ({
-      id: i, color,
-      x: 5 + (i % cols) * size,
-      y: 5 + Math.floor(i / cols) * size,
-    }));
+    const size = COUNTER_R * 2;
+    const margin = 4;
+    const placed = [];
+    counters.forEach((color, i) => {
+      let x, y, tries = 0;
+      do {
+        x = margin + Math.random() * (width - size - margin * 2);
+        y = margin + Math.random() * (height - size - margin * 2);
+        tries++;
+      } while (tries < 200 && placed.some(p => Math.hypot(p.x - x, p.y - y) < size + 2));
+      placed.push({ id: i, color, x, y });
+    });
+    itemsRef.current = placed;
     setItems(placed);
+    selectedIdsRef.current = new Set();
     setSelectedItemIds(new Set());
   }, [counters]);
 
   const moveItem = (id, x, y) => {
     const el = containerRef.current; if (!el) return;
     const { width, height } = el.getBoundingClientRect();
-    setItems(prev => prev.map(it => it.id === id ? {
-      ...it,
-      x: Math.max(0, Math.min(width - COUNTER_R * 2, x)),
-      y: Math.max(0, Math.min(height - COUNTER_R * 2, y)),
-    } : it));
+    setItems(prev => {
+      const next = prev.map(it => it.id === id ? {
+        ...it,
+        x: Math.max(0, Math.min(width - COUNTER_R * 2, x)),
+        y: Math.max(0, Math.min(height - COUNTER_R * 2, y)),
+      } : it);
+      itemsRef.current = next;
+      return next;
+    });
   };
 
   const addTool = (type) => {
@@ -370,12 +383,10 @@ function CounterCanvas({ counters }) {
     };
     const handler = (e) => {
       const poly = e.detail?.poly || [];
-      if (!poly.length) return;
-      setItems(prev => {
-        const inside = new Set(prev.filter(it => pointInPoly(it.x + COUNTER_R, it.y + COUNTER_R, poly)).map(it => it.id));
-        setSelectedItemIds(inside);
-        return prev;
-      });
+      if (poly.length < 3) return;
+      const inside = new Set(itemsRef.current.filter(it => pointInPoly(it.x + COUNTER_R, it.y + COUNTER_R, poly)).map(it => it.id));
+      selectedIdsRef.current = inside;
+      setSelectedItemIds(new Set(inside));
     };
     c.addEventListener('lasso-complete', handler);
     return () => c.removeEventListener('lasso-complete', handler);
@@ -453,7 +464,7 @@ function CounterCanvas({ counters }) {
           className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'eraser' ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
           ⬜ Eraser
         </button>
-        {selectedItemIds.size > 0 && <span className="text-xs text-indigo-500 font-bold">{selectedItemIds.size} selected — drag to move</span>}
+        {selectedItemIds.size > 0 && <span className="text-xs text-indigo-500 font-bold">Group selected — drag to move</span>}
         {strokeCount > 0 && <>
           <button onClick={() => { strokesRef.current = strokesRef.current.slice(0, -1); setStrokeCount(n => Math.max(0, n - 1)); }} className="px-2 py-1 text-xs text-gray-500 hover:text-red-500">↩ Undo</button>
           <button onClick={() => { strokesRef.current = []; setStrokeCount(0); }} className="px-2 py-1 text-xs text-red-400 hover:text-red-600">🗑 Clear</button>
@@ -470,23 +481,30 @@ function CounterCanvas({ counters }) {
         {items.map(item => (
           <CounterItem key={item.id} item={item} frozen={drawMode} selected={selectedItemIds.has(item.id)}
             onMove={moveItem}
-            onGroupDragStart={(id, sx, sy) => {
-              const group = items.filter(it => selectedItemIds.has(it.id));
+            onGroupDragStart={(id) => {
+              const curItems = itemsRef.current;
+              const curSel = selectedIdsRef.current;
+              const group = curItems.filter(it => curSel.has(it.id));
               lassoDragRef.current = { ids: group.map(i => i.id), origPositions: Object.fromEntries(group.map(i => [i.id, { x: i.x, y: i.y }])) };
             }}
             onGroupDragMove={(dx, dy) => {
               if (!lassoDragRef.current) return;
               const { ids, origPositions } = lassoDragRef.current;
-              setItems(prev => prev.map(it => ids.includes(it.id) ? { ...it, x: origPositions[it.id].x + dx, y: origPositions[it.id].y + dy } : it));
+              setItems(prev => {
+                const next = prev.map(it => ids.includes(it.id) ? { ...it, x: origPositions[it.id].x + dx, y: origPositions[it.id].y + dy } : it);
+                itemsRef.current = next;
+                return next;
+              });
             }}
             onGroupDragEnd={() => { lassoDragRef.current = null; }}
           />
         ))}
+        {/* Lasso canvas sits BEHIND items (zIndex 2) so items get pointer events first */}
+        <canvas ref={lassoCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: 'crosshair', pointerEvents: drawMode ? 'none' : 'auto' }} />
         {drawMode && eraserMode && <EraserCursor />}
         {drawMode && (
           <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair' }} />
         )}
-        <canvas ref={lassoCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 25, cursor: 'default', pointerEvents: drawMode ? 'none' : 'auto' }} />
         {strokeCount > 0 && !drawMode && <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />}
       </div>
     </div>

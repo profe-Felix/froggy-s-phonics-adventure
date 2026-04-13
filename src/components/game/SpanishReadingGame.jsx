@@ -277,27 +277,27 @@ export default function SpanishReadingGame({ onBack }) {
     return () => ro.disconnect();
   }, []);
 
-  // Canvas pointer/touch events (exact copy from original HTML)
+  // Canvas pointer events — pointer API only (matches original HTML exactly)
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
 
     const getX = (e) => {
       const r = c.getBoundingClientRect();
-      const src = e.touches ? e.touches[0] : e;
-      return (src.clientX ?? 0) - r.left;
+      return e.clientX - r.left;
     };
 
     const onDown = (e) => {
-      if (gameModeRef.current !== 'read') return;
-      e.preventDefault();
+      if (gameModeRef.current !== 'read') {
+        if (gameModeRef.current === 'spell_kb') spellInputRef.current?.focus();
+        return;
+      }
       isDraggingRef.current = true;
-      if (e.pointerId != null) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
+      try { c.setPointerCapture(e.pointerId); } catch (_) {}
       moveSlider(getX(e));
     };
     const onMove = (e) => {
       if (gameModeRef.current !== 'read' || !isDraggingRef.current) return;
-      e.preventDefault();
       moveSlider(getX(e));
     };
     const onUp = () => {
@@ -306,44 +306,16 @@ export default function SpanishReadingGame({ onBack }) {
       drawCanvas();
       tryAdvanceRow();
     };
-    const onTouchStart = (e) => {
-      if (gameModeRef.current !== 'read') return;
-      e.preventDefault();
-      isDraggingRef.current = true;
-      moveSlider(getX(e));
-    };
-    const onTouchMove = (e) => {
-      if (gameModeRef.current !== 'read' || !isDraggingRef.current) return;
-      e.preventDefault();
-      moveSlider(getX(e));
-    };
-    const onTouchEnd = () => {
-      if (gameModeRef.current !== 'read') return;
-      isDraggingRef.current = false;
-      drawCanvas();
-      tryAdvanceRow();
-    };
-    const onClick = () => {
-      if (gameModeRef.current === 'spell_kb') spellInputRef.current?.focus();
-    };
 
     c.addEventListener('pointerdown', onDown);
     c.addEventListener('pointermove', onMove);
     c.addEventListener('pointerup', onUp);
     c.addEventListener('pointercancel', onUp);
-    c.addEventListener('touchstart', onTouchStart, { passive: false });
-    c.addEventListener('touchmove', onTouchMove, { passive: false });
-    c.addEventListener('touchend', onTouchEnd);
-    c.addEventListener('click', onClick);
     return () => {
       c.removeEventListener('pointerdown', onDown);
       c.removeEventListener('pointermove', onMove);
       c.removeEventListener('pointerup', onUp);
       c.removeEventListener('pointercancel', onUp);
-      c.removeEventListener('touchstart', onTouchStart);
-      c.removeEventListener('touchmove', onTouchMove);
-      c.removeEventListener('touchend', onTouchEnd);
-      c.removeEventListener('click', onClick);
     };
   }, []);
 
@@ -416,15 +388,17 @@ export default function SpanishReadingGame({ onBack }) {
   const typesetReadingLayout = useCallback(() => {
     const c = canvasRef.current;
     const el = containerRef.current;
-    if (!c || !el || !lettersRef.current.length) return;
+    if (!c || !el) return;
 
-    const usableW = el.clientWidth;
-    const usableH = el.clientHeight;
+    const usableW = el.clientWidth || 600;
+    const usableH = el.clientHeight || 300;
     const DPR = window.devicePixelRatio || 1;
     c.width = Math.round(usableW * DPR);
     c.height = Math.round(usableH * DPR);
     c.style.width = usableW + 'px';
     c.style.height = usableH + 'px';
+
+    if (!lettersRef.current.length) return;
 
     const ctx = c.getContext('2d');
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -810,19 +784,36 @@ export default function SpanishReadingGame({ onBack }) {
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
+      streamRef.current = audioStream;
+
       let mr;
+      // Try video+audio first
       try {
         const c = canvasRef.current;
-        const canvasStream = c.captureStream(30);
-        const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
-        streamRef.current = combined;
-        mr = new MediaRecorder(combined, { mimeType: 'video/webm;codecs=vp8,opus' });
-        mr.onstop = () => { combined.getTracks().forEach(t => t.stop()); const blob = new Blob(chunksRef.current, { type: 'video/webm' }); setRecordedUrl(URL.createObjectURL(blob)); };
-      } catch (_) {
-        streamRef.current = audioStream;
+        const canvasStream = c.captureStream ? c.captureStream(30) : null;
+        if (canvasStream && canvasStream.getVideoTracks().length > 0) {
+          const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+          streamRef.current = combined;
+          const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+          mr = new MediaRecorder(combined, { mimeType });
+          mr.onstop = () => {
+            combined.getTracks().forEach(t => t.stop());
+            const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+            setRecordedUrl(URL.createObjectURL(blob));
+          };
+        }
+      } catch (_) { mr = null; }
+
+      // Fallback: audio only
+      if (!mr) {
         mr = new MediaRecorder(audioStream);
-        mr.onstop = () => { audioStream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunksRef.current, { type: 'audio/webm' }); setRecordedUrl(URL.createObjectURL(blob)); };
+        mr.onstop = () => {
+          audioStream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          setRecordedUrl(URL.createObjectURL(blob));
+        };
       }
+
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.start(100);
       mediaRecorderRef.current = mr;
@@ -902,8 +893,8 @@ export default function SpanishReadingGame({ onBack }) {
       )}
 
       {/* Canvas */}
-      <div ref={containerRef} style={{ width: '95%', maxWidth: 900, margin: '0 auto', height: 300, border: '1px solid #ddd', position: 'relative' }}>
-        <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', inset: 0, touchAction: 'none', cursor: 'default' }} />
+      <div ref={containerRef} style={{ width: '95%', maxWidth: 900, margin: '0 auto', height: 300, border: '1px solid #ddd', position: 'relative', touchAction: 'none' }}>
+        <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', touchAction: 'none', cursor: 'default' }} />
       </div>
 
       {/* Recording */}
