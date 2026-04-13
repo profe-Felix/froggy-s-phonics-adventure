@@ -69,13 +69,14 @@ function FrameContainer({ tool, onMove, onRemove }) {
 export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const [items, setItems] = useState(() => generateCollection(seed, count));
   const [placedTools, setPlacedTools] = useState([]);
-  const [activeTool, setActiveTool] = useState('move'); // 'move' | 'draw' | 'eraser' | 'lasso'
+  const [activeTool, setActiveTool] = useState('move'); // 'move' | 'draw' | 'eraser'
   const drawMode = activeTool === 'draw' || activeTool === 'eraser';
   const eraserMode = activeTool === 'eraser';
-  const lassoMode = activeTool === 'lasso';
+  const lassoMode = true; // always-on lasso when not in draw mode and clicking empty space
   const [strokeCount, setStrokeCount] = useState(0);
   const strokesRef = useRef([]);
-  const canvasRef = useRef(null);
+  const canvasRef = useRef(null);   // draw canvas
+  const lassoCanvasRef = useRef(null); // lasso overlay
   const isDrawing = useRef(false);
   const currentStroke = useRef([]);
   const nextToolId = useRef(0);
@@ -87,10 +88,10 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const lassoDragRef = useRef(null); // {ids, startX, startY, origPositions}
   const [lassoActive, setLassoActive] = useState(false);
 
-  // Setup canvas only when drawMode OR lassoMode changes
+  // Lasso canvas — always active when NOT in draw mode
   useEffect(() => {
-    if (!lassoMode || !canvasRef.current) return;
-    const c = canvasRef.current;
+    if (drawMode || !lassoCanvasRef.current) return;
+    const c = lassoCanvasRef.current;
     const dpr = window.devicePixelRatio || 1;
     c.width = c.offsetWidth * dpr;
     c.height = c.offsetHeight * dpr;
@@ -133,7 +134,14 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       return inside;
     };
 
-    const onDown = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onDown = (e) => {
+      // Don't start lasso if clicking an item (items handle their own drag via stopPropagation on pointerdown)
+      // The canvas is behind items (zIndex 20 but items are DOM elements above), so if we get this event
+      // the user clicked empty space → start lasso
+      e.preventDefault();
+      dragging = true;
+      lassoPoints = [getPos(e)];
+    };
     const onMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
     const onUp = () => {
       if (!dragging) return;
@@ -161,7 +169,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onUp);
     };
-  }, [lassoMode]);
+  }, [drawMode]);
 
   // Setup canvas only when drawMode changes (avoids clearing on each stroke)
   useEffect(() => {
@@ -259,9 +267,9 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, x: c.x, y: c.y } : it));
   };
 
-  // Listen for lasso-complete events from the canvas
+  // Listen for lasso-complete events from the lasso canvas
   useEffect(() => {
-    const c = canvasRef.current;
+    const c = lassoCanvasRef.current;
     if (!c) return;
     const handler = (e) => {
       const poly = e.detail?.poly || [];
@@ -283,7 +291,7 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     };
     c.addEventListener('lasso-complete', handler);
     return () => c.removeEventListener('lasso-complete', handler);
-  }, [lassoMode]);
+  }, [drawMode]);
 
   // Re-clamp all items when container resizes (e.g. orientation change)
   useEffect(() => {
@@ -320,10 +328,6 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
         <button onClick={() => setActiveTool(activeTool === 'eraser' ? 'move' : 'eraser')}
           className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'eraser' ? 'bg-gray-600 text-white border-gray-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
           ⬜ Eraser
-        </button>
-        <button onClick={() => setActiveTool(activeTool === 'lasso' ? 'move' : 'lasso')}
-          className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'lasso' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}>
-          🪤 Lasso
         </button>
         {selectedItemIds.size > 0 && (
           <span className="text-xs text-indigo-500 font-bold">{selectedItemIds.size} selected — drag to move</span>
@@ -373,13 +377,12 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
 
         {/* Draw overlay */}
         {drawMode && eraserMode && <EraserCursor />}
-        {(drawMode || lassoMode) && (
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : lassoMode ? 'crosshair' : 'crosshair' }} />
+        {drawMode && (
+          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair' }} />
         )}
-        {!drawMode && !lassoMode && strokeCount > 0 && (
-          <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
-        )}
-        {!drawMode && lassoMode && strokeCount > 0 && (
+        {/* Lasso canvas — always present and on top, transparent to pointer only when drawing */}
+        <canvas ref={lassoCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 25, cursor: 'default', pointerEvents: drawMode ? 'none' : 'auto' }} />
+        {strokeCount > 0 && !drawMode && (
           <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />
         )}
       </div>
