@@ -8,74 +8,87 @@ import CountingVerify from './CountingVerify';
 function randomSeed() { return Math.floor(Math.random() * 1000000); }
 function randomCount() { return Math.floor(Math.random() * 10) + 11; }
 
-// ── Comparison drop zone (reuse pattern from RollCompareGame) ────
-function DropZone({ filled, selected, onPlace, dropRef }) {
-  return (
-    <div ref={dropRef} onClick={() => { if (!filled && selected) onPlace(selected); }}
-      className={`min-w-[150px] h-12 rounded-2xl border-4 border-dashed flex items-center justify-center font-bold text-sm transition-all
-        ${filled ? 'border-teal-500 bg-teal-100 text-teal-700' : selected ? 'border-teal-400 bg-teal-50 text-teal-500 cursor-pointer' : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
-      {filled || (selected ? 'tap to place' : 'pick a word')}
-    </div>
-  );
-}
+const LABEL_MAP = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
 
-const COMPARISON_WORDS = [
-  { label: 'is greater than', value: 'is_greater_than' },
-  { label: 'is less than', value: 'is_less_than' },
-  { label: 'is equal to', value: 'is_equal_to' },
-];
-
-function ComparePhase({ myAnswer, theirAnswer, onDone }) {
+// ── Compare phase shown INLINE below the canvases ──────────────────
+function ComparePhase({ myNumber, theirNumber, myLabel, theirLabel, onNewRound, onLeave }) {
   const [selected, setSelected] = useState(null);
   const [placed, setPlaced] = useState(null);
   const [result, setResult] = useState(null);
   const dropRef = useRef(null);
 
-  const correctComparison = myAnswer > theirAnswer ? 'is_greater_than' : myAnswer < theirAnswer ? 'is_less_than' : 'is_equal_to';
+  const correctValue = myNumber > theirNumber ? 'is_greater_than' : myNumber < theirNumber ? 'is_less_than' : 'is_equal_to';
 
   const handlePlace = (val) => {
-    const correct = val === correctComparison;
-    setPlaced(val === 'is_greater_than' ? 'is greater than' : val === 'is_less_than' ? 'is less than' : 'is equal to');
+    if (placed) return;
+    const correct = val === correctValue;
+    setPlaced(LABEL_MAP[val]);
     setResult(correct ? 'correct' : 'wrong');
   };
 
-  if (result) {
-    const correctLabel = correctComparison === 'is_greater_than' ? 'is greater than' : correctComparison === 'is_less_than' ? 'is less than' : 'is equal to';
-    return (
-      <div className={`rounded-2xl p-5 text-center ${result === 'correct' ? 'bg-green-50 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}>
-        <div className="text-4xl mb-2">{result === 'correct' ? '🎉' : '🤔'}</div>
-        <p className="text-xl font-black mb-1">{result === 'correct' ? 'Correct!' : 'Not quite…'}</p>
-        <p className="text-gray-600 mb-2">{myAnswer} <strong>{placed}</strong> {theirAnswer}</p>
-        {result !== 'correct' && <p className="text-sm text-gray-500 mb-3">Answer: <strong>{myAnswer} {correctLabel} {theirAnswer}</strong></p>}
-        <motion.button whileTap={{ scale: 0.95 }} onClick={onDone}
-          className="bg-teal-600 text-white font-bold px-6 py-2 rounded-xl shadow mt-2">
-          Done ✓
-        </motion.button>
-      </div>
-    );
-  }
+  const submitted = !!placed;
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-center font-bold text-gray-600">Complete the comparison:</p>
-      <div className="flex flex-wrap items-center justify-center gap-2 text-xl font-black">
-        <span className="bg-teal-100 px-3 py-2 rounded-xl">{myAnswer}</span>
-        <DropZone filled={placed} selected={selected} onPlace={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
-        <span className="bg-orange-100 px-3 py-2 rounded-xl">{theirAnswer}</span>
+    <div className="flex flex-col gap-3 p-4 bg-white rounded-2xl shadow-lg mt-2">
+      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Complete the sentence!</p>
+
+      {/* Side-by-side number display */}
+      <div className="flex items-center justify-center gap-4 text-2xl font-black flex-wrap">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-xs text-teal-600 font-bold">You</span>
+          <span className="bg-teal-100 px-4 py-2 rounded-xl text-teal-800">{myNumber}</span>
+        </div>
+
+        {/* Drop zone */}
+        <div ref={dropRef}
+          onClick={() => { if (!submitted && selected) handlePlace(selected); }}
+          className={`min-w-[130px] h-12 rounded-2xl border-4 border-dashed flex items-center justify-center font-bold text-sm transition-all cursor-pointer
+            ${submitted && result === 'correct' ? 'border-green-500 bg-green-50 text-green-700'
+              : submitted && result === 'wrong' ? 'border-red-400 bg-red-50 text-red-600'
+              : placed ? 'border-teal-500 bg-teal-100 text-teal-700'
+              : selected ? 'border-teal-400 bg-teal-50 text-teal-500'
+              : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
+          {placed || (selected ? 'tap to place' : 'pick a word')}
+        </div>
+
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-xs text-orange-600 font-bold">{theirLabel}</span>
+          <span className="bg-orange-100 px-4 py-2 rounded-xl text-orange-800">{theirNumber}</span>
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2 justify-center">
-        {COMPARISON_WORDS.map(w => (
-          <button key={w.value} onClick={() => setSelected(s => s === w.value ? null : w.value)}
-            className={`px-3 py-2 rounded-xl font-bold text-sm shadow transition-all ${selected === w.value ? 'bg-teal-600 text-white border-2 border-teal-700' : 'bg-white text-teal-700 border-2 border-teal-300 hover:bg-teal-50'}`}>
-            {w.label}
-          </button>
-        ))}
-      </div>
+
+      {/* Word choices */}
+      {!submitted && (
+        <div className="flex flex-wrap gap-2 justify-center">
+          {Object.entries(LABEL_MAP).map(([val, label]) => (
+            <button key={val}
+              onClick={() => setSelected(s => s === val ? null : val)}
+              className={`px-3 py-2 rounded-xl font-bold text-sm shadow transition-all
+                ${selected === val ? 'bg-teal-600 text-white border-2 border-teal-700' : 'bg-white text-teal-700 border-2 border-teal-300 hover:bg-teal-50'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Result */}
+      {result && (
+        <div className={`rounded-2xl p-4 text-center ${result === 'correct' ? 'bg-green-50 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}>
+          <div className="text-3xl mb-1">{result === 'correct' ? '🎉' : '🤔'}</div>
+          <p className="text-lg font-black">{result === 'correct' ? 'Correct!' : `Answer: ${myNumber} ${LABEL_MAP[correctValue]} ${theirNumber}`}</p>
+          <div className="flex gap-2 justify-center mt-3">
+            <button onClick={onNewRound} className="bg-teal-600 text-white font-bold px-6 py-2 rounded-xl shadow">
+              🔄 New Round
+            </button>
+            <button onClick={onLeave} className="text-gray-400 hover:text-gray-600 text-sm px-4 py-2">← Leave</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── GameView ────────────────────────────────────────────────────
+// ── GameView ─────────────────────────────────────────────────────
 function GameView({ game, studentNumber, onLeave, refetch }) {
   const isP1 = game.player1_number === studentNumber;
   const mySeed = isP1 ? game.player1_seed : game.player2_seed;
@@ -83,26 +96,31 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const myAnswer = isP1 ? game.player1_answer : game.player2_answer;
   const theirAnswer = isP1 ? game.player2_answer : game.player1_answer;
   const partnerNum = isP1 ? game.player2_number : game.player1_number;
+  const theirSeed = isP1 ? game.player2_seed : game.player1_seed;
+  const theirCount = isP1 ? game.player2_count : game.player1_count;
 
-  const [phase, setPhase] = useState('count'); // count | verify | compare | done
+  const [phase, setPhase] = useState('count'); // count | verify | compare_wait | compare
+  const [localMyAnswer, setLocalMyAnswer] = useState(null);
   const roundNum = game.round_number || 1;
 
   const handleVerified = async (answer) => {
+    setLocalMyAnswer(answer);
     const update = isP1 ? { player1_answer: answer } : { player2_answer: answer };
     await base44.entities.CountingCollectionPartnerGame.update(game.id, update);
     refetch();
     setPhase('compare_wait');
   };
 
-  // Poll — once both answered, go to compare
+  // Poll until both answered
   useQuery({
-    queryKey: ['ccpg-wait', game.id],
+    queryKey: ['ccpg-wait', game.id, phase],
     queryFn: () => base44.entities.CountingCollectionPartnerGame.filter({ class_name: game.class_name }),
     refetchInterval: phase === 'compare_wait' ? 2000 : false,
     onSuccess: (data) => {
       const g = data.find(x => x.id === game.id);
       if (g && g.player1_answer && g.player2_answer && phase === 'compare_wait') {
         setPhase('compare');
+        refetch();
       }
     }
   });
@@ -115,57 +133,89 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
       player1_comparison: null, player2_comparison: null,
       round_number: roundNum + 1, status: 'counting',
     });
+    setLocalMyAnswer(null);
     setPhase('count');
     refetch();
   };
 
+  // Determine live answers for compare phase
+  const liveMyAnswer = localMyAnswer ?? myAnswer;
+
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-3">
+    <div className="w-full max-w-3xl mx-auto flex flex-col gap-2">
+      <div className="flex items-center justify-between">
         <button onClick={onLeave} className="text-teal-900/70 hover:text-teal-900 font-medium text-sm">← Leave</button>
         <h1 className="text-lg font-black text-teal-900">🔢 Count & Compare</h1>
         <span className="text-teal-700 text-sm">Round {roundNum}</span>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-        {phase === 'count' && (
+      {/* Counting phase — full canvas */}
+      {phase === 'count' && (
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden" style={{ height: 420 }}>
           <CollectionCanvas seed={mySeed} count={myCount} onDone={() => setPhase('verify')} />
-        )}
-        {phase === 'verify' && (
-          <div className="p-6">
-            <CountingVerify targetCount={myCount} onVerified={handleVerified} />
+        </div>
+      )}
+
+      {/* Verify */}
+      {phase === 'verify' && (
+        <div className="bg-white rounded-2xl shadow-xl p-6">
+          <CountingVerify targetCount={myCount} onVerified={handleVerified} />
+        </div>
+      )}
+
+      {/* Waiting for partner */}
+      {phase === 'compare_wait' && (
+        <div className="flex flex-col gap-3">
+          {/* Show my canvas above while waiting */}
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden" style={{ height: 300 }}>
+            <CollectionCanvas seed={mySeed} count={myCount} hideButton />
           </div>
-        )}
-        {phase === 'compare_wait' && (
-          <div className="p-8 flex flex-col items-center gap-3">
-            <div className="text-4xl">⭐</div>
-            <p className="text-xl font-bold text-teal-700">You counted {myAnswer}!</p>
-            <p className="text-gray-400 animate-pulse text-sm">Waiting for partner #{partnerNum} to finish…</p>
+          <div className="bg-white rounded-2xl shadow-xl p-5 flex flex-col items-center gap-2">
+            <div className="text-3xl">⭐</div>
+            <p className="text-lg font-bold text-teal-700">You counted <strong>{liveMyAnswer}</strong>!</p>
+            <p className="text-gray-400 animate-pulse text-sm">Waiting for #{partnerNum} to finish…</p>
           </div>
-        )}
-        {phase === 'compare' && (
-          <div className="p-5">
-            <p className="text-sm font-bold text-gray-400 uppercase text-center mb-3">Partner #{partnerNum} counted {theirAnswer}!</p>
-            <ComparePhase myAnswer={myAnswer} theirAnswer={theirAnswer} onDone={() => setPhase('done')} />
+        </div>
+      )}
+
+      {/* Compare — side-by-side canvases + comparison widget */}
+      {phase === 'compare' && (
+        <div className="flex flex-col gap-2">
+          {/* Side-by-side canvases */}
+          <div className="flex gap-2">
+            <div className="flex-1 bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col" style={{ minHeight: 260 }}>
+              <div className="px-3 py-1.5 bg-teal-50 border-b border-teal-200 text-xs font-bold text-teal-700">
+                You (#{studentNumber}) — counted {liveMyAnswer ?? myAnswer}
+              </div>
+              <div className="flex-1">
+                <CollectionCanvas seed={mySeed} count={myCount} hideButton />
+              </div>
+            </div>
+            <div className="flex-1 bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col" style={{ minHeight: 260 }}>
+              <div className="px-3 py-1.5 bg-orange-50 border-b border-orange-200 text-xs font-bold text-orange-700">
+                Partner #{partnerNum} — counted {theirAnswer}
+              </div>
+              <div className="flex-1">
+                <CollectionCanvas seed={theirSeed} count={theirCount} hideButton />
+              </div>
+            </div>
           </div>
-        )}
-        {phase === 'done' && (
-          <div className="p-6 flex flex-col items-center gap-4">
-            <div className="text-5xl">🎊</div>
-            <p className="text-2xl font-black text-teal-700">Round {roundNum} complete!</p>
-            <motion.button whileTap={{ scale: 0.95 }} onClick={handleNextRound}
-              className="bg-teal-600 text-white font-bold text-lg px-8 py-3 rounded-2xl shadow-lg">
-              Next Round →
-            </motion.button>
-            <button onClick={onLeave} className="text-gray-400 hover:text-gray-600 text-sm">← Leave</button>
-          </div>
-        )}
-      </div>
+          {/* Comparison widget */}
+          <ComparePhase
+            myNumber={liveMyAnswer ?? myAnswer}
+            theirNumber={theirAnswer}
+            myLabel={`You (#${studentNumber})`}
+            theirLabel={`Partner #${partnerNum}`}
+            onNewRound={handleNextRound}
+            onLeave={onLeave}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-// ── Lobby ────────────────────────────────────────────────────────
+// ── Lobby ─────────────────────────────────────────────────────────
 export default function CountingCollectionPartner({ studentNumber, className: cls, onBack }) {
   const [activeGameId, setActiveGameId] = useState(null);
 
@@ -176,8 +226,7 @@ export default function CountingCollectionPartner({ studentNumber, className: cl
   });
 
   const myGame = allGames.find(g =>
-    (g.player1_number === studentNumber || g.player2_number === studentNumber) &&
-    g.status !== 'done'
+    (g.player1_number === studentNumber || g.player2_number === studentNumber) && g.status !== 'done'
   ) || (activeGameId ? allGames.find(g => g.id === activeGameId) : null);
 
   const joinableGames = allGames.filter(g =>
@@ -198,9 +247,7 @@ export default function CountingCollectionPartner({ studentNumber, className: cl
   };
 
   const joinGame = async (openGame) => {
-    await base44.entities.CountingCollectionPartnerGame.update(openGame.id, {
-      player2_number: studentNumber, status: 'counting',
-    });
+    await base44.entities.CountingCollectionPartnerGame.update(openGame.id, { player2_number: studentNumber, status: 'counting' });
     setActiveGameId(openGame.id);
     refetch();
   };
@@ -213,7 +260,7 @@ export default function CountingCollectionPartner({ studentNumber, className: cl
 
   if (myGame && (myGame.status === 'counting' || myGame.status === 'comparing')) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-teal-200 to-green-300 flex flex-col items-center py-6 px-3">
+      <div className="min-h-screen bg-gradient-to-b from-teal-200 to-green-300 flex flex-col items-start py-4 px-3 overflow-y-auto">
         <GameView game={myGame} studentNumber={studentNumber} onLeave={() => leaveGame(myGame)} refetch={refetch} />
       </div>
     );

@@ -719,7 +719,6 @@ export default function DoubleSidedCounters({ onBack }) {
   const [yellowInput, setYellowInput] = useState(null);
   const [countSubmitted, setCountSubmitted] = useState(false);
   const [countFeedback, setCountFeedback] = useState(null);
-  const [phase, setPhase] = useState('count');
   const [sentenceAttempts, setSentenceAttempts] = useState(0);
 
   const actualRed = counters.filter(c => c === 'red').length;
@@ -736,7 +735,6 @@ export default function DoubleSidedCounters({ onBack }) {
     setCountFeedback(null);
     setRedInput(null);
     setYellowInput(null);
-    setPhase('count');
     setSentenceAttempts(0);
     setTimeout(() => { setShaking(false); setSpilled(true); }, 800);
   };
@@ -776,7 +774,7 @@ export default function DoubleSidedCounters({ onBack }) {
       </div>
 
       <AnimatePresence mode="wait">
-        {spilled && phase === 'count' && (
+        {spilled && (
           <motion.div key="count" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
 
@@ -821,39 +819,28 @@ export default function DoubleSidedCounters({ onBack }) {
 
             {/* Actions */}
             <div className="flex items-center justify-center gap-2 py-2 px-2">
-              {!countSubmitted ? (
+              {!countSubmitted && (
                 <button onClick={handleCheckCount} disabled={redInput === null || yellowInput === null}
                   className="px-5 py-2 rounded-xl font-black text-white text-sm disabled:opacity-40"
                   style={{ background: '#4338ca' }}>
                   ✅ Check My Count
                 </button>
-              ) : (
-                <button onClick={() => { setPhase('sentence'); setSentenceAttempts(0); }}
-                  className="px-5 py-2 rounded-xl font-black text-white text-sm"
-                  style={{ background: '#0369a1' }}>
-                  Next: Complete the Sentence →
-                </button>
               )}
             </div>
+            {/* Sentence phase appears inline below after checking */}
+            {countSubmitted && (
+              <SentencePhase
+                redCount={actualRed}
+                yellowCount={actualYellow}
+                attempts={sentenceAttempts}
+                onAttempt={(newAttempts) => setSentenceAttempts(newAttempts)}
+                onNewRound={shake}
+              />
+            )}
           </motion.div>
         )}
 
-        {spilled && phase === 'sentence' && (
-          <motion.div key="sentence" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col justify-center">
-            <SentencePhase
-              redCount={actualRed}
-              yellowCount={actualYellow}
-              attempts={sentenceAttempts}
-              onAttempt={(newAttempts, correct) => setSentenceAttempts(newAttempts)}
-              onNewRound={shake}
-            />
-            <div className="flex justify-center py-2">
-              <button onClick={() => setPhase('count')} className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 bg-white shadow">
-                ← Back to counting
-              </button>
-            </div>
-          </motion.div>
-        )}
+
       </AnimatePresence>
     </div>
   );
