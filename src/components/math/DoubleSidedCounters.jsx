@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ── Counter size matches CollectionCanvas emoji items (fontSize 28) ──
-const COUNTER_R = 14; // radius in px — same visual footprint as 28px emoji
+const COUNTER_R = 14;
+
+// Compute frame dimensions (same formula as FrameContainer)
+const CELL = 32;
+function frameDims(type) {
+  const cols = 5, rows = type === 'five_frame' ? 1 : 2;
+  return { w: cols * CELL + (cols - 1) * 3 + 16, h: rows * CELL + (rows > 1 ? 3 : 0) + 16 };
+}
+const PLATE_SIZE = 120;
 
 function generateCounters(total) {
   const red = Math.floor(Math.random() * (total - 1)) + 1;
@@ -276,20 +283,27 @@ function CounterCanvas({ counters }) {
   const drawMode = activeTool === 'draw' || activeTool === 'eraser';
   const eraserMode = activeTool === 'eraser';
 
-  // Spread counters — random but no overlap
+  // Spread counters — random in the center zone (leave edges for tools)
   useEffect(() => {
     const el = containerRef.current; if (!el) return;
     const { width, height } = el.getBoundingClientRect();
     const size = COUNTER_R * 2;
-    const margin = 4;
+    // Reserve ~160px on left and right for frames/plates, ~60px top/bottom
+    const marginX = Math.min(160, width * 0.22);
+    const marginY = Math.min(60, height * 0.15);
+    const areaX = marginX, areaW = width - marginX * 2 - size;
+    const areaY = marginY, areaH = height - marginY * 2 - size;
     const placed = [];
     counters.forEach((color, i) => {
       let x, y, tries = 0;
       do {
-        x = margin + Math.random() * (width - size - margin * 2);
-        y = margin + Math.random() * (height - size - margin * 2);
+        x = areaX + Math.random() * Math.max(1, areaW);
+        y = areaY + Math.random() * Math.max(1, areaH);
         tries++;
-      } while (tries < 200 && placed.some(p => Math.hypot(p.x - x, p.y - y) < size + 2));
+      } while (tries < 300 && placed.some(p => Math.hypot(p.x - x, p.y - y) < size + 3));
+      // Clamp to canvas
+      x = Math.max(0, Math.min(width - size, x));
+      y = Math.max(0, Math.min(height - size, y));
       placed.push({ id: i, color, x, y });
     });
     itemsRef.current = placed;
@@ -313,9 +327,32 @@ function CounterCanvas({ counters }) {
   };
 
   const addTool = (type) => {
-    setPlacedTools(t => [...t, { id: nextToolId.current++, type, x: 20, y: 10 }]);
+    // Place new tools staggered in the top-left area so they don't land on counters
+    const el = containerRef.current;
+    const count = placedTools.length;
+    const offset = count * 20;
+    const x = 8 + offset;
+    const y = 8 + offset;
+    setPlacedTools(t => [...t, { id: nextToolId.current++, type, x, y }]);
   };
-  const moveTool = (id, x, y) => setPlacedTools(t => t.map(tool => tool.id === id ? { ...tool, x, y } : tool));
+
+  const moveTool = (id, x, y) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    setPlacedTools(t => t.map(tool => {
+      if (tool.id !== id) return tool;
+      const dims = tool.type === 'plate'
+        ? { w: PLATE_SIZE, h: PLATE_SIZE }
+        : frameDims(tool.type);
+      return {
+        ...tool,
+        x: Math.max(0, Math.min(width - dims.w, x)),
+        y: Math.max(0, Math.min(height - dims.h, y)),
+      };
+    }));
+  };
+
   const removeTool = (id) => setPlacedTools(t => t.filter(tool => tool.id !== id));
 
   // Lasso canvas — active when NOT drawing (exact copy from CollectionCanvas)
@@ -452,9 +489,9 @@ function CounterCanvas({ counters }) {
       {/* Toolbar — same style as CollectionCanvas */}
       <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-200 rounded-t-2xl flex-wrap">
         <span className="text-xs font-bold text-indigo-600 mr-1">Add:</span>
-        <button onClick={() => addTool('plate')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm">⬤ Plate</button>
-        <button onClick={() => addTool('five_frame')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm">5-Frame</button>
-        <button onClick={() => addTool('ten_frame')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm">10-Frame</button>
+        <button onClick={() => addTool('plate')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm" title="Click to add, then drag to position">⬤ Plate</button>
+        <button onClick={() => addTool('five_frame')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm" title="Click to add, then drag to position">5-Frame</button>
+        <button onClick={() => addTool('ten_frame')} className="px-3 py-1.5 bg-white border border-indigo-300 rounded-lg text-sm font-semibold text-indigo-700 hover:bg-indigo-100 shadow-sm" title="Click to add, then drag to position">10-Frame</button>
         <div className="w-px h-5 bg-indigo-200 mx-1" />
         <button onClick={() => setActiveTool(activeTool === 'draw' ? 'move' : 'draw')}
           className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm border transition-all ${activeTool === 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}>

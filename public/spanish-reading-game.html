@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Spanish Reading Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Andika&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Andika', sans-serif; background: white; user-select: none; -webkit-user-select: none; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  #top-bar { text-align: center; padding: 4px 8px; position: relative; }
+  #back-btn { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 14px; background: none; border: none; cursor: pointer; color: #666; padding: 4px; }
+  h2 { font-size: 20px; font-weight: bold; display: inline; }
+  #list-bar { text-align: center; padding: 2px 4px; }
+  #list-bar select { font-size: 14px; padding: 3px 6px; margin: 2px; font-family: 'Andika', sans-serif; }
+  #ctrl-bar { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; padding: 2px 4px; }
+  #ctrl-bar button, #ctrl-bar select { font-size: 14px; padding: 3px 7px; font-family: 'Andika', sans-serif; cursor: pointer; }
+  #tile-rack { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 8px; max-width: 900px; margin: 0 auto; }
+  .tile-btn { font-family: 'Andika', sans-serif; font-size: 20px; padding: 8px 12px; border: 2px solid #111; background: #fff; border-radius: 12px; cursor: pointer; min-width: 48px; }
+  .tile-btn:disabled { opacity: 0.35; cursor: default; }
+  #canvas-wrap { flex: 1; width: 95%; max-width: 900px; margin: 0 auto; min-height: 0; position: relative; touch-action: none; }
+  #main-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; }
+  #rec-bar { text-align: center; padding: 4px; }
+  #rec-bar button { font-size: 14px; padding: 3px 8px; margin: 2px; cursor: pointer; font-family: 'Andika', sans-serif; }
+  #playback-wrap { text-align: center; padding: 4px 0 8px; }
+  #playback-wrap video { max-width: 95%; border-radius: 8px; }
+  #hidden-input { position: absolute; left: -9999px; top: -9999px; }
+</style>
+</head>
+<body>
+
+<div id="top-bar">
+  <button id="back-btn">← Back</button>
+  <h2>Spanish Reading Game</h2>
+</div>
+
+<div id="list-bar">
+  <select id="list-sel"><option value="" disabled selected>Selecciona una lista</option></select>
+  <span id="module-ui" style="display:none">
+    <select id="mod-sel">
+      <option>M1</option><option>M2</option><option>M3</option><option>M4</option>
+      <option>M5</option><option>M6</option><option>M7</option><option>M8</option><option>M9</option>
+    </select>
+    <select id="scope-sel" style="background:#dcfce7">
+      <option value="all">📚 Hasta este módulo</option>
+      <option value="new">⭐ Solo este módulo</option>
+    </select>
+  </span>
+</div>
+
+<div id="ctrl-bar">
+  <button id="bksp-btn" disabled>⌫</button>
+  <button id="clear-btn" disabled>🧽 Clear</button>
+  <span style="font-weight:600">Modo:</span>
+  <select id="mode-sel">
+    <option value="read">📖 Leer (Slider)</option>
+    <option value="spell_kb">⌨️ Deletrear (Teclado)</option>
+    <option value="spell_tiles">🧩 Deletrear (Fichas)</option>
+  </select>
+  <select id="tile-mode-sel" style="display:none">
+    <option value="exact">Fichas: Exactas</option>
+    <option value="vowels">Fichas: Consonantes + Vocales</option>
+    <option value="distractors">Fichas: + Distractores</option>
+  </select>
+  <button id="audio-btn">🔊 Play Audio</button>
+  <button id="prev-btn">⟵ Prev</button>
+  <button id="next-btn">Next ⟶</button>
+  <button id="submit-btn" disabled>✅ Submit</button>
+</div>
+
+<div id="tile-rack" style="display:none"></div>
+
+<div id="canvas-wrap">
+  <canvas id="main-canvas"></canvas>
+</div>
+
+<div id="rec-bar">
+  <button id="rec-start-btn">🎙 Start Recording</button>
+  <button id="rec-stop-btn" disabled>⏹ Stop Recording</button>
+</div>
+<div id="playback-wrap"></div>
+
+<input id="hidden-input" type="text" autocomplete="off" autocapitalize="none" spellcheck="false">
+
+<script>
+const SUPABASE_URL = "https://dmlsiyyqpcupbizpxwhp.supabase.co";
+const DIGRAPHS = ["ch","ll","rr","qu"];
+
+// ── helpers ──
+function parseWord(word) {
+  const out = [], w = word || "";
+  for (let i = 0; i < w.length;) {
+    const ch = w[i];
+    if (ch === " ") { out.push({text:" ",isSpace:true}); i++; continue; }
+    if (/[.,!?;]/.test(ch)) { out.push({text:ch,isPunctuation:true}); i++; continue; }
+    const lower = w.toLowerCase();
+    const dg = DIGRAPHS.find(d => lower.startsWith(d,i));
+    if (dg) { out.push({text:dg,soundType:getSoundType(dg)}); i+=dg.length; }
+    else { out.push({text:w[i],soundType:getSoundType(lower[i],lower[i+1])}); i++; }
+  }
+  return out;
+}
+function getSoundType(letter,next="") {
+  if (letter==="c") return /[ei]/.test(next)?"continuous":"stop";
+  if (["p","t","k","b","d","g","ch"].includes(letter)) return "stop";
+  if (letter==="h") return "silent";
+  return "continuous";
+}
+function groupIntoWords(letters) {
+  const out=[]; let cur=[];
+  letters.forEach(l=>{ if(l.isSpace){if(cur.length)out.push(cur);cur=[];}else cur.push(l); });
+  if(cur.length)out.push(cur);
+  return out;
+}
+function normalizeName(s){ return (s||"").toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zñü]+/g,''); }
+function isVowelChar(ch){ return /[aeiouáéíóúü]/i.test(ch||""); }
+function graphemeIsVowel(g){ if(!g)return false; if(["ch","ll","rr","qu"].includes(g))return false; return isVowelChar(g); }
+function tileDisplayFor(g){ if(!g)return ""; return g.toLowerCase().replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u'); }
+function normalizeForGrade(s){ let x=(s||"").toLowerCase(); x=x.replace(/ñ/g,"__NY__"); x=x.normalize('NFD').replace(/[\u0300-\u036f]/g,''); x=x.replace(/__NY__/g,"ñ"); return x; }
+function splitIntoSyllables(gs) {
+  const allowed2=new Set(["bl","br","cl","cr","dr","fl","fr","gl","gr","pl","pr","tr"]);
+  const syls=[]; let i=0;
+  while(i<gs.length){
+    let onset=[];
+    while(i<gs.length&&!graphemeIsVowel(gs[i]))onset.push(gs[i++]);
+    let nucleus=[];
+    if(i<gs.length&&graphemeIsVowel(gs[i])){ nucleus.push(gs[i++]); if(i<gs.length&&graphemeIsVowel(gs[i]))nucleus.push(gs[i++]); }
+    let cons=[],j=i;
+    while(j<gs.length&&!graphemeIsVowel(gs[j]))cons.push(gs[j++]);
+    if(j>=gs.length){syls.push(onset.concat(nucleus).concat(cons));break;}
+    if(cons.length===0)syls.push(onset.concat(nucleus));
+    else if(cons.length===1)syls.push(onset.concat(nucleus));
+    else if(cons.length===2){ const pair=(cons[0]+cons[1]).replace(/[^a-zñ]/g,''); if(allowed2.has(pair))syls.push(onset.concat(nucleus)); else{syls.push(onset.concat(nucleus).concat([cons[0]]));i+=1;} }
+    else{ const last2=(cons[cons.length-2]+cons[cons.length-1]).replace(/[^a-zñ]/g,''); if(allowed2.has(last2)){syls.push(onset.concat(nucleus).concat([cons[0]]));i+=1;}else{syls.push(onset.concat(nucleus).concat(cons.slice(0,2)));i+=2;} }
+  }
+  return syls;
+}
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  r=Math.max(0,Math.min(r,w/2,h/2));
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
+  if(fill)ctx.fill();if(stroke)ctx.stroke();
+}
+function ensureSentenceObjects(arr,modTag){
+  if(!Array.isArray(arr)||arr.length===0)return arr;
+  if(typeof arr[0]==="object")return arr;
+  if(arr[0].includes(" "))return arr.map((t,i)=>({id:`${modTag}.S${i+1}`,text:(t||"").trim()}));
+  return arr;
+}
+
+// ── State ──
+let allLists={}, selectedList='', selectedModule='M1', scopeMode='all', gameMode='read', tileMode='exact';
+let words=[], wordIndex=0, letters=[], readLayout=null;
+let sliderX=0, sliderStart=0, sliderEnd=0, activeRow=0, rowCount=1, isDragging=false, freshWord=true;
+let targetGraphemes=[], userGraphemes=[], cursorSlot=0, spellingSubmitted=false, perSlotCorrect=[], pendingDigraph=null;
+let tiles=[], tilesUsed=[];
+let mediaRecorder=null, chunks=[], stream=null, recording=false;
+
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvas-wrap');
+const tileRack = document.getElementById('tile-rack');
+const hiddenInput = document.getElementById('hidden-input');
+
+// ── Load lists ──
+async function loadLists(){
+  try {
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/lists.json`);
+    if(res.ok){ allLists=await res.json(); populateListSelect(); }
+  } catch(e){ console.warn('Could not load lists',e); }
+}
+function populateListSelect(){
+  const sel=document.getElementById('list-sel');
+  Object.keys(allLists).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+  if(Object.keys(allLists).length>0){ sel.value=Object.keys(allLists)[0]; onListChange(); }
+}
+
+// ── Word list building ──
+function buildWordArr(){
+  if(!selectedList||!allLists[selectedList])return [];
+  const entry=allLists[selectedList];
+  let wordArr=[];
+  if(Array.isArray(entry)){
+    document.getElementById('module-ui').style.display='none';
+    wordArr=entry.slice();
+  } else {
+    const hasModules=!!(entry.M1||entry.M2);
+    document.getElementById('module-ui').style.display=hasModules?'':'none';
+    if(hasModules){
+      const modKeys=Object.keys(entry).sort();
+      modKeys.forEach(k=>{ if(entry[k]&&entry[k].new)entry[k].new=ensureSentenceObjects(entry[k].new,k); });
+      modKeys.forEach((k,idx)=>{
+        if(!entry[k].all){
+          let running=[];
+          for(let i=0;i<=idx;i++){const mod=entry[modKeys[i]];const fresh=Array.isArray(mod)?mod:(mod&&mod.new?mod.new:[]);running=running.concat(fresh);}
+          entry[k].all=running.slice();
+        }
+      });
+      const modIdx=modKeys.indexOf(selectedModule);
+      const targetMod=modIdx>=0?modKeys[modIdx]:modKeys[0];
+      const modData=entry[targetMod]||{};
+      if(scopeMode==='new')wordArr=Array.isArray(modData)?modData:(modData.new||[]);
+      else wordArr=modData.all||(Array.isArray(modData)?modData:(modData.new||[]));
+    } else {
+      wordArr=Object.values(entry).flat().filter(Boolean);
+    }
+  }
+  return wordArr.filter(Boolean).slice().sort(()=>Math.random()-0.5);
+}
+
+function onListChange(){
+  words=buildWordArr();
+  wordIndex=0;
+  clearPlayback();
+  if(words.length>0)setupWord(words[0]);
+}
+
+// ── Word setup ──
+function setupWord(word){
+  const rawText=typeof word==='object'?word.text:word;
+  letters=parseWord(rawText);
+  freshWord=true; activeRow=0;
+  const targetRaw=rawText.toLowerCase().trim();
+  const g=parseWord(targetRaw).filter(l=>!l.isSpace&&!l.isPunctuation).map(l=>l.text);
+  targetGraphemes=g;
+  userGraphemes=new Array(g.length).fill('');
+  cursorSlot=0; spellingSubmitted=false; perSlotCorrect=[]; pendingDigraph=null;
+  tiles=[]; tilesUsed=[];
+  if(gameMode==='spell_tiles')buildTilesForWord(g);
+  updateSubmitBtn();
+  renderTileRack();
+  typesetReadingLayout();
+  drawCanvas();
+}
+
+function buildTilesForWord(graphemes){
+  const display=graphemes.map(g=>tileDisplayFor(g));
+  tiles=display.slice().sort(()=>Math.random()-0.5);
+  tilesUsed=new Array(tiles.length).fill(false);
+}
+
+// ── Canvas sizing ──
+function typesetReadingLayout(){
+  const usableW=canvasWrap.clientWidth||600;
+  const usableH=canvasWrap.clientHeight||300;
+  const DPR=window.devicePixelRatio||1;
+  canvas.width=Math.round(usableW*DPR);
+  canvas.height=Math.round(usableH*DPR);
+  canvas.style.width=usableW+'px';
+  canvas.style.height=usableH+'px';
+  if(!letters.length)return;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const scale=Math.min(usableW/768,usableH/432);
+  let fp=Math.round(64*scale*1.5);
+  fp=Math.max(26,Math.min(130,fp));
+  ctx.font=`bold ${fp}px Andika, sans-serif`;
+  const em=fp;
+  const minPill=Math.max(8,Math.round(em*0.22));
+  const innerPad=Math.max(2,Math.round(em*0.03));
+  letters.forEach(l=>{
+    if(l.isPunctuation){l.gw=0;l.w=0;return;}
+    if(l.isSpace)return;
+    const gw=ctx.measureText(l.text).width;
+    l.gw=gw; l.w=Math.max(gw+innerPad*2,minPill);
+  });
+  const padding=Math.max(2,Math.round(fp*0.005));
+  const wordGap=padding*12;
+  const pillH=Math.max(8,Math.round(fp*0.10));
+  const maxRowWidth=usableW*0.9;
+  const wordsBlocks=groupIntoWords(letters);
+  const blockRow=[], rowWidthsLocal=[];
+  let row=0,x=0;
+  for(let bi=0;bi<wordsBlocks.length;bi++){
+    const block=wordsBlocks[bi];
+    const blockWidth=block.reduce((s,l)=>s+(l.isPunctuation?Math.max(10,ctx.measureText(l.text).width):(l.w||0)),0)+padding*(block.length-1);
+    if(x>0&&(x+blockWidth)>maxRowWidth){row++;x=0;}
+    blockRow[bi]=row; x+=blockWidth;
+    rowWidthsLocal[row]=Math.max(rowWidthsLocal[row]||0,x);
+    if(bi!==wordsBlocks.length-1){x+=wordGap;rowWidthsLocal[row]=Math.max(rowWidthsLocal[row]||0,x);}
+  }
+  const rowCountLocal=row+1;
+  const leftMargin=30;
+  const rowStartX=new Array(rowCountLocal).fill(leftMargin);
+  const baseRowStep=fp*1.6;
+  const sliderGap=Math.round(fp*0.25);
+  const layoutTopY=Math.round(fp*0.35);
+  readLayout={fontPx:fp,padding,wordGap,pillH,realTextY:Math.round(fp*1.25),pillYOff:Math.round(fp*1.25)+Math.max(16,Math.round(fp*0.5)),maxRowWidth,wordsBlocks,blockRow,rowWidths:rowWidthsLocal,rowStartX,rowCount:rowCountLocal,baseRowStep,sliderGap,layoutTopY};
+  rowCount=rowCountLocal; activeRow=0;
+  sliderStart=rowStartX[0]; sliderEnd=rowStartX[0]+(rowWidthsLocal[0]||maxRowWidth);
+  sliderX=sliderStart; freshWord=true;
+}
+
+// ── Drawing ──
+function drawCanvas(){ gameMode==='read'?drawReading():drawSpelling(); }
+
+function drawReading(){
+  if(!readLayout)return;
+  const L=readLayout;
+  const DPR=window.devicePixelRatio||1;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width/DPR,canvas.height/DPR);
+  ctx.font=`bold ${L.fontPx}px Andika, sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  const rowY=r=>L.layoutTopY+r*L.baseRowStep;
+  for(let bi=0;bi<L.wordsBlocks.length;bi++){
+    const block=L.wordsBlocks[bi],r=L.blockRow[bi];
+    let drawX=L.rowStartX[r];
+    for(let bj=bi-1;bj>=0;bj--){
+      if(L.blockRow[bj]!==r)break;
+      const prev=L.wordsBlocks[bj];
+      const prevW=prev.reduce((s,l)=>s+(l.isPunctuation?Math.max(10,ctx.measureText(l.text).width):(l.w||0)),0)+L.padding*(prev.length-1);
+      drawX+=prevW+L.wordGap;
+    }
+    for(let li=0;li<block.length;li++){
+      const letter=block[li];
+      if(letter.isPunctuation){
+        const pw=Math.max(10,ctx.measureText(letter.text).width);
+        ctx.fillStyle=(r===activeRow&&sliderX>=drawX+1)?'black':'lightgrey';
+        ctx.fillText(letter.text,drawX+pw/2,rowY(r)+L.realTextY);
+        drawX+=pw+L.padding;continue;
+      }
+      const pillW=letter.w||0;
+      ctx.fillStyle=(r===activeRow&&sliderX>=drawX+1)?'black':'lightgrey';
+      if(letter.text==='h'&&letter.soundType==='silent')ctx.fillStyle='#ccc';
+      ctx.fillText(letter.text,drawX+pillW/2,rowY(r)+L.realTextY);
+      if(r===activeRow){
+        ctx.strokeStyle=letter.soundType==='silent'?'#aaa':letter.soundType==='stop'?'red':'green';
+        ctx.lineWidth=3;
+        ctx.fillStyle=(sliderX>=drawX+1)?ctx.strokeStyle:'white';
+        const rr=Math.max(2,Math.min(10,L.pillH/2,pillW/2-1));
+        roundRect(ctx,drawX,rowY(r)+L.pillYOff,pillW,L.pillH,rr,true,true);
+      }
+      drawX+=pillW+L.padding;
+    }
+  }
+  const thisRowW=L.rowWidths[activeRow]||L.maxRowWidth;
+  sliderStart=L.rowStartX[activeRow]; sliderEnd=sliderStart+thisRowW;
+  const lineY=rowY(activeRow)+L.pillYOff+L.pillH+L.sliderGap;
+  ctx.lineCap='round';
+  ctx.strokeStyle='#ccc';ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(sliderStart,lineY);ctx.lineTo(sliderEnd,lineY);ctx.stroke();
+  ctx.strokeStyle='#007bff';
+  ctx.beginPath();ctx.moveTo(sliderStart,lineY);ctx.lineTo(sliderX,lineY);ctx.stroke();
+  ctx.beginPath();ctx.fillStyle='#007bff';
+  ctx.arc(sliderX,lineY,10,0,Math.PI*2);ctx.fill();
+  if(freshWord){sliderX=sliderStart;freshWord=false;}
+  else{sliderX=Math.min(Math.max(sliderX,sliderStart),sliderEnd);}
+}
+
+function drawSpelling(){
+  const DPR=window.devicePixelRatio||1;
+  const w=canvas.width/DPR,h=canvas.height/DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,w,h);ctx.fillStyle='white';ctx.fillRect(0,0,w,h);
+  if(!targetGraphemes.length)return;
+  const syls=splitIntoSyllables(targetGraphemes);
+  let fp=Math.max(24,Math.min(72,Math.round(64*(w/768))));
+  const computeLayout=(fp)=>{
+    ctx.font=`700 ${fp}px Andika, sans-serif`;
+    const slotGap=Math.max(10,Math.round(fp*0.22));
+    const sylGap=Math.max(18,Math.round(fp*0.55));
+    const slotMinW=Math.max(34,Math.round(fp*0.95));
+    const slotInnerPad=Math.max(8,Math.round(fp*0.20));
+    const slotWidths=targetGraphemes.map(g=>{const tw=ctx.measureText(tileDisplayFor(g)).width;return Math.max(slotMinW,Math.round(tw+slotInnerPad*2));});
+    let idx=0;
+    const sylMeta=syls.map(sg=>{const start=idx;const end=start+sg.length;idx=end;return{start,end};});
+    let totalW=slotWidths.reduce((a,b)=>a+b,0)+slotGap*(targetGraphemes.length-1);
+    totalW+=(sylMeta.length-1)*(sylGap-slotGap);
+    const startX=Math.round((w-totalW)/2);
+    const rowH=Math.round(fp*2.15),gapY=Math.round(fp*0.70);
+    const rows=spellingSubmitted?2:1;
+    const neededH=rows*rowH+(rows-1)*gapY+Math.round(fp*0.9);
+    return{fp,slotGap,sylGap,slotWidths,sylMeta,startX,rowH,gapY,neededH};
+  };
+  let L=computeLayout(fp);
+  while(L.neededH>h*0.92&&fp>22){fp-=2;L=computeLayout(fp);}
+  const topY=spellingSubmitted?Math.round(h*0.10):Math.round(h*0.18);
+  const textY=topY+Math.round(L.fp*0.95);
+  const underlineY=textY+Math.round(L.fp*0.35);
+  const sylUnderlineY=underlineY+Math.round(L.fp*0.28);
+  const getSlotX=()=>{
+    const xs=new Array(targetGraphemes.length).fill(0);
+    let x=L.startX,sylIndex=0,nextSylEnd=L.sylMeta[0]?L.sylMeta[0].end:targetGraphemes.length;
+    for(let i=0;i<targetGraphemes.length;i++){
+      xs[i]=x;x+=L.slotWidths[i];
+      if(i<targetGraphemes.length-1){if(i===nextSylEnd-1){sylIndex++;nextSylEnd=L.sylMeta[sylIndex]?L.sylMeta[sylIndex].end:targetGraphemes.length;x+=L.sylGap;}else x+=L.slotGap;}
+    }
+    return xs;
+  };
+  const sylCorrect=spellingSubmitted?L.sylMeta.map(({start,end})=>{for(let i=start;i<end;i++)if(!perSlotCorrect[i])return false;return true;}):null;
+  const drawRow=(rowTopY,rowLetters,mode)=>{
+    ctx.font=`700 ${L.fp}px Andika, sans-serif`;ctx.textAlign='center';
+    const slotX=getSlotX();
+    for(let i=0;i<targetGraphemes.length;i++){
+      const sw=L.slotWidths[i],sx=slotX[i],raw=rowLetters[i]||'',display=tileDisplayFor(raw);
+      let letterColor='#111',ulineColor='#111';
+      if(mode==='correct'){letterColor='#16a34a';ulineColor='#16a34a';}
+      else if(spellingSubmitted){const ok=!!perSlotCorrect[i];letterColor=ok?'#16a34a':'#dc2626';ulineColor=ok?'#16a34a':'#dc2626';}
+      ctx.fillStyle=letterColor;ctx.fillText(display,sx+sw/2,rowTopY+(textY-topY));
+      ctx.strokeStyle=ulineColor;ctx.lineWidth=6;
+      ctx.beginPath();ctx.moveTo(sx+10,rowTopY+(underlineY-topY));ctx.lineTo(sx+sw-10,rowTopY+(underlineY-topY));ctx.stroke();
+      if(mode==='attempt'&&!spellingSubmitted&&i===cursorSlot){ctx.strokeStyle='#2563eb';ctx.lineWidth=3;roundRect(ctx,sx+4,rowTopY+6,sw-8,Math.round(L.fp*1.45),12,false,true);}
+    }
+    for(let s=0;s<L.sylMeta.length;s++){
+      const{start,end}=L.sylMeta[s],left=slotX[start]+8,right=slotX[end-1]+L.slotWidths[end-1]-8;
+      let color='#111';
+      if(mode==='correct')color='#16a34a';
+      else if(spellingSubmitted)color=sylCorrect[s]?'#16a34a':'#dc2626';
+      ctx.strokeStyle=color;ctx.lineWidth=8;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(left,rowTopY+(sylUnderlineY-topY));ctx.lineTo(right,rowTopY+(sylUnderlineY-topY));ctx.stroke();
+    }
+  };
+  drawRow(topY,userGraphemes,'attempt');
+  if(spellingSubmitted){drawRow(topY+L.rowH+L.gapY,targetGraphemes,'correct');}
+  else{ctx.font=`700 ${Math.max(18,Math.round(L.fp*0.50))}px Andika, sans-serif`;ctx.fillStyle='#666';ctx.fillText('Escucha y escribe la palabra.',w/2,topY+L.rowH+Math.round(L.fp*0.70));}
+}
+
+// ── Slider interaction ──
+function moveSlider(x){ sliderX=Math.min(Math.max(x,sliderStart),sliderEnd); drawCanvas(); }
+function tryAdvanceRow(){
+  if(sliderX>=sliderEnd-60&&activeRow<rowCount-1){activeRow++;isDragging=false;}
+  drawCanvas();
+}
+
+canvas.addEventListener('pointerdown',e=>{
+  if(gameMode!=='read'){if(gameMode==='spell_kb')hiddenInput.focus();return;}
+  isDragging=true;
+  try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+  const r=canvas.getBoundingClientRect();
+  moveSlider(e.clientX-r.left);
+});
+canvas.addEventListener('pointermove',e=>{
+  if(gameMode!=='read'||!isDragging)return;
+  const r=canvas.getBoundingClientRect();
+  moveSlider(e.clientX-r.left);
+});
+canvas.addEventListener('pointerup',()=>{if(gameMode!=='read')return;isDragging=false;drawCanvas();tryAdvanceRow();});
+canvas.addEventListener('pointercancel',()=>{isDragging=false;});
+
+// ── Resize ──
+const ro=new ResizeObserver(()=>{if(words.length&&wordIndex<words.length){typesetReadingLayout();drawCanvas();}});
+ro.observe(canvasWrap);
+
+// ── Spelling mechanics ──
+function advanceCursor(){ let i=cursorSlot; while(i<userGraphemes.length&&(userGraphemes[i]||'').length>0)i++; cursorSlot=Math.min(i,userGraphemes.length-1); }
+function typeSpellChar(ch){
+  if(spellingSubmitted)return;
+  const expected=targetGraphemes[cursorSlot]||'';
+  const isDg=DIGRAPHS.includes(expected);
+  if(isDg){
+    if(!pendingDigraph){if(ch===expected[0]){userGraphemes[cursorSlot]=ch;pendingDigraph={expected,first:ch};}else{userGraphemes[cursorSlot]=ch;}}
+    else{if(ch===expected[1]&&userGraphemes[cursorSlot]===pendingDigraph.first){userGraphemes[cursorSlot]=expected;pendingDigraph=null;advanceCursor();}else{userGraphemes[cursorSlot]=(userGraphemes[cursorSlot]||'')+ch;}}
+  } else {
+    if(!userGraphemes[cursorSlot]){userGraphemes[cursorSlot]=ch;advanceCursor();}
+    else{advanceCursor();if(!userGraphemes[cursorSlot]){userGraphemes[cursorSlot]=ch;advanceCursor();}}
+  }
+  updateSubmitBtn();drawCanvas();
+}
+function spellingBackspace(){
+  if(spellingSubmitted)return;
+  if(pendingDigraph){userGraphemes[cursorSlot]='';pendingDigraph=null;drawCanvas();return;}
+  let i=cursorSlot;
+  if(i>=targetGraphemes.length)i=targetGraphemes.length-1;
+  if(userGraphemes[i]){userGraphemes[i]='';cursorSlot=i;}
+  else{for(let j=i-1;j>=0;j--){if(userGraphemes[j]){userGraphemes[j]='';cursorSlot=j;break;}}}
+  updateSubmitBtn();drawCanvas();
+}
+function submitSpelling(){
+  if(spellingSubmitted)return;
+  perSlotCorrect=targetGraphemes.map((tg,i)=>normalizeForGrade(userGraphemes[i]||'')===normalizeForGrade(tg));
+  spellingSubmitted=true;updateSubmitBtn();drawCanvas();
+}
+function clearSpelling(){
+  userGraphemes=new Array(targetGraphemes.length).fill('');
+  cursorSlot=0;spellingSubmitted=false;perSlotCorrect=[];pendingDigraph=null;
+  if(gameMode==='spell_tiles'){tilesUsed=new Array(tiles.length).fill(false);renderTileRack();}
+  updateSubmitBtn();drawCanvas();
+}
+function placeTile(tile,idx){
+  if(spellingSubmitted)return;
+  const slot=userGraphemes.findIndex(x=>!x);
+  if(slot===-1)return;
+  userGraphemes[slot]=tile;tilesUsed[idx]=true;cursorSlot=slot;advanceCursor();
+  updateSubmitBtn();renderTileRack();drawCanvas();
+}
+
+// ── UI updates ──
+function updateSubmitBtn(){
+  const allFilled=userGraphemes.length>0&&userGraphemes.every(x=>(x||'').length>0);
+  const inSpell=gameMode!=='read';
+  document.getElementById('submit-btn').disabled=!(inSpell&&allFilled&&!spellingSubmitted);
+  document.getElementById('bksp-btn').disabled=!inSpell;
+  document.getElementById('clear-btn').disabled=!inSpell;
+}
+function renderTileRack(){
+  tileRack.style.display=gameMode==='spell_tiles'?'flex':'none';
+  tileRack.innerHTML='';
+  if(gameMode!=='spell_tiles')return;
+  tiles.forEach((t,i)=>{
+    const btn=document.createElement('button');
+    btn.className='tile-btn';btn.textContent=t;btn.disabled=!!tilesUsed[i]||spellingSubmitted;
+    btn.onclick=()=>placeTile(t,i);
+    tileRack.appendChild(btn);
+  });
+}
+
+// ── Word navigation ──
+function changeWord(dir){
+  if(!words.length)return;
+  wordIndex=(wordIndex+dir+words.length)%words.length;
+  clearPlayback();setupWord(words[wordIndex]);
+}
+function playAudio(){
+  if(!words.length)return;
+  const word=words[wordIndex];
+  const rawText=typeof word==='object'?word.text:word;
+  const norm=normalizeName(rawText);
+  const urls=[
+    `${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/audio/${encodeURIComponent(rawText)}.mp3`,
+    `${SUPABASE_URL}/storage/v1/object/public/app-presets/slidetoread/audio/${norm}.mp3`,
+  ];
+  let i=0;
+  const tryNext=()=>{if(i>=urls.length)return;const a=new Audio(urls[i++]);a.onerror=tryNext;a.play().catch(tryNext);};
+  tryNext();
+}
+
+// ── Recording ──
+async function startRecording(){
+  try{
+    const audioStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks=[];stream=audioStream;
+    let mr;
+    try{
+      const canvasStream=canvas.captureStream?canvas.captureStream(30):null;
+      if(canvasStream&&canvasStream.getVideoTracks().length>0){
+        const combined=new MediaStream([...canvasStream.getVideoTracks(),...audioStream.getAudioTracks()]);
+        stream=combined;
+        const mimeType=MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')?'video/webm;codecs=vp8,opus':'video/webm';
+        mr=new MediaRecorder(combined,{mimeType});
+        mr.onstop=()=>{combined.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:'video/webm'});showPlayback(URL.createObjectURL(blob),'video');};
+      }
+    }catch(_){mr=null;}
+    if(!mr){
+      mr=new MediaRecorder(audioStream);
+      mr.onstop=()=>{audioStream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:'audio/webm'});showPlayback(URL.createObjectURL(blob),'audio');};
+    }
+    mr.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+    mr.start(100);mediaRecorder=mr;recording=true;
+    document.getElementById('rec-start-btn').disabled=true;
+    document.getElementById('rec-stop-btn').disabled=false;
+  }catch(e){alert('Microphone access needed for recording.');}
+}
+function stopRecording(){
+  if(mediaRecorder)mediaRecorder.stop();
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  recording=false;
+  document.getElementById('rec-start-btn').disabled=false;
+  document.getElementById('rec-stop-btn').disabled=true;
+}
+function showPlayback(url,type){
+  const wrap=document.getElementById('playback-wrap');
+  wrap.innerHTML='';
+  const el=document.createElement(type==='video'?'video':'audio');
+  el.src=url;el.controls=true;el.style.maxWidth='95%';if(type==='video')el.style.borderRadius='8px';
+  wrap.appendChild(el);
+}
+function clearPlayback(){ document.getElementById('playback-wrap').innerHTML=''; }
+
+// ── Keyboard ──
+hiddenInput.addEventListener('keydown',e=>{
+  if(gameMode!=='spell_kb')return;
+  if(spellingSubmitted){e.preventDefault();return;}
+  if(e.key==='Backspace'){e.preventDefault();spellingBackspace();return;}
+  if(e.key==='Enter'){e.preventDefault();if(!spellingSubmitted)submitSpelling();return;}
+  if(!/^[a-zñáéíóúü]$/i.test(e.key))return;
+  e.preventDefault();typeSpellChar(e.key.toLowerCase());
+});
+
+// ── UI event wiring ──
+document.getElementById('list-sel').onchange=e=>{selectedList=e.target.value;onListChange();};
+document.getElementById('mod-sel').onchange=e=>{selectedModule=e.target.value;onListChange();};
+document.getElementById('scope-sel').onchange=e=>{scopeMode=e.target.value;onListChange();};
+document.getElementById('mode-sel').onchange=e=>{
+  gameMode=e.target.value;
+  document.getElementById('tile-mode-sel').style.display=gameMode==='spell_tiles'?'':'none';
+  const word=words[wordIndex];if(word)setupWord(word);
+  if(gameMode==='spell_kb')setTimeout(()=>hiddenInput.focus(),50);
+};
+document.getElementById('tile-mode-sel').onchange=e=>{tileMode=e.target.value;};
+document.getElementById('bksp-btn').onclick=spellingBackspace;
+document.getElementById('clear-btn').onclick=clearSpelling;
+document.getElementById('audio-btn').onclick=playAudio;
+document.getElementById('prev-btn').onclick=()=>changeWord(-1);
+document.getElementById('next-btn').onclick=()=>changeWord(1);
+document.getElementById('submit-btn').onclick=submitSpelling;
+document.getElementById('rec-start-btn').onclick=startRecording;
+document.getElementById('rec-stop-btn').onclick=stopRecording;
+document.getElementById('back-btn').onclick=()=>window.parent.postMessage('go-back','*');
+
+// ── Init ──
+loadLists();
+</script>
+</body>
+</html>
