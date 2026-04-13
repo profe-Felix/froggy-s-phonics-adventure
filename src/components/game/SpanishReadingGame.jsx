@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const SUPABASE_URL = "https://dmlsiyyqpcupbizpxwhp.supabase.co";
 
-// ── Grapheme / syllable helpers (ported from original) ──
+// ── Grapheme / syllable helpers ──
 const DIGRAPHS = ["ch", "ll", "rr", "qu"];
 
 function parseWord(word) {
@@ -57,7 +57,7 @@ function graphemeIsVowel(g) {
 
 function tileDisplayFor(g) {
   if (!g) return "";
-  return g.toLowerCase().replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u');
+  return g.toLowerCase().replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ú/g, 'u');
 }
 
 function normalizeForGrade(s) {
@@ -69,7 +69,7 @@ function normalizeForGrade(s) {
 }
 
 function splitIntoSyllables(graphemes) {
-  const allowedOnset2 = new Set(["bl","br","cl","cr","dr","fl","fr","gl","gr","pl","pr","tr"]);
+  const allowedOnset2 = new Set(["bl", "br", "cl", "cr", "dr", "fl", "fr", "gl", "gr", "pl", "pr", "tr"]);
   const syls = [];
   let i = 0;
   while (i < graphemes.length) {
@@ -87,54 +87,74 @@ function splitIntoSyllables(graphemes) {
     if (cons.length === 0) { syls.push(onset.concat(nucleus)); }
     else if (cons.length === 1) { syls.push(onset.concat(nucleus)); }
     else if (cons.length === 2) {
-      const pair = (cons[0] + cons[1]).replace(/[^a-zñ]/g,'');
+      const pair = (cons[0] + cons[1]).replace(/[^a-zñ]/g, '');
       if (allowedOnset2.has(pair)) { syls.push(onset.concat(nucleus)); }
       else { syls.push(onset.concat(nucleus).concat([cons[0]])); i += 1; }
     } else {
-      const last2 = (cons[cons.length-2] + cons[cons.length-1]).replace(/[^a-zñ]/g,'');
+      const last2 = (cons[cons.length - 2] + cons[cons.length - 1]).replace(/[^a-zñ]/g, '');
       if (allowedOnset2.has(last2)) { syls.push(onset.concat(nucleus).concat([cons[0]])); i += 1; }
-      else { syls.push(onset.concat(nucleus).concat(cons.slice(0,2))); i += 2; }
+      else { syls.push(onset.concat(nucleus).concat(cons.slice(0, 2))); i += 2; }
     }
   }
   return syls;
 }
 
 function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-  r = Math.max(0, Math.min(r, w/2, h/2));
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.arcTo(x+w, y, x+w, y+h, r);
-  ctx.arcTo(x+w, y+h, x, y+h, r);
-  ctx.arcTo(x, y+h, x, y, r);
-  ctx.arcTo(x, y, x+w, y, r);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
   if (fill) ctx.fill();
   if (stroke) ctx.stroke();
 }
 
-// ── Main component ──
+function ensureSentenceObjects(arr, modTag) {
+  if (!Array.isArray(arr) || arr.length === 0) return arr;
+  if (typeof arr[0] === "object") return arr;
+  if (typeof arr[0] !== "string") return arr;
+  if (arr[0].includes(" ")) {
+    return arr.map((t, i) => ({ id: `${modTag}.S${i + 1}`, text: (t || "").trim() }));
+  }
+  return arr;
+}
+
+function buildModuleAll(modules) {
+  const ordered = Object.keys(modules).sort();
+  let running = [];
+  ordered.forEach(k => {
+    const entry = modules[k];
+    let fresh = Array.isArray(entry) ? entry : (entry.new || []);
+    running = running.concat(fresh);
+    modules[k] = { ...(typeof entry === 'object' && !Array.isArray(entry) ? entry : { new: entry }), all: running.slice() };
+  });
+  return modules;
+}
+
 export default function SpanishReadingGame({ onBack }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const spellInputRef = useRef(null);
 
-  // Data
   const [allLists, setAllLists] = useState({});
   const [loading, setLoading] = useState(true);
-
-  // UI state
   const [selectedList, setSelectedList] = useState('');
   const [selectedModule, setSelectedModule] = useState('M1');
-  const [scopeMode, setScopeMode] = useState('all'); // 'all' | 'new'
-  const [gameMode, setGameMode] = useState('read'); // 'read' | 'spell_kb' | 'spell_tiles'
+  const [scopeMode, setScopeMode] = useState('all');
+  const [gameMode, setGameMode] = useState('read');
   const [tileMode, setTileMode] = useState('exact');
   const [showModuleUI, setShowModuleUI] = useState(false);
-
-  // Words
-  const wordsRef = useRef([]);
+  const [recording, setRecording] = useState(false);
+  const [recordedUrl, setRecordedUrl] = useState(null);
+  const [tileRackKey, setTileRackKey] = useState(0);
+  const [spellingDone, setSpellingDone] = useState(false);
   const [wordIndex, setWordIndex] = useState(0);
-  const wordIndexRef = useRef(0);
 
-  // Read mode canvas state (refs for canvas drawing)
+  // All mutable state in refs (canvas needs direct access)
+  const wordsRef = useRef([]);
+  const wordIndexRef = useRef(0);
   const lettersRef = useRef([]);
   const readLayoutRef = useRef(null);
   const sliderXRef = useRef(0);
@@ -146,7 +166,6 @@ export default function SpanishReadingGame({ onBack }) {
   const freshWordRef = useRef(true);
   const gameModeRef = useRef('read');
 
-  // Spelling state
   const targetGraphemesRef = useRef([]);
   const userGraphemesRef = useRef([]);
   const cursorSlotRef = useRef(0);
@@ -156,19 +175,11 @@ export default function SpanishReadingGame({ onBack }) {
   const tilesRef = useRef([]);
   const tilesUsedRef = useRef([]);
 
-  // Recording
-  const [recording, setRecording] = useState(false);
-  const [recordedUrl, setRecordedUrl] = useState(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
-  const recorderRef = useRef(null); // RecordRTC
   const streamRef = useRef(null);
 
-  // Force re-render for tile rack UI
-  const [tileRackKey, setTileRackKey] = useState(0);
-  const [spellingDone, setSpellingDone] = useState(false);
-
-  // Load lists from Supabase
+  // Load lists
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -185,60 +196,76 @@ export default function SpanishReadingGame({ onBack }) {
     })();
   }, []);
 
-  // When list/module/scope changes → rebuild word list
+  // Build word list when selection changes
   useEffect(() => {
     if (!selectedList || !allLists[selectedList]) return;
     const entry = allLists[selectedList];
-
     let wordArr = [];
 
     if (Array.isArray(entry)) {
       setShowModuleUI(false);
       wordArr = entry.slice();
     } else {
-      // module-based
+      // module-based list
       const hasModules = !!(entry.M1 || entry.M2);
       setShowModuleUI(hasModules);
 
       if (hasModules) {
+        // build .all arrays
         const modKeys = Object.keys(entry).sort();
+
+        // ensure sentence objects
+        modKeys.forEach(k => {
+          if (entry[k]?.new) entry[k].new = ensureSentenceObjects(entry[k].new, k);
+        });
+
+        // buildModuleAll if not done
+        modKeys.forEach((k, idx) => {
+          if (!entry[k].all) {
+            let running = [];
+            for (let i = 0; i <= idx; i++) {
+              const mod = entry[modKeys[i]];
+              const fresh = Array.isArray(mod) ? mod : (mod?.new || []);
+              running = running.concat(fresh);
+            }
+            entry[k].all = running.slice();
+          }
+        });
+
         const modIdx = modKeys.indexOf(selectedModule);
-        const upToIdx = scopeMode === 'new' ? modIdx : modKeys.length - 1;
-        let collected = [];
-        for (let i = (scopeMode === 'new' ? modIdx : 0); i <= upToIdx; i++) {
-          const mod = entry[modKeys[i]];
-          let arr = Array.isArray(mod) ? mod : (mod?.new || mod?.all || []);
-          if (!Array.isArray(arr)) arr = [];
-          collected = collected.concat(arr);
+        const targetMod = modIdx >= 0 ? modKeys[modIdx] : modKeys[0];
+        const modData = entry[targetMod] || {};
+
+        if (scopeMode === 'new') {
+          wordArr = Array.isArray(modData) ? modData : (modData.new || []);
+        } else {
+          wordArr = modData.all || (Array.isArray(modData) ? modData : (modData.new || []));
         }
-        wordArr = collected;
       } else {
         wordArr = Object.values(entry).flat().filter(Boolean);
       }
     }
 
-    // shuffle
-    wordArr = wordArr.map(w => typeof w === 'object' ? w.text : w).filter(Boolean);
+    wordArr = wordArr.map(w => typeof w === 'object' ? w : w).filter(Boolean);
     wordArr = wordArr.slice().sort(() => Math.random() - 0.5);
     wordsRef.current = wordArr;
     wordIndexRef.current = 0;
     setWordIndex(0);
     setRecordedUrl(null);
-    // Directly setup the first word now (don't rely on wordIndex effect which may not re-fire if index stays 0)
+
     if (wordArr.length > 0) {
-      // setupWord needs layout computed, defer until after render
       requestAnimationFrame(() => setupWord(wordArr[0]));
     }
   }, [selectedList, selectedModule, scopeMode, allLists]);
 
-  // When word changes → setup
+  // When word index changes
   useEffect(() => {
-    const word = wordsRef.current[wordIndexRef.current] || '';
+    const word = wordsRef.current[wordIndexRef.current];
     if (!word) return;
     setupWord(word);
   }, [wordIndex]);
 
-  // Canvas resize observer
+  // Canvas resize
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -250,7 +277,7 @@ export default function SpanishReadingGame({ onBack }) {
     return () => ro.disconnect();
   }, []);
 
-  // Canvas pointer events
+  // Canvas pointer/touch events (exact copy from original HTML)
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -265,7 +292,7 @@ export default function SpanishReadingGame({ onBack }) {
       if (gameModeRef.current !== 'read') return;
       e.preventDefault();
       isDraggingRef.current = true;
-      if (e.pointerId != null) { try { c.setPointerCapture(e.pointerId); } catch(_) {} }
+      if (e.pointerId != null) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
       moveSlider(getX(e));
     };
     const onMove = (e) => {
@@ -273,7 +300,7 @@ export default function SpanishReadingGame({ onBack }) {
       e.preventDefault();
       moveSlider(getX(e));
     };
-    const onUp = (e) => {
+    const onUp = () => {
       if (gameModeRef.current !== 'read') return;
       isDraggingRef.current = false;
       drawCanvas();
@@ -320,7 +347,7 @@ export default function SpanishReadingGame({ onBack }) {
     };
   }, []);
 
-  // Keyboard input for spell_kb
+  // Keyboard for spell_kb
   useEffect(() => {
     const inp = spellInputRef.current;
     if (!inp) return;
@@ -381,12 +408,11 @@ export default function SpanishReadingGame({ onBack }) {
 
   const buildTilesForWord = (graphemes) => {
     const display = graphemes.map(g => tileDisplayFor(g));
-    let pool = display.slice().sort(() => Math.random() - 0.5);
+    const pool = display.slice().sort(() => Math.random() - 0.5);
     tilesRef.current = pool;
     tilesUsedRef.current = new Array(pool.length).fill(false);
   };
 
-  // ── Canvas layout + draw (ported from original) ──
   const typesetReadingLayout = useCallback(() => {
     const c = canvasRef.current;
     const el = containerRef.current;
@@ -416,7 +442,7 @@ export default function SpanishReadingGame({ onBack }) {
     lettersRef.current.forEach(l => {
       if (l.isPunctuation) { l.gw = 0; l.w = 0; return; }
       if (l.isSpace) return;
-      let gw = ctx.measureText(l.text).width;
+      const gw = ctx.measureText(l.text).width;
       l.gw = gw;
       l.w = Math.max(gw + innerPad * 2, minPill);
     });
@@ -466,22 +492,16 @@ export default function SpanishReadingGame({ onBack }) {
   }, []);
 
   const drawCanvas = useCallback(() => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const ctx = c.getContext('2d');
-    const DPR = window.devicePixelRatio || 1;
-
-    if (gameModeRef.current === 'read') {
-      drawReading(ctx, DPR);
-    } else {
-      drawSpelling(ctx, DPR);
-    }
+    if (gameModeRef.current === 'read') drawReading();
+    else drawSpelling();
   }, []);
 
-  const drawReading = (ctx, DPR) => {
+  const drawReading = () => {
     const c = canvasRef.current;
     const L = readLayoutRef.current;
-    if (!L) return;
+    if (!c || !L) return;
+    const ctx = c.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
@@ -548,8 +568,11 @@ export default function SpanishReadingGame({ onBack }) {
     else { sliderXRef.current = Math.min(Math.max(sliderXRef.current, sliderStartRef.current), sliderEndRef.current); }
   };
 
-  const drawSpelling = (ctx, DPR) => {
+  const drawSpelling = () => {
     const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
     const w = c.width / DPR;
     const h = c.height / DPR;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -652,8 +675,7 @@ export default function SpanishReadingGame({ onBack }) {
 
     drawRow(topY, userGraphemesRef.current, 'attempt');
     if (spellingSubmittedRef.current) {
-      const correctG = targetGraphemesRef.current;
-      drawRow(topY + L.rowH + L.gapY, correctG, 'correct');
+      drawRow(topY + L.rowH + L.gapY, targetGraphemesRef.current, 'correct');
     } else {
       ctx.font = `700 ${Math.max(18, Math.round(L.fp * 0.50))}px Andika, sans-serif`;
       ctx.fillStyle = '#666';
@@ -661,7 +683,6 @@ export default function SpanishReadingGame({ onBack }) {
     }
   };
 
-  // ── Word navigation ──
   const changeWord = (dir) => {
     const len = wordsRef.current.length;
     if (!len) return;
@@ -674,7 +695,6 @@ export default function SpanishReadingGame({ onBack }) {
     setSpellingDone(false);
   };
 
-  // ── Audio ──
   const playAudio = () => {
     const word = wordsRef.current[wordIndexRef.current];
     if (!word) return;
@@ -694,19 +714,15 @@ export default function SpanishReadingGame({ onBack }) {
     tryNext();
   };
 
-  // ── Spelling mechanics ──
+  // Spelling mechanics
   const typeSpellChar = (ch) => {
     if (spellingSubmittedRef.current) return;
     const expected = targetGraphemesRef.current[cursorSlotRef.current] || '';
     const isDg = DIGRAPHS.includes(expected);
     if (isDg) {
       if (!pendingDigraphRef.current) {
-        if (ch === expected[0]) {
-          userGraphemesRef.current[cursorSlotRef.current] = ch;
-          pendingDigraphRef.current = { expected, first: ch };
-        } else {
-          userGraphemesRef.current[cursorSlotRef.current] = ch;
-        }
+        if (ch === expected[0]) { userGraphemesRef.current[cursorSlotRef.current] = ch; pendingDigraphRef.current = { expected, first: ch }; }
+        else { userGraphemesRef.current[cursorSlotRef.current] = ch; }
       } else {
         if (ch === expected[1] && userGraphemesRef.current[cursorSlotRef.current] === pendingDigraphRef.current.first) {
           userGraphemesRef.current[cursorSlotRef.current] = expected;
@@ -739,16 +755,11 @@ export default function SpanishReadingGame({ onBack }) {
 
   const spellingBackspace = () => {
     if (spellingSubmittedRef.current) return;
-    if (pendingDigraphRef.current) {
-      userGraphemesRef.current[cursorSlotRef.current] = '';
-      pendingDigraphRef.current = null;
-      drawCanvas(); return;
-    }
+    if (pendingDigraphRef.current) { userGraphemesRef.current[cursorSlotRef.current] = ''; pendingDigraphRef.current = null; drawCanvas(); return; }
     let i = cursorSlotRef.current;
     if (i >= targetGraphemesRef.current.length) i = targetGraphemesRef.current.length - 1;
-    if (userGraphemesRef.current[i]) {
-      userGraphemesRef.current[i] = ''; cursorSlotRef.current = i;
-    } else {
+    if (userGraphemesRef.current[i]) { userGraphemesRef.current[i] = ''; cursorSlotRef.current = i; }
+    else {
       for (let j = i - 1; j >= 0; j--) {
         if (userGraphemesRef.current[j]) { userGraphemesRef.current[j] = ''; cursorSlotRef.current = j; break; }
       }
@@ -787,7 +798,6 @@ export default function SpanishReadingGame({ onBack }) {
     drawCanvas();
   };
 
-  // ── Mode change ──
   const handleModeChange = (m) => {
     setGameMode(m);
     gameModeRef.current = m;
@@ -796,33 +806,22 @@ export default function SpanishReadingGame({ onBack }) {
     if (m === 'spell_kb') setTimeout(() => spellInputRef.current?.focus(), 50);
   };
 
-  // ── Recording ──
   const startRecording = async () => {
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
       let mr;
       try {
-        // Try canvas+audio video recording
         const c = canvasRef.current;
         const canvasStream = c.captureStream(30);
         const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
         streamRef.current = combined;
         mr = new MediaRecorder(combined, { mimeType: 'video/webm;codecs=vp8,opus' });
-        mr.onstop = () => {
-          combined.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-          setRecordedUrl(URL.createObjectURL(blob));
-        };
+        mr.onstop = () => { combined.getTracks().forEach(t => t.stop()); const blob = new Blob(chunksRef.current, { type: 'video/webm' }); setRecordedUrl(URL.createObjectURL(blob)); };
       } catch (_) {
-        // Fallback: audio only
         streamRef.current = audioStream;
         mr = new MediaRecorder(audioStream);
-        mr.onstop = () => {
-          audioStream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          setRecordedUrl(URL.createObjectURL(blob));
-        };
+        mr.onstop = () => { audioStream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunksRef.current, { type: 'audio/webm' }); setRecordedUrl(URL.createObjectURL(blob)); };
       }
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.start(100);
@@ -831,11 +830,7 @@ export default function SpanishReadingGame({ onBack }) {
     } catch (e) { alert('Microphone access needed for recording.'); }
   };
 
-  const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    setRecording(false);
-  };
+  const stopRecording = () => { mediaRecorderRef.current?.stop(); streamRef.current?.getTracks().forEach(t => t.stop()); setRecording(false); };
 
   const allFilled = userGraphemesRef.current.length > 0 && userGraphemesRef.current.every(x => (x || '').length > 0);
   const inSpell = gameMode !== 'read';
@@ -848,13 +843,12 @@ export default function SpanishReadingGame({ onBack }) {
     <div className="min-h-screen flex flex-col bg-white" style={{ fontFamily: 'Andika, sans-serif', userSelect: 'none', margin: 6 }}>
       <link href="https://fonts.googleapis.com/css2?family=Andika&display=swap" rel="stylesheet" />
 
-      {/* Title */}
       <div style={{ textAlign: 'center', margin: '6px 0 4px' }}>
         <button onClick={onBack} style={{ float: 'left', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer', color: '#666' }}>← Back</button>
         <h2 style={{ display: 'inline', fontSize: 22, fontWeight: 'bold' }}>Spanish Reading Game</h2>
       </div>
 
-      {/* Row 1: list + module selects */}
+      {/* List + module selects */}
       <div style={{ textAlign: 'center', margin: '2px 0' }}>
         <select value={selectedList} onChange={e => setSelectedList(e.target.value)} style={{ fontSize: 15, padding: '4px 8px', margin: 2 }}>
           <option value="" disabled>Selecciona una lista</option>
@@ -862,7 +856,7 @@ export default function SpanishReadingGame({ onBack }) {
         </select>
         {showModuleUI && (<>
           <select value={selectedModule} onChange={e => setSelectedModule(e.target.value)} style={{ fontSize: 15, padding: '4px 8px', margin: 2 }}>
-            {['M1','M2','M3','M4','M5','M6','M7','M8','M9'].map(m => <option key={m} value={m}>{m}</option>)}
+            {['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'].map(m => <option key={m} value={m}>{m}</option>)}
           </select>
           <select value={scopeMode} onChange={e => setScopeMode(e.target.value)} style={{ fontSize: 15, padding: '4px 8px', margin: 2, background: '#dcfce7' }}>
             <option value="all">📚 Hasta este módulo</option>
@@ -871,7 +865,7 @@ export default function SpanishReadingGame({ onBack }) {
         </>)}
       </div>
 
-      {/* Row 2: control bar */}
+      {/* Control bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap', margin: '4px 0' }}>
         <button onClick={spellingBackspace} disabled={!inSpell} style={{ fontSize: 15, padding: '4px 8px' }}>⌫</button>
         <button onClick={clearSpelling} disabled={!inSpell} style={{ fontSize: 15, padding: '4px 8px' }}>🧽 Clear</button>
@@ -882,7 +876,7 @@ export default function SpanishReadingGame({ onBack }) {
           <option value="spell_tiles">🧩 Deletrear (Fichas)</option>
         </select>
         {gameMode === 'spell_tiles' && (
-          <select value={tileMode} onChange={e => { setTileMode(e.target.value); }} style={{ fontSize: 15, padding: '4px 8px' }}>
+          <select value={tileMode} onChange={e => setTileMode(e.target.value)} style={{ fontSize: 15, padding: '4px 8px' }}>
             <option value="exact">Fichas: Exactas</option>
             <option value="vowels">Fichas: Consonantes + Vocales</option>
             <option value="distractors">Fichas: + Distractores</option>
@@ -912,26 +906,18 @@ export default function SpanishReadingGame({ onBack }) {
         <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', inset: 0, touchAction: 'none', cursor: 'default' }} />
       </div>
 
-      {/* Recording controls */}
+      {/* Recording */}
       <div style={{ textAlign: 'center', margin: '8px 0' }}>
         <button onClick={startRecording} disabled={recording} style={{ fontSize: 15, padding: '4px 8px', margin: 2 }}>🎙 Start Recording</button>
         <button onClick={stopRecording} disabled={!recording} style={{ fontSize: 15, padding: '4px 8px', margin: 2 }}>⏹ Stop Recording</button>
       </div>
 
-      {/* Playback */}
       {recordedUrl && (
         <div style={{ textAlign: 'center', margin: '4px 0 10px' }}>
-          <video src={recordedUrl} controls style={{ maxWidth: '95%', borderRadius: 8 }} onError={(e) => {
-            // If video fails, try as audio
-            const audio = document.createElement('audio');
-            audio.src = recordedUrl;
-            audio.controls = true;
-            e.target.replaceWith(audio);
-          }} />
+          <video src={recordedUrl} controls style={{ maxWidth: '95%', borderRadius: 8 }} />
         </div>
       )}
 
-      {/* hidden spell input */}
       <input ref={spellInputRef} autoComplete="off" autoCapitalize="none" spellCheck={false}
         style={{ position: 'absolute', left: -9999, top: -9999 }} />
     </div>
