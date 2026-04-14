@@ -10,15 +10,47 @@
     },
     "list_name": {
       "type": "string",
-      "description": "Which list was practiced (e.g. 'S\u00edlabas - A', 'Palabras - Set 1')"
+      "description": "Which list/module was practiced"
+    },
+    "item_text": {
+      "type": "string",
+      "description": "The word or sentence that was read"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "word",
+        "sentence"
+      ],
+      "description": "Whether this was a word or sentence attempt"
     },
     "recording_url": {
       "type": "string",
-      "description": "URL of the uploaded screen+audio recording"
+      "description": "URL of the uploaded audio recording"
     },
-    "duration_seconds": {
+    "student_self_grade": {
+      "type": "string",
+      "enum": [
+        "correct",
+        "incorrect",
+        "pending"
+      ],
+      "default": "pending",
+      "description": "Student's self-assessment after listening to their recording"
+    },
+    "teacher_grade": {
+      "type": "string",
+      "enum": [
+        "correct",
+        "incorrect",
+        "pending"
+      ],
+      "default": "pending",
+      "description": "Teacher's confirmed grade"
+    },
+    "points_awarded": {
       "type": "integer",
-      "description": "Length of recording in seconds"
+      "default": 0
     },
     "reviewed": {
       "type": "boolean",
@@ -28,6 +60,10 @@
     "teacher_note": {
       "type": "string",
       "description": "Teacher feedback note"
+    },
+    "attempt_date": {
+      "type": "string",
+      "description": "ISO date string YYYY-MM-DD for deduplication (one point award per item per day)"
     }
   },
   "required": [

@@ -118,6 +118,33 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     }
   };
 
+  // Watchdog: if ALL players show ready in the live game state but number hasn't advanced,
+  // the player who submitted last may have missed the allReady check due to a race.
+  // Lowest-numbered player breaks the tie and calls advanceNumber.
+  useEffect(() => {
+    if (game.status !== 'active') return;
+    const gamePlayers = game.players || [];
+    const nowReady = game.ready_players || [];
+    const allReady = gamePlayers.length > 0 && gamePlayers.every(p => nowReady.includes(p));
+    if (!allReady) return;
+    // Only the lowest-numbered player acts as tiebreaker
+    const lowestPlayer = Math.min(...gamePlayers);
+    if (playerNumber !== lowestPlayer) return;
+    const timer = setTimeout(() => {
+      // Re-fetch freshest state before acting
+      base44.entities.MathBingoPeerGame.filter({ class_name: game.class_name }).then(games => {
+        const fresh = games.find(g => g.id === game.id);
+        if (!fresh) return;
+        const fp = fresh.players || [];
+        const fr = fresh.ready_players || [];
+        if (fp.length > 0 && fp.every(p => fr.includes(p))) {
+          advanceNumber(fresh);
+        }
+      });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [game.ready_players, game.players, game.status]);
+
   const handleNotOnCard = async () => {
     if (!game.current_number || respondedNumber === game.current_number || amReady) return;
     const numberOnCard = cells.some(c => c === game.current_number);

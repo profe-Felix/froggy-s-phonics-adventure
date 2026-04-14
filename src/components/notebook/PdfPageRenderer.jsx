@@ -39,13 +39,16 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
           pdfCache[pdfUrl] = pdfjsLib.getDocument({
             url: pdfUrl,
             withCredentials: false,
-            disableAutoFetch: true,   // don't pre-download all pages
+            disableAutoFetch: false,  // allow full pre-download for fast page turns
             disableStream: false,
-            rangeChunkSize: 65536,    // fetch in 64KB chunks on demand
           }).promise;
         }
         const doc = await pdfCache[pdfUrl];
         if (cancelled) return;
+        // Pre-fetch adjacent pages in the background for faster page turns
+        const totalPages = doc.numPages;
+        if (pageNumber < totalPages) doc.getPage(pageNumber + 1).catch(() => {});
+        if (pageNumber > 1) doc.getPage(pageNumber - 1).catch(() => {});
 
         const page = await doc.getPage(pageNumber);
         if (cancelled) return;

@@ -2,13 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
 
 function drawStrokes(canvas, strokesData, w, h) {
-  if (!canvas || !strokesData) return;
-  const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
-  const strokes = data?.strokes || [];
-  // If canvasWidth present, coords are absolute — scale to display size
-  // If not present, coords are normalized 0-1 — multiply by display size
-  const sx = data?.canvasWidth ? w / data.canvasWidth : w;
-  const sy = data?.canvasHeight ? h / data.canvasHeight : h;
+  if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
@@ -17,6 +11,16 @@ function drawStrokes(canvas, strokesData, w, h) {
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (!strokesData) return;
+
+  const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
+  const strokes = data?.strokes || [];
+  // AnnotationCanvas saves normalized 0-1 coords (no canvasWidth present).
+  // Old format saved absolute coords with canvasWidth/canvasHeight.
+  const sx = data?.canvasWidth ? w / data.canvasWidth : w;
+  const sy = data?.canvasHeight ? h / data.canvasHeight : h;
+
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
     ctx.beginPath();
@@ -44,6 +48,7 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
   // Reset pdfSize when page changes so PdfPageRenderer re-renders
   useEffect(() => { setPdfSize(null); }, [displayPage]);
 
+  // Always call drawStrokes when pdfSize or strokesData changes — clears canvas even if no strokes
   useEffect(() => {
     if (pdfSize && overlayRef.current) {
       drawStrokes(overlayRef.current, strokesData, pdfSize.w, pdfSize.h);
@@ -79,12 +84,11 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
               pageNumber={displayPage}
               onRendered={(w, h) => setPdfSize({ w, h })}
             />
-            {pdfSize && (
-              <canvas
-                ref={overlayRef}
-                style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-              />
-            )}
+            {/* Overlay canvas always rendered so it can be cleared */}
+            <canvas
+              ref={overlayRef}
+              style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+            />
           </>
         ) : (
           <div className="h-20 flex items-center justify-center text-gray-400 text-xs">No PDF</div>
