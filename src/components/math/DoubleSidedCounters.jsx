@@ -760,6 +760,10 @@ export default function DoubleSidedCounters({ onBack }) {
     const yellowOk = yellowInput === actualYellow;
     setCountFeedback({ redOk, yellowOk });
     setCountSubmitted(true);
+    // Partial credit: 5pts per correct set, streak breaks on any wrong
+    const pts = (redOk ? 5 : 0) + (yellowOk ? 5 : 0);
+    if (pts > 0) setTotalPoints(p => p + pts);
+    if (!redOk || !yellowOk) setStreak(0);
   };
 
   return (
@@ -796,10 +800,10 @@ export default function DoubleSidedCounters({ onBack }) {
       <AnimatePresence mode="wait">
         {spilled && (
           <motion.div key="count" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+            className="flex-1 flex flex-col overflow-y-auto" style={{ minHeight: 0 }}>
 
             {/* Main row: Red panel | Canvas | Yellow panel */}
-            <div className="flex flex-row gap-2 px-2 flex-1" style={{ minHeight: 0 }}>
+            <div className="flex flex-row gap-2 px-2" style={{ minHeight: 320, height: 'clamp(320px, 45vh, 480px)', flexShrink: 0 }}>
 
               {/* RED panel */}
               <div className="flex flex-col items-center gap-1 bg-white rounded-2xl shadow-lg px-2 py-2 shrink-0" style={{ width: 112 }}>
@@ -856,8 +860,8 @@ export default function DoubleSidedCounters({ onBack }) {
                 onAttempt={(newAttempts, correct) => {
                   setSentenceAttempts(newAttempts);
                   if (correct) {
-                    const pts = newAttempts === 1 ? 10 : newAttempts === 2 ? 5 : 2;
-                    setTotalPoints(p => p + pts);
+                    const pts = newAttempts === 1 ? 10 : newAttempts === 2 ? 5 : 0;
+                    if (pts > 0) setTotalPoints(p => p + pts);
                     setStreak(s => s + 1);
                   } else {
                     setStreak(0);
