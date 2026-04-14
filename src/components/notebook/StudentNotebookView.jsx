@@ -63,16 +63,16 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     queryKey: ['student-notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className, status: 'active' }),
     refetchInterval: 5000,
-    onSuccess: (data) => {
-      // Auto-select if a directAssignmentName was passed via URL
-      if (directAssignmentName && !selectedAssignment) {
-        const match = data.find(a =>
-          a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
-        );
-        if (match) setSelectedAssignment(match);
-      }
-    }
   });
+
+  // Auto-select assignment from URL param (onSuccess is not supported in TanStack Query v5)
+  useEffect(() => {
+    if (!directAssignmentName || selectedAssignment || assignments.length === 0) return;
+    const match = assignments.find(a =>
+      a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
+    );
+    if (match) setSelectedAssignment(match);
+  }, [assignments, directAssignmentName, selectedAssignment]);
 
   // Poll assignment for page lock changes & broadcast
   useQuery({
@@ -223,6 +223,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         <button onClick={() => { saveStrokes(); setSelectedAssignment(null); }}
           className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
         <p className="flex-1 text-white font-black text-sm truncate">{selectedAssignment.title}</p>
+        <span className="text-indigo-400 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: '#0f0f1a' }}>
+          Class {className} · #{studentNumber}
+        </span>
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
         <button onClick={saveStrokes} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#4338ca' }}>💾 Save</button>
