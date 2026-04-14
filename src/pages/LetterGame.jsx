@@ -10,6 +10,7 @@ import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
+import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
@@ -321,23 +322,11 @@ export default function LetterGame() {
         />
       )}
       {currentMode === 'spanish_reading' && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-white">
-          <div className="flex items-center gap-3 px-4 py-2 bg-gray-100 border-b shrink-0">
-            <button
-              onClick={handleBackToModes}
-              className="text-sm font-bold text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Modes
-            </button>
-            <span className="text-sm font-semibold text-gray-700">📖 Spanish Reading</span>
-          </div>
-          <iframe
-            src="/spanish-reading/index.html"
-            className="flex-1 w-full border-0"
-            title="Spanish Reading Game"
-            allow="microphone"
-          />
-        </div>
+        <SpanishReadingIframe
+          studentNumber={selectedStudent?.number}
+          className={selectedStudent?.class_name}
+          onBack={handleBackToModes}
+        />
       )}
 
       <Button

@@ -1029,8 +1029,6 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 /* ==================== AUDIO: Supabase lettersort-audio bucket ==================== */
-// Converts accented/special characters to safe filename equivalents, preserving case.
-// e.g. "mamá" -> "mama..", "niño" -> "nin..o", "Memo" -> "Memo"
 function displayToMarker(word) {
   if (!word) return "";
   return word
@@ -1059,7 +1057,6 @@ async function playWordAudio(word) {
   btn.disabled = true;
   btn.textContent = '🔊 Reproduciendo…';
 
-  // Try audioId first (for sentence objects), then fall back to rawText
   const candidates = (isObject && audioId) ? [audioId, rawText] : [rawText];
 
   for (const lookupWord of candidates) {
@@ -1253,6 +1250,7 @@ function rebuildTilesFromUser(){
 <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
 
 <script>
+/* ==================== Recording — saves to SpanishReadingSession via postMessage ==================== */
 let recorder, stream;
 window.allowSliderDraw = true;
 
@@ -1260,16 +1258,35 @@ const startBtn = document.getElementById("startRecording");
 const stopBtn = document.getElementById("stopRecording");
 const previewContainer = document.getElementById("previewContainer");
 
+// Read student identity from URL params (passed by parent iframe src)
+const _qs = new URLSearchParams(location.search);
+const _studentNumber = parseInt(_qs.get('number') || '0') || 0;
+const _className = _qs.get('class') || '';
+const _listName = () => {
+  const sel = document.getElementById('wordListSelect');
+  return sel ? sel.value : '';
+};
+const _currentWord = () => {
+  if (!words || !words.length) return '';
+  const w = words[currentWordIndex];
+  return (typeof w === 'object') ? (w.text || '') : (w || '');
+};
+const _isSentence = () => _currentWord().includes(' ');
+
 startBtn.onclick = async () => {
   startBtn.disabled = true;
   stopBtn.disabled = false;
   previewContainer.innerHTML = "";
+
   const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const canvasStream = canvas.captureStream(30);
   stream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+
   recorder = RecordRTC(stream, { type: 'video', mimeType: 'video/webm', disableLogs: true });
+
   const readyText = document.getElementById("readyMessage");
   readyText.textContent = "🎬 Get ready...";
+
   setTimeout(() => {
     recorder.startRecording();
     readyText.textContent = "";
@@ -1281,14 +1298,64 @@ startBtn.onclick = async () => {
 stopBtn.onclick = () => {
   stopBtn.disabled = true;
   startBtn.disabled = false;
-  recorder.stopRecording(() => {
+
+  recorder.stopRecording(async () => {
     const blob = recorder.getBlob();
+    stream?.getTracks().forEach(t => t.stop());
+
+    // Show local preview
     const videoURL = URL.createObjectURL(blob);
     const video = document.createElement("video");
     video.src = videoURL; video.controls = true; video.style.maxWidth = "100%";
     previewContainer.innerHTML = "";
     previewContainer.appendChild(video);
-    stream?.getTracks().forEach(t => t.stop());
+
+    // Upload blob to Supabase and save session record via postMessage to parent
+    try {
+      const fileName = `recordings/${Date.now()}_s${_studentNumber}_${_className}.webm`;
+      const { data: upData, error: upErr } = await sbClient.storage
+        .from('student-recordings')
+        .upload(fileName, blob, { contentType: 'video/webm', upsert: false });
+
+      let recordingUrl = null;
+      if (!upErr && upData) {
+        const { data: urlData } = sbClient.storage.from('student-recordings').getPublicUrl(fileName);
+        recordingUrl = urlData?.publicUrl || null;
+      } else {
+        console.warn('Upload to student-recordings failed:', upErr);
+        // Fallback: try the existing lettersort-audio bucket's recordings folder
+        const { data: upData2, error: upErr2 } = await sbClient.storage
+          .from(AUDIO_BUCKET)
+          .upload(`recordings/${Date.now()}_s${_studentNumber}.webm`, blob, { contentType: 'video/webm', upsert: false });
+        if (!upErr2 && upData2) {
+          const { data: urlData2 } = sbClient.storage.from(AUDIO_BUCKET).getPublicUrl(`recordings/${Date.now()}_s${_studentNumber}.webm`);
+          recordingUrl = urlData2?.publicUrl || null;
+        }
+      }
+
+      // Send session data to parent React app to save via base44 SDK
+      const sessionPayload = {
+        type: 'saveSpanishSession',
+        data: {
+          student_number: _studentNumber,
+          class_name: _className,
+          list_name: _listName(),
+          item_text: _currentWord(),
+          item_type: _isSentence() ? 'sentence' : 'word',
+          recording_url: recordingUrl,
+          student_self_grade: 'pending',
+          teacher_grade: 'pending',
+          points_awarded: 0,
+          reviewed: false,
+          attempt_date: new Date().toISOString().slice(0, 10),
+        }
+      };
+      window.parent.postMessage(sessionPayload, '*');
+      console.log('[SpanishReading] session posted to parent', sessionPayload.data);
+
+    } catch(err) {
+      console.warn('[SpanishReading] failed to save session:', err);
+    }
   });
 };
 </script>
