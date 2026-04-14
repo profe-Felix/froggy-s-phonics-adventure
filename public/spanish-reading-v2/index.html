@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spanish Reading v2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Andika&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Andika', sans-serif;
+      background: #0f0f1a;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: #1a1a2e;
+      border-bottom: 2px solid #4338ca;
+      flex-shrink: 0;
+    }
+    #header button { background: none; border: none; color: #a5b4fc; font-size: 14px; font-weight: bold; cursor: pointer; }
+    #header span { flex: 1; text-align: center; font-weight: bold; font-size: 14px; }
+
+    /* ── List selector ── */
+    #listScreen {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    #listScreen h2 { font-size: 18px; margin-bottom: 6px; }
+    .listBtn {
+      width: 100%;
+      max-width: 480px;
+      padding: 14px 18px;
+      background: #1a1a2e;
+      border: 2px solid #4338ca;
+      border-radius: 16px;
+      color: white;
+      font-family: 'Andika', sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+    }
+    .listBtn:hover { background: #2a2a4e; }
+    .listType { font-size: 11px; color: #818cf8; text-transform: uppercase; font-weight: bold; }
+
+    /* ── Game area ── */
+    #gameScreen {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* progress bar */
+    #progressBar {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #progressTrack {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #progressFill {
+      height: 100%;
+      background: rgba(255,255,255,0.7);
+      border-radius: 99px;
+      transition: width 0.3s;
+    }
+    #progressLabel { font-size: 12px; color: rgba(255,255,255,0.5); font-weight: bold; }
+
+    /* card */
+    #card {
+      width: 100%;
+      max-width: 480px;
+      background: #1a1a2e;
+      border: 2px solid #4338ca;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    /* word display area */
+    #wordArea {
+      min-height: 120px;
+      background: #0f0f1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #wordText {
+      font-size: 48px;
+      font-weight: 900;
+      text-align: center;
+      line-height: 1.2;
+    }
+    #wordText.sentence { font-size: 24px; }
+    #hiddenPlaceholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    #hiddenPlaceholder .bar {
+      width: 120px;
+      height: 14px;
+      background: #2d2d4a;
+      border-radius: 8px;
+    }
+    #hiddenPlaceholder .hint { font-size: 12px; color: rgba(255,255,255,0.3); font-weight: bold; }
+
+    /* controls */
+    #controls {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* phase buttons */
+    .bigBtn {
+      width: 100%;
+      padding: 18px;
+      border: none;
+      border-radius: 18px;
+      font-family: 'Andika', sans-serif;
+      font-size: 20px;
+      font-weight: 900;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    #recordBtn { background: linear-gradient(135deg, #dc2626, #9333ea); }
+    #stopBtn   { background: linear-gradient(135deg, #16a34a, #059669); }
+    #listenBtn { background: #1d4ed8; }
+    #gradeRow  { display: flex; gap: 10px; }
+    #gradeCorrect   { flex: 1; background: #16a34a; padding: 14px; border: none; border-radius: 16px; font-family: 'Andika', sans-serif; font-size: 15px; font-weight: 900; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    #gradeIncorrect { flex: 1; background: #dc2626; padding: 14px; border: none; border-radius: 16px; font-family: 'Andika', sans-serif; font-size: 15px; font-weight: 900; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    #gradeCorrect small, #gradeIncorrect small { font-size: 11px; opacity: 0.8; font-weight: normal; }
+    #nextBtn { background: #4338ca; }
+
+    /* recording indicator */
+    #recIndicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+    }
+    #recDot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #recLabel { font-size: 13px; color: #f87171; font-weight: bold; }
+
+    /* result badge */
+    #resultBadge {
+      padding: 10px 16px;
+      border-radius: 14px;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 900;
+    }
+    #resultBadge.correct   { background: rgba(22,163,74,0.25); color: #86efac; }
+    #resultBadge.incorrect { background: rgba(220,38,38,0.25);  color: #fca5a5; }
+
+    /* done screen */
+    #doneScreen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 24px;
+    }
+    #doneScreen h2 { font-size: 26px; font-weight: 900; text-align: center; }
+    #doneScreen p  { font-size: 14px; color: #a5b4fc; text-align: center; }
+
+    .hidden { display: none !important; }
+
+    /* Module/scope selectors */
+    #listControls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    #listControls select {
+      font-family: 'Andika', sans-serif;
+      font-size: 14px;
+      padding: 6px 10px;
+      background: #1a1a2e;
+      border: 2px solid #4338ca;
+      border-radius: 10px;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <button id="backBtn">← Back</button>
+  <span id="headerTitle">📖 Spanish Reading v2</span>
+</div>
+
+<!-- List Screen -->
+<div id="listScreen">
+  <h2>📖 Elige una Lista</h2>
+  <div id="listControls" class="hidden">
+    <select id="moduleSelect">
+      <option value="M1">Módulo 1</option><option value="M2">Módulo 2</option>
+      <option value="M3">Módulo 3</option><option value="M4">Módulo 4</option>
+      <option value="M5">Módulo 5</option><option value="M6">Módulo 6</option>
+      <option value="M7">Módulo 7</option><option value="M8">Módulo 8</option>
+      <option value="M9">Módulo 9</option>
+    </select>
+    <select id="scopeSelect">
+      <option value="all">📚 Hasta este módulo</option>
+      <option value="new">⭐ Solo este módulo</option>
+    </select>
+  </div>
+  <div id="listBtns"></div>
+</div>
+
+<!-- Game Screen -->
+<div id="gameScreen" class="hidden">
+  <!-- Progress -->
+  <div id="progressBar">
+    <div id="progressTrack"><div id="progressFill" style="width:0%"></div></div>
+    <span id="progressLabel">0/0</span>
+  </div>
+
+  <!-- Card -->
+  <div id="card">
+    <div id="wordArea">
+      <div id="hiddenPlaceholder">
+        <div class="bar"></div>
+        <div class="hint">Graba primero para revelar</div>
+      </div>
+      <div id="wordText" class="hidden"></div>
+    </div>
+    <div id="controls">
+      <!-- Phase: hidden — record button -->
+      <button class="bigBtn" id="recordBtn">🎙 Grabar</button>
+
+      <!-- Phase: recording -->
+      <div id="recIndicator" class="hidden">
+        <div id="recDot"></div>
+        <span id="recLabel">Grabando…</span>
+      </div>
+      <button class="bigBtn hidden" id="stopBtn">✅ Listo — Parar</button>
+
+      <!-- Phase: listening -->
+      <audio id="playback" controls class="hidden" style="width:100%;"></audio>
+      <p id="listenInstruction" class="hidden" style="text-align:center;font-size:13px;color:#a5b4fc;">🎧 Escucha tu grabación y luego califícate:</p>
+      <div id="gradeRow" class="hidden">
+        <button id="gradeCorrect">✓<br><small>Lo leí bien</small></button>
+        <button id="gradeIncorrect">✗<br><small>Cometí un error</small></button>
+      </div>
+
+      <!-- Phase: saving -->
+      <div id="savingMsg" class="hidden" style="text-align:center;font-size:14px;color:#818cf8;animation:pulse 1s infinite;">Guardando…</div>
+
+      <!-- Phase: graded -->
+      <div id="resultBadge" class="hidden"></div>
+      <button class="bigBtn hidden" id="nextBtn">Siguiente →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Done Screen -->
+<div id="doneScreen" class="hidden">
+  <div style="font-size:60px;">🎉</div>
+  <h2>¡Lista Completada!</h2>
+  <p>Tu maestra revisará tus grabaciones y confirmará tus puntos.</p>
+  <button class="bigBtn" id="tryAnotherBtn" style="background:#4338ca;max-width:320px;">📖 Otra Lista</button>
+</div>
+
+<script>
+/* ===== SUPABASE ===== */
+const SUPABASE_URL = "https://dmlsiyyqpcupbizpxwhp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbHNpeXlxcGN1cGJpenB4d2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDI1NjUsImV4cCI6MjA3Mzk3ODU2NX0.mkgeUtjC8ulLyHHVVOic4LmhhQP_JJtMi2JQztdzjsg";
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const AUDIO_BUCKET = "lettersort-audio";
+
+/* ===== URL params ===== */
+const qs = new URLSearchParams(location.search);
+const studentNumber = parseInt(qs.get('number') || '0');
+const className = qs.get('class') || '';
+
+/* ===== State ===== */
+let ALL_LISTS = {};
+let currentListName = null;
+let words = [];
+let currentIndex = 0;
+let phase = 'hidden'; // hidden | recording | listening | saving | graded
+let audioBlob = null;
+let mediaRecorder = null;
+let chunks = [];
+const POINTS_WORD = 2;
+const POINTS_SENTENCE = 10;
+
+/* ===== Accent → safe filename ===== */
+function displayToMarker(word) {
+  if (!word) return "";
+  return word
+    .replace(/á/g,"a..").replace(/Á/g,"A..")
+    .replace(/é/g,"e..").replace(/É/g,"E..")
+    .replace(/í/g,"i..").replace(/Í/g,"I..")
+    .replace(/ó/g,"o..").replace(/Ó/g,"O..")
+    .replace(/ú/g,"u..").replace(/Ú/g,"U..")
+    .replace(/ü/g,"u,,").replace(/Ü/g,"U,,")
+    .replace(/ñ/g,"n..").replace(/Ñ/g,"N..");
+}
+
+/* ===== Load lists from Supabase ===== */
+async function loadAppData() {
+  try {
+    const base = SUPABASE_URL + "/storage/v1/object/public/app-presets/slidetoread";
+    const res = await fetch(`${base}/lists.json`);
+    ALL_LISTS = await res.json();
+  } catch(e) {
+    console.warn("Could not load lists", e);
+    ALL_LISTS = {};
+  }
+}
+
+function ensureSentenceObjects(arr, modTag) {
+  if (!Array.isArray(arr) || !arr.length) return arr;
+  if (typeof arr[0] === "object") return arr;
+  if (arr[0].includes(" ")) return arr.map((t,i)=>({id:`${modTag}.S${i+1}`,text:(t||"").trim()}));
+  return arr;
+}
+
+function resolveWords(listName) {
+  const entry = ALL_LISTS[listName];
+  if (!entry) return [];
+  if (Array.isArray(entry)) return entry.slice().sort(()=>Math.random()-0.5);
+
+  // Module-based list
+  const mod = document.getElementById('moduleSelect').value;
+  const scope = document.getElementById('scopeSelect').value;
+  let resolved = entry[mod] || entry["M1"];
+
+  if (Array.isArray(resolved)) {
+    const base = (listName === "Oraciones") ? ensureSentenceObjects(resolved, mod) : resolved;
+    return base.slice().sort(()=>Math.random()-0.5);
+  }
+  if (resolved?.all || resolved?.new) {
+    const base = scope === "new" ? (resolved.new || []) : (resolved.all || resolved.new || []);
+    return base.slice().sort(()=>Math.random()-0.5);
+  }
+  return [];
+}
+
+/* ===== Build list buttons ===== */
+function buildListUI() {
+  const container = document.getElementById('listBtns');
+  container.innerHTML = '';
+  const names = Object.keys(ALL_LISTS);
+  names.forEach(name => {
+    const entry = ALL_LISTS[name];
+    const isModuleList = !Array.isArray(entry) && (entry.M1 || entry.M2);
+    const typeLabel = name.toLowerCase().includes('oracion') ? '📝 ORACIONES' : '🔤 PALABRAS';
+    const btn = document.createElement('button');
+    btn.className = 'listBtn';
+    btn.innerHTML = `<span>${name}</span><span class="listType">${typeLabel}</span>`;
+    btn.onclick = () => startList(name, isModuleList);
+    container.appendChild(btn);
+  });
+}
+
+function startList(listName, isModuleList) {
+  currentListName = listName;
+
+  if (isModuleList) {
+    document.getElementById('listControls').classList.remove('hidden');
+  }
+
+  words = resolveWords(listName);
+  if (!words.length) { alert('No words found for this list.'); return; }
+
+  currentIndex = 0;
+  document.getElementById('listScreen').classList.add('hidden');
+  document.getElementById('doneScreen').classList.add('hidden');
+  document.getElementById('gameScreen').classList.remove('hidden');
+  document.getElementById('headerTitle').textContent = `📖 ${listName}`;
+  showPhase('hidden');
+  updateProgress();
+}
+
+/* ===== Progress ===== */
+function updateProgress() {
+  const pct = words.length ? (currentIndex / words.length) * 100 : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${currentIndex}/${words.length}`;
+}
+
+/* ===== Current word helpers ===== */
+function currentWord() { return words[currentIndex]; }
+function currentText() {
+  const w = currentWord();
+  return (typeof w === 'object') ? (w.text || '') : (w || '');
+}
+function isSentence() { return currentText().includes(' '); }
+function currentPoints() { return isSentence() ? POINTS_SENTENCE : POINTS_WORD; }
+
+/* ===== Phase management ===== */
+function showPhase(p) {
+  phase = p;
+  // Reset all
+  document.getElementById('hiddenPlaceholder').classList.add('hidden');
+  document.getElementById('wordText').classList.add('hidden');
+  document.getElementById('recordBtn').classList.add('hidden');
+  document.getElementById('recIndicator').classList.add('hidden');
+  document.getElementById('stopBtn').classList.add('hidden');
+  document.getElementById('playback').classList.add('hidden');
+  document.getElementById('listenInstruction').classList.add('hidden');
+  document.getElementById('gradeRow').classList.add('hidden');
+  document.getElementById('savingMsg').classList.add('hidden');
+  document.getElementById('resultBadge').classList.add('hidden');
+  document.getElementById('nextBtn').classList.add('hidden');
+
+  if (p === 'hidden') {
+    document.getElementById('hiddenPlaceholder').classList.remove('hidden');
+    document.getElementById('recordBtn').classList.remove('hidden');
+  } else if (p === 'recording') {
+    // Reveal word now
+    const wt = document.getElementById('wordText');
+    wt.textContent = currentText();
+    wt.className = isSentence() ? 'sentence' : '';
+    wt.classList.remove('hidden');
+    document.getElementById('recIndicator').classList.remove('hidden');
+    document.getElementById('stopBtn').classList.remove('hidden');
+  } else if (p === 'listening') {
+    const wt = document.getElementById('wordText');
+    wt.textContent = currentText();
+    wt.className = isSentence() ? 'sentence' : '';
+    wt.classList.remove('hidden');
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      const pb = document.getElementById('playback');
+      pb.src = url;
+      pb.classList.remove('hidden');
+    }
+    document.getElementById('listenInstruction').classList.remove('hidden');
+    document.getElementById('gradeRow').classList.remove('hidden');
+  } else if (p === 'saving') {
+    const wt = document.getElementById('wordText');
+    wt.textContent = currentText();
+    wt.className = isSentence() ? 'sentence' : '';
+    wt.classList.remove('hidden');
+    document.getElementById('savingMsg').classList.remove('hidden');
+  } else if (p === 'graded') {
+    const wt = document.getElementById('wordText');
+    wt.textContent = currentText();
+    wt.className = isSentence() ? 'sentence' : '';
+    wt.classList.remove('hidden');
+    document.getElementById('resultBadge').classList.remove('hidden');
+    document.getElementById('nextBtn').classList.remove('hidden');
+  }
+}
+
+/* ===== Recording ===== */
+document.getElementById('recordBtn').onclick = async () => {
+  try {
+    chunks = [];
+    audioBlob = null;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(chunks, { type: mimeType });
+      stream.getTracks().forEach(t => t.stop());
+      showPhase('listening');
+    };
+    mediaRecorder.start();
+    showPhase('recording');
+  } catch(err) {
+    alert('No se pudo acceder al micrófono: ' + err.message);
+  }
+};
+
+document.getElementById('stopBtn').onclick = () => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+};
+
+/* ===== Self-grading ===== */
+async function handleGrade(grade) {
+  showPhase('saving');
+
+  let recordingUrl = null;
+  if (audioBlob) {
+    try {
+      const file = new File([audioBlob], 'reading.webm', { type: audioBlob.type });
+      // Upload via Supabase storage directly
+      const path = `recordings/${Date.now()}_s${studentNumber}.webm`;
+      const { data: upData, error: upErr } = await sbClient.storage
+        .from('student-recordings')
+        .upload(path, file, { contentType: audioBlob.type, upsert: false });
+      if (!upErr && upData) {
+        const { data: urlData } = sbClient.storage.from('student-recordings').getPublicUrl(path);
+        recordingUrl = urlData?.publicUrl || null;
+      }
+    } catch(e) {
+      console.warn('Upload failed, saving without URL', e);
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    // Use the base44 SDK via parent window if available, otherwise skip DB save
+    const sessionData = {
+      student_number: studentNumber || 0,
+      class_name: className || 'unknown',
+      list_name: currentListName,
+      item_text: currentText(),
+      item_type: isSentence() ? 'sentence' : 'word',
+      recording_url: recordingUrl,
+      student_self_grade: grade,
+      teacher_grade: 'pending',
+      points_awarded: 0,
+      reviewed: false,
+      attempt_date: today,
+    };
+    // Post to parent window for base44 entity save
+    window.parent.postMessage({ type: 'saveSpanishSession', data: sessionData }, '*');
+  } catch(e) {
+    console.warn('Session save error', e);
+  }
+
+  const badge = document.getElementById('resultBadge');
+  if (grade === 'correct') {
+    badge.textContent = `✓ ¡Muy bien! +${currentPoints()} pts (pendiente revisión)`;
+    badge.className = 'correct';
+  } else {
+    badge.textContent = '✗ ¡Sigue practicando!';
+    badge.className = 'incorrect';
+  }
+  showPhase('graded');
+}
+
+document.getElementById('gradeCorrect').onclick = () => handleGrade('correct');
+document.getElementById('gradeIncorrect').onclick = () => handleGrade('incorrect');
+
+/* ===== Next word ===== */
+document.getElementById('nextBtn').onclick = () => {
+  currentIndex++;
+  if (currentIndex >= words.length) {
+    showDone();
+  } else {
+    updateProgress();
+    showPhase('hidden');
+  }
+};
+
+function showDone() {
+  document.getElementById('gameScreen').classList.add('hidden');
+  document.getElementById('doneScreen').classList.remove('hidden');
+  document.getElementById('headerTitle').textContent = '📖 Spanish Reading v2';
+}
+
+/* ===== Navigation ===== */
+document.getElementById('backBtn').onclick = () => {
+  // Stop any recording
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  // Go back to list
+  document.getElementById('gameScreen').classList.add('hidden');
+  document.getElementById('doneScreen').classList.add('hidden');
+  document.getElementById('listScreen').classList.remove('hidden');
+  document.getElementById('headerTitle').textContent = '📖 Spanish Reading v2';
+};
+
+document.getElementById('tryAnotherBtn').onclick = () => {
+  document.getElementById('doneScreen').classList.add('hidden');
+  document.getElementById('listScreen').classList.remove('hidden');
+};
+
+document.getElementById('moduleSelect').onchange = () => {
+  if (currentListName) words = resolveWords(currentListName);
+};
+document.getElementById('scopeSelect').onchange = () => {
+  if (currentListName) words = resolveWords(currentListName);
+};
+
+/* ===== Init ===== */
+(async () => {
+  await loadAppData();
+  buildListUI();
+})();
+</script>
+</body>
+</html>
