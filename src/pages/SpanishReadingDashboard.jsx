@@ -65,9 +65,9 @@ function SessionCard({ session, onGrade, onDelete }) {
         </span>
       </div>
 
-      {/* Audio player */}
+      {/* Recording player */}
       {session.recording_url ? (
-        <audio src={session.recording_url} controls className="w-full" style={{ height: 36 }} />
+        <video src={session.recording_url} controls className="w-full rounded-lg" style={{ maxHeight: 160 }} />
       ) : (
         <div className="text-xs text-gray-400 text-center py-1">No recording</div>
       )}
