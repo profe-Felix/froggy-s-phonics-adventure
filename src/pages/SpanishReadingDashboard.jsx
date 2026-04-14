@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 
@@ -18,24 +18,8 @@ function formatDate(dateStr) {
 }
 
 function SessionCard({ session, onReview, onDelete }) {
-  const [playing, setPlaying] = useState(false);
   const [note, setNote] = useState(session.teacher_note || '');
   const [saving, setSaving] = useState(false);
-  const audioRef = useRef(null);
-
-  const handlePlay = () => {
-    if (!session.recording_url) return;
-    if (playing) {
-      audioRef.current?.pause();
-      setPlaying(false);
-    } else {
-      const audio = new Audio(session.recording_url);
-      audioRef.current = audio;
-      audio.play();
-      audio.onended = () => setPlaying(false);
-      setPlaying(true);
-    }
-  };
 
   const handleSaveNote = async () => {
     setSaving(true);
@@ -49,7 +33,7 @@ function SessionCard({ session, onReview, onDelete }) {
         <div>
           <p className="font-black text-gray-800 text-sm">Student #{session.student_number}</p>
           <p className="text-xs text-indigo-600 font-semibold">{session.list_name}</p>
-          <p className="text-xs text-gray-400">{formatDate(session.created_date)} {session.duration_seconds ? `· ${formatDuration(session.duration_seconds)}` : ''}</p>
+          <p className="text-xs text-gray-400">{formatDate(session.created_date)}</p>
         </div>
         <div className="flex items-center gap-1">
           {session.reviewed && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">Reviewed</span>}
@@ -57,12 +41,9 @@ function SessionCard({ session, onReview, onDelete }) {
         </div>
       </div>
 
-      {/* Audio player */}
+      {/* Video player — shows canvas + voice recording */}
       {session.recording_url ? (
-        <button onClick={handlePlay}
-          className={`w-full py-2 rounded-xl text-sm font-bold transition-all mb-2 ${playing ? 'bg-red-100 text-red-600' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
-          {playing ? '⏹ Stop' : '▶ Play Recording'}
-        </button>
+        <video src={session.recording_url} controls className="w-full rounded-xl mb-2 bg-black" style={{ maxHeight: 200 }} />
       ) : (
         <div className="text-xs text-gray-400 text-center py-2 mb-2">No recording</div>
       )}

@@ -1,0 +1,796 @@
+/* ==================== SUPABASE CONFIG (group sync) ==================== */
+const SUPABASE_URL = "https://dmlsiyyqpcupbizpxwhp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbHNpeXlxcGN1cGJpenB4d2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDI1NjUsImV4cCI6MjA3Mzk3ODU2NX0.mkgeUtjC8ulLyHHVVOic4LmhhQP_JJtMi2JQztdzjsg";
+
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let ALL_LISTS = {};
+let ALL_PRESETS = {};
+
+const LOCAL_FALLBACK_LISTS = {
+  "1. sílabas": [],
+  "2. palabras": [],
+  "CVC": []
+};
+
+async function loadAppData() {
+  const base = SUPABASE_URL + "/storage/v1/object/public/app-presets/slidetoread";
+  const [listsRes, presetsRes] = await Promise.all([
+    fetch(`${base}/lists.json`),
+    fetch(`${base}/presets.json`)
+  ]);
+  ALL_LISTS = await listsRes.json();
+  ALL_PRESETS = await presetsRes.json();
+}
+
+const qs = new URLSearchParams(location.search);
+const ORDER_MODE = qs.get('order') || 'shuffle';
+const WORDS_OVERRIDE = (qs.get('words') || '').split(',').map(w => w.trim()).filter(Boolean);
+const ROLE = (qs.get('role') || '').toLowerCase();
+const GROUP_CODE = (qs.get('group') || '').toUpperCase();
+const isTeacher = ROLE === 'teacher' && !!GROUP_CODE;
+const isStudent = ROLE === 'student' && !!GROUP_CODE;
+
+const syncStatusEl = document.getElementById('syncStatus');
+if (syncStatusEl) {
+  if (!ROLE || !GROUP_CODE) {
+    syncStatusEl.textContent = "Modo local: usa ?role=teacher&group=A o ?role=student&group=A en la URL para sincronizar.";
+  } else if (isTeacher) {
+    syncStatusEl.textContent = `Modo MAESTRO — Grupo ${GROUP_CODE}. Usa Prev/Next para guiar.`;
+  } else if (isStudent) {
+    syncStatusEl.textContent = `Modo ESTUDIANTE — Grupo ${GROUP_CODE}. Seguirá al maestro.`;
+  } else {
+    syncStatusEl.textContent = "Modo local (role/group no válidos).";
+  }
+}
+
+async function ensureReadingGroup(groupCode) {
+  if (!groupCode) return null;
+  const { data, error } = await sbClient.from('reading_groups').select('*').eq('group_code', groupCode).maybeSingle();
+  if (error && error.code !== 'PGRST116') { console.warn('ensureReadingGroup error', error); return null; }
+  if (!data) {
+    const { data: inserted, error: insertErr } = await sbClient.from('reading_groups').insert({ group_code: groupCode, current_index: 0 }).select().single();
+    if (insertErr) { console.warn('insert reading_group error', insertErr); return null; }
+    return inserted;
+  }
+  return data;
+}
+
+async function setReadingIndex(groupCode, index) {
+  if (!groupCode) return null;
+  const { data, error } = await sbClient.from('reading_groups').update({ current_index: index }).eq('group_code', groupCode).select('current_index').single();
+  if (error) { console.warn('setReadingIndex error', error); return null; }
+  return data.current_index;
+}
+
+async function getReadingIndex(groupCode) {
+  if (!groupCode) return null;
+  const { data, error } = await sbClient.from('reading_groups').select('current_index').eq('group_code', groupCode).single();
+  if (error) { if (error.code !== 'PGRST116') console.warn('getReadingIndex error', error); return null; }
+  return data.current_index;
+}
+
+/* ==================== Deterministic shuffle + session ==================== */
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  return function() { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return h >>> 0; };
+}
+function mulberry32(a) {
+  return function() { let t = a += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function shuffleWithSeed(array, seedStr) {
+  const seedFn = xmur3(seedStr); const rng = mulberry32(seedFn()); const arr = array.slice();
+  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+function makeSessionId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+}
+async function fetchSupabaseLists() {
+  try {
+    const { data, error } = await sbClient.storage.from("app-presets").download("slidetoread/lists.json");
+    if (error || !data) return null;
+    return JSON.parse(await data.text());
+  } catch { return null; }
+}
+
+if (window.allowSliderDraw === undefined) window.allowSliderDraw = true;
+
+/* ==================== Canvas ==================== */
+const canvas = document.getElementById("wordCanvas");
+const ctx = canvas.getContext("2d");
+
+let words = [], currentWordIndex = 0;
+let sliderX = 0, isDragging = false, sliderStart = 0, sliderEnd = 0;
+let freshWord = true;
+let fontPx = 64;
+let letters = [];
+let pollTimer = null;
+let activeRow = 0, rowCount = 1, rowWidths = [];
+let READ_LAYOUT = null;
+
+const DPR = window.devicePixelRatio || 1;
+let isDesktop = window.innerWidth >= 1100;
+
+function resizeCanvas() {
+  const maxWidth = isDesktop ? 1200 : 768;
+  const width = Math.min(window.innerWidth * 0.95, maxWidth);
+  const maxHeight = window.innerHeight * 0.72;
+  let height = width * 0.6;
+  if (window.innerHeight > window.innerWidth) height = Math.min(window.innerHeight * 0.5, width * 1.1);
+  height = Math.min(height, maxHeight);
+  canvas.style.width = width + "px"; canvas.style.height = height + "px";
+  canvas.width = Math.round(width * DPR); canvas.height = Math.round(height * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (words.length) { typesetReadingLayout(); drawCanvas(); } else { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+}
+
+window.addEventListener("resize", () => { isDesktop = window.innerWidth >= 1100; requestAnimationFrame(resizeCanvas); });
+window.addEventListener("orientationchange", () => requestAnimationFrame(resizeCanvas));
+document.addEventListener("DOMContentLoaded", resizeCanvas);
+
+/* ==================== UI ==================== */
+const playBtn = document.getElementById("playAudio");
+const modeSel = document.getElementById("gameModeSelect");
+const tileModeSel = document.getElementById("tileModeSelect");
+const tileRack = document.getElementById("tileRack");
+const submitSpellBtn = document.getElementById("submitSpell");
+const clearSpellBtn = document.getElementById("clearSpell");
+const backspaceSpellBtn = document.getElementById("backspaceSpell");
+const hintLine = document.getElementById("hintLine");
+const spellInput = document.getElementById("spellInput");
+
+if (WORDS_OVERRIDE.length) { const listSel = document.getElementById("wordListSelect"); if (listSel) listSel.style.display = "none"; }
+
+document.getElementById("wordListSelect").addEventListener("change", loadWordList);
+document.getElementById("moduleSelect").addEventListener("change", loadWordList);
+document.getElementById("scopeSelect").addEventListener("change", loadWordList);
+document.getElementById("nextWord").addEventListener("click", () => changeWord(1));
+document.getElementById("prevWord").addEventListener("click", () => changeWord(-1));
+playBtn.addEventListener("click", () => { if (!words.length) return; playWordAudio(words[currentWordIndex]); });
+
+modeSel.addEventListener("change", () => { gameMode = modeSel.value; configureModeUI(); resetSpellingState(true); drawCanvas(); });
+tileModeSel.addEventListener("change", () => { if (gameMode === 'spell_tiles') { resetSpellingState(true); buildTilesForCurrentWord(); drawCanvas(); } });
+submitSpellBtn.addEventListener("click", () => submitSpelling());
+clearSpellBtn.addEventListener("click", () => resetSpellingState(false));
+backspaceSpellBtn.addEventListener("click", () => spellingBackspace());
+
+/* ==================== Game mode state ==================== */
+let gameMode = 'read';
+let targetWordRaw = "", targetGraphemes = [], userGraphemes = [], cursorSlot = 0;
+let spellingSubmitted = false, perSlotCorrect = [], pendingDigraph = null;
+let tiles = [], tilesUsed = [];
+
+function configureModeUI() {
+  if (gameMode !== 'read' && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  const inSpelling = (gameMode !== 'read');
+  tileModeSel.style.display = (gameMode === 'spell_tiles') ? 'inline-block' : 'none';
+  tileRack.style.display = (gameMode === 'spell_tiles') ? 'flex' : 'none';
+  submitSpellBtn.disabled = !inSpelling; clearSpellBtn.disabled = !inSpelling; backspaceSpellBtn.disabled = !inSpelling;
+  hintLine.textContent = (gameMode === 'read') ? "" : (isStudent && GROUP_CODE) ? "Modo práctica: el maestro controla Prev/Next. Tú puedes deletrear aquí." : "Deletrea la palabra. No hay pistas.";
+  if (gameMode === 'spell_kb') setTimeout(() => spellInput.focus(), 50);
+}
+
+function updateModuleUIVisibility(listName, entry) {
+  const modSel = document.getElementById("moduleSelect"); const scopeSel = document.getElementById("scopeSelect");
+  const isModuleList = entry && !Array.isArray(entry) && (entry.M1 || entry.M2 || entry.M3);
+  if (modSel) modSel.style.display = isModuleList ? "inline-block" : "none";
+  if (scopeSel) scopeSel.style.display = isModuleList ? "inline-block" : "none";
+}
+
+function ensureSentenceObjects(arr, modTag) {
+  if (!Array.isArray(arr) || arr.length === 0) return arr;
+  if (typeof arr[0] === "object") return arr;
+  if (typeof arr[0] !== "string") return arr;
+  if (arr[0].includes(" ")) return arr.map((t, i) => ({ id: `${modTag}.S${i + 1}`, text: (t || "").trim() }));
+  return arr;
+}
+
+let baseWordsForDistractors = [];
+
+async function applySyncedOrder(listName, arr) {
+  if (!GROUP_CODE || (!isTeacher && !isStudent)) {
+    if (ORDER_MODE !== 'fixed') return arr.slice().sort(() => Math.random() - 0.5);
+    return arr.slice();
+  }
+  await ensureReadingGroup(GROUP_CODE);
+  let { data: row } = await sbClient.from('reading_groups').select('session_id').eq('group_code', GROUP_CODE).maybeSingle();
+  let sessionId = row?.session_id;
+  if (isTeacher && !sessionId) {
+    sessionId = makeSessionId();
+    await sbClient.from('reading_groups').update({ session_id: sessionId }).eq('group_code', GROUP_CODE);
+  }
+  if (!sessionId) { console.warn("No session yet — fallback random"); return arr.slice(); }
+  return shuffleWithSeed(arr, `${GROUP_CODE}::${listName}::${sessionId}`);
+}
+
+function maybeShuffle(arr) { if (ORDER_MODE === 'fixed') return arr.slice(); return arr.slice().sort(() => Math.random() - 0.5); }
+
+async function loadWordList() {
+  if (WORDS_OVERRIDE.length) {
+    const seed = qs.get('seed') || '';
+    if (ORDER_MODE === 'fixed') words = WORDS_OVERRIDE.slice();
+    else words = seed ? shuffleWithSeed(WORDS_OVERRIDE, seed) : WORDS_OVERRIDE.slice().sort(() => Math.random() - 0.5);
+    currentWordIndex = 0;
+    document.fonts.ready.then(async () => {
+      setupWord(words[currentWordIndex]); playBtn.disabled = false;
+      if (isTeacher && GROUP_CODE) await setReadingIndex(GROUP_CODE, currentWordIndex);
+      if (isStudent && GROUP_CODE) startStudentPolling();
+    });
+    return;
+  }
+
+  const presetId = qs.get('preset');
+  if (presetId && ALL_PRESETS[presetId]) {
+    const P = ALL_PRESETS[presetId];
+    if (P.words) words = P.words.split(",").map(w => w.trim()).filter(Boolean);
+    else if (P.list) words = (ALL_LISTS[P.list] || []).slice();
+    if (P.shuffle) words.sort(() => Math.random() - 0.5);
+    currentWordIndex = 0;
+    document.fonts.ready.then(() => { setupWord(words[currentWordIndex]); playBtn.disabled = false; });
+    const listSel = document.getElementById("wordListSelect");
+    if (listSel) listSel.style.display = "none";
+    return;
+  }
+
+  const listName = document.getElementById("wordListSelect").value;
+  const supaLists = await fetchSupabaseLists();
+  const entryForUI = (supaLists && supaLists[listName]) ? supaLists[listName] : null;
+  updateModuleUIVisibility(listName, entryForUI);
+
+  if (supaLists && Array.isArray(supaLists[listName])) {
+    words = maybeShuffle(supaLists[listName]);
+    currentWordIndex = 0;
+    document.fonts.ready.then(async () => {
+      setupWord(words[currentWordIndex]); playBtn.disabled = false;
+      if (isTeacher && GROUP_CODE) await setReadingIndex(GROUP_CODE, currentWordIndex);
+      if (isStudent && GROUP_CODE) startStudentPolling();
+    });
+    return;
+  }
+
+  if (supaLists?.[listName]) {
+    const entry = supaLists[listName];
+    Object.keys(entry || {}).forEach(k => { if (entry[k]?.new) entry[k].new = ensureSentenceObjects(entry[k].new, k); });
+    let resolvedEntry = entry;
+    if (!Array.isArray(entry)) {
+      const moduleSel = document.getElementById("moduleSelect");
+      const mod = moduleSel ? moduleSel.value : "M1";
+      resolvedEntry = entry[mod] || entry["M1"];
+    }
+    if (Array.isArray(resolvedEntry)) {
+      const modVal = document.getElementById("moduleSelect")?.value || "M1";
+      const base = (listName === "Oraciones") ? ensureSentenceObjects(resolvedEntry, modVal) : resolvedEntry;
+      words = (GROUP_CODE && (isTeacher || isStudent)) ? await applySyncedOrder(listName, base) : maybeShuffle(base);
+    } else if (resolvedEntry.all) {
+      const scopeSel = document.getElementById("scopeSelect");
+      const scope = scopeSel ? scopeSel.value : "all";
+      words = maybeShuffle(scope === "new" ? (resolvedEntry.new || []) : resolvedEntry.all);
+    } else if (resolvedEntry.new) {
+      words = maybeShuffle(resolvedEntry.new);
+    } else {
+      words = [];
+    }
+    currentWordIndex = 0;
+    document.fonts.ready.then(async () => {
+      setupWord(words[currentWordIndex]); playBtn.disabled = false;
+      if (isTeacher && GROUP_CODE) await setReadingIndex(GROUP_CODE, currentWordIndex);
+      if (isStudent && GROUP_CODE) startStudentPolling();
+    });
+    return;
+  }
+
+  const url = `wordlists/${encodeURIComponent(listName)}.txt`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`No encontrado: ${url}`);
+    const data = await response.text();
+    let baseWords = data.trim().split("\n").map(w => w.trim()).filter(Boolean);
+    baseWordsForDistractors = baseWords.slice();
+    if (GROUP_CODE && (isTeacher || isStudent)) {
+      await ensureReadingGroup(GROUP_CODE);
+      if (isTeacher) {
+        const sessionId = makeSessionId();
+        await sbClient.from('reading_groups').update({ session_id: sessionId, current_index: 0 }).eq('group_code', GROUP_CODE);
+        words = shuffleWithSeed(baseWords, `${GROUP_CODE}::${listName}::${sessionId}`);
+        currentWordIndex = 0;
+      } else if (isStudent) {
+        const { data: row } = await sbClient.from('reading_groups').select('session_id, current_index').eq('group_code', GROUP_CODE).maybeSingle();
+        if (row && row.session_id) {
+          words = shuffleWithSeed(baseWords, `${GROUP_CODE}::${listName}::${row.session_id}`);
+          currentWordIndex = row.current_index ?? 0;
+        } else {
+          words = baseWords.sort(() => Math.random() - 0.5); currentWordIndex = 0;
+        }
+      }
+    } else {
+      words = baseWords.sort(() => Math.random() - 0.5); currentWordIndex = 0;
+    }
+    document.fonts.ready.then(async () => {
+      setupWord(words[currentWordIndex]); playBtn.disabled = false;
+      if (isTeacher && GROUP_CODE) await setReadingIndex(GROUP_CODE, currentWordIndex);
+      if (isStudent && GROUP_CODE) startStudentPolling();
+    });
+  } catch (err) {
+    console.warn(err);
+    alert(`No pude cargar "${url}".`);
+  }
+}
+
+async function startStudentPolling() {
+  if (!isStudent || !GROUP_CODE) return;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  const doPoll = async () => {
+    const idx = await getReadingIndex(GROUP_CODE);
+    if (idx == null || !words.length || idx === currentWordIndex || idx < 0 || idx >= words.length) return;
+    currentWordIndex = idx;
+    document.fonts.ready.then(() => { setupWord(words[currentWordIndex]); playBtn.disabled = false; });
+  };
+  await doPoll();
+  pollTimer = setInterval(doPoll, 2000);
+}
+
+async function changeWord(direction) {
+  if (!words.length || (isStudent && GROUP_CODE)) return;
+  let nextIndex = currentWordIndex + direction;
+  if (nextIndex >= words.length) { if (ORDER_MODE !== 'fixed') words = await applySyncedOrder("reshuffle", words); nextIndex = 0; }
+  if (nextIndex < 0) nextIndex = words.length - 1;
+  currentWordIndex = nextIndex;
+  document.fonts.ready.then(() => { setupWord(words[currentWordIndex]); playBtn.disabled = false; });
+  if (isTeacher && GROUP_CODE) setReadingIndex(GROUP_CODE, currentWordIndex);
+}
+
+/* ==================== Grapheme parsing ==================== */
+function parseWord(word) {
+  const digraphs = ["ch", "ll", "rr", "qu"]; const out = []; const w = (word || "");
+  for (let i = 0; i < w.length;) {
+    const ch = w[i];
+    if (ch === " ") { out.push({ text: " ", isSpace: true }); i++; continue; }
+    if (/[.,!?;]/.test(ch)) { out.push({ text: ch, isPunctuation: true }); i++; continue; }
+    const lower = w.toLowerCase();
+    const dg = digraphs.find(d => lower.startsWith(d, i));
+    if (dg) { out.push({ text: dg, soundType: getSoundType(dg) }); i += dg.length; }
+    else { out.push({ text: w[i], soundType: getSoundType(lower[i], lower[i+1]) }); i++; }
+  }
+  return out;
+}
+
+function groupIntoWords(letters) {
+  const out = []; let current = [];
+  letters.forEach(l => { if (l.isSpace) { if (current.length) out.push(current); current = []; } else { current.push(l); } });
+  if (current.length) out.push(current);
+  return out;
+}
+
+function getSoundType(letter, nextLetter = "") {
+  if (letter === "c") return /[ei]/.test(nextLetter) ? "continuous" : "stop";
+  if (["p","t","k","b","d","g","ch"].includes(letter)) return "stop";
+  if (letter === "h") return "silent";
+  return "continuous";
+}
+
+function setupWord(word) {
+  const rawText = (typeof word === "object") ? word.text : word;
+  letters = parseWord(rawText);
+  const padding = 6;
+  const scale = Math.min(canvas.clientWidth / 768, canvas.clientHeight / 432);
+  const em = Math.round((isDesktop ? 64 : 52) * scale);
+  ctx.font = `bold ${em}px Andika`;
+  const minPill = Math.max(8, Math.round(em * 0.22)); const innerPad = Math.max(2, Math.round(em * 0.03));
+  letters.forEach(l => {
+    if (l.isPunctuation) { l.gw = 0; l.w = 0; return; }
+    let gw = ctx.measureText(l.text).width;
+    if (window.innerWidth < 700) gw *= 0.65;
+    l.gw = gw; l.w = Math.max(gw + innerPad * 2, minPill);
+  });
+  const totalWidth = letters.reduce((s, l) => s + l.w, 0) + padding * (letters.length - 1);
+  sliderStart = (canvas.clientWidth - totalWidth) / 2; sliderEnd = sliderStart + totalWidth;
+  sliderX = sliderStart; activeRow = 0; freshWord = true;
+  targetWordRaw = rawText.toLowerCase().trim();
+  resetSpellingState(true);
+  if (gameMode === 'spell_tiles') buildTilesForCurrentWord();
+  typesetReadingLayout(); drawCanvas();
+}
+
+function typesetReadingLayout() {
+  if (!letters || !letters.length) return;
+  const usableW = canvas.clientWidth; const usableH = canvas.clientHeight;
+  const scale = Math.min(usableW / 768, usableH / 432);
+  let baseFont = isDesktop ? 64 : 52;
+  let fp = Math.round(baseFont * scale * (isDesktop ? 1.5 : 1));
+  const maxFont = isDesktop ? 130 : 72;
+  fp = Math.max(26, Math.min(maxFont, fp));
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  if (isDesktop) {
+    ctx.font = `bold ${fp}px Andika`;
+    const testMax = usableW * 0.9; let testX = 0; let rows = 1;
+    letters.forEach(l => { if (l.isSpace) { testX += fp * 0.4; return; } testX += l.w || 0; if (testX > testMax) { rows++; testX = l.w || 0; } });
+    if (rows > 1) fp = Math.round(fp * 0.55);
+  }
+  ctx.font = `bold ${fp}px Andika`; fontPx = fp;
+  const em = fontPx; const minPill = Math.max(8, Math.round(em * 0.22)); const innerPad = Math.max(2, Math.round(em * 0.03));
+  letters.forEach(l => {
+    if (l.isPunctuation) { l.gw = 0; l.w = 0; return; }
+    if (l.isSpace) return;
+    let gw = ctx.measureText(l.text).width;
+    if (window.innerWidth < 700) gw *= 0.65;
+    l.gw = gw; l.w = Math.max(gw + innerPad * 2, minPill);
+  });
+  const padding = Math.max(2, Math.round(fontPx * 0.005));
+  const wordGap = padding * 12; const pillH = Math.max(8, Math.round(fontPx * 0.10));
+  const maxRowWidth = usableW * 0.9;
+  const wordsBlocks = groupIntoWords(letters);
+  const blockRow = []; const rowWidthsLocal = [];
+  let row = 0, x = 0;
+  for (let bi = 0; bi < wordsBlocks.length; bi++) {
+    const block = wordsBlocks[bi];
+    const blockWidth = block.reduce((s, l) => s + (l.isPunctuation ? Math.max(10, ctx.measureText(l.text).width) : l.w), 0) + padding * (block.length - 1);
+    if (x > 0 && (x + blockWidth) > maxRowWidth) { row++; x = 0; }
+    blockRow[bi] = row; x += blockWidth; rowWidthsLocal[row] = Math.max(rowWidthsLocal[row] || 0, x);
+    if (bi !== wordsBlocks.length - 1) { x += wordGap; rowWidthsLocal[row] = Math.max(rowWidthsLocal[row] || 0, x); }
+  }
+  const rowCountLocal = row + 1;
+  const leftMargin = 30; const rowStartX = new Array(rowCountLocal).fill(leftMargin);
+  const baseRowStep = fontPx * 1.6; const sliderGap = Math.round(fontPx * 0.25);
+  const isPortrait = window.innerHeight > window.innerWidth;
+  const layoutTopY = isPortrait ? Math.round(fontPx * 0.5) : Math.round(fontPx * 0.35);
+  READ_LAYOUT = {
+    fontPx, padding, wordGap, pillH,
+    realTextY: Math.round(fontPx * 1.25),
+    pillYOff: Math.round(fontPx * 1.25) + Math.max(16, Math.round(fontPx * 0.5)),
+    maxRowWidth, wordsBlocks, blockRow, rowWidths: rowWidthsLocal, rowStartX,
+    rowCount: rowCountLocal, baseRowStep, sliderGap, layoutTopY
+  };
+  activeRow = 0; rowCount = rowCountLocal; rowWidths = rowWidthsLocal;
+  sliderStart = rowStartX[0]; sliderEnd = sliderStart + (rowWidthsLocal[0] || maxRowWidth);
+  sliderX = sliderStart; freshWord = true;
+}
+
+function drawReading() {
+  if (!READ_LAYOUT) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const L = READ_LAYOUT;
+  ctx.font = `bold ${L.fontPx}px Andika`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  const rowY = (r) => L.layoutTopY + r * L.baseRowStep;
+  for (let bi = 0; bi < L.wordsBlocks.length; bi++) {
+    const block = L.wordsBlocks[bi]; const r = L.blockRow[bi]; let drawX = L.rowStartX[r];
+    for (let bj = bi - 1; bj >= 0; bj--) {
+      if (L.blockRow[bj] !== r) break;
+      const prev = L.wordsBlocks[bj];
+      const prevW = prev.reduce((s, l) => s + (l.isPunctuation ? Math.max(10, ctx.measureText(l.text).width) : l.w), 0) + L.padding * (prev.length - 1);
+      drawX += prevW + L.wordGap;
+    }
+    for (let li = 0; li < block.length; li++) {
+      const letter = block[li];
+      if (letter.isPunctuation) {
+        const yText = rowY(r) + L.realTextY; const pw = Math.max(10, ctx.measureText(letter.text).width);
+        ctx.fillStyle = (r === activeRow && sliderX >= drawX + 1) ? "black" : "lightgrey";
+        ctx.fillText(letter.text, drawX + pw / 2, yText); drawX += pw + L.padding; continue;
+      }
+      const yText = rowY(r) + L.realTextY; const yPill = rowY(r) + L.pillYOff; const pillW = letter.w;
+      ctx.fillStyle = (r === activeRow && sliderX >= drawX + 1) ? "black" : "lightgrey";
+      if (letter.text === "h" && letter.soundType === "silent") ctx.fillStyle = "#ccc";
+      ctx.fillText(letter.text, drawX + pillW / 2, yText);
+      if (r === activeRow) {
+        ctx.strokeStyle = letter.soundType === "silent" ? "#aaa" : letter.soundType === "stop" ? "red" : "green";
+        ctx.lineWidth = 3;
+        ctx.fillStyle = (sliderX >= drawX + 1) ? ctx.strokeStyle : "white";
+        const rr = Math.max(2, Math.min(10, L.pillH / 2, pillW / 2 - 1));
+        roundRect(drawX, yPill, pillW, L.pillH, rr, true, true);
+      }
+      drawX += pillW + L.padding;
+    }
+  }
+  const thisRowW = L.rowWidths[activeRow] || L.maxRowWidth;
+  sliderStart = L.rowStartX[activeRow]; sliderEnd = sliderStart + thisRowW;
+  const lineY = rowY(activeRow) + L.pillYOff + L.pillH + L.sliderGap;
+  ctx.lineCap = "round"; ctx.strokeStyle = "#ccc"; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(sliderStart, lineY); ctx.lineTo(sliderEnd, lineY); ctx.stroke();
+  ctx.strokeStyle = "#007bff"; ctx.beginPath(); ctx.moveTo(sliderStart, lineY); ctx.lineTo(sliderX, lineY); ctx.stroke();
+  ctx.beginPath(); ctx.fillStyle = "#007bff"; ctx.arc(sliderX, lineY, 10, 0, Math.PI * 2); ctx.fill();
+  if (freshWord) { sliderX = sliderStart; freshWord = false; }
+  else sliderX = Math.min(Math.max(sliderX, sliderStart), sliderEnd);
+}
+
+function isVowelChar(ch) { return /[aeiouáéíóúü]/i.test(ch || ""); }
+function normalizeForGrade(s) {
+  let x = (s || "").toLowerCase(); x = x.replace(/ñ/g, "__ENYE__");
+  x = x.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); x = x.replace(/__ENYE__/g, "ñ"); return x;
+}
+function graphemeIsVowel(g) {
+  if (!g) return false;
+  if (g === 'ch' || g === 'll' || g === 'rr' || g === 'qu') return false;
+  return isVowelChar(g);
+}
+function splitIntoSyllables(graphemes) {
+  const allowedOnset2 = new Set(["bl","br","cl","cr","dr","fl","fr","gl","gr","pl","pr","tr"]);
+  const syls = []; let i = 0;
+  while (i < graphemes.length) {
+    let onset = []; while (i < graphemes.length && !graphemeIsVowel(graphemes[i])) { onset.push(graphemes[i]); i++; }
+    let nucleus = [];
+    if (i < graphemes.length && graphemeIsVowel(graphemes[i])) {
+      nucleus.push(graphemes[i]); i++;
+      if (i < graphemes.length && graphemeIsVowel(graphemes[i])) { nucleus.push(graphemes[i]); i++; }
+    }
+    let cons = []; let j = i;
+    while (j < graphemes.length && !graphemeIsVowel(graphemes[j])) { cons.push(graphemes[j]); j++; }
+    if (j >= graphemes.length) { syls.push(onset.concat(nucleus).concat(cons)); break; }
+    if (cons.length === 0) syls.push(onset.concat(nucleus));
+    else if (cons.length === 1) syls.push(onset.concat(nucleus));
+    else if (cons.length === 2) {
+      const pair = (cons[0] + cons[1]).replace(/[^a-zñ]/g,'');
+      if (allowedOnset2.has(pair)) syls.push(onset.concat(nucleus));
+      else { syls.push(onset.concat(nucleus).concat([cons[0]])); i += 1; }
+    } else {
+      const last2 = (cons[cons.length-2] + cons[cons.length-1]).replace(/[^a-zñ]/g,'');
+      if (allowedOnset2.has(last2)) { syls.push(onset.concat(nucleus).concat([cons[0]])); i += 1; }
+      else { syls.push(onset.concat(nucleus).concat(cons.slice(0,2))); i += 2; }
+    }
+  }
+  return syls;
+}
+
+function tileDisplayFor(g) {
+  if (!g) return ""; let x = (g||"").toLowerCase();
+  x = x.replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u'); return x;
+}
+
+function drawSpelling() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const w = canvas.clientWidth; const h = canvas.clientHeight;
+  const graphemes = targetGraphemes.length ? targetGraphemes : letters.map(x=>x.text);
+  if (!graphemes.length) return;
+  const syls = splitIntoSyllables(graphemes);
+  let fp = Math.max(24, Math.min(72, Math.round(64 * (w / 768))));
+  const rows = spellingSubmitted ? 2 : 1;
+  function computeLayout(fp) {
+    ctx.font = `700 ${fp}px Andika`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    const slotGap = Math.max(10, Math.round(fp*0.22)); const sylGap = Math.max(18, Math.round(fp*0.55));
+    const slotMinW = Math.max(34, Math.round(fp*0.95)); const slotInnerPad = Math.max(8, Math.round(fp*0.20));
+    const slotWidths = graphemes.map(g => { const tw = ctx.measureText(tileDisplayFor(g)).width; return Math.max(slotMinW, Math.round(tw + slotInnerPad*2)); });
+    let idx = 0;
+    const sylMeta = syls.map(sg => { const start = idx; const end = start + sg.length; idx = end; return { start, end }; });
+    let totalW = 0;
+    for (let i = 0; i < graphemes.length; i++) { totalW += slotWidths[i]; if (i < graphemes.length - 1) totalW += slotGap; }
+    for (let s = 0; s < sylMeta.length - 1; s++) totalW += (sylGap - slotGap);
+    const startX = Math.round((w - totalW) / 2);
+    const rowH = Math.round(fp * 2.15); const gapY = Math.round(fp * 0.70);
+    const neededH = (rows * rowH) + ((rows - 1) * gapY) + Math.round(fp * 0.9);
+    return { fp, slotGap, sylGap, slotWidths, sylMeta, startX, rowH, gapY, neededH };
+  }
+  let L = computeLayout(fp);
+  while (L.neededH > h * 0.92 && fp > 22) { fp -= 2; L = computeLayout(fp); }
+  const topY = spellingSubmitted ? Math.round(h * 0.10) : Math.round(h * 0.18);
+  const textY = topY + Math.round(L.fp * 0.95);
+  const underlineY = textY + Math.round(L.fp * 0.35);
+  const sylUnderlineY = underlineY + Math.round(L.fp * 0.28);
+  function gradeSyllables() {
+    return L.sylMeta.map(({start, end}) => { for (let i = start; i < end; i++) { if (!perSlotCorrect[i]) return false; } return true; });
+  }
+  function drawRow(rowTopY, rowLetters, mode) {
+    ctx.font = `700 ${L.fp}px Andika`; ctx.textAlign = "center";
+    const slotX = new Array(graphemes.length).fill(0);
+    let x = L.startX; let sylIndex = 0; let nextSylEnd = L.sylMeta[0]?.end ?? graphemes.length;
+    for (let i = 0; i < graphemes.length; i++) {
+      slotX[i] = x; x += L.slotWidths[i];
+      if (i < graphemes.length - 1) { if (i === nextSylEnd - 1) { sylIndex++; nextSylEnd = L.sylMeta[sylIndex]?.end ?? graphemes.length; x += L.sylGap; } else x += L.slotGap; }
+    }
+    const sylCorrect = (mode === "attempt" && spellingSubmitted) ? gradeSyllables() : null;
+    for (let i = 0; i < graphemes.length; i++) {
+      const sw = L.slotWidths[i]; const sx = slotX[i];
+      const display = tileDisplayFor(rowLetters[i] || "");
+      let letterColor = "#111", ulineColor = "#111";
+      if (mode === "correct") { letterColor = "#16a34a"; ulineColor = "#16a34a"; }
+      else if (!spellingSubmitted) { letterColor = "#111"; ulineColor = "#111"; }
+      else { const ok = !!perSlotCorrect[i]; letterColor = ok ? "#16a34a" : "#dc2626"; ulineColor = ok ? "#16a34a" : "#dc2626"; }
+      ctx.fillStyle = letterColor; ctx.fillText(display, sx + sw/2, rowTopY + (textY - topY));
+      ctx.strokeStyle = ulineColor; ctx.lineWidth = 6; ctx.beginPath();
+      ctx.moveTo(sx + 10, rowTopY + (underlineY - topY)); ctx.lineTo(sx + sw - 10, rowTopY + (underlineY - topY)); ctx.stroke();
+      if (mode === "attempt" && !spellingSubmitted && i === cursorSlot) {
+        ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 3;
+        roundRect(sx+4, rowTopY + 6, sw-8, Math.round(L.fp*1.45), 12, false, true);
+      }
+    }
+    for (let s = 0; s < L.sylMeta.length; s++) {
+      const {start, end} = L.sylMeta[s];
+      const left = slotX[start] + 8; const right = slotX[end-1] + L.slotWidths[end-1] - 8;
+      let color = "#111";
+      if (mode === "correct") color = "#16a34a";
+      else if (!spellingSubmitted) color = "#111";
+      else color = sylCorrect[s] ? "#16a34a" : "#dc2626";
+      ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath();
+      ctx.moveTo(left, rowTopY + (sylUnderlineY - topY)); ctx.lineTo(right, rowTopY + (sylUnderlineY - topY)); ctx.stroke();
+    }
+  }
+  drawRow(topY, userGraphemes, "attempt");
+  if (spellingSubmitted) {
+    const correctRaw = (targetWordRaw || words[currentWordIndex] || "").toLowerCase().trim();
+    drawRow(topY + L.rowH + L.gapY, parseWord(correctRaw).map(o => o.text), "correct");
+  } else {
+    ctx.font = `700 ${Math.max(18, Math.round(L.fp*0.50))}px Andika`; ctx.fillStyle = "#666";
+    ctx.fillText("Escucha y escribe la palabra.", w/2, topY + L.rowH + Math.round(L.fp*0.70));
+  }
+}
+
+function drawCanvas() { if (!window.allowSliderDraw) return; if (gameMode === 'read') drawReading(); else drawSpelling(); }
+
+canvas.addEventListener("pointerdown", (e) => { if (gameMode !== 'read') return; isDragging=true; moveSlider(e); });
+canvas.addEventListener("pointermove", (e) => { if (gameMode !== 'read' || !isDragging) return; moveSlider(e); });
+canvas.addEventListener("pointerup", () => { isDragging = false; drawCanvas(); tryAdvanceRow(); });
+canvas.addEventListener("pointercancel", () => { isDragging = false; drawCanvas(); tryAdvanceRow(); });
+canvas.addEventListener("pointerleave", () => isDragging=false);
+
+function tryAdvanceRow() {
+  if (sliderX >= sliderEnd - 60) {
+    if (activeRow < rowCount - 1) { activeRow++; sliderX = sliderStart; isDragging = false; }
+    drawCanvas();
+  }
+}
+function moveSlider(e) {
+  const rect = canvas.getBoundingClientRect();
+  sliderX = Math.min(Math.max(e.clientX - rect.left, sliderStart), sliderEnd);
+  drawCanvas();
+}
+
+function roundRect(x, y, w, h, r, fill, stroke) {
+  r = Math.max(0, Math.min(r, w/2, h/2)); ctx.beginPath();
+  ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r);
+  if (fill) ctx.fill(); if (stroke) ctx.stroke();
+}
+
+function normalizeName(s) { return (s||"").toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zñü]+/g,''); }
+function isVowel(ch) { return /[aeiouáéíóú]/i.test(ch); }
+function firstSyllable(word) {
+  const w = (word||"").toLowerCase(); if (!w) return "";
+  const digraphs = ["ch","ll","rr","qu"];
+  for (const d of digraphs) { if (w.startsWith(d)) { const next = w[d.length]||""; if (isVowel(next)) return d+next; return d; } }
+  const a = w[0]||"", b = w[1]||"";
+  if (isVowel(a)) return a; if (a && b && !isVowel(a) && isVowel(b)) return a+b;
+  return w.slice(0, Math.min(2, w.length));
+}
+function playWordAudio(word) {
+  const isObject = (word && typeof word === "object" && word.id);
+  const rawText = isObject ? (word.text||"") : (word||"");
+  const audioId = isObject ? (word.id||"") : "";
+  const wordNorm = normalizeName(rawText); const syllNorm = normalizeName(firstSyllable(rawText));
+  const candidates = isObject && audioId
+    ? [`audio/${audioId}.mp3`, `audio/${audioId}.wav`]
+    : [`audio/${encodeURIComponent(rawText)}.mp3`, `audio/${encodeURIComponent(rawText)}.wav`, `audio/${wordNorm}.mp3`, `audio/${wordNorm}.wav`, `audio/${syllNorm}.mp3`, `audio/${syllNorm}.wav`];
+  const btn = playBtn; const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '🔊 Reproduciendo…';
+  let i = 0;
+  const tryNext = () => {
+    if (i >= candidates.length) { btn.disabled = false; btn.textContent = label; return; }
+    const a = new Audio(candidates[i++]); a.playsInline = true;
+    a.onended = () => { btn.disabled = false; btn.textContent = label; };
+    a.onerror = () => tryNext();
+    const p = a.play(); if (p && typeof p.then === 'function') p.catch(() => tryNext());
+  };
+  tryNext();
+}
+
+function resetSpellingState(hard) {
+  spellingSubmitted = false; perSlotCorrect = []; pendingDigraph = null;
+  if (!words.length) return;
+  const current = words[currentWordIndex];
+  targetWordRaw = (typeof current === "object" ? (current.text||"") : (current||"")).toLowerCase().trim();
+  const g = parseWord(targetWordRaw).map(o=>o.text);
+  targetGraphemes = g.slice(); userGraphemes = new Array(targetGraphemes.length).fill(""); cursorSlot = 0;
+  if (hard) { tiles = []; tilesUsed = []; if (gameMode === 'spell_tiles') buildTilesForCurrentWord(); }
+  else if (gameMode === 'spell_tiles') { tilesUsed = new Array(tiles.length).fill(false); buildTileRackUI(); }
+  updateSpellButtons(); drawCanvas();
+}
+
+function updateSpellButtons() {
+  const inSpell = (gameMode !== 'read');
+  submitSpellBtn.disabled = !inSpell; clearSpellBtn.disabled = !inSpell; backspaceSpellBtn.disabled = !inSpell;
+  if (!inSpell) return;
+  submitSpellBtn.disabled = !userGraphemes.every(x=>(x||"").length>0) || !!pendingDigraph || spellingSubmitted;
+  if (gameMode === 'spell_kb') setTimeout(() => spellInput.focus(), 50);
+}
+
+function canTypeMore() { return !spellingSubmitted && (!userGraphemes.every(x=>(x||"").length>0) || pendingDigraph); }
+
+function spellingBackspace() {
+  if (spellingSubmitted) return;
+  if (pendingDigraph) { userGraphemes[cursorSlot] = ""; pendingDigraph = null; updateSpellButtons(); drawCanvas(); return; }
+  let i = Math.min(cursorSlot, targetGraphemes.length - 1);
+  if (userGraphemes[i]) { userGraphemes[i] = ""; cursorSlot = i; if (gameMode === 'spell_tiles') rebuildTilesFromUser(); }
+  else { for (let j = i-1; j >= 0; j--) { if (userGraphemes[j]) { userGraphemes[j] = ""; cursorSlot = j; if (gameMode === 'spell_tiles') rebuildTilesFromUser(); break; } } }
+  updateSpellButtons(); drawCanvas();
+}
+
+function advanceCursor() { let i = cursorSlot; while (i < userGraphemes.length && (userGraphemes[i]||"").length > 0) i++; cursorSlot = Math.min(i, userGraphemes.length - 1); }
+function submitSpelling() {
+  if (spellingSubmitted) return;
+  perSlotCorrect = targetGraphemes.map((tg, i) => normalizeForGrade(userGraphemes[i]||"") === normalizeForGrade(tg));
+  spellingSubmitted = true; updateSpellButtons(); drawCanvas();
+}
+
+spellInput.addEventListener("keydown", (e) => {
+  if (gameMode !== 'spell_kb') return;
+  if (!canTypeMore()) { e.preventDefault(); return; }
+  const key = e.key;
+  if (key === "Backspace") { e.preventDefault(); spellingBackspace(); return; }
+  if (key === "Enter") { e.preventDefault(); if (!submitSpellBtn.disabled) submitSpelling(); return; }
+  if (!/^[a-zñáéíóúü]$/i.test(key)) return;
+  e.preventDefault();
+  const ch = key.toLowerCase(); const expected = targetGraphemes[cursorSlot]||""; const digraphs = ["ch","ll","rr","qu"];
+  if (digraphs.includes(expected)) {
+    if (!pendingDigraph) {
+      if (ch === expected[0]) { userGraphemes[cursorSlot] = ch; pendingDigraph = { expected, first: ch }; }
+      else userGraphemes[cursorSlot] = ch;
+    } else {
+      if (ch === expected[1] && userGraphemes[cursorSlot] === pendingDigraph.first) { userGraphemes[cursorSlot] = expected; pendingDigraph = null; cursorSlot = Math.min(cursorSlot+1, userGraphemes.length-1); advanceCursor(); }
+      else { userGraphemes[cursorSlot] = (userGraphemes[cursorSlot]||"")+ch; userGraphemes[cursorSlot] = userGraphemes[cursorSlot].slice(0,2); }
+    }
+    updateSpellButtons(); drawCanvas(); return;
+  }
+  if (!userGraphemes[cursorSlot]) { userGraphemes[cursorSlot] = ch; cursorSlot = Math.min(cursorSlot+1, userGraphemes.length-1); advanceCursor(); }
+  else { advanceCursor(); if (!userGraphemes[cursorSlot]) { userGraphemes[cursorSlot] = ch; cursorSlot = Math.min(cursorSlot+1, userGraphemes.length-1); advanceCursor(); } }
+  updateSpellButtons(); drawCanvas();
+});
+
+canvas.addEventListener("click", () => { if (gameMode === 'spell_kb') spellInput.focus(); });
+
+function buildTilesForCurrentWord() {
+  if (gameMode !== 'spell_tiles') return;
+  const tileMode = tileModeSel.value;
+  const required = targetGraphemes.map(g => tileDisplayFor(g));
+  const vowels = ["a","e","i","o","u"];
+  const consonantsFromWord = required.filter(g => !vowels.includes(g) && !graphemeIsVowel(g));
+  let pool = [];
+  if (tileMode === "exact") pool = required.slice();
+  else if (tileMode === "vowels") { pool = consonantsFromWord.slice(); pool.push(...vowels); required.forEach(g => { if (vowels.includes(g)) pool.push(g); }); }
+  else { pool = consonantsFromWord.slice(); pool.push(...vowels); required.forEach(g => { if (vowels.includes(g)) pool.push(g); }); pool.push(...pickDistractorConsonantsFromList(8, new Set(pool))); }
+  tiles = pool.filter(Boolean).sort(() => Math.random() - 0.5);
+  tilesUsed = new Array(tiles.length).fill(false);
+  buildTileRackUI();
+}
+
+function pickDistractorConsonantsFromList(n, already) {
+  const vowels = new Set(["a","e","i","o","u"]); const set = new Set();
+  for (const w of baseWordsForDistractors) { for (const g of parseWord((w||"").toLowerCase().trim()).map(o=>tileDisplayFor(o.text))) { if (!g || vowels.has(g) || already.has(g)) continue; set.add(g); } }
+  return Array.from(set).sort(() => Math.random() - 0.5).slice(0, n);
+}
+
+function buildTileRackUI() {
+  if (gameMode !== 'spell_tiles') return;
+  tileRack.innerHTML = "";
+  tiles.forEach((t, i) => {
+    const btn = document.createElement("button"); btn.className = "tileBtn"; btn.textContent = t;
+    btn.disabled = !!tilesUsed[i] || spellingSubmitted;
+    btn.addEventListener("click", () => { if (spellingSubmitted || !placeTile(t, i)) return; btn.disabled = true; });
+    tileRack.appendChild(btn);
+  });
+}
+
+function placeTile(tile, tileIndex) {
+  if (!canTypeMore() || pendingDigraph) return false;
+  let slot = userGraphemes.findIndex(x => !x); if (slot === -1) return false;
+  userGraphemes[slot] = tile; tilesUsed[tileIndex] = true; cursorSlot = slot; advanceCursor();
+  updateSpellButtons(); drawCanvas(); return true;
+}
+
+function rebuildTilesFromUser() {
+  tilesUsed = new Array(tiles.length).fill(false);
+  userGraphemes.map(g=>(g||"").toLowerCase()).filter(Boolean).forEach(g => { const idx = tiles.findIndex((t,i)=>!tilesUsed[i]&&t===tileDisplayFor(g)); if (idx>=0) tilesUsed[idx]=true; });
+  buildTileRackUI();
+}
+
+/* ==================== Startup ==================== */
+(async () => {
+  await loadAppData();
+  const listSel = document.getElementById("wordListSelect");
+  if (listSel) {
+    const source = Object.keys(ALL_LISTS||{}).length ? ALL_LISTS : LOCAL_FALLBACK_LISTS;
+    Object.keys(source).forEach(name => { const opt = document.createElement("option"); opt.value = name; opt.textContent = name; listSel.appendChild(opt); });
+  }
+  configureModeUI();
+  if (WORDS_OVERRIDE.length) loadWordList();
+})();

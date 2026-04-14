@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spanish Reading Game</title>
+  <link href="https://fonts.googleapis.com/css2?family=Andika&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body { background-color: white; font-family: 'Andika', sans-serif; text-align: center; user-select: none; margin: 6px; }
+    canvas { border: 1px solid #ddd; -webkit-user-select: none; user-select: none; touch-action: none; margin-bottom: 10px; display: inline-block; max-width: 100%; height: auto; }
+    select, button { font-size: 15px; padding: 4px 8px; margin: 2px; }
+    #controls { margin: 4px 0; }
+    #modeBar { margin: 4px auto; display:flex; justify-content:center; align-items:center; flex-wrap:nowrap; gap:6px; }
+    #tileRack { display:none; max-width: 900px; margin: 0 auto 10px; padding: 6px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+    .tileBtn { font-family:'Andika', sans-serif; font-size:22px; padding:10px 14px; border:2px solid #111; background:#fff; border-radius:14px; cursor:pointer; min-width:54px; }
+    .tileBtn:disabled { opacity:.35; cursor:not-allowed; }
+    #hintLine { font-size:14px; color:#666; margin-top:4px; }
+    .controlBar { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .controlBar button, .controlBar select { font-size:16px; padding:6px 10px; }
+    .modeLabel { font-weight:600; }
+    @media (max-width:900px) { .controlBar { gap:6px; } }
+    @media (max-width:600px) { .controlBar button, .controlBar select { font-size:15px; padding:6px 8px; } }
+  </style>
+</head>
+<body>
+  <h2>Spanish Reading Game</h2>
+  <div id="syncStatus" style="display:none"></div>
+
+  <select id="wordListSelect">
+    <option value="" selected disabled>Selecciona una lista</option>
+  </select>
+  
+  <select id="moduleSelect">
+    <option value="M1">Módulo 1</option>
+    <option value="M2">Módulo 2</option>
+    <option value="M3">Módulo 3</option>
+    <option value="M4">Módulo 4</option>
+    <option value="M5">Módulo 5</option>
+    <option value="M6">Módulo 6</option>
+    <option value="M7">Módulo 7</option>
+    <option value="M8">Módulo 8</option>
+    <option value="M9">Módulo 9</option>
+  </select>
+  
+  <select id="scopeSelect">
+    <option value="all" selected>📚 Hasta este módulo</option>
+    <option value="new">⭐ Solo este módulo</option>
+  </select>
+
+  <div class="controlBar">
+    <button id="backspaceSpell" disabled>⌫</button>
+    <button id="clearSpell" disabled>🧽 Clear</button>
+    <span class="modeLabel">Modo:</span>
+    <select id="gameModeSelect">
+      <option value="read" selected>📖 Leer (Slider)</option>
+      <option value="spell_kb">⌨️ Deletrear (Teclado)</option>
+      <option value="spell_tiles">🧩 Deletrear (Fichas)</option>
+    </select>
+    <select id="tileModeSelect" style="display:none;">
+      <option value="exact" selected>Fichas: Exactas</option>
+      <option value="vowels">Fichas: Consonantes + Vocales</option>
+      <option value="distractors">Fichas: + Distractores</option>
+    </select>
+    <button id="playAudio" disabled>🔊 Play Audio</button>
+    <button id="prevWord">⟵ Prev</button>
+    <button id="nextWord">Next ⟶</button>
+    <button id="submitSpell" disabled>✅ Submit</button>
+  </div>
+
+  <div id="hintLine"></div>
+  <div id="tileRack"></div>
+  <canvas id="wordCanvas" width="768" height="432"></canvas>
+
+  <div id="recording-controls">
+    <button id="startRecording">🎙 Start Recording</button>
+    <button id="stopRecording" disabled>⏹ Stop Recording</button>
+  </div>
+
+  <div id="readyMessage" style="font-size: 24px; margin-top: 10px; color: #555;"></div>
+  <div id="previewContainer"></div>
+
+  <input id="spellInput" autocomplete="off" autocapitalize="none" spellcheck="false"
+         style="position:absolute; left:-9999px; top:-9999px;" />
+
+  <script src="./game.js"></script>
+
+  <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
+  <script>
+    let recorder, stream;
+    window.allowSliderDraw = true;
+
+    const startBtn = document.getElementById("startRecording");
+    const stopBtn = document.getElementById("stopRecording");
+    const previewContainer = document.getElementById("previewContainer");
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      previewContainer.innerHTML = "";
+
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const canvasEl = document.getElementById("wordCanvas");
+      const canvasStream = canvasEl.captureStream(30);
+      stream = new MediaStream([
+        ...canvasStream.getVideoTracks(),
+        ...audioStream.getAudioTracks()
+      ]);
+
+      recorder = RecordRTC(stream, {
+        type: 'video',
+        mimeType: 'video/webm',
+        disableLogs: true
+      });
+
+      const readyText = document.getElementById("readyMessage");
+      readyText.textContent = "🎬 Get ready...";
+
+      setTimeout(() => {
+        recorder.startRecording();
+        readyText.textContent = "";
+        window.allowSliderDraw = false;
+        setTimeout(() => { window.allowSliderDraw = true; drawCanvas(); }, 200);
+      }, 600);
+    };
+
+    stopBtn.onclick = () => {
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      recorder.stopRecording(() => {
+        const blob = recorder.getBlob();
+        const videoURL = URL.createObjectURL(blob);
+        const video = document.createElement("video");
+        video.src = videoURL;
+        video.controls = true;
+        video.style.maxWidth = "100%";
+        previewContainer.innerHTML = "";
+        previewContainer.appendChild(video);
+        stream?.getTracks().forEach(t => t.stop());
+
+        // Send recording blob + metadata to parent React app
+        window.parent.postMessage({
+          type: 'SPANISH_READING_RECORDING',
+          blob: blob,
+          listName: document.getElementById("wordListSelect")?.value || ""
+        }, '*');
+      });
+    };
+  </script>
+</body>
+</html>
