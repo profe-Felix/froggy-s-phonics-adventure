@@ -12,7 +12,10 @@ function frameDims(type) {
 const PLATE_SIZE = 120;
 
 function generateCounters(total) {
-  const red = Math.floor(Math.random() * (total - 1)) + 1;
+  // Bias toward balanced splits: each color gets 30-70% of total
+  const minRed = Math.max(1, Math.round(total * 0.30));
+  const maxRed = Math.min(total - 1, Math.round(total * 0.70));
+  const red = minRed + Math.floor(Math.random() * (maxRed - minRed + 1));
   const yellow = total - red;
   const arr = [...Array(red).fill('red'), ...Array(yellow).fill('yellow')];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -21,7 +24,7 @@ function generateCounters(total) {
   }
   return arr;
 }
-function randomTotal() { return Math.floor(Math.random() * 10) + 11; }
+function randomTotal() { return Math.floor(Math.random() * 6) + 25; }
 
 // ── Plate (copied from CollectionCanvas Plate) ──
 function Plate({ tool, onMove, onRemove }) {

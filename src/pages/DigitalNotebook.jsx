@@ -79,13 +79,19 @@ export default function DigitalNotebook() {
   const [autoResolved, setAutoResolved] = useState(false);
 
   // If class + student number are in URL, skip the login screens entirely
+  // If only class (+ optional assignment) is in URL, skip to student number picker
   useEffect(() => {
-    if (urlClass && !isNaN(urlNumber) && urlNumber > 0 && !autoResolved) {
+    if (autoResolved) return;
+    if (urlClass && !isNaN(urlNumber) && urlNumber > 0) {
       setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment });
       setRole('student');
       setAutoResolved(true);
+    } else if (urlClass && !isTeacherMode) {
+      // Has class (and maybe assignment) but no number — go straight to student number picker
+      setRole('student');
+      setAutoResolved(true);
     }
-  }, [urlClass, urlNumber, urlAssignment, autoResolved]);
+  }, [urlClass, urlNumber, urlAssignment, autoResolved, isTeacherMode]);
 
   if (role === 'teacher') {
     return <TeacherNotebookDashboard onBack={() => setRole(null)} />;
