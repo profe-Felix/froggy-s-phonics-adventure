@@ -341,7 +341,6 @@ let rowWidths = [];
 let READ_LAYOUT = null;
 
 const DPR = window.devicePixelRatio || 1;
-const BASE_W = 768, BASE_H = 432, BASE_AR = BASE_H / BASE_W;
 let isDesktop = window.innerWidth >= 1100;
 
 function resizeCanvas() {
@@ -1030,17 +1029,18 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 /* ==================== AUDIO: Supabase lettersort-audio bucket ==================== */
+// Converts only accented/special characters, preserving original case.
+// e.g. "Memo" -> "Memo", "niño" -> "nin..o", "café" -> "cafe.."
 function displayToMarker(word) {
   if (!word) return "";
   return word
-    .toLowerCase()
-    .replace(/ñ/g, "n..")
-    .replace(/á/g, "a..")
-    .replace(/é/g, "e..")
-    .replace(/í/g, "i..")
-    .replace(/ó/g, "o..")
-    .replace(/ú/g, "u..")
-    .replace(/ü/g, "u,,");
+    .replace(/á/g, "a..").replace(/Á/g, "A..")
+    .replace(/é/g, "e..").replace(/É/g, "E..")
+    .replace(/í/g, "i..").replace(/Í/g, "I..")
+    .replace(/ó/g, "o..").replace(/Ó/g, "O..")
+    .replace(/ú/g, "u..").replace(/Ú/g, "U..")
+    .replace(/ü/g, "u,,").replace(/Ü/g, "U,,")
+    .replace(/ñ/g, "n..").replace(/Ñ/g, "N..");
 }
 
 function getAudioPublicUrl(lookupWord) {
@@ -1060,17 +1060,13 @@ async function playWordAudio(word) {
   btn.textContent = '🔊 Reproduciendo…';
 
   // Try audioId first (for sentence objects), then fall back to rawText
-  const candidates = (isObject && audioId)
-    ? [audioId, rawText]
-    : [rawText];
+  const candidates = (isObject && audioId) ? [audioId, rawText] : [rawText];
 
   for (const lookupWord of candidates) {
     const url = getAudioPublicUrl(lookupWord);
     if (!url) continue;
-
     const audio = new Audio(url);
     audio.playsInline = true;
-
     try {
       await new Promise((resolve, reject) => {
         audio.onended = resolve;
@@ -1081,9 +1077,7 @@ async function playWordAudio(word) {
       btn.disabled = false;
       btn.textContent = label;
       return;
-    } catch {
-      // try next candidate
-    }
+    } catch { /* try next candidate */ }
   }
 
   btn.disabled = false;
