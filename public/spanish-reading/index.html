@@ -1029,8 +1029,8 @@ function roundRect(x, y, w, h, r, fill, stroke) {
 }
 
 /* ==================== AUDIO: Supabase lettersort-audio bucket ==================== */
-// Converts only accented/special characters, preserving original case.
-// e.g. "Memo" -> "Memo", "niño" -> "nin..o", "café" -> "cafe.."
+// Converts accented/special characters to safe filename equivalents, preserving case.
+// e.g. "mamá" -> "mama..", "niño" -> "nin..o", "Memo" -> "Memo"
 function displayToMarker(word) {
   if (!word) return "";
   return word
