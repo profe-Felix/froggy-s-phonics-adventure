@@ -368,12 +368,19 @@ function CounterCanvas({ counters }) {
     const ctx = c.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    let lassoPoints = [], dragging = false;
+    let lassoPoints = [], dragging = false, startPt = null;
+    const TAP_THRESHOLD = 8; // px — less than this = tap, not drag
 
     const getPos = (e) => {
       const r = c.getBoundingClientRect();
       const src = e.touches ? e.touches[0] : e;
       return { x: src.clientX - r.left, y: src.clientY - r.top };
+    };
+
+    const isTap = (pts) => {
+      if (!startPt || pts.length < 2) return true;
+      const last = pts[pts.length - 1];
+      return Math.hypot(last.x - startPt.x, last.y - startPt.y) < TAP_THRESHOLD;
     };
 
     const redrawLasso = () => {
@@ -390,7 +397,8 @@ function CounterCanvas({ counters }) {
     const onDown = (e) => {
       e.preventDefault();
       dragging = true;
-      lassoPoints = [getPos(e)];
+      startPt = getPos(e);
+      lassoPoints = [startPt];
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     };
@@ -400,17 +408,26 @@ function CounterCanvas({ counters }) {
       dragging = false;
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
-      lassoPoints = [];
+      if (isTap(lassoPoints)) {
+        // Tap on empty space — clear selection
+        c.dispatchEvent(new CustomEvent('lasso-clear', { bubbles: true }));
+      } else {
+        c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
+      }
+      lassoPoints = []; startPt = null;
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
     };
-    const onTouchStart = (e) => { e.preventDefault(); dragging = true; lassoPoints = [getPos(e)]; };
+    const onTouchStart = (e) => { e.preventDefault(); dragging = true; startPt = getPos(e); lassoPoints = [startPt]; };
     const onTouchMove = (e) => { if (!dragging) return; e.preventDefault(); lassoPoints.push(getPos(e)); redrawLasso(); };
     const onTouchEnd = () => {
       if (!dragging) return;
       dragging = false;
-      c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
-      lassoPoints = [];
+      if (isTap(lassoPoints)) {
+        c.dispatchEvent(new CustomEvent('lasso-clear', { bubbles: true }));
+      } else {
+        c.dispatchEvent(new CustomEvent('lasso-complete', { bubbles: true, detail: { poly: lassoPoints } }));
+      }
+      lassoPoints = []; startPt = null;
       ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
     };
 
@@ -447,8 +464,13 @@ function CounterCanvas({ counters }) {
       selectedIdsRef.current = inside;
       setSelectedItemIds(new Set(inside));
     };
+    const clearHandler = () => {
+      selectedIdsRef.current = new Set();
+      setSelectedItemIds(new Set());
+    };
     c.addEventListener('lasso-complete', handler);
-    return () => c.removeEventListener('lasso-complete', handler);
+    c.addEventListener('lasso-clear', clearHandler);
+    return () => { c.removeEventListener('lasso-complete', handler); c.removeEventListener('lasso-clear', clearHandler); };
   }, [drawMode]);
 
   // Draw canvas (copied from CollectionCanvas)
@@ -763,10 +785,15 @@ export default function DoubleSidedCounters({ onBack }) {
     const yellowOk = yellowInput === actualYellow;
     setCountFeedback({ redOk, yellowOk });
     setCountSubmitted(true);
-    // Partial credit: 5pts per correct set, streak breaks on any wrong
-    const pts = (redOk ? 5 : 0) + (yellowOk ? 5 : 0);
-    if (pts > 0) setTotalPoints(p => p + pts);
     if (!redOk || !yellowOk) setStreak(0);
+  };
+
+  const handleFixCount = () => {
+    // Allow student to correct wrong answers — keep correct ones locked
+    if (countFeedback?.redOk) { /* keep red locked */ } else { setRedInput(null); }
+    if (countFeedback?.yellowOk) { /* keep yellow locked */ } else { setYellowInput(null); }
+    setCountSubmitted(false);
+    setCountFeedback(null);
   };
 
   return (
@@ -853,9 +880,23 @@ export default function DoubleSidedCounters({ onBack }) {
                   ✅ Check My Count
                 </button>
               )}
+              {countSubmitted && countFeedback && !(countFeedback.redOk && countFeedback.yellowOk) && (
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-sm font-black text-red-600">
+                    {!countFeedback.redOk && !countFeedback.yellowOk ? '❌ Both counts are wrong — try again!' :
+                     !countFeedback.redOk ? '❌ Red count is wrong — fix it!' :
+                     '❌ Yellow count is wrong — fix it!'}
+                  </p>
+                  <button onClick={handleFixCount}
+                    className="px-5 py-2 rounded-xl font-black text-white text-sm"
+                    style={{ background: '#ea580c' }}>
+                    ✏️ Fix My Count
+                  </button>
+                </div>
+              )}
             </div>
-            {/* Sentence phase appears inline below after checking */}
-            {countSubmitted && (
+            {/* Sentence phase only shows once both counts are correct */}
+            {countSubmitted && countFeedback?.redOk && countFeedback?.yellowOk && (
               <SentencePhase
                 redCount={actualRed}
                 yellowCount={actualYellow}
