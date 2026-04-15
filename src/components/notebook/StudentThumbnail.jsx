@@ -3,36 +3,71 @@ import PdfPageRenderer from './PdfPageRenderer';
 
 function drawStrokes(canvas, strokesData, w, h) {
   if (!canvas) return;
+
   const dpr = window.devicePixelRatio || 1;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
+
   const ctx = canvas.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
+
   if (!strokesData) return;
 
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const strokes = data?.strokes || [];
-  // AnnotationCanvas saves normalized 0-1 coords (no canvasWidth present).
-  // Old format saved absolute coords with canvasWidth/canvasHeight.
+
   const sx = data?.canvasWidth ? w / data.canvasWidth : w;
   const sy = data?.canvasHeight ? h / data.canvasHeight : h;
 
+  // 🔥 key fix: only scale width for OLD saves
+  const widthScale = data?.canvasWidth ? Math.min(sx, sy) : 1;
+
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
+
+    ctx.save();
     ctx.beginPath();
-    ctx.strokeStyle = s.color || '#4338ca';
-    ctx.lineWidth = Math.max(1, (s.size || 4) * 0.6);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
+
+    // 🔥 match ReplayModal logic
+    if (s.tool === 'highlighter') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = s.color || '#4338ca';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.5 * widthScale);
+      ctx.globalAlpha = 0.35;
+    } else if (s.tool === 'eraser_object') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 6 * widthScale);
+      ctx.globalAlpha = 1;
+    } else if (s.tool === 'eraser_pixel') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.5 * widthScale);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = s.color || '#4338ca';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * widthScale);
+      ctx.globalAlpha = 1;
+    }
+
     ctx.moveTo(s.pts[0].x * sx, s.pts[0].y * sy);
-    for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
+    for (let i = 1; i < s.pts.length; i++) {
+      ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
+    }
+
     ctx.stroke();
+    ctx.restore();
   }
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
 }
 
 export default function StudentThumbnail({ session, assignment, viewPage, onOpen }) {
