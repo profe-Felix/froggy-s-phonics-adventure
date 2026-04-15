@@ -28,10 +28,11 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
 
 
   // Render whenever url, page, or container width changes
-  useEffect(() => {
+    useEffect(() => {
     if (!pdfUrl || containerWidth < 10) return;
     let cancelled = false;
 
+    setError(null);
     setLoading(true);
     (async () => {
       try {
