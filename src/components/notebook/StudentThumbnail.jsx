@@ -23,7 +23,7 @@ function drawStrokes(canvas, strokesData, w, h) {
   const sx = data?.canvasWidth ? w / data.canvasWidth : w;
   const sy = data?.canvasHeight ? h / data.canvasHeight : h;
 
-  // 🔥 key fix: only scale width for OLD saves
+  // Only scale width for older absolute-pixel saves.
   const widthScale = data?.canvasWidth ? Math.min(sx, sy) : 1;
 
   for (const s of strokes) {
@@ -34,26 +34,25 @@ function drawStrokes(canvas, strokesData, w, h) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // 🔥 match ReplayModal logic
     if (s.tool === 'highlighter') {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.5 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.0 * widthScale);
       ctx.globalAlpha = 0.35;
     } else if (s.tool === 'eraser_object') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 6 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 5 * widthScale);
       ctx.globalAlpha = 1;
     } else if (s.tool === 'eraser_pixel') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.5 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.2 * widthScale);
       ctx.globalAlpha = 1;
     } else {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 0.85 * widthScale);
       ctx.globalAlpha = 1;
     }
 
@@ -80,10 +79,10 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
   const voiceNoteUrl = session.voice_notes_by_page?.[String(displayPage)];
   const recordingUrl = session.recordings_by_page?.[String(displayPage)];
 
-  // Reset pdfSize when page changes so PdfPageRenderer re-renders
-  useEffect(() => { setPdfSize(null); }, [displayPage]);
+  useEffect(() => {
+    setPdfSize(null);
+  }, [displayPage]);
 
-  // Always call drawStrokes when pdfSize or strokesData changes — clears canvas even if no strokes
   useEffect(() => {
     if (pdfSize && overlayRef.current) {
       drawStrokes(overlayRef.current, strokesData, pdfSize.w, pdfSize.h);
@@ -96,7 +95,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
       style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}
       onClick={() => onOpen(session, displayPage)}
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-2 py-1.5 shrink-0" style={{ background: '#0f0f1a' }}>
         <div className="w-7 h-7 rounded-full flex items-center justify-center font-black text-white text-sm" style={{ background: '#4338ca' }}>
           {session.student_number}
@@ -110,7 +108,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
         {!hasWork && <span className="text-xs text-indigo-500 italic">No work</span>}
       </div>
 
-      {/* Thumbnail */}
       <div style={{ position: 'relative', background: '#fff', width: '100%' }}>
         {assignment?.pdf_url ? (
           <>
@@ -119,7 +116,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
               pageNumber={displayPage}
               onRendered={(w, h) => setPdfSize({ w, h })}
             />
-            {/* Overlay canvas always rendered so it can be cleared */}
             <canvas
               ref={overlayRef}
               style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
@@ -130,7 +126,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
         )}
       </div>
 
-      {/* Voice note player */}
       {voiceNoteUrl && (
         <div className="px-2 py-1" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1">
@@ -140,7 +135,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
         </div>
       )}
 
-      {/* Video recording player */}
       {recordingUrl && (
         <div className="px-2 py-1" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1 mb-1">
@@ -150,7 +144,6 @@ export default function StudentThumbnail({ session, assignment, viewPage, onOpen
         </div>
       )}
 
-      {/* Page dots */}
       {hasWork && (
         <div className="flex flex-wrap gap-1 px-2 py-1.5">
           {Object.keys(session.strokes_by_page || {}).map(pg => (
