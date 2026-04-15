@@ -6,7 +6,6 @@ import StudentThumbnail from './StudentThumbnail';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 
 function AudioRecorder({ onSave, onCancel }) {
@@ -114,7 +113,7 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
 export default function TeacherNotebookDashboard({ onBack }) {
   const qc = useQueryClient();
   const [className, setClassName] = useState('F');
-  const [tab, setTab] = useState('assignments'); // assignments | manage | students
+  const [tab, setTab] = useState('assignments');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
@@ -129,6 +128,8 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [newTitle, setNewTitle] = useState('');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
+  const [totalPages, setTotalPages] = useState('');
+
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
@@ -156,8 +157,13 @@ export default function TeacherNotebookDashboard({ onBack }) {
     setUploading(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     await base44.entities.DigitalNotebookAssignment.create({
-      title: newTitle.trim(), class_name: className, pdf_url: file_url,
-      status: 'draft', page_mode: 'free',
+      title: newTitle.trim(),
+      class_name: className,
+      pdf_url: file_url,
+      status: 'draft',
+      page_mode: 'free',
+      page_range_start: 1,
+      page_range_end: 1,
     });
     setNewTitle('');
     setUploading(false);
@@ -184,10 +190,10 @@ export default function TeacherNotebookDashboard({ onBack }) {
     setShowVideo(false);
   };
 
-  // Sync range inputs when assignment changes
   useEffect(() => {
     setRangeStart(selectedAssignment?.page_range_start ?? '');
     setRangeEnd(selectedAssignment?.page_range_end ?? '');
+    setTotalPages(selectedAssignment?.pdf_page_count ?? selectedAssignment?.page_count ?? '');
   }, [selectedAssignment?.id]);
 
   const setPageMode = (mode) => {
@@ -210,11 +216,14 @@ export default function TeacherNotebookDashboard({ onBack }) {
     updateAssignment.mutate({ id: selectedAssignment.id, data: { broadcast_video: videoBroadcast.trim() } });
   };
 
-
+  const effectiveTotalPages =
+    selectedAssignment?.pdf_page_count ||
+    selectedAssignment?.page_count ||
+    selectedAssignment?.page_range_end ||
+    1;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a', color: 'white' }}>
-      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
         <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold">← Back</button>
         <h1 className="text-lg font-black text-white flex-1">📓 Digital Notebook</h1>
@@ -225,7 +234,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
         </select>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-0 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
         {[['assignments', '📋 Assignments'], ['manage', '⚙️ Manage'], ['students', '👥 Students'], ['record', '🎥 Record']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
@@ -236,8 +244,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
       </div>
 
       <div className="flex-1 p-4 overflow-auto">
-
-        {/* ASSIGNMENTS TAB */}
         {tab === 'assignments' && (
           <div className="max-w-2xl mx-auto flex flex-col gap-4">
             <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
@@ -263,7 +269,9 @@ export default function TeacherNotebookDashboard({ onBack }) {
                 onClick={() => { setSelectedAssignment(a); setTab('manage'); }}>
                 <div>
                   <p className="font-black text-white">{a.title}</p>
-                  <p className="text-xs text-indigo-300">{a.status} • {a.page_mode} mode</p>
+                  <p className="text-xs text-indigo-300">
+                    {a.status} • {a.page_mode} mode • {a.pdf_page_count || a.page_count || a.page_range_end || '?'} pages
+                  </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold
                   ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
@@ -274,7 +282,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
           </div>
         )}
 
-        {/* MANAGE TAB */}
         {tab === 'manage' && (
           <div className="max-w-2xl mx-auto flex flex-col gap-4">
             {!selectedAssignment ? (
@@ -284,7 +291,35 @@ export default function TeacherNotebookDashboard({ onBack }) {
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="font-black text-white text-lg">{selectedAssignment.title}</p>
 
-                  {/* Status */}
+                  <div className="rounded-xl p-3" style={{ background: '#0f0f1a', border: '1px solid #4338ca' }}>
+                    <p className="text-indigo-300 text-xs font-bold uppercase mb-2">PDF Info</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-indigo-300 text-sm">Total pages:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Total"
+                        value={totalPages}
+                        onChange={e => setTotalPages(e.target.value)}
+                        onBlur={e => {
+                          const v = parseInt(e.target.value);
+                          if (!isNaN(v) && v > 0) {
+                            updateAssignment.mutate({
+                              id: selectedAssignment.id,
+                              data: { pdf_page_count: v, page_count: v }
+                            });
+                            setSelectedAssignment(a => ({ ...a, pdf_page_count: v, page_count: v }));
+                          }
+                        }}
+                        className="w-24 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
+                        style={{ background: '#0f0f1a' }}
+                      />
+                      <span className="text-indigo-400 text-xs">
+                        Set this for older assignments so students see the real last page.
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="flex gap-2">
                     {['draft', 'active', 'closed'].map(s => (
                       <button key={s} onClick={() => setStatus(s)}
@@ -294,7 +329,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     ))}
                   </div>
 
-                  {/* Page mode */}
                   <p className="text-indigo-300 text-xs font-bold uppercase mt-1">Page Control</p>
                   <div className="flex gap-2">
                     <button onClick={() => setPageMode('free')}
@@ -306,50 +340,84 @@ export default function TeacherNotebookDashboard({ onBack }) {
                       🔒 Teacher Controls
                     </button>
                   </div>
+
                   {selectedAssignment.page_mode === 'locked' && (
                     <div className="flex items-center gap-3">
                       <label className="text-indigo-300 text-sm">Go to page:</label>
-                      <input type="number" min="1" value={selectedAssignment.locked_page || 1}
+                      <input
+                        type="number"
+                        min="1"
+                        max={effectiveTotalPages}
+                        value={selectedAssignment.locked_page || 1}
                         onChange={e => setLockedPage(parseInt(e.target.value))}
                         className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                        style={{ background: '#0f0f1a' }} />
+                        style={{ background: '#0f0f1a' }}
+                      />
+                      <span className="text-indigo-400 text-xs">of {effectiveTotalPages}</span>
                     </div>
                   )}
+
                   {selectedAssignment.page_mode === 'free' && (
                     <div className="flex flex-col gap-2">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={!!selectedAssignment.limit_pages}
+                        <input
+                          type="checkbox"
+                          checked={!!selectedAssignment.limit_pages}
                           onChange={e => {
                             const v = e.target.checked;
                             updateAssignment.mutate({ id: selectedAssignment.id, data: { limit_pages: v } });
                             setSelectedAssignment(a => ({ ...a, limit_pages: v }));
                           }}
-                          className="w-4 h-4 accent-indigo-500" />
+                          className="w-4 h-4 accent-indigo-500"
+                        />
                         <span className="text-indigo-300 text-sm font-bold">Limit pages</span>
                       </label>
+
                       {selectedAssignment.limit_pages && (
                         <div className="flex items-center gap-2 flex-wrap">
                           <label className="text-indigo-300 text-sm">Page range:</label>
-                          <input type="number" min="1" placeholder="From"
+                          <input
+                            type="number"
+                            min="1"
+                            max={effectiveTotalPages}
+                            placeholder="From"
                             value={rangeStart}
                             onChange={e => setRangeStart(e.target.value)}
-                            onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: v } }); setSelectedAssignment(a => ({ ...a, page_range_start: v })); } }}
+                            onBlur={e => {
+                              const v = parseInt(e.target.value);
+                              if (!isNaN(v)) {
+                                updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_start: v } });
+                                setSelectedAssignment(a => ({ ...a, page_range_start: v }));
+                              }
+                            }}
                             className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                            style={{ background: '#0f0f1a' }} />
+                            style={{ background: '#0f0f1a' }}
+                          />
                           <span className="text-indigo-400">–</span>
-                          <input type="number" min="1" placeholder="To"
+                          <input
+                            type="number"
+                            min="1"
+                            max={effectiveTotalPages}
+                            placeholder="To"
                             value={rangeEnd}
                             onChange={e => setRangeEnd(e.target.value)}
-                            onBlur={e => { const v = parseInt(e.target.value); if (!isNaN(v)) { updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: v } }); setSelectedAssignment(a => ({ ...a, page_range_end: v })); } }}
+                            onBlur={e => {
+                              const v = parseInt(e.target.value);
+                              if (!isNaN(v)) {
+                                updateAssignment.mutate({ id: selectedAssignment.id, data: { page_range_end: v } });
+                                setSelectedAssignment(a => ({ ...a, page_range_end: v }));
+                              }
+                            }}
                             className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                            style={{ background: '#0f0f1a' }} />
+                            style={{ background: '#0f0f1a' }}
+                          />
+                          <span className="text-indigo-400 text-xs">of {effectiveTotalPages}</span>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Instructions */}
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="text-indigo-200 font-bold text-sm">Instructions</p>
                   <div className="flex items-center gap-2">
@@ -366,7 +434,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   {showAudio && <AudioRecorder onSave={handleSaveAudio} onCancel={() => setShowAudio(false)} />}
                   {showVideo && <VideoUrlInput onSave={handleSaveVideo} onCancel={() => setShowVideo(false)} />}
 
-                  {/* Existing audio */}
                   {(selectedAssignment.audio_instructions || []).map((ai, i) => (
                     <div key={i} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#0f0f1a' }}>
                       <span className="text-xs text-indigo-300">Pg {ai.page}:</span>
@@ -381,12 +448,11 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   ))}
                 </div>
 
-                {/* Recording pages */}
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="text-indigo-200 font-bold text-sm">🎙 Recording — Enabled Pages</p>
                   <p className="text-indigo-400 text-xs">Students can only record voice notes on pages you enable here.</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {Array.from({ length: selectedAssignment.page_range_end || selectedAssignment.pdf_page_count || 10 }, (_, i) => i + (selectedAssignment.page_range_start || 1)).map(pg => {
+                    {Array.from({ length: effectiveTotalPages }, (_, i) => i + 1).map(pg => {
                       const enabled = (selectedAssignment.recording_pages || []).includes(pg);
                       const toggle = () => {
                         const current = selectedAssignment.recording_pages || [];
@@ -404,7 +470,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   </div>
                 </div>
 
-                {/* Broadcast video */}
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="text-indigo-200 font-bold text-sm">📡 Broadcast Video to All Students</p>
                   <input value={videoBroadcast} onChange={e => setVideoBroadcast(e.target.value)}
@@ -422,7 +487,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
           </div>
         )}
 
-        {/* STUDENTS TAB */}
         {tab === 'students' && (
           <div className="max-w-5xl mx-auto">
             {!selectedAssignment ? (
@@ -466,11 +530,9 @@ export default function TeacherNotebookDashboard({ onBack }) {
           </div>
         )}
 
-        {/* RECORD TAB */}
         {tab === 'record' && (
           <LaserRecordView assignment={selectedAssignment} />
         )}
-
       </div>
     </div>
   );
