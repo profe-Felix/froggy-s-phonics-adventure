@@ -188,6 +188,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       ...strokeData,
       canvasWidth: pdfRenderedSize?.w || canvasSize.w,
       canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+      normalized: true,
     };
     const updated = {
       ...(session.strokes_by_page || {}),
