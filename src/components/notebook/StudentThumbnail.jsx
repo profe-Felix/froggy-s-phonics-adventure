@@ -20,14 +20,18 @@ function drawStrokes(canvas, strokesData, w, h) {
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const strokes = data?.strokes || [];
 
-  const sx = data?.canvasWidth ? w / data.canvasWidth : w;
-  const sy = data?.canvasHeight ? h / data.canvasHeight : h;
+  const samplePt = data?.strokes?.[0]?.pts?.[0];
+  const alreadyNormalized =
+    data?.normalized === true ||
+    (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
 
-  // Only scale width for older absolute-pixel saves.
-    const widthScale =
-      data?.canvasWidth && data?.canvasHeight
-        ? Math.min(w / data.canvasWidth, h / data.canvasHeight)
-        : (data?.canvasWidth ? Math.min(sx, sy) : 1);
+  const sx = alreadyNormalized ? w : (data?.canvasWidth ? w / data.canvasWidth : w);
+  const sy = alreadyNormalized ? h : (data?.canvasHeight ? h / data.canvasHeight : h);
+
+  const widthScale =
+    data?.canvasWidth && data?.canvasHeight
+      ? Math.min(w / data.canvasWidth, h / data.canvasHeight)
+      : 1;
 
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
