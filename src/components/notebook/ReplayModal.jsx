@@ -22,6 +22,13 @@ function getScale(data, w, h) {
   };
 }
 
+function getWidthScale(data, sx, sy) {
+  // For older absolute-pixel saves, scale stroke width with canvas resize.
+  // For normalized saves, point coordinates scale to page size already,
+  // so width should stay in its original px-ish units.
+  return data?.canvasWidth ? Math.min(sx, sy) : 1;
+}
+
 function buildTimeline(data) {
   const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
   const timeline = [];
@@ -31,56 +38,63 @@ function buildTimeline(data) {
   return timeline;
 }
 
-function renderToFrame(ctx, timeline, upTo, sx, sy) {
-  const dpr = window.devicePixelRatio || 1;
-  // clear
+function applyStrokeStyle(ctx, s, widthScale) {
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (s.tool === 'highlighter') {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = s.color || '#4338ca';
+    ctx.lineWidth = Math.max(1, (s.size || 4) * 2.5 * widthScale);
+    ctx.globalAlpha = 0.35;
+  } else if (s.tool === 'eraser_object') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(1, (s.size || 4) * 6 * widthScale);
+    ctx.globalAlpha = 1;
+  } else if (s.tool === 'eraser_pixel') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(1, (s.size || 4) * 1.5 * widthScale);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = s.color || '#4338ca';
+    ctx.lineWidth = Math.max(1, (s.size || 4) * widthScale);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
   const c = ctx.canvas;
+
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.restore();
+
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
     const { s, i } = timeline[idx];
+    ctx.save();
     ctx.beginPath();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    if (s.tool === 'highlighter') {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.5) * Math.min(sx, sy);
-      ctx.globalAlpha = 0.35;
-    } else if (s.tool === 'eraser_object') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 6) * Math.min(sx, sy);
-      ctx.globalAlpha = 1;
-    } else if (s.tool === 'eraser_pixel') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.5) * Math.min(sx, sy);
-      ctx.globalAlpha = 1;
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, s.size || 4) * Math.min(sx, sy);
-      ctx.globalAlpha = 1;
-    }
-
+    applyStrokeStyle(ctx, s, widthScale);
     ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
     ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
     ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
 }
 
 function drawAllStrokes(canvas, strokesData, w, h) {
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const { sx, sy } = getScale(data, w, h);
+  const widthScale = getWidthScale(data, sx, sy);
   const timeline = buildTimeline(data);
   const ctx = setupCanvas(canvas, w, h);
-  renderToFrame(ctx, timeline, timeline.length, sx, sy);
+  renderToFrame(ctx, timeline, timeline.length, sx, sy, widthScale);
 }
 
 export default function ReplayModal({ session, assignment, onClose, pageOverride }) {
@@ -94,93 +108,90 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
   const [totalPts, setTotalPts] = useState(0);
   const timelineRef = useRef([]);
   const ctxRef = useRef(null);
-  const scaleRef = useRef({ sx: 1, sy: 1 });
+  const scaleRef = useRef({ sx: 1, sy: 1, widthScale: 1 });
 
   const allPages = Object.keys(session.strokes_by_page || {}).map(Number).sort((a, b) => a - b);
   const pageKey = String(activePage);
   const strokesData = session.strokes_by_page?.[pageKey];
 
-  // Reset pdf size when page changes so PdfPageRenderer re-triggers onRendered
   useEffect(() => {
     setPdfSize(null);
     setPlaying(false);
     clearTimeout(animRef.current);
   }, [activePage]);
 
-  // Draw all strokes statically once PDF is sized
   useEffect(() => {
     if (!pdfSize || !overlayCanvasRef.current || !strokesData) return;
+
     const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
     const { sx, sy } = getScale(data, pdfSize.w, pdfSize.h);
+    const widthScale = getWidthScale(data, sx, sy);
     const tl = buildTimeline(data);
+
     timelineRef.current = tl;
-    scaleRef.current = { sx, sy };
+    scaleRef.current = { sx, sy, widthScale };
     setTotalPts(tl.length);
+
     const ctx = setupCanvas(overlayCanvasRef.current, pdfSize.w, pdfSize.h);
     ctxRef.current = ctx;
+
     const pos = tl.length;
     setScrubPos(pos);
-    renderToFrame(ctx, tl, pos, sx, sy);
+    renderToFrame(ctx, tl, pos, sx, sy, widthScale);
   }, [pdfSize, strokesData]);
 
   const handleScrub = (val) => {
-    const pos = parseInt(val);
+    const pos = parseInt(val, 10);
     setScrubPos(pos);
+
     if (ctxRef.current && timelineRef.current.length > 0) {
-      const { sx, sy } = scaleRef.current;
-      renderToFrame(ctxRef.current, timelineRef.current, pos, sx, sy);
+      const { sx, sy, widthScale } = scaleRef.current;
+      renderToFrame(ctxRef.current, timelineRef.current, pos, sx, sy, widthScale);
     }
   };
 
   const handleReplay = () => {
     if (playing || !ctxRef.current || timelineRef.current.length === 0) return;
+
     clearTimeout(animRef.current);
+
     const tl = timelineRef.current;
-    const { sx, sy } = scaleRef.current;
+    const { sx, sy, widthScale } = scaleRef.current;
     let idx = scrubPos >= tl.length ? 0 : scrubPos;
-    if (idx === 0) renderToFrame(ctxRef.current, tl, 0, sx, sy);
+
+    if (idx === 0) renderToFrame(ctxRef.current, tl, 0, sx, sy, widthScale);
+
     setPlaying(true);
+
     const step = () => {
-      if (idx >= tl.length) { setPlaying(false); setScrubPos(tl.length); return; }
+      if (idx >= tl.length) {
+        setPlaying(false);
+        setScrubPos(tl.length);
+        return;
+      }
+
       const batch = Math.min(3, tl.length - idx);
+
       for (let b = 0; b < batch; b++) {
         const { s, i } = tl[idx + b];
+
+        ctxRef.current.save();
         ctxRef.current.beginPath();
-        ctxRef.current.lineCap = 'round';
-        ctxRef.current.lineJoin = 'round';
-
-        if (s.tool === 'highlighter') {
-          ctxRef.current.globalCompositeOperation = 'source-over';
-          ctxRef.current.strokeStyle = s.color || '#4338ca';
-          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 2.5) * Math.min(sx, sy);
-          ctxRef.current.globalAlpha = 0.35;
-        } else if (s.tool === 'eraser_object') {
-          ctxRef.current.globalCompositeOperation = 'destination-out';
-          ctxRef.current.strokeStyle = '#000';
-          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 6) * Math.min(sx, sy);
-          ctxRef.current.globalAlpha = 1;
-        } else if (s.tool === 'eraser_pixel') {
-          ctxRef.current.globalCompositeOperation = 'destination-out';
-          ctxRef.current.strokeStyle = '#000';
-          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 1.5) * Math.min(sx, sy);
-          ctxRef.current.globalAlpha = 1;
-        } else {
-          ctxRef.current.globalCompositeOperation = 'source-over';
-          ctxRef.current.strokeStyle = s.color || '#4338ca';
-          ctxRef.current.lineWidth = Math.max(1, s.size || 4) * Math.min(sx, sy);
-          ctxRef.current.globalAlpha = 1;
-        }
-
+        applyStrokeStyle(ctxRef.current, s, widthScale);
         ctxRef.current.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
         ctxRef.current.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
         ctxRef.current.stroke();
-        ctxRef.current.globalCompositeOperation = 'source-over';
-        ctxRef.current.globalAlpha = 1;
+        ctxRef.current.restore();
       }
+
+      ctxRef.current.globalCompositeOperation = 'source-over';
+      ctxRef.current.globalAlpha = 1;
+
       idx += batch;
       setScrubPos(idx);
       animRef.current = setTimeout(() => requestAnimationFrame(step), 8);
     };
+
     requestAnimationFrame(step);
   };
 
@@ -201,7 +212,6 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           <button onClick={onClose} className="text-indigo-300 hover:text-white text-xl">✕</button>
         </div>
 
-        {/* Page switcher */}
         {allPages.length > 1 && (
           <div className="flex gap-2 flex-wrap shrink-0">
             {allPages.map(pg => (
@@ -217,7 +227,6 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           </div>
         )}
 
-        {/* PDF + stroke overlay */}
         <div
           ref={containerRef}
           className="relative overflow-auto rounded-xl flex-1"
@@ -242,12 +251,14 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           )}
         </div>
 
-        {/* Scrub slider */}
         {totalPts > 0 && (
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs text-indigo-400 w-6">0</span>
             <input
-              type="range" min={0} max={totalPts} value={scrubPos}
+              type="range"
+              min={0}
+              max={totalPts}
+              value={scrubPos}
               onChange={e => handleScrub(e.target.value)}
               disabled={playing}
               className="flex-1 accent-purple-500"
@@ -255,6 +266,7 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
             <span className="text-xs text-indigo-400 w-8 text-right">{totalPts}</span>
           </div>
         )}
+
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleReplay}
@@ -264,8 +276,23 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           >
             {playing ? '▶ Playing…' : '▶ Play'}
           </button>
+
           <button
-            onClick={() => { clearTimeout(animRef.current); setPlaying(false); setScrubPos(0); if (ctxRef.current && timelineRef.current.length) renderToFrame(ctxRef.current, timelineRef.current, 0, scaleRef.current.sx, scaleRef.current.sy); }}
+            onClick={() => {
+              clearTimeout(animRef.current);
+              setPlaying(false);
+              setScrubPos(0);
+              if (ctxRef.current && timelineRef.current.length) {
+                renderToFrame(
+                  ctxRef.current,
+                  timelineRef.current,
+                  0,
+                  scaleRef.current.sx,
+                  scaleRef.current.sy,
+                  scaleRef.current.widthScale
+                );
+              }
+            }}
             disabled={playing}
             className="px-4 py-2 rounded-xl font-bold text-white disabled:opacity-50"
             style={{ background: '#4338ca' }}
