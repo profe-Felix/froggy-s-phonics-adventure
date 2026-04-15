@@ -128,7 +128,7 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
 
     const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
     const { sx, sy } = getScale(data, pdfSize.w, pdfSize.h);
-    const widthScale = getWidthScale(data, w, h, sx, sy);
+    const widthScale = getWidthScale(data, pdfSize.w, pdfSize.h, sx, sy);
     const tl = buildTimeline(data);
 
     timelineRef.current = tl;
