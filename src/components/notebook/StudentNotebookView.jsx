@@ -225,10 +225,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
   const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
-  const pdfMaxPage = selectedAssignment?.pdf_page_count || selectedAssignment?.page_count || 1;
+  const inferredMaxPage =
+    selectedAssignment?.pdf_page_count ||
+    selectedAssignment?.page_count ||
+    selectedAssignment?.page_range_end ||
+    1;
   const maxPage = limitActive
-    ? Math.min(selectedAssignment?.page_range_end || pdfMaxPage, pdfMaxPage)
-    : pdfMaxPage;
+    ? Math.min(selectedAssignment?.page_range_end || inferredMaxPage, inferredMaxPage)
+    : inferredMaxPage;
 
   const goToPage = async (p) => {
     const clamped = Math.max(minPage, Math.min(maxPage, p));
