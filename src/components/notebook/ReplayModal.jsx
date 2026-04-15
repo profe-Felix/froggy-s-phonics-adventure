@@ -22,10 +22,10 @@ function getScale(data, w, h) {
   };
 }
 
-function getWidthScale(data, sx, sy) {
-  // For older absolute-pixel saves, scale stroke width with canvas resize.
-  // For normalized saves, point coordinates scale to page size already,
-  // so width should stay in its original px-ish units.
+function getWidthScale(data, w, h, sx, sy) {
+  if (data?.canvasWidth && data?.canvasHeight) {
+    return Math.min(w / data.canvasWidth, h / data.canvasHeight);
+  }
   return data?.canvasWidth ? Math.min(sx, sy) : 1;
 }
 
@@ -91,7 +91,7 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
 function drawAllStrokes(canvas, strokesData, w, h) {
   const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
   const { sx, sy } = getScale(data, w, h);
-  const widthScale = getWidthScale(data, sx, sy);
+  const widthScale = getWidthScale(data, w, h, sx, sy);
   const timeline = buildTimeline(data);
   const ctx = setupCanvas(canvas, w, h);
   renderToFrame(ctx, timeline, timeline.length, sx, sy, widthScale);
@@ -125,7 +125,7 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
 
     const data = typeof strokesData === 'string' ? JSON.parse(strokesData) : strokesData;
     const { sx, sy } = getScale(data, pdfSize.w, pdfSize.h);
-    const widthScale = getWidthScale(data, sx, sy);
+    const widthScale = getWidthScale(data, w, h, sx, sy);
     const tl = buildTimeline(data);
 
     timelineRef.current = tl;
