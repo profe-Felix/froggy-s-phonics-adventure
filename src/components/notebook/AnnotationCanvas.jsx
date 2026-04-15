@@ -136,13 +136,22 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       const raw = data.strokes || (Array.isArray(data) ? data : []);
       const sw = data.canvasWidth;
       const sh = data.canvasHeight;
-      if (sw && sh) {
-        // normalize old absolute-coord saves to 0-1 range
+
+      // New saves may include canvasWidth/canvasHeight but still store normalized 0..1 points.
+      // Old saves with absolute coords need conversion.
+      const samplePt = raw?.[0]?.pts?.[0];
+      const alreadyNormalized =
+        data?.normalized === true ||
+        (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
+
+      if (sw && sh && !alreadyNormalized) {
+        // old absolute-coord saves → normalize to 0..1
         strokes.current = raw.map(s => ({
           ...s,
           pts: s.pts.map(p => ({ ...p, x: p.x / sw, y: p.y / sh }))
         }));
       } else {
+        // already normalized saves → use as-is
         strokes.current = raw;
       }
       current.current = null;
