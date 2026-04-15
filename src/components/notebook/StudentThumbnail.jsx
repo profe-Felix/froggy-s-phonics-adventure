@@ -37,22 +37,22 @@ function drawStrokes(canvas, strokesData, w, h) {
     if (s.tool === 'highlighter') {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.0 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.6 * widthScale);
       ctx.globalAlpha = 0.35;
     } else if (s.tool === 'eraser_object') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 5 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 4 * widthScale);
       ctx.globalAlpha = 1;
     } else if (s.tool === 'eraser_pixel') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.2 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.0 * widthScale);
       ctx.globalAlpha = 1;
     } else {
       ctx.globalCompositeOperation = 'source-over';
       ctx.strokeStyle = s.color || '#4338ca';
-      ctx.lineWidth = Math.max(1, (s.size || 4) * 0.85 * widthScale);
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 0.7 * widthScale);
       ctx.globalAlpha = 1;
     }
 
