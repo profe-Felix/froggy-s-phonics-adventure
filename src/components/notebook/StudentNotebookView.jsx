@@ -9,7 +9,6 @@ import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 import PageNavBar from './PageNavBar';
 
-
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
@@ -24,9 +23,13 @@ function AssignmentPicker({ assignments, onSelect }) {
       {assignments.length === 0 && <p className="text-indigo-400">No active assignments right now.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
         {assignments.map(a => (
-          <motion.button key={a.id} whileTap={{ scale: 0.97 }} onClick={() => onSelect(a)}
+          <motion.button
+            key={a.id}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onSelect(a)}
             className="rounded-2xl p-5 text-left flex flex-col gap-2 hover:scale-105 transition-all"
-            style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
+            style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
+          >
             <span className="text-3xl">📄</span>
             <p className="font-black text-white text-lg">{a.title}</p>
             <p className="text-xs text-indigo-300">{a.page_mode === 'locked' ? '🔒 Teacher-paced' : '🆓 Self-paced'}</p>
@@ -65,34 +68,36 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     refetchInterval: 5000,
   });
 
-  // Auto-select assignment from URL param (onSuccess is not supported in TanStack Query v5)
   useEffect(() => {
     if (!directAssignmentName || selectedAssignment || assignments.length === 0) return;
-    const match = assignments.find(a =>
-      a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
+    const match = assignments.find(
+      a => a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
     );
     if (match) setSelectedAssignment(match);
   }, [assignments, directAssignmentName, selectedAssignment]);
 
-  // Poll assignment for page lock changes & broadcast
   useQuery({
     queryKey: ['student-notebook-poll', selectedAssignment?.id],
     queryFn: async () => {
       const fresh = await base44.entities.DigitalNotebookAssignment.filter({ class_name: className, status: 'active' });
       const a = fresh.find(x => x.id === selectedAssignment?.id);
       if (!a) return null;
-      // Sync locked page
-      if (a.page_mode === 'locked' && a.locked_page && a.locked_page !== currentPage) {
-        setCurrentPage(a.locked_page);
+
+      const limitActive = a.page_mode === 'locked' || a.limit_pages;
+      const pdfMaxPage = a.pdf_page_count || a.page_count || 1;
+      const minAllowed = limitActive ? (a.page_range_start || 1) : 1;
+      const maxAllowed = limitActive
+        ? Math.min(a.page_range_end || pdfMaxPage, pdfMaxPage)
+        : pdfMaxPage;
+
+      if (a.page_mode === 'locked' && a.locked_page) {
+        const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
+        if (locked !== currentPage) setCurrentPage(locked);
+      } else {
+        if (currentPage < minAllowed) setCurrentPage(minAllowed);
+        if (currentPage > maxAllowed) setCurrentPage(maxAllowed);
       }
-      // Clamp to range
-      if (a.limit_pages && a.page_range_start && currentPage < a.page_range_start) {
-        setCurrentPage(a.page_range_start);
-      }
-      if (a.limit_pages && a.page_range_end && currentPage > a.page_range_end) {
-        setCurrentPage(a.page_range_end);
-      }
-      // Broadcast video
+
       if (a.broadcast_video && a.broadcast_video !== broadcastUrl) {
         setBroadcastUrl(a.broadcast_video);
         setShowBroadcast(true);
@@ -106,7 +111,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     refetchInterval: 3000,
   });
 
-  // Resize canvas to container
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver(entries => {
@@ -117,7 +121,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     return () => obs.disconnect();
   }, [selectedAssignment]);
 
-  // Load or create session when assignment selected
   useEffect(() => {
     if (!selectedAssignment) return;
     (async () => {
@@ -126,10 +129,22 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         student_number: studentNumber,
         class_name: className,
       });
+
+      const limitActive = selectedAssignment.page_mode === 'locked' || selectedAssignment.limit_pages;
+      const pdfMaxPage = selectedAssignment.pdf_page_count || selectedAssignment.page_count || 1;
+      const minAllowed = limitActive ? (selectedAssignment.page_range_start || 1) : 1;
+      const maxAllowed = limitActive
+        ? Math.min(selectedAssignment.page_range_end || pdfMaxPage, pdfMaxPage)
+        : pdfMaxPage;
+
       if (sessions.length > 0) {
         setSession(sessions[0]);
         const page = sessions[0].current_page || 1;
-        setCurrentPage(selectedAssignment.page_mode === 'locked' ? (selectedAssignment.locked_page || 1) : page);
+        const desiredPage =
+          selectedAssignment.page_mode === 'locked'
+            ? (selectedAssignment.locked_page || 1)
+            : page;
+        setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
       } else {
         const newSession = await base44.entities.NotebookSession.create({
           assignment_id: selectedAssignment.id,
@@ -139,21 +154,27 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           strokes_by_page: {},
         });
         setSession(newSession);
-        setCurrentPage(selectedAssignment.page_mode === 'locked' ? (selectedAssignment.locked_page || 1) : 1);
+        const desiredPage =
+          selectedAssignment.page_mode === 'locked'
+            ? (selectedAssignment.locked_page || 1)
+            : 1;
+        setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
       }
     })();
-  }, [selectedAssignment]);
+  }, [selectedAssignment, className, studentNumber]);
 
-  // Load strokes for current page — only when page/session changes, NOT on resize
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
     const key = `${session.id}-${currentPage}`;
-    if (loadedKeyRef.current === key) return; // resize only — AnnotationCanvas redraws itself
+    if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
     if (pageData) {
-      try { canvasRef.current.loadStrokes(JSON.parse(pageData)); }
-      catch { canvasRef.current.clearStrokes(); }
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(pageData));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
     } else {
       canvasRef.current.clearStrokes();
     }
@@ -164,7 +185,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     setSaving(true);
     const strokes = canvasRef.current.getStrokes();
     const updated = {
-      ...((session.strokes_by_page) || {}),
+      ...(session.strokes_by_page || {}),
       [String(currentPage)]: JSON.stringify(strokes),
     };
     await base44.entities.NotebookSession.update(session.id, {
@@ -191,26 +212,30 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     setSession(s => ({ ...s, voice_notes_by_page: updated }));
   }, [session, currentPage]);
 
-  // Auto-save every 20 seconds
   useEffect(() => {
     if (!session) return;
-    const interval = setInterval(() => { saveStrokes(); }, 20000);
+    const interval = setInterval(() => {
+      saveStrokes();
+    }, 20000);
     return () => clearInterval(interval);
   }, [saveStrokes, session]);
 
-  // Auto-save on page change
-  const goToPage = async (p) => {
-    await saveStrokes();
-    setCurrentPage(p);
-  };
-
-  // Audio for current page
   const pageAudio = selectedAssignment?.audio_instructions?.filter(a => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter(v => v.page === currentPage) || [];
 
   const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
   const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
-  const maxPage = limitActive ? (selectedAssignment?.page_range_end || 999) : 999;
+  const pdfMaxPage = selectedAssignment?.pdf_page_count || selectedAssignment?.page_count || 1;
+  const maxPage = limitActive
+    ? Math.min(selectedAssignment?.page_range_end || pdfMaxPage, pdfMaxPage)
+    : pdfMaxPage;
+
+  const goToPage = async (p) => {
+    const clamped = Math.max(minPage, Math.min(maxPage, p));
+    if (clamped === currentPage) return;
+    await saveStrokes();
+    setCurrentPage(clamped);
+  };
 
   if (!selectedAssignment) {
     return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} />;
@@ -218,26 +243,46 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0f0f1a' }}>
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-        <button onClick={() => { saveStrokes(); setSelectedAssignment(null); }}
-          className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
+      <div
+        className="flex items-center gap-2 px-3 py-2 shrink-0"
+        style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}
+      >
+        <button
+          onClick={() => {
+            saveStrokes();
+            setSelectedAssignment(null);
+          }}
+          className="text-indigo-300 hover:text-white font-bold text-sm"
+        >
+          ← Back
+        </button>
         <p className="flex-1 text-white font-black text-sm truncate">{selectedAssignment.title}</p>
-        <span className="text-indigo-400 text-xs font-bold px-2 py-1 rounded-lg" style={{ background: '#0f0f1a' }}>
+        <span
+          className="text-indigo-400 text-xs font-bold px-2 py-1 rounded-lg"
+          style={{ background: '#0f0f1a' }}
+        >
           Class {className} · #{studentNumber}
         </span>
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
-        <button onClick={saveStrokes} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#4338ca' }}>💾 Save</button>
-
+        <button
+          onClick={saveStrokes}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+          style={{ background: '#4338ca' }}
+        >
+          💾 Save
+        </button>
       </div>
 
-      {/* Broadcast video overlay */}
       <AnimatePresence>
         {showBroadcast && broadcastUrl && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             className="absolute top-14 left-1/2 -translate-x-1/2 z-50 shadow-2xl rounded-2xl overflow-hidden"
-            style={{ width: 360, border: '3px solid #9333ea', background: '#1a1a2e' }}>
+            style={{ width: 360, border: '3px solid #9333ea', background: '#1a1a2e' }}
+          >
             <div className="flex items-center justify-between px-3 py-1.5" style={{ background: '#9333ea' }}>
               <span className="text-white text-xs font-bold">📡 Teacher Video</span>
               <button onClick={() => setShowBroadcast(false)} className="text-white font-bold">✕</button>
@@ -249,19 +294,24 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         )}
       </AnimatePresence>
 
-      {/* Audio / Video hints */}
       {(pageAudio.length > 0 || pageVideo.length > 0) && (
         <div className="absolute bottom-16 right-4 z-40 flex flex-col gap-2">
-          <button onClick={() => setShowAudioHint(v => !v)}
+          <button
+            onClick={() => setShowAudioHint(v => !v)}
             className="w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-2xl"
-            style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
+            style={{ background: '#4338ca', border: '3px solid #9333ea' }}
+          >
             🔊
           </button>
           <AnimatePresence>
             {showAudioHint && (
-              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
                 className="rounded-2xl p-3 flex flex-col gap-2 max-w-xs w-64"
-                style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
+                style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
+              >
                 {pageAudio.map((a, i) => (
                   <div key={i} className="flex flex-col gap-1">
                     <span className="text-xs text-indigo-300">{a.label}</span>
@@ -282,7 +332,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         </div>
       )}
 
-      {/* Main content area: toolbar + PDF side by side */}
       {showLaserRecord ? (
         <div className="flex-1 overflow-auto">
           <LaserRecordView
@@ -294,19 +343,23 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
-          {/* Sidebar toolbar */}
           <div className="p-1.5 overflow-y-auto shrink-0" style={{ background: '#1a1a2e' }}>
             <AnnotationToolbar
-              tool={tool} setTool={setTool}
-              color={color} setColor={setColor}
-              size={size} setSize={setSize}
+              tool={tool}
+              setTool={setTool}
+              color={color}
+              setColor={setColor}
+              size={size}
+              setSize={setSize}
               onUndo={() => canvasRef.current?.undo()}
               onClear={() => canvasRef.current?.clearStrokes()}
             />
           </div>
 
-          {/* PDF + canvas */}
-          <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8' }}
+          <div
+            ref={containerRef}
+            className="flex-1 overflow-auto"
+            style={{ background: '#e8e8e8' }}
           >
             {selectedAssignment.pdf_url ? (
               <div style={{ position: 'relative', display: 'block', width: '100%' }}>
@@ -334,33 +387,38 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
             )}
           </div>
 
-          {/* Voice/Record buttons — only shown if teacher enabled recording on this page */}
-          {(selectedAssignment.recording_pages || []).includes(currentPage) && (<>
-            <button
-              onClick={() => setShowVoiceNote(v => !v)}
-              className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
-              style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
-            >
-              🎙
-            </button>
+          {(selectedAssignment.recording_pages || []).includes(currentPage) && (
+            <>
+              <button
+                onClick={() => setShowVoiceNote(v => !v)}
+                className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+                style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
+              >
+                🎙
+              </button>
 
-            {showVoiceNote && (
-              <div className="absolute bottom-36 right-4 z-40 w-72">
-                <VoiceNoteRecorder
-                  existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
-                  onSaved={saveVoiceNote}
-                  onDelete={deleteVoiceNote}
-                />
-              </div>
-            )}
-          </>)}
+              {showVoiceNote && (
+                <div className="absolute bottom-36 right-4 z-40 w-72">
+                  <VoiceNoteRecorder
+                    existingUrl={session?.voice_notes_by_page?.[String(currentPage)]}
+                    onSaved={saveVoiceNote}
+                    onDelete={deleteVoiceNote}
+                  />
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
-      {/* Page navigation */}
       {selectedAssignment.page_mode !== 'locked' && (
-        <PageNavBar currentPage={currentPage} minPage={minPage} maxPage={maxPage} onGo={goToPage} />)
-      }
+        <PageNavBar
+          currentPage={currentPage}
+          minPage={minPage}
+          maxPage={maxPage}
+          onGo={goToPage}
+        />
+      )}
     </div>
   );
 }
