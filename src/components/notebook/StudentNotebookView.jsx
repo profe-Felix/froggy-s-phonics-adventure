@@ -183,10 +183,15 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const saveStrokes = useCallback(async () => {
     if (!session || !canvasRef.current) return;
     setSaving(true);
-    const strokes = canvasRef.current.getStrokes();
+    const strokeData = canvasRef.current.getStrokes();
+    const payload = {
+      ...strokeData,
+      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+    };
     const updated = {
       ...(session.strokes_by_page || {}),
-      [String(currentPage)]: JSON.stringify(strokes),
+      [String(currentPage)]: JSON.stringify(payload),
     };
     await base44.entities.NotebookSession.update(session.id, {
       strokes_by_page: updated,
@@ -195,7 +200,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     });
     setSession(s => ({ ...s, strokes_by_page: updated, current_page: currentPage }));
     setSaving(false);
-  }, [session, currentPage]);
+  }, [session, currentPage, pdfRenderedSize, canvasSize]);
 
   const saveVoiceNote = useCallback(async (url) => {
     if (!session) return;
