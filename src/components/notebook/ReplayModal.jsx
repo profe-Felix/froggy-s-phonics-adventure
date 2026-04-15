@@ -14,11 +14,14 @@ function setupCanvas(canvas, w, h) {
 }
 
 function getScale(data, w, h) {
-  // old saves: canvasWidth present, coords are absolute pixels
-  // new saves: no canvasWidth, coords are normalized 0-1
+  const samplePt = data?.strokes?.[0]?.pts?.[0];
+  const alreadyNormalized =
+    data?.normalized === true ||
+    (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
+
   return {
-    sx: data?.canvasWidth ? w / data.canvasWidth : w,
-    sy: data?.canvasHeight ? h / data.canvasHeight : h,
+    sx: alreadyNormalized ? w : (data?.canvasWidth ? w / data.canvasWidth : w),
+    sy: alreadyNormalized ? h : (data?.canvasHeight ? h / data.canvasHeight : h),
   };
 }
 
@@ -26,7 +29,7 @@ function getWidthScale(data, w, h, sx, sy) {
   if (data?.canvasWidth && data?.canvasHeight) {
     return Math.min(w / data.canvasWidth, h / data.canvasHeight);
   }
-  return data?.canvasWidth ? Math.min(sx, sy) : 1;
+  return 1;
 }
 
 function buildTimeline(data) {
