@@ -42,14 +42,36 @@ function renderToFrame(ctx, timeline, upTo, sx, sy) {
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
     const { s, i } = timeline[idx];
     ctx.beginPath();
-    ctx.strokeStyle = s.color || '#4338ca';
-    ctx.lineWidth = Math.max(1, s.size || 4);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
+
+    if (s.tool === 'highlighter') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = s.color || '#4338ca';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 2.5) * Math.min(sx, sy);
+      ctx.globalAlpha = 0.35;
+    } else if (s.tool === 'eraser_object') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 6) * Math.min(sx, sy);
+      ctx.globalAlpha = 1;
+    } else if (s.tool === 'eraser_pixel') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(1, (s.size || 4) * 1.5) * Math.min(sx, sy);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = s.color || '#4338ca';
+      ctx.lineWidth = Math.max(1, s.size || 4) * Math.min(sx, sy);
+      ctx.globalAlpha = 1;
+    }
+
     ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
     ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
     ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -124,14 +146,36 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
       for (let b = 0; b < batch; b++) {
         const { s, i } = tl[idx + b];
         ctxRef.current.beginPath();
-        ctxRef.current.strokeStyle = s.color || '#4338ca';
-        ctxRef.current.lineWidth = Math.max(1, s.size || 4);
         ctxRef.current.lineCap = 'round';
         ctxRef.current.lineJoin = 'round';
-        ctxRef.current.globalAlpha = s.tool === 'highlighter' ? 0.35 : 1;
+
+        if (s.tool === 'highlighter') {
+          ctxRef.current.globalCompositeOperation = 'source-over';
+          ctxRef.current.strokeStyle = s.color || '#4338ca';
+          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 2.5) * Math.min(sx, sy);
+          ctxRef.current.globalAlpha = 0.35;
+        } else if (s.tool === 'eraser_object') {
+          ctxRef.current.globalCompositeOperation = 'destination-out';
+          ctxRef.current.strokeStyle = '#000';
+          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 6) * Math.min(sx, sy);
+          ctxRef.current.globalAlpha = 1;
+        } else if (s.tool === 'eraser_pixel') {
+          ctxRef.current.globalCompositeOperation = 'destination-out';
+          ctxRef.current.strokeStyle = '#000';
+          ctxRef.current.lineWidth = Math.max(1, (s.size || 4) * 1.5) * Math.min(sx, sy);
+          ctxRef.current.globalAlpha = 1;
+        } else {
+          ctxRef.current.globalCompositeOperation = 'source-over';
+          ctxRef.current.strokeStyle = s.color || '#4338ca';
+          ctxRef.current.lineWidth = Math.max(1, s.size || 4) * Math.min(sx, sy);
+          ctxRef.current.globalAlpha = 1;
+        }
+
         ctxRef.current.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
         ctxRef.current.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
         ctxRef.current.stroke();
+        ctxRef.current.globalCompositeOperation = 'source-over';
+        ctxRef.current.globalAlpha = 1;
       }
       idx += batch;
       setScrubPos(idx);
