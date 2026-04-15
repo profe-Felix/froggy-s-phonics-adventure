@@ -24,7 +24,10 @@ function drawStrokes(canvas, strokesData, w, h) {
   const sy = data?.canvasHeight ? h / data.canvasHeight : h;
 
   // Only scale width for older absolute-pixel saves.
-  const widthScale = data?.canvasWidth ? Math.min(sx, sy) : 1;
+    const widthScale =
+      data?.canvasWidth && data?.canvasHeight
+        ? Math.min(w / data.canvasWidth, h / data.canvasHeight)
+        : (data?.canvasWidth ? Math.min(sx, sy) : 1);
 
   for (const s of strokes) {
     if (!s.pts || s.pts.length < 2) continue;
