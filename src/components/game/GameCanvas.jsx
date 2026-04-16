@@ -41,7 +41,7 @@ export default function GameCanvas({
   }, []);
 
   const handleFlyClick = (item, index, event) => {
-    if (animationPhase !== 'idle' || !canAnswer) return;
+    if (animationPhase !== 'idle' || !canAnswer || showFeedback) return;
     
     const letter = typeof item === 'string' ? item : item.letter;
     
@@ -140,7 +140,13 @@ export default function GameCanvas({
 
       {/* Sound Button */}
       <Button
-        onClick={onPlaySound}
+        onClick={() => {
+          if (showFeedback && !isCorrect && onRetry) {
+            onRetry();
+            return;
+          }
+          onPlaySound();
+        }}
         className="absolute top-4 right-4 h-16 w-16 rounded-full bg-blue-500 hover:bg-blue-600 shadow-lg"
       >
         <Volume2 className="w-8 h-8" />
