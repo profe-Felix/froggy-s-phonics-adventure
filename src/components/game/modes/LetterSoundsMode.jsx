@@ -152,6 +152,8 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
   const handleRetry = () => {
     setShowFeedback(false);
+    setIsCorrect(false);
+    setCanAnswer(false);
     playSound(currentLetter);
   };
 
