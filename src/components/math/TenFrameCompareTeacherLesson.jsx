@@ -248,7 +248,7 @@ function makeNextLesson(className, previous) {
   }
 }
 
-export default function TenFrameCompareTeacherLesson({ className = DEFAULT_CLASS }) {
+export default function TenFrameCompareTeacherLesson({ className = DEFAULT_CLASS, onBack }) {
   const {
     data: lesson = {
       className,
