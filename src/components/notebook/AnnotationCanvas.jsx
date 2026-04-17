@@ -127,7 +127,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onUp);
     };
-  }, [mode, color, size, tool]);
+  }, [mode, color, size, tool, width, height]);
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({ strokes: strokes.current }),
