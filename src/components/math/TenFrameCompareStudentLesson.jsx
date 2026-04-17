@@ -429,15 +429,6 @@ export default function TenFrameCompareStudentLesson({
             boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
           }}
         >
-          style={{
-            maxWidth: 760,
-            background: '#ffffff',
-            borderRadius: 24,
-            padding: 24,
-            textAlign: 'center',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
-          }}
-        >
           <div
             style={{
               fontSize: 34,
@@ -504,9 +495,9 @@ export default function TenFrameCompareStudentLesson({
     )
   }
 
-    const answerLocked = revealed
+  const answerLocked = revealed
   
-    return (
+  return (
       <div
         style={{
           minHeight: '100vh',
