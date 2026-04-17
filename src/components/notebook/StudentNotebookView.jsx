@@ -188,7 +188,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   }, [session]);
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
-    const key = `${session.id}-${currentPage}`;
+    const key = `${session.id}-${currentPage}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
