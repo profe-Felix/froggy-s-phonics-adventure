@@ -190,6 +190,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
     const key = `${session.id}-${currentPage}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
     if (loadedKeyRef.current === key) return;
+
+    canvasRef.current.clearStrokes(); // <-- ADD THIS
+
     loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
