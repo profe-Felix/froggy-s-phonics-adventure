@@ -11,6 +11,8 @@ import OneLessMoreLessonStudent from '../components/math/OneLessMoreLessonStuden
 import RollCompareGame from '../components/math/RollCompareGame';
 import RollCompareTeacherLesson from '../components/math/RollCompareTeacherLesson';
 import RollCompareStudentLesson from '../components/math/RollCompareStudentLesson';
+import TenFrameCompareTeacherLesson from '../components/math/TenFrameCompareTeacherLesson';
+import TenFrameCompareStudentLesson from '../components/math/TenFrameCompareStudentLesson';
 import RollCompareSolo from '../components/math/RollCompareSolo';
 import CountingCollectionSolo from '../components/math/counting/CountingCollectionSolo';
 import CountingCollectionStudentLesson from '../components/math/counting/CountingCollectionStudentLesson';
@@ -82,6 +84,9 @@ export default function MathGames() {
     if (gameMode === 'rollcompare' && selectedClass) {
       return <RollCompareTeacherLesson className={selectedClass} onBack={() => setGameMode(null)} />;
     }
+    if (gameMode === 'tenframecompare' && selectedClass) {
+      return <TenFrameCompareTeacherLesson className={selectedClass} onBack={() => setGameMode(null)} />;
+    }
     if (gameMode === 'countcollection' && selectedClass) {
       return (
         <div className="min-h-screen bg-gradient-to-b from-indigo-600 to-purple-700 py-8 px-4">
@@ -112,6 +117,7 @@ export default function MathGames() {
               <button onClick={() => setGameMode('bingo')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🎱 Bingo</button>
               <button onClick={() => setGameMode('onelessmore')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🧊 1 More / 1 Less</button>
               <button onClick={() => setGameMode('rollcompare')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🍪 Roll & Compare</button>
+              <button onClick={() => setGameMode('tenframecompare')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🟦 Ten Frame Compare</button>
               <button onClick={() => setGameMode('countcollection')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🔢 Count Collections</button>
               <button onClick={() => setGameMode('doublesided')} className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50">🟡🔴 Double-Sided Counters</button>
             </div>
@@ -212,6 +218,13 @@ export default function MathGames() {
         description: 'Roll, build cookies, compare with a partner',
         icon: '🍪',
         color: 'from-amber-400 to-orange-500',
+      },
+      {
+        id: 'tenframecompare',
+        title: 'Ten Frame Compare',
+        description: 'Compare your number to the teacher’s number',
+        icon: '🟦',
+        color: 'from-emerald-400 to-teal-600',
       },
       {
         id: 'countcollection',
@@ -342,6 +355,17 @@ export default function MathGames() {
     if (selfPlay === 'solo') return <RollCompareSolo onBack={() => setSelfPlay(null)} studentNumber={studentNumber} />;
     if (selfPlay === true) return <RollCompareGame onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
     return <RollCompareStudentLesson onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
+  }
+
+  // ── STUDENT VIEW — Ten Frame Compare ──
+  if (gameMode === 'tenframecompare') {
+    return (
+      <TenFrameCompareStudentLesson
+        onBack={() => setGameMode(null)}
+        studentNumber={studentNumber}
+        className={selectedClass}
+      />
+    );
   }
 
   // ── STUDENT VIEW — Number Recognition ──
