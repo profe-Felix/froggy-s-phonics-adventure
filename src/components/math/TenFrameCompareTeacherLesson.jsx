@@ -213,7 +213,7 @@ async function fetchLesson(className) {
 }
 
 async function saveLesson(className, lesson) {
-  const rows = await base44.entities.TenFrameCompareLesson.filter({
+  const rows = await base44.entities.RollCompareLesson.filter({
     class_name: className,
   })
 
@@ -230,9 +230,9 @@ async function saveLesson(className, lesson) {
   }
 
   if (existing?.id) {
-    await base44.entities.TenFrameCompareLesson.update(existing.id, payload)
+    await base44.entities.RollCompareLesson.update(existing.id, payload)
   } else {
-    await base44.entities.TenFrameCompareLesson.create(payload)
+    await base44.entities.RollCompareLesson.create(payload)
   }
 }
 
