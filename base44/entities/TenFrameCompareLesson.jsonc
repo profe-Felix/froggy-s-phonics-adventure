@@ -1,26 +1,41 @@
 {
   "name": "TenFrameCompareLesson",
-  "fields": {
+  "type": "object",
+  "properties": {
     "class_name": {
-      "type": "text"
+      "type": "string"
     },
     "status": {
-      "type": "text"
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active"
+      ],
+      "default": "waiting"
     },
     "teacher_number": {
-      "type": "number"
+      "type": "integer"
     },
     "teacher_display": {
-      "type": "text"
+      "type": "string",
+      "enum": [
+        "tenframe",
+        "numeral"
+      ],
+      "default": "tenframe"
     },
     "round_number": {
-      "type": "number"
+      "type": "integer",
+      "default": 1
     },
     "round_seed": {
-      "type": "number"
+      "type": "integer"
     },
     "updated_at": {
-      "type": "number"
+      "type": "integer"
     }
-  }
+  },
+  "required": [
+    "class_name"
+  ]
 }
