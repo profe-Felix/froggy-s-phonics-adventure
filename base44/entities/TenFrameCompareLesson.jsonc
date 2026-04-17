@@ -1,0 +1,26 @@
+{
+  "name": "TenFrameCompareLesson",
+  "fields": {
+    "class_name": {
+      "type": "text"
+    },
+    "status": {
+      "type": "text"
+    },
+    "teacher_number": {
+      "type": "number"
+    },
+    "teacher_display": {
+      "type": "text"
+    },
+    "round_number": {
+      "type": "number"
+    },
+    "round_seed": {
+      "type": "number"
+    },
+    "updated_at": {
+      "type": "number"
+    }
+  }
+}
