@@ -81,7 +81,7 @@ function normalizeLesson(className, row) {
 }
 
 async function fetchLesson(className) {
-  const rows = await base44.entities.TenFrameCompareLesson.filter({
+  const rows = await base44.entities.RollCompareLesson.filter({
     class_name: className,
   })
   const row = Array.isArray(rows) ? rows[0] : null
