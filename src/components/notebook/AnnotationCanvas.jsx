@@ -182,7 +182,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       style={{
         position: 'absolute', inset: 0, zIndex: 10,
         width: width + 'px', height: height + 'px',
-        touchAction: mode === 'draw' ? 'none' : 'auto',
+        touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
         cursor: mode === 'draw' ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair') : 'default',
         background: 'transparent',
       }}
