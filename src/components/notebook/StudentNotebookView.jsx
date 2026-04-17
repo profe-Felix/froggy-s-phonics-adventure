@@ -61,6 +61,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const saveTimer = useRef(null);
   const loadedKeyRef = useRef(null);
+  const draftKey = session ? `notebook-draft-${session.id}-${currentPage}` : null;
+  const saveInFlightRef = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const latestSessionRef = useRef(null);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['student-notebook-assignments', className],
@@ -92,7 +96,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       if (a.page_mode === 'locked' && a.locked_page) {
         const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
-        if (locked !== currentPage) setCurrentPage(locked);
+        if (locked !== currentPage) {
+          await saveStrokes();
+          loadedKeyRef.current = null;
+          setCurrentPage(locked);
+        }
       } else {
         if (currentPage < minAllowed) setCurrentPage(minAllowed);
         if (currentPage > maxAllowed) setCurrentPage(maxAllowed);
@@ -162,16 +170,26 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       }
     })();
   }, [selectedAssignment, className, studentNumber]);
-
+  
+  useEffect(() => {
+    latestSessionRef.current = session;
+  }, [session]);
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
     const key = `${session.id}-${currentPage}`;
     if (loadedKeyRef.current === key) return;
     loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
+    const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
     if (pageData) {
       try {
         canvasRef.current.loadStrokes(JSON.parse(pageData));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
+    } else if (localDraft) {
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
         canvasRef.current.clearStrokes();
       }
@@ -181,27 +199,59 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   }, [currentPage, session?.id, pdfRenderedSize]);
 
   const saveStrokes = useCallback(async () => {
-    if (!session || !canvasRef.current) return;
+    if (!canvasRef.current) return;
+
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
+    const activeSession = latestSessionRef.current;
+    if (!activeSession) return;
+
+    saveInFlightRef.current = true;
     setSaving(true);
-    const strokeData = canvasRef.current.getStrokes();
-    const payload = {
-      ...strokeData,
-      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
-      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
-      normalized: true,
-    };
-    const updated = {
-      ...(session.strokes_by_page || {}),
-      [String(currentPage)]: JSON.stringify(payload),
-    };
-    await base44.entities.NotebookSession.update(session.id, {
-      strokes_by_page: updated,
-      current_page: currentPage,
-      last_active: new Date().toISOString(),
-    });
-    setSession(s => ({ ...s, strokes_by_page: updated, current_page: currentPage }));
-    setSaving(false);
-  }, [session, currentPage, pdfRenderedSize, canvasSize]);
+
+    try {
+      const strokeData = canvasRef.current.getStrokes();
+      const payload = {
+        ...strokeData,
+        canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+        canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+        normalized: true,
+      };
+
+      const updated = {
+        ...(activeSession.strokes_by_page || {}),
+        [String(currentPage)]: JSON.stringify(payload),
+      };
+
+      if (draftKey) {
+        localStorage.setItem(draftKey, JSON.stringify(payload));
+      }      
+
+      await base44.entities.NotebookSession.update(activeSession.id, {
+        strokes_by_page: updated,
+        current_page: currentPage,
+        last_active: new Date().toISOString(),
+      });
+
+      setSession(s => ({
+        ...s,
+        strokes_by_page: updated,
+        current_page: currentPage,
+        last_active: new Date().toISOString(),
+      }));
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        saveStrokes();
+      }
+    }
+  }, [currentPage, pdfRenderedSize, canvasSize]);
 
   const saveVoiceNote = useCallback(async (url) => {
     if (!session) return;
@@ -225,6 +275,26 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     }, 20000);
     return () => clearInterval(interval);
   }, [saveStrokes, session]);
+
+  useEffect(() => {
+  const handlePageHide = () => {
+    saveStrokes();
+  };
+
+  const handleVisibility = () => {
+    if (document.visibilityState === 'hidden') {
+      saveStrokes();
+    }
+  };
+
+  window.addEventListener('pagehide', handlePageHide);
+  document.addEventListener('visibilitychange', handleVisibility);
+
+  return () => {
+    window.removeEventListener('pagehide', handlePageHide);
+    document.removeEventListener('visibilitychange', handleVisibility);
+  };
+}, [saveStrokes]);
 
   const pageAudio = selectedAssignment?.audio_instructions?.filter(a => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter(v => v.page === currentPage) || [];
