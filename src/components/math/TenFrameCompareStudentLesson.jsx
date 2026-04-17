@@ -51,20 +51,6 @@ function seededShuffle(arr, seed) {
   return a
 }
 
-function studentChoiceStorageKey(className) {
-  return `ten-frame-compare-student-choice:${className}`
-}
-
-function readSavedStudentChoice(className) {
-  if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(studentChoiceStorageKey(className)) || ''
-}
-
-function saveStudentChoice(className, student) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(studentChoiceStorageKey(className), student)
-}
-
 function normalizeLesson(className, row) {
   if (!row) {
     return {
@@ -310,75 +296,6 @@ function BigChoiceButton({ label, symbol, disabled, selected, onClick }) {
   )
 }
 
-function StudentChooser({ className, onPick }) {
-  const numbers = Array.from({ length: 30 }, (_, i) => String(i + 1))
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #dbeafe 0%, #e0f2fe 55%, #dcfce7 100%)',
-        padding: 16,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <div
-          style={{
-            textAlign: 'center',
-            fontSize: 40,
-            fontWeight: 900,
-            color: '#166534',
-            marginBottom: 8,
-          }}
-        >
-          Choose Your Number
-        </div>
-
-        <div
-          style={{
-            textAlign: 'center',
-            fontSize: 24,
-            color: '#374151',
-            marginBottom: 24,
-            fontWeight: 700,
-          }}
-        >
-          Class {className}
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
-            gap: 14,
-          }}
-        >
-          {numbers.map((n) => (
-            <button
-              key={n}
-              onClick={() => onPick(n)}
-              style={{
-                border: '4px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#1f2937',
-                borderRadius: 22,
-                padding: '20px 10px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-                fontWeight: 900,
-                fontSize: 30,
-              }}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function TenFrameCompareStudentLesson({
   className = DEFAULT_CLASS,
   studentNumber = '',
@@ -386,18 +303,8 @@ export default function TenFrameCompareStudentLesson({
 }) {
   const [selected, setSelected] = useState(null)
   const [revealed, setRevealed] = useState(false)
-  const [chosenStudent, setChosenStudent] = useState(
-    studentNumber ? String(studentNumber) : ''
-  )
 
-  useEffect(() => {
-    if (studentNumber) {
-      setChosenStudent(String(studentNumber))
-      return
-    }
-    const saved = readSavedStudentChoice(className)
-    if (saved) setChosenStudent(saved)
-  }, [className, studentNumber])
+  const chosenStudent = studentNumber ? String(studentNumber) : ''
 
   const {
     data: lesson = {
@@ -419,11 +326,6 @@ export default function TenFrameCompareStudentLesson({
     setSelected(null)
     setRevealed(false)
   }, [lesson.roundNumber, className, chosenStudent])
-
-  function chooseStudent(student) {
-    saveStudentChoice(className, student)
-    setChosenStudent(student)
-  }
 
   const teacherNumber =
     typeof lesson.teacherNumber === 'number' ? lesson.teacherNumber : null
@@ -461,10 +363,6 @@ export default function TenFrameCompareStudentLesson({
       : null
 
   if (!chosenStudent) {
-    return <StudentChooser className={className} onPick={chooseStudent} />
-  }
-
-  if (lesson.status !== 'active') {
     return (
       <div
         style={{
@@ -478,6 +376,59 @@ export default function TenFrameCompareStudentLesson({
         }}
       >
         <div
+          style={{
+            background: '#ffffff',
+            borderRadius: 24,
+            padding: 24,
+            fontSize: 24,
+            fontWeight: 800,
+            color: '#374151',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
+          }}
+        >
+          Waiting for student number…
+        </div>
+      </div>
+    )
+  }
+
+  if (lesson.status !== 'active') {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #dbeafe 0%, #e0f2fe 55%, #dcfce7 100%)',
+          padding: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              marginBottom: 12,
+              background: 'none',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+          >
+            ← Back
+          </button>
+        )}
+
+        <div
+          style={{
+            maxWidth: 760,
+            margin: '80px auto 0',
+            background: '#ffffff',
+            borderRadius: 24,
+            padding: 24,
+            textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.10)',
+          }}
+        >
           style={{
             maxWidth: 760,
             background: '#ffffff',
