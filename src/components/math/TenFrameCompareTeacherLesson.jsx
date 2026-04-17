@@ -285,14 +285,6 @@ export default function TenFrameCompareTeacherLesson({ className = DEFAULT_CLASS
     await refetch()
   }
 
-  const teacherLink =
-    `https://profe-felix.github.io/student-work/#/ws/ten-frame-compare` +
-    `?role=teacher&class=${encodeURIComponent(className)}`
-
-  const studentLink =
-    `https://profe-felix.github.io/student-work/#/ws/ten-frame-compare` +
-    `?role=student&class=${encodeURIComponent(className)}`
-
   const seedBase = useMemo(() => {
     return hashString(
       `teacher-${lesson.teacherNumber ?? 0}-${lesson.roundNumber}-${lesson.roundSeed}`
@@ -372,38 +364,6 @@ export default function TenFrameCompareTeacherLesson({ className = DEFAULT_CLASS
             }}
           >
             End Lesson
-          </button>
-
-          <button
-            onClick={() => navigator.clipboard.writeText(studentLink)}
-            style={{
-              border: 0,
-              borderRadius: 16,
-              padding: '14px 22px',
-              fontWeight: 900,
-              fontSize: 18,
-              background: '#2563eb',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
-          >
-            Copy Student Link
-          </button>
-
-          <button
-            onClick={() => navigator.clipboard.writeText(teacherLink)}
-            style={{
-              border: 0,
-              borderRadius: 16,
-              padding: '14px 22px',
-              fontWeight: 900,
-              fontSize: 18,
-              background: '#7c3aed',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
-          >
-            Copy Teacher Link
           </button>
         </div>
 
