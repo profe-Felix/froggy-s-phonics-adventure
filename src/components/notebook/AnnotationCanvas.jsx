@@ -76,7 +76,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     const c = canvasRef.current;
     const r = c.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
-    return { x: (src.clientX - r.left) / width, y: (src.clientY - r.top) / height, t: Date.now() };
+    return { x: (src.clientX - r.left) / r.width, y: (src.clientY - r.top) / r.height, t: Date.now() };
   };
 
   useEffect(() => {
@@ -115,7 +115,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp);
     c.addEventListener('mouseleave', onUp);
-    c.addEventListener('touchstart', onDown, { passive: true });
+    c.addEventListener('touchstart', onDown, { passive: false });
     c.addEventListener('touchmove', onMove, { passive: false }); // must be non-passive to prevent scroll during single-finger draw
     c.addEventListener('touchend', onUp);
     return () => {
@@ -182,7 +182,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       style={{
         position: 'absolute', inset: 0, zIndex: 10,
         width: width + 'px', height: height + 'px',
-        touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
+        touchAction: mode === 'draw' ? 'none' : 'auto',
         cursor: mode === 'draw' ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair') : 'default',
         background: 'transparent',
       }}
