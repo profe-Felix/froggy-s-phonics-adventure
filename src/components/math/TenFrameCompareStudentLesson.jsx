@@ -381,20 +381,23 @@ function StudentChooser({ className, onPick }) {
 
 export default function TenFrameCompareStudentLesson({
   className = DEFAULT_CLASS,
-  studentId = '',
+  studentNumber = '',
+  onBack,
 }) {
   const [selected, setSelected] = useState(null)
   const [revealed, setRevealed] = useState(false)
-  const [chosenStudent, setChosenStudent] = useState(studentId || '')
+  const [chosenStudent, setChosenStudent] = useState(
+    studentNumber ? String(studentNumber) : ''
+  )
 
   useEffect(() => {
-    if (studentId) {
-      setChosenStudent(String(studentId))
+    if (studentNumber) {
+      setChosenStudent(String(studentNumber))
       return
     }
     const saved = readSavedStudentChoice(className)
     if (saved) setChosenStudent(saved)
-  }, [className, studentId])
+  }, [className, studentNumber])
 
   const {
     data: lesson = {
