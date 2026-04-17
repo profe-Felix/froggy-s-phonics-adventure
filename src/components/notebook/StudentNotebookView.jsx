@@ -102,8 +102,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           setCurrentPage(locked);
         }
       } else {
-        if (currentPage < minAllowed) setCurrentPage(minAllowed);
-        if (currentPage > maxAllowed) setCurrentPage(maxAllowed);
+        if (currentPage < minAllowed) {
+          loadedKeyRef.current = null;
+          setCurrentPage(minAllowed);
+        }
+        if (currentPage > maxAllowed) {
+          loadedKeyRef.current = null;
+          setCurrentPage(maxAllowed);
+        }
       }
 
       if (a.broadcast_video && a.broadcast_video !== broadcastUrl) {
@@ -146,8 +152,13 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         : pdfMaxPage;
 
       if (sessions.length > 0) {
-        setSession(sessions[0]);
-        const page = sessions[0].current_page || 1;
+        const sorted = [...sessions].sort(
+          (a, b) => new Date(b.updated_date || b.last_active || 0) - new Date(a.updated_date || a.last_active || 0)
+        );
+        const activeSession = sorted[0];
+        setSession(activeSession);
+        latestSessionRef.current = activeSession;
+        const page = activeSession.current_page || 1;
         const desiredPage =
           selectedAssignment.page_mode === 'locked'
             ? (selectedAssignment.locked_page || 1)
@@ -162,6 +173,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           strokes_by_page: {},
         });
         setSession(newSession);
+        latestSessionRef.current = newSession;
         const desiredPage =
           selectedAssignment.page_mode === 'locked'
             ? (selectedAssignment.locked_page || 1)
@@ -236,19 +248,22 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         last_active: new Date().toISOString(),
       });
 
-      setSession(s => ({
-        ...s,
+      const nextSession = {
+        ...activeSession,
         strokes_by_page: updated,
         current_page: currentPage,
         last_active: new Date().toISOString(),
-      }));
+      };
+
+      latestSessionRef.current = nextSession;
+      setSession(nextSession);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
 
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
-        saveStrokes();
+        void saveStrokes();
       }
     }
   }, [currentPage, pdfRenderedSize, canvasSize]);
@@ -270,9 +285,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   useEffect(() => {
     if (!session) return;
+
     const interval = setInterval(() => {
-      saveStrokes();
+      void saveStrokes();
     }, 20000);
+
     return () => clearInterval(interval);
   }, [saveStrokes, session]);
 
@@ -314,6 +331,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const clamped = Math.max(minPage, Math.min(maxPage, p));
     if (clamped === currentPage) return;
     await saveStrokes();
+    loadedKeyRef.current = null;
     setCurrentPage(clamped);
   };
 
@@ -328,8 +346,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}
       >
         <button
-          onClick={() => {
-            saveStrokes();
+          onClick={async () => {
+            await saveStrokes();
             setSelectedAssignment(null);
           }}
           className="text-indigo-300 hover:text-white font-bold text-sm"
@@ -346,7 +364,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
         <button
-          onClick={saveStrokes}
+          onClick={async () => {
+            await saveStrokes();
+          }}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
           style={{ background: '#4338ca' }}
         >
