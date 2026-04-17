@@ -299,24 +299,40 @@ export default function TenFrameCompareTeacherLesson({ className = DEFAULT_CLASS
     )
   }, [lesson.teacherNumber, lesson.roundNumber, lesson.roundSeed])
 
-  if (isLoading) {
+    if (isLoading) {
+      return (
+        <div style={{ padding: 24, textAlign: 'center', fontWeight: 800 }}>
+          Loading…
+        </div>
+      )
+    }
+  
     return (
-      <div style={{ padding: 24, textAlign: 'center', fontWeight: 800 }}>
-        Loading…
-      </div>
-    )
-  }
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #ede9fe 0%, #dbeafe 50%, #dcfce7 100%)',
-        padding: 16,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #ede9fe 0%, #dbeafe 50%, #dcfce7 100%)',
+          padding: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              marginBottom: 12,
+              background: 'none',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+          >
+            ← Back
+          </button>
+        )}
+  
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
         <div
           style={{
             display: 'flex',
