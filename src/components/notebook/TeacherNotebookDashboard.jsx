@@ -197,9 +197,33 @@ export default function TeacherNotebookDashboard({ onBack }) {
   }, [selectedAssignment?.id]);
 
   const setPageMode = (mode) => {
-    updateAssignment.mutate({ id: selectedAssignment.id, data: { page_mode: mode } });
-    setSelectedAssignment(a => ({ ...a, page_mode: mode }));
-  };
+  if (!selectedAssignment) return;
+
+  const effectiveTotalPages =
+    selectedAssignment.pdf_page_count ||
+    selectedAssignment.page_count ||
+    selectedAssignment.page_range_end ||
+    1;
+
+  const safeLockedPage = Math.max(
+    1,
+    Math.min(
+      effectiveTotalPages,
+      selectedAssignment.locked_page ||
+      selectedAssignment.page_range_start ||
+      selectedAssignment.current_page ||
+      1
+    )
+  );
+
+  const data =
+    mode === 'locked'
+      ? { page_mode: mode, locked_page: safeLockedPage }
+      : { page_mode: mode };
+
+  updateAssignment.mutate({ id: selectedAssignment.id, data });
+  setSelectedAssignment(a => ({ ...a, ...data }));
+};
 
   const setLockedPage = (page) => {
     updateAssignment.mutate({ id: selectedAssignment.id, data: { locked_page: page } });
@@ -349,7 +373,14 @@ export default function TeacherNotebookDashboard({ onBack }) {
                         min="1"
                         max={effectiveTotalPages}
                         value={selectedAssignment.locked_page || 1}
-                        onChange={e => setLockedPage(parseInt(e.target.value))}
+                        onChange={e => {
+                          const raw = e.target.value;
+                          if (raw === '') return;
+                          const v = parseInt(raw, 10);
+                          if (Number.isNaN(v)) return;
+                          const clamped = Math.max(1, Math.min(effectiveTotalPages, v));
+                          setLockedPage(clamped);
+                        }}
                         className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
                         style={{ background: '#0f0f1a' }}
                       />
