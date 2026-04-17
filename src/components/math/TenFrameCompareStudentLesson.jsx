@@ -553,18 +553,34 @@ export default function TenFrameCompareStudentLesson({
     )
   }
 
-  const answerLocked = revealed
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #dbeafe 0%, #e0f2fe 55%, #dcfce7 100%)',
-        padding: 16,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    const answerLocked = revealed
+  
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(180deg, #dbeafe 0%, #e0f2fe 55%, #dcfce7 100%)',
+          padding: 16,
+          boxSizing: 'border-box',
+        }}
+      >
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              marginBottom: 12,
+              background: 'none',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+          >
+            ← Back
+          </button>
+        )}
+  
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <div
           style={{
             textAlign: 'center',
