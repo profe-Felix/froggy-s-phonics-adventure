@@ -38,7 +38,7 @@ function drawStroke(ctx, s, w, h) {
   ctx.restore();
 }
 
-const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, color, size, tool, mode = 'draw' }, ref) {
+const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, color, size, tool, mode = 'draw', onStrokeEnd }, ref) {
   const canvasRef = useRef(null);
   const strokes = useRef([]);
   const current = useRef(null);
@@ -85,8 +85,15 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
 
     const onDown = (e) => {
       if (mode !== 'draw') return;
-      // Allow 2-finger scroll to pass through
-      if (e.touches && e.touches.length >= 2) return;
+
+      if (e.touches) {
+        if (e.touches.length >= 2) {
+          drawing.current = false;
+          current.current = null;
+          return;
+        }
+      }
+
       e.preventDefault();
       const p = getPos(e);
       const toolName = tool === 'highlighter' ? 'highlighter' : tool === 'eraser_object' ? 'eraser_object' : tool === 'eraser_pixel' ? 'eraser_pixel' : 'pen';
@@ -95,9 +102,15 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
       redraw();
     };
     const onMove = (e) => {
+      if (e.touches && e.touches.length >= 2) {
+        drawing.current = false;
+        current.current = null;
+        redraw();
+        return;
+      }
+
       if (!drawing.current || !current.current) return;
-      // Allow 2-finger scroll
-      if (e.touches && e.touches.length >= 2) { drawing.current = false; current.current = null; redraw(); return; }
+
       e.preventDefault();
       const p = getPos(e);
       current.current.pts.push(p);
@@ -105,10 +118,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas({ width, height, c
     };
     const onUp = () => {
       if (!drawing.current || !current.current) return;
-      if (current.current.pts.length > 1) strokes.current.push(current.current);
+      if (current.current.pts.length > 1) {
+        strokes.current.push(current.current);
+      }
       current.current = null;
       drawing.current = false;
       redraw();
+      onStrokeEnd?.();
     };
 
     c.addEventListener('mousedown', onDown);
