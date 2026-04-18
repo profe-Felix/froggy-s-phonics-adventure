@@ -480,6 +480,17 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     size={size}
                     tool={tool}
                     mode="draw"
+                    onStrokeEnd={() => {
+                      if (!canvasRef.current || !draftKey) return;
+                      const strokeData = canvasRef.current.getStrokes();
+                      const payload = {
+                        ...strokeData,
+                        canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+                        canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+                        normalized: true,
+                      };
+                      localStorage.setItem(draftKey, JSON.stringify(payload));
+                    }}
                   />
                 )}
               </div>
