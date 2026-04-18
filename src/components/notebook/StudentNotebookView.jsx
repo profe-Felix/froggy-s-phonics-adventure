@@ -191,27 +191,28 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const key = `${session.id}-${currentPage}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
     if (loadedKeyRef.current === key) return;
 
-    canvasRef.current.clearStrokes(); // <-- ADD THIS
-
     loadedKeyRef.current = key;
     const pageData = session.strokes_by_page?.[String(currentPage)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
-    if (pageData) {
+
+    if (localDraft) {
       try {
-        canvasRef.current.loadStrokes(JSON.parse(pageData));
+        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
         canvasRef.current.clearStrokes();
       }
-    } else if (localDraft) {
+    } else if (pageData) {
       try {
-        canvasRef.current.loadStrokes(JSON.parse(localDraft));
+        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(JSON.parse(pageData));
       } catch {
         canvasRef.current.clearStrokes();
       }
     } else {
       canvasRef.current.clearStrokes();
     }
-  }, [currentPage, session?.id, pdfRenderedSize]);
+  }, [currentPage, session?.id, pdfRenderedSize, draftKey]);
 
   const saveStrokes = useCallback(async () => {
     if (!canvasRef.current) return;
