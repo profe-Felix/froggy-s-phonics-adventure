@@ -47,9 +47,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const canvasRef = useRef(null);
   const strokes = useRef([]);
   const current = useRef(null);
+  const drawing = useRef(false);
 
-  const activePointers = useRef(new Set());
-  const drawingPointerId = useRef(null);
+  const pendingTouchPoint = useRef(null);
+  const pendingTouchTimer = useRef(null);
 
   const setupCanvas = () => {
     const c = canvasRef.current;
@@ -82,157 +83,159 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const getPos = (e) => {
     const c = canvasRef.current;
     const r = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
     return {
-      x: (e.clientX - r.left) / r.width,
-      y: (e.clientY - r.top) / r.height,
+      x: (src.clientX - r.left) / r.width,
+      y: (src.clientY - r.top) / r.height,
       t: Date.now(),
     };
   };
 
-  const releaseCaptureIfAny = (c, id) => {
-    if (id == null) return;
-    try {
-      c.releasePointerCapture(id);
-    } catch {}
+  const makeToolName = () => {
+    if (tool === 'highlighter') return 'highlighter';
+    if (tool === 'eraser_object') return 'eraser_object';
+    if (tool === 'eraser_pixel') return 'eraser_pixel';
+    return 'pen';
+  };
+
+  const cancelPendingTouch = () => {
+    if (pendingTouchTimer.current) {
+      clearTimeout(pendingTouchTimer.current);
+      pendingTouchTimer.current = null;
+    }
+    pendingTouchPoint.current = null;
+  };
+
+  const beginStrokeAt = (p) => {
+    current.current = {
+      color,
+      size,
+      tool: makeToolName(),
+      pts: [p],
+    };
+    drawing.current = true;
+    redraw();
+  };
+
+  const finishStroke = () => {
+    cancelPendingTouch();
+
+    if (!drawing.current || !current.current) return;
+
+    if (current.current.pts.length > 1) {
+      strokes.current.push(current.current);
+    }
+
+    current.current = null;
+    drawing.current = false;
+    redraw();
+    onStrokeEnd?.();
+  };
+
+  const cancelStrokeForScroll = () => {
+    cancelPendingTouch();
+    current.current = null;
+    drawing.current = false;
+    redraw();
   };
 
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
 
-    const shouldDraw = (e) => {
-      if (mode !== 'draw') return false;
-
-      const allowed =
-        tool === 'pen' ||
-        tool === 'highlighter' ||
-        tool === 'eraser_object' ||
-        tool === 'eraser_pixel';
-
-      if (!allowed) return false;
-
-      // Apple Pencil / pen always draws
-      if (e.pointerType === 'pen') return true;
-
-      // One finger draws; second finger should allow scroll
-      return activePointers.current.size <= 1;
+    const onMouseDown = (e) => {
+      if (mode !== 'draw') return;
+      e.preventDefault();
+      beginStrokeAt(getPos(e));
     };
 
-    const makeToolName = () => {
-      if (tool === 'highlighter') return 'highlighter';
-      if (tool === 'eraser_object') return 'eraser_object';
-      if (tool === 'eraser_pixel') return 'eraser_pixel';
-      return 'pen';
-    };
-
-    const endStroke = () => {
-      if (current.current) {
-        if (current.current.pts.length > 1) {
-          strokes.current.push(current.current);
-        }
-        current.current = null;
-        redraw();
-        onStrokeEnd?.();
-      }
-      releaseCaptureIfAny(c, drawingPointerId.current);
-      drawingPointerId.current = null;
-    };
-
-    const onPointerDown = (e) => {
-      if (e.pointerType !== 'pen') {
-        activePointers.current.add(e.pointerId);
-      }
-
-      // If a second finger goes down while drawing with a finger, stop drawing.
-      if (
-        activePointers.current.size > 1 &&
-        drawingPointerId.current != null &&
-        e.pointerType !== 'pen'
-      ) {
-        endStroke();
-        return;
-      }
-
-      if (!shouldDraw(e)) return;
-
-      drawingPointerId.current = e.pointerId;
-
-      // Capture finger input once drawing starts.
-      // Do not capture pen so two-finger scroll can still happen while using Pencil.
-      if (e.pointerType !== 'pen') {
-        try {
-          c.setPointerCapture(e.pointerId);
-        } catch {}
-      }
-
-      const p = getPos(e);
-      current.current = {
-        color,
-        size,
-        tool: makeToolName(),
-        pts: [p],
-      };
-      redraw();
-
-      // Only block default once we actually committed to drawing with a finger
-      if (e.pointerType !== 'pen') e.preventDefault?.();
-    };
-
-    const onPointerMove = (e) => {
-      // If a second finger is present, stop drawing and let scroll happen
-      if (e.pointerType !== 'pen' && activePointers.current.size > 1) {
-        if (drawingPointerId.current === e.pointerId) {
-          endStroke();
-        }
-        return;
-      }
-
-      if (drawingPointerId.current !== e.pointerId) return;
-      if (!current.current || !shouldDraw(e)) {
-        endStroke();
-        return;
-      }
-
+    const onMouseMove = (e) => {
+      if (!drawing.current || !current.current) return;
+      e.preventDefault();
       const p = getPos(e);
       current.current.pts.push(p);
       redraw();
-
-      if (e.pointerType !== 'pen') e.preventDefault?.();
     };
 
-    const onPointerUp = (e) => {
-      if (e.pointerType !== 'pen') {
-        activePointers.current.delete(e.pointerId);
-      }
-      if (drawingPointerId.current === e.pointerId) {
-        endStroke();
-      }
-      releaseCaptureIfAny(c, e.pointerId);
+    const onMouseUp = () => {
+      finishStroke();
     };
 
-    const onPointerCancel = (e) => {
-      if (e.pointerType !== 'pen') {
-        activePointers.current.delete(e.pointerId);
+    const onTouchStart = (e) => {
+      if (mode !== 'draw') return;
+
+      if (e.touches.length >= 2) {
+        cancelStrokeForScroll();
+        return;
       }
-      if (drawingPointerId.current === e.pointerId) {
-        endStroke();
-      }
-      releaseCaptureIfAny(c, e.pointerId);
+
+      cancelPendingTouch();
+      pendingTouchPoint.current = getPos(e);
+
+      pendingTouchTimer.current = setTimeout(() => {
+        if (!pendingTouchPoint.current || drawing.current) return;
+        beginStrokeAt(pendingTouchPoint.current);
+        pendingTouchPoint.current = null;
+        pendingTouchTimer.current = null;
+      }, 50);
     };
 
-    c.addEventListener('pointerdown', onPointerDown, { passive: false });
-    c.addEventListener('pointermove', onPointerMove, { passive: false });
-    c.addEventListener('pointerup', onPointerUp, { passive: true });
-    c.addEventListener('pointercancel', onPointerCancel, { passive: true });
+    const onTouchMove = (e) => {
+      if (e.touches.length >= 2) {
+        cancelStrokeForScroll();
+        return;
+      }
+
+      if (!drawing.current && pendingTouchPoint.current) {
+        beginStrokeAt(pendingTouchPoint.current);
+        pendingTouchPoint.current = null;
+        if (pendingTouchTimer.current) {
+          clearTimeout(pendingTouchTimer.current);
+          pendingTouchTimer.current = null;
+        }
+      }
+
+      if (!drawing.current || !current.current) return;
+
+      e.preventDefault();
+      const p = getPos(e);
+      current.current.pts.push(p);
+      redraw();
+    };
+
+    const onTouchEnd = () => {
+      cancelPendingTouch();
+      finishStroke();
+    };
+
+    const onTouchCancel = () => {
+      cancelStrokeForScroll();
+    };
+
+    c.addEventListener('mousedown', onMouseDown);
+    c.addEventListener('mousemove', onMouseMove);
+    c.addEventListener('mouseup', onMouseUp);
+    c.addEventListener('mouseleave', onMouseUp);
+
+    c.addEventListener('touchstart', onTouchStart, { passive: true });
+    c.addEventListener('touchmove', onTouchMove, { passive: false });
+    c.addEventListener('touchend', onTouchEnd);
+    c.addEventListener('touchcancel', onTouchCancel);
 
     return () => {
-      c.removeEventListener('pointerdown', onPointerDown);
-      c.removeEventListener('pointermove', onPointerMove);
-      c.removeEventListener('pointerup', onPointerUp);
-      c.removeEventListener('pointercancel', onPointerCancel);
-      activePointers.current.clear();
-      drawingPointerId.current = null;
+      c.removeEventListener('mousedown', onMouseDown);
+      c.removeEventListener('mousemove', onMouseMove);
+      c.removeEventListener('mouseup', onMouseUp);
+      c.removeEventListener('mouseleave', onMouseUp);
+
+      c.removeEventListener('touchstart', onTouchStart);
+      c.removeEventListener('touchmove', onTouchMove);
+      c.removeEventListener('touchend', onTouchEnd);
+      c.removeEventListener('touchcancel', onTouchCancel);
+
+      cancelPendingTouch();
       current.current = null;
+      drawing.current = false;
     };
   }, [mode, color, size, tool, width, height, onStrokeEnd]);
 
@@ -264,11 +267,15 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
 
       current.current = null;
+      drawing.current = false;
+      cancelPendingTouch();
       redraw();
     },
     clearStrokes: () => {
       strokes.current = [];
       current.current = null;
+      drawing.current = false;
+      cancelPendingTouch();
       redraw();
     },
     undo: () => {
@@ -301,7 +308,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         zIndex: 10,
         width: width + 'px',
         height: height + 'px',
-        touchAction: mode === 'draw' ? 'pan-y' : 'auto',
+        touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
         cursor:
           mode === 'draw'
             ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair')
