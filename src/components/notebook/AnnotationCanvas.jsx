@@ -49,9 +49,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const current = useRef(null);
   const drawing = useRef(false);
 
-  const pendingTouchPoint = useRef(null);
-  const pendingTouchTimer = useRef(null);
-
   const setupCanvas = () => {
     const c = canvasRef.current;
     if (!c) return;
@@ -96,14 +93,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (tool === 'eraser_object') return 'eraser_object';
     if (tool === 'eraser_pixel') return 'eraser_pixel';
     return 'pen';
-  };
-
-  const cancelPendingTouch = () => {
-    if (pendingTouchTimer.current) {
-      clearTimeout(pendingTouchTimer.current);
-      pendingTouchTimer.current = null;
-    }
-    pendingTouchPoint.current = null;
   };
 
   const beginStrokeAt = (p) => {
