@@ -81,6 +81,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     if (match) setSelectedAssignment(match);
   }, [assignments, directAssignmentName, selectedAssignment]);
 
+  useEffect(() => {
+    loadedKeyRef.current = null;
+  }, [selectedAssignment?.id]);
+
+  useEffect(() => {
+    loadedKeyRef.current = null;
+  }, [session?.id]);
+
   useQuery({
     queryKey: ['student-notebook-poll', selectedAssignment?.id],
     queryFn: async () => {
@@ -371,6 +379,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         <button
           onClick={async () => {
             await saveStrokes();
+            loadedKeyRef.current = null;
             setSelectedAssignment(null);
           }}
           className="text-indigo-300 hover:text-white font-bold text-sm"
