@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import AnnotationToolbar from './AnnotationToolbar';
 import VoiceNoteRecorder from './VoiceNoteRecorder';
 import LaserRecordView from './LaserRecordView';
@@ -22,7 +22,7 @@ function AssignmentPicker({ assignments, onSelect }) {
       <h2 className="text-2xl font-black text-white mb-6">📓 Your Assignments</h2>
       {assignments.length === 0 && <p className="text-indigo-400">No active assignments right now.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
-        {assignments.map(a => (
+        {assignments.map((a) => (
           <motion.button
             key={a.id}
             whileTap={{ scale: 0.97 }}
@@ -65,6 +65,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const latestSessionRef = useRef(null);
+  const isDrawingRef = useRef(false);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['student-notebook-assignments', className],
@@ -75,7 +76,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   useEffect(() => {
     if (!directAssignmentName || selectedAssignment || assignments.length === 0) return;
     const match = assignments.find(
-      a => a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
+      (a) => a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
     );
     if (match) setSelectedAssignment(match);
   }, [assignments, directAssignmentName, selectedAssignment]);
@@ -83,8 +84,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   useQuery({
     queryKey: ['student-notebook-poll', selectedAssignment?.id],
     queryFn: async () => {
-      const fresh = await base44.entities.DigitalNotebookAssignment.filter({ class_name: className, status: 'active' });
-      const a = fresh.find(x => x.id === selectedAssignment?.id);
+      const fresh = await base44.entities.DigitalNotebookAssignment.filter({
+        class_name: className,
+        status: 'active',
+      });
+      const a = fresh.find((x) => x.id === selectedAssignment?.id);
       if (!a) return null;
 
       const limitActive = a.page_mode === 'locked' || a.limit_pages;
@@ -127,7 +131,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const obs = new ResizeObserver(entries => {
+    const obs = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       setCanvasSize({ w: Math.round(width), h: Math.round(height) });
     });
@@ -182,10 +186,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       }
     })();
   }, [selectedAssignment, className, studentNumber]);
-  
+
   useEffect(() => {
     latestSessionRef.current = session;
   }, [session]);
+
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
     const key = `${session.id}-${currentPage}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
@@ -217,6 +222,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const saveStrokes = useCallback(async () => {
     if (!canvasRef.current) return;
 
+    if (isDrawingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
     if (saveInFlightRef.current) {
       pendingSaveRef.current = true;
       return;
@@ -244,7 +254,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       if (draftKey) {
         localStorage.setItem(draftKey, JSON.stringify(payload));
-      }      
+      }
 
       await base44.entities.NotebookSession.update(activeSession.id, {
         strokes_by_page: updated,
@@ -270,13 +280,22 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         void saveStrokes();
       }
     }
-  }, [currentPage, pdfRenderedSize, canvasSize]);
+  }, [currentPage, pdfRenderedSize, canvasSize, draftKey]);
+
+  const handleStrokeStart = useCallback(() => {
+    isDrawingRef.current = true;
+  }, []);
+
+  const handleStrokeEnd = useCallback(() => {
+    isDrawingRef.current = false;
+    void saveStrokes();
+  }, [saveStrokes]);
 
   const saveVoiceNote = useCallback(async (url) => {
     if (!session) return;
     const updated = { ...(session.voice_notes_by_page || {}), [String(currentPage)]: url };
     await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
-    setSession(s => ({ ...s, voice_notes_by_page: updated }));
+    setSession((s) => ({ ...s, voice_notes_by_page: updated }));
   }, [session, currentPage]);
 
   const deleteVoiceNote = useCallback(async () => {
@@ -284,7 +303,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const updated = { ...(session.voice_notes_by_page || {}) };
     delete updated[String(currentPage)];
     await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
-    setSession(s => ({ ...s, voice_notes_by_page: updated }));
+    setSession((s) => ({ ...s, voice_notes_by_page: updated }));
   }, [session, currentPage]);
 
   useEffect(() => {
@@ -298,27 +317,27 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   }, [saveStrokes, session]);
 
   useEffect(() => {
-  const handlePageHide = () => {
-    saveStrokes();
-  };
+    const handlePageHide = () => {
+      void saveStrokes();
+    };
 
-  const handleVisibility = () => {
-    if (document.visibilityState === 'hidden') {
-      saveStrokes();
-    }
-  };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        void saveStrokes();
+      }
+    };
 
-  window.addEventListener('pagehide', handlePageHide);
-  document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibility);
 
-  return () => {
-    window.removeEventListener('pagehide', handlePageHide);
-    document.removeEventListener('visibilitychange', handleVisibility);
-  };
-}, [saveStrokes]);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [saveStrokes]);
 
-  const pageAudio = selectedAssignment?.audio_instructions?.filter(a => a.page === currentPage) || [];
-  const pageVideo = selectedAssignment?.video_instructions?.filter(v => v.page === currentPage) || [];
+  const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
+  const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];
 
   const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
   const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
@@ -401,7 +420,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       {(pageAudio.length > 0 || pageVideo.length > 0) && (
         <div className="absolute bottom-16 right-4 z-40 flex flex-col gap-2">
           <button
-            onClick={() => setShowAudioHint(v => !v)}
+            onClick={() => setShowAudioHint((v) => !v)}
             className="w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-2xl"
             style={{ background: '#4338ca', border: '3px solid #9333ea' }}
           >
@@ -442,7 +461,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
             assignment={selectedAssignment}
             session={session}
             initialPage={currentPage}
-            onRecordingSaved={(updated) => setSession(s => ({ ...s, recordings_by_page: updated }))}
+            onRecordingSaved={(updated) => setSession((s) => ({ ...s, recordings_by_page: updated }))}
           />
         </div>
       ) : (
@@ -481,17 +500,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     size={size}
                     tool={tool}
                     mode="draw"
-                    onStrokeEnd={() => {
-                      if (!canvasRef.current || !draftKey) return;
-                      const strokeData = canvasRef.current.getStrokes();
-                      const payload = {
-                        ...strokeData,
-                        canvasWidth: pdfRenderedSize?.w || canvasSize.w,
-                        canvasHeight: pdfRenderedSize?.h || canvasSize.h,
-                        normalized: true,
-                      };
-                      localStorage.setItem(draftKey, JSON.stringify(payload));
-                    }}
+                    onStrokeStart={handleStrokeStart}
+                    onStrokeEnd={handleStrokeEnd}
                   />
                 )}
               </div>
@@ -505,7 +515,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           {(selectedAssignment.recording_pages || []).includes(currentPage) && (
             <>
               <button
-                onClick={() => setShowVoiceNote(v => !v)}
+                onClick={() => setShowVoiceNote((v) => !v)}
                 className="absolute bottom-20 right-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
                 style={{ background: showVoiceNote ? '#9333ea' : '#4338ca', border: '3px solid #9333ea' }}
               >
