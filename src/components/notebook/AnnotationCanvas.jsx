@@ -107,8 +107,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const finishStroke = () => {
-    cancelPendingTouch();
-
     if (!drawing.current || !current.current) return;
 
     if (current.current.pts.length > 1) {
@@ -122,7 +120,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const cancelStrokeForScroll = () => {
-    cancelPendingTouch();
     current.current = null;
     drawing.current = false;
     redraw();
@@ -158,30 +155,14 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         return;
       }
 
-      cancelPendingTouch();
-      pendingTouchPoint.current = getPos(e);
-
-      pendingTouchTimer.current = setTimeout(() => {
-        if (!pendingTouchPoint.current || drawing.current) return;
-        beginStrokeAt(pendingTouchPoint.current);
-        pendingTouchPoint.current = null;
-        pendingTouchTimer.current = null;
-      }, 50);
+      e.preventDefault();
+      beginStrokeAt(getPos(e));
     };
 
     const onTouchMove = (e) => {
       if (e.touches.length >= 2) {
         cancelStrokeForScroll();
         return;
-      }
-
-      if (!drawing.current && pendingTouchPoint.current) {
-        beginStrokeAt(pendingTouchPoint.current);
-        pendingTouchPoint.current = null;
-        if (pendingTouchTimer.current) {
-          clearTimeout(pendingTouchTimer.current);
-          pendingTouchTimer.current = null;
-        }
       }
 
       if (!drawing.current || !current.current) return;
@@ -193,7 +174,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onTouchEnd = () => {
-      cancelPendingTouch();
       finishStroke();
     };
 
@@ -206,7 +186,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     c.addEventListener('mouseup', onMouseUp);
     c.addEventListener('mouseleave', onMouseUp);
 
-    c.addEventListener('touchstart', onTouchStart, { passive: true });
+    c.addEventListener('touchstart', onTouchStart, { passive: false });
     c.addEventListener('touchmove', onTouchMove, { passive: false });
     c.addEventListener('touchend', onTouchEnd);
     c.addEventListener('touchcancel', onTouchCancel);
@@ -264,7 +244,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       strokes.current = [];
       current.current = null;
       drawing.current = false;
-      cancelPendingTouch();
       redraw();
     },
     undo: () => {
@@ -297,7 +276,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         zIndex: 10,
         width: width + 'px',
         height: height + 'px',
-        touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
+        touchAction: mode === 'draw' ? 'none' : 'auto',
         cursor:
           mode === 'draw'
             ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair')
