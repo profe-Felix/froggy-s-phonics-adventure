@@ -41,7 +41,7 @@ function drawStroke(ctx, s, w, h) {
 }
 
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
-  { width, height, color, size, tool, mode = 'draw', onStrokeEnd },
+  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -66,7 +66,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, c.width, c.height);
+
+    // Clear in CSS-pixel space because the context is scaled to DPR.
+    ctx.clearRect(0, 0, width, height);
+
     for (const s of strokes.current) drawStroke(ctx, s, width, height);
     if (current.current) drawStroke(ctx, current.current, width, height);
   };
@@ -103,13 +106,15 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       pts: [p],
     };
     drawing.current = true;
+    onStrokeStart?.();
     redraw();
   };
 
   const finishStroke = () => {
     if (!drawing.current || !current.current) return;
 
-    if (current.current.pts.length > 1) {
+    // Keep even very short strokes/taps.
+    if (current.current.pts.length >= 1) {
       strokes.current.push(current.current);
     }
 
@@ -202,11 +207,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       c.removeEventListener('touchend', onTouchEnd);
       c.removeEventListener('touchcancel', onTouchCancel);
 
-      cancelPendingTouch();
       current.current = null;
       drawing.current = false;
     };
-  }, [mode, color, size, tool, width, height, onStrokeEnd]);
+  }, [mode, color, size, tool, width, height, onStrokeStart, onStrokeEnd]);
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({ strokes: strokes.current }),
@@ -227,9 +231,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
 
       if (sw && sh && !alreadyNormalized) {
-        strokes.current = raw.map(s => ({
+        strokes.current = raw.map((s) => ({
           ...s,
-          pts: s.pts.map(p => ({ ...p, x: p.x / sw, y: p.y / sh }))
+          pts: s.pts.map((p) => ({ ...p, x: p.x / sw, y: p.y / sh })),
         }));
       } else {
         strokes.current = raw;
@@ -237,7 +241,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
       current.current = null;
       drawing.current = false;
-      cancelPendingTouch();
       redraw();
     },
     clearStrokes: () => {
@@ -252,8 +255,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     },
     replayStrokes: (data, onFrame) => {
       const allPts = [];
-      (data?.strokes || []).forEach(s => {
-        s.pts.forEach(p => allPts.push({ ...p, stroke: s }));
+      (data?.strokes || []).forEach((s) => {
+        s.pts.forEach((p) => allPts.push({ ...p, stroke: s }));
       });
       allPts.sort((a, b) => (a.t || 0) - (b.t || 0));
       let i = 0;
@@ -264,7 +267,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         requestAnimationFrame(step);
       };
       step();
-    }
+    },
   }));
 
   return (
