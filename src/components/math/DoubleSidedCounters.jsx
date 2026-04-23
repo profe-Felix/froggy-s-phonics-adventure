@@ -500,19 +500,36 @@ function CounterCanvas({ counters }) {
     return () => { c.removeEventListener('lasso-complete', handler); c.removeEventListener('lasso-clear', clearHandler); };
   }, [drawMode]);
 
-  // Draw canvas — normalized strokes survive resize/rotation
-  useEffect(() => {
-    if (!drawMode || !canvasRef.current) return;
-    const c = canvasRef.current;
+  // Persistent draw canvas — always mounted, container resize re-setups the buffer
+  const setupCanvas = () => {
+    const c = canvasRef.current; if (!c) return null;
     const dpr = window.devicePixelRatio || 1;
-    c.width = c.offsetWidth * dpr; c.height = c.offsetHeight * dpr;
-    const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+    const rect = c.getBoundingClientRect();
+    c.width = rect.width * dpr;
+    c.height = rect.height * dpr;
+    const ctx = c.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    return { ctx, w: rect.width, h: rect.height };
+  };
 
-    const redraw = () => {
-      const cw = c.offsetWidth, ch = c.offsetHeight;
-      drawNormalizedStrokes(ctx, strokesRef.current, cw, ch, eraserMode ? null : currentStroke.current);
-    };
-    redraw();
+  const redrawCanvas = () => {
+    const setup = setupCanvas(); if (!setup) return;
+    const { ctx, w, h } = setup;
+    drawNormalizedStrokes(ctx, strokesRef.current, w, h, eraserMode ? null : currentStroke.current);
+  };
+
+  useEffect(() => { redrawCanvas(); }, [drawMode, eraserMode, strokeCount]);
+
+  useEffect(() => {
+    const el = containerRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => { requestAnimationFrame(() => redrawCanvas()); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const c = canvasRef.current; if (!c) return;
 
     const getPos = (e) => {
       const r = c.getBoundingClientRect();
@@ -520,7 +537,10 @@ function CounterCanvas({ counters }) {
       return { x: (src.clientX - r.left) / r.width, y: (src.clientY - r.top) / r.height };
     };
 
-    const onDown = (e) => { e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)]; };
+    const onDown = (e) => {
+      if (!drawMode) return;
+      e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)];
+    };
     const onMove = (e) => {
       if (!isDrawing.current) return; e.preventDefault();
       currentStroke.current.push(getPos(e));
@@ -529,7 +549,7 @@ function CounterCanvas({ counters }) {
         strokesRef.current = strokesRef.current.filter(s => !s.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 0.05));
         setStrokeCount(n => n);
       }
-      redraw();
+      redrawCanvas();
     };
     const onUp = () => {
       if (!isDrawing.current) return; isDrawing.current = false;
@@ -537,23 +557,14 @@ function CounterCanvas({ counters }) {
         strokesRef.current = [...strokesRef.current, [...currentStroke.current]];
         setStrokeCount(n => n + 1);
       } else { setStrokeCount(n => n + 1); }
-      currentStroke.current = []; redraw();
+      currentStroke.current = []; redrawCanvas();
     };
-
-    const ro = new ResizeObserver(() => {
-      const nw = c.offsetWidth, nh = c.offsetHeight;
-      c.width = nw * dpr; c.height = nh * dpr;
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr);
-      redraw();
-    });
-    ro.observe(c);
 
     c.addEventListener('mousedown', onDown); c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp); c.addEventListener('mouseleave', onUp);
     c.addEventListener('touchstart', onDown, { passive: false }); c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
     return () => {
-      ro.disconnect();
       c.removeEventListener('mousedown', onDown); c.removeEventListener('mousemove', onMove);
       c.removeEventListener('mouseup', onUp); c.removeEventListener('mouseleave', onUp);
       c.removeEventListener('touchstart', onDown); c.removeEventListener('touchmove', onMove);
@@ -616,9 +627,8 @@ function CounterCanvas({ counters }) {
         {/* Lasso canvas sits BEHIND items (zIndex 2) so items get pointer events first */}
         <canvas ref={lassoCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, cursor: 'crosshair', pointerEvents: drawMode ? 'none' : 'auto' }} />
         {drawMode && eraserMode && <EraserCursor />}
-        {drawMode && (
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair' }} />
-        )}
+        {/* Draw canvas — always mounted; pointer-events toggled by drawMode */}
+        <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 20, cursor: eraserMode ? 'none' : 'crosshair', pointerEvents: drawMode ? 'auto' : 'none' }} />
         {strokeCount > 0 && !drawMode && <DrawingDisplay strokes={strokesRef.current} strokeCount={strokeCount} />}
       </div>
     </div>
