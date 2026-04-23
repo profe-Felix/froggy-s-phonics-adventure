@@ -97,20 +97,27 @@ function EraserCursor() {
   return <div style={{ position: 'fixed', left: pos.x - 18, top: pos.y - 18, width: 36, height: 36, borderRadius: '50%', background: 'rgba(150,150,150,0.5)', border: '2px solid #999', pointerEvents: 'none', zIndex: 9999 }} />;
 }
 
+// strokes are stored as normalized {x,y} in [0,1] — multiply by canvas CSS size to draw
+function drawNormalizedStrokes(ctx, strokes, w, h, currentStroke) {
+  ctx.clearRect(0, 0, w, h);
+  const all = [...strokes, ...(currentStroke ? [currentStroke] : [])].filter(s => s && s.length >= 2);
+  all.forEach(pts => {
+    ctx.beginPath(); ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.moveTo(pts[0].x * w, pts[0].y * h);
+    pts.slice(1).forEach(p => ctx.lineTo(p.x * w, p.y * h));
+    ctx.stroke();
+  });
+}
+
 function DrawingDisplay({ strokes, strokeCount }) {
   const ref = useRef(null);
   useEffect(() => {
     const c = ref.current; if (!c) return;
     const dpr = window.devicePixelRatio || 1;
-    c.width = c.offsetWidth * dpr; c.height = c.offsetHeight * dpr;
+    const w = c.offsetWidth, h = c.offsetHeight;
+    c.width = w * dpr; c.height = h * dpr;
     const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    strokes.forEach(pts => {
-      if (pts.length < 2) return;
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-      pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
-    });
+    drawNormalizedStrokes(ctx, strokes, w, h, null);
   }, [strokes, strokeCount]);
   return <canvas ref={ref} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 15, pointerEvents: 'none' }} />;
 }
@@ -318,28 +325,26 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     return () => c.removeEventListener('lasso-complete', handler);
   }, [drawMode]);
 
-  // Draw canvas
+  // Draw canvas — strokes stored as normalized [0,1] coords so they survive resize/rotation
   useEffect(() => {
     if (!drawMode || !canvasRef.current) return;
     const c = canvasRef.current;
     const dpr = window.devicePixelRatio || 1;
-    c.width = c.offsetWidth * dpr; c.height = c.offsetHeight * dpr;
+    const w = c.offsetWidth, h = c.offsetHeight;
+    c.width = w * dpr; c.height = h * dpr;
     const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
 
     const redraw = () => {
-      ctx.clearRect(0, 0, c.offsetWidth, c.offsetHeight);
-      const all = [...strokesRef.current, ...(eraserMode ? [] : [currentStroke.current])].filter(s => s && s.length >= 2);
-      all.forEach(pts => {
-        ctx.beginPath(); ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
-      });
+      const cw = c.offsetWidth, ch = c.offsetHeight;
+      drawNormalizedStrokes(ctx, strokesRef.current, cw, ch, eraserMode ? null : currentStroke.current);
     };
     redraw();
 
     const getPos = (e) => {
       const r = c.getBoundingClientRect();
       const src = e.touches ? e.touches[0] : e;
-      return { x: src.clientX - r.left, y: src.clientY - r.top };
+      // normalize to [0,1]
+      return { x: (src.clientX - r.left) / r.width, y: (src.clientY - r.top) / r.height };
     };
 
     const onDown = (e) => { e.preventDefault(); isDrawing.current = true; currentStroke.current = [getPos(e)]; };
@@ -348,7 +353,8 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       currentStroke.current.push(getPos(e));
       if (eraserMode) {
         const pt = currentStroke.current[currentStroke.current.length - 1];
-        strokesRef.current = strokesRef.current.filter(s => !s.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 18));
+        // eraser comparison also in normalized space
+        strokesRef.current = strokesRef.current.filter(s => !s.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 0.05));
         setStrokeCount(n => n);
       }
       redraw();
@@ -361,11 +367,22 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
       } else { setStrokeCount(n => n + 1); }
       currentStroke.current = []; redraw();
     };
+
+    // Resize handler: re-setup canvas buffer and redraw (strokes survive because they're normalized)
+    const ro = new ResizeObserver(() => {
+      const nw = c.offsetWidth, nh = c.offsetHeight;
+      c.width = nw * dpr; c.height = nh * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(dpr, dpr);
+      redraw();
+    });
+    ro.observe(c);
+
     c.addEventListener('mousedown', onDown); c.addEventListener('mousemove', onMove);
     c.addEventListener('mouseup', onUp); c.addEventListener('mouseleave', onUp);
     c.addEventListener('touchstart', onDown, { passive: false }); c.addEventListener('touchmove', onMove, { passive: false });
     c.addEventListener('touchend', onUp);
     return () => {
+      ro.disconnect();
       c.removeEventListener('mousedown', onDown); c.removeEventListener('mousemove', onMove);
       c.removeEventListener('mouseup', onUp); c.removeEventListener('mouseleave', onUp);
       c.removeEventListener('touchstart', onDown); c.removeEventListener('touchmove', onMove);
