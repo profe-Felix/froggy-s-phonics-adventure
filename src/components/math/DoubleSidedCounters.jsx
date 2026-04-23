@@ -315,6 +315,26 @@ function CounterCanvas({ counters }) {
     setSelectedItemIds(new Set());
   }, [counters]);
 
+  // Clamp all counters into bounds when container resizes (orientation change, zoom)
+  useEffect(() => {
+    const el = containerRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width === 0 || height === 0) return;
+      setItems(prev => {
+        const next = prev.map(it => ({
+          ...it,
+          x: Math.max(0, Math.min(width - COUNTER_R * 2, it.x)),
+          y: Math.max(0, Math.min(height - COUNTER_R * 2, it.y)),
+        }));
+        itemsRef.current = next;
+        return next;
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const moveItem = (id, x, y) => {
     const el = containerRef.current; if (!el) return;
     const { width, height } = el.getBoundingClientRect();

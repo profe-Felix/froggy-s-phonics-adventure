@@ -13,6 +13,7 @@ import RollCompareTeacherLesson from '../components/math/RollCompareTeacherLesso
 import RollCompareStudentLesson from '../components/math/RollCompareStudentLesson';
 import TenFrameCompareTeacherLesson from '../components/math/TenFrameCompareTeacherLesson';
 import TenFrameCompareStudentLesson from '../components/math/TenFrameCompareStudentLesson';
+import TenFrameComparePair from '../components/math/TenFrameComparePair';
 import RollCompareSolo from '../components/math/RollCompareSolo';
 import CountingCollectionSolo from '../components/math/counting/CountingCollectionSolo';
 import CountingCollectionStudentLesson from '../components/math/counting/CountingCollectionStudentLesson';
@@ -359,9 +360,33 @@ export default function MathGames() {
 
   // ── STUDENT VIEW — Ten Frame Compare ──
   if (gameMode === 'tenframecompare') {
+    if (selfPlay === null) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-emerald-400 to-teal-600 flex flex-col items-center justify-center gap-6 p-6">
+          <button onClick={() => setGameMode(null)} className="text-white/80 self-start hover:text-white">← Back</button>
+          <div className="text-5xl">🟦</div>
+          <h2 className="text-2xl font-bold text-white">Ten Frame Compare</h2>
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} onClick={() => setSelfPlay(false)}
+              className="bg-white text-teal-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🏫 Teacher Lesson
+              <span className="text-sm font-normal text-teal-400">Teacher controls the number</span>
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} onClick={() => setSelfPlay(true)}
+              className="bg-white text-teal-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              👫 Play with a Partner
+              <span className="text-sm font-normal text-teal-400">Compare your numbers with a classmate</span>
+            </motion.button>
+          </div>
+        </div>
+      );
+    }
+    if (selfPlay === true) {
+      return <TenFrameComparePair onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
+    }
     return (
       <TenFrameCompareStudentLesson
-        onBack={() => setGameMode(null)}
+        onBack={() => setSelfPlay(null)}
         studentNumber={studentNumber}
         className={selectedClass}
       />

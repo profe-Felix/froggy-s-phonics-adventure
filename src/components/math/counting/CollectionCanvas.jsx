@@ -171,6 +171,26 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     return () => ro.disconnect();
   }, [seed, count]);
 
+  // Clamp all items into bounds when container resizes (orientation change, zoom)
+  useEffect(() => {
+    const el = containerRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width === 0 || height === 0) return;
+      setItems(prev => {
+        const next = prev.map(it => ({
+          ...it,
+          x: Math.max(0, Math.min(width - 36, it.x)),
+          y: Math.max(0, Math.min(height - 36, it.y)),
+        }));
+        itemsRef.current = next;
+        return next;
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const moveItem = (id, x, y) => {
     const el = containerRef.current; if (!el) return;
     const { width, height } = el.getBoundingClientRect();
