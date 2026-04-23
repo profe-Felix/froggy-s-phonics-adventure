@@ -53,21 +53,33 @@ function FrameContainer({ tool, onMove, onRemove }) {
   );
 }
 
-function DraggableItem({ item, onMove, frozen, selected, onGroupDragStart, onGroupDragMove, onGroupDragEnd }) {
+// Items use normalized {nx, ny} in [0,1] — rendered as percentages so they never move on resize
+function DraggableItem({ item, containerRef, onMove, frozen, selected, onGroupDragStart, onGroupDragMove, onGroupDragEnd }) {
   const onPointerDown = (e) => {
     if (frozen) return;
     e.preventDefault();
     e.stopPropagation();
     const mx = e.clientX, my = e.clientY;
     if (selected && onGroupDragStart) {
-      onGroupDragStart(item.id, mx, my);
-      const onMoveEvt = (ev) => onGroupDragMove && onGroupDragMove(ev.clientX - mx, ev.clientY - my);
+      onGroupDragStart(item.id);
+      const onMoveEvt = (ev) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        onGroupDragMove((ev.clientX - mx) / rect.width, (ev.clientY - my) / rect.height);
+      };
       const onUp = () => { onGroupDragEnd && onGroupDragEnd(); document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
       document.addEventListener('pointermove', onMoveEvt);
       document.addEventListener('pointerup', onUp);
     } else {
-      const ox = item.x, oy = item.y;
-      const onMoveEvt = (ev) => onMove(item.id, ox + ev.clientX - mx, oy + ev.clientY - my);
+      const onx = item.nx, ony = item.ny;
+      const onMoveEvt = (ev) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        onMove(item.id,
+          Math.max(0, Math.min(1, onx + (ev.clientX - mx) / rect.width)),
+          Math.max(0, Math.min(1, ony + (ev.clientY - my) / rect.height))
+        );
+      };
       const onUp = () => { document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
       document.addEventListener('pointermove', onMoveEvt);
       document.addEventListener('pointerup', onUp);
@@ -75,7 +87,9 @@ function DraggableItem({ item, onMove, frozen, selected, onGroupDragStart, onGro
   };
   return (
     <div onPointerDown={onPointerDown} style={{
-      position: 'absolute', left: item.x, top: item.y,
+      position: 'absolute',
+      left: `${item.nx * 100}%`,
+      top: `${item.ny * 100}%`,
       transform: `rotate(${item.rotation}deg)`,
       fontSize: 28, cursor: frozen ? 'default' : 'grab',
       touchAction: 'none', zIndex: 10, lineHeight: 1,
@@ -143,27 +157,25 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
   const drawMode = activeTool === 'draw' || activeTool === 'eraser';
   const eraserMode = activeTool === 'eraser';
 
-  // Place items centered in canvas, leaving edges for tools
+  // Place items using normalized [0,1] coords — they stay put on any resize/rotation
   useEffect(() => {
     const el = containerRef.current;
     const doPlace = () => {
       const { width, height } = el.getBoundingClientRect();
       const collection = generateCollection(seed, count);
-      const marginX = Math.min(170, width * 0.22);
-      const marginY = Math.min(60, height * 0.15);
-      const areaX = marginX, areaW = width - marginX * 2 - 36;
-      const areaY = marginY, areaH = height - marginY * 2 - 36;
+      // Keep items away from edges (5% margin each side)
+      const margin = 0.05;
       const placed = [];
-      collection.forEach((item, i) => {
-        let x, y, tries = 0;
+      collection.forEach((item) => {
+        let nx, ny, tries = 0;
+        const itemSizeNX = 36 / width;
+        const itemSizeNY = 36 / height;
         do {
-          x = areaX + Math.random() * Math.max(1, areaW);
-          y = areaY + Math.random() * Math.max(1, areaH);
+          nx = margin + Math.random() * (1 - margin * 2 - itemSizeNX);
+          ny = margin + Math.random() * (1 - margin * 2 - itemSizeNY);
           tries++;
-        } while (tries < 300 && placed.some(p => Math.hypot(p.x - x, p.y - y) < 38));
-        x = Math.max(0, Math.min(width - 36, x));
-        y = Math.max(0, Math.min(height - 36, y));
-        placed.push({ ...item, x, y });
+        } while (tries < 300 && placed.some(p => Math.hypot((p.nx - nx) * width, (p.ny - ny) * height) < 40));
+        placed.push({ ...item, nx: Math.max(0, Math.min(0.95, nx)), ny: Math.max(0, Math.min(0.95, ny)) });
       });
       itemsRef.current = placed;
       setItems(placed);
@@ -172,41 +184,15 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     };
     if (!el) return;
     if (el.clientWidth > 0) { doPlace(); return; }
-    // wait for layout
     const ro = new ResizeObserver(() => { if (el.clientWidth > 0) { ro.disconnect(); doPlace(); } });
     ro.observe(el);
     return () => ro.disconnect();
   }, [seed, count]);
 
-  // Clamp all items into bounds when container resizes (orientation change, zoom)
-  useEffect(() => {
-    const el = containerRef.current; if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const { width, height } = el.getBoundingClientRect();
-      if (width === 0 || height === 0) return;
-      setItems(prev => {
-        const next = prev.map(it => ({
-          ...it,
-          x: Math.max(0, Math.min(width - 36, it.x)),
-          y: Math.max(0, Math.min(height - 36, it.y)),
-        }));
-        itemsRef.current = next;
-        return next;
-      });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const moveItem = (id, x, y) => {
-    const el = containerRef.current; if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
+  // moveItem receives normalized coords directly
+  const moveItem = (id, nx, ny) => {
     setItems(prev => {
-      const next = prev.map(it => it.id === id ? {
-        ...it,
-        x: Math.max(0, Math.min(width - 36, x)),
-        y: Math.max(0, Math.min(height - 36, y)),
-      } : it);
+      const next = prev.map(it => it.id === id ? { ...it, nx, ny } : it);
       itemsRef.current = next;
       return next;
     });
@@ -317,7 +303,12 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
     const handler = (e) => {
       const poly = e.detail?.poly || [];
       if (poly.length < 3) return;
-      const inside = new Set(itemsRef.current.filter(it => pointInPoly(it.x + 14, it.y + 14, poly)).map(it => it.id));
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      // Convert normalized item center to pixel coords for hit-test against lasso (which is in px)
+      const inside = new Set(itemsRef.current.filter(it =>
+        pointInPoly(it.nx * rect.width + 14, it.ny * rect.height + 14, poly)
+      ).map(it => it.id));
       selectedIdsRef.current = inside;
       setSelectedItemIds(new Set(inside));
     };
@@ -446,18 +437,22 @@ export default function CollectionCanvas({ seed, count, onDone, hideButton }) {
             : <FrameContainer key={tool.id} tool={tool} onMove={moveTool} onRemove={removeTool} />
         )}
         {items.map(item => (
-          <DraggableItem key={item.id} item={item} onMove={moveItem}
+          <DraggableItem key={item.id} item={item} containerRef={containerRef} onMove={moveItem}
             frozen={drawMode}
             selected={selectedItemIds.has(item.id)}
             onGroupDragStart={(id) => {
               const group = itemsRef.current.filter(it => selectedIdsRef.current.has(it.id));
-              lassoDragRef.current = { ids: group.map(i => i.id), origPositions: Object.fromEntries(group.map(i => [i.id, { x: i.x, y: i.y }])) };
+              lassoDragRef.current = { ids: group.map(i => i.id), origPositions: Object.fromEntries(group.map(i => [i.id, { nx: i.nx, ny: i.ny }])) };
             }}
-            onGroupDragMove={(dx, dy) => {
+            onGroupDragMove={(dnx, dny) => {
               if (!lassoDragRef.current) return;
               const { ids, origPositions } = lassoDragRef.current;
               setItems(prev => {
-                const next = prev.map(it => ids.includes(it.id) ? { ...it, x: origPositions[it.id].x + dx, y: origPositions[it.id].y + dy } : it);
+                const next = prev.map(it => ids.includes(it.id) ? {
+                  ...it,
+                  nx: Math.max(0, Math.min(0.95, origPositions[it.id].nx + dnx)),
+                  ny: Math.max(0, Math.min(0.95, origPositions[it.id].ny + dny)),
+                } : it);
                 itemsRef.current = next;
                 return next;
               });

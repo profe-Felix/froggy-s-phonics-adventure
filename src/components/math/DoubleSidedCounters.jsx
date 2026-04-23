@@ -75,22 +75,33 @@ function FrameContainer({ tool, onMove, onRemove }) {
   );
 }
 
-// ── Counter item (same drag logic as CollectionCanvas DraggableItem) ──
-function CounterItem({ item, frozen, selected, onMove, onGroupDragStart, onGroupDragMove, onGroupDragEnd }) {
+// ── Counter item — normalized {nx,ny} positions so resize never moves them ──
+function CounterItem({ item, containerRef, frozen, selected, onMove, onGroupDragStart, onGroupDragMove, onGroupDragEnd }) {
   const onPointerDown = (e) => {
     if (frozen) return;
     e.preventDefault();
     e.stopPropagation();
     const mx = e.clientX, my = e.clientY;
     if (selected && onGroupDragStart) {
-      onGroupDragStart(item.id, mx, my);
-      const onMoveEvt = (ev) => onGroupDragMove && onGroupDragMove(ev.clientX - mx, ev.clientY - my);
+      onGroupDragStart(item.id);
+      const onMoveEvt = (ev) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        onGroupDragMove && onGroupDragMove((ev.clientX - mx) / rect.width, (ev.clientY - my) / rect.height);
+      };
       const onUp = () => { onGroupDragEnd && onGroupDragEnd(); document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
       document.addEventListener('pointermove', onMoveEvt);
       document.addEventListener('pointerup', onUp);
     } else {
-      const ox = item.x, oy = item.y;
-      const onMoveEvt = (ev) => onMove(item.id, ox + ev.clientX - mx, oy + ev.clientY - my);
+      const onx = item.nx, ony = item.ny;
+      const onMoveEvt = (ev) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        onMove(item.id,
+          Math.max(0, Math.min(1, onx + (ev.clientX - mx) / rect.width)),
+          Math.max(0, Math.min(1, ony + (ev.clientY - my) / rect.height))
+        );
+      };
       const onUp = () => { document.removeEventListener('pointermove', onMoveEvt); document.removeEventListener('pointerup', onUp); };
       document.addEventListener('pointermove', onMoveEvt);
       document.addEventListener('pointerup', onUp);
@@ -103,7 +114,9 @@ function CounterItem({ item, frozen, selected, onMove, onGroupDragStart, onGroup
   const size = COUNTER_R * 2;
   return (
     <div onPointerDown={onPointerDown} style={{
-      position: 'absolute', left: item.x, top: item.y,
+      position: 'absolute',
+      left: `${item.nx * 100}%`,
+      top: `${item.ny * 100}%`,
       width: size, height: size, borderRadius: '50%',
       background: bg,
       border: `2px solid ${selected ? '#6366f1' : border}`,
@@ -293,64 +306,39 @@ function CounterCanvas({ counters }) {
   const drawMode = activeTool === 'draw' || activeTool === 'eraser';
   const eraserMode = activeTool === 'eraser';
 
-  // Spread counters — random in the center zone (leave edges for tools)
+  // Spread counters using normalized [0,1] coords — survive any resize/rotation
   useEffect(() => {
     const el = containerRef.current; if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    const size = COUNTER_R * 2;
-    // Reserve ~160px on left and right for frames/plates, ~60px top/bottom
-    const marginX = Math.min(160, width * 0.22);
-    const marginY = Math.min(60, height * 0.15);
-    const areaX = marginX, areaW = width - marginX * 2 - size;
-    const areaY = marginY, areaH = height - marginY * 2 - size;
-    const placed = [];
-    counters.forEach((color, i) => {
-      let x, y, tries = 0;
-      do {
-        x = areaX + Math.random() * Math.max(1, areaW);
-        y = areaY + Math.random() * Math.max(1, areaH);
-        tries++;
-      } while (tries < 300 && placed.some(p => Math.hypot(p.x - x, p.y - y) < size + 3));
-      // Clamp to canvas
-      x = Math.max(0, Math.min(width - size, x));
-      y = Math.max(0, Math.min(height - size, y));
-      placed.push({ id: i, color, x, y });
-    });
-    itemsRef.current = placed;
-    setItems(placed);
-    selectedIdsRef.current = new Set();
-    setSelectedItemIds(new Set());
-  }, [counters]);
-
-  // Clamp all counters into bounds when container resizes (orientation change, zoom)
-  useEffect(() => {
-    const el = containerRef.current; if (!el) return;
-    const ro = new ResizeObserver(() => {
+    const doPlace = () => {
       const { width, height } = el.getBoundingClientRect();
-      if (width === 0 || height === 0) return;
-      setItems(prev => {
-        const next = prev.map(it => ({
-          ...it,
-          x: Math.max(0, Math.min(width - COUNTER_R * 2, it.x)),
-          y: Math.max(0, Math.min(height - COUNTER_R * 2, it.y)),
-        }));
-        itemsRef.current = next;
-        return next;
+      const margin = 0.05;
+      const counterNW = (COUNTER_R * 2) / width;
+      const counterNH = (COUNTER_R * 2) / height;
+      const placed = [];
+      counters.forEach((color, i) => {
+        let nx, ny, tries = 0;
+        do {
+          nx = margin + Math.random() * (1 - margin * 2 - counterNW);
+          ny = margin + Math.random() * (1 - margin * 2 - counterNH);
+          tries++;
+        } while (tries < 300 && placed.some(p => Math.hypot((p.nx - nx) * width, (p.ny - ny) * height) < COUNTER_R * 2 + 4));
+        placed.push({ id: i, color, nx: Math.max(0, Math.min(0.95, nx)), ny: Math.max(0, Math.min(0.95, ny)) });
       });
-    });
+      itemsRef.current = placed;
+      setItems(placed);
+      selectedIdsRef.current = new Set();
+      setSelectedItemIds(new Set());
+    };
+    if (el.clientWidth > 0) { doPlace(); return; }
+    const ro = new ResizeObserver(() => { if (el.clientWidth > 0) { ro.disconnect(); doPlace(); } });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [counters]);
 
-  const moveItem = (id, x, y) => {
-    const el = containerRef.current; if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
+  // moveItem receives normalized coords directly
+  const moveItem = (id, nx, ny) => {
     setItems(prev => {
-      const next = prev.map(it => it.id === id ? {
-        ...it,
-        x: Math.max(0, Math.min(width - COUNTER_R * 2, x)),
-        y: Math.max(0, Math.min(height - COUNTER_R * 2, y)),
-      } : it);
+      const next = prev.map(it => it.id === id ? { ...it, nx, ny } : it);
       itemsRef.current = next;
       return next;
     });
@@ -487,7 +475,11 @@ function CounterCanvas({ counters }) {
     const handler = (e) => {
       const poly = e.detail?.poly || [];
       if (poly.length < 3) return;
-      const inside = new Set(itemsRef.current.filter(it => pointInPoly(it.x + COUNTER_R, it.y + COUNTER_R, poly)).map(it => it.id));
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const inside = new Set(itemsRef.current.filter(it =>
+        pointInPoly(it.nx * rect.width + COUNTER_R, it.ny * rect.height + COUNTER_R, poly)
+      ).map(it => it.id));
       selectedIdsRef.current = inside;
       setSelectedItemIds(new Set(inside));
     };
@@ -604,19 +596,21 @@ function CounterCanvas({ counters }) {
             : <FrameContainer key={tool.id} tool={tool} onMove={moveTool} onRemove={removeTool} />
         )}
         {items.map(item => (
-          <CounterItem key={item.id} item={item} frozen={drawMode} selected={selectedItemIds.has(item.id)}
+          <CounterItem key={item.id} item={item} containerRef={containerRef} frozen={drawMode} selected={selectedItemIds.has(item.id)}
             onMove={moveItem}
             onGroupDragStart={(id) => {
-              const curItems = itemsRef.current;
-              const curSel = selectedIdsRef.current;
-              const group = curItems.filter(it => curSel.has(it.id));
-              lassoDragRef.current = { ids: group.map(i => i.id), origPositions: Object.fromEntries(group.map(i => [i.id, { x: i.x, y: i.y }])) };
+              const group = itemsRef.current.filter(it => selectedIdsRef.current.has(it.id));
+              lassoDragRef.current = { ids: group.map(i => i.id), origPositions: Object.fromEntries(group.map(i => [i.id, { nx: i.nx, ny: i.ny }])) };
             }}
-            onGroupDragMove={(dx, dy) => {
+            onGroupDragMove={(dnx, dny) => {
               if (!lassoDragRef.current) return;
               const { ids, origPositions } = lassoDragRef.current;
               setItems(prev => {
-                const next = prev.map(it => ids.includes(it.id) ? { ...it, x: origPositions[it.id].x + dx, y: origPositions[it.id].y + dy } : it);
+                const next = prev.map(it => ids.includes(it.id) ? {
+                  ...it,
+                  nx: Math.max(0, Math.min(0.95, origPositions[it.id].nx + dnx)),
+                  ny: Math.max(0, Math.min(0.95, origPositions[it.id].ny + dny)),
+                } : it);
                 itemsRef.current = next;
                 return next;
               });
