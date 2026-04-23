@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Volume2, Star, Trophy } from 'lucide-react';
+import { Volume2, Trophy } from 'lucide-react';
 
 export default function GameCanvas({ 
   currentLetter, 
@@ -112,10 +112,8 @@ export default function GameCanvas({
           </div>
           {streak > 0 && (
             <div className="flex items-center gap-1">
-              <span className="text-orange-500 font-bold text-sm">🔥 {streak}</span>
-              {Array.from({ length: Math.min(streak, 5) }).map((_, i) => (
-                <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-              ))}
+              <span className="text-2xl">🔥</span>
+              <span className="text-orange-500 font-bold text-xl">{streak}</span>
             </div>
           )}
         </div>

@@ -10,11 +10,13 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const [options, setOptions] = useState([]);
   const [builtWord, setBuiltWord] = useState([]);
   const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
+  const submittingRef = useRef(false);
 
   const modeData = studentData?.mode_progress?.spelling || {
     mastered_items: [],
@@ -29,10 +31,10 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
     const knownWords = allKnown.length > 0 ? allKnown : ['casa', 'gato', 'perro'];
-    
+
     const useKnown = Math.random() < 0.7;
     let targetWord;
-    
+
     if (useKnown) {
       targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];
     } else {
@@ -43,24 +45,25 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     const wordLetters = targetWord.split('');
     const letterCounts = {};
     wordLetters.forEach(l => letterCounts[l] = (letterCounts[l] || 0) + 1);
-    
+
     const neededLetters = [];
     Object.entries(letterCounts).forEach(([letter, count]) => {
       for (let i = 0; i < count; i++) neededLetters.push(letter);
     });
-    
+
     const distractors = DISTRACTOR_LETTERS
       .filter(l => !wordLetters.includes(l))
       .sort(() => Math.random() - 0.5)
       .slice(0, 4);
-    
+
     const allLetters = [...neededLetters, ...distractors].sort(() => Math.random() - 0.5);
-    
+
     setCurrentWord(targetWord);
     setOptions(allLetters.map((letter, idx) => ({ letter, id: idx })));
     setBuiltWord([]);
     setUsedIndices([]);
     setShowResult(false);
+    submittingRef.current = false;
     playSound(targetWord);
   };
 
@@ -69,19 +72,19 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       audioRef.current.pause();
       audioRef.current.onended = null;
     }
-    
+
     if (!preloadedAudio.current[word]) {
       preloadedAudio.current[word] = new Audio(`/spelling-audio/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
     }
-    
+
     audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
-    audioRef.current.play()
-      .catch(err => console.log('Audio play failed:', err));
+    audioRef.current.play().catch(err => console.log('Audio play failed:', err));
   };
 
-  const handleLetterClick = (letterObj, index) => {
+  const handleLetterClick = (letterObj) => {
+    if (showResult) return;
     if (!usedIndices.includes(letterObj.id)) {
       setBuiltWord(prev => [...prev, letterObj.letter]);
       setUsedIndices(prev => [...prev, letterObj.id]);
@@ -89,20 +92,32 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   };
 
   const handleUndo = () => {
+    if (showResult) return;
     setBuiltWord(prev => prev.slice(0, -1));
     setUsedIndices(prev => prev.slice(0, -1));
   };
 
   const handleClear = () => {
+    if (showResult) return;
     setBuiltWord([]);
     setUsedIndices([]);
   };
 
   const handleSubmit = async () => {
+    if (submittingRef.current || showResult) return;
+    submittingRef.current = true;
+
     const userWord = builtWord.join('');
     const correct = userWord === currentWord;
     setIsCorrect(correct);
     setShowResult(true);
+
+    if (correct) {
+      setScore(prev => prev + 1);
+      setStreak(prev => prev + 1);
+    } else {
+      setStreak(0);
+    }
 
     const attempts = { ...modeData.item_attempts };
     const wordStats = attempts[currentWord] || { correct: 0, total: 0 };
@@ -116,15 +131,13 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     if (correct && wordStats.correct / wordStats.total >= 0.8 && wordStats.total >= 3 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
-      
+
       const allKnown = [...updatedMastered, ...updatedLearning];
       const nextWord = SPELLING_WORDS.find(w => !allKnown.includes(w));
       if (nextWord && updatedLearning.length < 5) {
         updatedLearning.push(nextWord);
       }
     }
-
-    if (correct) setScore(prev => prev + 1);
 
     await onUpdateProgress('spelling', {
       mastered_items: updatedMastered,
@@ -137,7 +150,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
     setTimeout(() => {
       generateRound();
-    }, 3000);
+    }, 2000);
   };
 
   useEffect(() => {
@@ -153,7 +166,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
         options={options}
         onAnswer={handleLetterClick}
         score={score}
-        streak={0}
+        streak={streak}
         onPlaySound={() => playSound(currentWord)}
         showFeedback={false}
         isCorrect={false}

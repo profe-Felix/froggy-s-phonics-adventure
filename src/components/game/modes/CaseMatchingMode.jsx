@@ -94,6 +94,13 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
       let updatedMastered = [...(modeData.mastered_items || [])];
       let updatedLearning = [...(modeData.learning_items || [])];
 
+      if (correct) {
+        setScore(prev => prev + 1);
+        setStreak(prev => prev + 1);
+      } else {
+        setStreak(0);
+      }
+
       if (correct && letterStats.correct / letterStats.total >= 0.8 && letterStats.total >= 5 && !updatedMastered.includes(letterBase)) {
         updatedMastered.push(letterBase);
         updatedLearning = updatedLearning.filter(l => l !== letterBase);
