@@ -61,11 +61,15 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const saveTimer = useRef(null);
   const loadedKeyRef = useRef(null);
-  const draftKey = session ? `notebook-draft-${session.id}-${currentPage}` : null;
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const latestSessionRef = useRef(null);
   const isDrawingRef = useRef(false);
+  // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+
+  const draftKey = session ? `notebook-draft-${session.id}-${currentPage}` : null;
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['student-notebook-assignments', className],
@@ -109,7 +113,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       if (a.page_mode === 'locked' && a.locked_page) {
         const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
         if (locked !== currentPage) {
-          await saveStrokes();
+          await saveStrokes(currentPage);
           loadedKeyRef.current = null;
           setCurrentPage(locked);
         }
@@ -227,7 +231,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     }
   }, [currentPage, session?.id, pdfRenderedSize, draftKey]);
 
-  const saveStrokes = useCallback(async () => {
+  const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
 
     if (isDrawingRef.current) {
@@ -243,6 +247,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const activeSession = latestSessionRef.current;
     if (!activeSession) return;
 
+    // Always use the ref so we capture the page that was actually visible when drawn
+    const savePage = pageOverride ?? currentPageRef.current;
+    const saveDraftKey = `notebook-draft-${activeSession.id}-${savePage}`;
+
     saveInFlightRef.current = true;
     setSaving(true);
 
@@ -257,23 +265,21 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       const updated = {
         ...(activeSession.strokes_by_page || {}),
-        [String(currentPage)]: JSON.stringify(payload),
+        [String(savePage)]: JSON.stringify(payload),
       };
 
-      if (draftKey) {
-        localStorage.setItem(draftKey, JSON.stringify(payload));
-      }
+      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
       await base44.entities.NotebookSession.update(activeSession.id, {
         strokes_by_page: updated,
-        current_page: currentPage,
+        current_page: savePage,
         last_active: new Date().toISOString(),
       });
 
       const nextSession = {
         ...activeSession,
         strokes_by_page: updated,
-        current_page: currentPage,
+        current_page: savePage,
         last_active: new Date().toISOString(),
       };
 
@@ -288,7 +294,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         void saveStrokes();
       }
     }
-  }, [currentPage, pdfRenderedSize, canvasSize, draftKey]);
+  }, [pdfRenderedSize, canvasSize]);
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
@@ -361,7 +367,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const goToPage = async (p) => {
     const clamped = Math.max(minPage, Math.min(maxPage, p));
     if (clamped === currentPage) return;
-    await saveStrokes();
+    // Save with the current page explicitly before switching
+    await saveStrokes(currentPage);
     loadedKeyRef.current = null;
     setCurrentPage(clamped);
   };
