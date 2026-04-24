@@ -14,6 +14,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   const [hasBingo, setHasBingo] = useState(false);
   const audioRef = useRef(null);
   const audioCache = useRef({});
+  const notOnCardFiredRef = useRef(false);
 
   const playSound = (item, mode) => {
     const path = mode === 'letter_sounds'
@@ -41,6 +42,7 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   useEffect(() => {
     if (game.current_item) {
       playSound(game.current_item, game.mode);
+      notOnCardFiredRef.current = false;
     }
   }, [game.current_item]);
 
@@ -84,7 +86,8 @@ export default function LiteracyBingoPeerCard({ initialGame, playerNumber, class
   };
 
   const handleNotOnCard = async () => {
-    if (roundDone || amReady) return;
+    if (roundDone || amReady || notOnCardFiredRef.current) return;
+    notOnCardFiredRef.current = true;
     const itemIsOnCard = cells.includes(game.current_item);
     if (itemIsOnCard) {
       const newAttempts = attempts + 1;

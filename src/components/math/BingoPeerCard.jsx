@@ -147,6 +147,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
 
   const handleNotOnCard = async () => {
     if (!game.current_number || respondedNumber === game.current_number || amReady) return;
+    setRespondedNumber(game.current_number); // block spam immediately before awaits
     const numberOnCard = cells.some(c => c === game.current_number);
     if (numberOnCard) {
       // Wrong — it IS on their card, penalize like a wrong tile click

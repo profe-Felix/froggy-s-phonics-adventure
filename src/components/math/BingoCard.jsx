@@ -53,7 +53,7 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
 
   const handleNotOnCard = async () => {
     if (!currentNumber || !gameId || respondedNumber === currentNumber) return;
-    setRespondedNumber(currentNumber);
+    setRespondedNumber(currentNumber); // set immediately to block spam before await
     lastRecordedRef.current = currentNumber;
     const responseTimeMs = calledAtRef.current ? Date.now() - calledAtRef.current : null;
     await base44.entities.MathBingoResponse.create({
