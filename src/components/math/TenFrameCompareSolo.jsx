@@ -157,8 +157,8 @@ function newRound() {
 
 export default function TenFrameCompareSolo({ onBack }) {
   const [round, setRound] = useState(() => newRound());
-  const [enteredNumber, setEnteredNumber] = useState(null);
-  const [sentencePhase, setSentencePhase] = useState(false);
+  const [myEntered, setMyEntered] = useState(null);
+  const [compEntered, setCompEntered] = useState(null);
   const [revealed, setRevealed] = useState(false);
   const [wasCorrect, setWasCorrect] = useState(null);
   const [roundNum, setRoundNum] = useState(1);
@@ -173,6 +173,8 @@ export default function TenFrameCompareSolo({ onBack }) {
   const mySeedBase = useMemo(() => hashString(`my-${myNumber}-${seed}`), [myNumber, seed]);
   const compSeedBase = useMemo(() => hashString(`comp-${compNumber}-${seed}`), [compNumber, seed]);
 
+  const bothEntered = myEntered !== null && compEntered !== null;
+
   const handlePlace = (val) => {
     if (placed) return;
     setPlaced(LABEL_MAP[val]);
@@ -185,8 +187,8 @@ export default function TenFrameCompareSolo({ onBack }) {
 
   const handleNext = () => {
     setRound(newRound());
-    setEnteredNumber(null);
-    setSentencePhase(false);
+    setMyEntered(null);
+    setCompEntered(null);
     setRevealed(false);
     setWasCorrect(null);
     setPlaced(null);
@@ -204,23 +206,41 @@ export default function TenFrameCompareSolo({ onBack }) {
       </div>
 
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', fontSize: 36, fontWeight: 900, color: '#166534', marginBottom: 16 }}>Compare My Number</div>
+        <div style={{ textAlign: 'center', fontSize: 28, fontWeight: 900, color: '#166534', marginBottom: 16 }}>Compare My Number</div>
 
-        {/* Ten frames SIDE BY SIDE */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
-          <DoubleTenFrame value={myNumber} title="My Number" seedBase={mySeedBase} />
-          <DoubleTenFrame value={compNumber} title="Computer's Number" seedBase={compSeedBase} />
+        {/* Ten frames + entry boxes SIDE BY SIDE */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 20, alignItems: 'flex-start' }}>
+          {/* My Number column */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <DoubleTenFrame value={myNumber} title="My Number" seedBase={mySeedBase} />
+            {myEntered === null ? (
+              <NumberEntry onConfirm={(n) => setMyEntered(n)} />
+            ) : (
+              <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 16, padding: '10px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>My Number</div>
+                <div style={{ fontSize: 40, fontWeight: 900, color: '#4f46e5' }}>{myEntered}</div>
+                {!bothEntered && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>✅ Entered</div>}
+              </div>
+            )}
+          </div>
+
+          {/* Computer's Number column */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <DoubleTenFrame value={compNumber} title="Computer's Number" seedBase={compSeedBase} />
+            {compEntered === null ? (
+              <NumberEntry onConfirm={(n) => setCompEntered(n)} />
+            ) : (
+              <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 16, padding: '10px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', marginBottom: 4 }}>Computer's Number</div>
+                <div style={{ fontSize: 40, fontWeight: 900, color: '#4f46e5' }}>{compEntered}</div>
+                {!bothEntered && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>✅ Entered</div>}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Step 1: Write + type my number */}
-        {enteredNumber === null && !sentencePhase && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-            <NumberEntry onConfirm={(n) => { setEnteredNumber(n); setSentencePhase(true); }} />
-          </motion.div>
-        )}
-
-        {/* Step 2: Complete the sentence */}
-        {sentencePhase && !revealed && (
+        {/* Step 2: Complete the sentence — only shown once both entered */}
+        {bothEntered && !revealed && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             style={{ background: '#ffffff', borderRadius: 20, padding: 16, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', maxWidth: 700, margin: '0 auto 20px' }}>
             <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Complete the Sentence</div>
