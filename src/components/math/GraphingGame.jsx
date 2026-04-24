@@ -144,37 +144,56 @@ function NumberChip({ n, onDragStart }) {
 }
 
 // ── Bar graph component ───────────────────────────────────────────
+// Y-axis numbers sit ON the gridlines between rows (0 at baseline, 1 at top of row 1, etc.)
 function BarGraph({ trio, filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxisLabels, onXLabelDrop, feedback, counts }) {
-  const graphRef = useRef(null);
-
-  // Each column: rows 1–10 from bottom
-  // filledCells[colIdx] = Set of row numbers (1-based) that are colored
-  // color palette per column
   const COL_COLORS = ['#ef4444', '#f59e0b', '#3b82f6'];
   const COL_LIGHT = ['#fee2e2', '#fef3c7', '#dbeafe'];
 
+  // We render MAX_ROWS cells. Each cell has height = 1 unit.
+  // Gridline i sits at the top of cell i (0-indexed from bottom), i.e. between row i and row i+1.
+  // We render the grid as a CSS grid with (MAX_ROWS) rows.
+  // The y-axis has (MAX_ROWS+1) slots — one per gridline including baseline (0) and top (MAX_ROWS).
+  // Each slot is centered on its gridline.
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '4px 4px 0 4px' }}>
-      {/* Graph body: y-axis + grid */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Y-axis label slots */}
-        <div style={{ display: 'flex', flexDirection: 'column-reverse', width: 36, flexShrink: 0, gap: 0 }}>
-          {Array.from({ length: MAX_ROWS + 1 }, (_, i) => i).map(row => (
-            <div key={row}
-              data-yrow={row}
-              onClick={() => { if (window.__draggingNumber !== undefined) { onYLabelDrop(row, window.__draggingNumber); } }}
-              style={{
-                flex: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRight: '2px solid #374151',
-                borderTop: row === MAX_ROWS ? '2px solid #374151' : 'none',
-                cursor: 'pointer',
-                background: yAxisLabels[row] !== undefined ? '#eef2ff' : 'transparent',
-                fontSize: 11, fontWeight: 900, color: '#6366f1',
-              }}>
-              {yAxisLabels[row] !== undefined ? yAxisLabels[row] : ''}
-            </div>
-          ))}
+      {/* Graph body */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+
+        {/* Y-axis: number drop slots centered on gridlines */}
+        {/* We use an absolutely positioned overlay so slots align with gridlines of the grid */}
+        <div style={{ width: 38, flexShrink: 0, position: 'relative', borderRight: '2px solid #374151' }}>
+          {/* Slots from 0 (bottom) to MAX_ROWS (top) */}
+          {Array.from({ length: MAX_ROWS + 1 }, (_, i) => i).map(lineNum => {
+            const pct = (lineNum / MAX_ROWS) * 100; // 0% = bottom, 100% = top
+            const val = yAxisLabels[lineNum];
+            return (
+              <div key={lineNum}
+                data-yrow={lineNum}
+                onClick={() => { if (window.__draggingNumber !== undefined) onYLabelDrop(lineNum, window.__draggingNumber); }}
+                style={{
+                  position: 'absolute',
+                  bottom: `${pct}%`,
+                  left: 0, right: 0,
+                  height: 24,
+                  transform: 'translateY(50%)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  zIndex: 5,
+                }}
+              >
+                <div style={{
+                  width: 22, height: 22, borderRadius: 5,
+                  border: val !== undefined ? '2px solid #6366f1' : '2px dashed #94a3b8',
+                  background: val !== undefined ? '#eef2ff' : 'rgba(248,250,252,0.85)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 900, color: '#6366f1',
+                }}>
+                  {val !== undefined ? val : ''}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Grid columns */}
@@ -203,10 +222,10 @@ function BarGraph({ trio, filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxi
       </div>
 
       {/* X-axis border */}
-      <div style={{ height: 2, background: '#374151', margin: '0 0 0 36px' }} />
+      <div style={{ height: 2, background: '#374151', margin: '0 0 0 40px' }} />
 
       {/* X-axis label slots */}
-      <div style={{ display: 'flex', gap: 2, padding: '4px 2px 0 38px' }}>
+      <div style={{ display: 'flex', gap: 2, padding: '4px 2px 0 42px' }}>
         {[0, 1, 2].map(colIdx => {
           const dropped = xAxisLabels[colIdx];
           const fb = feedback?.xAxis?.[colIdx];
@@ -404,22 +423,22 @@ export default function GraphingGame({ onBack }) {
   };
 
   // ── Check graph ────────────────────────────────────────────────
+  // Any order of labels is fine — just check that bar height matches the count for whatever
+  // emoji was placed in that column.
   const checkGraph = () => {
     const xFb = {};
-    for (let col = 0; col < 3; col++) {
-      const placed = xAxisLabels[col];
-      if (!placed) continue;
-      // col 0 = type 0, col 1 = type 1, col 2 = type 2 (correct mapping)
-      xFb[col] = placed.typeIdx === col;
-    }
-    // Bar height check: for each col, correct bar height = counts[typeIdx placed in that col]
     const barFb = {};
     for (let col = 0; col < 3; col++) {
       const placed = xAxisLabels[col];
       if (!placed) continue;
+      // Label is correct as long as no duplicate (each emoji can only appear once)
+      const otherCols = [0, 1, 2].filter(c => c !== col);
+      const isDuplicate = otherCols.some(c => xAxisLabels[c]?.typeIdx === placed.typeIdx);
+      xFb[col] = !isDuplicate;
+      // Bar height must match the count for the emoji placed in this column
       const correctCount = counts[placed.typeIdx];
       const filled = filledCells[col]?.size ?? 0;
-      barFb[col] = filled === correctCount;
+      barFb[col] = filled === correctCount && !isDuplicate;
     }
     setFeedback({ xAxis: xFb, bars: barFb });
     setGraphChecked(true);
@@ -453,22 +472,26 @@ export default function GraphingGame({ onBack }) {
             ))}
           </div>
 
-          {/* Emoji label chips to drag to x-axis */}
+          {/* Emoji label chips — only show ones not yet placed */}
           <div style={{ background: '#fff', borderRadius: 12, padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, marginBottom: 6, textAlign: 'center' }}>DRAG TO GRAPH X-AXIS →</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {trio.map(([emoji, label], typeIdx) => (
-                <div key={typeIdx} onPointerDown={(e) => { e.preventDefault(); startLabelDrag(typeIdx, e.clientX, e.clientY); }}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    background: COL_COLORS[typeIdx] + '22', border: `2px solid ${COL_COLORS[typeIdx]}`,
-                    borderRadius: 10, padding: '6px 10px', cursor: 'grab', touchAction: 'none',
-                    fontSize: 22,
-                  }}>
-                  {emoji}
-                  <span style={{ fontSize: 9, fontWeight: 700, color: COL_COLORS[typeIdx] }}>{label}</span>
-                </div>
-              ))}
+              {trio.map(([emoji, label], typeIdx) => {
+                const alreadyPlaced = Object.values(xAxisLabels).some(v => v?.typeIdx === typeIdx);
+                if (alreadyPlaced) return <div key={typeIdx} style={{ flex: 1, minWidth: 48 }} />;
+                return (
+                  <div key={typeIdx} onPointerDown={(e) => { e.preventDefault(); startLabelDrag(typeIdx, e.clientX, e.clientY); }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      background: COL_COLORS[typeIdx] + '22', border: `2px solid ${COL_COLORS[typeIdx]}`,
+                      borderRadius: 10, padding: '6px 10px', cursor: 'grab', touchAction: 'none',
+                      fontSize: 22,
+                    }}>
+                    {emoji}
+                    <span style={{ fontSize: 9, fontWeight: 700, color: COL_COLORS[typeIdx] }}>{label}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
