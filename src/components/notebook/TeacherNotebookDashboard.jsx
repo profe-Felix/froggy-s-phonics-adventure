@@ -148,6 +148,18 @@ export default function TeacherNotebookDashboard({ onBack }) {
     onSuccess: () => qc.invalidateQueries(['notebook-assignments', className]),
   });
 
+  const extractPageCount = async (file) => {
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      return pdf.numPages;
+    } catch {
+      return null;
+    }
+  };
+
   const handleDrop = async (e) => {
     e.preventDefault();
     setDragging(false);
@@ -155,7 +167,10 @@ export default function TeacherNotebookDashboard({ onBack }) {
     if (!file || file.type !== 'application/pdf') return alert('Please drop a PDF file');
     if (!newTitle.trim()) return alert('Please enter a title first');
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const [{ file_url }, pageCount] = await Promise.all([
+      base44.integrations.Core.UploadFile({ file }),
+      extractPageCount(file),
+    ]);
     await base44.entities.DigitalNotebookAssignment.create({
       title: newTitle.trim(),
       class_name: className,
@@ -163,7 +178,9 @@ export default function TeacherNotebookDashboard({ onBack }) {
       status: 'draft',
       page_mode: 'free',
       page_range_start: 1,
-      page_range_end: 1,
+      page_range_end: pageCount || 1,
+      pdf_page_count: pageCount || 1,
+      page_count: pageCount || 1,
     });
     setNewTitle('');
     setUploading(false);
@@ -279,11 +296,38 @@ export default function TeacherNotebookDashboard({ onBack }) {
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
+                onClick={() => !uploading && document.getElementById('pdf-file-input').click()}
                 className={`h-32 rounded-2xl border-4 border-dashed flex flex-col items-center justify-center gap-2 transition-all cursor-pointer
                   ${dragging ? 'border-indigo-400 bg-indigo-900/30' : 'border-indigo-700 hover:border-indigo-500'}`}>
                 {uploading ? <div className="w-6 h-6 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  : <><span className="text-3xl">📄</span><p className="text-indigo-300 text-sm font-bold">Drop PDF here</p></>}
+                  : <><span className="text-3xl">📄</span><p className="text-indigo-300 text-sm font-bold">Drop PDF here or tap to browse</p></>}
               </div>
+              <input id="pdf-file-input" type="file" accept="application/pdf" className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  if (!newTitle.trim()) return alert('Please enter a title first');
+                  setUploading(true);
+                  const [{ file_url }, pageCount] = await Promise.all([
+                    base44.integrations.Core.UploadFile({ file }),
+                    extractPageCount(file),
+                  ]);
+                  await base44.entities.DigitalNotebookAssignment.create({
+                    title: newTitle.trim(),
+                    class_name: className,
+                    pdf_url: file_url,
+                    status: 'draft',
+                    page_mode: 'free',
+                    page_range_start: 1,
+                    page_range_end: pageCount || 1,
+                    pdf_page_count: pageCount || 1,
+                    page_count: pageCount || 1,
+                  });
+                  setNewTitle('');
+                  setUploading(false);
+                  qc.invalidateQueries(['notebook-assignments', className]);
+                }} />
             </div>
 
             {assignments.map(a => (
