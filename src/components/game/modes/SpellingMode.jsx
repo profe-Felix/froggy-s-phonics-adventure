@@ -150,7 +150,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
     setTimeout(() => {
       generateRound();
-    }, 2000);
+    }, 4000);
   };
 
   useEffect(() => {

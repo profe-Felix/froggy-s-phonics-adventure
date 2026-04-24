@@ -69,9 +69,52 @@ export default function SpellingBuildArea({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`mt-4 text-center text-xl font-bold ${isCorrect ? 'text-green-600' : 'text-red-600'}`}
+          className="mt-4"
         >
-          {isCorrect ? '✅ Correct!' : `❌ Try Again! (${targetWord})`}
+          {isCorrect ? (
+            <div className="text-center text-xl font-bold text-green-600">✅ Correct!</div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-center text-sm font-bold text-red-500 mb-1">❌ Not quite! Here's the correct answer:</div>
+              {/* Student's attempt vs correct answer — letter by letter */}
+              <div className="flex flex-col gap-1 items-center">
+                {/* Student row */}
+                <div className="flex gap-1 items-center">
+                  <span className="text-xs text-gray-400 w-14 text-right mr-1">You:</span>
+                  {targetWord.split('').map((correctLetter, i) => {
+                    const studentLetter = builtWord[i];
+                    const match = studentLetter === correctLetter;
+                    return (
+                      <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                        !studentLetter ? 'bg-gray-100 border-gray-200 text-gray-300' :
+                        match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-600'
+                      }`}>
+                        {studentLetter || '–'}
+                      </div>
+                    );
+                  })}
+                  {/* Extra letters the student typed beyond the word length */}
+                  {builtWord.slice(targetWord.length).map((l, i) => (
+                    <div key={`extra-${i}`} className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
+                  ))}
+                </div>
+                {/* Correct row */}
+                <div className="flex gap-1 items-center">
+                  <span className="text-xs text-gray-400 w-14 text-right mr-1">Correct:</span>
+                  {targetWord.split('').map((letter, i) => {
+                    const match = builtWord[i] === letter;
+                    return (
+                      <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                        match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-green-200 border-green-500 text-green-800'
+                      }`}>
+                        {letter}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
     </div>

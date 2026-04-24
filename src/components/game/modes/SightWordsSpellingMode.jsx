@@ -129,7 +129,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     setShowResult(true);
     if (correct) { setScore(s => s + 1); setStreak(s => s + 1); } else { setStreak(0); }
     await saveProgress(correct);
-    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 2000);
+    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 4000);
   };
 
   const handleUndo = () => { if (showResult) return; setBuiltWord(prev => prev.slice(0, -1)); setUsedIndices(prev => prev.slice(0, -1)); };
@@ -166,7 +166,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     setShowResult(true);
     if (correct) { setScore(s => s + 1); setStreak(s => s + 1); } else { setStreak(0); }
     await saveProgress(correct);
-    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 2000);
+    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 4000);
   };
 
   useEffect(() => { if (!currentWord) generateRound(0); }, []);
