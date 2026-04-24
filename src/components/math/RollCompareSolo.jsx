@@ -421,20 +421,21 @@ export default function RollCompareSolo({ studentNumber, onBack }) {
         </div>
 
         {/* Build both sets — side by side */}
+        {/* Student builds computer's number; computer builds student's number */}
         {bothRolled && (
           <div className="flex gap-3 mb-0">
             <div className="flex-1 min-w-0">
               <BuildSection
-                label="Your number"
-                targetNumber={myRoll}
+                label="Build the computer's cookies"
+                targetNumber={computerRoll}
                 locked={false}
                 onDone={() => setMyBuildDone(true)}
               />
             </div>
             <div className="flex-1 min-w-0">
               <BuildSection
-                label="Computer's number"
-                targetNumber={computerRoll}
+                label="Build your cookies"
+                targetNumber={myRoll}
                 locked={!myBuildDone}
                 onDone={() => setComputerBuildDone(true)}
               />

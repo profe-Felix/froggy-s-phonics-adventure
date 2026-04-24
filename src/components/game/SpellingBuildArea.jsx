@@ -3,6 +3,15 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Undo2, Check, X } from 'lucide-react';
 
+// Count correct letters in sequence (partial credit)
+export function countCorrectLetters(builtWord, targetWord) {
+  let correct = 0;
+  for (let i = 0; i < Math.min(builtWord.length, targetWord.length); i++) {
+    if (builtWord[i] === targetWord[i]) correct++;
+  }
+  return correct;
+}
+
 export default function SpellingBuildArea({ 
   builtWord, 
   targetWord, 
@@ -10,7 +19,9 @@ export default function SpellingBuildArea({
   onSubmit, 
   onClear,
   showResult,
-  isCorrect 
+  isCorrect,
+  onNext,
+  pointsEarned,
 }) {
   return (
     <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 min-w-[400px] max-w-[500px] z-10">
@@ -72,7 +83,10 @@ export default function SpellingBuildArea({
           className="mt-4"
         >
           {isCorrect ? (
-            <div className="text-center text-xl font-bold text-green-600">✅ Correct!</div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-center text-xl font-bold text-green-600">✅ Correct! {pointsEarned != null ? `+${pointsEarned} pts` : ''}</div>
+              {onNext && <button onClick={onNext} className="mt-1 px-6 py-2 bg-green-500 text-white font-bold rounded-xl shadow hover:bg-green-600">Next →</button>}
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <div className="text-center text-sm font-bold text-red-500 mb-1">❌ Not quite! Here's the correct answer:</div>
@@ -113,6 +127,7 @@ export default function SpellingBuildArea({
                   })}
                 </div>
               </div>
+              {onNext && <button onClick={onNext} className="mt-2 px-6 py-2 bg-indigo-500 text-white font-bold rounded-xl shadow hover:bg-indigo-600">Next →</button>}
             </div>
           )}
         </motion.div>

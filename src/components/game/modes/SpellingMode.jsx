@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
-import SpellingBuildArea from '../SpellingBuildArea';
+import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import { SPELLING_WORDS } from '../../data/spellingWords';
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
@@ -14,6 +14,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
+  const [pointsEarned, setPointsEarned] = useState(0);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
   const submittingRef = useRef(false);
@@ -63,6 +64,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     setBuiltWord([]);
     setUsedIndices([]);
     setShowResult(false);
+    setPointsEarned(0);
     submittingRef.current = false;
     playSound(targetWord);
   };
@@ -109,13 +111,16 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
     const userWord = builtWord.join('');
     const correct = userWord === currentWord;
+    const pts = countCorrectLetters(builtWord, currentWord);
     setIsCorrect(correct);
     setShowResult(true);
+    setPointsEarned(pts);
 
     if (correct) {
-      setScore(prev => prev + 1);
+      setScore(prev => prev + pts);
       setStreak(prev => prev + 1);
     } else {
+      setScore(prev => prev + pts);
       setStreak(0);
     }
 
@@ -147,10 +152,6 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       total_attempts: (modeData.total_attempts || 0) + 1,
       unlocked: true
     });
-
-    setTimeout(() => {
-      generateRound();
-    }, 4000);
   };
 
   useEffect(() => {
@@ -181,6 +182,8 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
         onClear={handleClear}
         showResult={showResult}
         isCorrect={isCorrect}
+        onNext={showResult ? generateRound : undefined}
+        pointsEarned={pointsEarned}
       />
     </>
   );

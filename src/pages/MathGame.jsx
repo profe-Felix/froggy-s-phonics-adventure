@@ -14,6 +14,7 @@ import RollCompareStudentLesson from '../components/math/RollCompareStudentLesso
 import TenFrameCompareTeacherLesson from '../components/math/TenFrameCompareTeacherLesson';
 import TenFrameCompareStudentLesson from '../components/math/TenFrameCompareStudentLesson';
 import TenFrameComparePair from '../components/math/TenFrameComparePair';
+import TenFrameCompareSolo from '../components/math/TenFrameCompareSolo';
 import RollCompareSolo from '../components/math/RollCompareSolo';
 import CountingCollectionSolo from '../components/math/counting/CountingCollectionSolo';
 import CountingCollectionStudentLesson from '../components/math/counting/CountingCollectionStudentLesson';
@@ -390,10 +391,16 @@ export default function MathGames() {
               👫 Play with a Partner
               <span className="text-sm font-normal text-teal-400">Compare your numbers with a classmate</span>
             </motion.button>
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} onClick={() => setSelfPlay('solo')}
+              className="bg-white text-teal-700 font-bold text-xl py-6 rounded-2xl shadow-lg flex flex-col items-center gap-1">
+              🎮 Solo Practice
+              <span className="text-sm font-normal text-teal-400">Practice against the computer</span>
+            </motion.button>
           </div>
         </div>
       );
     }
+    if (selfPlay === 'solo') return <TenFrameCompareSolo onBack={() => setSelfPlay(null)} />;
     if (selfPlay === true) {
       return <TenFrameComparePair onBack={() => setSelfPlay(null)} studentNumber={studentNumber} className={selectedClass} />;
     }

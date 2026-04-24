@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
-import SpellingBuildArea from '../SpellingBuildArea';
+import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import { SIGHT_WORDS_SPELLING } from '../../data/sightWords';
 
 const SIGHT_WORDS = SIGHT_WORDS_SPELLING;
@@ -23,6 +23,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
+  const [pointsEarned, setPointsEarned] = useState(0);
   const [challengeType, setChallengeType] = useState('spell');
   const [missingIdx, setMissingIdx] = useState(null);
   const [roundCount, setRoundCount] = useState(0);
@@ -97,9 +98,10 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
     setCurrentWord(targetWord);
     setOptions(allLetters.map((letter, idx) => ({ letter, id: idx })));
-    setBuiltWord(type === 'missing' ? [] : []);
+    setBuiltWord([]);
     setUsedIndices([]);
     setShowResult(false);
+    setPointsEarned(0);
     submittingRef.current = false;
     playSound(targetWord);
   };
@@ -125,11 +127,18 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     if (submittingRef.current) return;
     submittingRef.current = true;
     const correct = chosen === currentWord[missingIdx];
+    const pts = correct ? 1 : 0;
     setIsCorrect(correct);
     setShowResult(true);
-    if (correct) { setScore(s => s + 1); setStreak(s => s + 1); } else { setStreak(0); }
+    setPointsEarned(pts);
+    if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setStreak(0); }
     await saveProgress(correct);
-    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 4000);
+  };
+
+  const handleNext = () => {
+    const next = roundCount + 1;
+    setRoundCount(next);
+    generateRound(next);
   };
 
   const handleUndo = () => { if (showResult) return; setBuiltWord(prev => prev.slice(0, -1)); setUsedIndices(prev => prev.slice(0, -1)); };
@@ -162,11 +171,12 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     submittingRef.current = true;
     const userWord = builtWord.join('');
     const correct = userWord === currentWord;
+    const pts = countCorrectLetters(builtWord, currentWord);
     setIsCorrect(correct);
     setShowResult(true);
-    if (correct) { setScore(s => s + 1); setStreak(s => s + 1); } else { setStreak(0); }
+    setPointsEarned(pts);
+    if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setScore(s => s + pts); setStreak(0); }
     await saveProgress(correct);
-    setTimeout(() => { const next = roundCount + 1; setRoundCount(next); generateRound(next); }, 4000);
   };
 
   useEffect(() => { if (!currentWord) generateRound(0); }, []);
@@ -220,12 +230,15 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
           onClear={handleClear}
           showResult={showResult}
           isCorrect={isCorrect}
+          onNext={showResult ? handleNext : undefined}
+          pointsEarned={pointsEarned}
         />
       )}
 
       {challengeType === 'missing' && showResult && (
-        <div className={`mx-4 rounded-xl px-4 py-3 text-center font-bold text-lg ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-          {isCorrect ? '✅ Correct!' : `❌ It was "${currentWord[missingIdx]}"`}
+        <div className={`mx-4 rounded-xl px-4 py-3 text-center font-bold text-lg flex flex-col items-center gap-2 ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          <span>{isCorrect ? `✅ Correct! +${pointsEarned} pts` : `❌ It was "${currentWord[missingIdx]}"`}</span>
+          <button onClick={handleNext} className="px-6 py-2 bg-indigo-500 text-white font-bold rounded-xl shadow text-base hover:bg-indigo-600">Next →</button>
         </div>
       )}
     </>
