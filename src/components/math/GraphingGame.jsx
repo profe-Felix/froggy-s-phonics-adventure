@@ -423,22 +423,20 @@ export default function GraphingGame({ onBack }) {
   };
 
   // ── Check graph ────────────────────────────────────────────────
-  // Any order of labels is fine — just check that bar height matches the count for whatever
-  // emoji was placed in that column.
+  // Only check bar height vs the count for whatever emoji is in that column.
+  // X-axis label order doesn't matter — always show ✓ for the label.
+  const allXAxisFilled = [0, 1, 2].every(col => xAxisLabels[col]);
+
   const checkGraph = () => {
     const xFb = {};
     const barFb = {};
     for (let col = 0; col < 3; col++) {
       const placed = xAxisLabels[col];
       if (!placed) continue;
-      // Label is correct as long as no duplicate (each emoji can only appear once)
-      const otherCols = [0, 1, 2].filter(c => c !== col);
-      const isDuplicate = otherCols.some(c => xAxisLabels[c]?.typeIdx === placed.typeIdx);
-      xFb[col] = !isDuplicate;
-      // Bar height must match the count for the emoji placed in this column
+      xFb[col] = true; // label order doesn't matter
       const correctCount = counts[placed.typeIdx];
       const filled = filledCells[col]?.size ?? 0;
-      barFb[col] = filled === correctCount && !isDuplicate;
+      barFb[col] = filled === correctCount;
     }
     setFeedback({ xAxis: xFb, bars: barFb });
     setGraphChecked(true);
@@ -526,19 +524,18 @@ export default function GraphingGame({ onBack }) {
           {/* Check / feedback */}
           <div style={{ background: '#fff', borderRadius: 12, padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             {!graphChecked ? (
-              <button onClick={checkGraph}
-                style={{ width: '100%', padding: '10px 0', background: '#16a34a', color: 'white', fontWeight: 900, fontSize: 14, borderRadius: 10, border: 'none', cursor: 'pointer' }}>
-                ✓ Check My Graph
+              <button onClick={checkGraph} disabled={!allXAxisFilled}
+                style={{ width: '100%', padding: '10px 0', background: allXAxisFilled ? '#16a34a' : '#94a3b8', color: 'white', fontWeight: 900, fontSize: 14, borderRadius: 10, border: 'none', cursor: allXAxisFilled ? 'pointer' : 'not-allowed', opacity: allXAxisFilled ? 1 : 0.7 }}>
+                {allXAxisFilled ? '✓ Check My Graph' : 'Drag all 3 labels to x-axis first'}
               </button>
             ) : (
               <div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                   {[0, 1, 2].map(col => {
-                    const xOk = feedback?.xAxis?.[col];
                     const barOk = feedback?.bars?.[col];
                     const placed = xAxisLabels[col];
                     if (!placed) return <div key={col} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: '#94a3b8' }}>—</div>;
-                    const allOk = xOk && barOk;
+                    const allOk = barOk;
                     return (
                       <div key={col} style={{ flex: 1, textAlign: 'center', padding: '4px 2px', borderRadius: 8, background: allOk ? '#dcfce7' : '#fee2e2', border: `2px solid ${allOk ? '#22c55e' : '#ef4444'}` }}>
                         <div style={{ fontSize: 18 }}>{placed.emoji}</div>
