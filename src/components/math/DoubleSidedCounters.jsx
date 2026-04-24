@@ -718,14 +718,22 @@ function SentencePhase({ redCount, yellowCount, attempts, onAttempt, onNewRound 
 
   const handlePlace = (value) => {
     if (placed) return;
-    const correct = value === CORRECT_VALUE;
+    const isCorrect = value === CORRECT_VALUE;
     setPlaced(LABEL_MAP[value]);
-    setResult(correct ? 'correct' : 'wrong');
-    onAttempt(attempts + 1, correct);
+    setResult(isCorrect ? 'correct' : 'wrong');
+    // Play audio sequence
+    Promise.all([`/numbers-audio/${redCount}.mp3`, `/audio/${CORRECT_VALUE}.mp3`, `/numbers-audio/${yellowCount}.mp3`]
+      .map(src => fetch(src).then(r => r.blob()).then(b => URL.createObjectURL(b))))
+      .then(urls => {
+        let i = 0;
+        const next = () => { if (i >= urls.length) return; const url = urls[i++]; const a = new Audio(url); a.onended = () => { URL.revokeObjectURL(url); next(); }; a.play().catch(next); };
+        next();
+      }).catch(() => {});
+    onAttempt(attempts + 1, isCorrect);
   };
 
   const submitted = !!placed;
-  const showAnswer = result === 'wrong' && attempts >= 2;
+  const showAnswer = result === 'wrong';
 
   return (
     <div className="flex flex-col items-center gap-2 bg-white rounded-2xl px-3 py-3 shadow-lg mx-2 mb-2">
@@ -795,6 +803,7 @@ export default function DoubleSidedCounters({ onBack }) {
   const [yellowInput, setYellowInput] = useState(null);
   const [countSubmitted, setCountSubmitted] = useState(false);
   const [countFeedback, setCountFeedback] = useState(null);
+  const [countAttempts, setCountAttempts] = useState(0); // how many times they tried counting
   const [sentenceAttempts, setSentenceAttempts] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -811,6 +820,7 @@ export default function DoubleSidedCounters({ onBack }) {
     setSpilled(false);
     setCountSubmitted(false);
     setCountFeedback(null);
+    setCountAttempts(0);
     setRedInput(null);
     setYellowInput(null);
     setSentenceAttempts(0);
@@ -820,15 +830,31 @@ export default function DoubleSidedCounters({ onBack }) {
   const handleCheckCount = () => {
     const redOk = redInput === actualRed;
     const yellowOk = yellowInput === actualYellow;
-    setCountFeedback({ redOk, yellowOk });
-    setCountSubmitted(true);
-    if (!redOk || !yellowOk) setStreak(0);
+    const newAttempts = countAttempts + 1;
+    setCountAttempts(newAttempts);
+    if (redOk && yellowOk) {
+      setCountFeedback({ redOk: true, yellowOk: true, showAnswer: false });
+      setCountSubmitted(true);
+    } else {
+      // On 3rd attempt: auto-fill correct answers and lock
+      if (newAttempts >= 3) {
+        setRedInput(actualRed);
+        setYellowInput(actualYellow);
+        setCountFeedback({ redOk: false, yellowOk: false, autoFilled: true, showAnswer: true });
+        setCountSubmitted(true);
+        setStreak(0);
+      } else {
+        // 1st or 2nd miss: show message, let try again WITHOUT showing answer
+        setCountFeedback({ redOk, yellowOk, showAnswer: false });
+        setCountSubmitted(true);
+        setStreak(0);
+      }
+    }
   };
 
   const handleFixCount = () => {
-    // Allow student to correct wrong answers — keep correct ones locked
-    if (countFeedback?.redOk) { /* keep red locked */ } else { setRedInput(null); }
-    if (countFeedback?.yellowOk) { /* keep yellow locked */ } else { setYellowInput(null); }
+    if (!countFeedback?.redOk) setRedInput(null);
+    if (!countFeedback?.yellowOk) setYellowInput(null);
     setCountSubmitted(false);
     setCountFeedback(null);
   };
@@ -882,7 +908,7 @@ export default function DoubleSidedCounters({ onBack }) {
                 <DigitPad value={redInput} onChange={setRedInput} color="#dc2626" />
                 {countSubmitted && (
                   <span className={`text-xs font-bold ${countFeedback?.redOk ? 'text-green-600' : 'text-red-500'}`}>
-                    {countFeedback?.redOk ? '✅' : `Ans: ${actualRed}`}
+                    {countFeedback?.redOk ? '✅' : countFeedback?.showAnswer ? `✓ ${actualRed}` : '❌'}
                   </span>
                 )}
               </div>
@@ -902,7 +928,7 @@ export default function DoubleSidedCounters({ onBack }) {
                 <DigitPad value={yellowInput} onChange={setYellowInput} color="#ca8a04" />
                 {countSubmitted && (
                   <span className={`text-xs font-bold ${countFeedback?.yellowOk ? 'text-green-600' : 'text-red-500'}`}>
-                    {countFeedback?.yellowOk ? '✅' : `Ans: ${actualYellow}`}
+                    {countFeedback?.yellowOk ? '✅' : countFeedback?.showAnswer ? `✓ ${actualYellow}` : '❌'}
                   </span>
                 )}
               </div>
@@ -917,23 +943,27 @@ export default function DoubleSidedCounters({ onBack }) {
                   ✅ Check My Count
                 </button>
               )}
-              {countSubmitted && countFeedback && !(countFeedback.redOk && countFeedback.yellowOk) && (
+              {countSubmitted && countFeedback && !(countFeedback.redOk && countFeedback.yellowOk) && !countFeedback.autoFilled && (
                 <div className="flex flex-col items-center gap-1">
                   <p className="text-sm font-black text-red-600">
                     {!countFeedback.redOk && !countFeedback.yellowOk ? '❌ Both counts are wrong — try again!' :
-                     !countFeedback.redOk ? '❌ Red count is wrong — fix it!' :
-                     '❌ Yellow count is wrong — fix it!'}
+                     !countFeedback.redOk ? '❌ Red count is wrong — try again!' :
+                     '❌ Yellow count is wrong — try again!'}
                   </p>
+                  <p className="text-xs text-gray-400">Attempt {countAttempts} of 3</p>
                   <button onClick={handleFixCount}
                     className="px-5 py-2 rounded-xl font-black text-white text-sm"
                     style={{ background: '#ea580c' }}>
-                    ✏️ Fix My Count
+                    ✏️ Try Again
                   </button>
                 </div>
               )}
+              {countSubmitted && countFeedback?.autoFilled && (
+                <p className="text-sm font-black text-orange-600 text-center">Correct answers filled in — let's move on!</p>
+              )}
             </div>
             {/* Sentence phase only shows once both counts are correct */}
-            {countSubmitted && countFeedback?.redOk && countFeedback?.yellowOk && (
+            {countSubmitted && (countFeedback?.redOk && countFeedback?.yellowOk || countFeedback?.autoFilled) && (
               <SentencePhase
                 redCount={actualRed}
                 yellowCount={actualYellow}
@@ -941,7 +971,8 @@ export default function DoubleSidedCounters({ onBack }) {
                 onAttempt={(newAttempts, correct) => {
                   setSentenceAttempts(newAttempts);
                   if (correct) {
-                    const pts = newAttempts === 1 ? 10 : newAttempts === 2 ? 5 : 0;
+                    // 0 pts if count was auto-filled; 10 pts 1st attempt, 5 pts 2nd
+                    const pts = countFeedback?.autoFilled ? 0 : newAttempts === 1 ? 10 : 5;
                     if (pts > 0) setTotalPoints(p => p + pts);
                     setStreak(s => s + 1);
                   } else {
