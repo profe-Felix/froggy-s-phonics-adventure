@@ -20,6 +20,7 @@ import CountingCollectionStudentLesson from '../components/math/counting/Countin
 import CountingCollectionPartner from '../components/math/counting/CountingCollectionPartner';
 import CountingCollectionTeacherDash from '../components/math/counting/CountingCollectionTeacherDash';
 import DoubleSidedCounters from '../components/math/DoubleSidedCounters';
+import GraphingGame from '../components/math/GraphingGame';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 
@@ -241,6 +242,13 @@ export default function MathGames() {
         icon: '🟡',
         color: 'from-red-400 to-amber-500',
       },
+      {
+        id: 'graphing',
+        title: 'Graphing',
+        description: 'Count objects, sort them, and make a bar graph!',
+        icon: '📊',
+        color: 'from-green-400 to-emerald-600',
+      },
     ];
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 p-8">
@@ -287,6 +295,11 @@ export default function MathGames() {
   // ── STUDENT VIEW — Double-Sided Counters ──
   if (gameMode === 'doublesided') {
     return <DoubleSidedCounters onBack={() => setGameMode(null)} />;
+  }
+
+  // ── STUDENT VIEW — Graphing ──
+  if (gameMode === 'graphing') {
+    return <GraphingGame onBack={() => setGameMode(null)} />;
   }
 
   // ── STUDENT VIEW — Count Collections ──

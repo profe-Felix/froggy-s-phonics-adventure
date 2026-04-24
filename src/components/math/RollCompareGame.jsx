@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 import BuildCheckOverlay from './BuildCheckOverlay';
+import SimpleWritingCanvas from './SimpleWritingCanvas';
 
 // ── Cookie SVG ────────────────────────────────────────────────────
 function Cookie({ size = 28 }) {
@@ -244,6 +245,11 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
   const [builtSubmitted, setBuiltSubmitted] = useState(false);
   const [buildWrong, setBuildWrong] = useState(false);
   const dropRef = useRef(null);
+  // Writing canvas state — persists throughout round
+  const [myDrawnUrl, setMyDrawnUrl] = useState(null);
+  const [theirDrawnUrl, setTheirDrawnUrl] = useState(null);
+  const [myTyped, setMyTyped] = useState(null);
+  const [theirTyped, setTheirTyped] = useState(null);
 
   const roundNum = game.round_number || 1;
 
@@ -256,6 +262,10 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
     setResult(null);
     setBuiltSubmitted(false);
     setBuildWrong(false);
+    setMyDrawnUrl(null);
+    setTheirDrawnUrl(null);
+    setMyTyped(null);
+    setTheirTyped(null);
   }, [roundNum]);
 
   const isPlayer1 = game.player1_number === studentNumber;
@@ -364,6 +374,64 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
         </motion.div>
       )}
 
+      {/* Writing panels — always shown once both rolled, side by side */}
+      {bothRolled && (
+        <div className="flex gap-3 mb-4">
+          {/* My panel */}
+          <div className="flex-1 bg-white rounded-2xl p-3 shadow-lg flex flex-col gap-2">
+            <p className="text-xs font-bold text-amber-700 text-center uppercase">You #{studentNumber}</p>
+            {myDrawnUrl ? (
+              <img src={myDrawnUrl} alt="written" className="rounded-lg border border-amber-200" style={{ height: 64, objectFit: 'contain', background: '#fffbeb' }} />
+            ) : (
+              <SimpleWritingCanvas onDone={(_, url) => setMyDrawnUrl(url)} />
+            )}
+            {/* Digit pad */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-xl border-2 border-amber-500 flex items-center justify-center text-xl font-black text-amber-700">
+                {myTyped ?? '?'}
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {[0,1,2,3,4,5,6,7,8,9].map(d => (
+                  <button key={d} onClick={() => { const next = (myTyped ?? 0) * 10 + d; if (next <= 99) setMyTyped(next); }}
+                    disabled={(myTyped ?? '').toString().length >= 2}
+                    className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800 disabled:opacity-40">
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setMyTyped(myTyped !== null && myTyped >= 10 ? Math.floor(myTyped / 10) : null)}
+                className="text-xs text-red-400 font-bold">⌫</button>
+            </div>
+          </div>
+
+          {/* Their panel */}
+          <div className="flex-1 bg-white rounded-2xl p-3 shadow-lg flex flex-col gap-2">
+            <p className="text-xs font-bold text-orange-700 text-center uppercase">Partner #{partnerNumber}</p>
+            {theirDrawnUrl ? (
+              <img src={theirDrawnUrl} alt="written" className="rounded-lg border border-orange-200" style={{ height: 64, objectFit: 'contain', background: '#fff7ed' }} />
+            ) : (
+              <SimpleWritingCanvas onDone={(_, url) => setTheirDrawnUrl(url)} />
+            )}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-xl border-2 border-orange-500 flex items-center justify-center text-xl font-black text-orange-700">
+                {theirTyped ?? '?'}
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {[0,1,2,3,4,5,6,7,8,9].map(d => (
+                  <button key={d} onClick={() => { const next = (theirTyped ?? 0) * 10 + d; if (next <= 99) setTheirTyped(next); }}
+                    disabled={(theirTyped ?? '').toString().length >= 2}
+                    className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 text-xs font-bold text-orange-800 disabled:opacity-40">
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setTheirTyped(theirTyped !== null && theirTyped >= 10 ? Math.floor(theirTyped / 10) : null)}
+                className="text-xs text-red-400 font-bold">⌫</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Build + Compare phase */}
       <AnimatePresence>
         {bothRolled && !result && (
@@ -375,7 +443,6 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
               <>
                 <div className="flex flex-col gap-4 mb-4">
                   <div>
-                    <p className="text-xs font-bold text-amber-700 mb-2">Your number: {storedMyRoll}</p>
                     <DoubleTenFrame count={builtCount} onChange={builtSubmitted ? undefined : setBuiltCount} />
                   </div>
                 </div>
@@ -392,7 +459,6 @@ function GameView({ game, studentNumber, onLeave, refetch }) {
                       <DragWord label="is less than" value="is_less_than" dropped={!!placed} selected={selected === 'is_less_than'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
                       <DragWord label="is equal to" value="is_equal_to" dropped={!!placed} selected={selected === 'is_equal_to'} onSelect={setSelected} onDrop={(v) => { handlePlace(v); setSelected(null); }} dropRef={dropRef} />
                     </div>
-                    <p className="text-center text-xs text-gray-400 mt-3">Tap a word to hear it · tap again or the blank to place it</p>
                   </div>
                 ) : (
                   <div className="flex justify-end mt-3">

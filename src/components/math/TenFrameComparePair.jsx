@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
-// ── seeded RNG (same as TenFrameCompareStudentLesson) ──
+// ── seeded RNG ──────────────────────────────────────────────────
 function hashString(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -19,9 +19,6 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function seededInt(seedStr, min, max) {
-  return Math.floor(mulberry32(hashString(seedStr))() * (max - min + 1)) + min;
-}
 function seededShuffle(arr, seed) {
   const a = [...arr]; let s = seed >>> 0;
   for (let i = a.length - 1; i > 0; i--) {
@@ -31,17 +28,19 @@ function seededShuffle(arr, seed) {
   }
   return a;
 }
+function randomNum() { return Math.floor(Math.random() * 21); }
+function randomSeed() { return Math.floor(Math.random() * 999999); }
 
-// ── Ten Frame display ──
+// ── Ten Frame display ───────────────────────────────────────────
 function Frame10({ value, seed }) {
   const positions = Array.from({ length: 10 }, (_, i) => i);
   const shuffled = seededShuffle(positions, seed);
   const filled = new Set(shuffled.slice(0, value));
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, border: '3px solid #1f2937', borderRadius: 10, padding: 6, background: '#fff' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, border: '3px solid #1f2937', borderRadius: 10, padding: 5, background: '#fff' }}>
       {positions.map(i => (
-        <div key={i} style={{ width: 36, height: 36, border: '2px solid #9ca3af', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, boxSizing: 'border-box' }}>
-          {filled.has(i) && <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#111827' }} />}
+        <div key={i} style={{ width: 30, height: 30, border: '2px solid #9ca3af', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6 }}>
+          {filled.has(i) && <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#111827' }} />}
         </div>
       ))}
     </div>
@@ -50,112 +49,99 @@ function Frame10({ value, seed }) {
 
 function DoubleTenFrame({ value, seedBase }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
       <Frame10 value={Math.min(value, 10)} seed={seedBase + 11} />
       <Frame10 value={Math.max(0, value - 10)} seed={seedBase + 29} />
     </div>
   );
 }
 
-// ── DIGIT PAD (same as BuildSection in RollCompareSolo) ──
+// ── Digit pad ───────────────────────────────────────────────────
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-function DigitEntry({ targetNumber, label, locked, onDone }) {
-  const [step, setStep] = useState('write'); // write | type | done
-  const [drawnUrl, setDrawnUrl] = useState(null);
-  const [typed, setTyped] = useState('');
-
-  const handleCanvasDone = (strokes, url) => { setDrawnUrl(url); setStep('type'); setTyped(''); };
-  const handleDigit = (d) => { if (typed.length < 2) setTyped(t => t + String(d)); };
-  const handleUndo = () => setTyped(t => t.slice(0, -1));
-  const handleTypeSubmit = () => {
-    if (parseInt(typed) === targetNumber) { setStep('done'); onDone(); }
-    else { setStep('write'); setDrawnUrl(null); setTyped(''); }
-  };
-
+function DigitPad({ value, onChange, color = '#4f46e5' }) {
   return (
-    <div className={`bg-white rounded-2xl p-4 shadow-lg ${locked ? 'opacity-50 pointer-events-none' : ''}`}>
-      <p className="text-xs font-bold text-gray-400 uppercase mb-2">{label} — write {targetNumber}</p>
-
-      {step === 'write' && <SimpleWritingCanvas onDone={handleCanvasDone} />}
-
-      {step === 'type' && drawnUrl && (
-        <>
-          <img src={drawnUrl} alt="written" className="rounded-xl border-2 border-indigo-200 w-full mb-3" style={{ height: 80, objectFit: 'contain', background: '#f8fbff' }} />
-          <p className="text-xs font-bold text-gray-400 text-center mb-2">Now type it:</p>
-          <div className={`w-14 h-14 rounded-2xl border-4 flex items-center justify-center text-2xl font-bold mx-auto mb-2
-            ${typed ? 'border-sky-400 bg-white text-sky-700' : 'border-dashed border-sky-300 bg-sky-50 text-sky-200'}`}>
-            {typed || '?'}
-          </div>
-          <div className="grid grid-cols-5 gap-1 mb-2">
-            {DIGITS.map(d => (
-              <motion.button key={d} whileTap={{ scale: 0.85 }}
-                onClick={() => handleDigit(d)} disabled={typed.length >= 2}
-                className="h-9 rounded-xl bg-white shadow text-base font-bold text-indigo-700 border-2 border-indigo-200 disabled:opacity-40">
-                {d}
-              </motion.button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleUndo} disabled={!typed}
-              className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold disabled:opacity-30">⌫</button>
-            <button onClick={handleTypeSubmit} disabled={!typed}
-              className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-30">✓</button>
-          </div>
-        </>
-      )}
-
-      {step === 'done' && (
-        <div className="flex flex-col items-center gap-1 text-green-600 font-bold mt-2">
-          <span className="text-3xl">✅</span>
-          <span>{targetNumber} — done!</span>
-        </div>
-      )}
+    <div className="flex flex-col items-center gap-1">
+      <div style={{
+        width: 48, height: 48, borderRadius: 12, border: `3px solid ${color}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 22, fontWeight: 900, color,
+      }}>
+        {value ?? '?'}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
+        {DIGITS.map(d => (
+          <button key={d} onClick={() => { const next = (value ?? 0) * 10 + d; if (next <= 99) onChange(next); }}
+            disabled={(value ?? '').toString().length >= 2}
+            style={{
+              width: 30, height: 30, borderRadius: 8, border: '1px solid #e2e8f0',
+              background: '#f8fafc', color: '#334155', fontWeight: 700, fontSize: 13,
+              cursor: 'pointer',
+            }}>
+            {d}
+          </button>
+        ))}
+      </div>
+      <button onClick={() => onChange(value !== null && value >= 10 ? Math.floor(value / 10) : null)}
+        style={{ width: '100%', padding: '4px 0', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+        ⌫
+      </button>
     </div>
   );
 }
 
-// ── Comparison sentence ──
+// ── Writing + digit panel (persists throughout) ─────────────────
+function WriteAndDigitPanel({ label, color, value, onChange, drawnUrl, onDrawDone }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, padding: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color, textAlign: 'center' }}>{label}</div>
+      {drawnUrl ? (
+        <img src={drawnUrl} alt="written" style={{ height: 72, objectFit: 'contain', borderRadius: 8, border: `2px solid ${color}20`, background: '#f8fbff' }} />
+      ) : (
+        <SimpleWritingCanvas onDone={(strokes, url) => onDrawDone(url)} />
+      )}
+      <DigitPad value={value} onChange={onChange} color={color} />
+    </div>
+  );
+}
+
+// ── Comparison sentence ─────────────────────────────────────────
 const LABEL_MAP = { is_greater_than: 'is greater than', is_less_than: 'is less than', is_equal_to: 'is equal to' };
 
-function ComparePhase({ myNumber, theirNumber, onNext }) {
+function ComparePhase({ myNumber, theirNumber, partnerNum, onNext }) {
   const [placed, setPlaced] = useState(null);
   const [result, setResult] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const dropRef = useRef(null);
-
   const correct = myNumber > theirNumber ? 'is_greater_than' : myNumber < theirNumber ? 'is_less_than' : 'is_equal_to';
 
-  const handlePlace = (value) => {
+  const handlePlace = (v) => {
     if (placed) return;
-    setPlaced(LABEL_MAP[value]);
-    setResult(value === correct ? 'correct' : 'wrong');
+    setPlaced(LABEL_MAP[v]);
+    setResult(v === correct ? 'correct' : 'wrong');
   };
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-lg mt-3">
-      <p className="text-xs font-bold text-gray-400 uppercase text-center mb-3">Complete the sentence</p>
-      <div className="flex flex-wrap items-center justify-center gap-2 text-lg font-black text-gray-800 mb-4">
-        <span className="bg-blue-100 px-2 py-1 rounded-lg">{myNumber}</span>
-        <div ref={dropRef}
-          onClick={() => { if (!placed && selected) handlePlace(selected); }}
-          className={`min-w-[120px] h-10 rounded-xl border-4 border-dashed flex items-center justify-center font-black text-xs transition-all
-            ${placed
-              ? (result === 'correct' ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-400 bg-red-50 text-red-600')
-              : selected ? 'border-indigo-400 bg-indigo-50 text-indigo-500 cursor-pointer' : 'border-gray-300 bg-gray-50 text-gray-400'}`}>
-          {placed || (selected ? 'tap to place' : 'drag or tap')}
+    <div style={{ background: '#fff', borderRadius: 14, padding: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>COMPLETE THE SENTENCE</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
+        <span style={{ background: '#dbeafe', padding: '4px 10px', borderRadius: 8 }}>{myNumber}</span>
+        <div onClick={() => { if (!placed) {} }}
+          style={{
+            minWidth: 120, height: 40, borderRadius: 10, border: `3px dashed ${placed ? (result === 'correct' ? '#22c55e' : '#ef4444') : '#94a3b8'}`,
+            background: placed ? (result === 'correct' ? '#dcfce7' : '#fee2e2') : '#f8fafc',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700, color: placed ? (result === 'correct' ? '#166534' : '#dc2626') : '#94a3b8',
+          }}>
+          {placed || '___'}
         </div>
-        <span className="bg-orange-100 px-2 py-1 rounded-lg">{theirNumber}</span>
+        <span style={{ background: '#ffedd5', padding: '4px 10px', borderRadius: 8 }}>{theirNumber}</span>
       </div>
 
       {!placed && (
-        <div className="flex flex-wrap gap-2 justify-center mb-2">
-          {['is_greater_than', 'is_less_than', 'is_equal_to'].map(v => (
-            <button key={v}
-              onClick={() => { setSelected(v); handlePlace(v); }}
-              className={`px-3 py-2 rounded-xl font-black text-sm shadow transition-all
-                ${selected === v ? 'bg-indigo-700 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-              {LABEL_MAP[v]}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 8 }}>
+          {Object.entries(LABEL_MAP).map(([val, label]) => (
+            <button key={val} onClick={() => handlePlace(val)}
+              style={{ padding: '8px 14px', borderRadius: 10, background: '#4f46e5', color: 'white', fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}>
+              {label}
             </button>
           ))}
         </div>
@@ -163,128 +149,224 @@ function ComparePhase({ myNumber, theirNumber, onNext }) {
 
       {result && (
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-          className={`rounded-xl p-3 text-center mt-2 ${result === 'correct' ? 'bg-green-50 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}>
-          <p className="font-black text-lg">{result === 'correct' ? '🎉 Correct!' : '🤔 Not quite…'}</p>
-          {result === 'wrong' && <p className="text-sm text-gray-500 mt-1">Answer: <strong>{LABEL_MAP[correct]}</strong></p>}
-          <button onClick={onNext} className="mt-3 bg-indigo-600 text-white font-black px-5 py-2 rounded-xl shadow">
-            🔄 New Round
-          </button>
+          style={{ borderRadius: 10, padding: 12, background: result === 'correct' ? '#f0fdf4' : '#fff1f2', border: `2px solid ${result === 'correct' ? '#22c55e' : '#f87171'}`, textAlign: 'center' }}>
+          <div style={{ fontSize: 28, marginBottom: 4 }}>{result === 'correct' ? '🎉' : '✗'}</div>
+          <p style={{ fontWeight: 900, fontSize: 15 }}>{result === 'correct' ? 'Correct!' : 'Not quite — try again!'}</p>
+          {result === 'correct' && (
+            <button onClick={onNext}
+              style={{ marginTop: 8, padding: '8px 20px', background: '#4f46e5', color: 'white', fontWeight: 900, borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+              🔄 New Round
+            </button>
+          )}
+          {result === 'wrong' && (
+            <button onClick={() => { setPlaced(null); setResult(null); }}
+              style={{ marginTop: 8, padding: '8px 20px', background: '#f59e0b', color: 'white', fontWeight: 900, borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13 }}>
+              Try Again
+            </button>
+          )}
         </motion.div>
       )}
     </div>
   );
 }
 
-// ── Main pair game ──
-async function fetchOrCreateGame(className, playerNumber, partnerNumber) {
-  // Always look for a game where this pair is involved
-  const all = await base44.entities.RollComparePairGame.filter({ class_name: className });
-  const p1 = Math.min(playerNumber, partnerNumber);
-  const p2 = Math.max(playerNumber, partnerNumber);
-  return all.find(g => g.player1_number === p1 && g.player2_number === p2) || null;
-}
+// ── Game view ───────────────────────────────────────────────────
+function GameView({ game, studentNumber, onLeave, refetch }) {
+  const isP1 = game.player1_number === studentNumber;
+  const myNum = isP1 ? game.player1_count : game.player2_count;
+  const theirNum = isP1 ? game.player2_count : game.player1_count;
+  const mySeedBase = isP1 ? (game.player1_seed || 1) : (game.player2_seed || 2);
+  const theirSeedBase = isP1 ? (game.player2_seed || 2) : (game.player1_seed || 1);
+  const partnerNum = isP1 ? game.player2_number : game.player1_number;
 
-export default function TenFrameComparePair({ className, studentNumber, onBack }) {
-  const [partnerNumber, setPartnerNumber] = useState(null);
-  const [myNumber, setMyNumber] = useState(null);   // randomly assigned each round
-  const [theirNumber, setTheirNumber] = useState(null);
-  const [myWriteDone, setMyWriteDone] = useState(false);
-  const [roundKey, setRoundKey] = useState(0);
+  const [myWritten, setMyWritten] = useState(null);
+  const [theirWritten, setTheirWritten] = useState(null);
+  const [myTyped, setMyTyped] = useState(null);
+  const [theirTyped, setTheirTyped] = useState(null);
+  const roundNum = game.round_number || 1;
 
-  // Generate a new round with random numbers 0-20
-  const newRound = () => {
-    const a = Math.floor(Math.random() * 21);
-    let b = Math.floor(Math.random() * 21);
-    // make 70% chance they're different
-    if (Math.random() < 0.7 && b === a) b = a < 20 ? a + 1 : a - 1;
-    setMyNumber(a);
-    setTheirNumber(b);
-    setMyWriteDone(false);
-    setRoundKey(k => k + 1);
+  const handleNewRound = async () => {
+    await base44.entities.RollComparePairGame.update(game.id, {
+      player1_count: randomNum(), player2_count: randomNum(),
+      player1_seed: randomSeed(), player2_seed: randomSeed(),
+      player1_answer: null, player2_answer: null,
+      round_number: roundNum + 1,
+    });
+    setMyWritten(null); setTheirWritten(null);
+    setMyTyped(null); setTheirTyped(null);
+    refetch();
   };
 
-  // Partner selection screen
-  if (!partnerNumber) {
-    const NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1).filter(n => n !== studentNumber);
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-400 to-teal-600 flex flex-col items-center justify-center p-6 gap-5">
-        <button onClick={onBack} className="self-start text-white/80 hover:text-white font-bold">← Back</button>
-        <div className="text-5xl">🟦</div>
-        <h2 className="text-2xl font-black text-white">Ten Frame Compare — Partners</h2>
-        <p className="text-white/80">Student #{studentNumber} — Who are you playing with?</p>
-        <div className="grid grid-cols-6 gap-2 w-full max-w-md">
-          {NUMBERS.map(n => (
-            <motion.button key={n} whileTap={{ scale: 0.9 }}
-              onClick={() => { setPartnerNumber(n); newRound(); }}
-              className="w-12 h-12 bg-white text-teal-700 font-bold text-lg rounded-xl shadow">
-              {n}
-            </motion.button>
-          ))}
+  return (
+    <div style={{ width: '100%', maxWidth: 640, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <button onClick={onLeave} style={{ background: 'none', border: 'none', fontWeight: 700, color: '#134e4a', cursor: 'pointer' }}>← Leave</button>
+        <span style={{ fontWeight: 900, fontSize: 16, color: '#134e4a' }}>🟦 Ten Frame Compare</span>
+        <span style={{ fontSize: 12, color: '#64748b' }}>Round {roundNum}</span>
+      </div>
+
+      {/* Ten frames side by side */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <div style={{ flex: 1, background: '#fff', borderRadius: 14, padding: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#0d9488' }}>Your Number</span>
+          <DoubleTenFrame value={myNum} seedBase={mySeedBase} />
         </div>
+        <div style={{ flex: 1, background: '#fff', borderRadius: 14, padding: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#ea580c' }}>#{partnerNum}'s Number</span>
+          <DoubleTenFrame value={theirNum} seedBase={theirSeedBase} />
+        </div>
+      </div>
+
+      {/* Writing + digit panels — stay visible throughout */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <WriteAndDigitPanel
+          label={`Your Number`}
+          color="#0d9488"
+          value={myTyped}
+          onChange={setMyTyped}
+          drawnUrl={myWritten}
+          onDrawDone={setMyWritten}
+        />
+        <WriteAndDigitPanel
+          label={`#${partnerNum}'s Number`}
+          color="#ea580c"
+          value={theirTyped}
+          onChange={setTheirTyped}
+          drawnUrl={theirWritten}
+          onDrawDone={setTheirWritten}
+        />
+      </div>
+
+      {/* Compare — only show once both have typed a number */}
+      {myTyped !== null && theirTyped !== null && (
+        <ComparePhase
+          key={roundNum}
+          myNumber={myNum}
+          theirNumber={theirNum}
+          partnerNum={partnerNum}
+          onNext={handleNewRound}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Lobby ───────────────────────────────────────────────────────
+export default function TenFrameComparePair({ className: cls, studentNumber, onBack }) {
+  const [activeGameId, setActiveGameId] = useState(null);
+
+  const { data: allGames = [], refetch } = useQuery({
+    queryKey: ['tfcpair', cls],
+    queryFn: () => base44.entities.RollComparePairGame.filter({ class_name: cls }),
+    refetchInterval: 2000,
+  });
+
+  const myGame = allGames.find(g =>
+    (g.player1_number === studentNumber || g.player2_number === studentNumber) && g.status !== 'done'
+  ) || (activeGameId ? allGames.find(g => g.id === activeGameId) : null);
+
+  const joinableGames = allGames.filter(g =>
+    g.status === 'waiting' && g.player1_number !== studentNumber && !g.player2_number
+    && !g.player1_roll // distinguish from roll compare games by absence of roll fields
+  );
+
+  const createGame = async () => {
+    if (myGame) return;
+    const g = await base44.entities.RollComparePairGame.create({
+      class_name: cls,
+      player1_number: studentNumber,
+      player1_count: randomNum(), player2_count: randomNum(),
+      player1_seed: randomSeed(), player2_seed: randomSeed(),
+      status: 'waiting', round_number: 1,
+    });
+    setActiveGameId(g.id);
+    refetch();
+  };
+
+  const joinGame = async (g) => {
+    await base44.entities.RollComparePairGame.update(g.id, { player2_number: studentNumber, status: 'rolling' });
+    setActiveGameId(g.id);
+    refetch();
+  };
+
+  const startGame = async (g) => {
+    await base44.entities.RollComparePairGame.update(g.id, { status: 'rolling' });
+    refetch();
+  };
+
+  const leaveGame = async (g) => {
+    await base44.entities.RollComparePairGame.delete(g.id);
+    setActiveGameId(null);
+    refetch();
+  };
+
+  if (myGame && (myGame.status === 'rolling' || myGame.status === 'comparing')) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom, #ecfdf5, #ccfbf1)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 12px', overflowY: 'auto' }}>
+        <GameView game={myGame} studentNumber={studentNumber} onLeave={() => leaveGame(myGame)} refetch={refetch} />
       </div>
     );
   }
 
-  const mySeedBase = hashString(`me-${myNumber}-${roundKey}`);
-  const theirSeedBase = hashString(`them-${theirNumber}-${roundKey}`);
+  if (myGame && myGame.status === 'waiting') {
+    const players = [myGame.player1_number, myGame.player2_number].filter(Boolean);
+    const isHost = myGame.player1_number === studentNumber;
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom, #0d9488, #0f766e)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 24 }}>
+        <h2 style={{ color: 'white', fontWeight: 900, fontSize: 22, margin: 0 }}>🟦 Waiting Room</h2>
+        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {players.map(p => (
+            <div key={p} style={{ display: 'flex', justifyContent: 'space-between', background: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: '8px 16px' }}>
+              <span style={{ color: 'white', fontWeight: 700 }}>#{p}</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {p === myGame.player1_number && <span style={{ color: '#fde047', fontSize: 12, fontWeight: 700 }}>HOST</span>}
+                {p === studentNumber && <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>(you)</span>}
+              </div>
+            </div>
+          ))}
+          {players.length < 2 && <p style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontSize: 13 }}>Waiting for partner…</p>}
+        </div>
+        {isHost ? (
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => startGame(myGame)}
+            disabled={players.length < 2}
+            style={{ width: '100%', maxWidth: 320, padding: '16px 0', background: players.length < 2 ? '#94a3b8' : '#22c55e', color: 'white', fontWeight: 900, fontSize: 18, borderRadius: 16, border: 'none', cursor: players.length < 2 ? 'default' : 'pointer' }}>
+            {players.length < 2 ? 'Waiting…' : '▶ Start!'}
+          </motion.button>
+        ) : (
+          <p style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>Waiting for the host to start…</p>
+        )}
+        <button onClick={() => leaveGame(myGame)} style={{ color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}>← Leave Room</button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-teal-100" style={{ boxSizing: 'border-box' }}>
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-teal-600 text-white">
-        <button onClick={onBack} className="text-white/80 hover:text-white font-bold">← Back</button>
-        <h1 className="font-black text-lg flex-1 text-center">🟦 Ten Frame Compare</h1>
-        <span className="text-sm font-bold text-white/80">vs #{partnerNumber}</span>
-      </div>
-
-      <div className="p-4 max-w-2xl mx-auto" key={roundKey}>
-        <p className="text-center text-teal-700 font-bold text-lg mb-4">Round — Compare your numbers!</p>
-
-        {/* Two ten-frame cards side by side */}
-        <div className="flex gap-4 justify-center mb-5 flex-wrap">
-          {/* My card */}
-          <div className="bg-white rounded-2xl p-4 shadow-lg flex flex-col items-center gap-3" style={{ minWidth: 200 }}>
-            <p className="font-black text-teal-700 text-sm uppercase">My Number</p>
-            <DoubleTenFrame value={myNumber} seedBase={mySeedBase} />
-          </div>
-
-          {/* Their card */}
-          <div className="bg-white rounded-2xl p-4 shadow-lg flex flex-col items-center gap-3" style={{ minWidth: 200 }}>
-            <p className="font-black text-orange-600 text-sm uppercase">#{partnerNumber}'s Number</p>
-            <DoubleTenFrame value={theirNumber} seedBase={theirSeedBase} />
-          </div>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom, #0d9488, #0f766e)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 24 }}>
+      <button onClick={onBack} style={{ alignSelf: 'flex-start', color: 'rgba(255,255,255,0.8)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>← Back</button>
+      <div style={{ fontSize: 48 }}>🟦</div>
+      <h2 style={{ color: 'white', fontWeight: 900, fontSize: 24, margin: 0 }}>Ten Frame Compare</h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)', margin: 0 }}>Class: {cls} · You are #{studentNumber}</p>
+      {joinableGames.length > 0 ? (
+        <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ color: 'white', fontWeight: 600 }}>Open rooms:</p>
+          {joinableGames.map(g => (
+            <motion.button key={g.id} whileTap={{ scale: 0.95 }} onClick={() => joinGame(g)}
+              style={{ width: '100%', padding: '16px 0', background: 'white', color: '#0f766e', fontWeight: 700, fontSize: 17, borderRadius: 16, border: 'none', cursor: 'pointer' }}>
+              #{g.player1_number}'s room
+            </motion.button>
+          ))}
+          <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', fontSize: 13 }}>— or —</div>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={createGame}
+            style={{ width: '100%', padding: '12px 0', background: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 700, fontSize: 16, borderRadius: 16, border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer' }}>
+            + Create My Room
+          </motion.button>
         </div>
-
-        {/* Write & verify MY number first */}
-        {!myWriteDone && (
-          <DigitEntry
-            key={`write-${roundKey}`}
-            label="First: write your number"
-            targetNumber={myNumber}
-            locked={false}
-            onDone={() => setMyWriteDone(true)}
-          />
-        )}
-
-        {/* Write their number second */}
-        {myWriteDone && (
-          <>
-            <DigitEntry
-              key={`write-their-${roundKey}`}
-              label="Now write their number"
-              targetNumber={theirNumber}
-              locked={false}
-              onDone={() => {}}
-            />
-            <ComparePhase
-              key={`compare-${roundKey}`}
-              myNumber={myNumber}
-              theirNumber={theirNumber}
-              onNext={newRound}
-            />
-          </>
-        )}
-      </div>
+      ) : (
+        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={createGame}
+          style={{ width: '100%', maxWidth: 320, padding: '24px 0', background: 'white', color: '#0f766e', fontWeight: 900, fontSize: 22, borderRadius: 16, border: 'none', cursor: 'pointer' }}>
+          + Create a Room
+        </motion.button>
+      )}
     </div>
   );
 }
