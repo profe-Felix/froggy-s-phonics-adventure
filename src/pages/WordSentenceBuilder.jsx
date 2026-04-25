@@ -134,18 +134,29 @@ function launchConfetti() {
 }
 
 // ─── Tray tile (palette) ──────────────────────────────────────────────────────
-function TrayTile({ tile, onDragStart }) {
+function TrayTile({ tile, onDragStart, onTap, activeProblem, problems, onDropIntoProblem }) {
+  const handleTap = () => {
+    if (onTap) {
+      onTap(tile);
+    } else if (activeProblem !== null && problems && problems[activeProblem] && onDropIntoProblem) {
+      const clone = { ...tile, id: Math.random().toString(36).slice(2) };
+      onDropIntoProblem(activeProblem, problems[activeProblem].length, clone);
+    }
+  };
+
   return (
-    <div
+    <button
       draggable
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'copy'; onDragStart(tile); }}
+      onClick={handleTap}
       className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-xl min-w-[44px] h-11 px-3 hover:bg-indigo-50 shadow-sm transition-colors"
       style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+      title="Arrastra para mover o haz clic para colocar"
     >
-      {tile.type === 'space' ? <span className="w-5 h-0.5 bg-gray-400 block rounded" /> :
-       tile.type === 'img'   ? <img src={tile.value} alt="" className="max-h-9 max-w-[80px] object-contain" /> :
+      {tile.type === 'space' ? <span className="w-5 h-0.5 bg-gray-400 block rounded pointer-events-none" /> :
+       tile.type === 'img'   ? <img src={tile.value} alt="" className="max-h-9 max-w-[80px] object-contain pointer-events-none" /> :
        tile.value}
-    </div>
+    </button>
   );
 }
 
@@ -177,10 +188,10 @@ function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropI
   };
 
   const handleTileTap = (tile) => {
-    // Tap to place into active problem
+    // Tap to place a clone into active problem
     if (activeProblem !== null && problems && problems[activeProblem]) {
-      onDropIntoProblem(activeProblem, problems[activeProblem].length, tile);
-      setTiles(prev => prev.filter(t => t.id !== tile.id));
+      const clone = { ...tile, id: Math.random().toString(36).slice(2) };
+      onDropIntoProblem(activeProblem, problems[activeProblem].length, clone);
     }
   };
 
@@ -752,7 +763,7 @@ export default function WordSentenceBuilder() {
             <PaletteCard title="Letras" cols={trayColumns}>
               {toggles.write && <WriteTile dragRef={dragRef} setActiveProblem={setActiveProblem} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />}
               {letterTiles.map((t, i) => (
-                <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />
+                <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
               ))}
               {toggles.caps && <>
                 <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
@@ -766,13 +777,13 @@ export default function WordSentenceBuilder() {
 
           {syllTiles.length > 0 && (
             <PaletteCard title="Sílabas" cols={trayColumns}>
-              {syllTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />)}
+              {syllTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
             </PaletteCard>
           )}
 
           {wordTiles.length > 0 && (
             <PaletteCard title="Palabras" cols={trayColumns}>
-              {wordTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />)}
+              {wordTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
             </PaletteCard>
           )}
 
@@ -780,22 +791,22 @@ export default function WordSentenceBuilder() {
             <PaletteCard title="Puntuación" cols={0}>
               <div className="flex flex-wrap gap-2">
                 {toggles.space !== false && (
-                  <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} />
+                  <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
                 )}
-                {puncTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />)}
+                {puncTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
               </div>
             </PaletteCard>
           )}
 
           {toggles.space !== false && puncTiles.length === 0 && (
             <PaletteCard title="Espacio" cols={0}>
-              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} />
+              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
             </PaletteCard>
           )}
 
           {toggles.images !== false && imgTiles.length > 0 && (
             <PaletteCard title="Imágenes" cols={trayColumns}>
-              {imgTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />)}
+              {imgTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
             </PaletteCard>
           )}
 
