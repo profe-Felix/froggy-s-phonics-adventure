@@ -533,7 +533,7 @@ function ProblemZone({
         onDragLeave={onDragLeave}
         onDrop={onDrop_}
         onClick={() => onActivate(isActive ? null : index)}
-        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-1 transition-all cursor-pointer ${
+        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-0 transition-all cursor-pointer ${
           isActive ? 'ring-2 ring-blue-400' : ''
         } ${border} ${ring}`}
       >
@@ -724,7 +724,7 @@ function InlineTile({
           background: bg,
           outline,
           border: 'none',
-          padding: '0 1px',
+          padding: 0,
           margin: 0,
           font: 'inherit',
           color,
