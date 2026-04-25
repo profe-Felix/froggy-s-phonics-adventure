@@ -200,33 +200,58 @@ function PaletteCard({ title, cols, children }) {
 }
 
 // ─── Problem drop zone ────────────────────────────────────────────────────────
-// Each problem is a single flowing line where tiles are inline.
-// Insert position is determined by finding the closest tile midpoint on drag-over.
 function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile }) {
   const [insertIdx, setInsertIdx] = useState(null);
   const ref = useRef(null);
 
+  // Find the best insert index using per-row left-to-right logic.
+  // We group tiles by their vertical row (by top coordinate), then within
+  // the row closest to the cursor, find the right insertion point.
   const getInsertIdx = (clientX, clientY) => {
     const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
     if (!children.length) return 0;
-    let best = children.length;
-    let bestDist = Infinity;
-    children.forEach((el, i) => {
-      const r = el.getBoundingClientRect();
-      const mx = r.left + r.width / 2;
-      const my = r.top + r.height / 2;
-      // horizontal distance weighted, vertical distance just for tie-breaking
-      const dist = Math.abs(clientX - mx) + Math.abs(clientY - my) * 0.5;
-      if (clientX < mx && dist < bestDist) { bestDist = dist; best = i; }
+
+    const rects = children.map((el, i) => ({ i, r: el.getBoundingClientRect() }));
+
+    // group into rows by snapping tops to nearest 10px bucket
+    const rows = [];
+    rects.forEach(({ i, r }) => {
+      const rowTop = Math.round(r.top / 10) * 10;
+      let row = rows.find(rw => rw.top === rowTop);
+      if (!row) { row = { top: rowTop, items: [] }; rows.push(row); }
+      row.items.push({ i, r });
     });
-    // if cursor is to the right of all tiles
-    const last = children[children.length - 1]?.getBoundingClientRect();
-    if (last && clientX >= last.left + last.width / 2) best = children.length;
-    return best;
+    rows.sort((a, b) => a.top - b.top);
+
+    // find the closest row by vertical distance
+    let bestRow = rows[0];
+    let bestRowDist = Infinity;
+    rows.forEach(rw => {
+      const mid = rw.items[0].r.top + rw.items[0].r.height / 2;
+      const d = Math.abs(clientY - mid);
+      if (d < bestRowDist) { bestRowDist = d; bestRow = rw; }
+    });
+
+    // within that row, find insert point left-to-right
+    const rowItems = bestRow.items.sort((a, b) => a.r.left - b.r.left);
+    for (const { i, r } of rowItems) {
+      if (clientX < r.left + r.width / 2) return i;
+    }
+    // past the last item in this row → insert after the last item in that row
+    return rowItems[rowItems.length - 1].i + 1;
   };
 
-  const onDragOver = (e) => { e.preventDefault(); setInsertIdx(getInsertIdx(e.clientX, e.clientY)); };
-  const onDragLeave = () => setInsertIdx(null);
+  const onDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setInsertIdx(getInsertIdx(e.clientX, e.clientY));
+  };
+
+  const onDragLeave = (e) => {
+    // Only clear if we're actually leaving the zone (not entering a child)
+    if (!ref.current?.contains(e.relatedTarget)) setInsertIdx(null);
+  };
+
   const onDrop_ = (e) => {
     e.preventDefault();
     const idx = getInsertIdx(e.clientX, e.clientY);
@@ -293,11 +318,13 @@ function InlineTile({ tile, onDragStart, onRemove }) {
       <input
         data-slottile
         type="text"
-        defaultValue={tile.value}
+        defaultValue={tile.value || ''}
+        placeholder="…"
         className="border-b-2 border-gray-400 outline-none font-bold text-2xl bg-transparent text-center"
-        style={{ minWidth: 32, width: `${Math.max(2, (tile.value?.length || 0) + 1)}ch`, fontFamily: 'Andika, system-ui, sans-serif' }}
+        style={{ minWidth: 40, width: `${Math.max(3, ((tile.value || '').length) + 1)}ch`, fontFamily: 'Andika, system-ui, sans-serif' }}
         onChange={e => { tile.value = e.target.value; }}
         onPointerDown={e => e.stopPropagation()}
+        onDragStart={e => e.preventDefault()}
       />
     );
   }
@@ -389,23 +416,51 @@ export default function WordSentenceBuilder() {
   const handleDrop = (problemIdx, insertIdx) => {
     const d = dragRef.current;
     if (!d) return;
+    dragRef.current = null;
+
+    const tile = d.tile;
+
+    // captool and accenttool modify the tile just before the insert point, not insert
+    if (tile.type === 'captool' || tile.type === 'accenttool') {
+      setProblems(prev => {
+        const next = prev.map(p => p.map(t => ({ ...t })));
+        const problem = next[problemIdx];
+        // find the nearest text tile to the left of insertIdx
+        let targetIdx = insertIdx - 1;
+        while (targetIdx >= 0 && problem[targetIdx].type !== 'text') targetIdx--;
+        if (targetIdx < 0) return prev; // nothing to modify
+        const target = problem[targetIdx];
+        if (tile.type === 'captool') {
+          if (tile.value === 'up') {
+            target.value = target.value.charAt(0).toUpperCase() + target.value.slice(1);
+          } else {
+            target.value = target.value.charAt(0).toLowerCase() + target.value.slice(1);
+          }
+        } else if (tile.type === 'accenttool') {
+          const PLAIN_TO_ACC = { a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú' };
+          target.value = target.value.split('').map(ch => PLAIN_TO_ACC[ch] || ch).join('');
+        }
+        return next;
+      });
+      setShowResult(false);
+      return;
+    }
+
     setProblems(prev => {
       const next = prev.map(p => [...p]);
       if (d.fromProblem !== null) {
         const [fp, fi] = d.fromProblem;
         if (fp === problemIdx) {
-          // same zone — adjust insertIdx if removing before insert point
           next[fp].splice(fi, 1);
           const adjusted = insertIdx > fi ? insertIdx - 1 : insertIdx;
-          next[problemIdx].splice(adjusted, 0, d.tile);
+          next[problemIdx].splice(adjusted, 0, tile);
           return next;
         }
         next[fp].splice(fi, 1);
       }
-      next[problemIdx].splice(insertIdx, 0, d.tile);
+      next[problemIdx].splice(insertIdx, 0, tile);
       return next;
     });
-    dragRef.current = null;
     setShowResult(false);
   };
 
