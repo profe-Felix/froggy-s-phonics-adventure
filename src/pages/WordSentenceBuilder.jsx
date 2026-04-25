@@ -306,7 +306,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
         )}
         {tiles.map((tile, i) => (
           <React.Fragment key={tile.id}>
-            {insertIdx === i && <InsertCaret />}
+            {insertIdx === i && (dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool') && <InsertCaret />}
             <InlineTile
               tile={tile}
               onDragStart={() => onTileDragStart(i, tile)}
@@ -315,7 +315,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
             />
           </React.Fragment>
         ))}
-        {insertIdx === tiles.length && <InsertCaret />}
+        {insertIdx === tiles.length && (dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool') && <InsertCaret />}
       </div>
     </div>
   );
