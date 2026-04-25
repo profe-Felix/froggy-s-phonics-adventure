@@ -295,9 +295,21 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
         }
       }
       replaceIdxRef.current = hoveredIdx;
-    } else if (pendingRemove !== null) {
-      // For replace/swap mode: highlight the selected tile
+    } else if (pendingRemove !== null && d?.fromProblem === null) {
+      // For replace mode (palette drag): highlight the selected tile
       replaceIdxRef.current = tiles.findIndex(t => t.id === pendingRemove);
+    } else if (d?.fromProblem === null) {
+      // Normal palette drag: show where it will be inserted
+      const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
+      let hoveredIdx = tiles.length;
+      for (let i = 0; i < children.length; i++) {
+        const rect = children[i].getBoundingClientRect();
+        if (e.clientX < rect.left + rect.width / 2) {
+          hoveredIdx = i;
+          break;
+        }
+      }
+      replaceIdxRef.current = hoveredIdx;
     }
   };
 
@@ -586,18 +598,28 @@ export default function WordSentenceBuilder() {
       return;
     }
 
-    // For normal tiles from tray: replace the red-selected tile
-    if (replaceIdx >= 0 && pendingRemove) {
+    // For normal tiles from tray: replace red-selected or insert at drop position
+    const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
+    if (pendingRemove && replaceIdx >= 0) {
+      // Replace the red-selected tile
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
         const next = prev.map(p => [...(p || [])]);
-        const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
         next[problemIdx][replaceIdx] = newTile;
         return next;
       });
       setPendingRemove(null);
-      setShowResult(false);
+    } else {
+      // Insert at drop position
+      setProblems(prev => {
+        if (!Array.isArray(prev)) return prev;
+        const next = prev.map(p => [...(p || [])]);
+        const insertIdx = replaceIdx >= 0 ? replaceIdx : next[problemIdx].length;
+        next[problemIdx].splice(insertIdx, 0, newTile);
+        return next;
+      });
     }
+    setShowResult(false);
   };
 
   const handleTileDragStart = (problemIdx, tileIdx, tile) => {
