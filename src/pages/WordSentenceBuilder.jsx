@@ -152,15 +152,12 @@ function TrayTile({ tile, onDragStart }) {
 // ─── WriteTile in tray ────────────────────────────────────────────────────────
 function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropIntoProblem }) {
   const [input, setInput] = useState('');
-  const [tiles, setTiles] = useState([]);
   const inputRef = useRef(null);
 
   const handleAddWord = () => {
     if (!input.trim()) return;
     
     const newTile = createTile('text', input.trim());
-    const updatedTiles = [...tiles, newTile];
-    setTiles(updatedTiles);
     
     // Auto-place into active problem if one is selected
     if (activeProblem !== null && problems && problems[activeProblem]) {
@@ -178,53 +175,24 @@ function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropI
     }
   };
 
-  const handleDragStart = (e, tile) => {
-    e.dataTransfer.effectAllowed = 'copy';
-    dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromProblem: null };
-  };
-
-  const handleRemoveTile = (idx) => {
-    setTiles(prev => prev.filter((_, i) => i !== idx));
-  };
-
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="escribe…"
-          className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
-          onPointerDown={e => e.stopPropagation()}
-        />
-        <button
-          onClick={handleAddWord}
-          className="bg-indigo-600 text-white rounded-xl px-3 h-11 font-bold text-sm hover:bg-indigo-700 transition-colors shrink-0"
-        >
-          +
-        </button>
-      </div>
-      
-      {tiles.length > 0 && (
-        <div className="flex flex-wrap gap-1 bg-indigo-50 rounded-xl p-2 border border-indigo-200">
-          {tiles.map((t, idx) => (
-            <div
-              key={t.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e, t)}
-              onClick={() => handleRemoveTile(idx)}
-              className="cursor-grab rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-base px-2 h-10 hover:bg-red-50 shadow-sm transition-colors"
-              style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
-              title="Arrastra o haz clic para quitar"
-            >
-              {t.value}
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="flex gap-1">
+      <input
+        ref={inputRef}
+        type="text"
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="escribe…"
+        className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
+        onPointerDown={e => e.stopPropagation()}
+      />
+      <button
+        onClick={handleAddWord}
+        className="bg-indigo-600 text-white rounded-xl px-3 h-11 font-bold text-sm hover:bg-indigo-700 transition-colors shrink-0"
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -263,6 +231,7 @@ function PaletteCard({ title, cols, children }) {
 function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
   const [insertIdx, setInsertIdx] = useState(null);
   const [highlightTileIdx, setHighlightTileIdx] = useState(null);
+  const [pendingRemove, setPendingRemove] = useState(null);
   const ref = useRef(null);
 
   // Find the best insert index using per-row left-to-right logic.
@@ -374,6 +343,15 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
               onDragStart={() => onTileDragStart(i, tile)}
               onRemove={() => onRemoveTile(i)}
               isHighlighted={highlightTileIdx === i}
+              pendingRemove={pendingRemove}
+              onTap={() => {
+                if (pendingRemove === tile.id) {
+                  setPendingRemove(null);
+                  onRemoveTile(i);
+                } else {
+                  setPendingRemove(tile.id);
+                }
+              }}
             />
           </React.Fragment>
         ))}
@@ -387,44 +365,53 @@ function InsertCaret() {
   return <div className="w-0.5 h-9 bg-blue-500 rounded shrink-0 mx-0.5" />;
 }
 
-function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
-  const [spaceVisible, setSpaceVisible] = useState(false);
-  
+function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove, onTap }) {
   if (tile.type === 'space') {
+    const bg = pendingRemove === tile.id ? 'rgba(239,68,68,0.15)' : 'transparent';
     return (
-      <span
-        draggable
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-        onClick={() => {
-          if (spaceVisible) onRemove();
-          else setSpaceVisible(true);
-        }}
+      <button
+        onClick={() => onTap()}
         data-slottile
-        title={spaceVisible ? "Clic para quitar" : "Clic para ver"}
-        className={`inline-block cursor-pointer shrink-0 transition-all rounded ${
-          spaceVisible 
-            ? 'w-6 h-6 bg-red-200 mx-1 hover:bg-red-300' 
-            : 'w-4 h-4 bg-pink-200 mx-0.5'
-        }`}
+        title="Clic para quitar"
+        className="inline-block transition-colors"
+        style={{
+          width: '0.55em',
+          height: '1.5em',
+          verticalAlign: 'baseline',
+          flexShrink: 0,
+          background: bg,
+          borderRadius: '3px',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+        }}
       />
     );
   }
-  if (tile.type === 'write') {
-    // Write tiles placed in problem zone become normal text tiles
+  if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
+    const isPending = pendingRemove === tile.id;
+    const color = isPending ? '#ef4444' : '#1f2937';
     return (
-      <span
-        draggable
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-        onClick={onRemove}
+      <button
+        key={tile.id}
+        onClick={() => onTap()}
         data-slottile
-        title="Clic para quitar"
-        className={`text-3xl font-bold cursor-pointer select-none leading-tight transition-colors ${
-          isHighlighted ? 'text-yellow-600 bg-yellow-100 px-1 rounded' : 'hover:text-red-400'
-        }`}
-        style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+        className="font-bold transition-colors"
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          font: 'inherit',
+          cursor: 'pointer',
+          color,
+          fontSize: '1.875rem',
+          fontWeight: 'bold',
+          verticalAlign: 'baseline',
+          fontFamily: 'Andika, system-ui, sans-serif',
+        }}
       >
         {tile.value}
-      </span>
+      </button>
     );
   }
   if (tile.type === 'img') {
@@ -432,31 +419,15 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
       <img
         draggable
         onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-        onClick={onRemove}
         data-slottile
         src={tile.value}
         alt=""
-        title="Clic para quitar"
         className="max-h-10 max-w-[80px] object-contain cursor-pointer hover:opacity-70 rounded"
       />
     );
   }
-  // text or punc
-  return (
-    <span
-      draggable
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-      onClick={onRemove}
-      data-slottile
-      title="Clic para quitar"
-      className={`text-3xl font-bold cursor-pointer select-none leading-tight transition-colors ${
-        isHighlighted ? 'text-yellow-600 bg-yellow-100 px-1 rounded' : 'hover:text-red-400'
-      }`}
-      style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
-    >
-      {tile.value}
-    </span>
-  );
+  // fallback
+  return null;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
