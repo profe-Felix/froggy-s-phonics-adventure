@@ -46,8 +46,8 @@ function usePreset(searchParams) {
           punc:      c.punc      ?? parseList(searchParams.get('punc'))       ?? DEFAULT_PUNC,
           images:    c.images    ?? parseList(searchParams.get('imgs'))       ?? [],
           answers:   c.answers   ?? null,
-          boxesPerRow: c.boxes   ?? parseInt(searchParams.get('boxes')) || 4,
-          numRows:     c.rows    ?? parseInt(searchParams.get('rows'))  || 1,
+          boxesPerRow: c.boxes   ?? (parseInt(searchParams.get('boxes')) || 4),
+          numRows:     c.rows    ?? (parseInt(searchParams.get('rows'))  || 1),
           toggles: {
             space:  c.toggles?.space  !== false,
             caps:   c.toggles?.caps   !== false,
