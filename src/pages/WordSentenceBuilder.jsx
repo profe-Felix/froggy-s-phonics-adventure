@@ -306,11 +306,12 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
       return;
     }
 
-    // Normal drag: find drop position by cursor position (check Y too for flex-wrap)
+    // Normal drag: find drop position by cursor X position (before or at each tile)
     let hoveredIdx = tiles.length;
     for (let i = 0; i < children.length; i++) {
       const rect = children[i].getBoundingClientRect();
-      if (e.clientY >= rect.top && e.clientY <= rect.bottom && e.clientX < rect.left + rect.width / 2) {
+      // If cursor is to the left of the midpoint of this tile, insert before it
+      if (e.clientX < rect.left + rect.width / 2) {
         hoveredIdx = i;
         break;
       }
