@@ -6,6 +6,10 @@ import { Link } from 'react-router-dom';
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight Words Spelling', sentences: 'Sentences' };
 
+// SpellingWriteStep stores raw pixel coords at 800x360 canvas resolution
+// We scale them to fit the display canvas
+const SRC_W = 800, SRC_H = 360;
+
 function StrokeReplayCanvas({ strokesData }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -15,22 +19,30 @@ function StrokeReplayCanvas({ strokesData }) {
     try { return JSON.parse(strokesData); } catch { return []; }
   })();
 
+  // Scale a point from source canvas coords to display canvas coords
+  const scalePoint = (p, dw, dh) => ({
+    x: (p.x / SRC_W) * dw,
+    y: (p.y / SRC_H) * dh,
+  });
+
   const drawAll = () => {
     const c = canvasRef.current;
     if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    const dw = c.offsetWidth, dh = c.offsetHeight;
+    c.width = dw * dpr; c.height = dh * dpr;
     const ctx = c.getContext('2d');
-    const w = c.offsetWidth, h = c.offsetHeight;
-    c.width = w * (window.devicePixelRatio || 1);
-    c.height = h * (window.devicePixelRatio || 1);
-    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-    ctx.clearRect(0, 0, w, h);
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, dw, dh);
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
     strokes.forEach(stroke => {
       if (!stroke || stroke.length < 2) return;
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
+      const s0 = scalePoint(stroke[0], dw, dh);
+      ctx.beginPath(); ctx.moveTo(s0.x, s0.y);
       for (let i = 1; i < stroke.length; i++) {
-        ctx.quadraticCurveTo(stroke[i - 1].x, stroke[i - 1].y, (stroke[i - 1].x + stroke[i].x) / 2, (stroke[i - 1].y + stroke[i].y) / 2);
+        const prev = scalePoint(stroke[i - 1], dw, dh);
+        const cur = scalePoint(stroke[i], dw, dh);
+        ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
       }
       ctx.stroke();
     });
@@ -43,27 +55,31 @@ function StrokeReplayCanvas({ strokesData }) {
     setPlaying(true);
     const c = canvasRef.current;
     const ctx = c.getContext('2d');
-    const w = c.offsetWidth, h = c.offsetHeight;
-    ctx.clearRect(0, 0, w * (window.devicePixelRatio || 1), h * (window.devicePixelRatio || 1));
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+    const dw = c.offsetWidth, dh = c.offsetHeight;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
 
-    const allPts = strokes.flatMap((s, si) => s.map((p, pi) => ({ ...p, si, pi, last: pi === s.length - 1 })));
+    const allPts = strokes.flatMap((s, si) => s.map((p, pi) => ({ ...scalePoint(p, dw, dh), si, pi, last: pi === s.length - 1 })));
     let i = 0;
     const step = () => {
-      if (i >= allPts.length) { setPlaying(false); return; }
+      if (i >= allPts.length) { setPlaying(false); drawAll(); return; }
       const pt = allPts[i];
-      const stroke = strokes[pt.si];
+      const scaled = allPts.filter(p => p.si === pt.si);
       if (pt.pi === 0) { ctx.beginPath(); ctx.moveTo(pt.x, pt.y); }
       else {
-        const prev = stroke[pt.pi - 1];
-        ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pt.x) / 2, (prev.y + pt.y) / 2);
-        ctx.stroke();
-        if (!pt.last) { ctx.beginPath(); ctx.moveTo((prev.x + pt.x) / 2, (prev.y + pt.y) / 2); }
+        const prev = allPts[i - 1];
+        if (prev.si === pt.si) {
+          ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pt.x) / 2, (prev.y + pt.y) / 2);
+          ctx.stroke();
+          if (!pt.last) { ctx.beginPath(); ctx.moveTo((prev.x + pt.x) / 2, (prev.y + pt.y) / 2); }
+        } else {
+          ctx.beginPath(); ctx.moveTo(pt.x, pt.y);
+        }
       }
       i++;
-      animRef.current = requestAnimationFrame(step);
+      animRef.current = setTimeout(() => requestAnimationFrame(step), 8);
     };
-    animRef.current = requestAnimationFrame(step);
+    requestAnimationFrame(step);
   };
 
   return (

@@ -243,20 +243,26 @@ function SentenceBuilder({ sentence, onComplete }) {
   );
 }
 
-// ── Supabase sentence loader ──────────────────────────────────────────────────
-const SUPABASE_URL = 'https://mlyfayfzcgqwckydblzn.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1seWZheWZ6Y2dxd2NreWRibHpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkyMjMwNTcsImV4cCI6MjA1NDc5OTA1N30.MIJ4TgdS7qnbpOK7vlxVMqvT_p3RGmtX9KJHFDpMPRo';
-
-async function fetchSentences(module) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/sentences?module=eq.${module}&select=id,sentence,module`,
-    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-  );
-  if (!res.ok) return [];
-  return res.json();
-}
+// ── Built-in sentence bank ─────────────────────────────────────────────────────
+const SENTENCE_BANK = {
+  1: ['El oso usa una osa.', 'Una osa ama al oso.', 'Ana usa una lupa.', 'El uno y el dos.'],
+  2: ['La boda es hoy.', 'El bebé besa a mamá.', 'La bola es de boda.', 'Duda del lobo.'],
+  3: ['Esa fama es fina.', 'La lata es de loma.', 'El lobo es liso.', 'Lupa y luna van.'],
+  4: ['Mamá me da la mano.', 'La mesa es de madera.', 'El mono mima al niño.', 'Me gusta la mona.'],
+  5: ['El nene nada en el lago.', 'No hay nada nuevo.', 'Noto la nube blanca.', 'La pala y el palo.'],
+  6: ['El pelo es de la pila.', 'Solo sopa en la sala.', 'El sapo sana solo.', 'Poca pesa la paloma.'],
+  7: ['Sube la suma del todo.', 'La tina está llena.', 'Todo toma su tiempo.', 'El tubo está torcido.'],
+  8: ['Ya va y se va.', 'Di que sí o no.', 'Su fe es su guía.', 'Ve y di la verdad.'],
+  9: ['La vaca come grama.', 'La rosa roja es de Rosa.', 'La rana salta en la roca.', 'Viva la vida nueva.'],
+};
 
 const MODULES = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+async function fetchSentences(module) {
+  // Return built-in sentences — no Supabase dependency needed
+  const sentences = (SENTENCE_BANK[module] || []).map((s, i) => ({ id: i, sentence: s, module }));
+  return sentences;
+}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SentencesMode({ studentData, onBack }) {
@@ -283,7 +289,7 @@ export default function SentencesMode({ studentData, onBack }) {
 
   const currentSentence = sentences[currentIdx]?.sentence || '';
 
-  const handleWriteDone = async (strokes, imageUrl) => {
+  const handleWriteDone = async (strokes) => {
     setPhase('build');
     // Save stroke
     if (studentData) {
@@ -293,7 +299,6 @@ export default function SentencesMode({ studentData, onBack }) {
         mode: 'sentences',
         word: currentSentence,
         strokes_data: JSON.stringify(strokes),
-        image_url: imageUrl,
         was_correct: null,
       }).catch(() => {});
     }

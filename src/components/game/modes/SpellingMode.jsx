@@ -139,7 +139,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const handleWriteDone = async (strokes, imageUrl) => {
     setWrittenStrokes(strokes);
     setPhase('build');
-    // Save stroke sample (fire and forget)
+    // Save stroke sample (fire and forget) — strokes only, no large base64 image
     if (studentData) {
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
@@ -147,7 +147,6 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
         mode: 'spelling',
         word: currentWord,
         strokes_data: JSON.stringify(strokes),
-        image_url: imageUrl,
         was_correct: null,
       }).catch(() => {});
     }

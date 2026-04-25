@@ -97,7 +97,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   useEffect(() => { startRound(0); }, []);
 
-  const handleWriteDone = async (strokes, imageUrl) => {
+  const handleWriteDone = async (strokes) => {
     setPhase('build');
     if (studentData) {
       base44.entities.SpellingWritingSample.create({
@@ -106,7 +106,6 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
         mode: 'sight_words_spelling',
         word: currentWord,
         strokes_data: JSON.stringify(strokes),
-        image_url: imageUrl,
         was_correct: null,
       }).catch(() => {});
     }
