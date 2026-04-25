@@ -439,15 +439,16 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove,
     return (
       <button
         key={tile.id}
+        draggable
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
         onClick={() => onTap()}
         data-slottile
-        className="font-bold transition-colors"
+        className="font-bold transition-colors cursor-grab active:cursor-grabbing"
         style={{
           background: 'none',
           border: 'none',
           padding: 0,
           font: 'inherit',
-          cursor: 'pointer',
           color,
           fontSize: '1.875rem',
           fontWeight: 'bold',
