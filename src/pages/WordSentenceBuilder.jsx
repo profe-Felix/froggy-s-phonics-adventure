@@ -273,11 +273,10 @@ function PaletteCard({ title, cols, children }) {
 }
 
 // ─── Problem drop zone ────────────────────────────────────────────────────────
-function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate, swapMode, onSwap }) {
+function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
   const [insertIdx, setInsertIdx] = useState(null);
   const [highlightTileIdx, setHighlightTileIdx] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
-  const [swapSelection, setSwapSelection] = useState([]);
   const ref = useRef(null);
 
   // Find the best insert index using per-row left-to-right logic.
@@ -320,13 +319,18 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
   const onDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const idx = getInsertIdx(e.clientX, e.clientY);
-    setInsertIdx(idx);
-    
-    // Highlight target tile for captool/accenttool/swap
     const d = dragRef.current;
-    if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool' || d?.tile?.type === 'swaptool') {
-      // Find the text tile directly under the cursor
+    
+    // If there's a pending remove (red-selected tile), don't show insertion line
+    if (pendingRemove !== null) {
+      setInsertIdx(null);
+    } else {
+      const idx = getInsertIdx(e.clientX, e.clientY);
+      setInsertIdx(idx);
+    }
+    
+    // Highlight target tile for captool/accenttool
+    if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') {
       const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
       let hoveredIdx = null;
       for (let i = 0; i < children.length; i++) {
@@ -353,19 +357,19 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
   const onDrop_ = (e) => {
     e.preventDefault();
     const d = dragRef.current;
-    const idx = (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool' || d?.tile?.type === 'swaptool') ? highlightTileIdx : getInsertIdx(e.clientX, e.clientY);
     setInsertIdx(null);
     setHighlightTileIdx(null);
-    if (d?.tile?.type === 'swaptool' && idx !== null) {
-      setSwapSelection(prev => {
-        const next = prev.includes(idx) ? prev : [...prev, idx];
-        if (next.length === 2) {
-          onSwap(index, next[0], next[1]);
-          return [];
-        }
-        return next;
-      });
+    
+    // If a tile is red-selected (pending remove), replace it with the dragged tile
+    if (pendingRemove !== null) {
+      const replaceIdx = tiles.findIndex(t => t.id === pendingRemove);
+      if (replaceIdx !== -1) {
+        onDrop(replaceIdx); // Pass the replacement tile at this index
+        setPendingRemove(null);
+      }
     } else {
+      // Normal insertion
+      const idx = getInsertIdx(e.clientX, e.clientY);
       onDrop(idx);
     }
   };
@@ -401,7 +405,6 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
               onRemove={() => onRemoveTile(i)}
               isHighlighted={highlightTileIdx === i}
               pendingRemove={pendingRemove}
-              isSwapSelected={swapSelection.includes(i)}
               onTap={() => {
                 if (pendingRemove === tile.id) {
                   setPendingRemove(null);
@@ -422,7 +425,7 @@ function InsertCaret() {
   return <div className="w-0.5 h-9 bg-blue-500 rounded shrink-0 mx-0.5" />;
 }
 
-function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove, onTap, isSwapSelected }) {
+function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove, onTap }) {
   if (tile.type === 'space') {
     const bg = pendingRemove === tile.id ? 'rgba(239,68,68,0.15)' : isHighlighted ? 'rgba(251,146,60,0.25)' : 'transparent';
     return (
@@ -448,10 +451,7 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove,
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
-    if (isSwapSelected) {
-      color = '#ffffff';
-      bg = 'rgba(251,146,60,0.9)';
-    } else if (pendingRemove === tile.id) {
+    if (pendingRemove === tile.id) {
       color = '#ef4444';
     } else if (isHighlighted) {
       bg = 'rgba(251,146,60,0.2)';
@@ -509,7 +509,6 @@ export default function WordSentenceBuilder() {
   const [showResult, setShowResult] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [activeProblem, setActiveProblem] = useState(null);
-  const [swapMode, setSwapMode] = useState(false);
 
   const dragRef = useRef(null);
 
@@ -630,16 +629,7 @@ export default function WordSentenceBuilder() {
     setShowResult(false);
   };
 
-  const handleSwap = (problemIdx, idx1, idx2) => {
-    setProblems(prev => {
-      if (!Array.isArray(prev)) return prev;
-      const next = prev.map(p => [...(p || [])]);
-      [next[problemIdx][idx1], next[problemIdx][idx2]] = [next[problemIdx][idx2], next[problemIdx][idx1]];
-      return next;
-    });
-    setShowResult(false);
-    setSwapMode(false);
-  };
+
 
   const handleTrashDrop = (e) => {
     e.preventDefault();
@@ -732,10 +722,6 @@ export default function WordSentenceBuilder() {
                   ✓ Validar
                 </button>
               )}
-              <button onClick={() => setSwapMode(!swapMode)}
-                className={`rounded-lg px-4 py-1 text-sm font-bold transition-colors ${swapMode ? 'bg-orange-600 text-white hover:bg-orange-700' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
-                ↔️ {swapMode ? 'Swap' : 'Swap'}
-              </button>
               <button onClick={() => setShowQR(true)}
                 className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">
                 QR
@@ -771,8 +757,6 @@ export default function WordSentenceBuilder() {
                 onRemoveTile={(ti) => handleRemoveTile(pi, ti)}
                 isActive={activeProblem === pi}
                 onActivate={setActiveProblem}
-                swapMode={swapMode}
-                onSwap={handleSwap}
               />
             ))}
 
@@ -810,9 +794,6 @@ export default function WordSentenceBuilder() {
               </>}
               {toggles.accent && (
                 <ToolTile label="´" title="Acento" dragRef={dragRef} tileType="accenttool" tileValue="´" />
-              )}
-              {swapMode && (
-                <ToolTile label="↔️" title="Drag to swap tiles" dragRef={dragRef} tileType="swaptool" tileValue="swap" />
               )}
             </PaletteCard>
           )}
