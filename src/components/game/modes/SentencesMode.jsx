@@ -181,144 +181,155 @@ function SentenceWriteCanvas({ onDone }) {
 }
 
 // ── Sentence builder ───────────────────────────────────────────────────────────
-// Approach: one box per word slot. Shuffled word tiles (+ punct tiles) in a tray.
-// Tap a tile to place it in the next empty box. Tap a filled box to remove its tile.
-// A "Aa" capitalize tool toggles capitalization on the first tile in a box.
-// Punct tiles (. , ! ?) attach to the preceding word box.
+// One long drop zone. Students tap word tiles AND space tiles to build the sentence.
+// The sentence is correct when words are in the right order, spaces are between each
+// pair of words, capitalization is right, and punctuation is present.
 
 function parseSentence(sentence) {
-  // Returns array of { boxWord: string (correct lowercase word), punct: string }
-  // e.g. "Mi mamá me mima." → [{boxWord:'mi', punct:''}, {boxWord:'mamá', punct:''}, {boxWord:'me', punct:''}, {boxWord:'mima', punct:'.'}]
+  // Returns array of plain words (lowercase) with their trailing punct
   const raw = sentence.trim().split(/\s+/);
   return raw.map(w => {
     const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
-    if (m) return { boxWord: m[1].toLowerCase(), punct: m[2] };
-    return { boxWord: w.toLowerCase(), punct: '' };
+    if (m) return { word: m[1].toLowerCase(), punct: m[2] };
+    return { word: w.toLowerCase(), punct: '' };
   });
 }
 
 function SentenceBuilder({ sentence, onComplete }) {
-  const boxes = parseSentence(sentence); // array of {boxWord, punct}
-  const numBoxes = boxes.length;
+  const wordList = parseSentence(sentence); // [{word, punct}]
 
-  // Tile tray: shuffled words (+ punct tiles as separate items if needed)
-  const makeTiles = () => {
-    const tiles = boxes.map((b, i) => ({ id: i, word: b.boxWord, placed: false }));
-    // shuffle
-    for (let i = tiles.length - 1; i > 0; i--) {
+  // Build initial shuffled word tiles + a pool of space tiles (numWords-1 spaces needed)
+  const makeInitialState = () => {
+    const wordTiles = wordList.map((w, i) => ({ id: `w${i}`, type: 'word', word: w.word, punct: w.punct, capitalized: false }));
+    // shuffle words
+    for (let i = wordTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+      [wordTiles[i], wordTiles[j]] = [wordTiles[j], wordTiles[i]];
     }
-    return tiles;
+    // space tiles — we provide exactly (numWords-1) spaces needed, but display multiple in tray
+    const spaceTiles = Array.from({ length: wordList.length - 1 }, (_, i) => ({
+      id: `s${i}`, type: 'space'
+    }));
+    return { wordTiles, spaceTiles };
   };
 
-  const [tiles, setTiles] = useState(() => makeTiles());
-  // filledBoxes[i] = tileId placed in box i, or null
-  const [filledBoxes, setFilledBoxes] = useState(() => Array(numBoxes).fill(null));
-  // capitalized[i] = true if box i's word should be capitalized
-  const [capitalized, setCapitalized] = useState(() => Array(numBoxes).fill(false));
+  const [tray, setTray] = useState(() => {
+    const { wordTiles, spaceTiles } = makeInitialState();
+    return [...wordTiles, ...spaceTiles];
+  });
+  // dropZone: ordered array of tile ids placed by student
+  const [dropZone, setDropZone] = useState([]);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
   const reset = () => {
-    setTiles(makeTiles());
-    setFilledBoxes(Array(numBoxes).fill(null));
-    setCapitalized(Array(numBoxes).fill(false));
+    const { wordTiles, spaceTiles } = makeInitialState();
+    setTray([...wordTiles, ...spaceTiles]);
+    setDropZone([]);
     setShowResult(false);
   };
 
-  // Tap a tile in the tray → place in first empty box
-  const handleTileTap = (tile) => {
-    if (tile.placed || showResult) return;
-    const emptyIdx = filledBoxes.findIndex(v => v === null);
-    if (emptyIdx === -1) return;
-    setTiles(prev => prev.map(t => t.id === tile.id ? { ...t, placed: true } : t));
-    setFilledBoxes(prev => { const n = [...prev]; n[emptyIdx] = tile.id; return n; });
-  };
-
-  // Tap a filled box → remove tile back to tray
-  const handleBoxTap = (boxIdx) => {
+  // Tap a tray tile → append to drop zone
+  const handleTrayTap = (tile) => {
     if (showResult) return;
-    const tileId = filledBoxes[boxIdx];
-    if (tileId === null) return;
-    setFilledBoxes(prev => { const n = [...prev]; n[boxIdx] = null; return n; });
-    setCapitalized(prev => { const n = [...prev]; n[boxIdx] = false; return n; });
-    setTiles(prev => prev.map(t => t.id === tileId ? { ...t, placed: false } : t));
+    setTray(prev => prev.filter(t => t.id !== tile.id));
+    setDropZone(prev => [...prev, tile]);
   };
 
-  // Toggle capitalize on a box
-  const handleCapTap = (boxIdx) => {
-    if (showResult || filledBoxes[boxIdx] === null) return;
-    setCapitalized(prev => { const n = [...prev]; n[boxIdx] = !n[boxIdx]; return n; });
+  // Tap a drop zone tile → return to tray
+  const handleDropTap = (tile) => {
+    if (showResult) return;
+    setDropZone(prev => prev.filter(t => t.id !== tile.id));
+    // return word tiles with capitalized reset
+    const restored = tile.type === 'word' ? { ...tile, capitalized: false } : tile;
+    setTray(prev => [...prev, restored]);
+  };
+
+  // Toggle capitalize on a word tile already in drop zone
+  const handleCapToggle = (tileId) => {
+    if (showResult) return;
+    setDropZone(prev => prev.map(t => t.id === tileId ? { ...t, capitalized: !t.capitalized } : t));
   };
 
   const handleCheck = () => {
-    // Build student's answer
+    // Build what the student wrote as tokens
+    // Expected: word0 SPACE word1 SPACE word2 ... wordN (with correct capitalization & order)
+    const words = dropZone.filter(t => t.type === 'word');
+    const spaces = dropZone.filter(t => t.type === 'space');
+
+    // Check correct number of words and spaces
+    if (words.length !== wordList.length) { setIsCorrect(false); setShowResult(true); return; }
+    if (spaces.length !== wordList.length - 1) { setIsCorrect(false); setShowResult(true); return; }
+
+    // Check pattern: must alternate word-space-word-space-...-word
+    let patternOk = true;
+    for (let i = 0; i < dropZone.length; i++) {
+      if (i % 2 === 0 && dropZone[i].type !== 'word') { patternOk = false; break; }
+      if (i % 2 === 1 && dropZone[i].type !== 'space') { patternOk = false; break; }
+    }
+    if (!patternOk) { setIsCorrect(false); setShowResult(true); return; }
+
+    // Check each word matches correct position and capitalization
+    const wordTilesInOrder = dropZone.filter(t => t.type === 'word');
     let correct = true;
-    for (let i = 0; i < numBoxes; i++) {
-      const tileId = filledBoxes[i];
-      if (tileId === null) { correct = false; break; }
-      const tile = tiles.find(t => t.id === tileId);
-      const studentWord = capitalized[i]
-        ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
-        : tile.word;
-      const correctWord = boxes[i].boxWord;
-      // compare case-insensitively for words, but check capital matches sentence start
-      if (studentWord.toLowerCase() !== correctWord.toLowerCase()) { correct = false; break; }
-      // check capitalization: first word of sentence must be capitalized
-      const needsCap = i === 0 || /[.!?]/.test(boxes[i - 1]?.punct || '');
-      if (needsCap && studentWord[0] !== studentWord[0].toUpperCase()) { correct = false; break; }
-      if (!needsCap && studentWord[0] !== studentWord[0].toLowerCase()) { correct = false; break; }
+    for (let i = 0; i < wordList.length; i++) {
+      const placed = wordTilesInOrder[i];
+      const expected = wordList[i];
+      if (placed.word !== expected.word) { correct = false; break; }
+      const needsCap = i === 0;
+      if (needsCap && !placed.capitalized) { correct = false; break; }
+      if (!needsCap && placed.capitalized) { correct = false; break; }
     }
     setIsCorrect(correct);
     setShowResult(true);
   };
 
-  const allFilled = filledBoxes.every(v => v !== null);
+  const wordTilesInTray = tray.filter(t => t.type === 'word');
+  const spaceTilesInTray = tray.filter(t => t.type === 'space');
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Build the sentence — tap a word to place it</p>
+      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Tap words and spaces to build the sentence</p>
 
-      {/* Word boxes */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {boxes.map((box, i) => {
-          const tileId = filledBoxes[i];
-          const tile = tileId !== null ? tiles.find(t => t.id === tileId) : null;
-          const capOn = capitalized[i];
-          const displayWord = tile
-            ? (capOn ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1) : tile.word)
-            : null;
-
-          let boxBg = 'bg-white border-2 border-dashed border-indigo-300';
-          if (showResult && tile) {
-            const studentWord = displayWord;
-            const correctWord = boxes[i].boxWord;
-            const needsCap = i === 0 || /[.!?]/.test(boxes[i - 1]?.punct || '');
-            const wordOk = studentWord.toLowerCase() === correctWord.toLowerCase();
-            const capOk = needsCap ? studentWord[0] === studentWord[0].toUpperCase() : studentWord[0] === studentWord[0].toLowerCase();
-            boxBg = (wordOk && capOk)
-              ? 'bg-green-50 border-2 border-green-400'
-              : 'bg-red-50 border-2 border-red-400';
-          } else if (tile) {
-            boxBg = 'bg-indigo-50 border-2 border-indigo-400';
-          }
-
-          return (
-            <div key={i} className="flex flex-col items-center gap-1">
+      {/* Drop zone — single line */}
+      <div
+        className={`min-h-[64px] rounded-2xl border-4 border-dashed p-3 flex flex-wrap gap-1 items-center
+          ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white/80'}`}
+      >
+        {dropZone.length === 0 && (
+          <span className="text-gray-400 text-sm">Tap words and spaces below...</span>
+        )}
+        {dropZone.map((tile) => {
+          if (tile.type === 'space') {
+            return (
               <button
-                onClick={() => handleBoxTap(i)}
-                className={`min-w-[3.5rem] px-3 py-2 rounded-xl font-bold text-xl transition-all ${boxBg} ${tile && !showResult ? 'cursor-pointer hover:bg-indigo-100 active:scale-95' : tile ? 'cursor-default' : 'cursor-default'}`}
-                style={{ minHeight: 48 }}
+                key={tile.id}
+                onClick={() => handleDropTap(tile)}
+                disabled={showResult}
+                className="w-8 h-10 rounded-lg border-2 border-dashed border-gray-400 bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 disabled:cursor-default transition-all active:scale-95"
+                title="Space"
               >
-                {displayWord || <span className="text-transparent select-none">{box.boxWord}</span>}
-                {box.punct && tile ? <span className="text-gray-500">{box.punct}</span> : null}
+                ␣
               </button>
-              {/* Aa cap toggle — only show when box is filled and not showing result */}
-              {tile && !showResult && (
+            );
+          }
+          // word tile
+          const display = tile.capitalized
+            ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
+            : tile.word;
+          return (
+            <div key={tile.id} className="flex flex-col items-center gap-0.5">
+              <button
+                onClick={() => handleDropTap(tile)}
+                disabled={showResult}
+                className="px-3 py-1.5 rounded-xl font-bold text-lg bg-indigo-100 border-2 border-indigo-400 text-indigo-800 hover:bg-indigo-200 disabled:cursor-default transition-all active:scale-95"
+              >
+                {display}{tile.punct}
+              </button>
+              {!showResult && (
                 <button
-                  onClick={() => handleCapTap(i)}
-                  className={`text-xs px-2 py-0.5 rounded-lg font-black transition-all ${capOn ? 'bg-amber-400 text-amber-900' : 'bg-gray-100 text-gray-500 border border-gray-300'}`}
+                  onClick={() => handleCapToggle(tile.id)}
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-black transition-all ${tile.capitalized ? 'bg-amber-400 text-amber-900' : 'bg-gray-100 text-gray-400 border border-gray-300'}`}
                 >
                   Aa
                 </button>
@@ -328,33 +339,50 @@ function SentenceBuilder({ sentence, onComplete }) {
         })}
       </div>
 
-      {/* Tile tray */}
-      <div className="bg-gray-50 rounded-2xl border border-gray-200 p-3 flex flex-wrap gap-2 justify-center min-h-[56px]">
-        <AnimatePresence>
-          {tiles.filter(t => !t.placed).map(tile => (
-            <motion.button
-              key={tile.id}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={() => handleTileTap(tile)}
-              disabled={showResult}
-              className="px-4 py-2 rounded-xl font-bold text-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
-            >
-              {tile.word}
-            </motion.button>
-          ))}
-        </AnimatePresence>
-        {tiles.every(t => t.placed) && !showResult && (
-          <span className="text-gray-400 text-sm self-center">All words placed!</span>
-        )}
-      </div>
+      {/* Tray — words */}
+      {wordTilesInTray.length > 0 && (
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 p-3 flex flex-wrap gap-2 justify-center">
+          <AnimatePresence>
+            {wordTilesInTray.map(tile => (
+              <motion.button
+                key={tile.id}
+                initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                onClick={() => handleTrayTap(tile)}
+                disabled={showResult}
+                className="px-4 py-2 rounded-xl font-bold text-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
+              >
+                {tile.word}
+              </motion.button>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Tray — spaces (always visible, reusable feel) */}
+      {spaceTilesInTray.length > 0 && (
+        <div className="flex gap-2 justify-center">
+          <span className="text-sm text-gray-500 self-center font-bold">Spaces:</span>
+          <AnimatePresence>
+            {spaceTilesInTray.map(tile => (
+              <motion.button
+                key={tile.id}
+                initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                onClick={() => handleTrayTap(tile)}
+                disabled={showResult}
+                className="w-12 h-10 rounded-xl border-2 border-dashed border-gray-400 bg-gray-100 text-gray-500 font-bold text-sm hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-40"
+              >
+                ␣
+              </motion.button>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Actions */}
       {!showResult && (
         <div className="flex gap-3">
           <button onClick={reset} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">↩ Reset</button>
-          <button onClick={handleCheck} disabled={!allFilled}
+          <button onClick={handleCheck} disabled={dropZone.length === 0}
             className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow disabled:opacity-40 hover:bg-blue-700">
             ✓ Check
           </button>
@@ -364,7 +392,7 @@ function SentenceBuilder({ sentence, onComplete }) {
       {showResult && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className={`rounded-2xl p-4 text-center ${isCorrect ? 'bg-green-50 border-2 border-green-400' : 'bg-orange-50 border-2 border-orange-300'}`}>
-          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Not quite — check the red boxes!'}</p>
+          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Not quite!'}</p>
           {!isCorrect && <p className="text-sm text-gray-500 mb-2">Correct: <em>{sentence}</em></p>}
           <div className="flex gap-2 justify-center mt-2">
             {!isCorrect && (
