@@ -219,8 +219,9 @@ function SentenceBuilder({ sentence, onComplete }) {
   const [dropZone, setDropZone] = useState([]);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState(null); // id of tile staged for removal
 
-  const reset = () => { setTray(makeInitialState()); setDropZone([]); setShowResult(false); };
+  const reset = () => { setTray(makeInitialState()); setDropZone([]); setShowResult(false); setPendingRemove(null); };
 
   const handleTrayTap = (tile) => {
     if (showResult) return;
@@ -230,8 +231,15 @@ function SentenceBuilder({ sentence, onComplete }) {
 
   const handleDropTap = (tile) => {
     if (showResult) return;
-    setDropZone(prev => prev.filter(t => t.id !== tile.id));
-    setTray(prev => [...prev, tile.type === 'word' ? { ...tile, capitalized: false } : tile]);
+    if (pendingRemove === tile.id) {
+      // second tap → remove
+      setPendingRemove(null);
+      setDropZone(prev => prev.filter(t => t.id !== tile.id));
+      setTray(prev => [...prev, tile.type === 'word' ? { ...tile, capitalized: false } : tile]);
+    } else {
+      // first tap → stage red
+      setPendingRemove(tile.id);
+    }
   };
 
   const handleCapToggle = (tileId) => {
@@ -275,29 +283,33 @@ function SentenceBuilder({ sentence, onComplete }) {
         )}
         {dropZone.map((tile) => {
           if (tile.type === 'space') {
+            const isPending = pendingRemove === tile.id;
             return (
               <button
                 key={tile.id}
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
-                title="Remove space"
-                className="inline-flex items-end disabled:cursor-default group"
-                style={{ width: '0.6em', height: '1.5em', verticalAlign: 'baseline', flexShrink: 0 }}
-              >
-                <span
-                  className="w-full rounded-sm group-hover:bg-red-200 transition-colors"
-                  style={{ height: '0.18em', background: '#a5b4fc', display: 'block', marginBottom: '0.12em' }}
-                />
-              </button>
+                title="Tap to remove space"
+                className="inline-block disabled:cursor-default transition-colors"
+                style={{
+                  width: '0.55em',
+                  height: '1.5em',
+                  verticalAlign: 'baseline',
+                  flexShrink: 0,
+                  background: isPending ? 'rgba(239,68,68,0.15)' : 'transparent',
+                  borderRadius: '3px',
+                }}
+              />
             );
           }
           if (tile.type === 'punct') {
+            const isPending = pendingRemove === tile.id;
             return (
               <button
                 key={tile.id}
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
-                className="inline font-bold disabled:cursor-default text-yellow-700 hover:text-red-500 transition-colors active:opacity-70"
+                className={`inline font-bold disabled:cursor-default transition-colors active:opacity-70 ${isPending ? 'text-red-500' : 'text-gray-800'}`}
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline' }}
               >
                 {tile.char}
@@ -305,6 +317,7 @@ function SentenceBuilder({ sentence, onComplete }) {
             );
           }
           // word tile
+          const isPending = pendingRemove === tile.id;
           const display = tile.capitalized
             ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
             : tile.word;
@@ -314,7 +327,7 @@ function SentenceBuilder({ sentence, onComplete }) {
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
                 className={`inline font-bold leading-none transition-colors disabled:cursor-default
-                  ${showResult ? 'text-inherit' : 'text-indigo-800 hover:text-red-500 active:opacity-70'}`}
+                  ${showResult ? 'text-inherit' : isPending ? 'text-red-500' : 'text-gray-800'}`}
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer' }}
               >
                 {display}
