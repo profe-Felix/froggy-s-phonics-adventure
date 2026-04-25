@@ -361,6 +361,8 @@ function ProblemZone({
   setHoverProblem,
   hoverIdx,
   setHoverIdx,
+  accentCharIdx,
+  setAccentCharIdx,
   swapMode,
   pendingRemove,
   setPendingRemove,
@@ -375,6 +377,7 @@ function ProblemZone({
   const clearHover = () => {
     setHoverProblem(null);
     setHoverIdx(null);
+    setAccentCharIdx(null);
   };
 
   const onDragOver = (e) => {
@@ -393,8 +396,10 @@ function ProblemZone({
     ];
 
     // Tools: highlight the tile being modified.
+    // Accent tool also targets ONE vowel inside that tile.
     if (d.tile?.type === 'captool' || d.tile?.type === 'accenttool') {
       let hoveredIdx = null;
+      let charIdx = null;
 
       for (let i = 0; i < children.length; i++) {
         const rect = children[i].getBoundingClientRect();
@@ -407,12 +412,43 @@ function ProblemZone({
           (tiles[i]?.type === 'text' || tiles[i]?.type === 'write')
         ) {
           hoveredIdx = i;
+
+          // Only accent tool needs a character target.
+          if (d.tile?.type === 'accenttool') {
+            const text = String(tiles[i]?.value || '');
+            const chars = [...text];
+
+            const vowelIndexes = chars
+              .map((ch, idx) =>
+                /[aeiouAEIOUáéíóúÁÉÍÓÚ]/.test(ch) ? idx : -1
+              )
+              .filter(idx => idx !== -1);
+
+            if (vowelIndexes.length > 0) {
+              const relativeX = Math.max(
+                0,
+                Math.min(rect.width, e.clientX - rect.left)
+              );
+
+              const approxIdx = Math.round(
+                (relativeX / Math.max(rect.width, 1)) * (chars.length - 1)
+              );
+
+              charIdx = vowelIndexes.reduce((best, idx) => {
+                return Math.abs(idx - approxIdx) < Math.abs(best - approxIdx)
+                  ? idx
+                  : best;
+              }, vowelIndexes[0]);
+            }
+          }
+
           break;
         }
       }
 
       setHoverProblem(index);
       setHoverIdx(hoveredIdx);
+      setAccentCharIdx(charIdx);
       return;
     }
 
@@ -539,6 +575,13 @@ function ProblemZone({
                   ? hoverIdx
                   : null
               }
+              accentCharIdx={
+                showHoverHere &&
+                dragRef.current?.tile?.type === 'accenttool' &&
+                hoverIdx === i
+                  ? accentCharIdx
+                  : null
+              }
               swapMode={swapMode}
               onTap={() => {
                 if (pendingRemove === tile.id) {
@@ -590,7 +633,8 @@ function InlineTile({
   tileIdx,
   onTap,
   swapMode,
-  toolHover
+  toolHover,
+  accentCharIdx
 }) {
   const isSelected = pendingRemove === tile.id;
   const isToolHighlight = toolHover === tileIdx;
@@ -640,12 +684,31 @@ function InlineTile({
       bg = swapMode ? 'rgba(156,163,175,0.15)' : 'rgba(239,68,68,0.10)';
     }
 
-    // This is the missing capitalization/accent hover highlight.
     if (isToolHighlight) {
       bg = 'rgba(59,130,246,0.20)';
       color = '#1d4ed8';
       outline = '2px solid rgba(59,130,246,0.55)';
     }
+
+    const displayText =
+      accentCharIdx !== null && tile.type === 'text'
+        ? [...String(tile.value || '')].map((ch, idx) => (
+            <span
+              key={idx}
+              style={{
+                color: idx === accentCharIdx ? '#dc2626' : 'inherit',
+                background:
+                  idx === accentCharIdx
+                    ? 'rgba(220,38,38,0.15)'
+                    : 'transparent',
+                borderRadius: idx === accentCharIdx ? '4px' : 0,
+                padding: idx === accentCharIdx ? '0 1px' : 0
+              }}
+            >
+              {ch}
+            </span>
+          ))
+        : tile.value;
 
     return (
       <button
@@ -662,11 +725,7 @@ function InlineTile({
           outline,
           border: 'none',
           padding: '0 1px',
-
-          // Text/word tiles need visible spacing.
-          // Punctuation stays pulled close to the word.
           margin: 0,
-
           font: 'inherit',
           color,
           fontSize: '1.875rem',
@@ -676,7 +735,7 @@ function InlineTile({
           lineHeight: 1.1
         }}
       >
-        {tile.value}
+        {displayText}
       </button>
     );
   }
@@ -730,6 +789,10 @@ export default function WordSentenceBuilder() {
   // State forces React to re-render while dragging.
   const [hoverProblem, setHoverProblem] = useState(null);
   const [hoverIdx, setHoverIdx] = useState(null);
+
+  // Used only for the accent tool.
+  // This tracks which vowel inside the word should turn red.
+  const [accentCharIdx, setAccentCharIdx] = useState(null);
 
   useEffect(() => {
     if (!config) return;
@@ -841,6 +904,7 @@ export default function WordSentenceBuilder() {
     dragRef.current = null;
     setHoverProblem(null);
     setHoverIdx(null);
+    setAccentCharIdx(null);
 
     const tile = d.tile;
     const [fromProblemIdx, fromTileIdx] = d.fromProblem || [null, null];
@@ -886,10 +950,17 @@ export default function WordSentenceBuilder() {
             U:'Ú'
           };
 
-          target.value = target.value
-            .split('')
-            .map(ch => PLAIN_TO_ACC[ch] || ch)
-            .join('');
+          const chars = [...String(target.value || '')];
+
+          if (
+            accentCharIdx !== null &&
+            accentCharIdx >= 0 &&
+            accentCharIdx < chars.length &&
+            PLAIN_TO_ACC[chars[accentCharIdx]]
+          ) {
+            chars[accentCharIdx] = PLAIN_TO_ACC[chars[accentCharIdx]];
+            target.value = chars.join('');
+          }
         }
 
         return next;
@@ -1010,6 +1081,7 @@ export default function WordSentenceBuilder() {
     dragRef.current = null;
     setHoverProblem(null);
     setHoverIdx(null);
+    setAccentCharIdx(null);
   };
 
   const validate = () => {
@@ -1191,6 +1263,8 @@ export default function WordSentenceBuilder() {
                 setHoverProblem={setHoverProblem}
                 hoverIdx={hoverIdx}
                 setHoverIdx={setHoverIdx}
+                accentCharIdx={accentCharIdx}
+                setAccentCharIdx={setAccentCharIdx}
                 swapMode={swapMode}
                 pendingRemove={pendingRemove}
                 setPendingRemove={setPendingRemove}
