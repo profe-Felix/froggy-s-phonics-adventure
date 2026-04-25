@@ -364,8 +364,8 @@ export default function WordSentenceBuilder() {
   const { config, loading } = usePreset(searchParams);
 
   // problems: array of tile arrays, one per problem/row
-  const [problems, setProblems] = useState([[]]);
-  const [problemStates, setProblemStates] = useState([null]);
+  const [problems, setProblems] = useState(() => [[]]);
+  const [problemStates, setProblemStates] = useState(() => [null]);
   const [numProblems, setNumProblems] = useState(1);
   const [numProblemsInput, setNumProblemsInput] = useState(1);
   const [showResult, setShowResult] = useState(false);
@@ -400,8 +400,9 @@ export default function WordSentenceBuilder() {
     const np = Math.max(1, Math.min(50, parseInt(numProblemsInput) || 1));
     setNumProblems(np);
     setProblems(prev => {
-      if (prev.length >= np) return prev.slice(0, np);
-      return [...prev, ...Array.from({ length: np - prev.length }, () => [])];
+      const safe = Array.isArray(prev) ? prev : [];
+      if (safe.length >= np) return safe.slice(0, np);
+      return [...safe, ...Array.from({ length: np - safe.length }, () => [])];
     });
     setProblemStates(Array(np).fill(null));
     setShowResult(false);
@@ -423,7 +424,8 @@ export default function WordSentenceBuilder() {
     // captool and accenttool modify the tile just before the insert point, not insert
     if (tile.type === 'captool' || tile.type === 'accenttool') {
       setProblems(prev => {
-        const next = prev.map(p => p.map(t => ({ ...t })));
+        if (!Array.isArray(prev)) return prev;
+        const next = prev.map(p => (p || []).map(t => ({ ...t })));
         const problem = next[problemIdx];
         // find the nearest text tile to the left of insertIdx
         let targetIdx = insertIdx - 1;
@@ -447,7 +449,8 @@ export default function WordSentenceBuilder() {
     }
 
     setProblems(prev => {
-      const next = prev.map(p => [...p]);
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map(p => [...(p || [])]);
       if (d.fromProblem !== null) {
         const [fp, fi] = d.fromProblem;
         if (fp === problemIdx) {
@@ -470,7 +473,8 @@ export default function WordSentenceBuilder() {
 
   const handleRemoveTile = (problemIdx, tileIdx) => {
     setProblems(prev => {
-      const next = prev.map(p => [...p]);
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map(p => [...(p || [])]);
       next[problemIdx].splice(tileIdx, 1);
       return next;
     });
@@ -483,7 +487,8 @@ export default function WordSentenceBuilder() {
     if (!d || d.fromProblem === null) return;
     const [fp, fi] = d.fromProblem;
     setProblems(prev => {
-      const next = prev.map(p => [...p]);
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map(p => [...(p || [])]);
       next[fp].splice(fi, 1);
       return next;
     });
@@ -589,7 +594,7 @@ export default function WordSentenceBuilder() {
         {/* Problems area */}
         <section className="flex-1 min-w-0">
           <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            {problems.map((tiles, pi) => (
+            {(problems || []).map((tiles, pi) => (
               <ProblemZone
                 key={pi}
                 index={pi}
