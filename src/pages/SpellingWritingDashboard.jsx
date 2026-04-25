@@ -104,18 +104,12 @@ export default function SpellingWritingDashboard() {
     refetchInterval: 15000,
   });
 
-  // Filter by class client-side (handles records saved without class_name)
-  const filteredSamples = samples.filter(s => (s.class_name || '') === className);
+  // Filter by class client-side — treat missing class_name as matching the selected class
+  const filteredSamples = samples.filter(s => !s.class_name || s.class_name === className);
 
   // Group by student
   const byStudent = {};
   filteredSamples.forEach(s => {
-    if (!byStudent[s.student_number]) byStudent[s.student_number] = [];
-    byStudent[s.student_number].push(s);
-  });
-  // Also show samples with no class_name under whichever class is selected (legacy records)
-  const noClassSamples = samples.filter(s => !s.class_name);
-  noClassSamples.forEach(s => {
     if (!byStudent[s.student_number]) byStudent[s.student_number] = [];
     byStudent[s.student_number].push(s);
   });
