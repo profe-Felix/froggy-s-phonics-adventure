@@ -284,13 +284,14 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
     const d = dragRef.current;
     if (!d) { replaceIdxRef.current = null; return; }
     
+    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
+    
     // For captool/accenttool: highlight the hovered tile
     if (d.tile?.type === 'captool' || d.tile?.type === 'accenttool') {
-      const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
       let hoveredIdx = null;
       for (let i = 0; i < children.length; i++) {
         const rect = children[i].getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right && (tiles[i]?.type === 'text' || tiles[i]?.type === 'write')) {
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom && (tiles[i]?.type === 'text' || tiles[i]?.type === 'write')) {
           hoveredIdx = i;
           break;
         }
@@ -305,12 +306,11 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
       return;
     }
 
-    // Normal drag: find drop position by cursor position
-    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
+    // Normal drag: find drop position by cursor position (check Y too for flex-wrap)
     let hoveredIdx = tiles.length;
     for (let i = 0; i < children.length; i++) {
       const rect = children[i].getBoundingClientRect();
-      if (e.clientX < rect.left + rect.width / 2) {
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom && e.clientX < rect.left + rect.width / 2) {
         hoveredIdx = i;
         break;
       }
