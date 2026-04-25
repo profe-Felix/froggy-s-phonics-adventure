@@ -401,8 +401,10 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
         }}
         data-slottile
         title={spaceVisible ? "Clic para quitar" : "Clic para ver"}
-        className={`inline-block self-stretch cursor-pointer shrink-0 transition-all ${
-          spaceVisible ? 'w-3 border-l-2 border-dotted border-gray-400 mx-1 hover:border-red-400' : 'w-1 h-0.5 bg-gray-300 mx-0.5'
+        className={`inline-block cursor-pointer shrink-0 transition-all rounded ${
+          spaceVisible 
+            ? 'w-6 h-6 bg-red-200 mx-1 hover:bg-red-300' 
+            : 'w-4 h-4 bg-pink-200 mx-0.5'
         }`}
       />
     );
