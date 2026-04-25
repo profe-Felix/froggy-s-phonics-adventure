@@ -356,36 +356,40 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
         {tiles.length === 0 && (
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
         )}
-        {tiles.map((tile, i) => (
-          <React.Fragment key={tile.id}>
-            {replaceIdxRef.current === i && replaceIdxRef.current !== null && pendingRemove === null && (
-              <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center" style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold' }}>
-                ↓
-              </div>
-            )}
-            <InlineTile
-              tile={tile}
-              tileIdx={i}
-              onDragStart={() => onTileDragStart(i, tile)}
-              pendingRemove={pendingRemove}
-              replaceIdx={replaceIdxRef.current}
-              swapMode={swapMode}
-              onTap={() => {
-                if (pendingRemove === tile.id) {
-                  if (swapMode) {
-                    // In swap mode, second tap deletes
-                    onRemoveTile(i);
-                    setPendingRemove(null);
-                  } else {
-                    setPendingRemove(null);
-                  }
-                } else {
-                  setPendingRemove(tile.id);
-                }
-              }}
-            />
-          </React.Fragment>
-        ))}
+        {tiles.map((tile, i) => {
+          const isGhostBefore = replaceIdxRef.current === i && replaceIdxRef.current !== null && pendingRemove === null && dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool';
+          return (
+            <React.Fragment key={tile.id}>
+              {isGhostBefore && (
+                <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center" style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold' }}>
+                  ↓
+                </div>
+              )}
+              {!isGhostBefore && (
+                <InlineTile
+                  tile={tile}
+                  tileIdx={i}
+                  onDragStart={() => onTileDragStart(i, tile)}
+                  pendingRemove={pendingRemove}
+                  replaceIdx={replaceIdxRef.current}
+                  swapMode={swapMode}
+                  onTap={() => {
+                    if (pendingRemove === tile.id) {
+                      if (swapMode) {
+                        onRemoveTile(i);
+                        setPendingRemove(null);
+                      } else {
+                        setPendingRemove(null);
+                      }
+                    } else {
+                      setPendingRemove(tile.id);
+                    }
+                  }}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
         {replaceIdxRef.current === tiles.length && replaceIdxRef.current !== null && pendingRemove === null && (
           <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center" style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold' }}>
             ↓
