@@ -163,7 +163,7 @@ function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropI
     setTiles(updatedTiles);
     
     // Auto-place into active problem if one is selected
-    if (activeProblem !== null) {
+    if (activeProblem !== null && problems && problems[activeProblem]) {
       onDropIntoProblem(activeProblem, problems[activeProblem].length, newTile);
     }
     
