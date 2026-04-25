@@ -8,7 +8,7 @@ const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight W
 
 // SpellingWriteStep stores raw pixel coords at 800x360 canvas resolution
 // We scale them to fit the display canvas
-const SRC_W = 800, SRC_H = 360;
+const SRC_W = 800, SRC_H = 240;
 
 function StrokeReplayCanvas({ strokesData }) {
   const canvasRef = useRef(null);
@@ -25,6 +25,26 @@ function StrokeReplayCanvas({ strokesData }) {
     y: (p.y / SRC_H) * dh,
   });
 
+  const drawLines = (ctx, dw, dh) => {
+    // Primary writing lines: top line, dashed midline, baseline — 2 rows
+    const rows = [
+      { top: dh * 0.04, mid: dh * 0.30, base: dh * 0.52 },
+      { top: dh * 0.55, mid: dh * 0.77, base: dh * 0.96 },
+    ];
+    rows.forEach(r => {
+      // Top line
+      ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 1; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(0, r.top); ctx.lineTo(dw, r.top); ctx.stroke();
+      // Dashed midline
+      ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 0.8; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(0, r.mid); ctx.lineTo(dw, r.mid); ctx.stroke();
+      // Baseline (solid blue)
+      ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(0, r.base); ctx.lineTo(dw, r.base); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  };
+
   const drawAll = () => {
     const c = canvasRef.current;
     if (!c) return;
@@ -34,6 +54,7 @@ function StrokeReplayCanvas({ strokesData }) {
     const ctx = c.getContext('2d');
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, dw, dh);
+    drawLines(ctx, dw, dh);
     ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
     strokes.forEach(stroke => {
       if (!stroke || stroke.length < 2) return;
@@ -57,6 +78,7 @@ function StrokeReplayCanvas({ strokesData }) {
     const ctx = c.getContext('2d');
     const dw = c.offsetWidth, dh = c.offsetHeight;
     ctx.clearRect(0, 0, c.width, c.height);
+    drawLines(ctx, dw, dh);
     ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
 
     const allPts = strokes.flatMap((s, si) => s.map((p, pi) => ({ ...scalePoint(p, dw, dh), si, pi, last: pi === s.length - 1 })));
@@ -84,7 +106,7 @@ function StrokeReplayCanvas({ strokesData }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <canvas ref={canvasRef} className="w-full rounded-lg border border-indigo-200 bg-indigo-50" style={{ height: 80 }} />
+      <canvas ref={canvasRef} className="w-full rounded-lg border border-indigo-200 bg-blue-50" style={{ height: 110 }} />
       <button onClick={replay} disabled={playing}
         className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40">
         {playing ? '▶ Playing…' : '▶ Replay'}
