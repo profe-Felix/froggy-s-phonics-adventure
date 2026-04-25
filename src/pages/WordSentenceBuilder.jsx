@@ -357,36 +357,29 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
         )}
         {tiles.map((tile, i) => (
-          <div key={tile.id} className="relative">
-            {replaceIdxRef.current === i && replaceIdxRef.current !== null && pendingRemove === null && (
-              <div className="absolute inset-y-0 -left-1 w-0.5 bg-blue-500" />
-            )}
-            <InlineTile
-              tile={tile}
-              tileIdx={i}
-              onDragStart={() => onTileDragStart(i, tile)}
-              pendingRemove={pendingRemove}
-              replaceIdx={replaceIdxRef.current}
-              swapMode={swapMode}
-              onTap={() => {
-                if (pendingRemove === tile.id) {
-                  if (swapMode) {
-                    // In swap mode, second tap deletes
-                    onRemoveTile(i);
-                    setPendingRemove(null);
-                  } else {
-                    setPendingRemove(null);
-                  }
+          <InlineTile
+            key={tile.id}
+            tile={tile}
+            tileIdx={i}
+            onDragStart={() => onTileDragStart(i, tile)}
+            pendingRemove={pendingRemove}
+            replaceIdx={replaceIdxRef.current}
+            swapMode={swapMode}
+            onTap={() => {
+              if (pendingRemove === tile.id) {
+                if (swapMode) {
+                  // In swap mode, second tap deletes
+                  onRemoveTile(i);
+                  setPendingRemove(null);
                 } else {
-                  setPendingRemove(tile.id);
+                  setPendingRemove(null);
                 }
-              }}
-            />
-          </div>
+              } else {
+                setPendingRemove(tile.id);
+              }
+            }}
+          />
         ))}
-        {replaceIdxRef.current === tiles.length && replaceIdxRef.current !== null && pendingRemove === null && (
-          <div className="w-0.5 h-6 bg-blue-500" />
-        )}
       </div>
     </div>
   );
@@ -398,10 +391,12 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
 
   if (tile.type === 'space') {
     let bg = 'transparent';
+    let borderLeft = 'none';
     if (isSelected) {
       bg = swapMode ? 'rgba(156,163,175,0.25)' : 'rgba(239,68,68,0.15)';
     } else if (isReplaceHighlight) {
-      bg = 'rgba(251,146,60,0.25)';
+      bg = 'rgba(59,130,246,0.15)';
+      borderLeft = '3px solid rgb(59,130,246)';
     }
     return (
       <button
@@ -417,8 +412,10 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
           background: bg,
           borderRadius: '3px',
           border: 'none',
+          borderLeft,
           cursor: 'pointer',
           padding: 0,
+          paddingLeft: borderLeft !== 'none' ? '1px' : 0,
         }}
       />
     );
@@ -426,12 +423,14 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
+    let borderLeft = 'none';
     if (isSelected) {
       color = swapMode ? '#9ca3af' : '#ef4444';
       if (swapMode) bg = 'rgba(156,163,175,0.15)';
     } else if (isReplaceHighlight) {
-      bg = 'rgba(59,130,246,0.2)';
+      bg = 'rgba(59,130,246,0.15)';
       color = '#1e40af';
+      borderLeft = '3px solid rgb(59,130,246)';
     }
     return (
       <button
@@ -443,7 +442,9 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
         style={{
           background: bg,
           border: 'none',
+          borderLeft,
           padding: bg !== 'none' ? '2px 4px' : 0,
+          paddingLeft: borderLeft !== 'none' ? '2px' : (bg !== 'none' ? '4px' : 0),
           font: 'inherit',
           color,
           fontSize: '1.875rem',
