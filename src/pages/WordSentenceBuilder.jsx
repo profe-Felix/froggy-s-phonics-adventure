@@ -157,7 +157,7 @@ function WriteTile({ dragRef }) {
       draggable
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'copy';
-        dragRef.current = { tile: createTile('write', val), fromSlot: null };
+        dragRef.current = { tile: createTile('write', val), fromProblem: null };
       }}
       className="cursor-grab rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50 flex items-center px-2 h-11"
     >
@@ -175,7 +175,7 @@ function ToolTile({ label, title, dragRef, tileType, tileValue }) {
     <div draggable
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'copy';
-        dragRef.current = { tile: createTile(tileType, tileValue), fromSlot: null };
+        dragRef.current = { tile: createTile(tileType, tileValue), fromProblem: null };
       }}
       title={title}
       className="cursor-grab rounded-xl border-2 border-gray-400 bg-gray-50 flex items-center justify-center w-11 h-11 text-lg font-black hover:bg-gray-100 select-none"
