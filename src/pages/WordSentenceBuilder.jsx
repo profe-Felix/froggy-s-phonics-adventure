@@ -273,63 +273,16 @@ function PaletteCard({ title, cols, children }) {
 }
 
 // ─── Problem drop zone ────────────────────────────────────────────────────────
-function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
-  const [insertIdx, setInsertIdx] = useState(null);
-  const [highlightTileIdx, setHighlightTileIdx] = useState(null);
+function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
   const [pendingRemove, setPendingRemove] = useState(null);
   const ref = useRef(null);
-
-  // Find the best insert index using per-row left-to-right logic.
-  // We group tiles by their vertical row (by top coordinate), then within
-  // the row closest to the cursor, find the right insertion point.
-  const getInsertIdx = (clientX, clientY) => {
-    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
-    if (!children.length) return 0;
-
-    const rects = children.map((el, i) => ({ i, r: el.getBoundingClientRect() }));
-
-    // group into rows by snapping tops to nearest 10px bucket
-    const rows = [];
-    rects.forEach(({ i, r }) => {
-      const rowTop = Math.round(r.top / 10) * 10;
-      let row = rows.find(rw => rw.top === rowTop);
-      if (!row) { row = { top: rowTop, items: [] }; rows.push(row); }
-      row.items.push({ i, r });
-    });
-    rows.sort((a, b) => a.top - b.top);
-
-    // find the closest row by vertical distance
-    let bestRow = rows[0];
-    let bestRowDist = Infinity;
-    rows.forEach(rw => {
-      const mid = rw.items[0].r.top + rw.items[0].r.height / 2;
-      const d = Math.abs(clientY - mid);
-      if (d < bestRowDist) { bestRowDist = d; bestRow = rw; }
-    });
-
-    // within that row, find insert point left-to-right
-    const rowItems = bestRow.items.sort((a, b) => a.r.left - b.r.left);
-    for (const { i, r } of rowItems) {
-      if (clientX < r.left + r.width / 2) return i;
-    }
-    // past the last item in this row → insert after the last item in that row
-    return rowItems[rowItems.length - 1].i + 1;
-  };
 
   const onDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const d = dragRef.current;
     
-    // If there's a pending remove (red-selected tile), don't show insertion line
-    if (pendingRemove !== null) {
-      setInsertIdx(null);
-    } else {
-      const idx = getInsertIdx(e.clientX, e.clientY);
-      setInsertIdx(idx);
-    }
-    
-    // Highlight target tile for captool/accenttool
+    // For captool/accenttool: highlight the hovered tile
     if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') {
       const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
       let hoveredIdx = null;
@@ -340,38 +293,27 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
           break;
         }
       }
-      setHighlightTileIdx(hoveredIdx);
-    } else {
-      setHighlightTileIdx(null);
+      replaceIdxRef.current = hoveredIdx;
+    } else if (pendingRemove !== null) {
+      // For replace mode: highlight the red-selected tile (no insertion line)
+      replaceIdxRef.current = tiles.findIndex(t => t.id === pendingRemove);
     }
   };
 
   const onDragLeave = (e) => {
-    // Only clear if we're actually leaving the zone (not entering a child)
     if (!ref.current?.contains(e.relatedTarget)) {
-      setInsertIdx(null);
-      setHighlightTileIdx(null);
+      replaceIdxRef.current = null;
     }
   };
 
   const onDrop_ = (e) => {
     e.preventDefault();
     const d = dragRef.current;
-    setInsertIdx(null);
-    setHighlightTileIdx(null);
+    const replaceIdx = replaceIdxRef.current ?? -1;
+    replaceIdxRef.current = null;
     
-    // If a tile is red-selected (pending remove), replace it with the dragged tile
-    if (pendingRemove !== null) {
-      const replaceIdx = tiles.findIndex(t => t.id === pendingRemove);
-      if (replaceIdx !== -1) {
-        onDrop(replaceIdx); // Pass the replacement tile at this index
-        setPendingRemove(null);
-      }
-    } else {
-      // Normal insertion
-      const idx = getInsertIdx(e.clientX, e.clientY);
-      onDrop(idx);
-    }
+    onDrop(replaceIdx);
+    setPendingRemove(null);
   };
 
   let border = 'border-gray-300';
@@ -393,41 +335,37 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
         onClick={() => onActivate(isActive ? null : index)}
         className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-1 transition-all cursor-pointer ${isActive ? 'ring-2 ring-blue-400' : ''} ${border} ${ring}`}
       >
-        {tiles.length === 0 && insertIdx === null && (
+        {tiles.length === 0 && (
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
         )}
         {tiles.map((tile, i) => (
-          <React.Fragment key={tile.id}>
-            {insertIdx === i && (dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool') && <InsertCaret />}
-            <InlineTile
-              tile={tile}
-              onDragStart={() => onTileDragStart(i, tile)}
-              onRemove={() => onRemoveTile(i)}
-              isHighlighted={highlightTileIdx === i}
-              pendingRemove={pendingRemove}
-              onTap={() => {
-                if (pendingRemove === tile.id) {
-                  setPendingRemove(null);
-                } else {
-                  setPendingRemove(tile.id);
-                }
-              }}
-            />
-          </React.Fragment>
+          <InlineTile
+            key={tile.id}
+            tile={tile}
+            tileIdx={i}
+            onDragStart={() => onTileDragStart(i, tile)}
+            pendingRemove={pendingRemove}
+            replaceIdx={replaceIdxRef.current}
+            onTap={() => {
+              if (pendingRemove === tile.id) {
+                setPendingRemove(null);
+              } else {
+                setPendingRemove(tile.id);
+              }
+            }}
+          />
         ))}
-        {insertIdx === tiles.length && (dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool') && <InsertCaret />}
       </div>
     </div>
   );
 }
 
-function InsertCaret() {
-  return <div className="w-0.5 h-9 bg-blue-500 rounded shrink-0 mx-0.5" />;
-}
+function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onTap }) {
+  const isRedSelected = pendingRemove === tile.id;
+  const isReplaceHighlight = replaceIdx === tileIdx && !isRedSelected;
 
-function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove, onTap }) {
   if (tile.type === 'space') {
-    const bg = pendingRemove === tile.id ? 'rgba(239,68,68,0.15)' : isHighlighted ? 'rgba(251,146,60,0.25)' : 'transparent';
+    const bg = isRedSelected ? 'rgba(239,68,68,0.15)' : isReplaceHighlight ? 'rgba(251,146,60,0.25)' : 'transparent';
     return (
       <button
         onClick={() => onTap()}
@@ -451,9 +389,9 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted, pendingRemove,
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
-    if (pendingRemove === tile.id) {
+    if (isRedSelected) {
       color = '#ef4444';
-    } else if (isHighlighted) {
+    } else if (isReplaceHighlight) {
       bg = 'rgba(251,146,60,0.2)';
     }
     return (
@@ -511,6 +449,7 @@ export default function WordSentenceBuilder() {
   const [activeProblem, setActiveProblem] = useState(null);
 
   const dragRef = useRef(null);
+  const replaceIdxRef = useRef(null); // Track which index to replace
 
   useEffect(() => {
     if (!config) return;
@@ -564,20 +503,21 @@ export default function WordSentenceBuilder() {
   };
 
   // Drop into a problem (from drag)
-  const handleDrop = (problemIdx, insertIdx) => {
+  const handleDrop = (problemIdx, replaceIdx) => {
     const d = dragRef.current;
     if (!d) return;
     dragRef.current = null;
+    replaceIdxRef.current = null;
 
     const tile = d.tile;
 
-    // captool and accenttool modify the highlighted tile, not insert
+    // captool and accenttool modify the highlighted tile, not replace
     if (tile.type === 'captool' || tile.type === 'accenttool') {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
         const next = prev.map(p => (p || []).map(t => ({ ...t })));
         const problem = next[problemIdx];
-        const targetIdx = insertIdx; // insertIdx is now the actual highlighted tile index
+        const targetIdx = replaceIdx; // replaceIdx is the actual highlighted tile index
         if (targetIdx < 0 || targetIdx >= problem.length || problem[targetIdx].type !== 'text') return prev;
         const target = problem[targetIdx];
         if (tile.type === 'captool') {
@@ -596,23 +536,17 @@ export default function WordSentenceBuilder() {
       return;
     }
 
-    setProblems(prev => {
-      if (!Array.isArray(prev)) return prev;
-      const next = prev.map(p => [...(p || [])]);
-      if (d.fromProblem !== null) {
-        const [fp, fi] = d.fromProblem;
-        if (fp === problemIdx) {
-          next[fp].splice(fi, 1);
-          const adjusted = insertIdx > fi ? insertIdx - 1 : insertIdx;
-          next[problemIdx].splice(adjusted, 0, tile);
-          return next;
-        }
-        next[fp].splice(fi, 1);
-      }
-      next[problemIdx].splice(insertIdx, 0, tile);
-      return next;
-    });
-    setShowResult(false);
+    // For normal tiles: replace the red-selected tile
+    if (replaceIdx >= 0) {
+      setProblems(prev => {
+        if (!Array.isArray(prev)) return prev;
+        const next = prev.map(p => [...(p || [])]);
+        const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
+        next[problemIdx][replaceIdx] = newTile;
+        return next;
+      });
+      setShowResult(false);
+    }
   };
 
   const handleTileDragStart = (problemIdx, tileIdx, tile) => {
@@ -752,6 +686,7 @@ export default function WordSentenceBuilder() {
                 state={problemStates[pi]}
                 showResult={showResult}
                 dragRef={dragRef}
+                replaceIdxRef={replaceIdxRef}
                 onDrop={(idx) => handleDrop(pi, idx)}
                 onTileDragStart={(ti, tile) => handleTileDragStart(pi, ti, tile)}
                 onRemoveTile={(ti) => handleRemoveTile(pi, ti)}
