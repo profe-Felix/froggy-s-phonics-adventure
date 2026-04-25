@@ -277,7 +277,8 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
 
   const onDrop_ = (e) => {
     e.preventDefault();
-    const idx = getInsertIdx(e.clientX, e.clientY);
+    const d = dragRef.current;
+    const idx = (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') ? highlightTileIdx : getInsertIdx(e.clientX, e.clientY);
     setInsertIdx(null);
     setHighlightTileIdx(null);
     onDrop(idx);
@@ -450,16 +451,14 @@ export default function WordSentenceBuilder() {
 
     const tile = d.tile;
 
-    // captool and accenttool modify the tile just before the insert point, not insert
+    // captool and accenttool modify the highlighted tile, not insert
     if (tile.type === 'captool' || tile.type === 'accenttool') {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
         const next = prev.map(p => (p || []).map(t => ({ ...t })));
         const problem = next[problemIdx];
-        // find the nearest text tile to the left of insertIdx
-        let targetIdx = insertIdx - 1;
-        while (targetIdx >= 0 && problem[targetIdx].type !== 'text') targetIdx--;
-        if (targetIdx < 0) return prev; // nothing to modify
+        const targetIdx = insertIdx; // insertIdx is now the actual highlighted tile index
+        if (targetIdx < 0 || targetIdx >= problem.length || problem[targetIdx].type !== 'text') return prev;
         const target = problem[targetIdx];
         if (tile.type === 'captool') {
           if (tile.value === 'up') {
