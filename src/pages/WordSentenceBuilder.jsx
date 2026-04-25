@@ -202,6 +202,7 @@ function PaletteCard({ title, cols, children }) {
 // ─── Problem drop zone ────────────────────────────────────────────────────────
 function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile }) {
   const [insertIdx, setInsertIdx] = useState(null);
+  const [highlightTileIdx, setHighlightTileIdx] = useState(null);
   const ref = useRef(null);
 
   // Find the best insert index using per-row left-to-right logic.
@@ -244,12 +245,26 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
   const onDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setInsertIdx(getInsertIdx(e.clientX, e.clientY));
+    const idx = getInsertIdx(e.clientX, e.clientY);
+    setInsertIdx(idx);
+    
+    // Highlight target tile for captool/accenttool
+    const d = dragRef.current;
+    if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') {
+      let targetIdx = idx - 1;
+      while (targetIdx >= 0 && tiles[targetIdx]?.type !== 'text') targetIdx--;
+      setHighlightTileIdx(targetIdx >= 0 ? targetIdx : null);
+    } else {
+      setHighlightTileIdx(null);
+    }
   };
 
   const onDragLeave = (e) => {
     // Only clear if we're actually leaving the zone (not entering a child)
-    if (!ref.current?.contains(e.relatedTarget)) setInsertIdx(null);
+    if (!ref.current?.contains(e.relatedTarget)) {
+      setInsertIdx(null);
+      setHighlightTileIdx(null);
+    }
   };
 
   const onDrop_ = (e) => {
@@ -287,6 +302,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
               tile={tile}
               onDragStart={() => onTileDragStart(i, tile)}
               onRemove={() => onRemoveTile(i)}
+              isHighlighted={highlightTileIdx === i}
             />
           </React.Fragment>
         ))}
@@ -300,7 +316,7 @@ function InsertCaret() {
   return <div className="w-0.5 h-9 bg-blue-500 rounded shrink-0 mx-0.5" />;
 }
 
-function InlineTile({ tile, onDragStart, onRemove }) {
+function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
   if (tile.type === 'space') {
     return (
       <span
@@ -320,7 +336,9 @@ function InlineTile({ tile, onDragStart, onRemove }) {
         type="text"
         defaultValue={tile.value || ''}
         placeholder="…"
-        className="border-b-2 border-gray-400 outline-none font-bold text-2xl bg-transparent text-center"
+        className={`border-b-2 outline-none font-bold text-2xl bg-transparent text-center transition-colors ${
+          isHighlighted ? 'border-yellow-400 bg-yellow-100' : 'border-gray-400'
+        }`}
         style={{ minWidth: 40, width: `${Math.max(3, ((tile.value || '').length) + 1)}ch`, fontFamily: 'Andika, system-ui, sans-serif' }}
         onChange={e => { tile.value = e.target.value; }}
         onPointerDown={e => e.stopPropagation()}
@@ -350,7 +368,9 @@ function InlineTile({ tile, onDragStart, onRemove }) {
       onClick={onRemove}
       data-slottile
       title="Clic para quitar"
-      className="text-3xl font-bold cursor-pointer hover:text-red-400 transition-colors select-none leading-tight"
+      className={`text-3xl font-bold cursor-pointer select-none leading-tight transition-colors ${
+        isHighlighted ? 'text-yellow-600 bg-yellow-100 px-1 rounded' : 'hover:text-red-400'
+      }`}
       style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
     >
       {tile.value}
