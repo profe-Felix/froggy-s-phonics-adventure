@@ -185,25 +185,34 @@ function SentenceWriteCanvas({ onDone }) {
 // no gap between them unless a space tile is placed. Tap a token to remove it.
 
 function parseSentence(sentence) {
+  // Split into words (strip punct) and collect all punct chars as separate tokens
   const raw = sentence.trim().split(/\s+/);
-  return raw.map(w => {
+  const words = [];
+  const puncts = [];
+  raw.forEach(w => {
     const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
-    if (m) return { word: m[1].toLowerCase(), punct: m[2] };
-    return { word: w.toLowerCase(), punct: '' };
+    if (m) {
+      words.push(m[1].toLowerCase());
+      if (m[2]) m[2].split('').forEach(p => puncts.push(p));
+    } else {
+      words.push(w.toLowerCase());
+    }
   });
+  return { words, puncts };
 }
 
 function SentenceBuilder({ sentence, onComplete }) {
-  const wordList = parseSentence(sentence); // [{word, punct}]
+  const { words, puncts } = parseSentence(sentence);
 
   const makeInitialState = () => {
-    const wordTiles = wordList.map((w, i) => ({ id: `w${i}`, type: 'word', word: w.word, punct: w.punct, capitalized: false }));
+    const wordTiles = words.map((w, i) => ({ id: `w${i}`, type: 'word', word: w, capitalized: false }));
     for (let i = wordTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [wordTiles[i], wordTiles[j]] = [wordTiles[j], wordTiles[i]];
     }
-    const spaceTiles = Array.from({ length: wordList.length - 1 }, (_, i) => ({ id: `s${i}`, type: 'space' }));
-    return [...wordTiles, ...spaceTiles];
+    const spaceTiles = Array.from({ length: words.length - 1 }, (_, i) => ({ id: `s${i}`, type: 'space' }));
+    const punctTiles = puncts.map((p, i) => ({ id: `p${i}`, type: 'punct', char: p }));
+    return [...wordTiles, ...spaceTiles, ...punctTiles];
   };
 
   const [tray, setTray] = useState(() => makeInitialState());
@@ -231,44 +240,38 @@ function SentenceBuilder({ sentence, onComplete }) {
   };
 
   const handleCheck = () => {
-    const words = dropZone.filter(t => t.type === 'word');
-    const spaces = dropZone.filter(t => t.type === 'space');
-    if (words.length !== wordList.length || spaces.length !== wordList.length - 1) {
-      setIsCorrect(false); setShowResult(true); return;
-    }
-    // pattern must be word-space-word-space-...-word
-    let ok = true;
-    for (let i = 0; i < dropZone.length; i++) {
-      if (i % 2 === 0 && dropZone[i].type !== 'word') { ok = false; break; }
-      if (i % 2 === 1 && dropZone[i].type !== 'space') { ok = false; break; }
-    }
-    if (ok) {
-      const wordTilesInOrder = dropZone.filter(t => t.type === 'word');
-      for (let i = 0; i < wordList.length; i++) {
-        const placed = wordTilesInOrder[i];
-        if (placed.word !== wordList[i].word) { ok = false; break; }
-        if (i === 0 && !placed.capitalized) { ok = false; break; }
-        if (i !== 0 && placed.capitalized) { ok = false; break; }
+    // Build the student's answer string
+    let built = '';
+    for (const tile of dropZone) {
+      if (tile.type === 'word') {
+        built += tile.capitalized ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1) : tile.word;
+      } else if (tile.type === 'space') {
+        built += ' ';
+      } else if (tile.type === 'punct') {
+        built += tile.char;
       }
     }
-    setIsCorrect(ok); setShowResult(true);
+    const ok = built.trim() === sentence.trim();
+    setIsCorrect(ok);
+    setShowResult(true);
   };
 
   const wordTilesInTray = tray.filter(t => t.type === 'word');
   const spaceTilesInTray = tray.filter(t => t.type === 'space');
+  const punctTilesInTray = tray.filter(t => t.type === 'punct');
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Tap words and spaces to build the sentence</p>
+      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Tap words, spaces, and punctuation to build the sentence</p>
 
-      {/* Sentence display — continuous text, no gaps between tokens */}
+      {/* Sentence display — continuous flowing text */}
       <div
-        className={`min-h-[72px] rounded-2xl border-4 px-4 py-3 flex flex-wrap items-baseline leading-relaxed
+        className={`min-h-[72px] rounded-2xl border-4 px-4 py-3 flex flex-wrap items-baseline
           ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white'}`}
-        style={{ fontFamily: "'Andika', sans-serif", fontSize: '1.5rem', letterSpacing: 0 }}
+        style={{ fontSize: '1.6rem', lineHeight: 1.5, letterSpacing: 0 }}
       >
         {dropZone.length === 0 && (
-          <span className="text-gray-300 text-base self-center">Tap words and spaces below…</span>
+          <span className="text-gray-300 text-base self-center">Tap tiles below…</span>
         )}
         {dropZone.map((tile) => {
           if (tile.type === 'space') {
@@ -278,14 +281,30 @@ function SentenceBuilder({ sentence, onComplete }) {
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
                 title="Remove space"
-                className="inline-block w-[0.55em] h-[1.4em] align-baseline relative group disabled:cursor-default"
-                style={{ minWidth: '0.55em' }}
+                className="inline-flex items-end disabled:cursor-default group"
+                style={{ width: '0.6em', height: '1.5em', verticalAlign: 'baseline', flexShrink: 0 }}
               >
-                {/* visible underline so student can see the space */}
-                <span className="absolute bottom-[0.15em] left-0 right-0 border-b-2 border-dashed border-indigo-300 group-hover:border-red-400 transition-colors" />
+                <span
+                  className="w-full rounded-sm group-hover:bg-red-200 transition-colors"
+                  style={{ height: '0.18em', background: '#a5b4fc', display: 'block', marginBottom: '0.12em' }}
+                />
               </button>
             );
           }
+          if (tile.type === 'punct') {
+            return (
+              <button
+                key={tile.id}
+                onClick={() => handleDropTap(tile)}
+                disabled={showResult}
+                className="inline font-bold disabled:cursor-default text-yellow-700 hover:text-red-500 transition-colors active:opacity-70"
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline' }}
+              >
+                {tile.char}
+              </button>
+            );
+          }
+          // word tile
           const display = tile.capitalized
             ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
             : tile.word;
@@ -298,12 +317,12 @@ function SentenceBuilder({ sentence, onComplete }) {
                   ${showResult ? 'text-inherit' : 'text-indigo-800 hover:text-red-500 active:opacity-70'}`}
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer' }}
               >
-                {display}{tile.punct}
+                {display}
               </button>
               {!showResult && (
                 <button
                   onClick={() => handleCapToggle(tile.id)}
-                  className={`text-[9px] leading-none px-1 rounded font-black mt-0.5 transition-all ${tile.capitalized ? 'bg-amber-400 text-amber-900' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
+                  className={`leading-none px-1 rounded font-black mt-0.5 transition-all ${tile.capitalized ? 'bg-amber-400 text-amber-900' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
                   style={{ fontSize: '9px' }}
                 >
                   Aa
@@ -331,21 +350,42 @@ function SentenceBuilder({ sentence, onComplete }) {
         </div>
       )}
 
-      {/* Space tray */}
-      {spaceTilesInTray.length > 0 && (
-        <div className="flex gap-2 items-center justify-center">
-          <span className="text-sm text-gray-500 font-bold">Spaces:</span>
-          <AnimatePresence>
-            {spaceTilesInTray.map(tile => (
-              <motion.button key={tile.id}
-                initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
-                onClick={() => handleTrayTap(tile)} disabled={showResult}
-                className="w-12 h-10 rounded-xl border-2 border-dashed border-gray-400 bg-gray-100 text-gray-500 font-bold hover:bg-indigo-100 hover:border-indigo-400 active:scale-95 transition-all disabled:opacity-40"
-              >
-                ␣
-              </motion.button>
-            ))}
-          </AnimatePresence>
+      {/* Space + Punct tray */}
+      {(spaceTilesInTray.length > 0 || punctTilesInTray.length > 0) && (
+        <div className="flex gap-3 items-center justify-center flex-wrap">
+          {spaceTilesInTray.length > 0 && (
+            <>
+              <span className="text-sm text-gray-500 font-bold">Space:</span>
+              <AnimatePresence>
+                {spaceTilesInTray.map(tile => (
+                  <motion.button key={tile.id}
+                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={() => handleTrayTap(tile)} disabled={showResult}
+                    className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center"
+                    title="Space"
+                  >
+                    <span className="w-6 h-1 rounded-full bg-indigo-300 block" />
+                  </motion.button>
+                ))}
+              </AnimatePresence>
+            </>
+          )}
+          {punctTilesInTray.length > 0 && (
+            <>
+              <span className="text-sm text-gray-500 font-bold ml-2">Punct:</span>
+              <AnimatePresence>
+                {punctTilesInTray.map(tile => (
+                  <motion.button key={tile.id}
+                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                    onClick={() => handleTrayTap(tile)} disabled={showResult}
+                    className="w-12 h-10 rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 font-black text-xl hover:bg-yellow-100 active:scale-95 transition-all disabled:opacity-40"
+                  >
+                    {tile.char}
+                  </motion.button>
+                ))}
+              </AnimatePresence>
+            </>
+          )}
         </div>
       )}
 
