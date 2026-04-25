@@ -517,7 +517,12 @@ function ProblemZone({
               dragRef.current?.tile?.type !== 'accenttool' && (
                 <div
                   className="rounded-lg border-l-4 border-l-blue-500 bg-blue-50 min-h-12 flex items-center"
-                  style={{ minWidth: '1.5rem' }}
+                  style={{
+                    minWidth:
+                      dragRef.current?.tile?.type === 'text'
+                        ? `${Math.max(String(dragRef.current.tile.value || '').length * 1.1, 3)}ch`
+                        : '2rem'
+                  }}
                 />
               )}
 
@@ -527,6 +532,13 @@ function ProblemZone({
               onDragStart={() => onTileDragStart(i, tile)}
               pendingRemove={pendingRemove}
               replaceIdx={showHoverHere ? hoverIdx : null}
+              toolHover={
+                showHoverHere &&
+                (dragRef.current?.tile?.type === 'captool' ||
+                  dragRef.current?.tile?.type === 'accenttool')
+                  ? hoverIdx
+                  : null
+              }
               swapMode={swapMode}
               onTap={() => {
                 if (pendingRemove === tile.id) {
@@ -551,8 +563,12 @@ function ProblemZone({
           dragRef.current?.tile?.type !== 'captool' &&
           dragRef.current?.tile?.type !== 'accenttool' && (
             <div
-              className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center"
+              className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 h-12 flex items-center justify-center"
               style={{
+                minWidth:
+                  dragRef.current?.tile?.type === 'text'
+                    ? `${Math.max(String(dragRef.current.tile.value || '').length * 1.1, 3)}ch`
+                    : '2rem',
                 fontSize: '0.75rem',
                 color: '#60a5fa',
                 fontWeight: 'bold'
@@ -573,11 +589,11 @@ function InlineTile({
   replaceIdx,
   tileIdx,
   onTap,
-  swapMode
+  swapMode,
+  toolHover
 }) {
   const isSelected = pendingRemove === tile.id;
-  const isReplaceHighlight =
-    replaceIdx === tileIdx && !isSelected && replaceIdx !== null;
+  const isToolHighlight = toolHover === tileIdx;
 
   if (tile.type === 'space') {
     let bg = 'transparent';
@@ -588,7 +604,7 @@ function InlineTile({
         : 'rgba(239,68,68,0.15)';
     }
 
-    if (isReplaceHighlight) {
+    if (isToolHighlight) {
       bg = 'rgba(59,130,246,0.20)';
     }
 
@@ -605,10 +621,10 @@ function InlineTile({
           flexShrink: 0,
           background: bg,
           borderRadius: '3px',
-          border: isReplaceHighlight ? '1px solid #3b82f6' : 'none',
+          border: isToolHighlight ? '1px solid #3b82f6' : 'none',
           cursor: 'pointer',
           padding: 0,
-          margin: '0 3px'
+          margin: 0
         }}
       />
     );
@@ -625,7 +641,7 @@ function InlineTile({
     }
 
     // This is the missing capitalization/accent hover highlight.
-    if (isReplaceHighlight) {
+    if (isToolHighlight) {
       bg = 'rgba(59,130,246,0.20)';
       color = '#1d4ed8';
       outline = '2px solid rgba(59,130,246,0.55)';
@@ -645,11 +661,11 @@ function InlineTile({
           background: bg,
           outline,
           border: 'none',
-          padding: '2px 4px',
+          padding: '0 1px',
 
           // Text/word tiles need visible spacing.
           // Punctuation stays pulled close to the word.
-          margin: tile.type === 'punc' ? '0 0 0 -3px' : '0 3px',
+          margin: 0,
 
           font: 'inherit',
           color,
@@ -666,7 +682,7 @@ function InlineTile({
   }
 
   if (tile.type === 'img') {
-    const isHighlighted = isReplaceHighlight;
+    const isHighlighted = isToolHighlight;
 
     return (
       <img
