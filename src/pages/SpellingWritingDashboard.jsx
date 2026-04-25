@@ -99,14 +99,23 @@ export default function SpellingWritingDashboard() {
   const [expandedStudent, setExpandedStudent] = useState(null);
 
   const { data: samples = [], isLoading } = useQuery({
-    queryKey: ['spelling-writing-samples', className, mode],
-    queryFn: () => base44.entities.SpellingWritingSample.filter({ class_name: className, mode }),
+    queryKey: ['spelling-writing-samples', mode],
+    queryFn: () => base44.entities.SpellingWritingSample.filter({ mode }),
     refetchInterval: 15000,
   });
 
+  // Filter by class client-side (handles records saved without class_name)
+  const filteredSamples = samples.filter(s => (s.class_name || '') === className);
+
   // Group by student
   const byStudent = {};
-  samples.forEach(s => {
+  filteredSamples.forEach(s => {
+    if (!byStudent[s.student_number]) byStudent[s.student_number] = [];
+    byStudent[s.student_number].push(s);
+  });
+  // Also show samples with no class_name under whichever class is selected (legacy records)
+  const noClassSamples = samples.filter(s => !s.class_name);
+  noClassSamples.forEach(s => {
     if (!byStudent[s.student_number]) byStudent[s.student_number] = [];
     byStudent[s.student_number].push(s);
   });
