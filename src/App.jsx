@@ -14,7 +14,6 @@ import DigitalNotebook from './pages/DigitalNotebook';
 import SpanishReadingDashboard from './pages/SpanishReadingDashboard';
 import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
 import Lessons from './pages/Lessons';
-import Lessons from './pages/Lessons';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
