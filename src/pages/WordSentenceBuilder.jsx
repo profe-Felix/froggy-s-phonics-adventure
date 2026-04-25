@@ -357,9 +357,9 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
         )}
         {tiles.map((tile, i) => (
-          <div key={tile.id} className="relative flex items-center">
+          <div key={tile.id} className="relative">
             {replaceIdxRef.current === i && replaceIdxRef.current !== null && pendingRemove === null && (
-              <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-blue-500 rounded-full" style={{ transform: 'translateX(-8px)' }} />
+              <div className="absolute inset-y-0 -left-1 w-0.5 bg-blue-500" />
             )}
             <InlineTile
               tile={tile}
@@ -385,7 +385,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
           </div>
         ))}
         {replaceIdxRef.current === tiles.length && replaceIdxRef.current !== null && pendingRemove === null && (
-          <div className="w-[3px] h-6 bg-blue-500 rounded-full" />
+          <div className="w-0.5 h-6 bg-blue-500" />
         )}
       </div>
     </div>
@@ -426,53 +426,34 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
-    let capBg = '#f3f4f6';
-    let capColor = '#9ca3af';
     if (isSelected) {
       color = swapMode ? '#9ca3af' : '#ef4444';
       if (swapMode) bg = 'rgba(156,163,175,0.15)';
-      capBg = swapMode ? '#e5e7eb' : '#fca5a5';
-      capColor = swapMode ? '#6b7280' : '#991b1b';
     } else if (isReplaceHighlight) {
-      bg = 'rgba(251,146,60,0.2)';
+      bg = 'rgba(59,130,246,0.2)';
+      color = '#1e40af';
     }
     return (
-      <span className="flex flex-col items-center" style={{ verticalAlign: 'baseline' }}>
-        <button
-          draggable
-          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-          onClick={() => onTap()}
-          data-slottile
-          className="font-bold transition-colors cursor-grab active:cursor-grabbing rounded"
-          style={{
-            background: bg,
-            border: 'none',
-            padding: bg !== 'none' ? '2px 4px' : 0,
-            font: 'inherit',
-            color,
-            fontSize: '1.875rem',
-            fontWeight: 'bold',
-            verticalAlign: 'baseline',
-            fontFamily: 'Andika, system-ui, sans-serif',
-            display: 'block',
-          }}
-        >
-          {tile.value}
-        </button>
-        <div
-          className="text-xs font-bold rounded px-1 mt-0.5 transition-all"
-          style={{
-            background: capBg,
-            color: capColor,
-            height: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Aa
-        </div>
-      </span>
+      <button
+        draggable
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        onClick={() => onTap()}
+        data-slottile
+        className="font-bold transition-colors cursor-grab active:cursor-grabbing rounded"
+        style={{
+          background: bg,
+          border: 'none',
+          padding: bg !== 'none' ? '2px 4px' : 0,
+          font: 'inherit',
+          color,
+          fontSize: '1.875rem',
+          fontWeight: 'bold',
+          verticalAlign: 'baseline',
+          fontFamily: 'Andika, system-ui, sans-serif',
+        }}
+      >
+        {tile.value}
+      </button>
     );
   }
   if (tile.type === 'img') {
