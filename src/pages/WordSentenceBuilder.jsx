@@ -152,18 +152,14 @@ function TrayTile({ tile, onDragStart }) {
 // ─── WriteTile in tray ────────────────────────────────────────────────────────
 function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropIntoProblem }) {
   const [input, setInput] = useState('');
+  const [tiles, setTiles] = useState([]);
   const inputRef = useRef(null);
 
   const handleAddWord = () => {
     if (!input.trim()) return;
     
     const newTile = createTile('text', input.trim());
-    
-    // Auto-place into active problem if one is selected
-    if (activeProblem !== null && problems && problems[activeProblem]) {
-      onDropIntoProblem(activeProblem, problems[activeProblem].length, newTile);
-    }
-    
+    setTiles(prev => [...prev, newTile]);
     setInput('');
     inputRef.current?.focus();
   };
@@ -175,24 +171,62 @@ function WriteTile({ dragRef, setActiveProblem, activeProblem, problems, onDropI
     }
   };
 
+  const handleDragStart = (e, tile) => {
+    e.dataTransfer.effectAllowed = 'copy';
+    dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromProblem: null };
+  };
+
+  const handleTileTap = (tile) => {
+    // Tap to place into active problem
+    if (activeProblem !== null && problems && problems[activeProblem]) {
+      onDropIntoProblem(activeProblem, problems[activeProblem].length, tile);
+      setTiles(prev => prev.filter(t => t.id !== tile.id));
+    }
+  };
+
+  const handleRemoveTile = (idx) => {
+    setTiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
   return (
-    <div className="flex gap-1">
-      <input
-        ref={inputRef}
-        type="text"
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="escribe…"
-        className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
-        onPointerDown={e => e.stopPropagation()}
-      />
-      <button
-        onClick={handleAddWord}
-        className="bg-indigo-600 text-white rounded-xl px-3 h-11 font-bold text-sm hover:bg-indigo-700 transition-colors shrink-0"
-      >
-        +
-      </button>
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="escribe…"
+          className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
+          onPointerDown={e => e.stopPropagation()}
+        />
+        <button
+          onClick={handleAddWord}
+          className="bg-indigo-600 text-white rounded-xl px-3 h-11 font-bold text-sm hover:bg-indigo-700 transition-colors shrink-0"
+        >
+          +
+        </button>
+      </div>
+      
+      {tiles.length > 0 && (
+        <div className="flex flex-wrap gap-2 bg-indigo-50 rounded-xl p-2 border border-indigo-200">
+          {tiles.map((t, idx) => (
+            <button
+              key={t.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, t)}
+              onClick={() => handleTileTap(t)}
+              onContextMenu={(e) => { e.preventDefault(); handleRemoveTile(idx); }}
+              className="rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-base px-3 h-10 hover:bg-indigo-50 shadow-sm transition-colors cursor-grab active:cursor-grabbing"
+              style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+              title="Arrastra para mover o haz clic para colocar en el problema activo"
+            >
+              {t.value}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
