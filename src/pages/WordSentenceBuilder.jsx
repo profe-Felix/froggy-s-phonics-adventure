@@ -251,9 +251,17 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
     // Highlight target tile for captool/accenttool
     const d = dragRef.current;
     if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') {
-      let targetIdx = idx - 1;
-      while (targetIdx >= 0 && tiles[targetIdx]?.type !== 'text') targetIdx--;
-      setHighlightTileIdx(targetIdx >= 0 ? targetIdx : null);
+      // Find the text tile directly under the cursor
+      const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
+      let hoveredIdx = null;
+      for (let i = 0; i < children.length; i++) {
+        const rect = children[i].getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && tiles[i]?.type === 'text') {
+          hoveredIdx = i;
+          break;
+        }
+      }
+      setHighlightTileIdx(hoveredIdx);
     } else {
       setHighlightTileIdx(null);
     }
@@ -271,6 +279,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
     e.preventDefault();
     const idx = getInsertIdx(e.clientX, e.clientY);
     setInsertIdx(null);
+    setHighlightTileIdx(null);
     onDrop(idx);
   };
 
