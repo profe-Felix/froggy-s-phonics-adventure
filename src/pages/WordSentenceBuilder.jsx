@@ -535,7 +535,7 @@ export default function WordSentenceBuilder() {
     setShowResult(false);
   };
 
-  // Drop into a problem (from drag)
+  // Drop into a problem (from drag or reorder)
   const handleDrop = (problemIdx, replaceIdx) => {
     const d = dragRef.current;
     if (!d) return;
@@ -543,6 +543,7 @@ export default function WordSentenceBuilder() {
     replaceIdxRef.current = null;
 
     const tile = d.tile;
+    const [fromProblemIdx, fromTileIdx] = d.fromProblem || [null, null];
 
     // captool and accenttool modify the highlighted tile, not replace
     if (tile.type === 'captool' || tile.type === 'accenttool') {
@@ -569,8 +570,24 @@ export default function WordSentenceBuilder() {
       return;
     }
 
-    // For normal tiles: replace the red-selected tile
-    if (replaceIdx >= 0) {
+    // If dragging from within the same problem, it's a reorder
+    if (fromProblemIdx === problemIdx && fromTileIdx !== null) {
+      setProblems(prev => {
+        if (!Array.isArray(prev)) return prev;
+        const next = prev.map(p => [...(p || [])]);
+        const problem = next[problemIdx];
+        if (fromTileIdx < 0 || fromTileIdx >= problem.length) return prev;
+        const [movedTile] = problem.splice(fromTileIdx, 1);
+        const insertIdx = replaceIdx >= 0 ? replaceIdx : problem.length;
+        problem.splice(insertIdx, 0, movedTile);
+        return next;
+      });
+      setShowResult(false);
+      return;
+    }
+
+    // For normal tiles from tray: replace the red-selected tile
+    if (replaceIdx >= 0 && pendingRemove) {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
         const next = prev.map(p => [...(p || [])]);
@@ -578,6 +595,7 @@ export default function WordSentenceBuilder() {
         next[problemIdx][replaceIdx] = newTile;
         return next;
       });
+      setPendingRemove(null);
       setShowResult(false);
     }
   };
