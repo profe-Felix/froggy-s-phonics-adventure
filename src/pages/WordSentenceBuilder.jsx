@@ -944,10 +944,23 @@ export default function WordSentenceBuilder() {
             o:'ó',
             u:'ú',
             A:'Á',
-            E:'É',
+            E:'Í',
             I:'Í',
             O:'Ó',
             U:'Ú'
+          };
+
+          const ACC_TO_PLAIN = {
+            á:'a',
+            é:'e',
+            í:'i',
+            ó:'o',
+            ú:'u',
+            Á:'A',
+            É:'E',
+            Í:'I',
+            Ó:'O',
+            Ú:'U'
           };
 
           const chars = [...String(target.value || '')];
@@ -955,11 +968,17 @@ export default function WordSentenceBuilder() {
           if (
             accentCharIdx !== null &&
             accentCharIdx >= 0 &&
-            accentCharIdx < chars.length &&
-            PLAIN_TO_ACC[chars[accentCharIdx]]
+            accentCharIdx < chars.length
           ) {
-            chars[accentCharIdx] = PLAIN_TO_ACC[chars[accentCharIdx]];
-            target.value = chars.join('');
+            const ch = chars[accentCharIdx];
+
+            if (PLAIN_TO_ACC[ch]) {
+              chars[accentCharIdx] = PLAIN_TO_ACC[ch];
+              target.value = chars.join('');
+            } else if (ACC_TO_PLAIN[ch]) {
+              chars[accentCharIdx] = ACC_TO_PLAIN[ch];
+              target.value = chars.join('');
+            }
           }
         }
 
