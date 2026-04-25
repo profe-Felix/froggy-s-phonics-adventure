@@ -12,6 +12,7 @@ import QRGenerator from './pages/QRGenerator';
 import MathDashboard from './pages/MathDashboard';
 import DigitalNotebook from './pages/DigitalNotebook';
 import SpanishReadingDashboard from './pages/SpanishReadingDashboard';
+import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -72,6 +73,7 @@ const AuthenticatedApp = () => {
       <Route path="/MathDashboard" element={<MathDashboard />} />
       <Route path="/DigitalNotebook" element={<DigitalNotebook />} />
       <Route path="/SpanishReadingDashboard" element={<SpanishReadingDashboard />} />
+      <Route path="/SpellingWritingDashboard" element={<SpellingWritingDashboard />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

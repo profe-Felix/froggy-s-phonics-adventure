@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
+import SpellingWriteStep from '../SpellingWriteStep';
 import { SIGHT_WORDS_SPELLING } from '../../data/sightWords';
+import { base44 } from '@/api/base44Client';
 
-const SIGHT_WORDS = SIGHT_WORDS_SPELLING;
+// Only 'spell' and 'unscramble' — no missing-letter
+const CHALLENGE_TYPES = ['spell', 'unscramble', 'spell', 'spell', 'unscramble'];
+const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
-// Challenge types: 'spell' = spell from scratch, 'unscramble' = letters given scrambled, 'missing' = fill in missing letter
-const CHALLENGE_TYPES = ['spell', 'unscramble', 'missing', 'spell', 'unscramble'];
-
-function pickMissingIdx(word) {
-  // Pick a non-trivial letter to remove (prefer middle letters for longer words)
-  if (word.length <= 2) return word.length - 1;
-  return 1 + Math.floor(Math.random() * (word.length - 2));
+function pickWord(modeData, lastWord) {
+  const learning = modeData.learning_items?.length > 0 ? modeData.learning_items : ['el', 'la', 'un'];
+  const attempts = modeData.item_attempts || {};
+  const pool = learning.length > 1 ? learning.filter(w => w !== lastWord) : learning;
+  const weights = pool.map(w => { const s = attempts[w] || { correct: 0, total: 0 }; return Math.max(1, 6 - s.correct); });
+  const total = weights.reduce((a, b) => a + b, 0);
+  let rand = Math.random() * total;
+  for (let i = 0; i < pool.length; i++) { rand -= weights[i]; if (rand <= 0) return pool[i]; }
+  return pool[pool.length - 1];
 }
 
 export default function SightWordsSpellingMode({ studentData, onUpdateProgress }) {
+  const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [currentWord, setCurrentWord] = useState(null);
   const [options, setOptions] = useState([]);
   const [builtWord, setBuiltWord] = useState([]);
@@ -25,7 +32,6 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [usedIndices, setUsedIndices] = useState([]);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [challengeType, setChallengeType] = useState('spell');
-  const [missingIdx, setMissingIdx] = useState(null);
   const [roundCount, setRoundCount] = useState(0);
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
@@ -33,11 +39,8 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const submittingRef = useRef(false);
 
   const modeData = studentData?.mode_progress?.sight_words_spelling || {
-    mastered_items: [],
-    learning_items: ['el', 'la', 'un', 'una', 'en'],
-    item_attempts: {},
-    total_correct: 0,
-    total_attempts: 0
+    mastered_items: [], learning_items: ['el', 'la', 'un', 'una', 'en'],
+    item_attempts: {}, total_correct: 0, total_attempts: 0
   };
 
   const playSound = (word) => {
@@ -51,98 +54,78 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     audioRef.current.play().catch(() => {});
   };
 
-  const generateRound = (nextRoundCount) => {
-    const learning = modeData.learning_items?.length > 0 ? modeData.learning_items : ['el', 'la', 'un'];
-    const attempts = modeData.item_attempts || {};
-    const pool = learning.length > 1 ? learning.filter(w => w !== lastWordRef.current) : learning;
-    const weights = pool.map(w => { const s = attempts[w] || { correct: 0, total: 0 }; return Math.max(1, 5 - s.correct); });
-    const totalWeight = weights.reduce((a, b) => a + b, 0);
-    let rand = Math.random() * totalWeight;
-    let targetWord = pool[0];
-    for (let i = 0; i < pool.length; i++) { rand -= weights[i]; if (rand <= 0) { targetWord = pool[i]; break; } }
-    lastWordRef.current = targetWord;
-
-    // Pick challenge type from rotating sequence
-    const type = CHALLENGE_TYPES[(nextRoundCount ?? roundCount) % CHALLENGE_TYPES.length];
-    setChallengeType(type);
-
-    const wordLetters = targetWord.split('');
+  const buildOptions = (word, type) => {
+    const wordLetters = word.split('');
     const letterCounts = {};
-    wordLetters.forEach(l => letterCounts[l] = (letterCounts[l] || 0) + 1);
+    wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
     const neededLetters = [];
-    Object.entries(letterCounts).forEach(([letter, count]) => { for (let i = 0; i < count; i++) neededLetters.push(letter); });
+    Object.entries(letterCounts).forEach(([letter, count]) => {
+      for (let i = 0; i < count; i++) neededLetters.push(letter);
+    });
 
-    let allLetters;
     if (type === 'unscramble') {
-      // Only the exact letters of the word, shuffled — no distractors
-      allLetters = [...wordLetters].sort(() => Math.random() - 0.5);
-    } else if (type === 'missing') {
-      // Give all letters except one; student picks the missing one from letter options
-      const mIdx = pickMissingIdx(targetWord);
-      setMissingIdx(mIdx);
-      const missingLetter = targetWord[mIdx];
-      // Distractors: a few other letters
-      const distractors = 'abcdefghijklmnopqrstuvwxyz'.split('')
-        .filter(l => l !== missingLetter)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 5);
-      allLetters = [missingLetter, ...distractors].sort(() => Math.random() - 0.5);
-    } else {
-      // 'spell': word letters + distractors
-      const distractors = 'abcdefghijklmnopqrstuvwxyz'.split('')
-        .filter(l => !wordLetters.includes(l))
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 4);
-      allLetters = [...neededLetters, ...distractors].sort(() => Math.random() - 0.5);
+      return [...wordLetters].sort(() => Math.random() - 0.5).map((letter, idx) => ({ letter, id: idx }));
     }
 
-    setCurrentWord(targetWord);
-    setOptions(allLetters.map((letter, idx) => ({ letter, id: idx })));
+    // 'spell': word's letters + distractors (letters NOT in the word)
+    const distractors = DISTRACTOR_LETTERS
+      .filter(l => !wordLetters.includes(l))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.max(3, 6 - wordLetters.length));
+
+    return [...neededLetters, ...distractors]
+      .sort(() => Math.random() - 0.5)
+      .map((letter, idx) => ({ letter, id: idx }));
+  };
+
+  const startRound = (nextRoundCount) => {
+    const rc = nextRoundCount ?? roundCount;
+    const word = pickWord(modeData, lastWordRef.current);
+    lastWordRef.current = word;
+    const type = CHALLENGE_TYPES[rc % CHALLENGE_TYPES.length];
+    setChallengeType(type);
+    setCurrentWord(word);
+    setOptions(buildOptions(word, type));
     setBuiltWord([]);
     setUsedIndices([]);
     setShowResult(false);
     setPointsEarned(0);
+    setPhase('write');
     submittingRef.current = false;
-    playSound(targetWord);
+    playSound(word);
   };
 
-  const handleLetterClick = (letterObj) => {
-    if (showResult) return;
-    if (usedIndices.includes(letterObj.id)) return;
+  useEffect(() => { startRound(0); }, []);
 
-    if (challengeType === 'missing') {
-      // Only one click needed — immediately submit
-      const chosen = letterObj.letter;
-      const correct = chosen === currentWord[missingIdx];
-      setBuiltWord([chosen]);
-      setUsedIndices([letterObj.id]);
-      handleSubmitWithLetter(chosen);
-    } else {
-      setBuiltWord(prev => [...prev, letterObj.letter]);
-      setUsedIndices(prev => [...prev, letterObj.id]);
+  const handleWriteDone = async (strokes, imageUrl) => {
+    setPhase('build');
+    if (studentData) {
+      base44.entities.SpellingWritingSample.create({
+        student_number: studentData.student_number,
+        class_name: studentData.class_name,
+        mode: 'sight_words_spelling',
+        word: currentWord,
+        strokes_data: JSON.stringify(strokes),
+        image_url: imageUrl,
+        was_correct: null,
+      }).catch(() => {});
     }
   };
 
-  const handleSubmitWithLetter = async (chosen) => {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    const correct = chosen === currentWord[missingIdx];
-    const pts = correct ? 1 : 0;
-    setIsCorrect(correct);
-    setShowResult(true);
-    setPointsEarned(pts);
-    if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setStreak(0); }
-    await saveProgress(correct);
+  const handleLetterClick = (letterObj) => {
+    if (showResult || usedIndices.includes(letterObj.id)) return;
+    setBuiltWord(prev => [...prev, letterObj.letter]);
+    setUsedIndices(prev => [...prev, letterObj.id]);
   };
+
+  const handleUndo = () => { if (showResult) return; setBuiltWord(p => p.slice(0, -1)); setUsedIndices(p => p.slice(0, -1)); };
+  const handleClear = () => { if (showResult) return; setBuiltWord([]); setUsedIndices([]); };
 
   const handleNext = () => {
     const next = roundCount + 1;
     setRoundCount(next);
-    generateRound(next);
+    startRound(next);
   };
-
-  const handleUndo = () => { if (showResult) return; setBuiltWord(prev => prev.slice(0, -1)); setUsedIndices(prev => prev.slice(0, -1)); };
-  const handleClear = () => { if (showResult) return; setBuiltWord([]); setUsedIndices([]); };
 
   const saveProgress = async (correct) => {
     const attempts = { ...modeData.item_attempts };
@@ -150,15 +133,26 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     wordStats.total += 1;
     if (correct) wordStats.correct += 1;
     attempts[currentWord] = wordStats;
+
     let updatedMastered = [...(modeData.mastered_items || [])];
     let updatedLearning = [...(modeData.learning_items || [])];
-    if (correct && wordStats.correct / wordStats.total >= 0.8 && wordStats.total >= 3 && !updatedMastered.includes(currentWord)) {
+
+    if (correct && wordStats.correct >= 4 && wordStats.correct / wordStats.total >= 0.75 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
-      const allKnown = [...updatedMastered, ...updatedLearning];
-      const nextWord = SIGHT_WORDS.find(w => !allKnown.includes(w));
-      if (nextWord && updatedLearning.length < 5) updatedLearning.push(nextWord);
+      const allKnown = new Set([...updatedMastered, ...updatedLearning]);
+      // Expand pool — keep up to 15 learning words
+      if (updatedLearning.length < 15) {
+        const next = SIGHT_WORDS_SPELLING.find(w => !allKnown.has(w));
+        if (next) updatedLearning.push(next);
+      }
     }
+    // Seed pool if too small
+    if (updatedLearning.length < 6) {
+      const allKnown = new Set([...updatedMastered, ...updatedLearning]);
+      SIGHT_WORDS_SPELLING.filter(w => !allKnown.has(w)).slice(0, 6 - updatedLearning.length).forEach(w => updatedLearning.push(w));
+    }
+
     await onUpdateProgress('sight_words_spelling', {
       mastered_items: updatedMastered, learning_items: updatedLearning, item_attempts: attempts,
       total_correct: (modeData.total_correct || 0) + (correct ? 1 : 0),
@@ -179,35 +173,29 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     await saveProgress(correct);
   };
 
-  useEffect(() => { if (!currentWord) generateRound(0); }, []);
-
   if (!currentWord) return null;
 
-  // Challenge type label shown to student
-  const challengeLabel = challengeType === 'unscramble'
-    ? '🔀 Unscramble the letters!'
-    : challengeType === 'missing'
-    ? '🔍 What letter is missing?'
-    : '✏️ Spell the word!';
+  const challengeLabel = challengeType === 'unscramble' ? '🔀 Unscramble the letters!' : '✏️ Spell the word!';
 
-  // For 'missing': show the word with a blank
-  const missingDisplay = challengeType === 'missing' && currentWord
-    ? currentWord.split('').map((l, i) => i === missingIdx ? '_' : l).join('')
-    : null;
+  if (phase === 'write') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
+          <SpellingWriteStep
+            word={currentWord}
+            onDone={handleWriteDone}
+            onPlaySound={() => playSound(currentWord)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Challenge type banner */}
-      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4">
+      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4 absolute top-16 left-1/2 -translate-x-1/2 z-20 shadow">
         {challengeLabel}
       </div>
-
-      {challengeType === 'missing' && missingDisplay && (
-        <div className="text-center text-3xl font-black tracking-widest text-gray-700 py-2">
-          {missingDisplay}
-        </div>
-      )}
-
       <GameCanvas
         currentLetter={currentWord}
         options={options}
@@ -220,27 +208,17 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
         mode="spelling"
         usedIndices={usedIndices}
       />
-
-      {challengeType !== 'missing' && (
-        <SpellingBuildArea
-          builtWord={builtWord}
-          targetWord={currentWord}
-          onUndo={handleUndo}
-          onSubmit={handleSubmit}
-          onClear={handleClear}
-          showResult={showResult}
-          isCorrect={isCorrect}
-          onNext={showResult ? handleNext : undefined}
-          pointsEarned={pointsEarned}
-        />
-      )}
-
-      {challengeType === 'missing' && showResult && (
-        <div className={`mx-4 rounded-xl px-4 py-3 text-center font-bold text-lg flex flex-col items-center gap-2 ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-          <span>{isCorrect ? `✅ Correct! +${pointsEarned} pts` : `❌ It was "${currentWord[missingIdx]}"`}</span>
-          <button onClick={handleNext} className="px-6 py-2 bg-indigo-500 text-white font-bold rounded-xl shadow text-base hover:bg-indigo-600">Next →</button>
-        </div>
-      )}
+      <SpellingBuildArea
+        builtWord={builtWord}
+        targetWord={currentWord}
+        onUndo={handleUndo}
+        onSubmit={handleSubmit}
+        onClear={handleClear}
+        showResult={showResult}
+        isCorrect={isCorrect}
+        onNext={showResult ? handleNext : undefined}
+        pointsEarned={pointsEarned}
+      />
     </>
   );
 }

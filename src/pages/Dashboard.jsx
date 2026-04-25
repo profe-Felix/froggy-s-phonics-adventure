@@ -137,6 +137,12 @@ export default function Dashboard() {
                 >
                   📖 Spanish Reading
                 </Link>
+                <Link
+                  to="/SpellingWritingDashboard"
+                  className="text-sm text-purple-600 border border-purple-200 rounded-lg px-4 py-2 hover:bg-purple-50"
+                >
+                  ✍️ Writing Samples
+                </Link>
                 <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"

@@ -61,6 +61,14 @@ const MODES = [
     color: 'from-teal-400 to-teal-600'
   },
   {
+    id: 'sentences',
+    title: 'Sentences',
+    description: 'Write then build sentences word by word',
+    icon: '📝',
+    color: 'from-rose-400 to-pink-600',
+    alwaysUnlocked: true
+  },
+  {
     id: 'spanish_reading',
     title: 'Spanish Reading',
     description: 'Slide & read Spanish words with balloon fluency',

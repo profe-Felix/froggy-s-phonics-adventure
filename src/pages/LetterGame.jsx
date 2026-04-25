@@ -11,6 +11,7 @@ import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
+import SentencesMode from '../components/game/modes/SentencesMode';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
@@ -319,6 +320,12 @@ export default function LetterGame() {
         <NumberHearingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
+        />
+      )}
+      {currentMode === 'sentences' && (
+        <SentencesMode
+          studentData={studentData}
+          onBack={handleBackToModes}
         />
       )}
       {currentMode === 'spanish_reading' && (

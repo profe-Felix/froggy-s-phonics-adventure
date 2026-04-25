@@ -1,0 +1,43 @@
+{
+  "name": "SpellingWritingSample",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "spelling",
+        "sight_words_spelling",
+        "sentences"
+      ],
+      "description": "Which game mode this writing came from"
+    },
+    "word": {
+      "type": "string",
+      "description": "The word or sentence the student was writing"
+    },
+    "strokes_data": {
+      "type": "string",
+      "description": "JSON-encoded strokes array for replay"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Canvas snapshot URL"
+    },
+    "was_correct": {
+      "type": "boolean",
+      "description": "Whether the student got the subsequent build correct"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "mode",
+    "word"
+  ]
+}
