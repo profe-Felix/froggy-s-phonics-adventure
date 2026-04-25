@@ -248,19 +248,32 @@ function SentenceBuilder({ sentence, onComplete }) {
   };
 
   const handleCheck = () => {
-    // Build the student's answer string
-    let built = '';
-    for (const tile of dropZone) {
+    // Build expected token sequence from the correct sentence
+    // Expected: [word0, space, word1, space, ..., wordN, ...puncts]
+    const expected = [];
+    words.forEach((w, i) => {
+      expected.push({ type: 'word', value: i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w });
+      if (i < words.length - 1) expected.push({ type: 'space' });
+    });
+    puncts.forEach(p => expected.push({ type: 'punct', value: p }));
+
+    // Map each placed tile to correct/incorrect
+    const feedback = dropZone.map((tile, i) => {
+      const exp = expected[i];
+      if (!exp) return { ...tile, correct: false };
+      if (tile.type !== exp.type) return { ...tile, correct: false };
+      if (tile.type === 'space') return { ...tile, correct: true };
       if (tile.type === 'word') {
-        built += tile.capitalized ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1) : tile.word;
-      } else if (tile.type === 'space') {
-        built += ' ';
-      } else if (tile.type === 'punct') {
-        built += tile.char;
+        const display = tile.capitalized ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1) : tile.word;
+        return { ...tile, correct: display === exp.value };
       }
-    }
-    const ok = built.trim() === sentence.trim();
-    setIsCorrect(ok);
+      if (tile.type === 'punct') return { ...tile, correct: tile.char === exp.value };
+      return { ...tile, correct: false };
+    });
+    // also mark if student placed fewer tokens than expected
+    const allCorrect = feedback.length === expected.length && feedback.every(t => t.correct);
+    setDropZone(feedback);
+    setIsCorrect(allCorrect);
     setShowResult(true);
   };
 
@@ -284,6 +297,9 @@ function SentenceBuilder({ sentence, onComplete }) {
         {dropZone.map((tile) => {
           if (tile.type === 'space') {
             const isPending = pendingRemove === tile.id;
+            let bg = 'transparent';
+            if (showResult) bg = tile.correct ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)';
+            else if (isPending) bg = 'rgba(239,68,68,0.15)';
             return (
               <button
                 key={tile.id}
@@ -296,7 +312,7 @@ function SentenceBuilder({ sentence, onComplete }) {
                   height: '1.5em',
                   verticalAlign: 'baseline',
                   flexShrink: 0,
-                  background: isPending ? 'rgba(239,68,68,0.15)' : 'transparent',
+                  background: bg,
                   borderRadius: '3px',
                 }}
               />
@@ -304,13 +320,16 @@ function SentenceBuilder({ sentence, onComplete }) {
           }
           if (tile.type === 'punct') {
             const isPending = pendingRemove === tile.id;
+            const color = showResult
+              ? (tile.correct ? '#16a34a' : '#ef4444')
+              : isPending ? '#ef4444' : '#1f2937';
             return (
               <button
                 key={tile.id}
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
-                className={`inline font-bold disabled:cursor-default transition-colors active:opacity-70 ${isPending ? 'text-red-500' : 'text-gray-800'}`}
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline' }}
+                className="inline font-bold disabled:cursor-default transition-colors active:opacity-70"
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
               >
                 {tile.char}
               </button>
@@ -321,14 +340,16 @@ function SentenceBuilder({ sentence, onComplete }) {
           const display = tile.capitalized
             ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
             : tile.word;
+          const wordColor = showResult
+            ? (tile.correct ? '#16a34a' : '#ef4444')
+            : isPending ? '#ef4444' : '#1f2937';
           return (
             <span key={tile.id} className="inline-flex flex-col items-center" style={{ verticalAlign: 'baseline' }}>
               <button
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
-                className={`inline font-bold leading-none transition-colors disabled:cursor-default
-                  ${showResult ? 'text-inherit' : isPending ? 'text-red-500' : 'text-gray-800'}`}
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer' }}
+                className="inline font-bold leading-none transition-colors disabled:cursor-default"
+                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', color: wordColor }}
               >
                 {display}
               </button>
@@ -416,8 +437,7 @@ function SentenceBuilder({ sentence, onComplete }) {
       {showResult && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className={`rounded-2xl p-4 text-center ${isCorrect ? 'bg-green-50 border-2 border-green-400' : 'bg-orange-50 border-2 border-orange-300'}`}>
-          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Not quite!'}</p>
-          {!isCorrect && <p className="text-sm text-gray-500 mb-2">Correct: <em>{sentence}</em></p>}
+          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Fix the red parts and try again!'}</p>
           <div className="flex gap-2 justify-center mt-2">
             {!isCorrect && (
               <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Try Again</button>
