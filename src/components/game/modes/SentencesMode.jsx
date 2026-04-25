@@ -2,6 +2,26 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 
+// ── Real sentence lists from the reading program ───────────────────────────────
+const SENTENCE_BANK = {
+  1: [
+    'El sapo sube solo.',
+    'La luna es bonita.',
+    'Mamá toma sopa.',
+    'El pato nada bien.',
+    'Mi papá me ama.',
+  ],
+  2: [
+    'El mono come una banana.',
+    'La niña camina sola.',
+    'El niño pisa el lodo.',
+    'La mesa es de madera.',
+    'Papá bebe café solo.',
+  ],
+};
+
+const MODULES = Object.keys(SENTENCE_BANK).map(Number);
+
 // ── Primary-line canvas for writing the sentence ──────────────────────────────
 function SentenceWriteCanvas({ onDone }) {
   const canvasRef = useRef(null);
@@ -56,15 +76,6 @@ function SentenceWriteCanvas({ onDone }) {
     allStrokes.current = []; setHasDrawn(false);
   };
 
-  const handleDone = () => {
-    const c = canvasRef.current;
-    const ctx = c.getContext('2d');
-    // snapshot
-    const url = c.toDataURL('image/png');
-    onDone(allStrokes.current, url);
-  };
-
-  // Canvas dimensions
   const W = 800, H = 240;
   const lineRows = [
     { top: 0, mid: H * 0.16, base: H * 0.29 },
@@ -76,7 +87,6 @@ function SentenceWriteCanvas({ onDone }) {
     <div className="flex flex-col gap-3 w-full">
       <p className="text-base font-black text-indigo-700 text-center">✏️ Write the sentence first</p>
       <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: 180, background: '#f0f7ff' }}>
-        {/* SVG guide lines */}
         <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
           {lineRows.map((r, i) => (
             <g key={i}>
@@ -97,7 +107,7 @@ function SentenceWriteCanvas({ onDone }) {
         <button onClick={clear} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">
           🗑 Clear
         </button>
-        <button onClick={handleDone} disabled={!hasDrawn}
+        <button onClick={() => onDone(allStrokes.current)} disabled={!hasDrawn}
           className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700">
           Done Writing → Build It
         </button>
@@ -106,114 +116,170 @@ function SentenceWriteCanvas({ onDone }) {
   );
 }
 
-// ── Sentence builder: drag words into order ───────────────────────────────────
-function WordChip({ word, isCapitalized, onCapitalize, isPlaced, isSpace, isPunct }) {
-  const display = isCapitalized ? word.charAt(0).toUpperCase() + word.slice(1) : word;
-  const bg = isSpace ? 'bg-gray-200 text-gray-500 border border-gray-300' 
-    : isPunct ? 'bg-yellow-100 text-yellow-800 border border-yellow-400 font-black'
-    : 'bg-indigo-600 text-white shadow-md';
-  return (
-    <div className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-sm select-none ${bg} ${isPlaced ? 'opacity-30' : 'cursor-grab'}`}>
-      {!isSpace && !isPunct && (
-        <button onClick={onCapitalize} className="w-5 h-5 bg-white/20 rounded text-xs font-black leading-none hover:bg-white/40" title="Capitalize">↑</button>
-      )}
-      <span>{display}</span>
-    </div>
-  );
-}
+// ── Sentence builder ───────────────────────────────────────────────────────────
+// Each token placed in the drop zone is an object: { type, value, key }
+// type: 'word' | 'space' | 'capital' | 'punct'
+// Special tiles: one SPACE tile (reusable clone), one CAPITALIZE tile (reusable)
+// Word tiles: one per word token (disappears when placed)
+// Punct tiles: one per punctuation char (disappears when placed)
 
 function SentenceBuilder({ sentence, onComplete }) {
-  // Parse sentence into tokens: words, punctuation, spaces
-  const tokens = sentence.trim().split(/(\s+|(?=[.,!?;:])|(?<=[.,!?;:]))/).filter(t => t && t.trim() !== '' || /^\s+$/.test(t));
-  const wordTokens = sentence.trim().split(/\s+/).flatMap(w => {
-    // split punctuation attached to word
+  // Parse the sentence into word+punct tokens (lowercased)
+  const rawWords = sentence.trim().split(/\s+/);
+  const wordTokens = rawWords.flatMap((w) => {
     const match = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+)([.,!?;:]*)$/);
     if (match) {
-      const parts = [match[1].toLowerCase()];
-      if (match[2]) match[2].split('').forEach(p => parts.push(p));
+      const parts = [{ type: 'word', value: match[1].toLowerCase() }];
+      if (match[2]) match[2].split('').forEach(p => parts.push({ type: 'punct', value: p }));
       return parts;
     }
-    return [w.toLowerCase()];
+    return [{ type: 'word', value: w.toLowerCase() }];
   });
 
-  // Build chips: words + punctuation marks available
-  const punctOptions = ['.', ',', '!', '?'];
-  const chips = wordTokens.map((w, i) => ({ id: i, word: w, isCapitalized: false, isPlaced: false, isPunct: /^[.,!?;:]$/.test(w) }));
+  // Give each token a stable id
+  const initialTokens = wordTokens.map((t, i) => ({ ...t, id: i, placed: false }));
 
-  const [chipState, setChipState] = useState(chips);
-  const [built, setBuilt] = useState([]); // array of chip ids in order
+  const [tokens, setTokens] = useState(initialTokens);
+  // Drop zone: array of slot objects { slotKey, type, value, tokenId? }
+  const [slots, setSlots] = useState([]); // order of placed things
+
   const [showResult, setShowResult] = useState(false);
 
-  const correctSentence = sentence.trim().toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim();
-
-  const handleCapitalize = (id) => {
-    setChipState(prev => prev.map(c => c.id === id ? { ...c, isCapitalized: !c.isCapitalized } : c));
+  // Add an item to the drop zone
+  const addSlot = (slotObj) => {
+    setSlots(prev => [...prev, { ...slotObj, slotKey: Date.now() + Math.random() }]);
   };
 
-  const handlePlace = (chipId) => {
-    if (chipState.find(c => c.id === chipId)?.isPlaced) return;
-    setChipState(prev => prev.map(c => c.id === chipId ? { ...c, isPlaced: true } : c));
-    setBuilt(prev => [...prev, chipId]);
+  const removeSlot = (slotKey) => {
+    setSlots(prev => {
+      const slot = prev.find(s => s.slotKey === slotKey);
+      // If it was a word/punct token, unplace it
+      if (slot && slot.tokenId !== undefined) {
+        setTokens(tt => tt.map(t => t.id === slot.tokenId ? { ...t, placed: false } : t));
+      }
+      return prev.filter(s => s.slotKey !== slotKey);
+    });
   };
 
-  const handleRemove = (chipId) => {
-    setChipState(prev => prev.map(c => c.id === chipId ? { ...c, isPlaced: false, isCapitalized: false } : c));
-    setBuilt(prev => prev.filter(id => id !== chipId));
+  const handleWordClick = (token) => {
+    if (token.placed || showResult) return;
+    setTokens(prev => prev.map(t => t.id === token.id ? { ...t, placed: true } : t));
+    addSlot({ type: token.type, value: token.value, tokenId: token.id });
   };
 
-  const handleSubmit = () => {
-    setShowResult(true);
+  const handleSpaceClick = () => {
+    if (showResult) return;
+    addSlot({ type: 'space', value: ' ' });
   };
 
-  const builtText = built.map(id => {
-    const c = chipState.find(ch => ch.id === id);
-    return c ? (c.isCapitalized ? c.word.charAt(0).toUpperCase() + c.word.slice(1) : c.word) : '';
-  }).join(' ');
+  const handleCapitalClick = () => {
+    if (showResult) return;
+    addSlot({ type: 'capital' });
+  };
 
-  const isCorrect = builtText.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim() === correctSentence;
+  // Build the answer string from slots
+  const buildAnswer = () => {
+    let result = '';
+    let capitalizeNext = false;
+    for (const slot of slots) {
+      if (slot.type === 'capital') {
+        capitalizeNext = true;
+      } else if (slot.type === 'space') {
+        result += ' ';
+      } else {
+        const val = capitalizeNext ? slot.value.charAt(0).toUpperCase() + slot.value.slice(1) : slot.value;
+        capitalizeNext = false;
+        result += val;
+      }
+    }
+    return result.trim();
+  };
+
+  // Normalize for comparison: lowercase, strip punctuation, collapse spaces
+  const normalize = (s) => s.toLowerCase().replace(/[.,!?;:]/g, '').replace(/\s+/g, ' ').trim();
+
+  const handleCheck = () => setShowResult(true);
 
   const reset = () => {
-    setChipState(chips);
-    setBuilt([]);
+    setTokens(initialTokens);
+    setSlots([]);
     setShowResult(false);
+  };
+
+  const answer = buildAnswer();
+  const isCorrect = normalize(answer) === normalize(sentence);
+
+  // Render a slot chip in the drop zone
+  const SlotChip = ({ slot }) => {
+    const bg = slot.type === 'space'
+      ? 'bg-gray-200 text-gray-600 border border-gray-300 min-w-[2.5rem]'
+      : slot.type === 'capital'
+        ? 'bg-amber-300 text-amber-900 border border-amber-500 font-black'
+        : slot.type === 'punct'
+          ? 'bg-yellow-100 text-yellow-800 border border-yellow-400 font-black'
+          : 'bg-green-500 text-white shadow font-bold';
+
+    const label = slot.type === 'space' ? '⎵' : slot.type === 'capital' ? 'Aa' : slot.value;
+
+    return (
+      <motion.button
+        initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+        onClick={() => !showResult && removeSlot(slot.slotKey)}
+        className={`px-3 py-2 rounded-xl text-sm select-none ${bg} ${!showResult ? 'hover:brightness-90 cursor-pointer' : 'cursor-default'}`}
+      >
+        {label}
+      </motion.button>
+    );
   };
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Drop zone — built sentence */}
-      <div className="min-h-16 bg-white/80 rounded-2xl border-4 border-dashed border-indigo-300 p-3 flex flex-wrap gap-2 items-center">
-        {built.length === 0 && <span className="text-gray-400 text-sm">Tap words below to build the sentence...</span>}
+      {/* Drop zone */}
+      <div className="min-h-16 bg-white/80 rounded-2xl border-4 border-dashed border-indigo-300 p-3 flex flex-wrap gap-1.5 items-center">
+        {slots.length === 0 && (
+          <span className="text-gray-400 text-sm">Tap tiles below to build the sentence...</span>
+        )}
         <AnimatePresence>
-          {built.map(id => {
-            const c = chipState.find(ch => ch.id === id);
-            if (!c) return null;
-            const display = c.isCapitalized ? c.word.charAt(0).toUpperCase() + c.word.slice(1) : c.word;
-            return (
-              <motion.div key={id} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-                className={`flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-sm ${c.isPunct ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 'bg-green-500 text-white shadow'}`}>
-                {!c.isPunct && (
-                  <button onClick={() => handleCapitalize(id)}
-                    className="w-5 h-5 bg-white/30 rounded text-xs font-black leading-none hover:bg-white/50" title="Toggle capital">
-                    ↑
-                  </button>
-                )}
-                <span>{display}</span>
-                <button onClick={() => handleRemove(id)} className="w-4 h-4 bg-white/30 rounded text-xs leading-none hover:bg-white/50">✕</button>
-              </motion.div>
-            );
-          })}
+          {slots.map(slot => (
+            <SlotChip key={slot.slotKey} slot={slot} />
+          ))}
         </AnimatePresence>
       </div>
 
-      {/* Word chips */}
+      {/* Special tiles: CAPITALIZE and SPACE (always available, reusable clones) */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleCapitalClick}
+          disabled={showResult}
+          className="px-4 py-2 rounded-xl font-black text-sm bg-amber-300 text-amber-900 border-2 border-amber-500 shadow hover:brightness-95 disabled:opacity-40"
+          title="Capitalize next letter"
+        >
+          Aa ↑
+        </button>
+        <button
+          onClick={handleSpaceClick}
+          disabled={showResult}
+          className="px-4 py-2 rounded-xl font-bold text-sm bg-gray-200 text-gray-600 border-2 border-gray-300 shadow hover:brightness-95 disabled:opacity-40"
+          title="Add a space"
+        >
+          ⎵ Space
+        </button>
+      </div>
+
+      {/* Word + punct tiles */}
       <div className="flex flex-wrap gap-2">
-        {chipState.map(c => (
-          <button key={c.id} disabled={c.isPlaced || showResult}
-            onClick={() => handlePlace(c.id)}
+        {tokens.map(token => (
+          <button
+            key={token.id}
+            onClick={() => handleWordClick(token)}
+            disabled={token.placed || showResult}
             className={`px-3 py-2 rounded-xl font-bold text-sm transition-all active:scale-95
-              ${c.isPunct ? 'bg-yellow-100 text-yellow-800 border border-yellow-400' : 'bg-indigo-600 text-white shadow-md'}
-              ${c.isPlaced ? 'opacity-20 cursor-not-allowed' : 'hover:brightness-110 cursor-pointer'}`}>
-            {c.word}
+              ${token.type === 'punct'
+                ? 'bg-yellow-100 text-yellow-800 border border-yellow-400'
+                : 'bg-indigo-600 text-white shadow-md'}
+              ${token.placed ? 'opacity-20 cursor-not-allowed' : 'hover:brightness-110 cursor-pointer'}`}
+          >
+            {token.value}
           </button>
         ))}
       </div>
@@ -222,7 +288,7 @@ function SentenceBuilder({ sentence, onComplete }) {
       {!showResult && (
         <div className="flex gap-3">
           <button onClick={reset} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">↩ Reset</button>
-          <button onClick={handleSubmit} disabled={built.length === 0}
+          <button onClick={handleCheck} disabled={slots.length === 0}
             className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow disabled:opacity-40 hover:bg-blue-700">
             ✓ Check
           </button>
@@ -232,66 +298,44 @@ function SentenceBuilder({ sentence, onComplete }) {
       {showResult && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className={`rounded-2xl p-4 text-center ${isCorrect ? 'bg-green-50 border-2 border-green-400' : 'bg-orange-50 border-2 border-orange-300'}`}>
-          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Keep going!'}</p>
+          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Not quite!'}</p>
+          {!isCorrect && <p className="text-sm text-gray-600 mb-1">Your answer: <em>{answer}</em></p>}
           {!isCorrect && <p className="text-sm text-gray-500 mb-2">Correct: <em>{sentence}</em></p>}
-          <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">
-            Next Sentence →
-          </button>
+          <div className="flex gap-2 justify-center mt-2">
+            {!isCorrect && (
+              <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">
+                ↩ Try Again
+              </button>
+            )}
+            <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">
+              Next →
+            </button>
+          </div>
         </motion.div>
       )}
     </div>
   );
 }
 
-// ── Built-in sentence bank ─────────────────────────────────────────────────────
-const SENTENCE_BANK = {
-  1: ['El oso usa una osa.', 'Una osa ama al oso.', 'Ana usa una lupa.', 'El uno y el dos.'],
-  2: ['La boda es hoy.', 'El bebé besa a mamá.', 'La bola es de boda.', 'Duda del lobo.'],
-  3: ['Esa fama es fina.', 'La lata es de loma.', 'El lobo es liso.', 'Lupa y luna van.'],
-  4: ['Mamá me da la mano.', 'La mesa es de madera.', 'El mono mima al niño.', 'Me gusta la mona.'],
-  5: ['El nene nada en el lago.', 'No hay nada nuevo.', 'Noto la nube blanca.', 'La pala y el palo.'],
-  6: ['El pelo es de la pila.', 'Solo sopa en la sala.', 'El sapo sana solo.', 'Poca pesa la paloma.'],
-  7: ['Sube la suma del todo.', 'La tina está llena.', 'Todo toma su tiempo.', 'El tubo está torcido.'],
-  8: ['Ya va y se va.', 'Di que sí o no.', 'Su fe es su guía.', 'Ve y di la verdad.'],
-  9: ['La vaca come grama.', 'La rosa roja es de Rosa.', 'La rana salta en la roca.', 'Viva la vida nueva.'],
-};
-
-const MODULES = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-async function fetchSentences(module) {
-  // Return built-in sentences — no Supabase dependency needed
-  const sentences = (SENTENCE_BANK[module] || []).map((s, i) => ({ id: i, sentence: s, module }));
-  return sentences;
-}
-
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SentencesMode({ studentData, onBack }) {
   const [selectedModule, setSelectedModule] = useState(1);
   const [sentences, setSentences] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
-  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    setHasLoaded(false);
-    fetchSentences(selectedModule).then(data => {
-      // shuffle
-      const shuffled = [...data].sort(() => Math.random() - 0.5);
-      setSentences(shuffled);
-      setCurrentIdx(0);
-      setPhase('write');
-      setLoading(false);
-      setHasLoaded(true);
-    });
+    const data = (SENTENCE_BANK[selectedModule] || []);
+    const shuffled = [...data].sort(() => Math.random() - 0.5);
+    setSentences(shuffled);
+    setCurrentIdx(0);
+    setPhase('write');
   }, [selectedModule]);
 
-  const currentSentence = sentences[currentIdx]?.sentence || '';
+  const currentSentence = sentences[currentIdx] || '';
 
   const handleWriteDone = async (strokes) => {
     setPhase('build');
-    // Save stroke
     if (studentData) {
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
@@ -309,7 +353,6 @@ export default function SentencesMode({ studentData, onBack }) {
       setCurrentIdx(i => i + 1);
       setPhase('write');
     } else {
-      // Loop with reshuffle
       setSentences(s => [...s].sort(() => Math.random() - 0.5));
       setCurrentIdx(0);
       setPhase('write');
@@ -323,7 +366,7 @@ export default function SentencesMode({ studentData, onBack }) {
         <div className="flex items-center gap-3 mb-4">
           <button onClick={onBack} className="px-3 py-1.5 rounded-xl bg-white shadow font-bold text-gray-600 hover:bg-gray-50">← Back</button>
           <h1 className="text-xl font-black text-rose-700 flex-1">📝 Sentences</h1>
-          <span className="text-sm text-gray-500 font-bold">{currentIdx + 1} / {sentences.length || '—'}</span>
+          <span className="text-sm text-gray-500 font-bold">{currentIdx + 1} / {sentences.length}</span>
         </div>
 
         {/* Module selector */}
@@ -336,20 +379,7 @@ export default function SentencesMode({ studentData, onBack }) {
           ))}
         </div>
 
-        {loading && (
-          <div className="flex justify-center py-20">
-            <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin" />
-          </div>
-        )}
-
-        {!loading && hasLoaded && sentences.length === 0 && (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-lg">No sentences found for Module {selectedModule}</p>
-            <p className="text-sm mt-1">Add sentences to the "sentences" table in Supabase with module={selectedModule}</p>
-          </div>
-        )}
-
-        {!loading && currentSentence && (
+        {currentSentence && (
           <div className="bg-white/90 rounded-3xl shadow-xl p-5">
             {/* Sentence prompt */}
             <div className="bg-rose-50 rounded-2xl p-4 mb-4 text-center">
@@ -367,7 +397,7 @@ export default function SentencesMode({ studentData, onBack }) {
             )}
 
             {phase === 'build' && (
-              <SentenceBuilder sentence={currentSentence} onComplete={handleComplete} />
+              <SentenceBuilder key={currentSentence} sentence={currentSentence} onComplete={handleComplete} />
             )}
           </div>
         )}
