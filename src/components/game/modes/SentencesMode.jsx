@@ -3,73 +3,86 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 
 // ── Real sentence lists from the reading program (Supabase Oraciones) ──────────
+// Each entry keeps { id, text } so we can play the correct audio file by ID
 const SENTENCE_BANK = {
   1: [
-    'Mi mamá me mima.',
-    'Memo ama a mamá.',
-    'Mimi me ama.',
-    'Amo a Mimi.',
-    'Mamá ama a Mimi.',
-    'Memo mima a mamá.',
-    'Amo a mamá.',
+    { id: 'M1.S001', text: 'Mi mamá me mima.' },
+    { id: 'M1.S002', text: 'Memo ama a mamá.' },
+    { id: 'M1.S003', text: 'Mimi me ama.' },
+    { id: 'M1.S004', text: 'Amo a Mimi.' },
+    { id: 'M1.S005', text: 'Mamá ama a Mimi.' },
+    { id: 'M1.S006', text: 'Memo mima a mamá.' },
+    { id: 'M1.S007', text: 'Amo a mamá.' },
   ],
   2: [
-    'Mamá ama a papá.',
-    'Sale el sol.',
-    'Salió el sol.',
-    'Salió la luna.',
-    'Papá ama a mamá.',
-    'Papá me ama.',
-    'Pepe se pasea.',
-    'Ese es mi puma.',
-    'Ese es mi mapa.',
-    'Ese mapa es mío.',
-    'Ese puma es mío.',
-    'Mamá amasa la masa.',
-    'Susi sale a la sala.',
-    'Samuel limpia la mesa.',
-    'Memo limpia la mesa.',
-    'Ese es un limón.',
-    'Esa es una mesa.',
-    'Pepe usa el mapa.',
-    'Me peino mi pelo.',
-    'Papá sale de la sala.',
-    'Limpia el piso.',
-    'Susi pasa la sal.',
-    'Nina usa el mapa.',
+    { id: 'M2.S001', text: 'Mamá ama a papá.' },
+    { id: 'M2.S002', text: 'Sale el sol.' },
+    { id: 'M2.S003', text: 'Salió el sol.' },
+    { id: 'M2.S004', text: 'Salió la luna.' },
+    { id: 'M2.S005', text: 'Papá ama a mamá.' },
+    { id: 'M2.S006', text: 'Papá me ama.' },
+    { id: 'M2.S007', text: 'Pepe se pasea.' },
+    { id: 'M2.S008', text: 'Ese es mi puma.' },
+    { id: 'M2.S009', text: 'Ese es mi mapa.' },
+    { id: 'M2.S010', text: 'Ese mapa es mío.' },
+    { id: 'M2.S011', text: 'Ese puma es mío.' },
+    { id: 'M2.S012', text: 'Mamá amasa la masa.' },
+    { id: 'M2.S013', text: 'Susi sale a la sala.' },
+    { id: 'M2.S014', text: 'Samuel limpia la mesa.' },
+    { id: 'M2.S015', text: 'Memo limpia la mesa.' },
+    { id: 'M2.S016', text: 'Ese es un limón.' },
+    { id: 'M2.S017', text: 'Esa es una mesa.' },
+    { id: 'M2.S018', text: 'Pepe usa el mapa.' },
+    { id: 'M2.S019', text: 'Me peino mi pelo.' },
+    { id: 'M2.S022', text: 'Papá sale de la sala.' },
+    { id: 'M2.S024', text: 'Limpia el piso.' },
+    { id: 'M2.S032', text: 'Susi pasa la sal.' },
+    { id: 'M2.S033', text: 'Nina usa el mapa.' },
   ],
   3: [
-    'Mamá se toma su soda.',
-    'Papá salta alto.',
-    'La sopa está lista.',
-    'El té está listo.',
-    'Mi mamá está lista.',
-    'La mesa está en la sala.',
-    'Puse mi dona en la mesa.',
-    'La dama tiene una falda.',
-    'Me falta mi dado.',
-    'El sapo saltó en la sala.',
-    'Pepe se mete en la tina.',
-    'El sapo salta con dos patas.',
-    'Susi se siente mal.',
-    'El pato patea la pelota.',
-    'Pásame la pelota.',
-    'Las palomas se posan en palos.',
-    'Le falta sal a la sopa.',
+    { id: 'M3.S001', text: 'Mamá se toma su soda.' },
+    { id: 'M3.S002', text: 'Papá salta alto.' },
+    { id: 'M3.S003', text: 'La sopa está lista.' },
+    { id: 'M3.S004', text: 'El té está listo.' },
+    { id: 'M3.S005', text: 'Mi mamá está lista.' },
+    { id: 'M3.S007', text: 'La mesa está en la sala.' },
+    { id: 'M3.S009', text: 'Puse mi dona en la mesa.' },
+    { id: 'M3.S012', text: 'La dama tiene una falda.' },
+    { id: 'M3.S013', text: 'Me falta mi dado.' },
+    { id: 'M3.S016', text: 'El sapo saltó en la sala.' },
+    { id: 'M3.S017', text: 'Pepe se mete en la tina.' },
+    { id: 'M3.S021', text: 'El sapo salta con dos patas.' },
+    { id: 'M3.S023', text: 'Susi se siente mal.' },
+    { id: 'M3.S024', text: 'El pato patea la pelota.' },
+    { id: 'M3.S025', text: 'Pásame la pelota.' },
+    { id: 'M3.S027', text: 'Las palomas se posan en palos.' },
+    { id: 'M3.S031', text: 'Le falta sal a la sopa.' },
   ],
   4: [
-    'Rita baila sola.',
-    'El perro corre.',
-    'La reina baila bien.',
-    'Rita come sopa.',
-    'El carro pasa.',
-    'El perro come carne.',
-    'La rana salta.',
-    'El ratón corre.',
-    'La rosa es roja.',
-    'Rico come arroz.',
+    { id: 'M4.S001', text: 'Rita baila sola.' },
+    { id: 'M4.S002', text: 'El perro corre.' },
+    { id: 'M4.S003', text: 'La reina baila bien.' },
+    { id: 'M4.S004', text: 'Rita come sopa.' },
+    { id: 'M4.S005', text: 'El carro pasa.' },
   ],
 };
+
+const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/audio';
+
+function playAudioById(id) {
+  const candidates = [
+    `${SUPABASE_AUDIO_BASE}/${id}.mp3`,
+    `${SUPABASE_AUDIO_BASE}/${id}.wav`,
+  ];
+  let i = 0;
+  const tryNext = () => {
+    if (i >= candidates.length) return;
+    const a = new Audio(candidates[i++]);
+    a.onerror = tryNext;
+    a.play().catch(tryNext);
+  };
+  tryNext();
+}
 
 const MODULES = Object.keys(SENTENCE_BANK).map(Number);
 
@@ -383,7 +396,8 @@ export default function SentencesMode({ studentData, onBack }) {
     setPhase('write');
   }, [selectedModule]);
 
-  const currentSentence = sentences[currentIdx] || '';
+  const currentItem = sentences[currentIdx] || null;
+  const currentSentence = currentItem?.text || '';
 
   const handleWriteDone = async (strokes) => {
     setPhase('build');
@@ -396,6 +410,7 @@ export default function SentencesMode({ studentData, onBack }) {
         strokes_data: JSON.stringify(strokes),
         was_correct: null,
       }).catch(() => {});
+
     }
   };
 
@@ -436,11 +451,8 @@ export default function SentencesMode({ studentData, onBack }) {
             <div className="bg-rose-50 rounded-2xl p-4 mb-4 text-center">
               <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">Sentence</p>
               <p className="text-xl font-black text-rose-800">{currentSentence}</p>
-              <button onClick={() => {
-                const utter = new SpeechSynthesisUtterance(currentSentence);
-                utter.lang = 'es-MX';
-                speechSynthesis.speak(utter);
-              }} className="mt-2 text-xs text-rose-500 hover:text-rose-700 font-bold">🔊 Listen</button>
+              <button onClick={() => currentItem && playAudioById(currentItem.id)}
+                className="mt-2 text-xs text-rose-500 hover:text-rose-700 font-bold">🔊 Listen</button>
             </div>
 
             {phase === 'write' && (
