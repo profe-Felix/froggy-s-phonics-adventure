@@ -357,29 +357,40 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
         )}
         {tiles.map((tile, i) => (
-          <InlineTile
-            key={tile.id}
-            tile={tile}
-            tileIdx={i}
-            onDragStart={() => onTileDragStart(i, tile)}
-            pendingRemove={pendingRemove}
-            replaceIdx={replaceIdxRef.current}
-            swapMode={swapMode}
-            onTap={() => {
-              if (pendingRemove === tile.id) {
-                if (swapMode) {
-                  // In swap mode, second tap deletes
-                  onRemoveTile(i);
-                  setPendingRemove(null);
+          <React.Fragment key={tile.id}>
+            {replaceIdxRef.current === i && replaceIdxRef.current !== null && pendingRemove === null && (
+              <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center" style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold' }}>
+                ↓
+              </div>
+            )}
+            <InlineTile
+              tile={tile}
+              tileIdx={i}
+              onDragStart={() => onTileDragStart(i, tile)}
+              pendingRemove={pendingRemove}
+              replaceIdx={replaceIdxRef.current}
+              swapMode={swapMode}
+              onTap={() => {
+                if (pendingRemove === tile.id) {
+                  if (swapMode) {
+                    // In swap mode, second tap deletes
+                    onRemoveTile(i);
+                    setPendingRemove(null);
+                  } else {
+                    setPendingRemove(null);
+                  }
                 } else {
-                  setPendingRemove(null);
+                  setPendingRemove(tile.id);
                 }
-              } else {
-                setPendingRemove(tile.id);
-              }
-            }}
-          />
+              }}
+            />
+          </React.Fragment>
         ))}
+        {replaceIdxRef.current === tiles.length && replaceIdxRef.current !== null && pendingRemove === null && (
+          <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 min-w-8 h-12 flex items-center justify-center" style={{ fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold' }}>
+            ↓
+          </div>
+        )}
       </div>
     </div>
   );
@@ -391,12 +402,8 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
 
   if (tile.type === 'space') {
     let bg = 'transparent';
-    let borderLeft = 'none';
     if (isSelected) {
       bg = swapMode ? 'rgba(156,163,175,0.25)' : 'rgba(239,68,68,0.15)';
-    } else if (isReplaceHighlight) {
-      bg = 'rgba(59,130,246,0.15)';
-      borderLeft = '3px solid rgb(59,130,246)';
     }
     return (
       <button
@@ -412,10 +419,8 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
           background: bg,
           borderRadius: '3px',
           border: 'none',
-          borderLeft,
           cursor: 'pointer',
           padding: 0,
-          paddingLeft: borderLeft !== 'none' ? '1px' : 0,
         }}
       />
     );
@@ -423,14 +428,9 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
-    let borderLeft = 'none';
     if (isSelected) {
       color = swapMode ? '#9ca3af' : '#ef4444';
       if (swapMode) bg = 'rgba(156,163,175,0.15)';
-    } else if (isReplaceHighlight) {
-      bg = 'rgba(59,130,246,0.15)';
-      color = '#1e40af';
-      borderLeft = '3px solid rgb(59,130,246)';
     }
     return (
       <button
@@ -442,9 +442,7 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
         style={{
           background: bg,
           border: 'none',
-          borderLeft,
           padding: bg !== 'none' ? '2px 4px' : 0,
-          paddingLeft: borderLeft !== 'none' ? '2px' : (bg !== 'none' ? '4px' : 0),
           font: 'inherit',
           color,
           fontSize: '1.875rem',
