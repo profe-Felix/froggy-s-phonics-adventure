@@ -27,7 +27,6 @@ function usePreset(searchParams) {
   useEffect(() => {
     const presetId = searchParams.get('preset');
     if (!presetId) {
-      // Build config from URL params directly
       const cfg = buildConfigFromParams(searchParams);
       setConfig(cfg);
       return;
@@ -92,158 +91,10 @@ function buildConfigFromParams(sp) {
   };
 }
 
-// ─── Tile Types ───────────────────────────────────────────────────────────────
 function createTile(type, value) {
   return { id: Math.random().toString(36).slice(2), type, value };
 }
 
-// ─── Single Tile Visual ───────────────────────────────────────────────────────
-const Tile = React.forwardRef(function Tile(
-  { tile, inSlot, onPointerDown, style, className = '', dragging },
-  ref
-) {
-  const base =
-    'select-none touch-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-900 flex items-center justify-center font-bold transition-transform';
-
-  if (tile.type === 'space') {
-    return (
-      <div
-        ref={ref}
-        onPointerDown={onPointerDown}
-        style={style}
-        className={`${base} bg-gray-100 border-dashed px-2 text-gray-400 text-sm ${inSlot ? 'opacity-60' : 'px-3 py-2'} ${className}`}
-        title="Space"
-      >
-        {!inSlot && <span className="w-5 h-0.5 bg-gray-400 rounded block" />}
-      </div>
-    );
-  }
-  if (tile.type === 'img') {
-    return (
-      <div ref={ref} onPointerDown={onPointerDown} style={style}
-        className={`${base} bg-white p-1 ${inSlot ? '' : 'min-w-[48px] h-12'} ${className}`}>
-        <img src={tile.value} alt="" className={inSlot ? 'max-h-10 max-w-[80px]' : 'max-h-10 max-w-[120px]'} />
-      </div>
-    );
-  }
-  if (tile.type === 'punc') {
-    return (
-      <div ref={ref} onPointerDown={onPointerDown} style={style}
-        className={`${base} bg-white min-w-[32px] h-12 px-2 text-2xl ${className}`}>
-        {tile.value}
-      </div>
-    );
-  }
-  if (tile.type === 'write') {
-    return (
-      <div ref={ref} onPointerDown={onPointerDown} style={style}
-        className={`${base} bg-indigo-50 border-dashed min-w-[48px] h-12 px-2 text-xl ${className}`}>
-        <input
-          type="text"
-          className="bg-transparent outline-none font-bold w-full text-center"
-          placeholder="…"
-          style={{ minWidth: 32, maxWidth: 120 }}
-          onPointerDown={e => e.stopPropagation()}
-          onChange={e => { tile.value = e.target.value; }}
-        />
-      </div>
-    );
-  }
-  // text tile
-  return (
-    <div
-      ref={ref}
-      onPointerDown={onPointerDown}
-      style={style}
-      className={`${base} bg-white min-w-[48px] h-12 px-3 text-2xl ${inSlot ? 'text-3xl min-w-0 h-auto px-0 bg-transparent border-none shadow-none' : ''} ${dragging ? 'opacity-90 shadow-2xl scale-95' : ''} ${className}`}
-    >
-      {tile.value}
-    </div>
-  );
-});
-
-// ─── Drop Slot ────────────────────────────────────────────────────────────────
-function DropSlot({ tiles, onDrop, onRemoveTile, onCapToggle, onAccentToggle, state, showResult, answer }) {
-  const slotRef = useRef(null);
-
-  const getInsertIndex = (clientX) => {
-    const children = [...slotRef.current.querySelectorAll('[data-tile-id]')];
-    if (!children.length) return 0;
-    for (let i = 0; i < children.length; i++) {
-      const r = children[i].getBoundingClientRect();
-      if (clientX < r.left + r.width / 2) return i;
-    }
-    return children.length;
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const idx = getInsertIndex(e.clientX);
-    onDrop(idx);
-  };
-
-  let borderClass = 'border-gray-900';
-  if (showResult) {
-    if (state === 'correct') borderClass = 'border-green-500 outline outline-2 outline-green-400';
-    else if (state === 'incorrect') borderClass = 'border-red-500 outline outline-2 outline-red-400';
-    else if (state === 'unanswered') borderClass = 'border-gray-400 border-dashed';
-  }
-
-  return (
-    <div
-      ref={slotRef}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      className={`relative bg-white border-2 rounded-xl flex flex-wrap items-center gap-0 min-h-[56px] px-4 pr-10 py-1 transition-all ${borderClass}`}
-      style={{ minWidth: 120 }}
-    >
-      {tiles.length === 0 && (
-        <span className="text-gray-300 text-sm pointer-events-none select-none">···</span>
-      )}
-      {tiles.map((tile, i) => {
-        const isSpace = tile.type === 'space';
-        return (
-          <div
-            key={tile.id}
-            data-tile-id={tile.id}
-            className={`flex items-center ${isSpace ? 'mx-1' : ''}`}
-          >
-            {isSpace ? (
-              <div
-                onClick={() => onRemoveTile(i)}
-                className="w-3 h-8 border-l-2 border-dotted border-gray-400 cursor-pointer hover:border-red-400 mx-1"
-                title="Click to remove"
-              />
-            ) : tile.type === 'write' ? (
-              <input
-                type="text"
-                defaultValue={tile.value}
-                className="border-b-2 border-gray-400 outline-none font-bold text-2xl bg-transparent text-center"
-                style={{ minWidth: 40, maxWidth: 120 }}
-                onChange={e => { tile.value = e.target.value; }}
-                onPointerDown={e => e.stopPropagation()}
-              />
-            ) : (
-              <span
-                onClick={() => onRemoveTile(i)}
-                className="text-3xl font-bold cursor-pointer hover:text-red-400 transition-colors select-none"
-                title="Click to remove"
-              >
-                {tile.value}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Tray (palette) ───────────────────────────────────────────────────────────
 function TrayTile({ tile, onDragStart }) {
   return (
     <div
@@ -261,8 +112,7 @@ function TrayTile({ tile, onDragStart }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function Lessons() {
+export default function WordSentenceBuilder() {
   const [searchParams] = useSearchParams();
   const { config, loading } = usePreset(searchParams);
 
@@ -271,16 +121,13 @@ export default function Lessons() {
   const [boxesInput, setBoxesInput]   = useState(4);
   const [rowsInput, setRowsInput]     = useState(1);
 
-  // slots[row][col] = tile[]
   const [slots, setSlots] = useState([]);
-  const [slotStates, setSlotStates] = useState([]); // 'correct' | 'incorrect' | 'unanswered' | null
+  const [slotStates, setSlotStates] = useState([]);
   const [showResult, setShowResult]  = useState(false);
   const [showQR, setShowQR]          = useState(false);
 
-  const dragRef = useRef(null); // { tile, fromSlot: [r,c,i] | null }
-  const [, rerender] = useState(0);
+  const dragRef = useRef(null);
 
-  // ── Init slots when config loads ──────────────────────────────────────────
   useEffect(() => {
     if (!config) return;
     const bpr = config.boxesPerRow || 4;
@@ -296,7 +143,6 @@ export default function Lessons() {
       Array.from({ length: bpr }, (_, ci) => {
         const content = prefillRows?.[ri]?.[ci];
         if (!content) return [];
-        // parse prefill string
         return parsePrefillString(content, punc || DEFAULT_PUNC);
       })
     );
@@ -331,7 +177,6 @@ export default function Lessons() {
     setShowResult(false);
   }
 
-  // ── Drag from tray ─────────────────────────────────────────────────────────
   const handleTrayDragStart = (tile) => {
     dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromSlot: null };
   };
@@ -341,7 +186,6 @@ export default function Lessons() {
     if (!d) return;
     setSlots(prev => {
       const next = prev.map(r => r.map(c => [...c]));
-      // remove from origin if from a slot
       if (d.fromSlot) {
         const [fr, fc, fi] = d.fromSlot;
         next[fr][fc].splice(fi, 1);
@@ -366,7 +210,6 @@ export default function Lessons() {
     setShowResult(false);
   };
 
-  // ── Trash drop ─────────────────────────────────────────────────────────────
   const handleTrashDrop = (e) => {
     e.preventDefault();
     const d = dragRef.current;
@@ -380,7 +223,6 @@ export default function Lessons() {
     dragRef.current = null;
   };
 
-  // ── Validate ───────────────────────────────────────────────────────────────
   const validate = () => {
     if (!config?.answers) return;
     const answers = config.answers;
@@ -389,15 +231,12 @@ export default function Lessons() {
         const idx = ri * boxesPerRow + ci;
         const expected = answers[idx];
         if (!expected) return null;
-
         let built = '';
         col.forEach(t => {
           if (t.type === 'text') built += t.value;
           else if (t.type === 'write') built += t.value || '';
           else if (t.type === 'space') built += ' ';
-          else if (t.type === 'punc') {
-            built = built.replace(/\s+$/, '') + t.value;
-          }
+          else if (t.type === 'punc') built = built.replace(/\s+$/, '') + t.value;
           else if (t.type === 'img') built += '[img]';
         });
         built = built.trim();
@@ -407,8 +246,6 @@ export default function Lessons() {
     );
     setSlotStates(newStates);
     setShowResult(true);
-
-    // Confetti if all correct
     const allCorrect = newStates.flat().filter(Boolean).every(s => s === 'correct');
     if (allCorrect) launchConfetti();
   };
@@ -428,7 +265,6 @@ export default function Lessons() {
     })();
   }
 
-  // ── QR URL ─────────────────────────────────────────────────────────────────
   const qrUrl = (() => {
     const u = new URL(window.location.href);
     u.searchParams.set('student', '1');
@@ -446,7 +282,6 @@ export default function Lessons() {
   const { letters=[], syllables=[], words=[], punc=[], images=[], toggles={} } = config;
   const isStudent = config.isStudent;
 
-  // Build tray tiles
   const letterTiles  = letters.filter(l => l !== '|').map(l => createTile('text', l));
   const syllTiles    = syllables.filter(s => s !== '|' && s !== '_' && s !== '^' && s !== '~').map(s => createTile('text', s));
   const wordTiles    = words.filter(w => w !== '|' && w !== '_').map(w => createTile('text', w));
@@ -455,7 +290,6 @@ export default function Lessons() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white" style={{ fontFamily: 'Andika, system-ui, sans-serif' }}>
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
           <Link to="/Dashboard" className="text-blue-600 hover:underline font-bold text-sm">← Dashboard</Link>
@@ -502,7 +336,6 @@ export default function Lessons() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-        {/* Board */}
         <section>
           <div className="bg-white border-2 border-gray-900 rounded-2xl p-4 shadow-lg">
             <div className="flex flex-col gap-4">
@@ -524,7 +357,6 @@ export default function Lessons() {
               ))}
             </div>
 
-            {/* Trash */}
             <div className="mt-4 flex items-center gap-3 flex-wrap">
               <small className="text-gray-400 text-xs">Consejo: suelta sobre la papelera para borrar.</small>
               <div
@@ -538,20 +370,19 @@ export default function Lessons() {
           </div>
         </section>
 
-        {/* Palettes */}
         <aside className="flex flex-col gap-4">
           {(letterTiles.length > 0 || toggles.write) && (
-            <PaletteCard title="Letras" tools={toggles.caps || toggles.accent}>
+            <PaletteCard title="Letras">
               <div className="flex flex-wrap gap-2">
                 {toggles.write && <WriteTile dragRef={dragRef} />}
                 {letterTiles.map((t, i) => (
                   <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />
                 ))}
                 {toggles.caps && <>
-                  <CapToolTile mode="up" dragRef={dragRef} slots={slots} setSlots={setSlots} />
-                  <CapToolTile mode="down" dragRef={dragRef} slots={slots} setSlots={setSlots} />
+                  <CapToolTile mode="up" dragRef={dragRef} />
+                  <CapToolTile mode="down" dragRef={dragRef} />
                 </>}
-                {toggles.accent && <AccentToolTile dragRef={dragRef} slots={slots} setSlots={setSlots} />}
+                {toggles.accent && <AccentToolTile dragRef={dragRef} />}
               </div>
             </PaletteCard>
           )}
@@ -605,7 +436,6 @@ export default function Lessons() {
             </PaletteCard>
           )}
 
-          {/* Preset info */}
           {config.presetId && (
             <div className="text-xs text-gray-400 text-center font-bold">
               Preset: <code className="bg-gray-100 px-1 rounded">{config.presetId}</code>
@@ -614,7 +444,6 @@ export default function Lessons() {
         </aside>
       </main>
 
-      {/* QR Modal */}
       {showQR && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowQR(false)}>
           <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e => e.stopPropagation()}>
@@ -634,7 +463,6 @@ export default function Lessons() {
   );
 }
 
-// ─── Slot Drop Zone ───────────────────────────────────────────────────────────
 function SlotDropZone({ tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile }) {
   const [insertIdx, setInsertIdx] = useState(null);
   const ref = useRef(null);
@@ -649,10 +477,7 @@ function SlotDropZone({ tiles, state, showResult, dragRef, onDrop, onTileDragSta
     return children.length;
   };
 
-  const onDragOver = (e) => {
-    e.preventDefault();
-    setInsertIdx(getIdx(e.clientX));
-  };
+  const onDragOver = (e) => { e.preventDefault(); setInsertIdx(getIdx(e.clientX)); };
   const onDragLeave = () => setInsertIdx(null);
   const onDrop_ = (e) => {
     e.preventDefault();
@@ -663,9 +488,9 @@ function SlotDropZone({ tiles, state, showResult, dragRef, onDrop, onTileDragSta
 
   let outline = 'border-gray-900';
   if (showResult) {
-    if (state === 'correct')     outline = 'border-green-500 ring-2 ring-green-400';
-    else if (state === 'incorrect')  outline = 'border-red-500 ring-2 ring-red-400';
-    else if (state === 'unanswered') outline = 'border-gray-400 border-dashed';
+    if (state === 'correct')      outline = 'border-green-500 ring-2 ring-green-400';
+    else if (state === 'incorrect')   outline = 'border-red-500 ring-2 ring-red-400';
+    else if (state === 'unanswered')  outline = 'border-gray-400 border-dashed';
   }
 
   return (
@@ -682,25 +507,16 @@ function SlotDropZone({ tiles, state, showResult, dragRef, onDrop, onTileDragSta
       )}
       {tiles.map((tile, i) => (
         <React.Fragment key={tile.id}>
-          {insertIdx === i && (
-            <div className="w-1 h-10 bg-blue-500 rounded mx-1" />
-          )}
-          <SlotTile
-            tile={tile}
-            index={i}
-            onDragStart={() => onTileDragStart(i, tile)}
-            onRemove={() => onRemoveTile(i)}
-          />
+          {insertIdx === i && <div className="w-1 h-10 bg-blue-500 rounded mx-1" />}
+          <SlotTile tile={tile} index={i} onDragStart={() => onTileDragStart(i, tile)} onRemove={() => onRemoveTile(i)} />
         </React.Fragment>
       ))}
-      {insertIdx === tiles.length && (
-        <div className="w-1 h-10 bg-blue-500 rounded mx-1" />
-      )}
+      {insertIdx === tiles.length && <div className="w-1 h-10 bg-blue-500 rounded mx-1" />}
     </div>
   );
 }
 
-function SlotTile({ tile, index, onDragStart, onRemove }) {
+function SlotTile({ tile, onDragStart, onRemove }) {
   if (tile.type === 'space') {
     return (
       <span
@@ -772,19 +588,7 @@ function WriteTile({ dragRef }) {
   );
 }
 
-function CapToolTile({ mode, dragRef, slots, setSlots }) {
-  const apply = (clientX, clientY) => {
-    // Find nearest text tile
-    const els = document.querySelectorAll('[data-slottile]');
-    let best = null, bestDist = Infinity;
-    els.forEach(el => {
-      const r = el.getBoundingClientRect();
-      const d = Math.hypot(clientX - (r.left+r.width/2), clientY - (r.top+r.height/2));
-      if (d < bestDist) { bestDist = d; best = el; }
-    });
-    // Not used via pointer in React HTML5 drag — handled on drop
-  };
-
+function CapToolTile({ mode, dragRef }) {
   return (
     <div
       draggable

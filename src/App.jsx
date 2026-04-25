@@ -13,7 +13,7 @@ import MathDashboard from './pages/MathDashboard';
 import DigitalNotebook from './pages/DigitalNotebook';
 import SpanishReadingDashboard from './pages/SpanishReadingDashboard';
 import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
-import Lessons from './pages/Lessons';
+import WordSentenceBuilder from './pages/WordSentenceBuilder';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -75,7 +75,7 @@ const AuthenticatedApp = () => {
       <Route path="/DigitalNotebook" element={<DigitalNotebook />} />
       <Route path="/SpanishReadingDashboard" element={<SpanishReadingDashboard />} />
       <Route path="/SpellingWritingDashboard" element={<SpellingWritingDashboard />} />
-      <Route path="/Lessons" element={<Lessons />} />
+      <Route path="/WordSentenceBuilder" element={<WordSentenceBuilder />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
