@@ -67,7 +67,7 @@ const SENTENCE_BANK = {
   ],
 };
 
-const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/audio';
+const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
 function playAudioById(id) {
   const candidates = [
