@@ -150,21 +150,55 @@ function TrayTile({ tile, onDragStart }) {
 }
 
 // ─── WriteTile in tray ────────────────────────────────────────────────────────
-function WriteTile({ dragRef }) {
-  const [val, setVal] = useState('');
+function WriteTile({ dragRef, setActiveProblem }) {
+  const [words, setWords] = useState(['']);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  
+  const addWord = () => {
+    setWords([...words, '']);
+    setCurrentIdx(words.length);
+  };
+
+  const handleDragStart = (e, idx) => {
+    e.dataTransfer.effectAllowed = 'copy';
+    dragRef.current = { tile: createTile('text', words[idx]), fromProblem: null };
+  };
+
   return (
-    <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'copy';
-        dragRef.current = { tile: createTile('write', val), fromProblem: null };
-      }}
-      className="cursor-grab rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50 flex items-center px-2 h-11"
-    >
-      <input type="text" value={val} onChange={e => setVal(e.target.value)}
-        placeholder="escribe…"
-        className="bg-transparent outline-none font-bold text-base w-24"
-        onPointerDown={e => e.stopPropagation()} />
+    <div className="flex flex-col gap-2">
+      {words.map((w, idx) => (
+        <div key={idx} className="flex items-center gap-1">
+          <input
+            type="text"
+            value={w}
+            onChange={e => {
+              const updated = [...words];
+              updated[idx] = e.target.value;
+              setWords(updated);
+            }}
+            placeholder="escribe…"
+            className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
+            onPointerDown={e => e.stopPropagation()}
+          />
+          {w && (
+            <div
+              draggable
+              onDragStart={(e) => handleDragStart(e, idx)}
+              className="cursor-grab rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-xl min-w-[44px] h-11 px-3 hover:bg-indigo-50 shadow-sm transition-colors"
+              style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+              title="Arrastra"
+            >
+              {w}
+            </div>
+          )}
+        </div>
+      ))}
+      <button
+        onClick={addWord}
+        className="text-indigo-600 font-bold text-sm hover:underline"
+      >
+        + Añadir palabra
+      </button>
     </div>
   );
 }
@@ -200,7 +234,7 @@ function PaletteCard({ title, cols, children }) {
 }
 
 // ─── Problem drop zone ────────────────────────────────────────────────────────
-function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile }) {
+function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
   const [insertIdx, setInsertIdx] = useState(null);
   const [highlightTileIdx, setHighlightTileIdx] = useState(null);
   const ref = useRef(null);
@@ -300,7 +334,8 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, onDrop, onTileD
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop_}
-        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-1 transition-all ${border} ${ring}`}
+        onClick={() => onActivate(isActive ? null : index)}
+        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-1 transition-all cursor-pointer ${isActive ? 'ring-2 ring-blue-400' : ''} ${border} ${ring}`}
       >
         {tiles.length === 0 && insertIdx === null && (
           <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
@@ -327,7 +362,27 @@ function InsertCaret() {
 }
 
 function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
+  const [spaceVisible, setSpaceVisible] = useState(false);
+  
   if (tile.type === 'space') {
+    return (
+      <span
+        draggable
+        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        onClick={() => {
+          if (spaceVisible) onRemove();
+          else setSpaceVisible(true);
+        }}
+        data-slottile
+        title={spaceVisible ? "Clic para quitar" : "Clic para ver"}
+        className={`inline-block self-stretch cursor-pointer shrink-0 transition-all ${
+          spaceVisible ? 'w-3 border-l-2 border-dotted border-gray-400 mx-1 hover:border-red-400' : 'w-1 h-0.5 bg-gray-300 mx-0.5'
+        }`}
+      />
+    );
+  }
+  if (tile.type === 'write') {
+    // Write tiles placed in problem zone become normal text tiles
     return (
       <span
         draggable
@@ -335,25 +390,13 @@ function InlineTile({ tile, onDragStart, onRemove, isHighlighted }) {
         onClick={onRemove}
         data-slottile
         title="Clic para quitar"
-        className="inline-block w-3 self-stretch border-l-2 border-dotted border-gray-400 mx-1 cursor-pointer hover:border-red-400 shrink-0"
-      />
-    );
-  }
-  if (tile.type === 'write') {
-    return (
-      <input
-        data-slottile
-        type="text"
-        defaultValue={tile.value || ''}
-        placeholder="…"
-        className={`border-b-2 outline-none font-bold text-2xl bg-transparent text-center transition-colors ${
-          isHighlighted ? 'border-yellow-400 bg-yellow-100' : 'border-gray-400'
+        className={`text-3xl font-bold cursor-pointer select-none leading-tight transition-colors ${
+          isHighlighted ? 'text-yellow-600 bg-yellow-100 px-1 rounded' : 'hover:text-red-400'
         }`}
-        style={{ minWidth: 40, width: `${Math.max(3, ((tile.value || '').length) + 1)}ch`, fontFamily: 'Andika, system-ui, sans-serif' }}
-        onChange={e => { tile.value = e.target.value; }}
-        onPointerDown={e => e.stopPropagation()}
-        onDragStart={e => e.preventDefault()}
-      />
+        style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+      >
+        {tile.value}
+      </span>
     );
   }
   if (tile.type === 'img') {
@@ -400,6 +443,7 @@ export default function WordSentenceBuilder() {
   const [numProblemsInput, setNumProblemsInput] = useState(1);
   const [showResult, setShowResult] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [activeProblem, setActiveProblem] = useState(null);
 
   const dragRef = useRef(null);
 
@@ -633,6 +677,8 @@ export default function WordSentenceBuilder() {
                 onDrop={(idx) => handleDrop(pi, idx)}
                 onTileDragStart={(ti, tile) => handleTileDragStart(pi, ti, tile)}
                 onRemoveTile={(ti) => handleRemoveTile(pi, ti)}
+                isActive={activeProblem === pi}
+                onActivate={setActiveProblem}
               />
             ))}
 
@@ -660,7 +706,7 @@ export default function WordSentenceBuilder() {
 
           {(letterTiles.length > 0 || toggles.write) && (
             <PaletteCard title="Letras" cols={trayColumns}>
-              {toggles.write && <WriteTile dragRef={dragRef} />}
+              {toggles.write && <WriteTile dragRef={dragRef} setActiveProblem={setActiveProblem} />}
               {letterTiles.map((t, i) => (
                 <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} />
               ))}
