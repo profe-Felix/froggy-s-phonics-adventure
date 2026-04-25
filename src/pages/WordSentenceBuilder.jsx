@@ -134,9 +134,11 @@ function launchConfetti() {
 }
 
 // ─── Tray tile (palette) ──────────────────────────────────────────────────────
-function TrayTile({ tile, onDragStart, onTap, activeProblem, problems, onDropIntoProblem }) {
+function TrayTile({ tile, onDragStart, onTap, activeProblem, problems, onDropIntoProblem, onTapReplace }) {
   const handleTap = () => {
-    if (onTap) {
+    if (onTapReplace) {
+      onTapReplace(tile);
+    } else if (onTap) {
       onTap(tile);
     } else if (activeProblem !== null && problems && problems[activeProblem] && onDropIntoProblem) {
       const clone = { ...tile, id: Math.random().toString(36).slice(2) };
@@ -273,8 +275,7 @@ function PaletteCard({ title, cols, children }) {
 }
 
 // ─── Problem drop zone ────────────────────────────────────────────────────────
-function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
-  const [pendingRemove, setPendingRemove] = useState(null);
+function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, swapMode, pendingRemove, setPendingRemove, onDrop, onTileDragStart, onRemoveTile, isActive, onActivate }) {
   const ref = useRef(null);
 
   const onDragOver = (e) => {
@@ -295,7 +296,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
       }
       replaceIdxRef.current = hoveredIdx;
     } else if (pendingRemove !== null) {
-      // For replace mode: highlight the red-selected tile (no insertion line)
+      // For replace/swap mode: highlight the selected tile
       replaceIdxRef.current = tiles.findIndex(t => t.id === pendingRemove);
     }
   };
@@ -346,9 +347,16 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
             onDragStart={() => onTileDragStart(i, tile)}
             pendingRemove={pendingRemove}
             replaceIdx={replaceIdxRef.current}
+            swapMode={swapMode}
             onTap={() => {
               if (pendingRemove === tile.id) {
-                setPendingRemove(null);
+                if (swapMode) {
+                  // In swap mode, second tap deletes
+                  onRemoveTile(i);
+                  setPendingRemove(null);
+                } else {
+                  setPendingRemove(null);
+                }
               } else {
                 setPendingRemove(tile.id);
               }
@@ -360,17 +368,22 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
   );
 }
 
-function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onTap }) {
-  const isRedSelected = pendingRemove === tile.id;
-  const isReplaceHighlight = replaceIdx === tileIdx && !isRedSelected;
+function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onTap, swapMode }) {
+  const isSelected = pendingRemove === tile.id;
+  const isReplaceHighlight = replaceIdx === tileIdx && !isSelected;
 
   if (tile.type === 'space') {
-    const bg = isRedSelected ? 'rgba(239,68,68,0.15)' : isReplaceHighlight ? 'rgba(251,146,60,0.25)' : 'transparent';
+    let bg = 'transparent';
+    if (isSelected) {
+      bg = swapMode ? 'rgba(156,163,175,0.25)' : 'rgba(239,68,68,0.15)';
+    } else if (isReplaceHighlight) {
+      bg = 'rgba(251,146,60,0.25)';
+    }
     return (
       <button
         onClick={() => onTap()}
         data-slottile
-        title="Clic para quitar"
+        title={swapMode ? 'Tap again to delete' : 'Tap to replace'}
         className="inline-block transition-colors"
         style={{
           width: '0.55em',
@@ -389,8 +402,9 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
     let color = '#1f2937';
     let bg = 'none';
-    if (isRedSelected) {
-      color = '#ef4444';
+    if (isSelected) {
+      color = swapMode ? '#9ca3af' : '#ef4444';
+      if (swapMode) bg = 'rgba(156,163,175,0.15)';
     } else if (isReplaceHighlight) {
       bg = 'rgba(251,146,60,0.2)';
     }
@@ -447,6 +461,8 @@ export default function WordSentenceBuilder() {
   const [showResult, setShowResult] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [activeProblem, setActiveProblem] = useState(null);
+  const [swapMode, setSwapMode] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState(null);
 
   const dragRef = useRef(null);
   const replaceIdxRef = useRef(null); // Track which index to replace
@@ -489,6 +505,23 @@ export default function WordSentenceBuilder() {
   // Drag from tray (copy)
   const handleTrayDragStart = (tile) => {
     dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromProblem: null };
+  };
+
+  // Tap tile from palette to replace pending selection
+  const handleTapReplace = (tile) => {
+    if (activeProblem === null || pendingRemove === null) return;
+    const problem = problems[activeProblem];
+    const targetIdx = problem.findIndex(t => t.id === pendingRemove);
+    if (targetIdx >= 0) {
+      setProblems(prev => {
+        const next = prev.map(p => [...(p || [])]);
+        const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
+        next[activeProblem][targetIdx] = newTile;
+        return next;
+      });
+      setPendingRemove(null);
+      setShowResult(false);
+    }
   };
 
   // Tap-to-place: insert tile into active problem
@@ -650,6 +683,10 @@ export default function WordSentenceBuilder() {
                 className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">
                 Aplicar
               </button>
+              <button onClick={() => setSwapMode(!swapMode)}
+                className={`rounded-lg px-3 py-1 text-sm font-bold transition-colors ${swapMode ? 'bg-red-500 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {swapMode ? '🗑 Delete Mode' : '↔ Replace Mode'}
+              </button>
               {config.answers && (
                 <button onClick={validate}
                   className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">
@@ -687,6 +724,9 @@ export default function WordSentenceBuilder() {
                 showResult={showResult}
                 dragRef={dragRef}
                 replaceIdxRef={replaceIdxRef}
+                swapMode={swapMode}
+                pendingRemove={pendingRemove}
+                setPendingRemove={setPendingRemove}
                 onDrop={(idx) => handleDrop(pi, idx)}
                 onTileDragStart={(ti, tile) => handleTileDragStart(pi, ti, tile)}
                 onRemoveTile={(ti) => handleRemoveTile(pi, ti)}
@@ -721,7 +761,7 @@ export default function WordSentenceBuilder() {
             <PaletteCard title="Letras" cols={trayColumns}>
               {toggles.write && <WriteTile dragRef={dragRef} setActiveProblem={setActiveProblem} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />}
               {letterTiles.map((t, i) => (
-                <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
+                <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />
               ))}
               {toggles.caps && <>
                 <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
@@ -735,13 +775,13 @@ export default function WordSentenceBuilder() {
 
           {syllTiles.length > 0 && (
             <PaletteCard title="Sílabas" cols={trayColumns}>
-              {syllTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
+              {syllTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
             </PaletteCard>
           )}
 
           {wordTiles.length > 0 && (
             <PaletteCard title="Palabras" cols={trayColumns}>
-              {wordTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
+              {wordTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
             </PaletteCard>
           )}
 
@@ -749,22 +789,22 @@ export default function WordSentenceBuilder() {
             <PaletteCard title="Puntuación" cols={0}>
               <div className="flex flex-wrap gap-2">
                 {toggles.space !== false && (
-                  <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
+                  <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />
                 )}
-                {puncTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
+                {puncTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
               </div>
             </PaletteCard>
           )}
 
           {toggles.space !== false && puncTiles.length === 0 && (
             <PaletteCard title="Espacio" cols={0}>
-              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
+              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />
             </PaletteCard>
           )}
 
           {toggles.images !== false && imgTiles.length > 0 && (
             <PaletteCard title="Imágenes" cols={trayColumns}>
-              {imgTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />)}
+              {imgTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
             </PaletteCard>
           )}
 
