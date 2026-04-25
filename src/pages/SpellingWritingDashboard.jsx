@@ -8,7 +8,7 @@ const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight W
 
 // SpellingWriteStep stores raw pixel coords at 800x360 canvas resolution
 // We scale them to fit the display canvas
-const SRC_W = 800, SRC_H = 240;
+const SRC_W = 800, SRC_H = 360;
 
 function StrokeReplayCanvas({ strokesData }) {
   const canvasRef = useRef(null);
@@ -26,21 +26,19 @@ function StrokeReplayCanvas({ strokesData }) {
   });
 
   const drawLines = (ctx, dw, dh) => {
-    // Primary writing lines: top line, dashed midline, baseline — 2 rows
-    const rows = [
-      { top: dh * 0.04, mid: dh * 0.30, base: dh * 0.52 },
-      { top: dh * 0.55, mid: dh * 0.77, base: dh * 0.96 },
-    ];
-    rows.forEach(r => {
-      // Top line
+    // Exact same proportions as SpellingWriteStep SVG: viewBox 0 0 400 180
+    // 3 rows, each 60 units tall: top=row*60+3, mid=row*60+24, base=row*60+43
+    const SRC_H_SVG = 180;
+    [0, 1, 2].forEach(row => {
+      const top  = ((row * 60 + 3)  / SRC_H_SVG) * dh;
+      const mid  = ((row * 60 + 24) / SRC_H_SVG) * dh;
+      const base = ((row * 60 + 43) / SRC_H_SVG) * dh;
       ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 1; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(0, r.top); ctx.lineTo(dw, r.top); ctx.stroke();
-      // Dashed midline
-      ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 0.8; ctx.setLineDash([6, 4]);
-      ctx.beginPath(); ctx.moveTo(0, r.mid); ctx.lineTo(dw, r.mid); ctx.stroke();
-      // Baseline (solid blue)
+      ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(dw, top); ctx.stroke();
+      ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 0.8; ctx.setLineDash([8, 5]);
+      ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(dw, mid); ctx.stroke();
       ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.moveTo(0, r.base); ctx.lineTo(dw, r.base); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(dw, base); ctx.stroke();
     });
     ctx.setLineDash([]);
   };
@@ -106,7 +104,7 @@ function StrokeReplayCanvas({ strokesData }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <canvas ref={canvasRef} className="w-full rounded-lg border border-indigo-200 bg-blue-50" style={{ height: 110 }} />
+      <canvas ref={canvasRef} className="w-full rounded-lg border border-indigo-200 bg-blue-50" style={{ height: 180 }} />
       <button onClick={replay} disabled={playing}
         className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40">
         {playing ? '▶ Playing…' : '▶ Replay'}
