@@ -282,9 +282,10 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
     e.preventDefault();
     e.stopPropagation();
     const d = dragRef.current;
+    if (!d) { replaceIdxRef.current = null; return; }
     
     // For captool/accenttool: highlight the hovered tile
-    if (d?.tile?.type === 'captool' || d?.tile?.type === 'accenttool') {
+    if (d.tile?.type === 'captool' || d.tile?.type === 'accenttool') {
       const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
       let hoveredIdx = null;
       for (let i = 0; i < children.length; i++) {
@@ -295,22 +296,26 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
         }
       }
       replaceIdxRef.current = hoveredIdx;
-    } else if (pendingRemove !== null && d?.fromProblem === null) {
-      // For replace mode (palette drag): highlight the selected tile
-      replaceIdxRef.current = tiles.findIndex(t => t.id === pendingRemove);
-    } else if (d?.fromProblem === null) {
-      // Normal palette drag: show where it will be inserted
-      const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
-      let hoveredIdx = tiles.length;
-      for (let i = 0; i < children.length; i++) {
-        const rect = children[i].getBoundingClientRect();
-        if (e.clientX < rect.left + rect.width / 2) {
-          hoveredIdx = i;
-          break;
-        }
-      }
-      replaceIdxRef.current = hoveredIdx;
+      return;
     }
+
+    // For replace mode (pending selection): show where tile will replace
+    if (pendingRemove !== null && d.fromProblem === null) {
+      replaceIdxRef.current = tiles.findIndex(t => t.id === pendingRemove);
+      return;
+    }
+
+    // Normal drag: find drop position by cursor position
+    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
+    let hoveredIdx = tiles.length;
+    for (let i = 0; i < children.length; i++) {
+      const rect = children[i].getBoundingClientRect();
+      if (e.clientX < rect.left + rect.width / 2) {
+        hoveredIdx = i;
+        break;
+      }
+    }
+    replaceIdxRef.current = hoveredIdx;
   };
 
   const onDragLeave = (e) => {
@@ -382,7 +387,7 @@ function ProblemZone({ index, tiles, state, showResult, dragRef, replaceIdxRef, 
 
 function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onTap, swapMode }) {
   const isSelected = pendingRemove === tile.id;
-  const isReplaceHighlight = replaceIdx === tileIdx && !isSelected;
+  const isReplaceHighlight = replaceIdx === tileIdx && !isSelected && replaceIdx !== null;
 
   if (tile.type === 'space') {
     let bg = 'transparent';
