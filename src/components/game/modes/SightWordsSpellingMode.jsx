@@ -49,7 +49,6 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [wordsLoaded, setWordsLoaded] = useState(false);
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
-  const preloadedAudio = useRef({});
   const submittingRef = useRef(false);
 
   const modeData = studentData?.mode_progress?.sight_words_spelling || {
@@ -57,12 +56,36 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     item_attempts: {}, total_correct: 0, total_attempts: 0
   };
 
+  const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+
+  function toAudioName(word) {
+    return word
+      .replace(/á/g, 'a..').replace(/é/g, 'e..').replace(/í/g, 'i..')
+      .replace(/ó/g, 'o..').replace(/ú/g, 'u..')
+      .replace(/Á/g, 'A..').replace(/É/g, 'E..').replace(/Í/g, 'I..')
+      .replace(/Ó/g, 'O..').replace(/Ú/g, 'U..')
+      .replace(/ü/g, 'u,,').replace(/Ü/g, 'U,,')
+      .replace(/ñ/g, 'n..').replace(/Ñ/g, 'N..');
+  }
+
   const playSound = (word) => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
-    if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
-      preloadedAudio.current[word].preload = 'auto';
-      preloadedAudio.current[word].onerror = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+    }
+
+    const audioName = toAudioName(word);
+
+    const candidates = [
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.mp3`,
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.wav`,
+    ];
+
+    let i = 0;
+
+    const tryNext = () => {
+      if (i >= candidates.length) {
         base44.entities.AudioFeedback.create({
           mode: 'sight_words_spelling',
           item_text: word,
@@ -71,11 +94,16 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
           class_name: studentData?.class_name || null,
           reported_date: new Date().toISOString(),
         }).catch(() => {});
-      };
-    }
-    audioRef.current = preloadedAudio.current[word];
-    audioRef.current.currentTime = 0;
-    audioRef.current.play().catch(() => {});
+        return;
+      }
+
+      const audio = new Audio(candidates[i++]);
+      audioRef.current = audio;
+      audio.onerror = tryNext;
+      audio.play().catch(tryNext);
+    };
+
+    tryNext();
   };
 
   const handleUnclearAudio = async () => {
@@ -223,7 +251,6 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const handleModuleSelect = (mod) => {
     setSelectedModule(mod);
     setRoundCount(0);
-    startRound(0, mod);
   };
 
   const handleNext = () => {
