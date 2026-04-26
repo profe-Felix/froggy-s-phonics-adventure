@@ -208,65 +208,76 @@ function calcAccentCharIdx(tileEl, clientX) {
 }
 
 // ── Spanish syllabification ───────────────────────────────────────────────────
-// Simple rule-based syllabifier for the vocabulary used in early Spanish reading.
-// Rules: V = vowel (aeiouáéíóúü), C = consonant
-//   - VC|CV  → split between VC and CV
-//   - V|V    → split between vowels (unless diphthong: ia ie io ua ue uo ui iu)
-//   - CC clusters: most split C|C except: pr pl br bl cr cl dr fl fr gl gr tr
-//   - Final punct stripped separately
-const VOWELS = new Set('aeiouáéíóúüAEIOUÁÉÍÓÚÜ'.split(''));
-const NO_SPLIT_CLUSTERS = new Set(['pr','pl','br','bl','cr','cl','dr','fl','fr','gl','gr','tr','ch','ll','rr']);
-const DIPHTHONGS = new Set(['ia','ie','io','ua','ue','uo','ui','iu','ai','ei','oi','au','eu','ou']);
+const STRONG = 'aeoáéó';
+const WEAK_VOWELS = 'iuü';
+const ACCENTED_WEAK = 'íú';
+const VOWELS_STR = 'aeiouáéíóúü';
+
+function _isVowel(ch) { return VOWELS_STR.includes(ch); }
+function _isStrong(ch) { return STRONG.includes(ch); }
+function _isAccentedWeak(ch) { return ACCENTED_WEAK.includes(ch); }
+
+function _shouldSplitVowels(v1, v2) {
+  if (_isAccentedWeak(v1) || _isAccentedWeak(v2)) return true;
+  if (_isStrong(v1) && _isStrong(v2)) return true;
+  return false;
+}
+
+function _tokenize(word) {
+  const w = word.toLowerCase();
+  const units = [];
+  for (let i = 0; i < w.length; i++) {
+    const two = w.slice(i, i + 2);
+    if (['ch', 'll', 'rr'].includes(two)) { units.push(two); i++; }
+    else units.push(w[i]);
+  }
+  return units;
+}
 
 function syllabify(word) {
-  // word should be lowercase, no punct
-  const chars = [...word];
-  const isV = i => i >= 0 && i < chars.length && VOWELS.has(chars[i]);
-  const isC = i => i >= 0 && i < chars.length && !VOWELS.has(chars[i]);
+  const units = _tokenize(word);
+  const syllables = [];
+  let current = '';
+  const VALID_CLUSTERS = ['br','bl','cr','cl','dr','fr','fl','gr','gl','pr','pl','tr'];
 
-  const cuts = []; // positions AFTER which to cut
-  let i = 0;
-  while (i < chars.length - 1) {
-    if (isV(i) && isC(i+1) && isC(i+2) && isC(i+3)) {
-      // VCCC — cut after first C: V-CCC
-      cuts.push(i+1); i += 2;
-    } else if (isV(i) && isC(i+1) && isC(i+2)) {
-      // VCC — check if CC is inseparable cluster
-      const cluster = chars[i+1] + chars[i+2];
-      if (NO_SPLIT_CLUSTERS.has(cluster)) {
-        // V-CC (cluster stays together): cut before cluster
-        cuts.push(i); i += 1;
-      } else {
-        // VC-C
-        cuts.push(i+1); i += 2;
+  for (let i = 0; i < units.length; i++) {
+    const unit = units[i];
+    const next = units[i + 1];
+    const afterNext = units[i + 2];
+    current += unit;
+
+    if (!next) { syllables.push(current); break; }
+
+    const unitIsVowel = unit.length === 1 && _isVowel(unit);
+    const nextIsVowel = next.length === 1 && _isVowel(next);
+    const afterNextIsVowel = afterNext && afterNext.length === 1 && _isVowel(afterNext);
+
+    // vowel + vowel
+    if (unitIsVowel && nextIsVowel) {
+      if (_shouldSplitVowels(unit, next)) { syllables.push(current); current = ''; }
+      continue;
+    }
+
+    // vowel + consonant + vowel → split before consonant
+    if (unitIsVowel && !nextIsVowel && afterNextIsVowel) {
+      syllables.push(current); current = ''; continue;
+    }
+
+    // vowel + consonant + consonant + vowel
+    if (unitIsVowel && !nextIsVowel && afterNext && !afterNextIsVowel) {
+      const third = units[i + 3];
+      if (third && third.length === 1 && _isVowel(third)) {
+        const cluster = next + afterNext;
+        if (VALID_CLUSTERS.includes(cluster)) {
+          syllables.push(current); current = '';
+        } else {
+          current += next; syllables.push(current); current = ''; i++;
+        }
       }
-    } else if (isV(i) && isC(i+1) && isV(i+2)) {
-      // VCV → V-CV
-      cuts.push(i); i += 1;
-    } else if (isV(i) && isV(i+1)) {
-      // VV — keep diphthong together, split otherwise
-      const pair = chars[i] + chars[i+1];
-      const pairPlain = (PLAIN_TO_ACC[chars[i]] ? ACC_TO_PLAIN[chars[i]] : chars[i]) +
-                        (PLAIN_TO_ACC[chars[i+1]] ? ACC_TO_PLAIN[chars[i+1]] : chars[i+1]);
-      if (DIPHTHONGS.has(pair) || DIPHTHONGS.has(pairPlain)) {
-        i += 2; // keep together
-      } else {
-        cuts.push(i); i += 1;
-      }
-    } else {
-      i++;
     }
   }
 
-  // Build syllable array from cut positions
-  const sylls = [];
-  let start = 0;
-  for (const cut of cuts) {
-    if (cut > start) sylls.push(chars.slice(start, cut + 1).join(''));
-    start = cut + 1;
-  }
-  sylls.push(chars.slice(start).join(''));
-  return sylls.filter(s => s.length > 0);
+  return syllables.filter(s => s.length > 0);
 }
 
 function parseSentenceToTiles(sentence) {
@@ -416,13 +427,15 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   // For tool hover highlighting: which dropzone tile index is hovered, and which char
   const [toolHoverIdx, setToolHoverIdx] = useState(null);
   const [accentCharIdx, setAccentCharIdx] = useState(null);
+  const [dropHoverIdx, setDropHoverIdx] = useState(null); // insertion ghost position
+  const [isDraggingNormal, setIsDraggingNormal] = useState(false); // true when dragging a non-tool tile
 
   const dragRef = useRef(null);
   const dropZoneRef = useRef(null);
   const dropZoneStateRef = useRef(dropZone);
   useEffect(() => { dropZoneStateRef.current = dropZone; }, [dropZone]);
 
-  const reset = () => { setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null); setToolHoverIdx(null); setAccentCharIdx(null); };
+  const reset = () => { setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null); setToolHoverIdx(null); setAccentCharIdx(null); setDropHoverIdx(null); setIsDraggingNormal(false); };
 
   // ── Apply a tool to a tile in the dropzone ────────────────────────────────
   const applyTool = useCallback((tileId, toolType, charIdx) => {
@@ -471,40 +484,69 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const handleTrayDragStart = (e, tile, isTool = false) => {
     dragRef.current = { tile: isTool ? tile : { ...tile, id: Math.random().toString(36).slice(2) }, isTool, fromDropZone: false };
     e.dataTransfer.effectAllowed = 'copy';
+    if (!isTool) setIsDraggingNormal(true);
   };
   const handleDropZoneDragStart = (e, tile) => {
     dragRef.current = { tile, isTool: false, fromDropZone: true };
     e.dataTransfer.effectAllowed = 'move';
+    setIsDraggingNormal(true);
   };
 
-  // dragover on the drop zone: for tool tiles, compute hover idx
+  // Compute insert index from pointer position within the dropzone
+  const calcDropHoverIdx = (clientX, clientY) => {
+    if (!dropZoneRef.current) return null;
+    const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+    for (let i = 0; i < slotEls.length; i++) {
+      const r = slotEls[i].getBoundingClientRect();
+      if (clientX <= r.left + r.width / 2 && clientY >= r.top && clientY <= r.bottom) return i;
+    }
+    if (slotEls.length > 0) {
+      // Check if past the last tile on its row
+      const last = slotEls[slotEls.length - 1].getBoundingClientRect();
+      if (clientY >= last.top && clientY <= last.bottom) return slotEls.length;
+    }
+    return slotEls.length;
+  };
+
+  // dragover on the drop zone: for tool tiles, compute hover idx; for normal, show insertion ghost
   const handleDropZoneDragOver = (e) => {
     e.preventDefault();
     const d = dragRef.current;
-    if (!d?.isTool || !dropZoneRef.current) { setToolHoverIdx(null); setAccentCharIdx(null); return; }
-    const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
-    let hi = null;
-    for (let i = 0; i < slotEls.length; i++) {
-      const r = slotEls[i].getBoundingClientRect();
-      const dz = dropZoneStateRef.current;
-      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom && dz[i]?.type === 'text') {
-        hi = i;
-        if (d.tile.type === 'accenttool') setAccentCharIdx(calcAccentCharIdx(slotEls[i], e.clientX));
-        break;
+    if (!d) return;
+    if (d.isTool) {
+      if (!dropZoneRef.current) return;
+      const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+      let hi = null;
+      for (let i = 0; i < slotEls.length; i++) {
+        const r = slotEls[i].getBoundingClientRect();
+        const dz = dropZoneStateRef.current;
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom && dz[i]?.type === 'text') {
+          hi = i;
+          if (d.tile.type === 'accenttool') setAccentCharIdx(calcAccentCharIdx(slotEls[i], e.clientX));
+          break;
+        }
       }
+      setToolHoverIdx(hi);
+    } else {
+      setDropHoverIdx(calcDropHoverIdx(e.clientX, e.clientY));
     }
-    setToolHoverIdx(hi);
   };
-  const handleDropZoneDragLeave = () => { setToolHoverIdx(null); setAccentCharIdx(null); };
+  const handleDropZoneDragLeave = (e) => {
+    if (!dropZoneRef.current?.contains(e.relatedTarget)) {
+      setToolHoverIdx(null); setAccentCharIdx(null); setDropHoverIdx(null); setIsDraggingNormal(false);
+    }
+  };
 
   const handleDropZoneDrop = (e) => {
     e.preventDefault();
     const d = dragRef.current;
-    if (!d) return;
     dragRef.current = null;
+    const capturedHoverIdx = dropHoverIdx;
+    setDropHoverIdx(null); setIsDraggingNormal(false);
+
+    if (!d) return;
 
     if (d.isTool) {
-      // Apply tool to hovered tile
       const dz = dropZoneStateRef.current;
       if (toolHoverIdx !== null && dz[toolHoverIdx]?.type === 'text') {
         applyTool(dz[toolHoverIdx].id, d.tile.type, accentCharIdx);
@@ -513,35 +555,22 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       return;
     }
 
-    // Find insertion index based on drop position
-    const getInsertIdx = (clientX, clientY) => {
-      if (!dropZoneRef.current) return null;
-      const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
-      for (let i = 0; i < slotEls.length; i++) {
-        const r = slotEls[i].getBoundingClientRect();
-        if (clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return i;
-      }
-      return null;
-    };
+    const at = capturedHoverIdx !== null ? capturedHoverIdx : dropZoneStateRef.current.length;
 
     if (d.fromDropZone) {
-      // Reorder within dropzone
       setDropZone(prev => {
         const from = prev.findIndex(t => t.id === d.tile.id);
         if (from === -1) return prev;
         const next = prev.filter(t => t.id !== d.tile.id);
-        const insertIdx = getInsertIdx(e.clientX, e.clientY);
-        const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
-        next.splice(at, 0, d.tile);
+        const ins = Math.max(0, Math.min(at, next.length));
+        next.splice(ins, 0, d.tile);
         return next;
       });
     } else {
-      // From tray → insert at position or append
       setDropZone(prev => {
         const next = [...prev];
-        const insertIdx = getInsertIdx(e.clientX, e.clientY);
-        const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
-        next.splice(at, 0, d.tile);
+        const ins = Math.max(0, Math.min(at, next.length));
+        next.splice(ins, 0, d.tile);
         return next;
       });
     }
@@ -587,6 +616,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           dragging = true;
           dragRef.current = pendingData;
           createGhostEl(ghostLabel);
+          if (!pendingData.isTool) setIsDraggingNormal(true);
         }
         ev.preventDefault();
         moveGhostEl(t.clientX, t.clientY);
@@ -604,6 +634,19 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
             }
           }
           setToolHoverIdx(hi);
+        } else if (!pendingData.isTool && dropZoneRef.current) {
+          const dzr = dropZoneRef.current.getBoundingClientRect();
+          if (t.clientX >= dzr.left && t.clientX <= dzr.right && t.clientY >= dzr.top && t.clientY <= dzr.bottom) {
+            const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+            let ins = slotEls.length;
+            for (let i = 0; i < slotEls.length; i++) {
+              const r = slotEls[i].getBoundingClientRect();
+              if (t.clientX <= r.left + r.width / 2 && t.clientY >= r.top && t.clientY <= r.bottom) { ins = i; break; }
+            }
+            setDropHoverIdx(ins);
+          } else {
+            setDropHoverIdx(null);
+          }
         }
       };
 
@@ -614,6 +657,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         ev.preventDefault();
         removeGhostEl();
         dragRef.current = null;
+        setDropHoverIdx(null); setIsDraggingNormal(false);
         const ct = ev.changedTouches[0];
 
         if (pendingData.isTool && dropZoneRef.current) {
@@ -735,10 +779,16 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white'}`}
         style={{ fontSize: '1.5rem', lineHeight: 1.6 }}
       >
-        {dropZone.length === 0 && <span className="text-gray-300 text-base self-center">Toca sílabas abajo…</span>}
+        {dropZone.length === 0 && dropHoverIdx === null && <span className="text-gray-300 text-base self-center">Toca sílabas abajo…</span>}
         {dropZone.map((tile, i) => {
           const isPending = pendingRemove === tile.id;
           const isToolHover = toolHoverIdx === i;
+          const showGhostBefore = isDraggingNormal && dropHoverIdx === i;
+
+          const ghostEl = showGhostBefore ? (
+            <div key={`ghost-${i}`} className="inline-flex items-center self-center"
+              style={{ width: '2.5ch', minHeight: '1.8rem', borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.08)', borderRadius: 4, margin: '0 2px', verticalAlign: 'baseline' }} />
+          ) : null;
 
           if (tile.type === 'space') {
             let bg = 'transparent';
@@ -746,21 +796,27 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
             else if (isPending) bg = 'rgba(239,68,68,0.15)';
             else if (isToolHover) bg = 'rgba(59,130,246,0.2)';
             return (
-              <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="space" data-tilevalue=" "
-                onClick={() => handleDropTap(tile)} disabled={showResult}
-                style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer', border: isToolHover ? '1px solid #3b82f6' : 'none', padding: 0, display: 'inline-block' }}
-              />
+              <React.Fragment key={tile.id}>
+                {ghostEl}
+                <button data-slottile data-tileid={tile.id} data-tiletype="space" data-tilevalue=" "
+                  onClick={() => handleDropTap(tile)} disabled={showResult}
+                  style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer', border: isToolHover ? '1px solid #3b82f6' : 'none', padding: 0, display: 'inline-block' }}
+                />
+              </React.Fragment>
             );
           }
           if (tile.type === 'punc') {
             const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : '#1f2937';
             return (
-              <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="punc" data-tilevalue={tile.value}
-                onClick={() => handleDropTap(tile)} disabled={showResult}
-                draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
-                className="inline font-bold disabled:cursor-default transition-colors"
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
-              >{tile.value}</button>
+              <React.Fragment key={tile.id}>
+                {ghostEl}
+                <button data-slottile data-tileid={tile.id} data-tiletype="punc" data-tilevalue={tile.value}
+                  onClick={() => handleDropTap(tile)} disabled={showResult}
+                  draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
+                  className="inline font-bold disabled:cursor-default transition-colors"
+                  style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
+                >{tile.value}</button>
+              </React.Fragment>
             );
           }
           // text tile — show accent char highlight when accenttool hovers
@@ -779,15 +835,23 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
             : tile.value;
 
           return (
-            <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="text" data-tilevalue={tile.value}
-              onClick={() => handleDropTap(tile)}
-              disabled={showResult}
-              draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
-              className="font-bold transition-colors disabled:cursor-default rounded cursor-grab"
-              style={{ background: isPending ? 'rgba(239,68,68,0.08)' : isToolHover ? 'rgba(59,130,246,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
-            >{displayText}</button>
+            <React.Fragment key={tile.id}>
+              {ghostEl}
+              <button data-slottile data-tileid={tile.id} data-tiletype="text" data-tilevalue={tile.value}
+                onClick={() => handleDropTap(tile)}
+                disabled={showResult}
+                draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
+                className="font-bold transition-colors disabled:cursor-default rounded cursor-grab"
+                style={{ background: isPending ? 'rgba(239,68,68,0.08)' : isToolHover ? 'rgba(59,130,246,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
+              >{displayText}</button>
+            </React.Fragment>
           );
         })}
+        {/* Ghost at the end */}
+        {isDraggingNormal && dropHoverIdx === dropZone.length && (
+          <div className="inline-flex items-center self-center"
+            style={{ width: '2.5ch', minHeight: '1.8rem', borderLeft: '3px solid #3b82f6', background: 'rgba(59,130,246,0.08)', borderRadius: 4, margin: '0 2px', verticalAlign: 'baseline' }} />
+        )}
       </div>
 
       {/* ── Trash + Tools bar (always visible, draggable) ── */}
