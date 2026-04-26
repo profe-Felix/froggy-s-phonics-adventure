@@ -627,49 +627,26 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
-    // Build expected by matching tiles to actual sentence text (preserving original capitalization)
-    const expected = [];
-    let sentenceIdx = 0;
-    
-    wordSyllables.forEach((sylls, wi) => {
-      sylls.forEach((s) => {
-        // Find this syllable in the original sentence text (case-insensitive search)
-        let matched = false;
-        while (sentenceIdx < sentence.length) {
-          const char = sentence[sentenceIdx];
-          if (char === ' ' || char.match(/[.,!?;:]/)) {
-            sentenceIdx++;
-            break;
-          }
-          // Try to match syllable starting from current position
-          const remaining = sentence.slice(sentenceIdx).toLowerCase();
-          const lowerS = s.toLowerCase();
-          if (remaining.startsWith(lowerS)) {
-            // Extract the actual text from sentence (preserving caps)
-            const actualText = sentence.slice(sentenceIdx, sentenceIdx + s.length);
-            expected.push({ type: 'text', value: actualText });
-            sentenceIdx += s.length;
-            matched = true;
-            break;
-          }
-          sentenceIdx++;
-        }
-        if (!matched) {
-          expected.push({ type: 'text', value: s });
-        }
-      });
-      if (wi < wordSyllables.length - 1) expected.push({ type: 'space', value: ' ' });
-    });
-    puncts.forEach(p => expected.push({ type: 'punc', value: p }));
+    // Build student's answer by joining dropzone tiles
+    const studentSentence = dropZone.map(t => {
+      if (t.type === 'space') return ' ';
+      if (t.type === 'punc') return t.value;
+      return t.value;
+    }).join('');
 
+    // Syllabify both sentences case-insensitively and compare
+    const expectedSyllabified = syllabify(sentence.toLowerCase()).map(s => ({ type: 'text', value: s }));
+    const studentSyllabified = syllabify(studentSentence.toLowerCase()).map(s => ({ type: 'text', value: s }));
+
+    // Compare syllable by syllable (case-insensitive)
     const feedback = dropZone.map((tile, i) => {
-      const exp = expected[i];
+      const exp = expectedSyllabified[i];
       if (!exp) return { ...tile, correct: false };
       if (tile.type !== exp.type) return { ...tile, correct: false };
-      if (tile.type === 'space') return { ...tile, correct: true };
-      return { ...tile, correct: tile.value === exp.value };
+      return { ...tile, correct: tile.value.toLowerCase() === exp.value.toLowerCase() };
     });
-    const allCorrect = feedback.length === expected.length && feedback.every(t => t.correct);
+    
+    const allCorrect = feedback.length === expectedSyllabified.length && feedback.every(t => t.correct);
     setDropZone(feedback);
     setIsCorrect(allCorrect);
     setShowResult(true);
