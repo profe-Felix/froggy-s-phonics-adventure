@@ -146,6 +146,16 @@ function syllabify(word) {
   return syllables.filter(s => s.length > 0);
 }
 
+// Check if audio file exists (preload check)
+async function checkAudioExists(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 function parseSentenceToTiles(sentence) {
   // Returns: words (array of syllable arrays), puncts, flat lowercase syllables (for tray)
   const raw = sentence.trim().split(/\s+/);
@@ -900,6 +910,7 @@ export default function SentencesMode({ studentData, onBack }) {
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [audioChecked, setAudioChecked] = useState(false);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -936,10 +947,32 @@ export default function SentencesMode({ studentData, onBack }) {
         const data = await res.json();
         const oraciones = data["Oraciones"] || {};
         const moduleData = oraciones[`M${selectedModule}`]?.new || [];
-        const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
+        
+        // Preload audio and filter out missing items
+        const validSentences = [];
+        for (const item of moduleData) {
+          const audioName = item.id.toLowerCase();
+          const audioUrl = `${SUPABASE_AUDIO_BASE}/${audioName}.mp3`;
+          const hasAudio = await checkAudioExists(audioUrl);
+          if (hasAudio) {
+            validSentences.push(item);
+          } else {
+            // Log missing audio
+            base44.entities.MissingAudio.create({
+              mode: 'sentences',
+              item_id: item.id,
+              text: item.text,
+              audio_path: audioUrl,
+              reported_date: new Date().toISOString(),
+            }).catch(() => {});
+          }
+        }
+        
+        const shuffled = validSentences.sort(() => Math.random() - 0.5);
         setSentences(shuffled);
         setCurrentIdx(0);
         setPhase('write');
+        setAudioChecked(true);
       } catch (e) {
         console.error('Failed to load module:', e);
       }

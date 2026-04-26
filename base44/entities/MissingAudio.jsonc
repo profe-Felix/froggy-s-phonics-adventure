@@ -1,0 +1,36 @@
+{
+  "name": "MissingAudio",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "sentences",
+        "words",
+        "other"
+      ],
+      "description": "Which game mode"
+    },
+    "item_id": {
+      "type": "string",
+      "description": "The ID of the missing item (sentence/word ID)"
+    },
+    "text": {
+      "type": "string",
+      "description": "The text content that's missing audio"
+    },
+    "audio_path": {
+      "type": "string",
+      "description": "The attempted audio file path"
+    },
+    "reported_date": {
+      "type": "string",
+      "description": "ISO timestamp when missing audio was detected"
+    }
+  },
+  "required": [
+    "mode",
+    "item_id",
+    "text"
+  ]
+}
