@@ -1326,7 +1326,7 @@ export default function WordSentenceBuilder() {
 }
 
 // ─── Student login flow ───────────────────────────────────────────────────────
-const CLASSES = ['F','V','C'];
+const CLASSES = ['Felix', 'Valero', 'Campos'];
 
 function StudentLoginFlow({ searchParams }) {
   const [selectedClass, setSelectedClass] = useState(null);
@@ -1342,7 +1342,7 @@ function StudentLoginFlow({ searchParams }) {
             <div className="flex gap-3 justify-center">
               {CLASSES.map(c=>(
                 <button key={c} onClick={()=>setSelectedClass(c)}
-                  className="w-20 h-20 rounded-2xl bg-indigo-600 text-white text-3xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">{c}</button>
+                  className="px-6 h-16 rounded-2xl bg-indigo-600 text-white text-xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">{c}</button>
               ))}
             </div>
           </>

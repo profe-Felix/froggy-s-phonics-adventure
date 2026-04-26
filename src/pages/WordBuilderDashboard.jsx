@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 
-const CLASSES = ['F', 'V', 'C'];
+const CLASSES = ['Felix', 'Valero', 'Campos'];
 
 // ─── Replay viewer ────────────────────────────────────────────────────────────
 function ReplayViewer({ attempt, onClose }) {
@@ -159,7 +159,7 @@ function StudentCard({ studentNum, attempts, onReplay }) {
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function WordBuilderDashboard() {
-  const [selectedClass, setSelectedClass] = useState('F');
+  const [selectedClass, setSelectedClass] = useState('Felix');
   const [selectedPreset, setSelectedPreset] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [resultFilter, setResultFilter] = useState('all'); // all | correct | incorrect | pending

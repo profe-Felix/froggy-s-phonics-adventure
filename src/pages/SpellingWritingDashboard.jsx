@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
-const CLASS_NAMES = ['Felix', 'Valero', 'Campos', 'Acosta', 'Bonilla', 'Davila'];
+const CLASS_NAMES = ['Felix', 'Valero', 'Campos'];
 const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight Words Spelling', sentences: 'Sentences' };
 
 // SpellingWriteStep stores raw pixel coords at 800x360 canvas resolution
