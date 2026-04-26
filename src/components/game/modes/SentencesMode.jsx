@@ -756,7 +756,11 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         <button
           onClick={() => {
             if (!pendingRemove) return;
-            setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
+            const tileToRestore = dropZone.find(t => t.id === pendingRemove);
+            if (tileToRestore) {
+              setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
+              setTray(prev => [...prev, tileToRestore]);
+            }
             setPendingRemove(null);
           }}
           className={`flex items-center gap-1.5 border-2 border-dashed rounded-xl px-3 py-2 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-400 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-200 text-red-300 cursor-default'}`}
@@ -890,7 +894,11 @@ export default function SentencesMode({ studentData, onBack }) {
         const data = await res.json();
         const oraciones = data["Oraciones"] || {};
         const moduleNums = Object.keys(oraciones)
-          .map(k => parseInt(k.replace('M', '')))
+          .map(k => {
+            const num = parseInt(k.replace(/\D/g, ''));
+            return isNaN(num) ? 0 : num;
+          })
+          .filter(num => num > 0)
           .sort((a, b) => a - b);
         setModules(moduleNums);
         if (moduleNums.length > 0) {
