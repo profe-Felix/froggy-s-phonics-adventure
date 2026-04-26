@@ -24,10 +24,10 @@ export default function SpellingBuildArea({
   pointsEarned,
 }) {
   return (
-    <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 min-w-[400px] max-w-[500px] z-10">
+    <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 w-96 max-w-[90vw] z-10">
       <div className="text-center mb-4">
         <p className="text-gray-600 text-sm mb-2">Build the word:</p>
-        <div className="flex justify-center gap-2 min-h-[80px] items-center flex-wrap">
+        <div className="flex justify-center gap-2 min-h-[80px] flex-wrap">
           <AnimatePresence>
             {builtWord.map((letter, index) => (
               <motion.div
@@ -93,38 +93,42 @@ export default function SpellingBuildArea({
               {/* Student's attempt vs correct answer — letter by letter */}
               <div className="flex flex-col gap-1 items-center">
                 {/* Student row */}
-                <div className="flex gap-1 items-center">
-                  <span className="text-xs text-gray-400 w-14 text-right mr-1">You:</span>
-                  {targetWord.split('').map((correctLetter, i) => {
-                    const studentLetter = builtWord[i];
-                    const match = studentLetter === correctLetter;
-                    return (
-                      <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
-                        !studentLetter ? 'bg-gray-100 border-gray-200 text-gray-300' :
-                        match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-600'
-                      }`}>
-                        {studentLetter || '–'}
-                      </div>
-                    );
-                  })}
-                  {/* Extra letters the student typed beyond the word length */}
-                  {builtWord.slice(targetWord.length).map((l, i) => (
-                    <div key={`extra-${i}`} className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
-                  ))}
+                <div className="flex gap-1 items-start flex-wrap">
+                  <span className="text-xs text-gray-400 w-14 text-right mr-1 mt-1">You:</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {targetWord.split('').map((correctLetter, i) => {
+                      const studentLetter = builtWord[i];
+                      const match = studentLetter === correctLetter;
+                      return (
+                        <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                          !studentLetter ? 'bg-gray-100 border-gray-200 text-gray-300' :
+                          match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-600'
+                        }`}>
+                          {studentLetter || '–'}
+                        </div>
+                      );
+                    })}
+                    {/* Extra letters the student typed beyond the word length */}
+                    {builtWord.slice(targetWord.length).map((l, i) => (
+                      <div key={`extra-${i}`} className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
+                    ))}
+                  </div>
                 </div>
                 {/* Correct row */}
-                <div className="flex gap-1 items-center">
-                  <span className="text-xs text-gray-400 w-14 text-right mr-1">Correct:</span>
-                  {targetWord.split('').map((letter, i) => {
-                    const match = builtWord[i] === letter;
-                    return (
-                      <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
-                        match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-green-200 border-green-500 text-green-800'
-                      }`}>
-                        {letter}
-                      </div>
-                    );
-                  })}
+                <div className="flex gap-1 items-start flex-wrap">
+                  <span className="text-xs text-gray-400 w-14 text-right mr-1 mt-1">Correct:</span>
+                  <div className="flex gap-1 flex-wrap">
+                    {targetWord.split('').map((letter, i) => {
+                      const match = builtWord[i] === letter;
+                      return (
+                        <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                          match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-green-200 border-green-500 text-green-800'
+                        }`}>
+                          {letter}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               {onNext && <button onClick={onNext} className="mt-2 px-6 py-2 bg-indigo-500 text-white font-bold rounded-xl shadow hover:bg-indigo-600">Next →</button>}
