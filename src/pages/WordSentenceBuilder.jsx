@@ -154,45 +154,52 @@ function moveGhostEl(x, y) {
 }
 
 // ─── Find nearest insert position across all tiles in a zone ─────────────────
-// This is the fix for edge-case jumping: instead of requiring the finger to be
-// strictly within a tile's vertical bounds, we find the closest tile by
-// horizontal distance and then decide before/after by midpoint.
+// Queries the INNER drop container (data-drop-zone) directly so the ghost
+// preview elements never pollute the slot list.
 function calcBestInsertIdx(zoneEl, clientX, clientY, tileCount) {
+  // Only consider real tile elements, ignore ghost/preview divs
   const slotEls = [...zoneEl.querySelectorAll('[data-slottile]')];
   if (slotEls.length === 0) return 0;
 
-  // Find which row the finger is closest to
-  let bestRowTop = null, bestRowBottom = null, bestRowDist = Infinity;
-  const rows = [];
-  slotEls.forEach(el => {
-    const r = el.getBoundingClientRect();
-    const rowMid = (r.top + r.bottom) / 2;
-    const dist = Math.abs(clientY - rowMid);
-    if (dist < bestRowDist) {
-      bestRowDist = dist;
-      bestRowTop = r.top;
-      bestRowBottom = r.bottom;
-    }
+  // Snapshot rects once to avoid reflow thrashing
+  const rects = slotEls.map(el => el.getBoundingClientRect());
+
+  // Find the row (group of tiles on the same visual line) closest to clientY
+  // A "row" is identified by similar top values (within 12px)
+  const rowGroups = [];
+  rects.forEach((r, i) => {
+    const mid = (r.top + r.bottom) / 2;
+    const existing = rowGroups.find(g => Math.abs(g.mid - mid) < 14);
+    if (existing) { existing.items.push(i); }
+    else { rowGroups.push({ mid, items: [i] }); }
   });
 
-  // Within that row, find where cursor falls horizontally
-  const rowEls = slotEls.filter(el => {
-    const r = el.getBoundingClientRect();
-    return r.bottom >= bestRowTop - 4 && r.top <= bestRowBottom + 4;
-  });
-
-  if (rowEls.length === 0) return tileCount;
-
-  for (let i = 0; i < rowEls.length; i++) {
-    const r = rowEls[i].getBoundingClientRect();
-    if (clientX < r.left + r.width / 2) {
-      // Return the index of this element in slotEls
-      return slotEls.indexOf(rowEls[i]);
-    }
+  // Pick the row whose vertical midpoint is closest to clientY
+  let bestGroup = rowGroups[0];
+  let bestDist = Math.abs(rowGroups[0].mid - clientY);
+  for (const g of rowGroups) {
+    const d = Math.abs(g.mid - clientY);
+    if (d < bestDist) { bestDist = d; bestGroup = g; }
   }
-  // After last tile in row — find index of last tile + 1
-  const lastInRow = rowEls[rowEls.length - 1];
-  return slotEls.indexOf(lastInRow) + 1;
+
+  // Within the best row, scan left-to-right and insert before the first tile
+  // whose horizontal midpoint is to the right of clientX
+  for (const idx of bestGroup.items) {
+    const r = rects[idx];
+    if (clientX < r.left + r.width / 2) return idx;
+  }
+  // After the last tile in this row
+  return bestGroup.items[bestGroup.items.length - 1] + 1;
+}
+
+// ─── Find which character in a text tile the cursor is over ──────────────────
+function calcAccentCharIdx(tileEl, clientX) {
+  if (!tileEl) return 0;
+  const text = tileEl.textContent || '';
+  if (text.length <= 1) return 0;
+  const r = tileEl.getBoundingClientRect();
+  const frac = (clientX - r.left) / r.width;
+  return Math.max(0, Math.min(text.length - 1, Math.floor(frac * text.length)));
 }
 
 // ─── Palette card ─────────────────────────────────────────────────────────────
@@ -297,15 +304,19 @@ function WriteTile({ dragRef, activeProblem, problems, onDropIntoProblem }) {
 // ─── Tool tiles ───────────────────────────────────────────────────────────────
 function ToolTile({ label, title, dragRef, tileType, tileValue }) {
   return (
-    <div draggable data-tray-tile data-tile-type={tileType} data-tile-value={tileValue}
+    <button
+      draggable
+      data-tray-tile
+      data-tile-type={tileType}
+      data-tile-value={tileValue}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'copy';
         dragRef.current = { tile: createTile(tileType, tileValue), fromProblem: null };
       }}
       title={title}
-      className="cursor-grab rounded-xl border-2 border-gray-400 bg-gray-50 flex items-center justify-center w-11 h-11 text-lg font-black hover:bg-gray-100 select-none">
+      className="cursor-grab rounded-xl border-2 border-gray-400 bg-gray-50 flex items-center justify-center w-11 h-11 text-lg font-black hover:bg-gray-100 select-none touch-none">
       {label}
-    </div>
+    </button>
   );
 }
 
@@ -398,7 +409,13 @@ function ProblemZone({
       for (let i = 0; i < children.length; i++) {
         const r = children[i].getBoundingClientRect();
         if (e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom
-            && (tiles[i]?.type==='text'||tiles[i]?.type==='write')) { hi = i; break; }
+            && (tiles[i]?.type==='text'||tiles[i]?.type==='write')) {
+          hi = i;
+          if (d.tile.type === 'accenttool') {
+            setAccentCharIdx(calcAccentCharIdx(children[i], e.clientX));
+          }
+          break;
+        }
       }
       setHoverProblem(index); setHoverIdx(hi); return;
     }
@@ -439,6 +456,7 @@ function ProblemZone({
     <div className="flex items-start gap-2">
       <span className="text-gray-400 font-bold text-sm mt-3 w-5 shrink-0 text-right">{index+1}.</span>
       <div ref={ref}
+        data-drop-inner={index}
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop_}
         onClick={() => onActivate(isActive ? null : index)}
         className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-0 transition-all cursor-pointer ${isActive?'ring-2 ring-blue-400':''} ${border} ${ring}`}>
@@ -626,11 +644,22 @@ export default function WordSentenceBuilder() {
   }, [config]);
 
   // ── Touch drag ────────────────────────────────────────────────────────────
-  // Uses a movement threshold (10px) before committing to drag, so short taps
-  // still fire onClick (tap-to-place). Once threshold exceeded, ghost appears
-  // and we take over all touch events.
+  // Uses a movement threshold (10px) before committing to drag so taps still fire.
+  // The key fix: we query the INNER drop container ([data-drop-inner]) for insert
+  // position, not the outer wrapper, to avoid ghost-element interference.
+  // Also fully handles captool/accenttool on touch.
   useEffect(() => {
     const DRAG_THRESHOLD = 10;
+
+    // Find the inner drop zone container at (x,y)
+    const findInnerZone = (x, y) => {
+      const zones = document.querySelectorAll('[data-drop-inner]');
+      for (const zone of zones) {
+        const r = zone.getBoundingClientRect();
+        if (x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return zone;
+      }
+      return null;
+    };
 
     const handleTouchStart = (e) => {
       const target = e.target.closest('[data-tray-tile],[data-slottile]');
@@ -641,8 +670,9 @@ export default function WordSentenceBuilder() {
       const startY = touch0.clientY;
       let dragging = false;
       let pendingDragData = null;
+      // For accenttool: track which char is being hovered
+      let touchAccentCharIdx = 0;
 
-      // Pre-compute the drag data so we have it ready when threshold is hit
       const tileType = target.dataset.tileType;
       const tileValue = target.dataset.tileValue;
       const tileId = target.dataset.tileId;
@@ -651,7 +681,6 @@ export default function WordSentenceBuilder() {
       if (isTray && tileType) {
         pendingDragData = { tile: createTile(tileType, tileValue), fromProblem: null };
       } else if (tileId) {
-        // Inline tile: find it in problems
         const probs = problemsRef.current;
         for (let pi = 0; pi < probs.length; pi++) {
           const ti = probs[pi].findIndex(t => t.id === tileId);
@@ -664,16 +693,8 @@ export default function WordSentenceBuilder() {
 
       if (!pendingDragData) return;
 
+      const isTool = tileType === 'captool' || tileType === 'accenttool';
       const ghostLabel = tileType === 'space' ? '␣' : (tileValue || target.textContent?.trim() || '?');
-
-      const findZone = (x, y) => {
-        const zones = document.querySelectorAll('[data-problem-zone]');
-        for (const zone of zones) {
-          const r = zone.getBoundingClientRect();
-          if (x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return zone;
-        }
-        return null;
-      };
 
       const onTouchMove = (ev) => {
         const t = ev.touches[0];
@@ -681,7 +702,6 @@ export default function WordSentenceBuilder() {
 
         if (!dragging) {
           if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) return;
-          // Threshold exceeded — commit to drag
           dragging = true;
           dragRef.current = pendingDragData;
           ev.preventDefault();
@@ -691,15 +711,37 @@ export default function WordSentenceBuilder() {
         ev.preventDefault();
         moveGhostEl(t.clientX, t.clientY);
 
-        const zone = findZone(t.clientX, t.clientY);
-        if (zone) {
-          const zoneIndex = parseInt(zone.dataset.problemZone);
+        const innerZone = findInnerZone(t.clientX, t.clientY);
+        if (innerZone) {
+          const zoneIndex = parseInt(innerZone.dataset.dropInner);
           const probs = problemsRef.current;
-          const insertIdx = calcBestInsertIdx(zone, t.clientX, t.clientY, (probs[zoneIndex]||[]).length);
-          setHoverProblem(zoneIndex);
-          setHoverIdx(insertIdx);
+
+          if (isTool) {
+            // For tools: find which text tile is under the finger
+            const slotEls = [...innerZone.querySelectorAll('[data-slottile]')];
+            let hi = null;
+            for (let i = 0; i < slotEls.length; i++) {
+              const r = slotEls[i].getBoundingClientRect();
+              const tileData = probs[zoneIndex]?.[i];
+              if (t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom
+                  && (tileData?.type==='text'||tileData?.type==='write')) {
+                hi = i;
+                if (tileType === 'accenttool') {
+                  touchAccentCharIdx = calcAccentCharIdx(slotEls[i], t.clientX);
+                  setAccentCharIdx(touchAccentCharIdx);
+                }
+                break;
+              }
+            }
+            setHoverProblem(zoneIndex);
+            setHoverIdx(hi);
+          } else {
+            const insertIdx = calcBestInsertIdx(innerZone, t.clientX, t.clientY, (probs[zoneIndex]||[]).length);
+            setHoverProblem(zoneIndex);
+            setHoverIdx(insertIdx);
+          }
         } else {
-          setHoverProblem(null); setHoverIdx(null);
+          setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null);
         }
       };
 
@@ -707,10 +749,7 @@ export default function WordSentenceBuilder() {
         document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
 
-        if (!dragging) {
-          // Was a tap — let the click event fire naturally
-          return;
-        }
+        if (!dragging) return; // Was a tap — let click fire naturally
 
         ev.preventDefault();
         removeGhostEl();
@@ -731,20 +770,63 @@ export default function WordSentenceBuilder() {
                 return next;
               });
             }
-            setHoverProblem(null); setHoverIdx(null);
+            setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null);
             return;
           }
         }
 
-        const zone = findZone(ct.clientX, ct.clientY);
-        if (zone) {
-          const zoneIndex = parseInt(zone.dataset.problemZone);
+        const innerZone = findInnerZone(ct.clientX, ct.clientY);
+        if (innerZone) {
+          const zoneIndex = parseInt(innerZone.dataset.dropInner);
           const probs = problemsRef.current;
-          const insertIdx = calcBestInsertIdx(zone, ct.clientX, ct.clientY, (probs[zoneIndex]||[]).length);
-          handleDropTouch(pendingDragData, zoneIndex, insertIdx);
+
+          if (isTool) {
+            // Apply captool / accenttool on touch drop
+            const slotEls = [...innerZone.querySelectorAll('[data-slottile]')];
+            let targetIdx = null;
+            for (let i = 0; i < slotEls.length; i++) {
+              const r = slotEls[i].getBoundingClientRect();
+              const tileData = probs[zoneIndex]?.[i];
+              if (ct.clientX>=r.left && ct.clientX<=r.right && ct.clientY>=r.top && ct.clientY<=r.bottom
+                  && (tileData?.type==='text'||tileData?.type==='write')) {
+                targetIdx = i;
+                break;
+              }
+            }
+            if (targetIdx !== null) {
+              const capturedAccentIdx = touchAccentCharIdx;
+              setProblems(prev => {
+                if (!Array.isArray(prev)) return prev;
+                const next = prev.map(p=>(p||[]).map(t=>({...t})));
+                const problem = next[zoneIndex];
+                if (!problem[targetIdx]||problem[targetIdx].type!=='text') return prev;
+                const target = problem[targetIdx];
+                if (tileType==='captool') {
+                  target.value = tileValue==='up'
+                    ? target.value.charAt(0).toUpperCase()+target.value.slice(1)
+                    : target.value.charAt(0).toLowerCase()+target.value.slice(1);
+                } else {
+                  const PLAIN_TO_ACC = {a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú'};
+                  const ACC_TO_PLAIN = {á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U'};
+                  const chars = [...String(target.value||'')];
+                  const ci = capturedAccentIdx ?? 0;
+                  if (ci>=0&&ci<chars.length) {
+                    const ch = chars[ci];
+                    chars[ci] = PLAIN_TO_ACC[ch]||ACC_TO_PLAIN[ch]||ch;
+                    target.value = chars.join('');
+                  }
+                }
+                return next;
+              });
+              setShowResult(false);
+            }
+          } else {
+            const insertIdx = calcBestInsertIdx(innerZone, ct.clientX, ct.clientY, (probs[zoneIndex]||[]).length);
+            handleDropTouch(pendingDragData, zoneIndex, insertIdx);
+          }
         }
 
-        setHoverProblem(null); setHoverIdx(null);
+        setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null);
       };
 
       document.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -862,6 +944,8 @@ export default function WordSentenceBuilder() {
 
     // Tool tiles
     if (tile.type==='captool'||tile.type==='accenttool') {
+      // Capture accentCharIdx synchronously before clearing state
+      const capturedAccentIdx = accentCharIdx;
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
         const next = prev.map(p=>(p||[]).map(t=>({...t})));
@@ -877,9 +961,10 @@ export default function WordSentenceBuilder() {
           const PLAIN_TO_ACC = {a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú'};
           const ACC_TO_PLAIN = {á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U'};
           const chars = [...String(target.value||'')];
-          if (accentCharIdx!==null&&accentCharIdx>=0&&accentCharIdx<chars.length) {
-            const ch = chars[accentCharIdx];
-            chars[accentCharIdx] = PLAIN_TO_ACC[ch]||ACC_TO_PLAIN[ch]||ch;
+          const ci = capturedAccentIdx ?? 0;
+          if (ci>=0&&ci<chars.length) {
+            const ch = chars[ci];
+            chars[ci] = PLAIN_TO_ACC[ch]||ACC_TO_PLAIN[ch]||ch;
             target.value = chars.join('');
           }
         }
