@@ -50,11 +50,10 @@ export const SPELLING_WORDS = Object.values(SPELLING_WORDS_BY_MODULE).flat();
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
-function normalizeAudioName(word) {
+function toAudioName(word) {
   return word.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents
-    .replace(/ñ/g, 'n')
-    .replace(/ü/g, 'u');
+    .replace(/á/g, 'a...').replace(/é/g, 'e...').replace(/í/g, 'i...')
+    .replace(/ó/g, 'o...').replace(/ú/g, 'u...');
 }
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
@@ -146,10 +145,10 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
     if (!preloadedAudio.current[word]) {
       const audio = new Audio();
-      const normalized = normalizeAudioName(word);
+      const audioName = toAudioName(word);
       const candidates = [
-        `${SUPABASE_AUDIO_BASE}/${normalized}.mp3`,
-        `${SUPABASE_AUDIO_BASE}/${normalized}.wav`,
+        `${SUPABASE_AUDIO_BASE}/${audioName}.mp3`,
+        `${SUPABASE_AUDIO_BASE}/${audioName}.wav`,
       ];
       let i = 0;
       const tryNext = () => {
