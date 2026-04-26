@@ -1257,15 +1257,7 @@ export default function WordSentenceBuilder() {
           {toggles.write && (
             <PaletteCard title="Escribe" cols={0}>
               <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
-              {letterTiles.length===0 && (toggles.caps||toggles.accent) && (
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {toggles.caps && <>
-                    <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
-                    <ToolTile label="↓" title="Minúscula" dragRef={dragRef} tileType="captool" tileValue="down" />
-                  </>}
-                  {toggles.accent && <ToolTile label="´" title="Acento" dragRef={dragRef} tileType="accenttool" tileValue="´" />}
-                </div>
-              )}
+
             </PaletteCard>
           )}
           {letterTiles.length>0 && (
@@ -1293,6 +1285,11 @@ export default function WordSentenceBuilder() {
               <div className="flex flex-wrap gap-2">
                 {toggles.space!==false && <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />}
                 {puncTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
+                {letterTiles.length===0 && toggles.caps && <>
+                  <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
+                  <ToolTile label="↓" title="Minúscula" dragRef={dragRef} tileType="captool" tileValue="down" />
+                </>}
+                {letterTiles.length===0 && toggles.accent && <ToolTile label="´" title="Acento" dragRef={dragRef} tileType="accenttool" tileValue="´" />}
               </div>
             </PaletteCard>
           )}
