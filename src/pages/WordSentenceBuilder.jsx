@@ -665,9 +665,6 @@ export default function WordSentenceBuilder() {
       const target = e.target.closest('[data-tray-tile],[data-slottile]');
       if (!target) return;
 
-      // Prevent page scroll from starting when touching a tile
-      e.preventDefault();
-
       const touch0 = e.touches[0];
       const startX = touch0.clientX;
       const startY = touch0.clientY;
@@ -704,10 +701,12 @@ export default function WordSentenceBuilder() {
         const dx = t.clientX - startX, dy = t.clientY - startY;
 
         if (!dragging) {
-          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) return;
+          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) {
+            ev.preventDefault(); // block scroll while deciding
+            return;
+          }
           dragging = true;
           dragRef.current = pendingDragData;
-          ev.preventDefault();
           createGhostEl(ghostLabel);
         }
 
@@ -836,7 +835,7 @@ export default function WordSentenceBuilder() {
       document.addEventListener('touchend', onTouchEnd);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
     return () => document.removeEventListener('touchstart', handleTouchStart);
   }, []); // eslint-disable-line
 
