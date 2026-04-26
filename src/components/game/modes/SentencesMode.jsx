@@ -888,13 +888,16 @@ export default function SentencesMode({ studentData, onBack }) {
       try {
         const res = await fetch(SUPABASE_LISTS_URL);
         const data = await res.json();
-        // Assume data is { module_number: [{ id, text }, ...], ... }
-        const moduleNums = Object.keys(data).map(Number).sort((a, b) => a - b);
+        const oraciones = data["Oraciones"] || {};
+        const moduleNums = Object.keys(oraciones)
+          .map(k => parseInt(k.replace('M', '')))
+          .sort((a, b) => a - b);
         setModules(moduleNums);
         if (moduleNums.length > 0) {
           const firstModule = moduleNums[0];
           setSelectedModule(firstModule);
-          const shuffled = [...(data[firstModule] || [])].sort(() => Math.random() - 0.5);
+          const moduleData = oraciones[`M${firstModule}`]?.new || [];
+          const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
           setSentences(shuffled);
         }
       } catch (e) {
@@ -912,7 +915,8 @@ export default function SentencesMode({ studentData, onBack }) {
       try {
         const res = await fetch(SUPABASE_LISTS_URL);
         const data = await res.json();
-        const moduleData = data[selectedModule] || [];
+        const oraciones = data["Oraciones"] || {};
+        const moduleData = oraciones[`M${selectedModule}`]?.new || [];
         const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
         setSentences(shuffled);
         setCurrentIdx(0);
