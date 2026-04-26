@@ -35,9 +35,9 @@ export default function SpellingBuildArea({
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
                 exit={{ scale: 0, rotate: 180 }}
-                className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg flex items-center justify-center"
+                className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-lg flex items-center justify-center"
               >
-                <span className="text-3xl font-bold text-white">{letter}</span>
+                <span className="text-2xl font-bold text-white">{letter}</span>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -100,7 +100,7 @@ export default function SpellingBuildArea({
                       const studentLetter = builtWord[i];
                       const match = studentLetter === correctLetter;
                       return (
-                        <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                        <div key={i} className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 ${
                           !studentLetter ? 'bg-gray-100 border-gray-200 text-gray-300' :
                           match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-600'
                         }`}>
@@ -110,7 +110,7 @@ export default function SpellingBuildArea({
                     })}
                     {/* Extra letters the student typed beyond the word length */}
                     {builtWord.slice(targetWord.length).map((l, i) => (
-                      <div key={`extra-${i}`} className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
+                      <div key={`extra-${i}`} className="w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
                     ))}
                   </div>
                 </div>
@@ -121,7 +121,7 @@ export default function SpellingBuildArea({
                     {targetWord.split('').map((letter, i) => {
                       const match = builtWord[i] === letter;
                       return (
-                        <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg border-2 ${
+                        <div key={i} className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 ${
                           match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-green-200 border-green-500 text-green-800'
                         }`}>
                           {letter}
