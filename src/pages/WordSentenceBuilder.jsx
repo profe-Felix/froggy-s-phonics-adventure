@@ -77,6 +77,7 @@ function usePreset(searchParams) {
           answers:     c.answers   ?? null,
           numProblems: c.rows ?? c.problems ?? (parseInt(searchParams.get('rows')) || 1),
           trayColumns: c.cols ?? c.trayColumns ?? (parseInt(searchParams.get('cols')) || 0),
+          perRow: c.perRow ?? 0,
           toggles: {
             space:  c.toggles?.space  !== false,
             caps:   c.toggles?.caps   !== false,
@@ -203,7 +204,31 @@ function calcAccentCharIdx(tileEl, clientX) {
 }
 
 // ─── Palette card ─────────────────────────────────────────────────────────────
-function PaletteCard({ title, cols, children }) {
+// tiles: raw array still containing '|' separators (strings), used when perRow is set
+// children: used when perRow is not set (existing behavior)
+function PaletteCard({ title, cols, perRow, rawTiles, renderTile, children }) {
+  if (perRow > 0 && rawTiles) {
+    // Split rawTiles by '|' into groups, render each group as its own row
+    const groups = [[]];
+    for (const item of rawTiles) {
+      if (item === '|') groups.push([]);
+      else groups[groups.length - 1].push(item);
+    }
+    const gridStyle = { display:'grid', gridTemplateColumns:`repeat(${perRow},minmax(0,1fr))`, gap:'6px' };
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
+        <h2 className="text-sm font-black text-gray-600 mb-2 uppercase tracking-wide">{title}</h2>
+        <div className="flex flex-col gap-2">
+          {groups.filter(g => g.length > 0).map((group, gi) => (
+            <div key={gi} style={gridStyle}>
+              {group.map((val, ti) => renderTile(val, `${gi}-${ti}`))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const gridStyle = cols > 0
     ? { display:'grid', gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`, gap:'6px' }
     : {};
@@ -1126,7 +1151,7 @@ export default function WordSentenceBuilder() {
     return <StudentLoginFlow searchParams={searchParams} />;
   }
 
-  const { letters=[], syllables=[], words=[], punc=[], images=[], toggles={}, trayColumns=0 } = config;
+  const { letters=[], syllables=[], words=[], punc=[], images=[], toggles={}, trayColumns=0, perRow=0 } = config;
   const isStudent = config.isStudent;
 
   const letterTiles = letters.filter(l=>l!=='|').map(l=>createTile('text',l));
@@ -1135,6 +1160,12 @@ export default function WordSentenceBuilder() {
   const puncTiles = punc.map(p=>createTile('punc',p));
   const spaceTile = createTile('space',' ');
   const imgTiles = images.map(u=>createTile('img',u));
+
+  // Helper to render a tray tile from a raw value (used with perRow layout)
+  const makeTrayTileRenderer = (tileType) => (val, key) => {
+    const t = createTile(tileType, val);
+    return <TrayTile key={key} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white" style={{fontFamily:'Andika,system-ui,sans-serif'}}>
@@ -1224,7 +1255,7 @@ export default function WordSentenceBuilder() {
 
         <aside className="lg:w-1/2 flex flex-col gap-3">
           {(letterTiles.length>0||toggles.write) && (
-            <PaletteCard title="Letras" cols={trayColumns}>
+            <PaletteCard title="Letras" cols={trayColumns} perRow={perRow} rawTiles={perRow>0?letters:null} renderTile={makeTrayTileRenderer('text')}>
               {toggles.write && <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />}
               {letterTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
               {toggles.caps && <>
@@ -1235,12 +1266,12 @@ export default function WordSentenceBuilder() {
             </PaletteCard>
           )}
           {syllTiles.length>0 && (
-            <PaletteCard title="Sílabas" cols={trayColumns}>
+            <PaletteCard title="Sílabas" cols={trayColumns} perRow={perRow} rawTiles={perRow>0?syllables:null} renderTile={makeTrayTileRenderer('text')}>
               {syllTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
             </PaletteCard>
           )}
           {wordTiles.length>0 && (
-            <PaletteCard title="Palabras" cols={trayColumns}>
+            <PaletteCard title="Palabras" cols={trayColumns} perRow={perRow} rawTiles={perRow>0?words:null} renderTile={makeTrayTileRenderer('text')}>
               {wordTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
             </PaletteCard>
           )}
