@@ -1259,7 +1259,7 @@ export default function WordSentenceBuilder() {
               <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
             </PaletteCard>
           )}
-          {(letterTiles.length>0||(toggles.caps||toggles.accent)) && (
+          {letterTiles.length>0 && (
             <PaletteCard title="Letras" cols={trayColumns} perRow={perRow} rawTiles={perRow>0?letters:null} renderTile={makeTrayTileRenderer('text')}>
               {letterTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
               {toggles.caps && <>
