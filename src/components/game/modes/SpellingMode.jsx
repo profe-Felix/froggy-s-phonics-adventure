@@ -133,21 +133,13 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   const moduleProgress = getModuleProgress(modeData);
 
-  const normalizeAudioName = (w) =>
-    (w || '').toLowerCase()
-      .replace(/ñ/g, 'n')
-      .replace(/ü/g, 'u')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '');
-
   const playSound = (word) => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
-    const key = normalizeAudioName(word);
-    if (!preloadedAudio.current[key]) {
-      preloadedAudio.current[key] = new Audio(`/spelling-audio/${key}.mp3`);
-      preloadedAudio.current[key].preload = 'auto';
+    if (!preloadedAudio.current[word]) {
+      preloadedAudio.current[word] = new Audio(`/spelling-audio/${encodeURIComponent(word)}.mp3`);
+      preloadedAudio.current[word].preload = 'auto';
     }
-    audioRef.current = preloadedAudio.current[key];
+    audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {});
   };

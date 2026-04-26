@@ -161,21 +161,8 @@ const SENTENCE_BANK = {
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 const MODULES = Object.keys(SENTENCE_BANK).map(Number);
 
-// Normalize ID for Supabase filename: strip accents (á→a etc), ñ→n, ü→u, lowercase, keep only a-z and dots/hyphens
-function normalizeAudioId(id) {
-  return (id || '')
-    .toLowerCase()
-    .replace(/ñ/g, 'n')
-    .replace(/ü/g, 'u')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9.\-_]/g, '');
-}
-
 function playAudioById(id) {
-  const normalized = normalizeAudioId(id);
   const candidates = [
-    `${SUPABASE_AUDIO_BASE}/${normalized}.mp3`,
-    `${SUPABASE_AUDIO_BASE}/${normalized}.wav`,
     `${SUPABASE_AUDIO_BASE}/${id}.mp3`,
     `${SUPABASE_AUDIO_BASE}/${id}.wav`,
   ];
