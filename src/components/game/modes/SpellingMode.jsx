@@ -186,13 +186,28 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       try {
         const res = await fetch(SUPABASE_LISTS_URL);
         const data = await res.json();
-        SPELLING_WORDS_BY_MODULE = data["Palabras"] || {};
+
+        const raw = data["Palabras"] || {};
+        const normalized = {};
+
+        Object.entries(raw).forEach(([key, moduleObj]) => {
+          const num = parseInt(String(key).replace(/\D/g, ''), 10);
+          const words = moduleObj?.new || [];
+
+          if (!Number.isNaN(num) && Array.isArray(words)) {
+            normalized[num] = words;
+          }
+        });
+
+        SPELLING_WORDS_BY_MODULE = normalized;
         setWordsLoaded(true);
       } catch (e) {
         console.error('Failed to load word lists:', e);
+        SPELLING_WORDS_BY_MODULE = {};
         setWordsLoaded(true);
       }
     };
+
     loadWords();
   }, []);
 
@@ -269,10 +284,22 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     });
   };
 
-  if (!currentWord || !wordsLoaded) {
+  if (!wordsLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!currentWord) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-6 text-center max-w-md">
+          <p className="text-xl font-black text-red-600 mb-2">No words loaded</p>
+          <p className="text-gray-600 font-bold">
+            Check lists.json → Palabras → M{selectedModule} → new.
+          </p>
+        </div>
       </div>
     );
   }
