@@ -162,6 +162,9 @@ export default function WordBuilderDashboard() {
   const [selectedClass, setSelectedClass] = useState('F');
   const [selectedPreset, setSelectedPreset] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [resultFilter, setResultFilter] = useState('all'); // all | correct | incorrect | pending
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [replayAttempt, setReplayAttempt] = useState(null);
 
   const { data: attempts = [], isLoading } = useQuery({
@@ -179,9 +182,26 @@ export default function WordBuilderDashboard() {
   // Get unique presets
   const presets = ['all', ...new Set(attempts.map(a => a.preset_id).filter(Boolean))];
 
-  const filtered = selectedPreset === 'all' ? attempts : attempts.filter(a => a.preset_id === selectedPreset);
+  // Apply all filters
+  const filtered = attempts.filter(a => {
+    if (selectedPreset !== 'all' && a.preset_id !== selectedPreset) return false;
+    if (selectedStudent !== null && a.student_number !== selectedStudent) return false;
+    if (resultFilter === 'correct' && !a.all_correct) return false;
+    if (resultFilter === 'incorrect' && a.all_correct) return false;
+    if (resultFilter === 'pending' && a.all_correct !== null && a.all_correct !== undefined) return false;
+    if (dateFrom) {
+      const d = new Date(a.submitted_at || a.created_date);
+      if (d < new Date(dateFrom)) return false;
+    }
+    if (dateTo) {
+      const d = new Date(a.submitted_at || a.created_date);
+      const end = new Date(dateTo); end.setHours(23,59,59,999);
+      if (d > end) return false;
+    }
+    return true;
+  });
 
-  // Group by student
+  // Group by student (from filtered set)
   const byStudent = {};
   filtered.forEach(a => {
     if (!byStudent[a.student_number]) byStudent[a.student_number] = [];
@@ -191,9 +211,16 @@ export default function WordBuilderDashboard() {
   // Active sessions (not yet submitted)
   const activeSessions = sessions.filter(s => !s.submitted);
 
-  const studentFilter = selectedStudent !== null
-    ? Object.fromEntries(Object.entries(byStudent).filter(([k]) => parseInt(k) === selectedStudent))
-    : byStudent;
+  // Which student numbers to show in the grid
+  const visibleStudents = selectedStudent !== null
+    ? [selectedStudent]
+    : Array.from({length:30},(_,i)=>i+1);
+
+  const resetFilters = () => {
+    setSelectedPreset('all'); setSelectedStudent(null);
+    setResultFilter('all'); setDateFrom(''); setDateTo('');
+  };
+  const hasActiveFilters = selectedPreset !== 'all' || selectedStudent !== null || resultFilter !== 'all' || dateFrom || dateTo;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
@@ -215,23 +242,52 @@ export default function WordBuilderDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 py-5 flex flex-col gap-4">
         {/* Filters */}
-        <div className="flex flex-wrap gap-3 items-center bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
-          <span className="text-sm font-bold text-gray-500">Lección:</span>
-          {presets.map(p => (
-            <button key={p} onClick={() => setSelectedPreset(p)}
-              className={`px-3 py-1 rounded-full text-sm font-bold transition-all ${selectedPreset===p ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-indigo-50'}`}>
-              {p === 'all' ? 'Todas' : p}
-            </button>
-          ))}
-          <div className="flex-1" />
-          <span className="text-sm font-bold text-gray-500">Filtrar estudiante:</span>
-          <select value={selectedStudent ?? ''} onChange={e => setSelectedStudent(e.target.value ? parseInt(e.target.value) : null)}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
-            <option value="">Todos</option>
-            {Array.from({length:30},(_,i)=>i+1).map(n => (
-              <option key={n} value={n}>#{n}</option>
-            ))}
-          </select>
+        <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <span className="text-sm font-bold text-gray-500 shrink-0">Lección:</span>
+            <div className="flex flex-wrap gap-2">
+              {presets.map(p => (
+                <button key={p} onClick={() => setSelectedPreset(p)}
+                  className={`px-3 py-1 rounded-full text-sm font-bold transition-all ${selectedPreset===p ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-indigo-50'}`}>
+                  {p === 'all' ? 'Todas' : p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-500">Resultado:</span>
+              {[['all','Todos'],['correct','✓ Correctos'],['incorrect','✗ Incorrectos']].map(([v,l]) => (
+                <button key={v} onClick={() => setResultFilter(v)}
+                  className={`px-3 py-1 rounded-full text-sm font-bold transition-all ${resultFilter===v ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-indigo-50'}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-500 shrink-0">Estudiante:</span>
+              <select value={selectedStudent ?? ''} onChange={e => setSelectedStudent(e.target.value ? parseInt(e.target.value) : null)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+                <option value="">Todos</option>
+                {Array.from({length:30},(_,i)=>i+1).map(n => (
+                  <option key={n} value={n}>#{n}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-500 shrink-0">Fecha:</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+              <span className="text-gray-400 text-sm">→</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm" />
+            </div>
+            {hasActiveFilters && (
+              <button onClick={resetFilters} className="text-xs text-indigo-600 font-bold hover:underline">
+                ✕ Limpiar filtros
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Active sessions summary */}
@@ -252,11 +308,11 @@ export default function WordBuilderDashboard() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center shadow-sm">
             <p className="text-3xl font-black text-indigo-600">{Object.keys(byStudent).length}</p>
-            <p className="text-xs text-gray-500 font-bold mt-1">Estudiantes con envíos</p>
+            <p className="text-xs text-gray-500 font-bold mt-1">Estudiantes</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center shadow-sm">
-            <p className="text-3xl font-black text-green-600">{Object.values(byStudent).filter(a=>a[0]?.all_correct).length}</p>
-            <p className="text-xs text-gray-500 font-bold mt-1">Todo correcto</p>
+            <p className="text-3xl font-black text-green-600">{filtered.filter(a=>a.all_correct).length}</p>
+            <p className="text-xs text-gray-500 font-bold mt-1">Correctos</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-4 text-center shadow-sm">
             <p className="text-3xl font-black text-gray-700">{filtered.length}</p>
@@ -269,16 +325,14 @@ export default function WordBuilderDashboard() {
           <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" /></div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {Array.from({length:30},(_,i)=>i+1)
-              .filter(n => selectedStudent === null || n === selectedStudent)
-              .map(n => (
-                <StudentCard
-                  key={n}
-                  studentNum={n}
-                  attempts={studentFilter[n] || []}
-                  onReplay={setReplayAttempt}
-                />
-              ))}
+            {visibleStudents.map(n => (
+              <StudentCard
+                key={n}
+                studentNum={n}
+                attempts={byStudent[n] || []}
+                onReplay={setReplayAttempt}
+              />
+            ))}
           </div>
         )}
       </main>
