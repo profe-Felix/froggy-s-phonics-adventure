@@ -613,13 +613,36 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
-    // Build expected token list: syllables of word0 (first capitalized), space, syllables of word1, space, ...puncts
+    // Build expected by matching tiles to actual sentence text (preserving original capitalization)
     const expected = [];
+    let sentenceIdx = 0;
+    
     wordSyllables.forEach((sylls, wi) => {
-      sylls.forEach((s, si) => {
-        // Capitalize first letter of very first syllable
-        const val = (wi === 0 && si === 0) ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-        expected.push({ type: 'text', value: val });
+      sylls.forEach((s) => {
+        // Find this syllable in the original sentence text (case-insensitive search)
+        let matched = false;
+        while (sentenceIdx < sentence.length) {
+          const char = sentence[sentenceIdx];
+          if (char === ' ' || char.match(/[.,!?;:]/)) {
+            sentenceIdx++;
+            break;
+          }
+          // Try to match syllable starting from current position
+          const remaining = sentence.slice(sentenceIdx).toLowerCase();
+          const lowerS = s.toLowerCase();
+          if (remaining.startsWith(lowerS)) {
+            // Extract the actual text from sentence (preserving caps)
+            const actualText = sentence.slice(sentenceIdx, sentenceIdx + s.length);
+            expected.push({ type: 'text', value: actualText });
+            sentenceIdx += s.length;
+            matched = true;
+            break;
+          }
+          sentenceIdx++;
+        }
+        if (!matched) {
+          expected.push({ type: 'text', value: s });
+        }
       });
       if (wi < wordSyllables.length - 1) expected.push({ type: 'space', value: ' ' });
     });
