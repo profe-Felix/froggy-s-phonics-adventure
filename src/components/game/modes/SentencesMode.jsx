@@ -147,9 +147,9 @@ function syllabify(word) {
 }
 
 function parseSentenceToTiles(sentence) {
-  // Returns: words (array of syllable arrays), puncts, and flat syllable list
+  // Returns: words (array of syllable arrays), puncts, flat lowercase syllables (for tray)
   const raw = sentence.trim().split(/\s+/);
-  const wordSyllables = []; // [[syll,syll,...], ...]
+  const wordSyllables = []; // [[syll,syll,...], ...] — preserves original casing for validation
   const puncts = [];
   raw.forEach(w => {
     const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
@@ -160,7 +160,7 @@ function parseSentenceToTiles(sentence) {
     // Get syllables from lowercased word
     const lowSyllables = syllabify(wordPartLower);
     
-    // Reconstruct syllables with original casing from the word
+    // Preserve original casing for validation
     const casingPreservedSyllables = [];
     let charIdx = 0;
     for (const syll of lowSyllables) {
@@ -172,8 +172,8 @@ function parseSentenceToTiles(sentence) {
     wordSyllables.push(casingPreservedSyllables);
     if (punct) punct.split('').forEach(p => puncts.push(p));
   });
-  // flat list of all syllables in order (for validation)
-  const allSyllables = wordSyllables.flat();
+  // Flat list of ALL syllables — but always LOWERCASE for tray display
+  const allSyllables = wordSyllables.flat().map(s => s.toLowerCase());
   return { wordSyllables, allSyllables, puncts };
 }
 
