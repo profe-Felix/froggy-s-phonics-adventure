@@ -5,16 +5,18 @@ import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
-let SIGHT_WORDS_SPELLING = [];
+let SIGHT_WORDS_BY_MODULE = {};
 
 // Only 'spell' and 'unscramble' — no missing-letter
 const CHALLENGE_TYPES = ['spell', 'unscramble', 'spell', 'spell', 'unscramble'];
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
-function pickWord(modeData, lastWord) {
-  const learning = modeData.learning_items?.length > 0 ? modeData.learning_items : ['el', 'la', 'un'];
+function pickWord(modeData, lastWord, moduleWords) {
+  if (!moduleWords || !Array.isArray(moduleWords) || moduleWords.length === 0) return null;
+  const learning = (modeData.learning_items?.length > 0 ? modeData.learning_items : []).filter(w => moduleWords.includes(w));
   const attempts = modeData.item_attempts || {};
   const pool = learning.length > 1 ? learning.filter(w => w !== lastWord) : learning;
+  if (pool.length === 0) return moduleWords[0];
   const weights = pool.map(w => { const s = attempts[w] || { correct: 0, total: 0 }; return Math.max(1, 6 - s.correct); });
   const total = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * total;
@@ -23,6 +25,8 @@ function pickWord(modeData, lastWord) {
 }
 
 export default function SightWordsSpellingMode({ studentData, onUpdateProgress }) {
+  const [selectedModule, setSelectedModule] = useState(1);
+  const [modules, setModules] = useState([]);
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [currentWord, setCurrentWord] = useState(null);
   const [options, setOptions] = useState([]);
@@ -102,10 +106,15 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
       .map((letter, idx) => ({ letter, id: idx }));
   };
 
-  const startRound = (nextRoundCount) => {
+  const startRound = (nextRoundCount, mod = selectedModule) => {
     if (!wordsLoaded) return;
+    const moduleWords = SIGHT_WORDS_BY_MODULE[mod] || [];
+    if (moduleWords.length === 0) return;
+    
     const rc = nextRoundCount ?? roundCount;
-    const word = pickWord(modeData, lastWordRef.current);
+    const word = pickWord(modeData, lastWordRef.current, moduleWords);
+    if (!word) return;
+    
     lastWordRef.current = word;
     const type = CHALLENGE_TYPES[rc % CHALLENGE_TYPES.length];
     setChallengeType(type);
@@ -125,8 +134,27 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
       try {
         const res = await fetch(SUPABASE_LISTS_URL);
         const data = await res.json();
-        const palabrasObj = data["Palabras"] || {};
-        SIGHT_WORDS_SPELLING = Object.values(palabrasObj).flat();
+        const palabrasObj = data["Palabras 💙"] || {};
+        const normalized = {};
+
+        Object.entries(palabrasObj).forEach(([key, moduleObj]) => {
+          const num = parseInt(String(key).replace(/\D/g, ''), 10);
+          const words = moduleObj?.new || [];
+
+          if (!Number.isNaN(num) && Array.isArray(words)) {
+            normalized[num] = words;
+          }
+        });
+
+        SIGHT_WORDS_BY_MODULE = normalized;
+        const moduleNums = Object.keys(normalized)
+          .map(k => parseInt(k, 10))
+          .filter(n => !isNaN(n))
+          .sort((a, b) => a - b);
+        setModules(moduleNums);
+        if (moduleNums.length > 0) {
+          setSelectedModule(moduleNums[0]);
+        }
         setWordsLoaded(true);
       } catch (e) {
         console.error('Failed to load word lists:', e);
@@ -137,8 +165,10 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   }, []);
 
   useEffect(() => {
-    if (wordsLoaded) startRound(0);
-  }, [wordsLoaded]);
+    if (wordsLoaded) {
+      startRound(0, selectedModule);
+    }
+  }, [wordsLoaded, selectedModule]);
 
   const handleWriteDone = async (strokes) => {
     setPhase('build');
@@ -163,10 +193,15 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const handleUndo = () => { if (showResult) return; setBuiltWord(p => p.slice(0, -1)); setUsedIndices(p => p.slice(0, -1)); };
   const handleClear = () => { if (showResult) return; setBuiltWord([]); setUsedIndices([]); };
 
+  const handleModuleSelect = (mod) => {
+    setSelectedModule(mod);
+    setRoundCount(0);
+  };
+
   const handleNext = () => {
     const next = roundCount + 1;
     setRoundCount(next);
-    startRound(next);
+    startRound(next, selectedModule);
   };
 
   const saveProgress = async (correct) => {
@@ -182,17 +217,19 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     if (correct && wordStats.correct >= 4 && wordStats.correct / wordStats.total >= 0.75 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
+      const moduleWords = SIGHT_WORDS_BY_MODULE[selectedModule] || [];
       const allKnown = new Set([...updatedMastered, ...updatedLearning]);
       // Expand pool — keep up to 15 learning words
       if (updatedLearning.length < 15) {
-        const next = SIGHT_WORDS_SPELLING.find(w => !allKnown.has(w));
+        const next = moduleWords.find(w => !allKnown.has(w));
         if (next) updatedLearning.push(next);
       }
     }
     // Seed pool if too small
     if (updatedLearning.length < 6) {
+      const moduleWords = SIGHT_WORDS_BY_MODULE[selectedModule] || [];
       const allKnown = new Set([...updatedMastered, ...updatedLearning]);
-      SIGHT_WORDS_SPELLING.filter(w => !allKnown.has(w)).slice(0, 6 - updatedLearning.length).forEach(w => updatedLearning.push(w));
+      moduleWords.filter(w => !allKnown.has(w)).slice(0, 6 - updatedLearning.length).forEach(w => updatedLearning.push(w));
     }
 
     await onUpdateProgress('sight_words_spelling', {
@@ -233,8 +270,32 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     );
   }
 
+  if (!wordsLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <>
+      {/* Module selector strip */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+        {modules.map(mod => (
+          <button
+            key={mod}
+            onClick={() => handleModuleSelect(mod)}
+            className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all ${
+              selectedModule === mod
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+            }`}
+          >
+            Module {mod}
+          </button>
+        ))}
+      </div>
       <div className="flex justify-center p-2">
         <button
           onClick={handleUnclearAudio}
@@ -243,7 +304,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
           😕 No entiendo
         </button>
       </div>
-      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4 absolute top-16 left-1/2 -translate-x-1/2 z-20 shadow">
+      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4 absolute top-24 left-1/2 -translate-x-1/2 z-20 shadow">
         {challengeLabel}
       </div>
       <GameCanvas
