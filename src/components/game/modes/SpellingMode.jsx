@@ -4,49 +4,8 @@ import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
 
-// Words organized by module — from list.json "Palabras" section
-export const SPELLING_WORDS_BY_MODULE = {
-  1: ['mamá', 'me', 'mi', 'mimo', 'mima', 'momia', 'miau', 'Mia', 'Emi', 'Momo', 'Memo', 'Ami', 'Ema'],
-  2: ['moneda', 'suma', 'nene', 'nena', 'paloma', 'pala', 'palo', 'suelo', 'malo', 'mala', 'sana', 'sano',
-      'sonó', 'soné', 'pone', 'pon', 'pepino', 'pela', 'pelo', 'peló', 'piso', 'peso', 'puso', 'puse',
-      'sal', 'Lupe', 'Pepe', 'masa', 'mesa', 'esa', 'eso', 'el', 'le', 'sol', 'sale', 'los', 'las', 'la',
-      'lo', 'limón', 'lima', 'lomo', 'oso', 'sapo', 'saco', 'osa', 'esposa', 'solo', 'sopa', 'sola',
-      'sala', 'salió', 'pasea', 'paseo', 'pasa', 'papá', 'puma', 'espuma', 'limpia', 'limpió', 'limpio', 'salimos'],
-  3: ['late', 'modo', 'moda', 'tinta', 'tema', 'teme', 'temo', 'miedo', 'moto', 'meto', 'fila', 'filo',
-      'dedo', 'toda', 'dama', 'meta', 'mete', 'duda', 'dado', 'dame', 'salada', 'ensalada', 'piensa',
-      'salta', 'dale', 'tele', 'tela', 'nota', 'foto', 'sofá', 'falso', 'falta', 'fino', 'dio', 'adios',
-      'está', 'soda', 'sola', 'tamales', 'osito', 'osita', 'pinta', 'nada', 'alto', 'faltó'],
-  4: ['perro', 'carro', 'compone', 'rama', 'coco', 'boca', 'boleto', 'quiso', 'baile', 'baila', 'camino',
-      'rosa', 'rosado', 'comida', 'quita', 'bata', 'bate', 'queso', 'quema', 'casa', 'caldo', 'cama',
-      'rica', 'rico', 'pico', 'pica', 'foca', 'foco', 'bota', 'bote', 'bolsa', 'risa', 'Rita', 'rana',
-      'reina', 'bola', 'barco', 'banana', 'cabe', 'cabo', 'rato', 'ratito', 'poquito', 'poco', 'poca',
-      'roca', 'ratón', 'ropa', 'ruido'],
-  5: ['vivo', 'vive', 'villano', 'mira', 'sillón', 'llavero', 'vivimos', 'volante', 'robot', 'robo',
-      'caramelo', 'robó', 'sello', 'comparte', 'estira', 'escala', 'escalo', 'ella', 'ellos', 'cara',
-      'caro', 'faro', 'cura', 'curo', 'curó', 'coro', 'loro', 'quiero', 'vaca', 'vaso', 'vela', 'vena',
-      'vuela', 'vuelo', 'vale', 'valle', 'tornillo', 'calle', 'anillo', 'pollo', 'lava', 'lavo', 'lavé',
-      'llama', 'llamó', 'lluvia', 'silla', 'llave', 'llanta', 'lleno', 'llena', 'bella', 'bello', 'llevé'],
-  6: ['naranja', 'jirafa', 'guitarra', 'fuego', 'guapo', 'jarra', 'zapato', 'belleza', 'danza', 'bellota',
-      'zapatos', 'gato', 'goma', 'gana', 'gano', 'ganó', 'gané', 'lago', 'mago', 'hago', 'pago', 'pagué',
-      'zona', 'amigo', 'amiga', 'miga', 'migas', 'liga', 'fogata', 'jugo', 'jefe', 'juego', 'juega',
-      'jamón', 'yema', 'yate', 'yoyó', 'joya', 'joyas', 'hijo', 'hija', 'hilo', 'hoja', 'hola', 'haya'],
-  7: ['mucho', 'escucho', 'cuchara', 'soñe', 'soñó', 'techo', 'añadir', 'daño', 'niñez', 'niñera', 'moño',
-      'muchacha', 'chamarra', 'chaqueta', 'genial', 'chiste', 'chistoso', 'gigante', 'girasol', 'años',
-      'caña', 'araña', 'mañana', 'sueño', 'ficha', 'fecha', 'paño', 'leña', 'niña', 'niño', 'piña',
-      'chivo', 'chisme', 'macho', 'mochila', 'muchacho', 'China', 'coche', 'gente', 'gema', 'gemelo',
-      'gemelos', 'gel', 'gira', 'chile', 'chica', 'chico', 'pequeño', 'pingüino', 'vergüenza', 'leche',
-      'choco', 'choque', 'chocolate'],
-  8: ['kilo', 'kiwi', 'taxi', 'karate', 'koala', 'éxito', 'examen', 'tóxico', 'kimono', 'texto'],
-  9: ['crear', 'cruzar', 'refresco', 'refrescante', 'chicle', 'iglesia', 'fresco', 'frasco', 'fracaso',
-      'fracasa', 'fracasé', 'chancla', 'planta', 'plantar', 'clase', 'blando', 'ablandar', 'peligro',
-      'peligroso', 'regla', 'arregla', 'flama', 'flamas', 'fruta', 'fresa', 'frase', 'frío', 'freno',
-      'frente', 'frijol', 'creo', 'crayón', 'cruce', 'drama', 'claro', 'clara', 'clima', 'cloro', 'clavo',
-      'teclado', 'crema', 'cruz', 'bloque', 'blusa', 'brinca', 'plato', 'plata', 'prado', 'primo', 'prima',
-      'globo', 'grande', 'agrega', 'pluma', 'aprieta', 'blanco', 'dragón', 'taladro', 'padre', 'madre',
-      'premio', 'primero', 'princesa', 'principe', 'flecha', 'flaco', 'flota', 'flojo', 'floja', 'aflojo', 'afloja'],
-};
-
-export const SPELLING_WORDS = Object.values(SPELLING_WORDS_BY_MODULE).flat();
+const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
+let SPELLING_WORDS_BY_MODULE = {};
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
@@ -131,13 +90,14 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const [usedIndices, setUsedIndices] = useState([]);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [writtenStrokes, setWrittenStrokes] = useState(null);
+  const [wordsLoaded, setWordsLoaded] = useState(false);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
   const submittingRef = useRef(false);
   const lastWordRef = useRef(null);
 
   const modeData = studentData?.mode_progress?.spelling || {
-    mastered_items: [], learning_items: SPELLING_WORDS_BY_MODULE[1].slice(0, 3),
+    mastered_items: [], learning_items: (SPELLING_WORDS_BY_MODULE[1] || []).slice(0, 3),
     item_attempts: {}, total_correct: 0, total_attempts: 0
   };
 
@@ -202,7 +162,8 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   };
 
   const startRound = (mod = selectedModule) => {
-    const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1];
+    if (!wordsLoaded) return;
+    const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1] || [];
     const word = pickWord(modeData, lastWordRef.current, moduleWords);
     lastWordRef.current = word;
     setCurrentWord(word);
@@ -217,7 +178,24 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     playSound(word);
   };
 
-  useEffect(() => { startRound(); }, []);
+  useEffect(() => {
+    const loadWords = async () => {
+      try {
+        const res = await fetch(SUPABASE_LISTS_URL);
+        const data = await res.json();
+        SPELLING_WORDS_BY_MODULE = data["Palabras"] || {};
+        setWordsLoaded(true);
+      } catch (e) {
+        console.error('Failed to load word lists:', e);
+        setWordsLoaded(true);
+      }
+    };
+    loadWords();
+  }, []);
+
+  useEffect(() => {
+    if (wordsLoaded) startRound();
+  }, [wordsLoaded]);
 
   const handleModuleSelect = (mod) => {
     setSelectedModule(mod);

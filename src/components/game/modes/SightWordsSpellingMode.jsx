@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
-import { SIGHT_WORDS_SPELLING } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
+
+const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
+let SIGHT_WORDS_SPELLING = [];
 
 // Only 'spell' and 'unscramble' — no missing-letter
 const CHALLENGE_TYPES = ['spell', 'unscramble', 'spell', 'spell', 'unscramble'];
@@ -33,6 +35,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [pointsEarned, setPointsEarned] = useState(0);
   const [challengeType, setChallengeType] = useState('spell');
   const [roundCount, setRoundCount] = useState(0);
+  const [wordsLoaded, setWordsLoaded] = useState(false);
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
@@ -100,6 +103,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   };
 
   const startRound = (nextRoundCount) => {
+    if (!wordsLoaded) return;
     const rc = nextRoundCount ?? roundCount;
     const word = pickWord(modeData, lastWordRef.current);
     lastWordRef.current = word;
@@ -116,7 +120,25 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     playSound(word);
   };
 
-  useEffect(() => { startRound(0); }, []);
+  useEffect(() => {
+    const loadWords = async () => {
+      try {
+        const res = await fetch(SUPABASE_LISTS_URL);
+        const data = await res.json();
+        const palabrasObj = data["Palabras"] || {};
+        SIGHT_WORDS_SPELLING = Object.values(palabrasObj).flat();
+        setWordsLoaded(true);
+      } catch (e) {
+        console.error('Failed to load word lists:', e);
+        setWordsLoaded(true);
+      }
+    };
+    loadWords();
+  }, []);
+
+  useEffect(() => {
+    if (wordsLoaded) startRound(0);
+  }, [wordsLoaded]);
 
   const handleWriteDone = async (strokes) => {
     setPhase('build');
