@@ -912,7 +912,7 @@ export default function SentencesMode({ studentData, onBack }) {
             const num = parseInt(k.replace(/\D/g, ''));
             return isNaN(num) ? 0 : num;
           })
-          .filter(num => num > 0)
+          .filter(num => Number.isInteger(num) && num > 0)
           .sort((a, b) => a - b);
         setModules(moduleNums);
         if (moduleNums.length > 0) {
