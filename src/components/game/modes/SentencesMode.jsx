@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 
-// ── Real sentence lists from the reading program (Supabase Oraciones) ──────────
-// Each entry keeps { id, text } so we can play the correct audio file by ID
+// ── Sentence lists ────────────────────────────────────────────────────────────
 const SENTENCE_BANK = {
   1: [
     { id: 'M1.S001', text: 'Mi mamá me mima.' },
@@ -29,15 +28,8 @@ const SENTENCE_BANK = {
     { id: 'M2.S012', text: 'Mamá amasa la masa.' },
     { id: 'M2.S013', text: 'Susi sale a la sala.' },
     { id: 'M2.S014', text: 'Samuel limpia la mesa.' },
-    { id: 'M2.S015', text: 'Memo limpia la mesa.' },
-    { id: 'M2.S016', text: 'Ese es un limón.' },
-    { id: 'M2.S017', text: 'Esa es una mesa.' },
-    { id: 'M2.S018', text: 'Pepe usa el mapa.' },
-    { id: 'M2.S019', text: 'Me peino mi pelo.' },
     { id: 'M2.S022', text: 'Papá sale de la sala.' },
-    { id: 'M2.S024', text: 'Limpia el piso.' },
     { id: 'M2.S032', text: 'Susi pasa la sal.' },
-    { id: 'M2.S033', text: 'Nina usa el mapa.' },
   ],
   3: [
     { id: 'M3.S001', text: 'Mamá se toma su soda.' },
@@ -48,14 +40,9 @@ const SENTENCE_BANK = {
     { id: 'M3.S007', text: 'La mesa está en la sala.' },
     { id: 'M3.S009', text: 'Puse mi dona en la mesa.' },
     { id: 'M3.S012', text: 'La dama tiene una falda.' },
-    { id: 'M3.S013', text: 'Me falta mi dado.' },
     { id: 'M3.S016', text: 'El sapo saltó en la sala.' },
-    { id: 'M3.S017', text: 'Pepe se mete en la tina.' },
-    { id: 'M3.S021', text: 'El sapo salta con dos patas.' },
-    { id: 'M3.S023', text: 'Susi se siente mal.' },
     { id: 'M3.S024', text: 'El pato patea la pelota.' },
     { id: 'M3.S025', text: 'Pásame la pelota.' },
-    { id: 'M3.S027', text: 'Las palomas se posan en palos.' },
     { id: 'M3.S031', text: 'Le falta sal a la sopa.' },
   ],
   4: [
@@ -65,9 +52,55 @@ const SENTENCE_BANK = {
     { id: 'M4.S004', text: 'Rita come sopa.' },
     { id: 'M4.S005', text: 'El carro pasa.' },
   ],
+  5: [
+    { id: 'M5.S001', text: 'Nana nada en el mar.' },
+    { id: 'M5.S002', text: 'El nene no nota nada.' },
+    { id: 'M5.S003', text: 'La nube tapa el sol.' },
+    { id: 'M5.S004', text: 'Ola tras ola llega.' },
+    { id: 'M5.S005', text: 'El pato nada en la pila.' },
+    { id: 'M5.S006', text: 'Papá pasa la pala.' },
+    { id: 'M5.S007', text: 'El pato come pan.' },
+  ],
+  6: [
+    { id: 'M6.S001', text: 'El pelo de Pepe es fino.' },
+    { id: 'M6.S002', text: 'Pepe pesa poco.' },
+    { id: 'M6.S003', text: 'El sapo salta en el piso.' },
+    { id: 'M6.S004', text: 'Susi sana sola.' },
+    { id: 'M6.S005', text: 'La sala es poca.' },
+    { id: 'M6.S006', text: 'El polo está solo.' },
+    { id: 'M6.S007', text: 'El puma pasa por la sala.' },
+  ],
+  7: [
+    { id: 'M7.S001', text: 'Toma el té caliente.' },
+    { id: 'M7.S002', text: 'El topo se mete en la tina.' },
+    { id: 'M7.S003', text: 'Tita toma su sopa.' },
+    { id: 'M7.S004', text: 'Suma todo bien.' },
+    { id: 'M7.S005', text: 'El tubo es de metal.' },
+    { id: 'M7.S006', text: 'Tapa la tela con cuidado.' },
+    { id: 'M7.S007', text: 'Tomás sube al tren.' },
+  ],
+  8: [
+    { id: 'M8.S001', text: 'Va a llover de nuevo.' },
+    { id: 'M8.S002', text: 'Vi a mi papá ayer.' },
+    { id: 'M8.S003', text: 'Ya tengo fe en ti.' },
+    { id: 'M8.S004', text: 'Yo vivo con mi familia.' },
+    { id: 'M8.S005', text: 'Di lo que piensas.' },
+    { id: 'M8.S006', text: 'El dado es de madera.' },
+    { id: 'M8.S007', text: 'Tu tío vive lejos.' },
+  ],
+  9: [
+    { id: 'M9.S001', text: 'La vaca come pasto verde.' },
+    { id: 'M9.S002', text: 'La rana salta en la rama.' },
+    { id: 'M9.S003', text: 'El gato caza al ratón.' },
+    { id: 'M9.S004', text: 'La rosa es de color rojo.' },
+    { id: 'M9.S005', text: 'Vino mucho viento hoy.' },
+    { id: 'M9.S006', text: 'La yema del huevo es rica.' },
+    { id: 'M9.S007', text: 'La guía nos llevó al museo.' },
+  ],
 };
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+const MODULES = Object.keys(SENTENCE_BANK).map(Number);
 
 function playAudioById(id) {
   const candidates = [
@@ -84,28 +117,47 @@ function playAudioById(id) {
   tryNext();
 }
 
-const MODULES = Object.keys(SENTENCE_BANK).map(Number);
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function createTile(type, value) {
+  return { id: Math.random().toString(36).slice(2), type, value };
+}
 
-// ── Primary-line canvas for writing the sentence ──────────────────────────────
-function SentenceWriteCanvas({ onDone }) {
+const PLAIN_TO_ACC = { a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú' };
+const ACC_TO_PLAIN = { á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U' };
+
+function parseSentenceToTiles(sentence) {
+  // Returns shuffled word tiles + space tiles + punct tiles for the tray
+  const raw = sentence.trim().split(/\s+/);
+  const words = [];
+  const puncts = [];
+  raw.forEach(w => {
+    const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
+    if (m) {
+      words.push(m[1].toLowerCase());
+      if (m[2]) m[2].split('').forEach(p => puncts.push(p));
+    } else {
+      words.push(w.toLowerCase());
+    }
+  });
+  return { words, puncts };
+}
+
+// ── Writing canvas ─────────────────────────────────────────────────────────────
+function SentenceWriteCanvas({ onDone, onPlayAudio }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
   const allStrokes = useRef([]);
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   const getPos = (e) => {
     const c = canvasRef.current;
     const rect = c.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
-    return {
-      x: ((src.clientX - rect.left) / rect.width) * c.width,
-      y: ((src.clientY - rect.top) / rect.height) * c.height,
-      t: Date.now()
-    };
+    return { x: ((src.clientX - rect.left) / rect.width) * c.width, y: ((src.clientY - rect.top) / rect.height) * c.height, t: Date.now() };
   };
-
   const onDown = (e) => {
     e.preventDefault();
     const pos = getPos(e);
@@ -128,16 +180,18 @@ function SentenceWriteCanvas({ onDone }) {
     e.preventDefault();
     if (!drawing.current) return;
     drawing.current = false;
-    if (currentStroke.current.length > 0) {
-      allStrokes.current = [...allStrokes.current, currentStroke.current];
-      currentStroke.current = [];
-    }
+    if (currentStroke.current.length > 0) { allStrokes.current = [...allStrokes.current, currentStroke.current]; currentStroke.current = []; }
   };
-
   const clear = () => {
     const c = canvasRef.current;
     c.getContext('2d').clearRect(0, 0, c.width, c.height);
     allStrokes.current = []; setHasDrawn(false);
+  };
+
+  const handlePlay = () => {
+    setPlaying(true);
+    onPlayAudio();
+    setTimeout(() => setPlaying(false), 2000);
   };
 
   const W = 800, H = 240;
@@ -149,7 +203,17 @@ function SentenceWriteCanvas({ onDone }) {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      <p className="text-base font-black text-indigo-700 text-center">✏️ Write the sentence first</p>
+      {/* Speaker-only prompt */}
+      <div className="flex flex-col items-center gap-2">
+        <button
+          onClick={handlePlay}
+          className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-xl transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
+        >
+          🔊
+        </button>
+        <p className="text-sm text-rose-500 font-bold">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
+      </div>
+      <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
       <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: 180, background: '#f0f7ff' }}>
         <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
           {lineRows.map((r, i) => (
@@ -168,206 +232,267 @@ function SentenceWriteCanvas({ onDone }) {
         />
       </div>
       <div className="flex gap-3">
-        <button onClick={clear} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">
-          🗑 Clear
-        </button>
+        <button onClick={clear} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">🗑 Borrar</button>
         <button onClick={() => onDone(allStrokes.current)} disabled={!hasDrawn}
           className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700">
-          Done Writing → Build It
+          Listo → Construir
         </button>
       </div>
     </div>
   );
 }
 
-// ── Sentence builder ───────────────────────────────────────────────────────────
-// Renders the sentence as continuous flowing text. Words and spaces are inline —
-// no gap between them unless a space tile is placed. Tap a token to remove it.
+// ── Sentence Builder (WordSentenceBuilder-style) ──────────────────────────────
+function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
+  const { words, puncts } = parseSentenceToTiles(sentence);
 
-function parseSentence(sentence) {
-  // Split into words (strip punct) and collect all punct chars as separate tokens
-  const raw = sentence.trim().split(/\s+/);
-  const words = [];
-  const puncts = [];
-  raw.forEach(w => {
-    const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
-    if (m) {
-      words.push(m[1].toLowerCase());
-      if (m[2]) m[2].split('').forEach(p => puncts.push(p));
-    } else {
-      words.push(w.toLowerCase());
-    }
-  });
-  return { words, puncts };
-}
-
-function SentenceBuilder({ sentence, onComplete }) {
-  const { words, puncts } = parseSentence(sentence);
-
-  const makeInitialState = () => {
-    const wordTiles = words.map((w, i) => ({ id: `w${i}`, type: 'word', word: w, capitalized: false }));
+  const makeInitialTray = () => {
+    const wordTiles = words.map(w => createTile('text', w));
+    // Shuffle
     for (let i = wordTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [wordTiles[i], wordTiles[j]] = [wordTiles[j], wordTiles[i]];
     }
-    const spaceTiles = Array.from({ length: words.length - 1 }, (_, i) => ({ id: `s${i}`, type: 'space' }));
-    const punctTiles = puncts.map((p, i) => ({ id: `p${i}`, type: 'punct', char: p }));
+    const spaceTiles = Array.from({ length: words.length - 1 }, () => createTile('space', ' '));
+    const punctTiles = puncts.map(p => createTile('punc', p));
     return [...wordTiles, ...spaceTiles, ...punctTiles];
   };
 
-  const [tray, setTray] = useState(() => makeInitialState());
+  const [tray, setTray] = useState(() => makeInitialTray());
   const [dropZone, setDropZone] = useState([]);
+  const [pendingRemove, setPendingRemove] = useState(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [pendingRemove, setPendingRemove] = useState(null); // id of tile staged for removal
+  const [playing, setPlaying] = useState(false);
 
-  const reset = () => { setTray(makeInitialState()); setDropZone([]); setShowResult(false); setPendingRemove(null); };
+  const dragRef = useRef(null);
+  const dropZoneRef = useRef(null);
+  const dropZoneStateRef = useRef(dropZone);
+  const trayStateRef = useRef(tray);
+  useEffect(() => { dropZoneStateRef.current = dropZone; }, [dropZone]);
+  useEffect(() => { trayStateRef.current = tray; }, [tray]);
 
+  const reset = () => {
+    setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null);
+  };
+
+  // ── Tap from tray → append to dropzone ────────────────────────────────────
   const handleTrayTap = (tile) => {
     if (showResult) return;
     setTray(prev => prev.filter(t => t.id !== tile.id));
-    setDropZone(prev => [...prev, tile]);
+    setDropZone(prev => [...prev, { ...tile, id: Math.random().toString(36).slice(2) }]);
+    setPendingRemove(null);
   };
 
+  // ── Tap on dropzone tile ───────────────────────────────────────────────────
   const handleDropTap = (tile) => {
     if (showResult) return;
     if (pendingRemove === tile.id) {
-      // second tap → remove
+      // Second tap → remove back to tray
       setPendingRemove(null);
+      const base = tile.type === 'text' ? createTile('text', tile.value) : createTile(tile.type, tile.value);
       setDropZone(prev => prev.filter(t => t.id !== tile.id));
-      setTray(prev => [...prev, tile.type === 'word' ? { ...tile, capitalized: false } : tile]);
+      setTray(prev => [...prev, base]);
     } else {
-      // first tap → stage red
       setPendingRemove(tile.id);
     }
   };
 
-  const handleCapToggle = (tileId) => {
+  // ── Cap toggle on a word in dropzone ──────────────────────────────────────
+  const handleCapToggle = (tileId, up) => {
     if (showResult) return;
-    setDropZone(prev => prev.map(t => t.id === tileId ? { ...t, capitalized: !t.capitalized } : t));
+    setDropZone(prev => prev.map(t => {
+      if (t.id !== tileId || t.type !== 'text') return t;
+      const v = t.value;
+      return { ...t, value: up ? v.charAt(0).toUpperCase() + v.slice(1) : v.charAt(0).toLowerCase() + v.slice(1) };
+    }));
   };
 
+  // ── Accent toggle ──────────────────────────────────────────────────────────
+  const handleAccentToggle = (tileId) => {
+    if (showResult) return;
+    setDropZone(prev => prev.map(t => {
+      if (t.id !== tileId || t.type !== 'text') return t;
+      const chars = [...t.value];
+      // Toggle accent on first vowel found
+      let changed = false;
+      const newChars = chars.map(ch => {
+        if (changed) return ch;
+        if (PLAIN_TO_ACC[ch]) { changed = true; return PLAIN_TO_ACC[ch]; }
+        if (ACC_TO_PLAIN[ch]) { changed = true; return ACC_TO_PLAIN[ch]; }
+        return ch;
+      });
+      return { ...t, value: newChars.join('') };
+    }));
+  };
+
+  // ── Drag and drop support ─────────────────────────────────────────────────
+  const handleTrayDragStart = (e, tile) => {
+    dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromTray: true };
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+  const handleDropZoneDragStart = (e, tile) => {
+    dragRef.current = { tile, fromTray: false };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleDropZoneDrop = (e) => {
+    e.preventDefault();
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    if (d.fromTray) {
+      setTray(prev => prev.filter(t => t.id !== d.tile.id));
+      setDropZone(prev => [...prev, d.tile]);
+    }
+  };
+  const handleDropZoneDragOver = (e) => e.preventDefault();
+
+  // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
-    // Build expected token sequence from the correct sentence
-    // Expected: [word0, space, word1, space, ..., wordN, ...puncts]
     const expected = [];
     words.forEach((w, i) => {
-      expected.push({ type: 'word', value: i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w });
-      if (i < words.length - 1) expected.push({ type: 'space' });
+      expected.push({ type: 'text', value: i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w });
+      if (i < words.length - 1) expected.push({ type: 'space', value: ' ' });
     });
-    puncts.forEach(p => expected.push({ type: 'punct', value: p }));
+    puncts.forEach(p => expected.push({ type: 'punc', value: p }));
 
-    // Map each placed tile to correct/incorrect
     const feedback = dropZone.map((tile, i) => {
       const exp = expected[i];
       if (!exp) return { ...tile, correct: false };
       if (tile.type !== exp.type) return { ...tile, correct: false };
       if (tile.type === 'space') return { ...tile, correct: true };
-      if (tile.type === 'word') {
-        const display = tile.capitalized ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1) : tile.word;
-        return { ...tile, correct: display === exp.value };
-      }
-      if (tile.type === 'punct') return { ...tile, correct: tile.char === exp.value };
-      return { ...tile, correct: false };
+      return { ...tile, correct: tile.value === exp.value };
     });
-    // also mark if student placed fewer tokens than expected
     const allCorrect = feedback.length === expected.length && feedback.every(t => t.correct);
     setDropZone(feedback);
     setIsCorrect(allCorrect);
     setShowResult(true);
   };
 
-  const wordTilesInTray = tray.filter(t => t.type === 'word');
+  const handlePlay = () => {
+    setPlaying(true);
+    onPlayAudio();
+    setTimeout(() => setPlaying(false), 2000);
+  };
+
+  const wordTilesInTray = tray.filter(t => t.type === 'text');
   const spaceTilesInTray = tray.filter(t => t.type === 'space');
-  const punctTilesInTray = tray.filter(t => t.type === 'punct');
+  const punctTilesInTray = tray.filter(t => t.type === 'punc');
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Tap words, spaces, and punctuation to build the sentence</p>
+    <div className="flex flex-col gap-4" style={{ fontFamily: 'Andika, system-ui, sans-serif' }}>
 
-      {/* Sentence display — continuous flowing text */}
+      {/* Speaker button (no text shown) */}
+      <div className="flex justify-center">
+        <button
+          onClick={handlePlay}
+          className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-lg transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
+        >
+          🔊
+        </button>
+      </div>
+
+      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Toca las palabras para construir la oración</p>
+
+      {/* ── Tools bar (caps + accent) ── */}
+      <div className="flex items-center gap-2 justify-center flex-wrap">
+        <span className="text-xs font-bold text-gray-500 uppercase">Herramientas:</span>
+        {pendingRemove && dropZone.find(t => t.id === pendingRemove && t.type === 'text') && (
+          <>
+            <button
+              onClick={() => handleCapToggle(pendingRemove, true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-100 border-2 border-amber-400 text-amber-800 font-black text-sm hover:bg-amber-200 transition-all"
+              title="Capitalizar"
+            >↑A</button>
+            <button
+              onClick={() => handleCapToggle(pendingRemove, false)}
+              className="px-3 py-1.5 rounded-xl bg-gray-100 border-2 border-gray-400 text-gray-700 font-black text-sm hover:bg-gray-200 transition-all"
+              title="Minúscula"
+            >↓a</button>
+            <button
+              onClick={() => handleAccentToggle(pendingRemove)}
+              className="px-3 py-1.5 rounded-xl bg-purple-100 border-2 border-purple-400 text-purple-800 font-black text-sm hover:bg-purple-200 transition-all"
+              title="Acento"
+            >´</button>
+          </>
+        )}
+        {!pendingRemove && (
+          <span className="text-xs text-gray-400 italic">Toca una palabra en la oración para activar herramientas</span>
+        )}
+      </div>
+
+      {/* ── Drop zone ── */}
       <div
-        className={`min-h-[72px] rounded-2xl border-4 px-4 py-3 flex flex-wrap items-baseline
+        ref={dropZoneRef}
+        onDragOver={handleDropZoneDragOver}
+        onDrop={handleDropZoneDrop}
+        className={`min-h-[72px] rounded-2xl border-4 px-4 py-3 flex flex-wrap items-baseline gap-0.5
           ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white'}`}
-        style={{ fontSize: '1.6rem', lineHeight: 1.5, letterSpacing: 0 }}
+        style={{ fontSize: '1.5rem', lineHeight: 1.6 }}
       >
         {dropZone.length === 0 && (
-          <span className="text-gray-300 text-base self-center">Tap tiles below…</span>
+          <span className="text-gray-300 text-base self-center">Toca palabras abajo…</span>
         )}
         {dropZone.map((tile) => {
+          const isPending = pendingRemove === tile.id;
+
           if (tile.type === 'space') {
-            const isPending = pendingRemove === tile.id;
             let bg = 'transparent';
             if (showResult) bg = tile.correct ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)';
             else if (isPending) bg = 'rgba(239,68,68,0.15)';
             return (
-              <button
-                key={tile.id}
-                onClick={() => handleDropTap(tile)}
-                disabled={showResult}
-                title="Tap to remove space"
-                className="inline-block disabled:cursor-default transition-colors"
-                style={{
-                  width: '0.55em',
-                  height: '1.5em',
-                  verticalAlign: 'baseline',
-                  flexShrink: 0,
-                  background: bg,
-                  borderRadius: '3px',
-                }}
+              <button key={tile.id} onClick={() => handleDropTap(tile)} disabled={showResult}
+                className="inline-block transition-colors disabled:cursor-default"
+                style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer' }}
               />
             );
           }
-          if (tile.type === 'punct') {
-            const isPending = pendingRemove === tile.id;
-            const color = showResult
-              ? (tile.correct ? '#16a34a' : '#ef4444')
-              : isPending ? '#ef4444' : '#1f2937';
+          if (tile.type === 'punc') {
+            const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : '#1f2937';
             return (
-              <button
-                key={tile.id}
-                onClick={() => handleDropTap(tile)}
-                disabled={showResult}
+              <button key={tile.id} onClick={() => handleDropTap(tile)} disabled={showResult}
+                draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
                 className="inline font-bold disabled:cursor-default transition-colors active:opacity-70"
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
-              >
-                {tile.char}
-              </button>
+              >{tile.value}</button>
             );
           }
-          // word tile
-          const isPending = pendingRemove === tile.id;
-          const display = tile.capitalized
-            ? tile.word.charAt(0).toUpperCase() + tile.word.slice(1)
-            : tile.word;
-          const wordColor = showResult
-            ? (tile.correct ? '#16a34a' : '#ef4444')
-            : isPending ? '#ef4444' : '#1f2937';
+          // text/word tile
+          const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : '#1f2937';
+          const outline = isPending && !showResult ? '2px solid #ef4444' : 'none';
           return (
-            <span key={tile.id} className="inline-flex flex-col items-center" style={{ verticalAlign: 'baseline' }}>
-              <button
-                onClick={() => handleDropTap(tile)}
-                disabled={showResult}
-                className="inline font-bold leading-none transition-colors disabled:cursor-default"
-                style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', color: wordColor }}
-              >
-                {display}
-              </button>
-              {!showResult && (
-                <button
-                  onClick={() => handleCapToggle(tile.id)}
-                  className={`leading-none px-1 rounded font-black mt-0.5 transition-all ${tile.capitalized ? 'bg-amber-400 text-amber-900' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}
-                  style={{ fontSize: '9px' }}
-                >
-                  Aa
-                </button>
-              )}
-            </span>
+            <button key={tile.id}
+              onClick={() => handleDropTap(tile)}
+              disabled={showResult}
+              draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
+              className="font-bold transition-colors disabled:cursor-default rounded"
+              style={{ background: isPending ? 'rgba(239,68,68,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
+            >{tile.value}</button>
           );
         })}
       </div>
 
-      {/* Word tray */}
+      {/* ── Trash zone ── */}
+      <div className="flex justify-start">
+        <button
+          onClick={() => {
+            if (pendingRemove) {
+              const tile = dropZone.find(t => t.id === pendingRemove);
+              if (tile) {
+                setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
+                const base = createTile(tile.type, tile.type === 'text' ? tile.value.toLowerCase() : tile.value);
+                setTray(prev => [...prev, base]);
+              }
+              setPendingRemove(null);
+            }
+          }}
+          className={`flex items-center gap-1.5 border-2 border-dashed rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-400 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-200 text-red-300 cursor-default'}`}
+        >
+          🗑️ {pendingRemove ? 'Toca para borrar' : 'Suelta aquí para borrar'}
+        </button>
+      </div>
+
+      {/* ── Word tray ── */}
       {wordTilesInTray.length > 0 && (
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-3 flex flex-wrap gap-2 justify-center">
           <AnimatePresence>
@@ -375,28 +500,28 @@ function SentenceBuilder({ sentence, onComplete }) {
               <motion.button key={tile.id}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => handleTrayTap(tile)} disabled={showResult}
-                className="px-4 py-2 rounded-xl font-bold text-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
-              >
-                {tile.word}
-              </motion.button>
+                draggable onDragStart={e => handleTrayDragStart(e, tile)}
+                className="px-4 py-2 rounded-xl font-bold text-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
+                style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+              >{tile.value}</motion.button>
             ))}
           </AnimatePresence>
         </div>
       )}
 
-      {/* Space + Punct tray */}
+      {/* ── Space + Punct tray ── */}
       {(spaceTilesInTray.length > 0 || punctTilesInTray.length > 0) && (
         <div className="flex gap-3 items-center justify-center flex-wrap">
           {spaceTilesInTray.length > 0 && (
             <>
-              <span className="text-sm text-gray-500 font-bold">Space:</span>
+              <span className="text-sm text-gray-500 font-bold">Espacio:</span>
               <AnimatePresence>
                 {spaceTilesInTray.map(tile => (
                   <motion.button key={tile.id}
                     initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                     onClick={() => handleTrayTap(tile)} disabled={showResult}
-                    className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center"
-                    title="Space"
+                    draggable onDragStart={e => handleTrayDragStart(e, tile)}
+                    className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center cursor-grab"
                   >
                     <span className="w-6 h-1 rounded-full bg-indigo-300 block" />
                   </motion.button>
@@ -412,10 +537,9 @@ function SentenceBuilder({ sentence, onComplete }) {
                   <motion.button key={tile.id}
                     initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                     onClick={() => handleTrayTap(tile)} disabled={showResult}
-                    className="w-12 h-10 rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 font-black text-xl hover:bg-yellow-100 active:scale-95 transition-all disabled:opacity-40"
-                  >
-                    {tile.char}
-                  </motion.button>
+                    draggable onDragStart={e => handleTrayDragStart(e, tile)}
+                    className="w-12 h-10 rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 font-black text-xl hover:bg-yellow-100 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
+                  >{tile.value}</motion.button>
                 ))}
               </AnimatePresence>
             </>
@@ -423,13 +547,13 @@ function SentenceBuilder({ sentence, onComplete }) {
         </div>
       )}
 
-      {/* Actions */}
+      {/* ── Actions ── */}
       {!showResult && (
         <div className="flex gap-3">
-          <button onClick={reset} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">↩ Reset</button>
+          <button onClick={reset} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">↩ Reiniciar</button>
           <button onClick={handleCheck} disabled={dropZone.length === 0}
             className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow disabled:opacity-40 hover:bg-blue-700">
-            ✓ Check
+            ✓ Verificar
           </button>
         </div>
       )}
@@ -437,12 +561,12 @@ function SentenceBuilder({ sentence, onComplete }) {
       {showResult && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className={`rounded-2xl p-4 text-center ${isCorrect ? 'bg-green-50 border-2 border-green-400' : 'bg-orange-50 border-2 border-orange-300'}`}>
-          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 Perfect!' : '📖 Fix the red parts and try again!'}</p>
+          <p className="font-black text-lg mb-1">{isCorrect ? '🎉 ¡Perfecto!' : '📖 ¡Corrige las partes en rojo!'}</p>
           <div className="flex gap-2 justify-center mt-2">
             {!isCorrect && (
-              <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Try Again</button>
+              <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Intentar de nuevo</button>
             )}
-            <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">Next →</button>
+            <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">Siguiente →</button>
           </div>
         </motion.div>
       )}
@@ -468,6 +592,10 @@ export default function SentencesMode({ studentData, onBack }) {
   const currentItem = sentences[currentIdx] || null;
   const currentSentence = currentItem?.text || '';
 
+  const playAudio = () => {
+    if (currentItem) playAudioById(currentItem.id);
+  };
+
   const handleWriteDone = async (strokes) => {
     setPhase('build');
     if (studentData) {
@@ -479,7 +607,6 @@ export default function SentencesMode({ studentData, onBack }) {
         strokes_data: JSON.stringify(strokes),
         was_correct: null,
       }).catch(() => {});
-
     }
   };
 
@@ -516,20 +643,11 @@ export default function SentencesMode({ studentData, onBack }) {
 
         {currentSentence && (
           <div className="bg-white/90 rounded-3xl shadow-xl p-5">
-            {/* Sentence prompt */}
-            <div className="bg-rose-50 rounded-2xl p-4 mb-4 text-center">
-              <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-1">Sentence</p>
-              <p className="text-xl font-black text-rose-800">{currentSentence}</p>
-              <button onClick={() => currentItem && playAudioById(currentItem.id)}
-                className="mt-2 text-xs text-rose-500 hover:text-rose-700 font-bold">🔊 Listen</button>
-            </div>
-
             {phase === 'write' && (
-              <SentenceWriteCanvas onDone={handleWriteDone} />
+              <SentenceWriteCanvas onDone={handleWriteDone} onPlayAudio={playAudio} />
             )}
-
             {phase === 'build' && (
-              <SentenceBuilder key={currentSentence} sentence={currentSentence} onComplete={handleComplete} />
+              <SentenceBuilder key={currentSentence} sentence={currentSentence} onComplete={handleComplete} onPlayAudio={playAudio} />
             )}
           </div>
         )}

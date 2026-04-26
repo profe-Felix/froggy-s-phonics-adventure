@@ -4,61 +4,81 @@ import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
 
-// Wide word pool — all module 1-9 words. Audio: /spelling-audio/{word}.mp3
-export const SPELLING_WORDS = [
-  // Module 1 — short vowels
-  'ala', 'ama', 'amo', 'ana', 'osa', 'oso', 'una', 'uno', 'use', 'usa',
-  // Module 2
-  'baba', 'base', 'bate', 'bebé', 'besa', 'beso', 'boda', 'bola', 'bota',
-  'dama', 'dame', 'debe', 'debo', 'dime', 'dona', 'duda', 'dudo',
-  // Module 3
-  'esa', 'ese', 'eso', 'fama', 'fina', 'fino',
-  'la', 'lata', 'le', 'lima', 'lisa', 'liso', 'lo', 'lobo', 'lodo', 'loma', 'lomo', 'luna', 'lupa',
-  // Module 4
-  'mala', 'malo', 'mamá', 'mano', 'masa', 'me', 'mesa', 'mete', 'mi', 'mima', 'mimo', 'misa',
-  'mona', 'mono', 'moto', 'muda', 'mudo',
-  // Module 5
-  'nada', 'nado', 'nana', 'nena', 'nene', 'ni', 'nido', 'no', 'nota', 'noto', 'nube', 'nudo',
-  'ola', 'pala', 'palo', 'papa', 'papá', 'pasa', 'paso', 'pata', 'pato',
-  // Module 6
-  'pelo', 'pesa', 'peso', 'pila', 'pino', 'pisa', 'piso', 'poca', 'poco', 'polo', 'pone', 'puma',
-  'sala', 'sana', 'sano', 'sapo', 'se', 'si', 'soba', 'sobo', 'soda', 'sola', 'solo', 'sopa',
-  // Module 7
-  'sube', 'suda', 'sudo', 'suma', 'sumo', 'supo',
-  'tapa', 'tapo', 'te', 'tela', 'tema', 'ti', 'tina', 'toda', 'todo', 'toma', 'tomo', 'tubo', 'tuna',
-  // Module 8
-  'une', 'use', 'va', 've', 'vi', 'ya', 'yo', 'fe', 'de', 'di', 'su', 'tu',
-  'dado', 'dodo', 'puso',
-  // Module 9 — longer / harder
-  'cama', 'cana', 'capa', 'cara', 'casa', 'cena', 'cima', 'cola', 'coma', 'copa', 'cota',
-  'gana', 'gata', 'gato', 'gira', 'gota', 'guía',
-  'rana', 'rabo', 'rama', 'ramo', 'ropa', 'rosa', 'ruta',
-  'vaca', 'vale', 'vela', 'vida', 'vino', 'viva',
-  'yema', 'yuca'
-];
+// Words organized by module
+export const SPELLING_WORDS_BY_MODULE = {
+  1: ['ala', 'ama', 'amo', 'ana', 'osa', 'oso', 'una', 'uno', 'use', 'usa'],
+  2: ['baba', 'base', 'bate', 'bebé', 'besa', 'beso', 'boda', 'bola', 'bota',
+      'dama', 'dame', 'debe', 'debo', 'dime', 'dona', 'duda', 'dudo'],
+  3: ['esa', 'ese', 'eso', 'fama', 'fina', 'fino',
+      'la', 'lata', 'le', 'lima', 'lisa', 'liso', 'lo', 'lobo', 'lodo', 'loma', 'lomo', 'luna', 'lupa'],
+  4: ['mala', 'malo', 'mamá', 'mano', 'masa', 'me', 'mesa', 'mete', 'mi', 'mima', 'mimo', 'misa',
+      'mona', 'mono', 'moto', 'muda', 'mudo'],
+  5: ['nada', 'nado', 'nana', 'nena', 'nene', 'ni', 'nido', 'no', 'nota', 'noto', 'nube', 'nudo',
+      'ola', 'pala', 'palo', 'papa', 'papá', 'pasa', 'paso', 'pata', 'pato'],
+  6: ['pelo', 'pesa', 'peso', 'pila', 'pino', 'pisa', 'piso', 'poca', 'poco', 'polo', 'pone', 'puma',
+      'sala', 'sana', 'sano', 'sapo', 'se', 'si', 'soda', 'sola', 'solo', 'sopa'],
+  7: ['sube', 'suda', 'sudo', 'suma', 'sumo', 'supo',
+      'tapa', 'tapo', 'te', 'tela', 'tema', 'ti', 'tina', 'toda', 'todo', 'toma', 'tomo', 'tubo', 'tuna'],
+  8: ['une', 'va', 've', 'vi', 'ya', 'yo', 'fe', 'de', 'di', 'su', 'tu', 'dado', 'puso'],
+  9: ['cama', 'cana', 'capa', 'cara', 'casa', 'cena', 'cima', 'cola', 'coma', 'copa', 'cota',
+      'gana', 'gata', 'gato', 'gota', 'guía',
+      'rana', 'rabo', 'rama', 'ramo', 'ropa', 'rosa', 'ruta',
+      'vaca', 'vale', 'vela', 'vida', 'vino', 'viva', 'yema', 'yuca'],
+};
+
+export const SPELLING_WORDS = Object.values(SPELLING_WORDS_BY_MODULE).flat();
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
-// Weighted random pick favouring words seen fewer times correctly
-function pickWord(modeData, lastWord) {
+// For words with b or d, always include the opposite as a distractor
+function buildOptions(word) {
+  const wordLetters = word.split('');
+  const letterCounts = {};
+  wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
+  const neededLetters = [];
+  Object.entries(letterCounts).forEach(([letter, count]) => {
+    for (let i = 0; i < count; i++) neededLetters.push(letter);
+  });
+
+  // Force b/d opposite distractors
+  const forcedDistractors = [];
+  if (wordLetters.includes('b') && !wordLetters.includes('d')) forcedDistractors.push('d');
+  if (wordLetters.includes('d') && !wordLetters.includes('b')) forcedDistractors.push('b');
+
+  const otherDistractors = DISTRACTOR_LETTERS
+    .filter(l => !wordLetters.includes(l) && !forcedDistractors.includes(l))
+    .sort(() => Math.random() - 0.5)
+    .slice(0, Math.max(2, 5 - wordLetters.length - forcedDistractors.length));
+
+  return [...neededLetters, ...forcedDistractors, ...otherDistractors]
+    .sort(() => Math.random() - 0.5)
+    .map((letter, idx) => ({ letter, id: idx }));
+}
+
+// Compute mastery % per module
+function getModuleProgress(modeData) {
+  const mastered = new Set(modeData.mastered_items || []);
+  return Object.entries(SPELLING_WORDS_BY_MODULE).map(([mod, words]) => {
+    const total = words.length;
+    const masteredCount = words.filter(w => mastered.has(w)).length;
+    return { module: parseInt(mod), total, mastered: masteredCount, pct: total > 0 ? masteredCount / total : 0 };
+  });
+}
+
+function pickWord(modeData, lastWord, moduleWords) {
   const attempts = modeData.item_attempts || {};
   const mastered = new Set(modeData.mastered_items || []);
-  const learning = modeData.learning_items || [];
+  const learning = (modeData.learning_items || []).filter(w => moduleWords.includes(w));
 
-  // Pool: all learning words + a random sample of not-yet-mastered global words
-  const notMastered = SPELLING_WORDS.filter(w => !mastered.has(w));
-  // Combine: learning first priority, then up to 20 more random unknown words
+  const notMastered = moduleWords.filter(w => !mastered.has(w));
   const pool = [...new Set([...learning, ...notMastered.slice(0, 30)])];
   const candidates = pool.length > 1 ? pool.filter(w => w !== lastWord) : pool;
-
-  if (!candidates.length) return pool[0] || SPELLING_WORDS[0];
+  if (!candidates.length) return pool[0] || moduleWords[0];
 
   const weights = candidates.map(w => {
     const s = attempts[w] || { correct: 0, total: 0 };
-    // Words seen less or with lower accuracy get more weight
     return Math.max(1, 8 - s.correct * 2);
   });
-
   const total = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * total;
   for (let i = 0; i < candidates.length; i++) {
@@ -69,7 +89,8 @@ function pickWord(modeData, lastWord) {
 }
 
 export default function SpellingMode({ studentData, onUpdateProgress }) {
-  const [phase, setPhase] = useState('write'); // 'write' | 'build'
+  const [selectedModule, setSelectedModule] = useState(1);
+  const [phase, setPhase] = useState('write');
   const [currentWord, setCurrentWord] = useState(null);
   const [options, setOptions] = useState([]);
   const [builtWord, setBuiltWord] = useState([]);
@@ -86,9 +107,11 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const lastWordRef = useRef(null);
 
   const modeData = studentData?.mode_progress?.spelling || {
-    mastered_items: [], learning_items: ['ala', 'ama', 'amo'],
+    mastered_items: [], learning_items: SPELLING_WORDS_BY_MODULE[1].slice(0, 3),
     item_attempts: {}, total_correct: 0, total_attempts: 0
   };
+
+  const moduleProgress = getModuleProgress(modeData);
 
   const playSound = (word) => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
@@ -101,26 +124,9 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     audioRef.current.play().catch(() => {});
   };
 
-  const buildOptions = (word) => {
-    const wordLetters = word.split('');
-    const letterCounts = {};
-    wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
-    const neededLetters = [];
-    Object.entries(letterCounts).forEach(([letter, count]) => {
-      for (let i = 0; i < count; i++) neededLetters.push(letter);
-    });
-    // Distractors: letters NOT in the word
-    const distractors = DISTRACTOR_LETTERS
-      .filter(l => !wordLetters.includes(l))
-      .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(3, 6 - wordLetters.length));
-    return [...neededLetters, ...distractors]
-      .sort(() => Math.random() - 0.5)
-      .map((letter, idx) => ({ letter, id: idx }));
-  };
-
-  const startRound = () => {
-    const word = pickWord(modeData, lastWordRef.current);
+  const startRound = (mod = selectedModule) => {
+    const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1];
+    const word = pickWord(modeData, lastWordRef.current, moduleWords);
     lastWordRef.current = word;
     setCurrentWord(word);
     setOptions(buildOptions(word));
@@ -136,10 +142,14 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   useEffect(() => { startRound(); }, []);
 
+  const handleModuleSelect = (mod) => {
+    setSelectedModule(mod);
+    startRound(mod);
+  };
+
   const handleWriteDone = async (strokes, imageUrl) => {
     setWrittenStrokes(strokes);
     setPhase('build');
-    // Save stroke sample (fire and forget) — strokes only, no large base64 image
     if (studentData) {
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
@@ -172,7 +182,6 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     setPointsEarned(pts);
     if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setScore(s => s + pts); setStreak(0); }
 
-    // Save progress
     const attempts = { ...modeData.item_attempts };
     const wordStats = attempts[currentWord] || { correct: 0, total: 0 };
     wordStats.total += 1;
@@ -183,17 +192,17 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     if (correct && wordStats.correct >= 4 && wordStats.correct / wordStats.total >= 0.75 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
-      // Add a new word to learning (keep up to 15 in pool)
+      const moduleWords = SPELLING_WORDS_BY_MODULE[selectedModule] || [];
       if (updatedLearning.length < 15) {
         const allKnown = new Set([...updatedMastered, ...updatedLearning]);
-        const next = SPELLING_WORDS.find(w => !allKnown.has(w));
+        const next = moduleWords.find(w => !allKnown.has(w));
         if (next) updatedLearning.push(next);
       }
     }
-    // Seed learning pool if too small
     if (updatedLearning.length < 8) {
+      const moduleWords = SPELLING_WORDS_BY_MODULE[selectedModule] || [];
       const allKnown = new Set([...updatedMastered, ...updatedLearning]);
-      SPELLING_WORDS.filter(w => !allKnown.has(w)).slice(0, 8 - updatedLearning.length).forEach(w => updatedLearning.push(w));
+      moduleWords.filter(w => !allKnown.has(w)).slice(0, 8 - updatedLearning.length).forEach(w => updatedLearning.push(w));
     }
     await onUpdateProgress('spelling', {
       mastered_items: updatedMastered, learning_items: updatedLearning, item_attempts: attempts,
@@ -206,7 +215,24 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   if (phase === 'write') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center p-4 gap-4">
+        {/* Module selector with progress bars */}
+        <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow p-3">
+          <p className="text-xs font-bold text-gray-500 uppercase mb-2 text-center">Módulo</p>
+          <div className="grid grid-cols-3 gap-2 mb-1 sm:grid-cols-5">
+            {moduleProgress.map(({ module, pct, mastered, total }) => (
+              <button key={module} onClick={() => handleModuleSelect(module)}
+                className={`flex flex-col items-center gap-1 rounded-xl p-2 border-2 transition-all ${selectedModule === module ? 'border-indigo-500 bg-indigo-50' : pct >= 0.8 ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                <span className={`text-sm font-black ${selectedModule === module ? 'text-indigo-700' : 'text-gray-700'}`}>M{module}</span>
+                <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${pct >= 0.8 ? 'bg-green-500' : 'bg-indigo-400'}`} style={{ width: `${pct * 100}%` }} />
+                </div>
+                <span className="text-xs text-gray-400">{mastered}/{total}</span>
+                {pct >= 0.8 && <span className="text-xs">⭐</span>}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
           <SpellingWriteStep
             word={currentWord}
@@ -220,6 +246,15 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   return (
     <>
+      {/* Module selector strip */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+        {moduleProgress.map(({ module, pct }) => (
+          <button key={module} onClick={() => handleModuleSelect(module)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1 ${selectedModule === module ? 'bg-indigo-600 text-white' : pct >= 0.8 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'}`}>
+            M{module} {pct >= 0.8 ? '⭐' : <span className="text-xs opacity-60">{Math.round(pct * 100)}%</span>}
+          </button>
+        ))}
+      </div>
       <GameCanvas
         currentLetter={currentWord}
         options={options}
