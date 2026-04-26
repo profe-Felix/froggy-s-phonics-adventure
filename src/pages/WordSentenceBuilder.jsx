@@ -479,6 +479,8 @@ function ProblemZone({
               accentCharIdx={showHoverHere && dragRef.current?.tile?.type==='accenttool' && hoverIdx===i ? accentCharIdx : null}
               swapMode={swapMode}
               onTap={() => {
+                // Activate this problem zone when tapping any tile inside it
+                onActivate(index);
                 if (pendingRemove===tile.id) {
                   if (swapMode) { onRemoveTile(i); setPendingRemove(null); }
                   else setPendingRemove(null);
@@ -1151,10 +1153,6 @@ export default function WordSentenceBuilder() {
                   className="border border-gray-300 rounded-lg px-2 py-1 w-16 text-sm" />
               </label>
               <button onClick={applyProblems} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">Aplicar</button>
-              <button onClick={()=>setSwapMode(!swapMode)}
-                className={`rounded-lg px-3 py-1 text-sm font-bold transition-colors ${swapMode?'bg-red-500 text-white':'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
-                {swapMode?'🗑 Delete Mode':'↔ Replace Mode'}
-              </button>
               {config.answers && <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>}
               <button onClick={()=>setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
             </div>
