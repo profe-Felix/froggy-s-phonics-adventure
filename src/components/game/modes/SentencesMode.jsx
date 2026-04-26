@@ -558,6 +558,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     const at = capturedHoverIdx !== null ? capturedHoverIdx : dropZoneStateRef.current.length;
 
     if (d.fromDropZone) {
+      // Dropped inside dropzone → reorder
       setDropZone(prev => {
         const from = prev.findIndex(t => t.id === d.tile.id);
         if (from === -1) return prev;
@@ -567,6 +568,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         return next;
       });
     } else {
+      // From tray → clone and insert
       setDropZone(prev => {
         const next = [...prev];
         const ins = Math.max(0, Math.min(at, next.length));
@@ -574,6 +576,18 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         return next;
       });
     }
+  };
+
+  // Called when a dropzone tile is dragged and released outside the dropzone
+  const handleDropZoneDragEnd = (e, tile) => {
+    // If dropEffect is 'none', the drag was not dropped onto a valid target (i.e. outside dropzone)
+    if (e.dataTransfer.dropEffect === 'none') {
+      setDropZone(prev => prev.filter(t => t.id !== tile.id));
+      setPendingRemove(null);
+    }
+    setDropHoverIdx(null);
+    setIsDraggingNormal(false);
+    dragRef.current = null;
   };
 
   // ── Touch drag (mirrors WordSentenceBuilder) ───────────────────────────────
@@ -672,7 +686,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           }
         } else if (dropZoneRef.current) {
           const dzr = dropZoneRef.current.getBoundingClientRect();
-          if (ct.clientX >= dzr.left && ct.clientX <= dzr.right && ct.clientY >= dzr.top && ct.clientY <= dzr.bottom) {
+          const insideDropZone = ct.clientX >= dzr.left && ct.clientX <= dzr.right && ct.clientY >= dzr.top && ct.clientY <= dzr.bottom;
+
+          if (insideDropZone) {
             // Find insert position
             const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
             let insertIdx = null;
@@ -701,6 +717,10 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
                 return next;
               });
             }
+          } else if (pendingData.fromDropZone) {
+            // Dragged dropzone tile released outside → delete it
+            setDropZone(prev => prev.filter(t => t.id !== pendingData.tile.id));
+            setPendingRemove(null);
           }
         }
 
@@ -800,6 +820,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
                 {ghostEl}
                 <button data-slottile data-tileid={tile.id} data-tiletype="space" data-tilevalue=" "
                   onClick={() => handleDropTap(tile)} disabled={showResult}
+                  draggable onDragStart={e => handleDropZoneDragStart(e, tile)} onDragEnd={e => handleDropZoneDragEnd(e, tile)}
                   style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer', border: isToolHover ? '1px solid #3b82f6' : 'none', padding: 0, display: 'inline-block' }}
                 />
               </React.Fragment>
@@ -812,7 +833,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
                 {ghostEl}
                 <button data-slottile data-tileid={tile.id} data-tiletype="punc" data-tilevalue={tile.value}
                   onClick={() => handleDropTap(tile)} disabled={showResult}
-                  draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
+                  draggable onDragStart={e => handleDropZoneDragStart(e, tile)} onDragEnd={e => handleDropZoneDragEnd(e, tile)}
                   className="inline font-bold disabled:cursor-default transition-colors"
                   style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
                 >{tile.value}</button>
@@ -840,7 +861,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
               <button data-slottile data-tileid={tile.id} data-tiletype="text" data-tilevalue={tile.value}
                 onClick={() => handleDropTap(tile)}
                 disabled={showResult}
-                draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
+                draggable onDragStart={e => handleDropZoneDragStart(e, tile)} onDragEnd={e => handleDropZoneDragEnd(e, tile)}
                 className="font-bold transition-colors disabled:cursor-default rounded cursor-grab"
                 style={{ background: isPending ? 'rgba(239,68,68,0.08)' : isToolHover ? 'rgba(59,130,246,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
               >{displayText}</button>
