@@ -52,8 +52,10 @@ const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1
 
 function toAudioName(word) {
   return word.toLowerCase()
-    .replace(/á/g, 'a...').replace(/é/g, 'e...').replace(/í/g, 'i...')
-    .replace(/ó/g, 'o...').replace(/ú/g, 'u...');
+    .replace(/á/g, 'a..').replace(/é/g, 'e..').replace(/í/g, 'i..')
+    .replace(/ó/g, 'o..').replace(/ú/g, 'u..')
+    .replace(/ü/g, 'u,,')
+    .replace(/ñ/g, 'n..');
 }
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
