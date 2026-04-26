@@ -1029,7 +1029,7 @@ export default function SentencesMode({ studentData, onBack }) {
     }
   };
 
-  if (loading) {
+  if (loading || !audioChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-100 via-pink-50 to-white flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
@@ -1048,14 +1048,16 @@ export default function SentencesMode({ studentData, onBack }) {
         </div>
 
         {/* Module selector */}
-        <div className="flex gap-1.5 flex-wrap mb-4">
-          {modules.map(m => (
-            <button key={m} onClick={() => setSelectedModule(m)}
-              className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${selectedModule === m ? 'bg-rose-500 text-white shadow' : 'bg-white text-gray-600 border hover:bg-rose-50'}`}>
-              Module {m}
-            </button>
-          ))}
-        </div>
+        {modules.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mb-4">
+            {modules.map(m => (
+              <button key={m} onClick={() => setSelectedModule(m)}
+                className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${selectedModule === m ? 'bg-rose-500 text-white shadow' : 'bg-white text-gray-600 border hover:bg-rose-50'}`}>
+                Module {m}
+              </button>
+            ))}
+          </div>
+        )}
 
         {currentSentence && (
           <div className="bg-white/90 rounded-3xl shadow-xl p-5">

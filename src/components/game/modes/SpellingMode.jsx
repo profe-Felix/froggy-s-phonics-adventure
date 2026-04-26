@@ -269,7 +269,13 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     });
   };
 
-  if (!currentWord) return null;
+  if (!currentWord || !wordsLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (phase === 'write') {
     return (
