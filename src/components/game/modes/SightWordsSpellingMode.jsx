@@ -123,7 +123,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     const distractors = DISTRACTOR_LETTERS
       .filter(l => !wordLetters.includes(l))
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(3, 6 - wordLetters.length));
+      .slice(0, Math.max(3, 6 - neededLetters.length));
 
     return [...neededLetters, ...distractors]
       .sort(() => Math.random() - 0.5)
