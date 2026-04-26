@@ -48,8 +48,9 @@ function buildOptions(word) {
 function getModuleProgress(modeData) {
   const mastered = new Set(modeData.mastered_items || []);
   return Object.entries(SPELLING_WORDS_BY_MODULE).map(([mod, words]) => {
-    const total = words.length;
-    const masteredCount = words.filter(w => mastered.has(w)).length;
+    const wordArray = Array.isArray(words) ? words : [];
+    const total = wordArray.length;
+    const masteredCount = wordArray.filter(w => mastered.has(w)).length;
     return { module: parseInt(mod), total, mastered: masteredCount, pct: total > 0 ? masteredCount / total : 0 };
   });
 }
@@ -101,7 +102,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     item_attempts: {}, total_correct: 0, total_attempts: 0
   };
 
-  const moduleProgress = getModuleProgress(modeData);
+  const moduleProgress = wordsLoaded ? getModuleProgress(modeData) : [];
 
   const checkAudioExists = async (url) => {
     try {
