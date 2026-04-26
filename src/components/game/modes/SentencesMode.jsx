@@ -133,7 +133,7 @@ const SENTENCE_BANK = {
     { id: 'M5.S012', text: 'Miro la roca con mi lupa.' },
     { id: 'M5.S013', text: 'Puedo tender mi cama.' },
     { id: 'M5.S014', text: 'Casi se me cae mi ensalada.' },
-    { id: 'M5.S015', text: 'Puse mi osito en la silla.' },
+    { id: 'M5.S015', text: 'Casi se me cae mi ensalada.' },
     { id: 'M5.S016', text: 'Le puse miel a mi té.' },
     { id: 'M5.S017', text: 'El oso se llenó las manos de miel.' },
     { id: 'M5.S018', text: 'Los imanes son divertidos.' },
