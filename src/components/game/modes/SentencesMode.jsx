@@ -627,26 +627,26 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
-    // Build student's answer by joining dropzone tiles
-    const studentSentence = dropZone.map(t => {
-      if (t.type === 'space') return ' ';
-      if (t.type === 'punc') return t.value;
-      return t.value;
-    }).join('');
+    // Expected: flatten wordSyllables (which have original casing) and add spaces + puncts
+    const expected = [];
+    wordSyllables.forEach((sylls, wi) => {
+      sylls.forEach((s) => {
+        expected.push({ type: 'text', value: s.toLowerCase() }); // Compare as lowercase
+      });
+      if (wi < wordSyllables.length - 1) expected.push({ type: 'space', value: ' ' });
+    });
+    puncts.forEach(p => expected.push({ type: 'punc', value: p }));
 
-    // Syllabify both sentences case-insensitively and compare
-    const expectedSyllabified = syllabify(sentence.toLowerCase()).map(s => ({ type: 'text', value: s }));
-    const studentSyllabified = syllabify(studentSentence.toLowerCase()).map(s => ({ type: 'text', value: s }));
-
-    // Compare syllable by syllable (case-insensitive)
+    // Feedback: compare student dropzone against expected (case-insensitive for text tiles)
     const feedback = dropZone.map((tile, i) => {
-      const exp = expectedSyllabified[i];
+      const exp = expected[i];
       if (!exp) return { ...tile, correct: false };
       if (tile.type !== exp.type) return { ...tile, correct: false };
-      return { ...tile, correct: tile.value.toLowerCase() === exp.value.toLowerCase() };
+      if (tile.type === 'space' || tile.type === 'punc') return { ...tile, correct: true };
+      return { ...tile, correct: tile.value.toLowerCase() === exp.value };
     });
     
-    const allCorrect = feedback.length === expectedSyllabified.length && feedback.every(t => t.correct);
+    const allCorrect = feedback.length === expected.length && feedback.every(t => t.correct);
     setDropZone(feedback);
     setIsCorrect(allCorrect);
     setShowResult(true);
