@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import { SIGHT_WORDS_EASY } from '../../data/sightWords';
+import { base44 } from '@/api/base44Client';
 
 const SIGHT_WORDS = SIGHT_WORDS_EASY;
 
@@ -103,12 +104,33 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     if (!preloadedAudio.current[word]) {
       preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
+      preloadedAudio.current[word].onerror = () => {
+        base44.entities.AudioFeedback.create({
+          mode: 'sight_words_easy',
+          item_text: word,
+          feedback_type: 'missing_audio',
+          student_number: studentData?.student_number || null,
+          class_name: studentData?.class_name || null,
+          reported_date: new Date().toISOString(),
+        }).catch(() => {});
+      };
     }
     
     audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
     audioRef.current.play()
       .catch(err => console.log('Audio play failed:', err));
+  };
+
+  const handleUnclearAudio = async () => {
+    await base44.entities.AudioFeedback.create({
+      mode: 'sight_words_easy',
+      item_text: currentWord,
+      feedback_type: 'unclear_audio',
+      student_number: studentData?.student_number || null,
+      class_name: studentData?.class_name || null,
+      reported_date: new Date().toISOString(),
+    }).catch(() => {});
   };
 
   const handleAnswer = async (selectedWord) => {
@@ -164,16 +186,26 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   if (!currentWord) return null;
 
   return (
-    <GameCanvas
-      currentLetter={currentWord}
-      options={options}
-      onAnswer={handleAnswer}
-      score={score}
-      streak={streak}
-      onPlaySound={() => playSound(currentWord)}
-      showFeedback={showFeedback}
-      isCorrect={isCorrect}
-      mode="catch"
-    />
+    <>
+      <div className="flex justify-center p-2">
+        <button
+          onClick={handleUnclearAudio}
+          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+        >
+          😕 No entiendo
+        </button>
+      </div>
+      <GameCanvas
+        currentLetter={currentWord}
+        options={options}
+        onAnswer={handleAnswer}
+        score={score}
+        streak={streak}
+        onPlaySound={() => playSound(currentWord)}
+        showFeedback={showFeedback}
+        isCorrect={isCorrect}
+        mode="catch"
+      />
+    </>
   );
 }

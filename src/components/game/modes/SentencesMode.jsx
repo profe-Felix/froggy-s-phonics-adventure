@@ -188,7 +188,7 @@ function parseSentenceToTiles(sentence) {
 }
 
 // ── Writing canvas ─────────────────────────────────────────────────────────────
-function SentenceWriteCanvas({ onDone, onPlayAudio }) {
+function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
@@ -239,6 +239,17 @@ function SentenceWriteCanvas({ onDone, onPlayAudio }) {
     setTimeout(() => setPlaying(false), 2000);
   };
 
+  const handleUnclearAudio = async () => {
+    await base44.entities.AudioFeedback.create({
+      mode: 'sentences',
+      item_text: currentSentence,
+      feedback_type: 'unclear_audio',
+      student_number: studentData?.student_number || null,
+      class_name: studentData?.class_name || null,
+      reported_date: new Date().toISOString(),
+    }).catch(() => {});
+  };
+
   const W = 800, H = 240;
   const lineRows = [
     { top: 0, mid: H * 0.16, base: H * 0.29 },
@@ -257,6 +268,12 @@ function SentenceWriteCanvas({ onDone, onPlayAudio }) {
           🔊
         </button>
         <p className="text-sm text-rose-500 font-bold">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
+        <button
+          onClick={handleUnclearAudio}
+          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+        >
+          😕 No entiendo
+        </button>
       </div>
       <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
       <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: 180, background: '#f0f7ff' }}>
@@ -1043,7 +1060,7 @@ export default function SentencesMode({ studentData, onBack }) {
         {currentSentence && (
           <div className="bg-white/90 rounded-3xl shadow-xl p-5">
             {phase === 'write' && (
-              <SentenceWriteCanvas onDone={handleWriteDone} onPlayAudio={playAudio} />
+              <SentenceWriteCanvas onDone={handleWriteDone} onPlayAudio={playAudio} currentSentence={currentSentence} studentData={studentData} />
             )}
             {phase === 'build' && (
               <SentenceBuilder key={currentSentence} sentence={currentSentence} onComplete={handleComplete} onPlayAudio={playAudio} />

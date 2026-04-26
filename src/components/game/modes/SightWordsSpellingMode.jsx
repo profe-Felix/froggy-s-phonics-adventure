@@ -48,10 +48,31 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     if (!preloadedAudio.current[word]) {
       preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
+      preloadedAudio.current[word].onerror = () => {
+        base44.entities.AudioFeedback.create({
+          mode: 'sight_words_spelling',
+          item_text: word,
+          feedback_type: 'missing_audio',
+          student_number: studentData?.student_number || null,
+          class_name: studentData?.class_name || null,
+          reported_date: new Date().toISOString(),
+        }).catch(() => {});
+      };
     }
     audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {});
+  };
+
+  const handleUnclearAudio = async () => {
+    await base44.entities.AudioFeedback.create({
+      mode: 'sight_words_spelling',
+      item_text: currentWord,
+      feedback_type: 'unclear_audio',
+      student_number: studentData?.student_number || null,
+      class_name: studentData?.class_name || null,
+      reported_date: new Date().toISOString(),
+    }).catch(() => {});
   };
 
   const buildOptions = (word, type) => {
@@ -192,6 +213,14 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   return (
     <>
+      <div className="flex justify-center p-2">
+        <button
+          onClick={handleUnclearAudio}
+          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+        >
+          😕 No entiendo
+        </button>
+      </div>
       <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4 absolute top-16 left-1/2 -translate-x-1/2 z-20 shadow">
         {challengeLabel}
       </div>

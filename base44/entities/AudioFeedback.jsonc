@@ -1,0 +1,45 @@
+{
+  "name": "AudioFeedback",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "sentences",
+        "spelling",
+        "sight_words_easy",
+        "sight_words_spelling"
+      ],
+      "description": "Which game mode"
+    },
+    "item_text": {
+      "type": "string",
+      "description": "The word or sentence"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": [
+        "unclear_audio",
+        "missing_audio"
+      ],
+      "description": "Type of feedback"
+    },
+    "student_number": {
+      "type": "integer",
+      "description": "Student who reported it (if available)"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class name (if available)"
+    },
+    "reported_date": {
+      "type": "string",
+      "description": "ISO timestamp"
+    }
+  },
+  "required": [
+    "mode",
+    "item_text",
+    "feedback_type"
+  ]
+}

@@ -143,6 +143,15 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
 
   const moduleProgress = getModuleProgress(modeData);
 
+  const checkAudioExists = async (url) => {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
   const playSound = (word) => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
     if (!preloadedAudio.current[word]) {
@@ -154,7 +163,18 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
       ];
       let i = 0;
       const tryNext = () => {
-        if (i >= candidates.length) return;
+        if (i >= candidates.length) {
+          // Log missing audio
+          base44.entities.AudioFeedback.create({
+            mode: 'spelling',
+            item_text: word,
+            feedback_type: 'missing_audio',
+            student_number: studentData?.student_number || null,
+            class_name: studentData?.class_name || null,
+            reported_date: new Date().toISOString(),
+          }).catch(() => {});
+          return;
+        }
         audio.src = candidates[i++];
         audio.load();
         audio.play().catch(tryNext);
@@ -168,6 +188,17 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(() => {});
+  };
+
+  const handleUnclearAudio = async () => {
+    await base44.entities.AudioFeedback.create({
+      mode: 'spelling',
+      item_text: currentWord,
+      feedback_type: 'unclear_audio',
+      student_number: studentData?.student_number || null,
+      class_name: studentData?.class_name || null,
+      reported_date: new Date().toISOString(),
+    }).catch(() => {});
   };
 
   const startRound = (mod = selectedModule) => {
@@ -300,6 +331,14 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
             M{module} {pct >= 0.8 ? '⭐' : <span className="text-xs opacity-60">{Math.round(pct * 100)}%</span>}
           </button>
         ))}
+      </div>
+      <div className="flex justify-center p-2">
+        <button
+          onClick={handleUnclearAudio}
+          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+        >
+          😕 No entiendo
+        </button>
       </div>
       <GameCanvas
         currentLetter={currentWord}
