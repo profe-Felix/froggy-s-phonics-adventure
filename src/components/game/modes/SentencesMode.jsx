@@ -146,15 +146,7 @@ function syllabify(word) {
   return syllables.filter(s => s.length > 0);
 }
 
-// Check if audio file exists (preload check)
-async function checkAudioExists(url) {
-  try {
-    const res = await fetch(url, { method: 'HEAD' });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+
 
 function parseSentenceToTiles(sentence) {
   // Returns: words (array of syllable arrays), puncts, flat lowercase syllables (for tray)
@@ -927,7 +919,6 @@ export default function SentencesMode({ studentData, onBack }) {
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [audioChecked, setAudioChecked] = useState(false);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -968,10 +959,10 @@ export default function SentencesMode({ studentData, onBack }) {
         setSentences(shuffled);
         setCurrentIdx(0);
         setPhase('write');
-        setAudioChecked(true);
+  
       } catch (e) {
         console.error('Failed to load module:', e);
-        setAudioChecked(true);
+      
       }
     };
     loadModule();
@@ -1009,7 +1000,7 @@ export default function SentencesMode({ studentData, onBack }) {
     }
   };
 
-  if (loading || !audioChecked) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-100 via-pink-50 to-white flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
