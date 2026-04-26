@@ -301,7 +301,10 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     );
   }
 
-  const challengeLabel = challengeType === 'unscramble' ? '🔀 Unscramble the letters!' : '✏️ Spell the word!';
+  const challengeLabel =
+    challengeType === 'cloze'
+      ? '🧩 Fill in the missing letters!'
+      : '✏️ Spell the word!';
 
   if (phase === 'write') {
     return (
