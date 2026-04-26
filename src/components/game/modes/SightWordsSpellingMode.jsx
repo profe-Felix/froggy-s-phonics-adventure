@@ -16,7 +16,13 @@ function pickWord(modeData, lastWord, moduleWords) {
   const learning = (modeData.learning_items?.length > 0 ? modeData.learning_items : []).filter(w => moduleWords.includes(w));
   const attempts = modeData.item_attempts || {};
   const pool = learning.length > 1 ? learning.filter(w => w !== lastWord) : learning;
-  if (pool.length === 0) return moduleWords[0];
+  if (pool.length === 0) {
+    const choices = moduleWords.length > 1
+      ? moduleWords.filter(w => w !== lastWord)
+      : moduleWords;
+
+    return choices[Math.floor(Math.random() * choices.length)];
+  }
   const weights = pool.map(w => { const s = attempts[w] || { correct: 0, total: 0 }; return Math.max(1, 6 - s.correct); });
   const total = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * total;
@@ -196,6 +202,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const handleModuleSelect = (mod) => {
     setSelectedModule(mod);
     setRoundCount(0);
+    startRound(0, mod);
   };
 
   const handleNext = () => {
@@ -252,13 +259,51 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     await saveProgress(correct);
   };
 
-  if (!currentWord) return null;
+  if (!wordsLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!currentWord) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-6 text-center max-w-md">
+          <p className="text-xl font-black text-red-600 mb-2">No sight words loaded</p>
+          <p className="text-gray-600 font-bold">
+            Check lists.json → Palabras 💙 → M{selectedModule} → new.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const challengeLabel = challengeType === 'unscramble' ? '🔀 Unscramble the letters!' : '✏️ Spell the word!';
 
   if (phase === 'write') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center p-4 gap-4">
+        <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow p-3">
+          <p className="text-xs font-bold text-gray-500 uppercase mb-2 text-center">Módulo</p>
+          <div className="grid grid-cols-3 gap-2 mb-1 sm:grid-cols-5">
+            {modules.map(mod => (
+              <button
+                key={mod}
+                onClick={() => handleModuleSelect(mod)}
+                className={`rounded-xl p-2 border-2 font-black text-sm transition-all ${
+                  selectedModule === mod
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                M{mod}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
           <SpellingWriteStep
             word={currentWord}
@@ -270,13 +315,6 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     );
   }
 
-  if (!wordsLoaded) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <>
