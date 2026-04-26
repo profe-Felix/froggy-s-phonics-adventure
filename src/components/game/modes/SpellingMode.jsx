@@ -56,6 +56,7 @@ function getModuleProgress(modeData) {
 }
 
 function pickWord(modeData, lastWord, moduleWords) {
+  if (!moduleWords || !Array.isArray(moduleWords) || moduleWords.length === 0) return null;
   const attempts = modeData.item_attempts || {};
   const mastered = new Set(modeData.mastered_items || []);
   const learning = (modeData.learning_items || []).filter(w => moduleWords.includes(w));
@@ -166,6 +167,7 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     if (!wordsLoaded) return;
     const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1] || [];
     const word = pickWord(modeData, lastWordRef.current, moduleWords);
+    if (!word) return;
     lastWordRef.current = word;
     setCurrentWord(word);
     setOptions(buildOptions(word));
