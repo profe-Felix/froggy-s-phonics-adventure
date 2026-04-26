@@ -654,7 +654,10 @@ function InlineTile({
 
     return (
       <button
-        onClick={() => onTap()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTap();
+        }}
         data-slottile
         title={swapMode ? 'Tap again to delete' : 'Tap to replace'}
         className="inline-block transition-colors"
@@ -717,7 +720,10 @@ function InlineTile({
           e.dataTransfer.effectAllowed = 'move';
           onDragStart();
         }}
-        onClick={() => onTap()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTap();
+        }}
         data-slottile
         className="font-bold transition-colors cursor-grab active:cursor-grabbing rounded"
         style={{
@@ -750,6 +756,7 @@ function InlineTile({
           e.dataTransfer.effectAllowed = 'move';
           onDragStart();
         }}
+        onClick={(e) => e.stopPropagation()}
         data-slottile
         src={tile.value}
         alt=""
