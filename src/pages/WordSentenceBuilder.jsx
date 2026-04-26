@@ -692,6 +692,10 @@ export default function WordSentenceBuilder() {
       const target = e.target.closest('[data-tray-tile],[data-slottile]');
       if (!target) return;
 
+      // Stop page scrolling when touching a draggable tile.
+      // Taps will be restored manually on touchend.
+      e.preventDefault();
+
       const touch0 = e.touches[0];
       const startX = touch0.clientX;
       const startY = touch0.clientY;
@@ -727,16 +731,17 @@ export default function WordSentenceBuilder() {
         const t = ev.touches[0];
         const dx = t.clientX - startX, dy = t.clientY - startY;
 
+        // Always block page scroll once the touch started on a draggable tile.
+        ev.preventDefault();
+
         if (!dragging) {
           if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) {
-            return; // let scroll happen until threshold
+            return;
           }
+
           dragging = true;
           dragRef.current = pendingDragData;
           createGhostEl(ghostLabel);
-          ev.preventDefault(); // NOW block scroll after drag starts
-        } else {
-          ev.preventDefault(); // keep blocking during drag
         }
 
         moveGhostEl(t.clientX, t.clientY);
@@ -779,7 +784,12 @@ export default function WordSentenceBuilder() {
         document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
 
-        if (!dragging) return; // Was a tap — let click fire naturally
+        if (!dragging) {
+          // Was a tap. Since touchstart used preventDefault,
+          // manually trigger the normal click behavior.
+          target.click();
+          return;
+        }
 
         ev.preventDefault();
         removeGhostEl();
@@ -863,7 +873,7 @@ export default function WordSentenceBuilder() {
       document.addEventListener('touchend', onTouchEnd, { passive: false });
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
     return () => document.removeEventListener('touchstart', handleTouchStart);
   }, []); // eslint-disable-line
 
