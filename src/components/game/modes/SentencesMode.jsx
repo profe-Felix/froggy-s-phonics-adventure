@@ -908,11 +908,8 @@ export default function SentencesMode({ studentData, onBack }) {
         const data = await res.json();
         const oraciones = data["Oraciones"] || {};
         const moduleNums = Object.keys(oraciones)
-          .map(k => {
-            const num = parseInt(k.replace(/\D/g, ''));
-            return isNaN(num) ? 0 : num;
-          })
-          .filter(num => Number.isInteger(num) && num > 0)
+          .map(k => parseInt(k.replace(/\D/g, '')))
+          .filter(num => !isNaN(num) && num > 0)
           .sort((a, b) => a - b);
         setModules(moduleNums);
         if (moduleNums.length > 0) {
