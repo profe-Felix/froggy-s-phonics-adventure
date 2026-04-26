@@ -10,11 +10,33 @@ let SPELLING_WORDS_BY_MODULE = {};
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
 function toAudioName(word) {
-  return word.toLowerCase()
+  return word
+    // keep ORIGINAL capitalization
     .replace(/á/g, 'a..').replace(/é/g, 'e..').replace(/í/g, 'i..')
     .replace(/ó/g, 'o..').replace(/ú/g, 'u..')
-    .replace(/ü/g, 'u,,')
-    .replace(/ñ/g, 'n..');
+    .replace(/Á/g, 'A..').replace(/É/g, 'E..').replace(/Í/g, 'I..')
+    .replace(/Ó/g, 'O..').replace(/Ú/g, 'U..')
+    .replace(/ü/g, 'u,,').replace(/Ü/g, 'U,,')
+    .replace(/ñ/g, 'n..').replace(/Ñ/g, 'N..');
+}
+async function findAudioUrl(word) {
+  const audioName = toAudioName(word);
+
+  const candidates = [
+    `${SUPABASE_AUDIO_BASE}/${audioName}.mp3`,
+    `${SUPABASE_AUDIO_BASE}/${audioName}.wav`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) return url;
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
 }
 
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
@@ -163,22 +185,40 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
     }).catch(() => {});
   };
 
-  const startRound = (mod = selectedModule) => {
+  const startRound = async (mod = selectedModule) => {
     if (!wordsLoaded) return;
+
     const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1] || [];
-    const word = pickWord(modeData, lastWordRef.current, moduleWords);
-    if (!word) return;
-    lastWordRef.current = word;
-    setCurrentWord(word);
-    setOptions(buildOptions(word));
-    setBuiltWord([]);
-    setUsedIndices([]);
-    setShowResult(false);
-    setPointsEarned(0);
-    setPhase('write');
-    setWrittenStrokes(null);
-    submittingRef.current = false;
-    playSound(word);
+    if (!moduleWords.length) return;
+
+    // Try a limited number of words so missing audio can never freeze the app
+    for (let attempt = 0; attempt < Math.min(moduleWords.length, 20); attempt++) {
+      const word = pickWord(modeData, lastWordRef.current, moduleWords);
+      if (!word) break;
+
+      const audioUrl = await findAudioUrl(word);
+
+      if (!audioUrl) {
+        lastWordRef.current = word;
+        continue;
+      }
+
+      lastWordRef.current = word;
+      setCurrentWord(word);
+      setOptions(buildOptions(word));
+      setBuiltWord([]);
+      setUsedIndices([]);
+      setShowResult(false);
+      setPointsEarned(0);
+      setPhase('write');
+      setWrittenStrokes(null);
+      submittingRef.current = false;
+
+      playSound(word);
+      return;
+    }
+
+    setCurrentWord(null);
   };
 
   useEffect(() => {
@@ -212,7 +252,9 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   }, []);
 
   useEffect(() => {
-    if (wordsLoaded) startRound();
+    if (wordsLoaded) {
+      startRound();
+    }
   }, [wordsLoaded]);
 
   const handleModuleSelect = (mod) => {
