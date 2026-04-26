@@ -48,6 +48,8 @@ export const SPELLING_WORDS_BY_MODULE = {
 
 export const SPELLING_WORDS = Object.values(SPELLING_WORDS_BY_MODULE).flat();
 
+const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
 // For words with b or d, always include the opposite as a distractor
@@ -136,8 +138,23 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   const playSound = (word) => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
     if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/spelling-audio/${encodeURIComponent(word)}.mp3`);
-      preloadedAudio.current[word].preload = 'auto';
+      const audio = new Audio();
+      const candidates = [
+        `${SUPABASE_AUDIO_BASE}/${word}.mp3`,
+        `${SUPABASE_AUDIO_BASE}/${word}.wav`,
+      ];
+      let i = 0;
+      const tryNext = () => {
+        if (i >= candidates.length) return;
+        audio.src = candidates[i++];
+        audio.load();
+        audio.play().catch(tryNext);
+      };
+      audio.onerror = tryNext;
+      preloadedAudio.current[word] = audio;
+      audioRef.current = audio;
+      tryNext();
+      return;
     }
     audioRef.current = preloadedAudio.current[word];
     audioRef.current.currentTime = 0;
