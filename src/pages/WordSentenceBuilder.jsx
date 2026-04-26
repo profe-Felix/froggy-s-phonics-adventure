@@ -61,17 +61,12 @@ function usePreset(searchParams) {
       setConfig(buildConfigFromParams(searchParams));
       return;
     }
-
     setLoading(true);
-
     fetch(SUPABASE_PRESETS_URL, { cache: 'no-store' })
       .then(r => r.json())
       .then(all => {
         const preset = all[presetId];
-        if (!preset?.content) {
-          setConfig(buildConfigFromParams(searchParams));
-          return;
-        }
+        if (!preset?.content) { setConfig(buildConfigFromParams(searchParams)); return; }
         const c = preset.content;
         setConfig({
           letters:     c.letters   ?? parseList(searchParams.get('letters'))   ?? DEFAULT_LETTERS,
@@ -105,7 +100,7 @@ function usePreset(searchParams) {
   return { config, loading };
 }
 
-// ─── Parse a prefill string into tiles ───────────────────────────────────────
+// ─── Parse prefill string ─────────────────────────────────────────────────────
 function parsePrefillString(str, punc) {
   if (!str) return [];
   const out = [];
@@ -117,9 +112,7 @@ function parsePrefillString(str, punc) {
     } else if (punc.includes(ch)) {
       if (buf) { out.push(createTile('text', buf)); buf = ''; }
       out.push(createTile('punc', ch));
-    } else {
-      buf += ch;
-    }
+    } else { buf += ch; }
   }
   if (buf) out.push(createTile('text', buf));
   return out;
@@ -135,7 +128,7 @@ function launchConfetti() {
       el.style.cssText = `position:fixed;left:${Math.random()*100}vw;top:-10px;width:9px;height:9px;background:hsl(${Math.random()*360},90%,60%);border-radius:50%;opacity:.9;z-index:9999;pointer-events:none`;
       document.body.appendChild(el);
       const a = el.animate(
-        [{ transform:'translateY(0)', opacity:1 },{ transform:`translateY(${window.innerHeight+120}px)`, opacity:0 }],
+        [{ transform:'translateY(0)',opacity:1},{ transform:`translateY(${window.innerHeight+120}px)`,opacity:0}],
         { duration:700+Math.random()*500, easing:'ease-in' }
       );
       a.onfinish = () => el.remove();
@@ -146,53 +139,79 @@ function launchConfetti() {
 
 // ─── Ghost element for touch drag ────────────────────────────────────────────
 function createGhostEl(label) {
+  removeGhostEl();
   const ghost = document.createElement('div');
   ghost.id = '__drag_ghost__';
   ghost.textContent = label;
-  ghost.style.cssText = `
-    position: fixed;
-    z-index: 9999;
-    pointer-events: none;
-    background: white;
-    border: 2px solid #4f46e5;
-    border-radius: 12px;
-    padding: 4px 12px;
-    font-size: 1.6rem;
-    font-weight: bold;
-    font-family: Andika, system-ui, sans-serif;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-    opacity: 0.9;
-    transform: translate(-50%, -50%);
-    white-space: nowrap;
-  `;
+  ghost.style.cssText = `position:fixed;z-index:9999;pointer-events:none;background:white;border:2px solid #4f46e5;border-radius:12px;padding:6px 14px;font-size:1.5rem;font-weight:bold;font-family:Andika,system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.25);opacity:0.92;transform:translate(-50%,-60%);white-space:nowrap;`;
   document.body.appendChild(ghost);
   return ghost;
 }
-function removeGhostEl() {
-  document.getElementById('__drag_ghost__')?.remove();
-}
+function removeGhostEl() { document.getElementById('__drag_ghost__')?.remove(); }
 function moveGhostEl(x, y) {
   const g = document.getElementById('__drag_ghost__');
   if (g) { g.style.left = x + 'px'; g.style.top = y + 'px'; }
 }
 
+// ─── Find nearest insert position across all tiles in a zone ─────────────────
+// This is the fix for edge-case jumping: instead of requiring the finger to be
+// strictly within a tile's vertical bounds, we find the closest tile by
+// horizontal distance and then decide before/after by midpoint.
+function calcBestInsertIdx(zoneEl, clientX, clientY, tileCount) {
+  const slotEls = [...zoneEl.querySelectorAll('[data-slottile]')];
+  if (slotEls.length === 0) return 0;
+
+  // Find which row the finger is closest to
+  let bestRowTop = null, bestRowBottom = null, bestRowDist = Infinity;
+  const rows = [];
+  slotEls.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const rowMid = (r.top + r.bottom) / 2;
+    const dist = Math.abs(clientY - rowMid);
+    if (dist < bestRowDist) {
+      bestRowDist = dist;
+      bestRowTop = r.top;
+      bestRowBottom = r.bottom;
+    }
+  });
+
+  // Within that row, find where cursor falls horizontally
+  const rowEls = slotEls.filter(el => {
+    const r = el.getBoundingClientRect();
+    return r.bottom >= bestRowTop - 4 && r.top <= bestRowBottom + 4;
+  });
+
+  if (rowEls.length === 0) return tileCount;
+
+  for (let i = 0; i < rowEls.length; i++) {
+    const r = rowEls[i].getBoundingClientRect();
+    if (clientX < r.left + r.width / 2) {
+      // Return the index of this element in slotEls
+      return slotEls.indexOf(rowEls[i]);
+    }
+  }
+  // After last tile in row — find index of last tile + 1
+  const lastInRow = rowEls[rowEls.length - 1];
+  return slotEls.indexOf(lastInRow) + 1;
+}
+
 // ─── Palette card ─────────────────────────────────────────────────────────────
 function PaletteCard({ title, cols, children }) {
   const gridStyle = cols > 0
-    ? { display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '6px' }
+    ? { display:'grid', gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`, gap:'6px' }
     : {};
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
       <h2 className="text-sm font-black text-gray-600 mb-2 uppercase tracking-wide">{title}</h2>
-      {cols > 0
-        ? <div style={gridStyle}>{children}</div>
-        : <div className="flex flex-wrap gap-2">{children}</div>
-      }
+      {cols > 0 ? <div style={gridStyle}>{children}</div> : <div className="flex flex-wrap gap-2">{children}</div>}
     </div>
   );
 }
 
 // ─── Tray tile ────────────────────────────────────────────────────────────────
+// NOTE: We do NOT use touch-none here — we need taps to work.
+// Touch drag is handled by document-level touchstart, which checks for a movement threshold
+// before committing to a drag, allowing quick taps to still fire onClick.
 function TrayTile({ tile, onDragStart, activeProblem, problems, onDropIntoProblem, onTapReplace }) {
   const handleTap = () => {
     if (onTapReplace) {
@@ -203,30 +222,20 @@ function TrayTile({ tile, onDragStart, activeProblem, problems, onDropIntoProble
     }
   };
 
-  const tileLabel = tile.type === 'space' ? '␣' : tile.type === 'img' ? '🖼' : tile.value;
-
   return (
     <button
       data-tray-tile
       data-tile-type={tile.type}
       data-tile-value={tile.value}
-      data-tile-id={tile.id}
       draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'copy';
-        onDragStart(tile);
-      }}
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'copy'; onDragStart(tile); }}
       onClick={handleTap}
-      className="select-none touch-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-xl min-w-[44px] h-11 px-3 hover:bg-indigo-50 shadow-sm transition-colors"
+      className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-xl min-w-[44px] h-11 px-3 hover:bg-indigo-50 shadow-sm transition-colors"
       style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
     >
-      {tile.type === 'space' ? (
-        <span className="w-5 h-0.5 bg-gray-400 block rounded pointer-events-none" />
-      ) : tile.type === 'img' ? (
-        <img src={tile.value} alt="" className="max-h-9 max-w-[80px] object-contain pointer-events-none" />
-      ) : (
-        tile.value
-      )}
+      {tile.type === 'space' ? <span className="w-5 h-0.5 bg-gray-400 block rounded pointer-events-none" />
+       : tile.type === 'img' ? <img src={tile.value} alt="" className="max-h-9 max-w-[80px] object-contain pointer-events-none" />
+       : tile.value}
     </button>
   );
 }
@@ -254,36 +263,28 @@ function WriteTile({ dragRef, activeProblem, problems, onDropIntoProblem }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-1">
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
+        <input ref={inputRef} type="text" value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAddWord()}
           placeholder="escribe…"
           className="border-2 border-indigo-400 bg-indigo-50 rounded-xl px-2 h-11 outline-none font-bold text-base flex-1"
-          onPointerDown={e => e.stopPropagation()}
-        />
+          onPointerDown={e => e.stopPropagation()} />
         <button onClick={handleAddWord} className="bg-indigo-600 text-white rounded-xl px-3 h-11 font-bold text-sm hover:bg-indigo-700 shrink-0">+</button>
       </div>
       {tiles.length > 0 && (
         <div className="flex flex-wrap gap-2 bg-indigo-50 rounded-xl p-2 border border-indigo-200">
           {tiles.map((t, idx) => (
-            <button
-              key={t.id}
-              data-tray-tile
-              data-tile-type={t.type}
-              data-tile-value={t.value}
+            <button key={t.id}
+              data-tray-tile data-tile-type={t.type} data-tile-value={t.value}
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = 'copy';
                 dragRef.current = { tile: { ...t, id: Math.random().toString(36).slice(2) }, fromProblem: null };
               }}
               onClick={() => handleTileTap(t)}
-              onContextMenu={(e) => { e.preventDefault(); setTiles(prev => prev.filter((_, i) => i !== idx)); }}
+              onContextMenu={(e) => { e.preventDefault(); setTiles(prev => prev.filter((_,i) => i!==idx)); }}
               className="rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-base px-3 h-10 hover:bg-indigo-50 shadow-sm cursor-grab"
-              style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
-            >
+              style={{ fontFamily: 'Andika, system-ui, sans-serif' }}>
               {t.value}
             </button>
           ))}
@@ -296,25 +297,20 @@ function WriteTile({ dragRef, activeProblem, problems, onDropIntoProblem }) {
 // ─── Tool tiles ───────────────────────────────────────────────────────────────
 function ToolTile({ label, title, dragRef, tileType, tileValue }) {
   return (
-    <div
-      draggable
-      data-tray-tile
-      data-tile-type={tileType}
-      data-tile-value={tileValue}
+    <div draggable data-tray-tile data-tile-type={tileType} data-tile-value={tileValue}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'copy';
         dragRef.current = { tile: createTile(tileType, tileValue), fromProblem: null };
       }}
       title={title}
-      className="cursor-grab rounded-xl border-2 border-gray-400 bg-gray-50 flex items-center justify-center w-11 h-11 text-lg font-black hover:bg-gray-100 select-none touch-none"
-    >
+      className="cursor-grab rounded-xl border-2 border-gray-400 bg-gray-50 flex items-center justify-center w-11 h-11 text-lg font-black hover:bg-gray-100 select-none">
       {label}
     </div>
   );
 }
 
 // ─── InlineTile ───────────────────────────────────────────────────────────────
-function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onTap, swapMode, toolHover, accentCharIdx }) {
+function InlineTile({ tile, onDragStart, pendingRemove, tileIdx, onTap, swapMode, toolHover, accentCharIdx, isDropTarget }) {
   const isSelected = pendingRemove === tile.id;
   const isToolHighlight = toolHover === tileIdx;
 
@@ -323,60 +319,41 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
     if (isSelected) bg = swapMode ? 'rgba(156,163,175,0.25)' : 'rgba(239,68,68,0.15)';
     if (isToolHighlight) bg = 'rgba(59,130,246,0.20)';
     return (
-      <button
-        onClick={(e) => { e.stopPropagation(); onTap(); }}
-        data-slottile
-        data-tile-id={tile.id}
-        draggable
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-        className="inline-block touch-none transition-colors"
-        style={{
-          width: '0.55em', height: '1.5em', verticalAlign: 'baseline',
-          flexShrink: 0, background: bg, borderRadius: '3px',
-          border: isToolHighlight ? '1px solid #3b82f6' : 'none',
-          cursor: 'pointer', padding: 0, margin: 0
-        }}
-      />
+      <button onClick={(e) => { e.stopPropagation(); onTap(); }}
+        data-slottile data-tile-id={tile.id}
+        draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        className="inline-block transition-colors"
+        style={{ width:'0.55em', height:'1.5em', verticalAlign:'baseline', flexShrink:0, background:bg,
+          borderRadius:'3px', border: isToolHighlight ? '1px solid #3b82f6' : isDropTarget ? '2px solid #3b82f6' : 'none',
+          cursor:'pointer', padding:0, margin:0 }} />
     );
   }
 
   if (tile.type === 'write' || tile.type === 'text' || tile.type === 'punc') {
-    let color = '#1f2937';
-    let bg = 'transparent';
-    let outline = 'none';
-    if (isSelected) {
-      color = swapMode ? '#9ca3af' : '#ef4444';
-      bg = swapMode ? 'rgba(156,163,175,0.15)' : 'rgba(239,68,68,0.10)';
-    }
-    if (isToolHighlight) {
-      bg = 'rgba(59,130,246,0.20)'; color = '#1d4ed8'; outline = '2px solid rgba(59,130,246,0.55)';
-    }
+    let color = '#1f2937', bg = 'transparent', outline = 'none';
+    if (isSelected) { color = swapMode ? '#9ca3af' : '#ef4444'; bg = swapMode ? 'rgba(156,163,175,0.15)' : 'rgba(239,68,68,0.10)'; }
+    if (isToolHighlight) { bg = 'rgba(59,130,246,0.20)'; color = '#1d4ed8'; outline = '2px solid rgba(59,130,246,0.55)'; }
+    if (isDropTarget && !isSelected) { outline = '2px dashed #3b82f6'; }
 
     const displayText = accentCharIdx !== null && tile.type === 'text'
-      ? [...String(tile.value || '')].map((ch, idx) => (
+      ? [...String(tile.value||'')].map((ch,idx) => (
           <span key={idx} style={{
-            color: idx === accentCharIdx ? '#dc2626' : 'inherit',
-            background: idx === accentCharIdx ? 'rgba(220,38,38,0.15)' : 'transparent',
-            borderRadius: idx === accentCharIdx ? '4px' : 0,
-            padding: idx === accentCharIdx ? '0 1px' : 0
+            color: idx===accentCharIdx ? '#dc2626' : 'inherit',
+            background: idx===accentCharIdx ? 'rgba(220,38,38,0.15)' : 'transparent',
+            borderRadius: idx===accentCharIdx ? '4px' : 0,
+            padding: idx===accentCharIdx ? '0 1px' : 0
           }}>{ch}</span>
         ))
       : tile.value;
 
     return (
-      <button
-        draggable
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      <button draggable onDragStart={(e) => { e.dataTransfer.effectAllowed='move'; onDragStart(); }}
         onClick={(e) => { e.stopPropagation(); onTap(); }}
-        data-slottile
-        data-tile-id={tile.id}
-        className="font-bold touch-none transition-colors cursor-grab active:cursor-grabbing rounded"
-        style={{
-          background: bg, outline, border: 'none', padding: 0, margin: 0,
-          font: 'inherit', color, fontSize: '1.875rem', fontWeight: 'bold',
-          verticalAlign: 'baseline', fontFamily: 'Andika, system-ui, sans-serif', lineHeight: 1.1
-        }}
-      >
+        data-slottile data-tile-id={tile.id}
+        className="font-bold transition-colors cursor-grab active:cursor-grabbing rounded"
+        style={{ background:bg, outline, border:'none', padding:0, margin:0,
+          font:'inherit', color, fontSize:'1.875rem', fontWeight:'bold',
+          verticalAlign:'baseline', fontFamily:'Andika,system-ui,sans-serif', lineHeight:1.1 }}>
         {displayText}
       </button>
     );
@@ -384,21 +361,16 @@ function InlineTile({ tile, onDragStart, pendingRemove, replaceIdx, tileIdx, onT
 
   if (tile.type === 'img') {
     return (
-      <img
-        draggable
-        onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      <img draggable onDragStart={(e) => { e.dataTransfer.effectAllowed='move'; onDragStart(); }}
         onClick={(e) => e.stopPropagation()}
-        data-slottile
-        data-tile-id={tile.id}
-        src={tile.value}
-        alt=""
-        className="max-h-10 max-w-[80px] object-contain cursor-pointer hover:opacity-70 rounded touch-none"
+        data-slottile data-tile-id={tile.id}
+        src={tile.value} alt=""
+        className="max-h-10 max-w-[80px] object-contain cursor-pointer hover:opacity-70 rounded"
         style={{
           outline: isToolHighlight ? '2px solid rgba(59,130,246,0.55)' : 'none',
           background: isToolHighlight ? 'rgba(59,130,246,0.20)' : 'transparent',
-          padding: isToolHighlight ? '2px' : 0, margin: '0 3px'
-        }}
-      />
+          padding: isToolHighlight ? '2px' : 0, margin:'0 3px'
+        }} />
     );
   }
   return null;
@@ -413,53 +385,36 @@ function ProblemZone({
   onDrop, onTileDragStart, onRemoveTile, isActive, onActivate
 }) {
   const ref = useRef(null);
-
   const clearHover = () => { setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null); };
-
-  const calcInsertIdx = (clientX, clientY) => {
-    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
-    let insertIdx = tiles.length;
-    for (let i = 0; i < children.length; i++) {
-      const rect = children[i].getBoundingClientRect();
-      if (clientY >= rect.top && clientY <= rect.bottom && clientX < rect.left + rect.width / 2) {
-        insertIdx = i; break;
-      }
-    }
-    return insertIdx;
-  };
-
-  const calcToolHover = (clientX, clientY) => {
-    const children = [...(ref.current?.querySelectorAll('[data-slottile]') || [])];
-    for (let i = 0; i < children.length; i++) {
-      const rect = children[i].getBoundingClientRect();
-      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom &&
-          (tiles[i]?.type === 'text' || tiles[i]?.type === 'write')) {
-        return i;
-      }
-    }
-    return null;
-  };
 
   const onDragOver = (e) => {
     e.preventDefault(); e.stopPropagation();
     const d = dragRef.current;
     if (!d) { clearHover(); return; }
+
     if (d.tile?.type === 'captool' || d.tile?.type === 'accenttool') {
-      setHoverProblem(index);
-      setHoverIdx(calcToolHover(e.clientX, e.clientY));
-      return;
+      const children = [...(ref.current?.querySelectorAll('[data-slottile]')||[])];
+      let hi = null;
+      for (let i = 0; i < children.length; i++) {
+        const r = children[i].getBoundingClientRect();
+        if (e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom
+            && (tiles[i]?.type==='text'||tiles[i]?.type==='write')) { hi = i; break; }
+      }
+      setHoverProblem(index); setHoverIdx(hi); return;
     }
+
+    // When there's a pendingRemove tile and dragging FROM TRAY, show replace preview
     if (pendingRemove !== null && d.fromProblem === null) {
       const idx = tiles.findIndex(t => t.id === pendingRemove);
       setHoverProblem(index); setHoverIdx(idx >= 0 ? idx : null); return;
     }
-    setHoverProblem(index);
-    setHoverIdx(calcInsertIdx(e.clientX, e.clientY));
+
+    // Normal insert
+    const insertIdx = ref.current ? calcBestInsertIdx(ref.current, e.clientX, e.clientY, tiles.length) : tiles.length;
+    setHoverProblem(index); setHoverIdx(insertIdx);
   };
 
-  const onDragLeave = (e) => {
-    if (!ref.current?.contains(e.relatedTarget)) clearHover();
-  };
+  const onDragLeave = (e) => { if (!ref.current?.contains(e.relatedTarget)) clearHover(); };
 
   const onDrop_ = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -469,49 +424,44 @@ function ProblemZone({
     setPendingRemove(null);
   };
 
-  let border = 'border-gray-300';
-  let ring = '';
+  let border = 'border-gray-300', ring = '';
   if (showResult) {
-    if (state === 'correct') { border = 'border-green-500'; ring = 'ring-2 ring-green-400'; }
-    else if (state === 'incorrect') { border = 'border-red-500'; ring = 'ring-2 ring-red-400'; }
-    else if (state === 'unanswered') { border = 'border-gray-300 border-dashed'; }
+    if (state==='correct') { border='border-green-500'; ring='ring-2 ring-green-400'; }
+    else if (state==='incorrect') { border='border-red-500'; ring='ring-2 ring-red-400'; }
+    else if (state==='unanswered') { border='border-gray-300 border-dashed'; }
   }
 
   const showHoverHere = hoverProblem === index;
+  const isReplaceMode = pendingRemove !== null && dragRef.current?.fromProblem === null;
+  const isDraggingNormal = dragRef.current && dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool';
 
   return (
     <div className="flex items-start gap-2">
-      <span className="text-gray-400 font-bold text-sm mt-3 w-5 shrink-0 text-right">{index + 1}.</span>
-      <div
-        ref={ref}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop_}
+      <span className="text-gray-400 font-bold text-sm mt-3 w-5 shrink-0 text-right">{index+1}.</span>
+      <div ref={ref}
+        onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop_}
         onClick={() => onActivate(isActive ? null : index)}
-        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-0 transition-all cursor-pointer ${isActive ? 'ring-2 ring-blue-400' : ''} ${border} ${ring}`}
-      >
-        {tiles.length === 0 && (
-          <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>
-        )}
+        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-0 transition-all cursor-pointer ${isActive?'ring-2 ring-blue-400':''} ${border} ${ring}`}>
+        {tiles.length === 0 && <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>}
         {tiles.map((tile, i) => (
           <React.Fragment key={tile.id}>
-            {showHoverHere && hoverIdx === i && hoverIdx !== null && pendingRemove === null &&
-              dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool' && (
-              <div
-                className="rounded-lg border-l-4 border-l-blue-500 bg-blue-50 min-h-12 flex items-center"
-                style={{ minWidth: dragRef.current?.tile?.type === 'text' ? `${Math.max(String(dragRef.current.tile.value||'').length*1.1,3)}ch` : '2rem' }}
-              />
+            {/* Show blue insertion ghost ONLY in normal (non-replace) mode */}
+            {showHoverHere && hoverIdx===i && hoverIdx!==null && !isReplaceMode && isDraggingNormal && (
+              <div className="rounded-lg border-l-4 border-l-blue-500 bg-blue-50 min-h-12 flex items-center"
+                style={{ minWidth: dragRef.current?.tile?.type==='text'
+                  ? `${Math.max(String(dragRef.current.tile.value||'').length*1.1,3)}ch` : '2rem' }} />
             )}
             <InlineTile
               tile={tile} tileIdx={i}
               onDragStart={() => onTileDragStart(i, tile)}
               pendingRemove={pendingRemove}
-              replaceIdx={showHoverHere ? hoverIdx : null}
-              toolHover={showHoverHere && (dragRef.current?.tile?.type === 'captool' || dragRef.current?.tile?.type === 'accenttool') ? hoverIdx : null}
-              accentCharIdx={showHoverHere && dragRef.current?.tile?.type === 'accenttool' && hoverIdx === i ? accentCharIdx : null}
+              // isDropTarget: highlight the tile that is pending-replace target
+              isDropTarget={isReplaceMode && showHoverHere && hoverIdx===i}
+              toolHover={showHoverHere && (dragRef.current?.tile?.type==='captool'||dragRef.current?.tile?.type==='accenttool') ? hoverIdx : null}
+              accentCharIdx={showHoverHere && dragRef.current?.tile?.type==='accenttool' && hoverIdx===i ? accentCharIdx : null}
               swapMode={swapMode}
               onTap={() => {
-                if (pendingRemove === tile.id) {
+                if (pendingRemove===tile.id) {
                   if (swapMode) { onRemoveTile(i); setPendingRemove(null); }
                   else setPendingRemove(null);
                 } else {
@@ -521,19 +471,22 @@ function ProblemZone({
             />
           </React.Fragment>
         ))}
-        {showHoverHere && hoverIdx === tiles.length && hoverIdx !== null && pendingRemove === null &&
-          dragRef.current?.tile?.type !== 'captool' && dragRef.current?.tile?.type !== 'accenttool' && (
-          <div
-            className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 h-12 flex items-center justify-center"
-            style={{
-              minWidth: dragRef.current?.tile?.type === 'text' ? `${Math.max(String(dragRef.current.tile.value||'').length*1.1,3)}ch` : '2rem',
-              fontSize: '0.75rem', color: '#60a5fa', fontWeight: 'bold'
-            }}
-          >↓</div>
+        {/* Append ghost at end in normal mode */}
+        {showHoverHere && hoverIdx===tiles.length && hoverIdx!==null && !isReplaceMode && isDraggingNormal && (
+          <div className="rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 px-1 py-0.5 h-12 flex items-center justify-center"
+            style={{ minWidth: dragRef.current?.tile?.type==='text'
+              ? `${Math.max(String(dragRef.current.tile.value||'').length*1.1,3)}ch` : '2rem',
+              fontSize:'0.75rem', color:'#60a5fa', fontWeight:'bold' }}>↓</div>
         )}
       </div>
     </div>
   );
+}
+
+// ─── Session key helper ───────────────────────────────────────────────────────
+function sessionKey(config) {
+  if (!config?.isStudent || !config.studentNumber || !config.className) return null;
+  return `wb_session_${config.className}_${config.studentNumber}_${config.presetId||'custom'}`;
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -550,165 +503,181 @@ export default function WordSentenceBuilder() {
   const [activeProblem, setActiveProblem] = useState(null);
   const [swapMode, setSwapMode] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null);
+  const [sessionRestored, setSessionRestored] = useState(false);
 
   const dragRef = useRef(null);
   const [hoverProblem, setHoverProblem] = useState(null);
   const [hoverIdx, setHoverIdx] = useState(null);
   const [accentCharIdx, setAccentCharIdx] = useState(null);
 
-  // Event recording for replay
   const eventsRef = useRef([]);
   const startTimeRef = useRef(Date.now());
 
   const recordEvent = useCallback((type, problemIdx, extraData = {}) => {
-    eventsRef.current.push({
-      t: Date.now() - startTimeRef.current,
-      type,
-      problemIdx,
-      ...extraData,
-    });
+    eventsRef.current.push({ t: Date.now()-startTimeRef.current, type, problemIdx, ...extraData });
   }, []);
 
+  // ── Auto-save session every 3 seconds when student ───────────────────────
+  const problemsRef = useRef(problems);
+  useEffect(() => { problemsRef.current = problems; }, [problems]);
+
+  useEffect(() => {
+    if (!config?.isStudent) return;
+    const key = sessionKey(config);
+    if (!key) return;
+    const interval = setInterval(() => {
+      const data = { problems: problemsRef.current, savedAt: Date.now() };
+      localStorage.setItem(key, JSON.stringify(data));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [config]);
+
+  // ── Config loaded: restore session or init fresh ──────────────────────────
   useEffect(() => {
     if (!config) return;
     const np = config.numProblems || 1;
     setNumProblems(np);
     setNumProblemsInput(np);
-    initProblems(np, config.prefillProblems, config.punc);
     setShowResult(false);
     eventsRef.current = [];
     startTimeRef.current = Date.now();
+
+    // Try to restore student session from localStorage
+    const key = sessionKey(config);
+    if (key) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        if (saved?.problems && Array.isArray(saved.problems) && saved.problems.length === np) {
+          setProblems(saved.problems);
+          setProblemStates(Array(np).fill(null));
+          setSessionRestored(true);
+          setTimeout(() => setSessionRestored(false), 3000);
+          return;
+        }
+      } catch {}
+    }
+    initProblems(np, config.prefillProblems, config.punc);
   }, [config]);
 
-  // ── Touch drag support ───────────────────────────────────────────────────
-  // We add a single touchstart listener on the document. When a touch starts
-  // on a [data-tray-tile] or [data-slottile], we take over touch events and
-  // simulate drag behaviour with a ghost element.
+  // ── Touch drag ────────────────────────────────────────────────────────────
+  // Uses a movement threshold (10px) before committing to drag, so short taps
+  // still fire onClick (tap-to-place). Once threshold exceeded, ghost appears
+  // and we take over all touch events.
   useEffect(() => {
+    const DRAG_THRESHOLD = 10;
+
     const handleTouchStart = (e) => {
       const target = e.target.closest('[data-tray-tile],[data-slottile]');
       if (!target) return;
 
-      const touch = e.touches[0];
-      let ghostLabel = target.dataset.tileValue || target.textContent?.trim() || '?';
-      if (target.dataset.tileType === 'space') ghostLabel = '␣';
+      const touch0 = e.touches[0];
+      const startX = touch0.clientX;
+      const startY = touch0.clientY;
+      let dragging = false;
+      let pendingDragData = null;
 
-      // Set up dragRef based on element type
-      if (target.dataset.trayTile !== undefined || target.closest('[data-tray-tile]')) {
-        const tileType = target.dataset.tileType;
-        const tileValue = target.dataset.tileValue;
-        if (tileType) {
-          dragRef.current = {
-            tile: createTile(tileType, tileValue),
-            fromProblem: null
-          };
-        }
-      } else if (target.dataset.slottile !== undefined || target.dataset.tileId) {
-        // It's an inline tile — find which problem and index it belongs to
-        const tileId = target.dataset.tileId;
-        let found = false;
-        setProblems(prev => {
-          for (let pi = 0; pi < prev.length; pi++) {
-            const ti = prev[pi].findIndex(t => t.id === tileId);
-            if (ti >= 0) {
-              dragRef.current = { tile: prev[pi][ti], fromProblem: [pi, ti] };
-              found = true;
-              break;
-            }
+      // Pre-compute the drag data so we have it ready when threshold is hit
+      const tileType = target.dataset.tileType;
+      const tileValue = target.dataset.tileValue;
+      const tileId = target.dataset.tileId;
+      const isTray = !!target.closest('[data-tray-tile]');
+
+      if (isTray && tileType) {
+        pendingDragData = { tile: createTile(tileType, tileValue), fromProblem: null };
+      } else if (tileId) {
+        // Inline tile: find it in problems
+        const probs = problemsRef.current;
+        for (let pi = 0; pi < probs.length; pi++) {
+          const ti = probs[pi].findIndex(t => t.id === tileId);
+          if (ti >= 0) {
+            pendingDragData = { tile: probs[pi][ti], fromProblem: [pi, ti] };
+            break;
           }
-          return prev;
-        });
+        }
       }
 
-      if (!dragRef.current) return;
+      if (!pendingDragData) return;
 
-      e.preventDefault();
+      const ghostLabel = tileType === 'space' ? '␣' : (tileValue || target.textContent?.trim() || '?');
 
-      const ghost = createGhostEl(ghostLabel);
-      moveGhostEl(touch.clientX, touch.clientY);
-
-      const findProblemZone = (x, y) => {
+      const findZone = (x, y) => {
         const zones = document.querySelectorAll('[data-problem-zone]');
         for (const zone of zones) {
-          const rect = zone.getBoundingClientRect();
-          if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-            return zone;
-          }
+          const r = zone.getBoundingClientRect();
+          if (x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return zone;
         }
         return null;
       };
 
-      const calcTouchInsertIdx = (zone, x, y) => {
-        const children = [...zone.querySelectorAll('[data-slottile]')];
-        const zoneIndex = parseInt(zone.dataset.problemZone);
-        const zoneTiles = [];
-        setProblems(prev => { zoneTiles.push(...(prev[zoneIndex] || [])); return prev; });
-
-        let insertIdx = zoneTiles.length;
-        for (let i = 0; i < children.length; i++) {
-          const rect = children[i].getBoundingClientRect();
-          if (y >= rect.top && y <= rect.bottom && x < rect.left + rect.width / 2) {
-            insertIdx = i; break;
-          }
-        }
-        return insertIdx;
-      };
-
       const onTouchMove = (ev) => {
-        ev.preventDefault();
         const t = ev.touches[0];
+        const dx = t.clientX - startX, dy = t.clientY - startY;
+
+        if (!dragging) {
+          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) return;
+          // Threshold exceeded — commit to drag
+          dragging = true;
+          dragRef.current = pendingDragData;
+          ev.preventDefault();
+          createGhostEl(ghostLabel);
+        }
+
+        ev.preventDefault();
         moveGhostEl(t.clientX, t.clientY);
 
-        const zone = findProblemZone(t.clientX, t.clientY);
+        const zone = findZone(t.clientX, t.clientY);
         if (zone) {
           const zoneIndex = parseInt(zone.dataset.problemZone);
-          const insertIdx = calcTouchInsertIdx(zone, t.clientX, t.clientY);
+          const probs = problemsRef.current;
+          const insertIdx = calcBestInsertIdx(zone, t.clientX, t.clientY, (probs[zoneIndex]||[]).length);
           setHoverProblem(zoneIndex);
           setHoverIdx(insertIdx);
         } else {
-          setHoverProblem(null);
-          setHoverIdx(null);
+          setHoverProblem(null); setHoverIdx(null);
         }
       };
 
       const onTouchEnd = (ev) => {
-        ev.preventDefault();
-        removeGhostEl();
-        document.removeEventListener('touchmove', onTouchMove, { passive: false });
+        document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
 
-        const changedTouch = ev.changedTouches[0];
+        if (!dragging) {
+          // Was a tap — let the click event fire naturally
+          return;
+        }
 
-        // Check if dropped on trash
+        ev.preventDefault();
+        removeGhostEl();
+        dragRef.current = null;
+
+        const ct = ev.changedTouches[0];
+
+        // Check trash
         const trashEl = document.getElementById('__trash_zone__');
         if (trashEl) {
           const tr = trashEl.getBoundingClientRect();
-          if (changedTouch.clientX >= tr.left && changedTouch.clientX <= tr.right &&
-              changedTouch.clientY >= tr.top && changedTouch.clientY <= tr.bottom) {
-            const d = dragRef.current;
-            if (d?.fromProblem) {
-              const [fp, fi] = d.fromProblem;
+          if (ct.clientX>=tr.left && ct.clientX<=tr.right && ct.clientY>=tr.top && ct.clientY<=tr.bottom) {
+            if (pendingDragData?.fromProblem) {
+              const [fp,fi] = pendingDragData.fromProblem;
               setProblems(prev => {
-                const next = prev.map(p => [...(p || [])]);
-                next[fp].splice(fi, 1);
+                const next = prev.map(p=>[...(p||[])]);
+                next[fp].splice(fi,1);
                 return next;
               });
-              recordEvent('remove', fp, { tileValue: d.tile?.value });
             }
-            dragRef.current = null;
             setHoverProblem(null); setHoverIdx(null);
             return;
           }
         }
 
-        const zone = findProblemZone(changedTouch.clientX, changedTouch.clientY);
+        const zone = findZone(ct.clientX, ct.clientY);
         if (zone) {
           const zoneIndex = parseInt(zone.dataset.problemZone);
-          const insertIdx = calcTouchInsertIdx(zone, changedTouch.clientX, changedTouch.clientY);
-          handleDrop(zoneIndex, insertIdx);
+          const probs = problemsRef.current;
+          const insertIdx = calcBestInsertIdx(zone, ct.clientX, ct.clientY, (probs[zoneIndex]||[]).length);
+          handleDropTouch(pendingDragData, zoneIndex, insertIdx);
         }
 
-        dragRef.current = null;
         setHoverProblem(null); setHoverIdx(null);
       };
 
@@ -716,16 +685,50 @@ export default function WordSentenceBuilder() {
       document.addEventListener('touchend', onTouchEnd);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
     return () => document.removeEventListener('touchstart', handleTouchStart);
   }, []); // eslint-disable-line
 
+  // ── Touch drop handler (mirrors handleDrop but takes explicit dragData) ────
+  const handleDropTouch = (d, problemIdx, replaceIdx) => {
+    if (!d) return;
+    const tile = d.tile;
+    const [fromProblemIdx, fromTileIdx] = d.fromProblem || [null, null];
+
+    if (fromProblemIdx === problemIdx && fromTileIdx !== null) {
+      setProblems(prev => {
+        if (!Array.isArray(prev)) return prev;
+        const next = prev.map(p=>[...(p||[])]);
+        const problem = next[problemIdx];
+        if (fromTileIdx<0||fromTileIdx>=problem.length) return prev;
+        const [moved] = problem.splice(fromTileIdx,1);
+        let ins = replaceIdx>=0 ? replaceIdx : problem.length;
+        if (ins>fromTileIdx) ins--;
+        ins = Math.max(0,Math.min(ins,problem.length));
+        problem.splice(ins,0,moved);
+        return next;
+      });
+      setShowResult(false); return;
+    }
+
+    const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
+    setProblems(prev => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map(p=>[...(p||[])]);
+      const problem = next[problemIdx];
+      const ins = replaceIdx>=0 ? Math.max(0,Math.min(replaceIdx,problem.length)) : problem.length;
+      problem.splice(ins,0,newTile);
+      return next;
+    });
+    setShowResult(false);
+  };
+
   function initProblems(np, prefill, punc) {
-    const ps = Array.from({ length: np }, (_, i) => {
+    const ps = Array.from({ length:np }, (_,i) => {
       const pre = prefill?.[i];
       if (!pre) return [];
-      if (typeof pre === 'string') return parsePrefillString(pre, punc || DEFAULT_PUNC);
-      if (Array.isArray(pre)) return pre.flatMap(s => typeof s === 'string' ? parsePrefillString(s, punc || DEFAULT_PUNC) : []);
+      if (typeof pre==='string') return parsePrefillString(pre, punc||DEFAULT_PUNC);
+      if (Array.isArray(pre)) return pre.flatMap(s=>typeof s==='string'?parsePrefillString(s,punc||DEFAULT_PUNC):[]);
       return [];
     });
     setProblems(ps);
@@ -733,267 +736,253 @@ export default function WordSentenceBuilder() {
   }
 
   function applyProblems() {
-    const np = Math.max(1, Math.min(50, parseInt(numProblemsInput) || 1));
+    const np = Math.max(1,Math.min(50,parseInt(numProblemsInput)||1));
     setNumProblems(np);
     setProblems(prev => {
-      const safe = Array.isArray(prev) ? prev : [];
-      if (safe.length >= np) return safe.slice(0, np);
-      return [...safe, ...Array.from({ length: np - safe.length }, () => [])];
+      const safe = Array.isArray(prev)?prev:[];
+      if (safe.length>=np) return safe.slice(0,np);
+      return [...safe,...Array.from({length:np-safe.length},()=>[])];
     });
     setProblemStates(Array(np).fill(null));
     setShowResult(false);
   }
 
   const handleTrayDragStart = (tile) => {
-    dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromProblem: null };
+    dragRef.current = { tile:{...tile,id:Math.random().toString(36).slice(2)}, fromProblem:null };
   };
 
   const handleTapReplace = (tile) => {
-    if (activeProblem === null || pendingRemove === null) return;
-    const problem = problems[activeProblem];
-    const targetIdx = problem.findIndex(t => t.id === pendingRemove);
-    if (targetIdx >= 0) {
+    if (activeProblem===null||pendingRemove===null) return;
+    const targetIdx = problems[activeProblem].findIndex(t=>t.id===pendingRemove);
+    if (targetIdx>=0) {
       setProblems(prev => {
-        const next = prev.map(p => [...(p || [])]);
-        next[activeProblem][targetIdx] = { ...tile, id: Math.random().toString(36).slice(2) };
+        const next = prev.map(p=>[...(p||[])]);
+        next[activeProblem][targetIdx] = {...tile, id:Math.random().toString(36).slice(2)};
         return next;
       });
-      setPendingRemove(null);
-      setShowResult(false);
+      setPendingRemove(null); setShowResult(false);
     }
   };
 
   const handleDropIntoProblem = (problemIdx, insertIdx, tile) => {
     setProblems(prev => {
       if (!Array.isArray(prev)) return prev;
-      const next = prev.map(p => [...(p || [])]);
-      next[problemIdx].splice(insertIdx, 0, tile);
+      const next = prev.map(p=>[...(p||[])]);
+      next[problemIdx].splice(insertIdx,0,tile);
       return next;
     });
-    recordEvent('place', problemIdx, { tileValue: tile.value, insertIdx });
+    recordEvent('place', problemIdx, { tileValue:tile.value, insertIdx });
     setShowResult(false);
   };
 
-  const handleDrop = (problemIdx, replaceIdx) => {
+  const handleDrop = (problemIdx, dropIdx) => {
     const d = dragRef.current;
     if (!d) return;
     dragRef.current = null;
     setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null);
 
     const tile = d.tile;
-    const [fromProblemIdx, fromTileIdx] = d.fromProblem || [null, null];
+    const [fromProblemIdx, fromTileIdx] = d.fromProblem || [null,null];
 
-    if (tile.type === 'captool' || tile.type === 'accenttool') {
+    // Tool tiles
+    if (tile.type==='captool'||tile.type==='accenttool') {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
-        const next = prev.map(p => (p || []).map(t => ({ ...t })));
+        const next = prev.map(p=>(p||[]).map(t=>({...t})));
         const problem = next[problemIdx];
-        const targetIdx = replaceIdx;
-        if (targetIdx < 0 || targetIdx >= problem.length || problem[targetIdx].type !== 'text') return prev;
+        const targetIdx = dropIdx;
+        if (targetIdx<0||targetIdx>=problem.length||problem[targetIdx].type!=='text') return prev;
         const target = problem[targetIdx];
-        if (tile.type === 'captool') {
-          target.value = tile.value === 'up'
-            ? target.value.charAt(0).toUpperCase() + target.value.slice(1)
-            : target.value.charAt(0).toLowerCase() + target.value.slice(1);
-        } else if (tile.type === 'accenttool') {
-          const PLAIN_TO_ACC = { a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú' };
-          const ACC_TO_PLAIN = { á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U' };
-          const chars = [...String(target.value || '')];
-          if (accentCharIdx !== null && accentCharIdx >= 0 && accentCharIdx < chars.length) {
+        if (tile.type==='captool') {
+          target.value = tile.value==='up'
+            ? target.value.charAt(0).toUpperCase()+target.value.slice(1)
+            : target.value.charAt(0).toLowerCase()+target.value.slice(1);
+        } else {
+          const PLAIN_TO_ACC = {a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú'};
+          const ACC_TO_PLAIN = {á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U'};
+          const chars = [...String(target.value||'')];
+          if (accentCharIdx!==null&&accentCharIdx>=0&&accentCharIdx<chars.length) {
             const ch = chars[accentCharIdx];
-            chars[accentCharIdx] = PLAIN_TO_ACC[ch] || ACC_TO_PLAIN[ch] || ch;
+            chars[accentCharIdx] = PLAIN_TO_ACC[ch]||ACC_TO_PLAIN[ch]||ch;
             target.value = chars.join('');
           }
         }
         return next;
       });
-      setShowResult(false);
-      return;
+      setShowResult(false); return;
     }
 
-    if (fromProblemIdx === problemIdx && fromTileIdx !== null) {
+    // Reorder within same problem
+    if (fromProblemIdx===problemIdx && fromTileIdx!==null) {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
-        const next = prev.map(p => [...(p || [])]);
+        const next = prev.map(p=>[...(p||[])]);
         const problem = next[problemIdx];
-        if (fromTileIdx < 0 || fromTileIdx >= problem.length) return prev;
-        const [movedTile] = problem.splice(fromTileIdx, 1);
-        let insertIdx = replaceIdx >= 0 ? replaceIdx : problem.length;
-        if (insertIdx > fromTileIdx) insertIdx -= 1;
-        insertIdx = Math.max(0, Math.min(insertIdx, problem.length));
-        problem.splice(insertIdx, 0, movedTile);
+        if (fromTileIdx<0||fromTileIdx>=problem.length) return prev;
+        const [moved] = problem.splice(fromTileIdx,1);
+        let ins = dropIdx>=0?dropIdx:problem.length;
+        if (ins>fromTileIdx) ins--;
+        ins = Math.max(0,Math.min(ins,problem.length));
+        problem.splice(ins,0,moved);
         return next;
       });
-      recordEvent('reorder', problemIdx, { tileValue: tile.value, from: fromTileIdx, to: replaceIdx });
-      setShowResult(false);
-      return;
+      setShowResult(false); return;
     }
 
-    const newTile = { ...tile, id: Math.random().toString(36).slice(2) };
-    if (pendingRemove && replaceIdx >= 0) {
+    const newTile = {...tile, id:Math.random().toString(36).slice(2)};
+
+    // Replace mode: pendingRemove is set AND dragging from tray
+    if (pendingRemove && d.fromProblem===null) {
+      // Find the pending tile's actual index (not dropIdx)
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
-        const next = prev.map(p => [...(p || [])]);
-        if (next[problemIdx]?.[replaceIdx]) next[problemIdx][replaceIdx] = newTile;
+        const next = prev.map(p=>[...(p||[])]);
+        const targetIdx = next[problemIdx].findIndex(t=>t.id===pendingRemove);
+        if (targetIdx>=0) next[problemIdx][targetIdx] = newTile;
         return next;
       });
       setPendingRemove(null);
     } else {
       setProblems(prev => {
         if (!Array.isArray(prev)) return prev;
-        const next = prev.map(p => [...(p || [])]);
+        const next = prev.map(p=>[...(p||[])]);
         const problem = next[problemIdx];
-        const insertIdx = replaceIdx >= 0 ? Math.max(0, Math.min(replaceIdx, problem.length)) : problem.length;
-        problem.splice(insertIdx, 0, newTile);
+        const ins = dropIdx>=0?Math.max(0,Math.min(dropIdx,problem.length)):problem.length;
+        problem.splice(ins,0,newTile);
         return next;
       });
     }
-    recordEvent('place', problemIdx, { tileValue: newTile.value, insertIdx: replaceIdx });
     setShowResult(false);
   };
 
   const handleTileDragStart = (problemIdx, tileIdx, tile) => {
-    dragRef.current = { tile, fromProblem: [problemIdx, tileIdx] };
+    dragRef.current = { tile, fromProblem:[problemIdx,tileIdx] };
   };
 
   const handleRemoveTile = (problemIdx, tileIdx) => {
     setProblems(prev => {
       if (!Array.isArray(prev)) return prev;
-      const next = prev.map(p => [...(p || [])]);
-      next[problemIdx].splice(tileIdx, 1);
+      const next = prev.map(p=>[...(p||[])]);
+      next[problemIdx].splice(tileIdx,1);
       return next;
     });
-    recordEvent('remove', problemIdx, { tileIdx });
     setShowResult(false);
   };
 
   const handleTrashDrop = (e) => {
     e.preventDefault();
     const d = dragRef.current;
-    if (!d || d.fromProblem === null) return;
-    const [fp, fi] = d.fromProblem;
+    if (!d||d.fromProblem===null) return;
+    const [fp,fi] = d.fromProblem;
     setProblems(prev => {
       if (!Array.isArray(prev)) return prev;
-      const next = prev.map(p => [...(p || [])]);
-      next[fp].splice(fi, 1);
+      const next = prev.map(p=>[...(p||[])]);
+      next[fp].splice(fi,1);
       return next;
     });
-    recordEvent('remove', fp, { tileIdx: fi });
-    dragRef.current = null;
+    dragRef.current=null;
     setHoverProblem(null); setHoverIdx(null); setAccentCharIdx(null);
   };
 
   const validate = () => {
     if (!config?.answers) return;
-    const newStates = problems.map((tiles, i) => {
+    const newStates = problems.map((tiles,i) => {
       const expected = config.answers[i];
       if (!expected) return null;
-      let built = '';
+      let built='';
       tiles.forEach(t => {
-        if (t.type === 'text' || t.type === 'punc') built += t.value;
-        else if (t.type === 'write') built += t.value || '';
-        else if (t.type === 'space') built += ' ';
-        else if (t.type === 'img') built += '[img]';
+        if (t.type==='text'||t.type==='punc') built+=t.value;
+        else if (t.type==='write') built+=t.value||'';
+        else if (t.type==='space') built+=' ';
+        else if (t.type==='img') built+='[img]';
       });
-      built = built.trim();
+      built=built.trim();
       if (!built) return 'unanswered';
-      return built === expected ? 'correct' : 'incorrect';
+      return built===expected?'correct':'incorrect';
     });
     setProblemStates(newStates);
     setShowResult(true);
-    const allCorrect = newStates.filter(Boolean).every(s => s === 'correct');
+    const allCorrect = newStates.filter(Boolean).every(s=>s==='correct');
     if (allCorrect) launchConfetti();
 
-    // Save attempt if student
     if (config.isStudent && config.studentNumber && config.className) {
-      const problemsData = problems.map((tiles, i) => {
-        let built = '';
+      const problemsData = problems.map((tiles,i) => {
+        let built='';
         tiles.forEach(t => {
-          if (t.type === 'text' || t.type === 'punc') built += t.value;
-          else if (t.type === 'space') built += ' ';
+          if (t.type==='text'||t.type==='punc') built+=t.value;
+          else if (t.type==='space') built+=' ';
         });
         return {
-          expected: config.answers?.[i] || null,
+          expected: config.answers?.[i]||null,
           answer: built.trim(),
-          isCorrect: newStates[i] === 'correct',
-          tiles: tiles.map(t => ({ type: t.type, value: t.value }))
+          isCorrect: newStates[i]==='correct',
+          tiles: tiles.map(t=>({type:t.type,value:t.value}))
         };
       });
-
       base44.entities.WordBuilderAttempt.create({
         student_number: parseInt(config.studentNumber),
         class_name: config.className,
-        preset_id: config.presetId || 'custom',
-        preset_label: config.presetLabel || config.presetId || 'Custom',
+        preset_id: config.presetId||'custom',
+        preset_label: config.presetLabel||config.presetId||'Custom',
         num_problems: problems.length,
         problems_data: JSON.stringify(problemsData),
         events_data: JSON.stringify(eventsRef.current),
         all_correct: allCorrect,
         submitted_at: new Date().toISOString(),
-      }).catch(() => {});
+      }).catch(()=>{});
     }
   };
 
-  // QR leads to student login flow
   const qrUrl = (() => {
     try {
-      const u = new URL(window.location.href);
-      // Remove teacher params, keep preset
-      u.searchParams.delete('student');
-      u.searchParams.delete('class');
-      const base = window.location.origin + '/WordSentenceBuilder';
       const preset = config?.presetId;
-      return `${window.location.origin}/WordSentenceBuilder?${preset ? `preset=${preset}&` : ''}login=1`;
+      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}login=1`;
     } catch { return window.location.href; }
   })();
 
-  if (loading || !config) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-      </div>
-    );
+  if (loading||!config) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>;
   }
 
-  // Student login flow
-  if (searchParams.get('login') === '1' && !config.isStudent) {
+  if (searchParams.get('login')==='1' && !config.isStudent) {
     return <StudentLoginFlow searchParams={searchParams} />;
   }
 
   const { letters=[], syllables=[], words=[], punc=[], images=[], toggles={}, trayColumns=0 } = config;
   const isStudent = config.isStudent;
 
-  const letterTiles = letters.filter(l => l !== '|').map(l => createTile('text', l));
-  const syllTiles = syllables.filter(s => !['|','_','^','~'].includes(s)).map(s => createTile('text', s));
-  const wordTiles = words.filter(w => !['|','_'].includes(w)).map(w => createTile('text', w));
-  const puncTiles = punc.map(p => createTile('punc', p));
-  const spaceTile = createTile('space', ' ');
-  const imgTiles = images.map(u => createTile('img', u));
+  const letterTiles = letters.filter(l=>l!=='|').map(l=>createTile('text',l));
+  const syllTiles = syllables.filter(s=>!['|','_','^','~'].includes(s)).map(s=>createTile('text',s));
+  const wordTiles = words.filter(w=>!['|','_'].includes(w)).map(w=>createTile('text',w));
+  const puncTiles = punc.map(p=>createTile('punc',p));
+  const spaceTile = createTile('space',' ');
+  const imgTiles = images.map(u=>createTile('img',u));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white" style={{ fontFamily: 'Andika, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white" style={{fontFamily:'Andika,system-ui,sans-serif'}}>
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
           <Link to="/Lessons" className="text-blue-600 hover:underline font-bold text-sm">← Lecciones</Link>
           <h1 className="text-lg font-black text-gray-800">🧩 Construye palabras</h1>
+          {sessionRestored && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">✓ Sesión restaurada</span>}
           <div className="flex-1" />
           {!isStudent && (
             <div className="flex items-center gap-2 flex-wrap">
               <label className="flex items-center gap-1 text-sm font-bold text-gray-700">
                 Problemas:
                 <input type="number" min={1} max={50} value={numProblemsInput}
-                  onChange={e => setNumProblemsInput(e.target.value)}
+                  onChange={e=>setNumProblemsInput(e.target.value)}
                   className="border border-gray-300 rounded-lg px-2 py-1 w-16 text-sm" />
               </label>
               <button onClick={applyProblems} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">Aplicar</button>
-              <button onClick={() => setSwapMode(!swapMode)}
-                className={`rounded-lg px-3 py-1 text-sm font-bold transition-colors ${swapMode ? 'bg-red-500 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
-                {swapMode ? '🗑 Delete Mode' : '↔ Replace Mode'}
+              <button onClick={()=>setSwapMode(!swapMode)}
+                className={`rounded-lg px-3 py-1 text-sm font-bold transition-colors ${swapMode?'bg-red-500 text-white':'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}>
+                {swapMode?'🗑 Delete Mode':'↔ Replace Mode'}
               </button>
-              {config.answers && (
-                <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>
-              )}
-              <button onClick={() => setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
+              {config.answers && <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>}
+              <button onClick={()=>setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
             </div>
           )}
           {isStudent && config.answers && (
@@ -1002,12 +991,10 @@ export default function WordSentenceBuilder() {
         </div>
       </header>
 
-      {/* 50/50 split layout */}
       <main className="max-w-screen-2xl mx-auto px-4 py-4 flex flex-col lg:flex-row gap-5">
-        {/* Problems area — 50% */}
         <section className="lg:w-1/2 min-w-0">
           <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            {(problems || []).map((tiles, pi) => (
+            {(problems||[]).map((tiles,pi) => (
               <div key={pi} data-problem-zone={pi}>
                 <ProblemZone
                   index={pi} tiles={tiles} state={problemStates[pi]} showResult={showResult}
@@ -1016,22 +1003,20 @@ export default function WordSentenceBuilder() {
                   hoverIdx={hoverIdx} setHoverIdx={setHoverIdx}
                   accentCharIdx={accentCharIdx} setAccentCharIdx={setAccentCharIdx}
                   swapMode={swapMode} pendingRemove={pendingRemove} setPendingRemove={setPendingRemove}
-                  onDrop={(idx) => handleDrop(pi, idx)}
-                  onTileDragStart={(ti, tile) => handleTileDragStart(pi, ti, tile)}
-                  onRemoveTile={(ti) => handleRemoveTile(pi, ti)}
-                  isActive={activeProblem === pi} onActivate={setActiveProblem}
+                  onDrop={(idx)=>handleDrop(pi,idx)}
+                  onTileDragStart={(ti,tile)=>handleTileDragStart(pi,ti,tile)}
+                  onRemoveTile={(ti)=>handleRemoveTile(pi,ti)}
+                  isActive={activeProblem===pi} onActivate={setActiveProblem}
                 />
               </div>
             ))}
             <div className="mt-1 flex items-center gap-2">
-              <div id="__trash_zone__"
-                onDragOver={e => e.preventDefault()}
-                onDrop={handleTrashDrop}
+              <div id="__trash_zone__" onDragOver={e=>e.preventDefault()} onDrop={handleTrashDrop}
                 className="flex items-center gap-2 bg-red-50 border-2 border-dashed border-red-300 text-red-500 rounded-xl px-3 py-1.5 text-sm font-bold cursor-default">
                 🗑️ Suelta aquí para borrar
               </div>
               {showResult && (
-                <button onClick={() => { setShowResult(false); setProblemStates(Array(numProblems).fill(null)); }}
+                <button onClick={()=>{setShowResult(false);setProblemStates(Array(numProblems).fill(null));}}
                   className="text-xs text-gray-400 hover:text-gray-600 font-bold underline">
                   Limpiar resultados
                 </button>
@@ -1040,14 +1025,11 @@ export default function WordSentenceBuilder() {
           </div>
         </section>
 
-        {/* Palette — 50% */}
         <aside className="lg:w-1/2 flex flex-col gap-3">
-          {(letterTiles.length > 0 || toggles.write) && (
+          {(letterTiles.length>0||toggles.write) && (
             <PaletteCard title="Letras" cols={trayColumns}>
               {toggles.write && <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />}
-              {letterTiles.map((t, i) => (
-                <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />
-              ))}
+              {letterTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
               {toggles.caps && <>
                 <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
                 <ToolTile label="↓" title="Minúscula" dragRef={dragRef} tileType="captool" tileValue="down" />
@@ -1055,32 +1037,32 @@ export default function WordSentenceBuilder() {
               {toggles.accent && <ToolTile label="´" title="Acento" dragRef={dragRef} tileType="accenttool" tileValue="´" />}
             </PaletteCard>
           )}
-          {syllTiles.length > 0 && (
+          {syllTiles.length>0 && (
             <PaletteCard title="Sílabas" cols={trayColumns}>
-              {syllTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
+              {syllTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
             </PaletteCard>
           )}
-          {wordTiles.length > 0 && (
+          {wordTiles.length>0 && (
             <PaletteCard title="Palabras" cols={trayColumns}>
-              {wordTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
+              {wordTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
             </PaletteCard>
           )}
-          {toggles.punc !== false && puncTiles.length > 0 && (
+          {toggles.punc!==false&&puncTiles.length>0 && (
             <PaletteCard title="Puntuación" cols={0}>
               <div className="flex flex-wrap gap-2">
-                {toggles.space !== false && <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />}
-                {puncTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
+                {toggles.space!==false && <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />}
+                {puncTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
               </div>
             </PaletteCard>
           )}
-          {toggles.space !== false && puncTiles.length === 0 && (
+          {toggles.space!==false&&puncTiles.length===0 && (
             <PaletteCard title="Espacio" cols={0}>
-              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />
+              <TrayTile tile={spaceTile} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />
             </PaletteCard>
           )}
-          {toggles.images !== false && imgTiles.length > 0 && (
+          {toggles.images!==false&&imgTiles.length>0 && (
             <PaletteCard title="Imágenes" cols={trayColumns}>
-              {imgTiles.map((t, i) => <TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove ? handleTapReplace : null} />)}
+              {imgTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
             </PaletteCard>
           )}
           {config.presetId && (
@@ -1092,12 +1074,12 @@ export default function WordSentenceBuilder() {
       </main>
 
       {showQR && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowQR(false)}>
-          <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={()=>setShowQR(false)}>
+          <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e=>e.stopPropagation()}>
             <p className="font-black text-lg mb-3">📱 Escanea para abrir</p>
             <div className="flex justify-center mb-3"><QRCodeSVG value={qrUrl} size={220} level="M" /></div>
             <p className="text-xs text-gray-400 mb-4 break-all">{qrUrl}</p>
-            <button onClick={() => setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Cerrar</button>
+            <button onClick={()=>setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Cerrar</button>
           </div>
         </div>
       )}
@@ -1106,19 +1088,11 @@ export default function WordSentenceBuilder() {
 }
 
 // ─── Student login flow ───────────────────────────────────────────────────────
-const CLASSES = ['F', 'V', 'C'];
+const CLASSES = ['F','V','C'];
 
 function StudentLoginFlow({ searchParams }) {
   const [selectedClass, setSelectedClass] = useState(null);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-
   const preset = searchParams.get('preset');
-
-  if (selectedClass && selectedStudent) {
-    const url = `/WordSentenceBuilder?${preset ? `preset=${preset}&` : ''}student=${selectedStudent}&class=${selectedClass}`;
-    window.location.href = url;
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-indigo-50 flex items-center justify-center p-6">
@@ -1128,11 +1102,9 @@ function StudentLoginFlow({ searchParams }) {
           <>
             <p className="text-center text-gray-500 font-bold mb-4">¿Cuál es tu clase?</p>
             <div className="flex gap-3 justify-center">
-              {CLASSES.map(c => (
-                <button key={c} onClick={() => setSelectedClass(c)}
-                  className="w-20 h-20 rounded-2xl bg-indigo-600 text-white text-3xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">
-                  {c}
-                </button>
+              {CLASSES.map(c=>(
+                <button key={c} onClick={()=>setSelectedClass(c)}
+                  className="w-20 h-20 rounded-2xl bg-indigo-600 text-white text-3xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">{c}</button>
               ))}
             </div>
           </>
@@ -1140,14 +1112,13 @@ function StudentLoginFlow({ searchParams }) {
           <>
             <p className="text-center text-gray-500 font-bold mb-4">Clase <span className="text-indigo-700">{selectedClass}</span> — ¿Cuál es tu número?</p>
             <div className="grid grid-cols-5 gap-2">
-              {Array.from({ length: 30 }, (_, i) => i + 1).map(n => (
-                <button key={n} onClick={() => setSelectedStudent(n)}
-                  className="w-full aspect-square rounded-xl bg-indigo-50 border-2 border-indigo-200 text-indigo-700 font-black text-lg hover:bg-indigo-600 hover:text-white active:scale-95 transition-all">
-                  {n}
-                </button>
+              {Array.from({length:30},(_,i)=>i+1).map(n=>(
+                <button key={n}
+                  onClick={()=>{ window.location.href=`/WordSentenceBuilder?${preset?`preset=${preset}&`:''}student=${n}&class=${selectedClass}`; }}
+                  className="w-full aspect-square rounded-xl bg-indigo-50 border-2 border-indigo-200 text-indigo-700 font-black text-lg hover:bg-indigo-600 hover:text-white active:scale-95 transition-all">{n}</button>
               ))}
             </div>
-            <button onClick={() => setSelectedClass(null)} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 font-bold">← Cambiar clase</button>
+            <button onClick={()=>setSelectedClass(null)} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 font-bold">← Cambiar clase</button>
           </>
         )}
       </div>
