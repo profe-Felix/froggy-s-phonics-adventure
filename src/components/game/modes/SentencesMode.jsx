@@ -153,9 +153,23 @@ function parseSentenceToTiles(sentence) {
   const puncts = [];
   raw.forEach(w => {
     const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
-    const wordPart = m ? m[1].toLowerCase() : w.toLowerCase();
+    const originalWord = m ? m[1] : w;
+    const wordPartLower = originalWord.toLowerCase();
     const punct = m ? m[2] : '';
-    wordSyllables.push(syllabify(wordPart));
+    
+    // Get syllables from lowercased word
+    const lowSyllables = syllabify(wordPartLower);
+    
+    // Reconstruct syllables with original casing from the word
+    const casingPreservedSyllables = [];
+    let charIdx = 0;
+    for (const syll of lowSyllables) {
+      const capsVersion = originalWord.slice(charIdx, charIdx + syll.length);
+      casingPreservedSyllables.push(capsVersion);
+      charIdx += syll.length;
+    }
+    
+    wordSyllables.push(casingPreservedSyllables);
     if (punct) punct.split('').forEach(p => puncts.push(p));
   });
   // flat list of all syllables in order (for validation)
