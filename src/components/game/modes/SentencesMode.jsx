@@ -406,7 +406,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const numWords = wordSyllables.length;
 
   const makeInitialTray = () => {
-    // One tile per syllable occurrence (duplicates allowed for repeated syllables), shuffled
+    // One tile per syllable occurrence (exact count needed), shuffled
     const syllTiles = allSyllables.map(s => createTile('text', s));
     for (let i = syllTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -433,7 +433,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const dragRef = useRef(null);
   const dropZoneRef = useRef(null);
   const dropZoneStateRef = useRef(dropZone);
+  const trayStateRef = useRef(tray);
   useEffect(() => { dropZoneStateRef.current = dropZone; }, [dropZone]);
+  useEffect(() => { trayStateRef.current = tray; }, [tray]);
 
   const reset = () => { setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null); setToolHoverIdx(null); setAccentCharIdx(null); setDropHoverIdx(null); setIsDraggingNormal(false); };
 
@@ -461,10 +463,11 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     setShowResult(false);
   }, []);
 
-  // ── Tray tap → clone into dropzone (tray tile stays) ─────────────────────
+  // ── Tray tap → move into dropzone (use up the tile) ───────────────────────
   const handleTrayTap = (tile) => {
     if (showResult) return;
     setDropZone(prev => [...prev, { ...tile, id: Math.random().toString(36).slice(2) }]);
+    setTray(prev => prev.filter(t => t.id !== tile.id));
     setPendingRemove(null);
   };
 
@@ -473,8 +476,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     if (showResult) return;
     if (pendingRemove === tile.id) {
       setPendingRemove(null);
-      // Just remove from dropzone — tray always has tiles available
-      setDropZone(prev => prev.filter(t => t.id !== tile.id));
+          // Delete from dropzone and restore to tray
+          setDropZone(prev => prev.filter(t => t.id !== tile.id));
+          setTray(prev => [...prev, tile]);
     } else {
       setPendingRemove(tile.id);
     }
@@ -482,7 +486,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Mouse drag: tray tiles and tool tiles ─────────────────────────────────
   const handleTrayDragStart = (e, tile, isTool = false) => {
-    dragRef.current = { tile: isTool ? tile : { ...tile, id: Math.random().toString(36).slice(2) }, isTool, fromDropZone: false };
+    dragRef.current = { tile, isTool, fromTray: true, fromDropZone: false };
     e.dataTransfer.effectAllowed = 'copy';
     if (!isTool) setIsDraggingNormal(true);
   };
@@ -567,14 +571,15 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         next.splice(ins, 0, d.tile);
         return next;
       });
-    } else {
-      // From tray → clone and insert
+    } else if (d.fromTray) {
+      // From tray → move (use up tile, remove from tray)
       setDropZone(prev => {
         const next = [...prev];
         const ins = Math.max(0, Math.min(at, next.length));
-        next.splice(ins, 0, d.tile);
+        next.splice(ins, 0, { ...d.tile, id: Math.random().toString(36).slice(2) });
         return next;
       });
+      setTray(prev => prev.filter(t => t.id !== d.tile.id));
     }
   };
 
@@ -582,7 +587,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const handleDropZoneDragEnd = (e, tile) => {
     // If dropEffect is 'none', the drag was not dropped onto a valid target (i.e. outside dropzone)
     if (e.dataTransfer.dropEffect === 'none') {
+      // Delete from dropzone and restore to tray
       setDropZone(prev => prev.filter(t => t.id !== tile.id));
+      setTray(prev => [...prev, tile]);
       setPendingRemove(null);
     }
     setDropHoverIdx(null);
@@ -613,9 +620,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       if (isTool && tileType) {
         pendingData = { tile: createTile(tileType, tileValue || ''), isTool: true, fromDropZone: false };
       } else if (isTray && tileType) {
-        const dz = dropZoneStateRef.current;
-        // find tile in tray by id
-        pendingData = { tile: createTile(tileType, tileValue || ''), isTool: false, fromDropZone: false };
+        // Find tile in tray by id
+        const trayTile = trayStateRef.current.find(t => t.id === tileId);
+        if (trayTile) pendingData = { tile: trayTile, isTool: false, fromTray: true, fromDropZone: false };
       } else if (tileId) {
         pendingData = { tile: { id: tileId, type: tileType, value: tileValue }, isTool: false, fromDropZone: true };
       }
@@ -650,7 +657,8 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           setToolHoverIdx(hi);
         } else if (!pendingData.isTool && dropZoneRef.current) {
           const dzr = dropZoneRef.current.getBoundingClientRect();
-          if (t.clientX >= dzr.left && t.clientX <= dzr.right && t.clientY >= dzr.top && t.clientY <= dzr.bottom) {
+          const insideDropZone = t.clientX >= dzr.left && t.clientX <= dzr.right && t.clientY >= dzr.top && t.clientY <= dzr.bottom;
+          if (insideDropZone) {
             const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
             let ins = slotEls.length;
             for (let i = 0; i < slotEls.length; i++) {
@@ -707,8 +715,8 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
                 next.splice(at, 0, pendingData.tile);
                 return next;
               });
-            } else {
-              // Clone from tray and insert
+            } else if (pendingData.fromTray) {
+              // Move from tray into dropzone
               setDropZone(prev => {
                 const next = [...prev];
                 const newTile = { ...pendingData.tile, id: Math.random().toString(36).slice(2) };
@@ -716,10 +724,12 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
                 next.splice(at, 0, newTile);
                 return next;
               });
+              setTray(prev => prev.filter(t => t.id !== pendingData.tile.id));
             }
           } else if (pendingData.fromDropZone) {
-            // Dragged dropzone tile released outside → delete it
+            // Dragged dropzone tile released outside → delete and restore to tray
             setDropZone(prev => prev.filter(t => t.id !== pendingData.tile.id));
+            setTray(prev => [...prev, pendingData.tile]);
             setPendingRemove(null);
           }
         }
