@@ -395,7 +395,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const numWords = wordSyllables.length;
 
   const makeInitialTray = () => {
-    // One tile per syllable (all lowercase), shuffled
+    // One tile per syllable occurrence (duplicates allowed for repeated syllables), shuffled
     const syllTiles = allSyllables.map(s => createTile('text', s));
     for (let i = syllTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -448,10 +448,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     setShowResult(false);
   }, []);
 
-  // ── Tray tap → append to dropzone ─────────────────────────────────────────
+  // ── Tray tap → clone into dropzone (tray tile stays) ─────────────────────
   const handleTrayTap = (tile) => {
     if (showResult) return;
-    setTray(prev => prev.filter(t => t.id !== tile.id));
     setDropZone(prev => [...prev, { ...tile, id: Math.random().toString(36).slice(2) }]);
     setPendingRemove(null);
   };
@@ -461,9 +460,8 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     if (showResult) return;
     if (pendingRemove === tile.id) {
       setPendingRemove(null);
+      // Just remove from dropzone — tray always has tiles available
       setDropZone(prev => prev.filter(t => t.id !== tile.id));
-      // restore to tray with lowercase value
-      setTray(prev => [...prev, createTile(tile.type, tile.type === 'text' ? tile.value.charAt(0).toLowerCase() + tile.value.slice(1) : tile.value)]);
     } else {
       setPendingRemove(tile.id);
     }
@@ -515,11 +513,38 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       return;
     }
 
-    if (!d.fromDropZone) {
-      // From word tray → append
-      setDropZone(prev => [...prev, d.tile]);
+    // Find insertion index based on drop position
+    const getInsertIdx = (clientX, clientY) => {
+      if (!dropZoneRef.current) return null;
+      const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+      for (let i = 0; i < slotEls.length; i++) {
+        const r = slotEls[i].getBoundingClientRect();
+        if (clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return i;
+      }
+      return null;
+    };
+
+    if (d.fromDropZone) {
+      // Reorder within dropzone
+      setDropZone(prev => {
+        const from = prev.findIndex(t => t.id === d.tile.id);
+        if (from === -1) return prev;
+        const next = prev.filter(t => t.id !== d.tile.id);
+        const insertIdx = getInsertIdx(e.clientX, e.clientY);
+        const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
+        next.splice(at, 0, d.tile);
+        return next;
+      });
+    } else {
+      // From tray → insert at position or append
+      setDropZone(prev => {
+        const next = [...prev];
+        const insertIdx = getInsertIdx(e.clientX, e.clientY);
+        const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
+        next.splice(at, 0, d.tile);
+        return next;
+      });
     }
-    // (reorder within dropzone not needed for sentences)
   };
 
   // ── Touch drag (mirrors WordSentenceBuilder) ───────────────────────────────
@@ -601,11 +626,37 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
               break;
             }
           }
-        } else if (!pendingData.fromDropZone && dropZoneRef.current) {
-          // Dropped a tray tile onto the drop zone
-          const r = dropZoneRef.current.getBoundingClientRect();
-          if (ct.clientX >= r.left && ct.clientX <= r.right && ct.clientY >= r.top && ct.clientY <= r.bottom) {
-            setDropZone(prev => [...prev, { ...pendingData.tile, id: Math.random().toString(36).slice(2) }]);
+        } else if (dropZoneRef.current) {
+          const dzr = dropZoneRef.current.getBoundingClientRect();
+          if (ct.clientX >= dzr.left && ct.clientX <= dzr.right && ct.clientY >= dzr.top && ct.clientY <= dzr.bottom) {
+            // Find insert position
+            const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+            let insertIdx = null;
+            for (let i = 0; i < slotEls.length; i++) {
+              const r = slotEls[i].getBoundingClientRect();
+              if (ct.clientX <= r.right && ct.clientY >= r.top && ct.clientY <= r.bottom) { insertIdx = i; break; }
+            }
+
+            if (pendingData.fromDropZone) {
+              // Reorder
+              setDropZone(prev => {
+                const from = prev.findIndex(t => t.id === pendingData.tile.id);
+                if (from === -1) return prev;
+                const next = prev.filter(t => t.id !== pendingData.tile.id);
+                const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
+                next.splice(at, 0, pendingData.tile);
+                return next;
+              });
+            } else {
+              // Clone from tray and insert
+              setDropZone(prev => {
+                const next = [...prev];
+                const newTile = { ...pendingData.tile, id: Math.random().toString(36).slice(2) };
+                const at = insertIdx !== null ? Math.min(insertIdx, next.length) : next.length;
+                next.splice(at, 0, newTile);
+                return next;
+              });
+            }
           }
         }
 
@@ -744,11 +795,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         <button
           onClick={() => {
             if (!pendingRemove) return;
-            const tile = dropZone.find(t => t.id === pendingRemove);
-            if (tile) {
-              setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
-              setTray(prev => [...prev, createTile(tile.type, tile.type === 'text' ? tile.value.charAt(0).toLowerCase() + tile.value.slice(1) : tile.value)]);
-            }
+            setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
             setPendingRemove(null);
           }}
           className={`flex items-center gap-1.5 border-2 border-dashed rounded-xl px-3 py-2 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-400 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-200 text-red-300 cursor-default'}`}
