@@ -665,6 +665,9 @@ export default function WordSentenceBuilder() {
       const target = e.target.closest('[data-tray-tile],[data-slottile]');
       if (!target) return;
 
+      // Prevent page scroll from starting when touching a tile
+      e.preventDefault();
+
       const touch0 = e.touches[0];
       const startX = touch0.clientX;
       const startY = touch0.clientY;
@@ -833,7 +836,7 @@ export default function WordSentenceBuilder() {
       document.addEventListener('touchend', onTouchEnd);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
     return () => document.removeEventListener('touchstart', handleTouchStart);
   }, []); // eslint-disable-line
 
@@ -1196,10 +1199,22 @@ export default function WordSentenceBuilder() {
               </div>
             ))}
             <div className="mt-1 flex items-center gap-2">
-              <div id="__trash_zone__" onDragOver={e=>e.preventDefault()} onDrop={handleTrashDrop}
-                className="flex items-center gap-2 bg-red-50 border-2 border-dashed border-red-300 text-red-500 rounded-xl px-3 py-1.5 text-sm font-bold cursor-default">
-                🗑️ Suelta aquí para borrar
-              </div>
+              <button
+                id="__trash_zone__"
+                onDragOver={e=>e.preventDefault()} onDrop={handleTrashDrop}
+                onClick={() => {
+                  if (pendingRemove) {
+                    const pi = problems.findIndex(row => row.some(t => t.id === pendingRemove));
+                    if (pi >= 0) {
+                      const ti = problems[pi].findIndex(t => t.id === pendingRemove);
+                      if (ti >= 0) handleRemoveTile(pi, ti);
+                    }
+                    setPendingRemove(null);
+                  }
+                }}
+                className={`flex items-center gap-2 border-2 border-dashed rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-500 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-300 text-red-400 cursor-default'}`}>
+                🗑️ {pendingRemove ? 'Toca para borrar' : 'Suelta aquí para borrar'}
+              </button>
               {showResult && (
                 <button onClick={()=>{setShowResult(false);setProblemStates(Array(numProblems).fill(null));}}
                   className="text-xs text-gray-400 hover:text-gray-600 font-bold underline">
