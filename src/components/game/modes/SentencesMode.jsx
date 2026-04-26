@@ -238,7 +238,7 @@ function syllabify(word) {
   const units = _tokenize(word);
   const syllables = [];
   let current = '';
-  const VALID_CLUSTERS = ['br','bl','cr','cl','dr','fr','fl','gr','gl','pr','pl','tr'];
+  const VALID_CLUSTERS = ['br','bl','cr','cl','dr','fr','fl','gr','gl','pr','pl','tr','tl','dr'];
 
   for (let i = 0; i < units.length; i++) {
     const unit = units[i];
@@ -249,29 +249,51 @@ function syllabify(word) {
     if (!next) { syllables.push(current); break; }
 
     const unitIsVowel = unit.length === 1 && _isVowel(unit);
-    const nextIsVowel = next.length === 1 && _isVowel(next);
-    const afterNextIsVowel = afterNext && afterNext.length === 1 && _isVowel(afterNext);
+    const nextIsVowel = next && next.length === 1 && _isVowel(next);
+    const nextIsConsonant = next && next.length >= 1 && !_isVowel(next[0]);
 
-    // vowel + vowel
+    // vowel + vowel → check if they split
     if (unitIsVowel && nextIsVowel) {
       if (_shouldSplitVowels(unit, next)) { syllables.push(current); current = ''; }
       continue;
     }
 
-    // vowel + consonant + vowel → split before consonant
-    if (unitIsVowel && !nextIsVowel && afterNextIsVowel) {
-      syllables.push(current); current = ''; continue;
-    }
+    // vowel + consonant(s)
+    if (unitIsVowel && nextIsConsonant) {
+      // Look ahead: how many consonants before next vowel?
+      let consonantCount = 0;
+      let j = i + 1;
+      while (j < units.length && units[j] && !_isVowel(units[j][0])) {
+        consonantCount++;
+        j++;
+      }
+      const hasVowelAfter = j < units.length && _isVowel(units[j][0]);
 
-    // vowel + consonant + consonant + vowel
-    if (unitIsVowel && !nextIsVowel && afterNext && !afterNextIsVowel) {
-      const third = units[i + 3];
-      if (third && third.length === 1 && _isVowel(third)) {
-        const cluster = next + afterNext;
+      if (!hasVowelAfter) {
+        // End of word, keep all consonants with this syllable
+        continue;
+      }
+
+      // vowel + 1 consonant + vowel → split before consonant
+      if (consonantCount === 1) {
+        syllables.push(current);
+        current = '';
+        continue;
+      }
+
+      // vowel + 2+ consonants + vowel
+      if (consonantCount >= 2) {
+        const cluster = units[i + 1] + (units[i + 2] || '');
         if (VALID_CLUSTERS.includes(cluster)) {
-          syllables.push(current); current = '';
+          // Valid cluster: keep with next syllable
+          syllables.push(current);
+          current = '';
         } else {
-          current += next; syllables.push(current); current = ''; i++;
+          // Invalid cluster: split after first consonant
+          current += units[i + 1];
+          syllables.push(current);
+          current = '';
+          i++;
         }
       }
     }
