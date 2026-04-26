@@ -964,34 +964,14 @@ export default function SentencesMode({ studentData, onBack }) {
         const data = await res.json();
         const oraciones = data["Oraciones"] || {};
         const moduleData = oraciones[`M${selectedModule}`]?.new || [];
-        
-        // Preload audio and filter out missing items
-        const validSentences = [];
-        for (const item of moduleData) {
-          const audioName = item.id.toLowerCase();
-          const audioUrl = `${SUPABASE_AUDIO_BASE}/${audioName}.mp3`;
-          const hasAudio = await checkAudioExists(audioUrl);
-          if (hasAudio) {
-            validSentences.push(item);
-          } else {
-            // Log missing audio
-            base44.entities.MissingAudio.create({
-              mode: 'sentences',
-              item_id: item.id,
-              text: item.text,
-              audio_path: audioUrl,
-              reported_date: new Date().toISOString(),
-            }).catch(() => {});
-          }
-        }
-        
-        const shuffled = validSentences.sort(() => Math.random() - 0.5);
+        const shuffled = moduleData.sort(() => Math.random() - 0.5);
         setSentences(shuffled);
         setCurrentIdx(0);
         setPhase('write');
         setAudioChecked(true);
       } catch (e) {
         console.error('Failed to load module:', e);
+        setAudioChecked(true);
       }
     };
     loadModule();
