@@ -483,12 +483,6 @@ function ProblemZone({
   );
 }
 
-// ─── Session key helper ───────────────────────────────────────────────────────
-function sessionKey(config) {
-  if (!config?.isStudent || !config.studentNumber || !config.className) return null;
-  return `wb_session_${config.className}_${config.studentNumber}_${config.presetId||'custom'}`;
-}
-
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function WordSentenceBuilder() {
   const [searchParams] = useSearchParams();
@@ -504,6 +498,11 @@ export default function WordSentenceBuilder() {
   const [swapMode, setSwapMode] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [sessionRestored, setSessionRestored] = useState(false);
+  const [sessionId, setSessionId] = useState(null); // DB session record id
+  const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const saveInFlightRef = useRef(false);
+  const pendingSaveRef = useRef(false);
 
   const dragRef = useRef(null);
   const [hoverProblem, setHoverProblem] = useState(null);
@@ -517,46 +516,113 @@ export default function WordSentenceBuilder() {
     eventsRef.current.push({ t: Date.now()-startTimeRef.current, type, problemIdx, ...extraData });
   }, []);
 
-  // ── Auto-save session every 3 seconds when student ───────────────────────
+  // ── Keep a ref so save always has latest problems ─────────────────────────
   const problemsRef = useRef(problems);
   useEffect(() => { problemsRef.current = problems; }, [problems]);
+  const sessionIdRef = useRef(null);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
 
-  useEffect(() => {
-    if (!config?.isStudent) return;
-    const key = sessionKey(config);
-    if (!key) return;
-    const interval = setInterval(() => {
-      const data = { problems: problemsRef.current, savedAt: Date.now() };
-      localStorage.setItem(key, JSON.stringify(data));
-    }, 3000);
-    return () => clearInterval(interval);
+  // ── DB save (mirrors notebook pattern) ────────────────────────────────────
+  const saveSession = useCallback(async () => {
+    if (!config?.isStudent || !config.studentNumber || !config.className) return;
+    if (saveInFlightRef.current) { pendingSaveRef.current = true; return; }
+    saveInFlightRef.current = true;
+    setSaving(true);
+    try {
+      const data = JSON.stringify(problemsRef.current);
+      const sid = sessionIdRef.current;
+      if (sid) {
+        await base44.entities.WordBuilderSession.update(sid, {
+          problems_data: data,
+          last_active: new Date().toISOString(),
+        });
+      }
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+      if (pendingSaveRef.current) { pendingSaveRef.current = false; void saveSession(); }
+    }
   }, [config]);
 
-  // ── Config loaded: restore session or init fresh ──────────────────────────
+  // Save on visibility hide / page hide
+  useEffect(() => {
+    const onHide = () => { void saveSession(); };
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') onHide(); });
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onHide);
+    };
+  }, [saveSession]);
+
+  // Auto-save every 15s
+  useEffect(() => {
+    if (!config?.isStudent) return;
+    const interval = setInterval(() => { void saveSession(); }, 15000);
+    return () => clearInterval(interval);
+  }, [saveSession, config]);
+
+  // ── Config loaded: find/create DB session, restore or init fresh ──────────
   useEffect(() => {
     if (!config) return;
     const np = config.numProblems || 1;
     setNumProblems(np);
     setNumProblemsInput(np);
     setShowResult(false);
+    setSubmitted(false);
     eventsRef.current = [];
     startTimeRef.current = Date.now();
 
-    // Try to restore student session from localStorage
-    const key = sessionKey(config);
-    if (key) {
+    if (!config.isStudent || !config.studentNumber || !config.className || !config.presetId) {
+      initProblems(np, config.prefillProblems, config.punc);
+      return;
+    }
+
+    // Look for existing session in DB
+    (async () => {
       try {
-        const saved = JSON.parse(localStorage.getItem(key) || 'null');
-        if (saved?.problems && Array.isArray(saved.problems) && saved.problems.length === np) {
-          setProblems(saved.problems);
+        const existing = await base44.entities.WordBuilderSession.filter({
+          student_number: parseInt(config.studentNumber),
+          class_name: config.className,
+          preset_id: config.presetId,
+        });
+        if (existing.length > 0) {
+          const sess = existing.sort((a,b) => new Date(b.updated_date||0) - new Date(a.updated_date||0))[0];
+          setSessionId(sess.id);
+          sessionIdRef.current = sess.id;
+          if (sess.submitted) setSubmitted(true);
+          // Restore tile state
+          try {
+            const savedProblems = JSON.parse(sess.problems_data || 'null');
+            if (Array.isArray(savedProblems) && savedProblems.length === np) {
+              setProblems(savedProblems);
+              setProblemStates(Array(np).fill(null));
+              setSessionRestored(true);
+              setTimeout(() => setSessionRestored(false), 3000);
+              return;
+            }
+          } catch {}
+        } else {
+          // Create new session
+          const fresh = initProblemsReturn(np, config.prefillProblems, config.punc);
+          const sess = await base44.entities.WordBuilderSession.create({
+            student_number: parseInt(config.studentNumber),
+            class_name: config.className,
+            preset_id: config.presetId,
+            num_problems: np,
+            problems_data: JSON.stringify(fresh),
+            submitted: false,
+            last_active: new Date().toISOString(),
+          });
+          setSessionId(sess.id);
+          sessionIdRef.current = sess.id;
+          setProblems(fresh);
           setProblemStates(Array(np).fill(null));
-          setSessionRestored(true);
-          setTimeout(() => setSessionRestored(false), 3000);
           return;
         }
       } catch {}
-    }
-    initProblems(np, config.prefillProblems, config.punc);
+      initProblems(np, config.prefillProblems, config.punc);
+    })();
   }, [config]);
 
   // ── Touch drag ────────────────────────────────────────────────────────────
@@ -723,14 +789,23 @@ export default function WordSentenceBuilder() {
     setShowResult(false);
   };
 
-  function initProblems(np, prefill, punc) {
-    const ps = Array.from({ length:np }, (_,i) => {
+  function buildInitialProblems(np, prefill, punc) {
+    return Array.from({ length:np }, (_,i) => {
       const pre = prefill?.[i];
       if (!pre) return [];
       if (typeof pre==='string') return parsePrefillString(pre, punc||DEFAULT_PUNC);
       if (Array.isArray(pre)) return pre.flatMap(s=>typeof s==='string'?parsePrefillString(s,punc||DEFAULT_PUNC):[]);
       return [];
     });
+  }
+
+  function initProblemsReturn(np, prefill, punc) {
+    const ps = buildInitialProblems(np, prefill, punc);
+    return ps;
+  }
+
+  function initProblems(np, prefill, punc) {
+    const ps = buildInitialProblems(np, prefill, punc);
     setProblems(ps);
     setProblemStates(Array(np).fill(null));
   }
@@ -773,6 +848,7 @@ export default function WordSentenceBuilder() {
     });
     recordEvent('place', problemIdx, { tileValue:tile.value, insertIdx });
     setShowResult(false);
+    setTimeout(() => saveSession(), 500);
   };
 
   const handleDrop = (problemIdx, dropIdx) => {
@@ -853,6 +929,7 @@ export default function WordSentenceBuilder() {
       });
     }
     setShowResult(false);
+    setTimeout(() => saveSession(), 500);
   };
 
   const handleTileDragStart = (problemIdx, tileIdx, tile) => {
@@ -867,6 +944,7 @@ export default function WordSentenceBuilder() {
       return next;
     });
     setShowResult(false);
+    setTimeout(() => saveSession(), 500);
   };
 
   const handleTrashDrop = (e) => {
@@ -930,6 +1008,15 @@ export default function WordSentenceBuilder() {
         all_correct: allCorrect,
         submitted_at: new Date().toISOString(),
       }).catch(()=>{});
+      // Mark session as submitted
+      setSubmitted(true);
+      if (sessionIdRef.current) {
+        base44.entities.WordBuilderSession.update(sessionIdRef.current, {
+          submitted: true,
+          problems_data: JSON.stringify(problems),
+          last_active: new Date().toISOString(),
+        }).catch(()=>{});
+      }
     }
   };
 
@@ -985,8 +1072,21 @@ export default function WordSentenceBuilder() {
               <button onClick={()=>setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
             </div>
           )}
-          {isStudent && config.answers && (
-            <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-blue-700">✓ Validar</button>
+          {isStudent && (
+            <div className="flex items-center gap-2">
+              {saving && <span className="text-xs text-gray-400 animate-pulse font-bold">Guardando…</span>}
+              {submitted && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">✓ Entregado</span>}
+              {config.answers && !submitted && (
+                <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-blue-700">✓ Validar</button>
+              )}
+              {!submitted && (
+                <button onClick={() => {
+                  validate();
+                }} className="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-green-700 shadow-md">
+                  📤 Entregar
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>

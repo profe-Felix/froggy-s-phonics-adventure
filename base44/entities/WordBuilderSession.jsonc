@@ -1,0 +1,35 @@
+{
+  "name": "WordBuilderSession",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "preset_id": {
+      "type": "string"
+    },
+    "problems_data": {
+      "type": "string",
+      "description": "JSON of current tile state per problem row, auto-saved"
+    },
+    "num_problems": {
+      "type": "integer"
+    },
+    "submitted": {
+      "type": "boolean",
+      "default": false
+    },
+    "last_active": {
+      "type": "string",
+      "description": "ISO timestamp"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "preset_id"
+  ]
+}

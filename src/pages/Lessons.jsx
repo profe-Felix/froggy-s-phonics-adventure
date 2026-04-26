@@ -9,7 +9,13 @@ const LESSON_TOOLS = [
     description: 'Drag letters, syllables, and words to build sentences.',
     color: 'from-indigo-100 to-blue-50 border-indigo-200 hover:border-indigo-400',
   },
-  // Add more lesson tools here
+  {
+    path: '/WordBuilderDashboard',
+    emoji: '📊',
+    title: 'Word Builder — Resultados',
+    description: 'Teacher dashboard: see student work, replay attempts.',
+    color: 'from-green-100 to-emerald-50 border-green-200 hover:border-green-400',
+  },
 ];
 
 export default function Lessons() {
