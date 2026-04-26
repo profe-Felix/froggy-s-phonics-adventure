@@ -1254,9 +1254,13 @@ export default function WordSentenceBuilder() {
         </section>
 
         <aside className="lg:w-1/2 flex flex-col gap-3">
-          {(letterTiles.length>0||toggles.write) && (
+          {toggles.write && (
+            <PaletteCard title="Escribe" cols={0}>
+              <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
+            </PaletteCard>
+          )}
+          {(letterTiles.length>0||(toggles.caps||toggles.accent)) && (
             <PaletteCard title="Letras" cols={trayColumns} perRow={perRow} rawTiles={perRow>0?letters:null} renderTile={makeTrayTileRenderer('text')}>
-              {toggles.write && <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />}
               {letterTiles.map((t,i)=><TrayTile key={i} tile={t} onDragStart={handleTrayDragStart} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} onTapReplace={pendingRemove?handleTapReplace:null} />)}
               {toggles.caps && <>
                 <ToolTile label="↑" title="Capitalizar" dragRef={dragRef} tileType="captool" tileValue="up" />
