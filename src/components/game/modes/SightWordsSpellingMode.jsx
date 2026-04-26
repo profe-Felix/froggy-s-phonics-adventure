@@ -112,18 +112,21 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
     setClozeIndices([]);
 
     // SPELL MODE (default)
+    // Get all unique letters in word
+    const uniqueLetters = [...new Set(wordLetters)];
+    
+    // Get exact needed count per letter
     const letterCounts = {};
     wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
+    const neededLetters = Object.entries(letterCounts).flatMap(([letter, count]) => 
+      Array(count).fill(letter)
+    );
 
-    const neededLetters = [];
-    Object.entries(letterCounts).forEach(([letter, count]) => {
-      for (let i = 0; i < count; i++) neededLetters.push(letter);
-    });
-
+    // Add distractors (letters NOT in word)
     const distractors = DISTRACTOR_LETTERS
-      .filter(l => !wordLetters.includes(l))
+      .filter(l => !uniqueLetters.includes(l))
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(3, 6 - neededLetters.length));
+      .slice(0, Math.max(2, 6 - uniqueLetters.length));
 
     return [...neededLetters, ...distractors]
       .sort(() => Math.random() - 0.5)
