@@ -8,7 +8,7 @@ const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/
 let SIGHT_WORDS_BY_MODULE = {};
 
 // Only 'spell' and 'unscramble' — no missing-letter
-const CHALLENGE_TYPES = ['spell', 'unscramble', 'spell', 'spell', 'unscramble'];
+const CHALLENGE_TYPES = ['spell', 'cloze', 'spell', 'cloze'];
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
 function pickWord(modeData, lastWord, moduleWords) {
@@ -45,6 +45,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
   const [pointsEarned, setPointsEarned] = useState(0);
   const [challengeType, setChallengeType] = useState('spell');
   const [roundCount, setRoundCount] = useState(0);
+  const [clozeIndices, setClozeIndices] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
@@ -90,18 +91,35 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
   const buildOptions = (word, type) => {
     const wordLetters = word.split('');
+
+    // CLOZE MODE
+    if (type === 'cloze') {
+      const indices = [...Array(wordLetters.length).keys()]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, Math.min(2, wordLetters.length));
+      setClozeIndices(indices);
+      const missingLetters = indices.map(i => wordLetters[i]);
+
+      const distractors = DISTRACTOR_LETTERS
+        .filter(l => !wordLetters.includes(l))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 4);
+
+      return [...missingLetters, ...distractors]
+        .sort(() => Math.random() - 0.5)
+        .map((letter, idx) => ({ letter, id: idx }));
+    }
+    setClozeIndices([]);
+
+    // SPELL MODE (default)
     const letterCounts = {};
     wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
+
     const neededLetters = [];
     Object.entries(letterCounts).forEach(([letter, count]) => {
       for (let i = 0; i < count; i++) neededLetters.push(letter);
     });
 
-    if (type === 'unscramble') {
-      return [...wordLetters].sort(() => Math.random() - 0.5).map((letter, idx) => ({ letter, id: idx }));
-    }
-
-    // 'spell': word's letters + distractors (letters NOT in the word)
     const distractors = DISTRACTOR_LETTERS
       .filter(l => !wordLetters.includes(l))
       .sort(() => Math.random() - 0.5)
@@ -346,7 +364,14 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
         {challengeLabel}
       </div>
       <GameCanvas
-        currentLetter={currentWord}
+        currentLetter={
+          challengeType === 'cloze'
+            ? currentWord
+                .split('')
+                .map((l, i) => (clozeIndices.includes(i) ? '_' : l))
+                .join('')
+            : ''
+        }
         options={options}
         onAnswer={handleLetterClick}
         score={score}
