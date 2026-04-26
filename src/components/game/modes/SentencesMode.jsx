@@ -627,23 +627,23 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
-    // Expected: flatten wordSyllables (which have original casing) and add spaces + puncts
+    // Expected: flatten wordSyllables (which preserve original casing from sentence)
     const expected = [];
     wordSyllables.forEach((sylls, wi) => {
       sylls.forEach((s) => {
-        expected.push({ type: 'text', value: s.toLowerCase() }); // Compare as lowercase
+        expected.push({ type: 'text', value: s }); // Keep original casing
       });
       if (wi < wordSyllables.length - 1) expected.push({ type: 'space', value: ' ' });
     });
     puncts.forEach(p => expected.push({ type: 'punc', value: p }));
 
-    // Feedback: compare student dropzone against expected (case-insensitive for text tiles)
+    // Feedback: compare student dropzone against expected (case-sensitive for text tiles)
     const feedback = dropZone.map((tile, i) => {
       const exp = expected[i];
       if (!exp) return { ...tile, correct: false };
       if (tile.type !== exp.type) return { ...tile, correct: false };
       if (tile.type === 'space' || tile.type === 'punc') return { ...tile, correct: true };
-      return { ...tile, correct: tile.value.toLowerCase() === exp.value };
+      return { ...tile, correct: tile.value === exp.value };
     });
     
     const allCorrect = feedback.length === expected.length && feedback.every(t => t.correct);
