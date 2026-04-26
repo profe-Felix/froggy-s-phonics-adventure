@@ -125,6 +125,29 @@ function createTile(type, value) {
 const PLAIN_TO_ACC = { a:'á',e:'é',i:'í',o:'ó',u:'ú',A:'Á',E:'É',I:'Í',O:'Ó',U:'Ú' };
 const ACC_TO_PLAIN = { á:'a',é:'e',í:'i',ó:'o',ú:'u',Á:'A',É:'E',Í:'I',Ó:'O',Ú:'U' };
 
+// Ghost element for touch drag (matches WordSentenceBuilder)
+function createGhostEl(label) {
+  removeGhostEl();
+  const ghost = document.createElement('div');
+  ghost.id = '__sent_drag_ghost__';
+  ghost.textContent = label;
+  ghost.style.cssText = `position:fixed;z-index:9999;pointer-events:none;background:white;border:2px solid #4f46e5;border-radius:12px;padding:6px 14px;font-size:1.4rem;font-weight:bold;font-family:Andika,system-ui,sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.25);opacity:0.92;transform:translate(-50%,-60%);white-space:nowrap;`;
+  document.body.appendChild(ghost);
+  return ghost;
+}
+function removeGhostEl() { document.getElementById('__sent_drag_ghost__')?.remove(); }
+function moveGhostEl(x, y) { const g = document.getElementById('__sent_drag_ghost__'); if (g) { g.style.left = x+'px'; g.style.top = y+'px'; } }
+
+// Calculate which character index in a tile element the cursor is over
+function calcAccentCharIdx(tileEl, clientX) {
+  if (!tileEl) return 0;
+  const text = tileEl.textContent || '';
+  if (text.length <= 1) return 0;
+  const r = tileEl.getBoundingClientRect();
+  const frac = (clientX - r.left) / r.width;
+  return Math.max(0, Math.min(text.length - 1, Math.floor(frac * text.length)));
+}
+
 function parseSentenceToTiles(sentence) {
   // Returns shuffled word tiles + space tiles + punct tiles for the tray
   const raw = sentence.trim().split(/\s+/);
@@ -242,13 +265,14 @@ function SentenceWriteCanvas({ onDone, onPlayAudio }) {
   );
 }
 
-// ── Sentence Builder (WordSentenceBuilder-style) ──────────────────────────────
+// ── Sentence Builder ──────────────────────────────────────────────────────────
+// Mirrors WordSentenceBuilder exactly: always-visible draggable tool tiles,
+// character-level accent targeting via drag hover, touch drag with ghost element.
 function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const { words, puncts } = parseSentenceToTiles(sentence);
 
   const makeInitialTray = () => {
     const wordTiles = words.map(w => createTile('text', w));
-    // Shuffle
     for (let i = wordTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [wordTiles[i], wordTiles[j]] = [wordTiles[j], wordTiles[i]];
@@ -264,19 +288,42 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // For tool hover highlighting: which dropzone tile index is hovered, and which char
+  const [toolHoverIdx, setToolHoverIdx] = useState(null);
+  const [accentCharIdx, setAccentCharIdx] = useState(null);
 
   const dragRef = useRef(null);
   const dropZoneRef = useRef(null);
   const dropZoneStateRef = useRef(dropZone);
-  const trayStateRef = useRef(tray);
   useEffect(() => { dropZoneStateRef.current = dropZone; }, [dropZone]);
-  useEffect(() => { trayStateRef.current = tray; }, [tray]);
 
-  const reset = () => {
-    setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null);
-  };
+  const reset = () => { setTray(makeInitialTray()); setDropZone([]); setShowResult(false); setPendingRemove(null); setToolHoverIdx(null); setAccentCharIdx(null); };
 
-  // ── Tap from tray → append to dropzone ────────────────────────────────────
+  // ── Apply a tool to a tile in the dropzone ────────────────────────────────
+  const applyTool = useCallback((tileId, toolType, charIdx) => {
+    setDropZone(prev => prev.map(t => {
+      if (t.id !== tileId || t.type !== 'text') return t;
+      if (toolType === 'captool-up') {
+        return { ...t, value: t.value.charAt(0).toUpperCase() + t.value.slice(1) };
+      }
+      if (toolType === 'captool-down') {
+        return { ...t, value: t.value.charAt(0).toLowerCase() + t.value.slice(1) };
+      }
+      if (toolType === 'accenttool') {
+        const chars = [...t.value];
+        const ci = charIdx ?? 0;
+        if (ci >= 0 && ci < chars.length) {
+          const ch = chars[ci];
+          chars[ci] = PLAIN_TO_ACC[ch] || ACC_TO_PLAIN[ch] || ch;
+        }
+        return { ...t, value: chars.join('') };
+      }
+      return t;
+    }));
+    setShowResult(false);
+  }, []);
+
+  // ── Tray tap → append to dropzone ─────────────────────────────────────────
   const handleTrayTap = (tile) => {
     if (showResult) return;
     setTray(prev => prev.filter(t => t.id !== tile.id));
@@ -284,68 +331,169 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     setPendingRemove(null);
   };
 
-  // ── Tap on dropzone tile ───────────────────────────────────────────────────
+  // ── Dropzone tile tap ──────────────────────────────────────────────────────
   const handleDropTap = (tile) => {
     if (showResult) return;
     if (pendingRemove === tile.id) {
-      // Second tap → remove back to tray
       setPendingRemove(null);
-      const base = tile.type === 'text' ? createTile('text', tile.value) : createTile(tile.type, tile.value);
       setDropZone(prev => prev.filter(t => t.id !== tile.id));
-      setTray(prev => [...prev, base]);
+      // restore to tray with lowercase value
+      setTray(prev => [...prev, createTile(tile.type, tile.type === 'text' ? tile.value.charAt(0).toLowerCase() + tile.value.slice(1) : tile.value)]);
     } else {
       setPendingRemove(tile.id);
     }
   };
 
-  // ── Cap toggle on a word in dropzone ──────────────────────────────────────
-  const handleCapToggle = (tileId, up) => {
-    if (showResult) return;
-    setDropZone(prev => prev.map(t => {
-      if (t.id !== tileId || t.type !== 'text') return t;
-      const v = t.value;
-      return { ...t, value: up ? v.charAt(0).toUpperCase() + v.slice(1) : v.charAt(0).toLowerCase() + v.slice(1) };
-    }));
-  };
-
-  // ── Accent toggle ──────────────────────────────────────────────────────────
-  const handleAccentToggle = (tileId) => {
-    if (showResult) return;
-    setDropZone(prev => prev.map(t => {
-      if (t.id !== tileId || t.type !== 'text') return t;
-      const chars = [...t.value];
-      // Toggle accent on first vowel found
-      let changed = false;
-      const newChars = chars.map(ch => {
-        if (changed) return ch;
-        if (PLAIN_TO_ACC[ch]) { changed = true; return PLAIN_TO_ACC[ch]; }
-        if (ACC_TO_PLAIN[ch]) { changed = true; return ACC_TO_PLAIN[ch]; }
-        return ch;
-      });
-      return { ...t, value: newChars.join('') };
-    }));
-  };
-
-  // ── Drag and drop support ─────────────────────────────────────────────────
-  const handleTrayDragStart = (e, tile) => {
-    dragRef.current = { tile: { ...tile, id: Math.random().toString(36).slice(2) }, fromTray: true };
+  // ── Mouse drag: tray tiles and tool tiles ─────────────────────────────────
+  const handleTrayDragStart = (e, tile, isTool = false) => {
+    dragRef.current = { tile: isTool ? tile : { ...tile, id: Math.random().toString(36).slice(2) }, isTool, fromDropZone: false };
     e.dataTransfer.effectAllowed = 'copy';
   };
   const handleDropZoneDragStart = (e, tile) => {
-    dragRef.current = { tile, fromTray: false };
+    dragRef.current = { tile, isTool: false, fromDropZone: true };
     e.dataTransfer.effectAllowed = 'move';
   };
+
+  // dragover on the drop zone: for tool tiles, compute hover idx
+  const handleDropZoneDragOver = (e) => {
+    e.preventDefault();
+    const d = dragRef.current;
+    if (!d?.isTool || !dropZoneRef.current) { setToolHoverIdx(null); setAccentCharIdx(null); return; }
+    const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+    let hi = null;
+    for (let i = 0; i < slotEls.length; i++) {
+      const r = slotEls[i].getBoundingClientRect();
+      const dz = dropZoneStateRef.current;
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom && dz[i]?.type === 'text') {
+        hi = i;
+        if (d.tile.type === 'accenttool') setAccentCharIdx(calcAccentCharIdx(slotEls[i], e.clientX));
+        break;
+      }
+    }
+    setToolHoverIdx(hi);
+  };
+  const handleDropZoneDragLeave = () => { setToolHoverIdx(null); setAccentCharIdx(null); };
+
   const handleDropZoneDrop = (e) => {
     e.preventDefault();
     const d = dragRef.current;
     if (!d) return;
     dragRef.current = null;
-    if (d.fromTray) {
-      setTray(prev => prev.filter(t => t.id !== d.tile.id));
+
+    if (d.isTool) {
+      // Apply tool to hovered tile
+      const dz = dropZoneStateRef.current;
+      if (toolHoverIdx !== null && dz[toolHoverIdx]?.type === 'text') {
+        applyTool(dz[toolHoverIdx].id, d.tile.type, accentCharIdx);
+      }
+      setToolHoverIdx(null); setAccentCharIdx(null);
+      return;
+    }
+
+    if (!d.fromDropZone) {
+      // From word tray → append
       setDropZone(prev => [...prev, d.tile]);
     }
+    // (reorder within dropzone not needed for sentences)
   };
-  const handleDropZoneDragOver = (e) => e.preventDefault();
+
+  // ── Touch drag (mirrors WordSentenceBuilder) ───────────────────────────────
+  useEffect(() => {
+    const DRAG_THRESHOLD = 10;
+    const handleTouchStart = (e) => {
+      const target = e.target.closest('[data-traytile],[data-slottile],[data-tooltile]');
+      if (!target) return;
+
+      const touch0 = e.touches[0];
+      const startX = touch0.clientX, startY = touch0.clientY;
+      let dragging = false;
+      let pendingData = null;
+      let touchAccentIdx = 0;
+
+      const isTool = !!target.closest('[data-tooltile]');
+      const isTray = !!target.closest('[data-traytile]') && !isTool;
+      const tileType = target.dataset.tiletype;
+      const tileValue = target.dataset.tilevalue;
+      const tileId = target.dataset.tileid;
+      const ghostLabel = tileType === 'space' ? '␣' : (tileValue || target.textContent?.trim() || '?');
+
+      if (isTool && tileType) {
+        pendingData = { tile: createTile(tileType, tileValue || ''), isTool: true, fromDropZone: false };
+      } else if (isTray && tileType) {
+        const dz = dropZoneStateRef.current;
+        // find tile in tray by id
+        pendingData = { tile: createTile(tileType, tileValue || ''), isTool: false, fromDropZone: false };
+      } else if (tileId) {
+        pendingData = { tile: { id: tileId, type: tileType, value: tileValue }, isTool: false, fromDropZone: true };
+      }
+
+      if (!pendingData) return;
+
+      const onTouchMove = (ev) => {
+        const t = ev.touches[0];
+        const dx = t.clientX - startX, dy = t.clientY - startY;
+        if (!dragging) {
+          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) { ev.preventDefault(); return; }
+          dragging = true;
+          dragRef.current = pendingData;
+          createGhostEl(ghostLabel);
+        }
+        ev.preventDefault();
+        moveGhostEl(t.clientX, t.clientY);
+
+        if (pendingData.isTool && dropZoneRef.current) {
+          const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+          let hi = null;
+          const dz = dropZoneStateRef.current;
+          for (let i = 0; i < slotEls.length; i++) {
+            const r = slotEls[i].getBoundingClientRect();
+            if (t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom && dz[i]?.type === 'text') {
+              hi = i;
+              if (tileType === 'accenttool') { touchAccentIdx = calcAccentCharIdx(slotEls[i], t.clientX); setAccentCharIdx(touchAccentIdx); }
+              break;
+            }
+          }
+          setToolHoverIdx(hi);
+        }
+      };
+
+      const onTouchEnd = (ev) => {
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+        if (!dragging) return; // was a tap — let click fire
+        ev.preventDefault();
+        removeGhostEl();
+        dragRef.current = null;
+        const ct = ev.changedTouches[0];
+
+        if (pendingData.isTool && dropZoneRef.current) {
+          const slotEls = [...dropZoneRef.current.querySelectorAll('[data-slottile]')];
+          const dz = dropZoneStateRef.current;
+          for (let i = 0; i < slotEls.length; i++) {
+            const r = slotEls[i].getBoundingClientRect();
+            if (ct.clientX >= r.left && ct.clientX <= r.right && ct.clientY >= r.top && ct.clientY <= r.bottom && dz[i]?.type === 'text') {
+              applyTool(dz[i].id, tileType, touchAccentIdx);
+              break;
+            }
+          }
+        } else if (!pendingData.fromDropZone && dropZoneRef.current) {
+          // Dropped a tray tile onto the drop zone
+          const r = dropZoneRef.current.getBoundingClientRect();
+          if (ct.clientX >= r.left && ct.clientX <= r.right && ct.clientY >= r.top && ct.clientY <= r.bottom) {
+            setDropZone(prev => [...prev, { ...pendingData.tile, id: Math.random().toString(36).slice(2) }]);
+          }
+        }
+
+        setToolHoverIdx(null); setAccentCharIdx(null);
+      };
+
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    };
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => document.removeEventListener('touchstart', handleTouchStart);
+  }, [applyTool]);
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
@@ -355,7 +503,6 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       if (i < words.length - 1) expected.push({ type: 'space', value: ' ' });
     });
     puncts.forEach(p => expected.push({ type: 'punc', value: p }));
-
     const feedback = dropZone.map((tile, i) => {
       const exp = expected[i];
       if (!exp) return { ...tile, correct: false };
@@ -369,127 +516,142 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     setShowResult(true);
   };
 
-  const handlePlay = () => {
-    setPlaying(true);
-    onPlayAudio();
-    setTimeout(() => setPlaying(false), 2000);
-  };
+  const handlePlay = () => { setPlaying(true); onPlayAudio(); setTimeout(() => setPlaying(false), 2000); };
 
   const wordTilesInTray = tray.filter(t => t.type === 'text');
   const spaceTilesInTray = tray.filter(t => t.type === 'space');
   const punctTilesInTray = tray.filter(t => t.type === 'punc');
 
+  // Tool tiles (always visible, just like WordSentenceBuilder)
+  const toolTiles = [
+    { type: 'captool-up', label: '↑A', title: 'Capitalizar', cls: 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100' },
+    { type: 'captool-down', label: '↓a', title: 'Minúscula', cls: 'border-gray-400 bg-gray-50 text-gray-700 hover:bg-gray-100' },
+    { type: 'accenttool', label: '´', title: 'Acento (arrastra sobre la vocal)', cls: 'border-purple-400 bg-purple-50 text-purple-800 hover:bg-purple-100' },
+  ];
+
   return (
     <div className="flex flex-col gap-4" style={{ fontFamily: 'Andika, system-ui, sans-serif' }}>
 
-      {/* Speaker button (no text shown) */}
+      {/* Speaker */}
       <div className="flex justify-center">
-        <button
-          onClick={handlePlay}
-          className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-lg transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
-        >
+        <button onClick={handlePlay}
+          className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-lg transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}>
           🔊
         </button>
       </div>
 
-      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Toca las palabras para construir la oración</p>
-
-      {/* ── Tools bar (caps + accent) ── */}
-      <div className="flex items-center gap-2 justify-center flex-wrap">
-        <span className="text-xs font-bold text-gray-500 uppercase">Herramientas:</span>
-        {pendingRemove && dropZone.find(t => t.id === pendingRemove && t.type === 'text') && (
-          <>
-            <button
-              onClick={() => handleCapToggle(pendingRemove, true)}
-              className="px-3 py-1.5 rounded-xl bg-amber-100 border-2 border-amber-400 text-amber-800 font-black text-sm hover:bg-amber-200 transition-all"
-              title="Capitalizar"
-            >↑A</button>
-            <button
-              onClick={() => handleCapToggle(pendingRemove, false)}
-              className="px-3 py-1.5 rounded-xl bg-gray-100 border-2 border-gray-400 text-gray-700 font-black text-sm hover:bg-gray-200 transition-all"
-              title="Minúscula"
-            >↓a</button>
-            <button
-              onClick={() => handleAccentToggle(pendingRemove)}
-              className="px-3 py-1.5 rounded-xl bg-purple-100 border-2 border-purple-400 text-purple-800 font-black text-sm hover:bg-purple-200 transition-all"
-              title="Acento"
-            >´</button>
-          </>
-        )}
-        {!pendingRemove && (
-          <span className="text-xs text-gray-400 italic">Toca una palabra en la oración para activar herramientas</span>
-        )}
-      </div>
+      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Toca o arrastra palabras para construir la oración</p>
 
       {/* ── Drop zone ── */}
       <div
         ref={dropZoneRef}
+        data-dropzone
         onDragOver={handleDropZoneDragOver}
+        onDragLeave={handleDropZoneDragLeave}
         onDrop={handleDropZoneDrop}
         className={`min-h-[72px] rounded-2xl border-4 px-4 py-3 flex flex-wrap items-baseline gap-0.5
           ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white'}`}
         style={{ fontSize: '1.5rem', lineHeight: 1.6 }}
       >
-        {dropZone.length === 0 && (
-          <span className="text-gray-300 text-base self-center">Toca palabras abajo…</span>
-        )}
-        {dropZone.map((tile) => {
+        {dropZone.length === 0 && <span className="text-gray-300 text-base self-center">Toca palabras abajo…</span>}
+        {dropZone.map((tile, i) => {
           const isPending = pendingRemove === tile.id;
+          const isToolHover = toolHoverIdx === i;
 
           if (tile.type === 'space') {
             let bg = 'transparent';
             if (showResult) bg = tile.correct ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)';
             else if (isPending) bg = 'rgba(239,68,68,0.15)';
+            else if (isToolHover) bg = 'rgba(59,130,246,0.2)';
             return (
-              <button key={tile.id} onClick={() => handleDropTap(tile)} disabled={showResult}
-                className="inline-block transition-colors disabled:cursor-default"
-                style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer' }}
+              <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="space" data-tilevalue=" "
+                onClick={() => handleDropTap(tile)} disabled={showResult}
+                style={{ width: '0.5em', height: '1.5em', verticalAlign: 'baseline', background: bg, borderRadius: 3, cursor: showResult ? 'default' : 'pointer', border: isToolHover ? '1px solid #3b82f6' : 'none', padding: 0, display: 'inline-block' }}
               />
             );
           }
           if (tile.type === 'punc') {
             const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : '#1f2937';
             return (
-              <button key={tile.id} onClick={() => handleDropTap(tile)} disabled={showResult}
+              <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="punc" data-tilevalue={tile.value}
+                onClick={() => handleDropTap(tile)} disabled={showResult}
                 draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
-                className="inline font-bold disabled:cursor-default transition-colors active:opacity-70"
+                className="inline font-bold disabled:cursor-default transition-colors"
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: showResult ? 'default' : 'pointer', verticalAlign: 'baseline', color }}
               >{tile.value}</button>
             );
           }
-          // text/word tile
-          const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : '#1f2937';
-          const outline = isPending && !showResult ? '2px solid #ef4444' : 'none';
+          // text tile — show accent char highlight when accenttool hovers
+          const color = showResult ? (tile.correct ? '#16a34a' : '#ef4444') : isPending ? '#ef4444' : isToolHover ? '#1d4ed8' : '#1f2937';
+          const outline = isToolHover ? '2px solid rgba(59,130,246,0.6)' : isPending && !showResult ? '2px solid #ef4444' : 'none';
+
+          const displayText = isToolHover && accentCharIdx !== null && dragRef.current?.tile?.type === 'accenttool'
+            ? [...tile.value].map((ch, ci) => (
+                <span key={ci} style={{
+                  color: ci === accentCharIdx ? '#dc2626' : 'inherit',
+                  background: ci === accentCharIdx ? 'rgba(220,38,38,0.15)' : 'transparent',
+                  borderRadius: ci === accentCharIdx ? '3px' : 0,
+                  padding: ci === accentCharIdx ? '0 1px' : 0,
+                }}>{ch}</span>
+              ))
+            : tile.value;
+
           return (
-            <button key={tile.id}
+            <button key={tile.id} data-slottile data-tileid={tile.id} data-tiletype="text" data-tilevalue={tile.value}
               onClick={() => handleDropTap(tile)}
               disabled={showResult}
               draggable onDragStart={e => handleDropZoneDragStart(e, tile)}
-              className="font-bold transition-colors disabled:cursor-default rounded"
-              style={{ background: isPending ? 'rgba(239,68,68,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
-            >{tile.value}</button>
+              className="font-bold transition-colors disabled:cursor-default rounded cursor-grab"
+              style={{ background: isPending ? 'rgba(239,68,68,0.08)' : isToolHover ? 'rgba(59,130,246,0.08)' : 'none', outline, border: 'none', padding: '0 1px', font: 'inherit', cursor: showResult ? 'default' : 'pointer', color, verticalAlign: 'baseline' }}
+            >{displayText}</button>
           );
         })}
       </div>
 
-      {/* ── Trash zone ── */}
-      <div className="flex justify-start">
+      {/* ── Trash + Tools bar (always visible, draggable) ── */}
+      <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => {
-            if (pendingRemove) {
-              const tile = dropZone.find(t => t.id === pendingRemove);
-              if (tile) {
-                setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
-                const base = createTile(tile.type, tile.type === 'text' ? tile.value.toLowerCase() : tile.value);
-                setTray(prev => [...prev, base]);
-              }
-              setPendingRemove(null);
+            if (!pendingRemove) return;
+            const tile = dropZone.find(t => t.id === pendingRemove);
+            if (tile) {
+              setDropZone(prev => prev.filter(t => t.id !== pendingRemove));
+              setTray(prev => [...prev, createTile(tile.type, tile.type === 'text' ? tile.value.charAt(0).toLowerCase() + tile.value.slice(1) : tile.value)]);
             }
+            setPendingRemove(null);
           }}
-          className={`flex items-center gap-1.5 border-2 border-dashed rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-400 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-200 text-red-300 cursor-default'}`}
+          className={`flex items-center gap-1.5 border-2 border-dashed rounded-xl px-3 py-2 text-sm font-bold transition-colors ${pendingRemove ? 'bg-red-100 border-red-400 text-red-600 cursor-pointer hover:bg-red-200' : 'bg-red-50 border-red-200 text-red-300 cursor-default'}`}
         >
-          🗑️ {pendingRemove ? 'Toca para borrar' : 'Suelta aquí para borrar'}
+          🗑️ Borrar
         </button>
+
+        <span className="text-xs font-bold text-gray-400 uppercase ml-1">Herramientas:</span>
+        {toolTiles.map(tool => (
+          <button
+            key={tool.type}
+            data-tooltile
+            data-tiletype={tool.type}
+            data-tilevalue={tool.type}
+            draggable
+            onDragStart={e => { e.dataTransfer.effectAllowed = 'copy'; dragRef.current = { tile: createTile(tool.type, tool.type), isTool: true, fromDropZone: false }; }}
+            onClick={() => {
+              // Tap: apply to pendingRemove tile if it's a text tile
+              if (!pendingRemove) return;
+              const tile = dropZone.find(t => t.id === pendingRemove && t.type === 'text');
+              if (!tile) return;
+              if (tool.type === 'accenttool') {
+                // For tap: cycle through vowels in order
+                applyTool(tile.id, 'accenttool', tile.value.split('').findIndex(ch => PLAIN_TO_ACC[ch] || ACC_TO_PLAIN[ch]));
+              } else {
+                applyTool(tile.id, tool.type, null);
+              }
+            }}
+            title={tool.title}
+            className={`cursor-grab rounded-xl border-2 px-3 py-2 font-black text-sm select-none transition-all hover:scale-105 active:scale-95 ${tool.cls}`}
+          >
+            {tool.label}
+          </button>
+        ))}
       </div>
 
       {/* ── Word tray ── */}
@@ -498,6 +660,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           <AnimatePresence>
             {wordTilesInTray.map(tile => (
               <motion.button key={tile.id}
+                data-traytile data-tiletype="text" data-tilevalue={tile.value}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => handleTrayTap(tile)} disabled={showResult}
                 draggable onDragStart={e => handleTrayDragStart(e, tile)}
@@ -518,23 +681,23 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
               <AnimatePresence>
                 {spaceTilesInTray.map(tile => (
                   <motion.button key={tile.id}
+                    data-traytile data-tiletype="space" data-tilevalue=" "
                     initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                     onClick={() => handleTrayTap(tile)} disabled={showResult}
                     draggable onDragStart={e => handleTrayDragStart(e, tile)}
                     className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center cursor-grab"
-                  >
-                    <span className="w-6 h-1 rounded-full bg-indigo-300 block" />
-                  </motion.button>
+                  ><span className="w-6 h-1 rounded-full bg-indigo-300 block" /></motion.button>
                 ))}
               </AnimatePresence>
             </>
           )}
           {punctTilesInTray.length > 0 && (
             <>
-              <span className="text-sm text-gray-500 font-bold ml-2">Punct:</span>
+              <span className="text-sm text-gray-500 font-bold ml-2">Punt:</span>
               <AnimatePresence>
                 {punctTilesInTray.map(tile => (
                   <motion.button key={tile.id}
+                    data-traytile data-tiletype="punc" data-tilevalue={tile.value}
                     initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                     onClick={() => handleTrayTap(tile)} disabled={showResult}
                     draggable onDragStart={e => handleTrayDragStart(e, tile)}
@@ -563,9 +726,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           className={`rounded-2xl p-4 text-center ${isCorrect ? 'bg-green-50 border-2 border-green-400' : 'bg-orange-50 border-2 border-orange-300'}`}>
           <p className="font-black text-lg mb-1">{isCorrect ? '🎉 ¡Perfecto!' : '📖 ¡Corrige las partes en rojo!'}</p>
           <div className="flex gap-2 justify-center mt-2">
-            {!isCorrect && (
-              <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Intentar de nuevo</button>
-            )}
+            {!isCorrect && <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Intentar de nuevo</button>}
             <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">Siguiente →</button>
           </div>
         </motion.div>
