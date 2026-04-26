@@ -214,7 +214,7 @@ function PaletteCard({ title, cols, perRow, rawTiles, renderTile, children }) {
       if (item === '|') groups.push([]);
       else groups[groups.length - 1].push(item);
     }
-    const gridStyle = { display:'grid', gridTemplateColumns:`repeat(${perRow},minmax(0,1fr))`, gap:'6px' };
+    const gridStyle = { display:'grid', gridTemplateColumns:`repeat(${perRow},max-content)`, gap:'6px' };
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
         <h2 className="text-sm font-black text-gray-600 mb-2 uppercase tracking-wide">{title}</h2>
