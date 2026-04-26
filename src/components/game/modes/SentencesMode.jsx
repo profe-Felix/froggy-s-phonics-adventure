@@ -148,21 +148,83 @@ function calcAccentCharIdx(tileEl, clientX) {
   return Math.max(0, Math.min(text.length - 1, Math.floor(frac * text.length)));
 }
 
+// ── Spanish syllabification ───────────────────────────────────────────────────
+// Simple rule-based syllabifier for the vocabulary used in early Spanish reading.
+// Rules: V = vowel (aeiouáéíóúü), C = consonant
+//   - VC|CV  → split between VC and CV
+//   - V|V    → split between vowels (unless diphthong: ia ie io ua ue uo ui iu)
+//   - CC clusters: most split C|C except: pr pl br bl cr cl dr fl fr gl gr tr
+//   - Final punct stripped separately
+const VOWELS = new Set('aeiouáéíóúüAEIOUÁÉÍÓÚÜ'.split(''));
+const NO_SPLIT_CLUSTERS = new Set(['pr','pl','br','bl','cr','cl','dr','fl','fr','gl','gr','tr','ch','ll','rr']);
+const DIPHTHONGS = new Set(['ia','ie','io','ua','ue','uo','ui','iu','ai','ei','oi','au','eu','ou']);
+
+function syllabify(word) {
+  // word should be lowercase, no punct
+  const chars = [...word];
+  const isV = i => i >= 0 && i < chars.length && VOWELS.has(chars[i]);
+  const isC = i => i >= 0 && i < chars.length && !VOWELS.has(chars[i]);
+
+  const cuts = []; // positions AFTER which to cut
+  let i = 0;
+  while (i < chars.length - 1) {
+    if (isV(i) && isC(i+1) && isC(i+2) && isC(i+3)) {
+      // VCCC — cut after first C: V-CCC
+      cuts.push(i+1); i += 2;
+    } else if (isV(i) && isC(i+1) && isC(i+2)) {
+      // VCC — check if CC is inseparable cluster
+      const cluster = chars[i+1] + chars[i+2];
+      if (NO_SPLIT_CLUSTERS.has(cluster)) {
+        // V-CC (cluster stays together): cut before cluster
+        cuts.push(i); i += 1;
+      } else {
+        // VC-C
+        cuts.push(i+1); i += 2;
+      }
+    } else if (isV(i) && isC(i+1) && isV(i+2)) {
+      // VCV → V-CV
+      cuts.push(i); i += 1;
+    } else if (isV(i) && isV(i+1)) {
+      // VV — keep diphthong together, split otherwise
+      const pair = chars[i] + chars[i+1];
+      const pairPlain = (PLAIN_TO_ACC[chars[i]] ? ACC_TO_PLAIN[chars[i]] : chars[i]) +
+                        (PLAIN_TO_ACC[chars[i+1]] ? ACC_TO_PLAIN[chars[i+1]] : chars[i+1]);
+      if (DIPHTHONGS.has(pair) || DIPHTHONGS.has(pairPlain)) {
+        i += 2; // keep together
+      } else {
+        cuts.push(i); i += 1;
+      }
+    } else {
+      i++;
+    }
+  }
+
+  // Build syllable array from cut positions
+  const sylls = [];
+  let start = 0;
+  for (const cut of cuts) {
+    if (cut > start) sylls.push(chars.slice(start, cut + 1).join(''));
+    start = cut + 1;
+  }
+  sylls.push(chars.slice(start).join(''));
+  return sylls.filter(s => s.length > 0);
+}
+
 function parseSentenceToTiles(sentence) {
-  // Returns shuffled word tiles + space tiles + punct tiles for the tray
+  // Returns: words (array of syllable arrays), puncts, and flat syllable list
   const raw = sentence.trim().split(/\s+/);
-  const words = [];
+  const wordSyllables = []; // [[syll,syll,...], ...]
   const puncts = [];
   raw.forEach(w => {
     const m = w.match(/^([a-záéíóúüñA-ZÁÉÍÓÚÜÑ¿¡]+)([.,!?;:]*)$/);
-    if (m) {
-      words.push(m[1].toLowerCase());
-      if (m[2]) m[2].split('').forEach(p => puncts.push(p));
-    } else {
-      words.push(w.toLowerCase());
-    }
+    const wordPart = m ? m[1].toLowerCase() : w.toLowerCase();
+    const punct = m ? m[2] : '';
+    wordSyllables.push(syllabify(wordPart));
+    if (punct) punct.split('').forEach(p => puncts.push(p));
   });
-  return { words, puncts };
+  // flat list of all syllables in order (for validation)
+  const allSyllables = wordSyllables.flat();
+  return { wordSyllables, allSyllables, puncts };
 }
 
 // ── Writing canvas ─────────────────────────────────────────────────────────────
@@ -269,17 +331,21 @@ function SentenceWriteCanvas({ onDone, onPlayAudio }) {
 // Mirrors WordSentenceBuilder exactly: always-visible draggable tool tiles,
 // character-level accent targeting via drag hover, touch drag with ghost element.
 function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
-  const { words, puncts } = parseSentenceToTiles(sentence);
+  const { wordSyllables, allSyllables, puncts } = parseSentenceToTiles(sentence);
+  // Number of words = number of word groups
+  const numWords = wordSyllables.length;
 
   const makeInitialTray = () => {
-    const wordTiles = words.map(w => createTile('text', w));
-    for (let i = wordTiles.length - 1; i > 0; i--) {
+    // One tile per syllable (all lowercase), shuffled
+    const syllTiles = allSyllables.map(s => createTile('text', s));
+    for (let i = syllTiles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [wordTiles[i], wordTiles[j]] = [wordTiles[j], wordTiles[i]];
+      [syllTiles[i], syllTiles[j]] = [syllTiles[j], syllTiles[i]];
     }
-    const spaceTiles = Array.from({ length: words.length - 1 }, () => createTile('space', ' '));
+    // Spaces between words (numWords - 1)
+    const spaceTiles = Array.from({ length: numWords - 1 }, () => createTile('space', ' '));
     const punctTiles = puncts.map(p => createTile('punc', p));
-    return [...wordTiles, ...spaceTiles, ...punctTiles];
+    return [...syllTiles, ...spaceTiles, ...punctTiles];
   };
 
   const [tray, setTray] = useState(() => makeInitialTray());
@@ -497,12 +563,18 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // ── Check ─────────────────────────────────────────────────────────────────
   const handleCheck = () => {
+    // Build expected token list: syllables of word0 (first capitalized), space, syllables of word1, space, ...puncts
     const expected = [];
-    words.forEach((w, i) => {
-      expected.push({ type: 'text', value: i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w });
-      if (i < words.length - 1) expected.push({ type: 'space', value: ' ' });
+    wordSyllables.forEach((sylls, wi) => {
+      sylls.forEach((s, si) => {
+        // Capitalize first letter of very first syllable
+        const val = (wi === 0 && si === 0) ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+        expected.push({ type: 'text', value: val });
+      });
+      if (wi < wordSyllables.length - 1) expected.push({ type: 'space', value: ' ' });
     });
     puncts.forEach(p => expected.push({ type: 'punc', value: p }));
+
     const feedback = dropZone.map((tile, i) => {
       const exp = expected[i];
       if (!exp) return { ...tile, correct: false };
@@ -518,7 +590,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   const handlePlay = () => { setPlaying(true); onPlayAudio(); setTimeout(() => setPlaying(false), 2000); };
 
-  const wordTilesInTray = tray.filter(t => t.type === 'text');
+  const syllTilesInTray = tray.filter(t => t.type === 'text');
   const spaceTilesInTray = tray.filter(t => t.type === 'space');
   const punctTilesInTray = tray.filter(t => t.type === 'punc');
 
@@ -540,7 +612,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         </button>
       </div>
 
-      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Toca o arrastra palabras para construir la oración</p>
+      <p className="text-sm font-bold text-indigo-600 text-center">🧩 Toca o arrastra sílabas para construir la oración</p>
 
       {/* ── Drop zone ── */}
       <div
@@ -553,7 +625,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           ${showResult ? (isCorrect ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50') : 'border-indigo-300 bg-white'}`}
         style={{ fontSize: '1.5rem', lineHeight: 1.6 }}
       >
-        {dropZone.length === 0 && <span className="text-gray-300 text-base self-center">Toca palabras abajo…</span>}
+        {dropZone.length === 0 && <span className="text-gray-300 text-base self-center">Toca sílabas abajo…</span>}
         {dropZone.map((tile, i) => {
           const isPending = pendingRemove === tile.id;
           const isToolHover = toolHoverIdx === i;
@@ -654,17 +726,17 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         ))}
       </div>
 
-      {/* ── Word tray ── */}
-      {wordTilesInTray.length > 0 && (
+      {/* ── Syllable tray ── */}
+      {syllTilesInTray.length > 0 && (
         <div className="bg-gray-50 rounded-2xl border border-gray-200 p-3 flex flex-wrap gap-2 justify-center">
           <AnimatePresence>
-            {wordTilesInTray.map(tile => (
+            {syllTilesInTray.map(tile => (
               <motion.button key={tile.id}
                 data-traytile data-tiletype="text" data-tilevalue={tile.value}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => handleTrayTap(tile)} disabled={showResult}
                 draggable onDragStart={e => handleTrayDragStart(e, tile)}
-                className="px-4 py-2 rounded-xl font-bold text-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
+                className="px-3 py-2 rounded-xl font-bold text-lg bg-indigo-500 text-white shadow-md hover:bg-indigo-600 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
                 style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
               >{tile.value}</motion.button>
             ))}
