@@ -729,15 +729,16 @@ export default function WordSentenceBuilder() {
 
         if (!dragging) {
           if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) {
-            ev.preventDefault(); // block scroll while deciding
-            return;
+            return; // let scroll happen until threshold
           }
           dragging = true;
           dragRef.current = pendingDragData;
           createGhostEl(ghostLabel);
+          ev.preventDefault(); // NOW block scroll after drag starts
+        } else {
+          ev.preventDefault(); // keep blocking during drag
         }
 
-        ev.preventDefault();
         moveGhostEl(t.clientX, t.clientY);
 
         const innerZone = findInnerZone(t.clientX, t.clientY);
