@@ -859,7 +859,7 @@ export default function WordSentenceBuilder() {
       };
 
       document.addEventListener('touchmove', onTouchMove, { passive: false });
-      document.addEventListener('touchend', onTouchEnd);
+      document.addEventListener('touchend', onTouchEnd, { passive: false });
     };
 
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
