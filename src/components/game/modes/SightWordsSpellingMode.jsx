@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import EmojiPrizeCelebration, { countNewEmojis, getEmojiForIndex, POINTS_PER_EMOJI } from '../EmojiPrizeCelebration';
+import EmojiCollection from '../EmojiCollection';
 import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
@@ -50,7 +52,14 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const [clozeIndices, setClozeIndices] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
   const [emojiPrize, setEmojiPrize] = useState(null);
+  const [showEmojiCollection, setShowEmojiCollection] = useState(false);
+  const [activeEmojiIdx, setActiveEmojiIdx] = useState(() => {
+    const saved = localStorage.getItem('sightspell_active_emoji_idx');
+    return saved !== null ? parseInt(saved) : 0;
+  });
+  const [spellingEmojiPts, setSpellingEmojiPts] = useState(() => studentData?.spelling_total_points || 0);
   const [spellingTotalPts, setSpellingTotalPts] = useState(() => studentData?.spelling_total_points || 0);
+  const [isRetry, setIsRetry] = useState(false);
   const [streakBonusToday, setStreakBonusToday] = useState(() => {
     try { return JSON.parse(localStorage.getItem('spelling_streak_bonus') || '{}'); } catch { return {}; }
   });
@@ -189,6 +198,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     setPointsEarned(0);
     setBonusPoints(0);
     setPhase('write');
+    setIsRetry(false);
     submittingRef.current = false;
     playSound(word);
   };
@@ -268,11 +278,11 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     startRound(next, selectedModule);
   };
 
-  const saveProgress = async (correct) => {
+  const saveProgress = async (correct, retry = false) => {
     const attempts = { ...modeData.item_attempts };
     const wordStats = attempts[currentWord] || { correct: 0, total: 0 };
     wordStats.total += 1;
-    if (correct) wordStats.correct += 1;
+    if (correct && !retry) wordStats.correct += 1;
     attempts[currentWord] = wordStats;
 
     let updatedMastered = [...(modeData.mastered_items || [])];
@@ -311,31 +321,28 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
 
     // For cloze: check only the missing-letter slots (in position order)
     let correct;
-    let expectedForPts;
     if (challengeType === 'cloze') {
       const expectedMissing = clozeIndicesRef.current.map(i => wordLetters[i]);
-      expectedForPts = expectedMissing;
       correct = builtWord.length === expectedMissing.length &&
         builtWord.every((l, i) => l === expectedMissing[i]);
     } else {
-      expectedForPts = wordLetters;
       correct = builtWord.join('') === currentWord;
     }
 
-    const letterPts = countCorrectLetters(builtWord, expectedForPts);
-    const basePts = letterPts * selectedModule;
+    // Points = module number flat. Retry = half points (floor).
+    const basePts = correct ? (isRetry ? Math.floor(selectedModule / 2) : selectedModule) : 0;
 
-    // Streak bonus: +10 at streak 10, +10 at streak 20, once per day each
-    const newStreak = correct ? streak + 1 : 0;
+    // Streak bonus only on first-attempt correct
+    const newStreak = correct && !isRetry ? streak + 1 : (correct ? streak : 0);
     const bonusKey10 = `sightspell_10_${todayKey}`;
     const bonusKey20 = `sightspell_20_${todayKey}`;
     let bonusPts = 0;
     const updatedBonusToday = { ...streakBonusToday };
-    if (correct && newStreak === 10 && !updatedBonusToday[bonusKey10]) {
+    if (correct && !isRetry && newStreak === 10 && !updatedBonusToday[bonusKey10]) {
       bonusPts += 10;
       updatedBonusToday[bonusKey10] = true;
     }
-    if (correct && newStreak === 20 && !updatedBonusToday[bonusKey20]) {
+    if (correct && !isRetry && newStreak === 20 && !updatedBonusToday[bonusKey20]) {
       bonusPts += 10;
       updatedBonusToday[bonusKey20] = true;
     }
@@ -349,20 +356,22 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     setShowResult(true);
     setPointsEarned(pts);
     setBonusPoints(bonusPts);
-    setScore(s => s + pts);
+    // Trophy score: only first-attempt correct
+    if (correct && !isRetry) setScore(s => s + pts);
     setStreak(newStreak);
 
-    // Emoji prize check
-    const oldTotal = spellingTotalPts;
-    const newTotal = oldTotal + pts;
-    setSpellingTotalPts(newTotal);
-    const newEmojis = countNewEmojis(oldTotal, newTotal);
+    // Emoji pts separate from trophy
+    const oldEmojiPts = spellingEmojiPts;
+    const newEmojiPts = oldEmojiPts + pts;
+    setSpellingEmojiPts(newEmojiPts);
+    setSpellingTotalPts(t => t + pts);
+    const newEmojis = countNewEmojis(oldEmojiPts, newEmojiPts);
     if (newEmojis > 0) {
-      const idx = Math.floor(newTotal / POINTS_PER_EMOJI) - 1;
+      const idx = Math.floor(newEmojiPts / POINTS_PER_EMOJI) - 1;
       setEmojiPrize(getEmojiForIndex(idx));
     }
 
-    await saveProgress(correct);
+    await saveProgress(correct, isRetry);
   };
 
   if (!wordsLoaded) {
@@ -391,8 +400,15 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       ? '🧩 Fill in the missing letters!'
       : '✏️ Spell the word!';
 
-  const ptsToNextEmoji = POINTS_PER_EMOJI - (spellingTotalPts % POINTS_PER_EMOJI);
-  const emojiIdx = Math.floor(spellingTotalPts / POINTS_PER_EMOJI);
+  const ptsToNextEmoji = POINTS_PER_EMOJI - (spellingEmojiPts % POINTS_PER_EMOJI);
+  const totalEmojiCount = Math.floor(spellingEmojiPts / POINTS_PER_EMOJI);
+  const displayEmojiIdx = Math.min(activeEmojiIdx, Math.max(0, totalEmojiCount - 1));
+
+  const handleSelectEmoji = (idx) => {
+    setActiveEmojiIdx(idx);
+    localStorage.setItem('sightspell_active_emoji_idx', String(idx));
+    setShowEmojiCollection(false);
+  };
 
   if (phase === 'write') {
     return (
@@ -405,14 +421,14 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
               ← Back
             </button>
           )}
-          <div className="flex-1 bg-white/90 rounded-xl px-3 py-2 flex items-center gap-2 shadow">
-            <span className="text-xl">{getEmojiForIndex(emojiIdx)}</span>
+          <button onClick={() => setShowEmojiCollection(true)} className="flex-1 bg-white/90 rounded-xl px-3 py-2 flex items-center gap-2 shadow hover:bg-white active:scale-95 transition-all">
+            <span className="text-xl">{totalEmojiCount > 0 ? getEmojiForIndex(displayEmojiIdx) : '🎯'}</span>
             <div className="flex-1 h-2.5 bg-purple-100 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
-                style={{ width: `${((spellingTotalPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
+                style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
             </div>
             <span className="text-xs font-black text-purple-600 whitespace-nowrap">{ptsToNextEmoji} to prize!</span>
-          </div>
+          </button>
         </div>
 
         <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow p-3">
@@ -445,9 +461,19 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
 
         <EmojiPrizeCelebration
           emoji={emojiPrize}
-          pointsTotal={spellingTotalPts}
+          pointsTotal={spellingEmojiPts}
           onClose={() => setEmojiPrize(null)}
         />
+        <AnimatePresence>
+          {showEmojiCollection && (
+            <EmojiCollection
+              totalEmojiCount={totalEmojiCount}
+              activeEmojiIdx={displayEmojiIdx}
+              onSelectEmoji={handleSelectEmoji}
+              onClose={() => setShowEmojiCollection(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -477,14 +503,14 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           </button>
         ))}
         {/* Prize progress */}
-        <div className="shrink-0 flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-full px-2 py-1">
-          <span className="text-base">{getEmojiForIndex(emojiIdx)}</span>
+        <button onClick={() => setShowEmojiCollection(true)} className="shrink-0 flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-full px-2 py-1 hover:bg-purple-100 active:scale-95 transition-all">
+          <span className="text-base">{totalEmojiCount > 0 ? getEmojiForIndex(displayEmojiIdx) : '🎯'}</span>
           <div className="w-14 h-2 bg-purple-100 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
-              style={{ width: `${((spellingTotalPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
+              style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
           </div>
           <span className="text-xs font-black text-purple-600">{ptsToNextEmoji}pts</span>
-        </div>
+        </button>
         <button
           onClick={handleUnclearAudio}
           className="shrink-0 ml-auto text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
@@ -526,15 +552,25 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           showResult={showResult}
           isCorrect={isCorrect}
           onNext={showResult ? handleNext : undefined}
-          onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); submittingRef.current = false; }}
+          onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); setIsRetry(true); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
           clozeIndices={challengeType === 'cloze' ? clozeIndicesRef.current : []}
         />
       </div>
+      <AnimatePresence>
+        {showEmojiCollection && (
+          <EmojiCollection
+            totalEmojiCount={totalEmojiCount}
+            activeEmojiIdx={displayEmojiIdx}
+            onSelectEmoji={handleSelectEmoji}
+            onClose={() => setShowEmojiCollection(false)}
+          />
+        )}
+      </AnimatePresence>
       <EmojiPrizeCelebration
         emoji={emojiPrize}
-        pointsTotal={spellingTotalPts}
+        pointsTotal={spellingEmojiPts}
         onClose={() => setEmojiPrize(null)}
       />
     </div>
