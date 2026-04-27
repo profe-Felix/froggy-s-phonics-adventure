@@ -24,40 +24,91 @@ export default function SpellingBuildArea({
   bonusPoints,
   onRetry,
   onCamera,
+  clozeIndices, // array of indices that are blanks (cloze mode only)
 }) {
+  const isCloze = clozeIndices && clozeIndices.length > 0;
+
+  // For cloze: render the full word with blanks filled in order as student clicks
+  const renderClozeDisplay = () => {
+    const letters = targetWord.split('');
+    let blanksFilled = 0;
+    return letters.map((letter, i) => {
+      const isBlank = clozeIndices.includes(i);
+      if (!isBlank) {
+        // Fixed letter tile
+        return (
+          <div key={i} className="w-10 h-10 bg-gradient-to-br from-gray-300 to-gray-400 rounded-lg shadow flex items-center justify-center">
+            <span className="text-xl font-bold text-white">{letter}</span>
+          </div>
+        );
+      }
+      // This is a blank slot
+      const slotIdx = blanksFilled++;
+      const filled = builtWord[slotIdx];
+      let tileClass = 'border-2 border-dashed border-indigo-400 bg-indigo-50';
+      if (filled) {
+        tileClass = showResult
+          ? (filled === letter ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-red-400 to-red-600')
+          : 'bg-gradient-to-br from-indigo-400 to-indigo-600';
+      }
+      return (
+        <motion.div
+          key={i}
+          initial={filled ? { scale: 0.7 } : false}
+          animate={{ scale: 1 }}
+          className={`w-10 h-10 ${tileClass} rounded-lg shadow flex items-center justify-center`}
+        >
+          {filled
+            ? <span className="text-xl font-bold text-white">{filled}</span>
+            : <span className="text-lg text-indigo-300 font-bold">_</span>
+          }
+        </motion.div>
+      );
+    });
+  };
+
+  // For spell mode: render each clicked letter
+  const renderSpellDisplay = () => (
+    <>
+      <AnimatePresence>
+        {builtWord.map((letter, index) => {
+          const targetLetter = targetWord[index];
+          let tileClass = 'bg-gradient-to-br from-green-400 to-green-600';
+          if (showResult) {
+            tileClass = letter === targetLetter
+              ? 'bg-gradient-to-br from-green-400 to-green-600'
+              : 'bg-gradient-to-br from-red-400 to-red-600';
+          }
+          return (
+            <motion.div
+              key={index}
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              className={`w-10 h-10 ${tileClass} rounded-lg shadow-lg flex items-center justify-center`}
+            >
+              <span className="text-xl font-bold text-white">{letter}</span>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+      {builtWord.length === 0 && (
+        <div className="text-gray-400 text-base">Click letters above...</div>
+      )}
+    </>
+  );
+
   return (
     <div className="absolute bottom-4 left-4 bg-white/95 rounded-3xl shadow-2xl p-4 z-10"
       style={{ width: 'min(680px, calc(100vw - 2rem))' }}>
 
       {/* Word display */}
       <div className="text-center mb-3">
-        <p className="text-gray-500 text-xs mb-1.5">Build the word:</p>
+        <p className="text-gray-500 text-xs mb-1.5">
+          {isCloze ? 'Fill in the blanks:' : 'Build the word:'}
+        </p>
         <div className="flex justify-center gap-1.5 min-h-[52px] flex-wrap items-center">
-          <AnimatePresence>
-            {builtWord.map((letter, index) => {
-              const targetLetter = targetWord[index];
-              let tileClass = 'bg-gradient-to-br from-green-400 to-green-600';
-              if (showResult) {
-                tileClass = letter === targetLetter
-                  ? 'bg-gradient-to-br from-green-400 to-green-600'
-                  : 'bg-gradient-to-br from-red-400 to-red-600';
-              }
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  exit={{ scale: 0, rotate: 180 }}
-                  className={`w-10 h-10 ${tileClass} rounded-lg shadow-lg flex items-center justify-center`}
-                >
-                  <span className="text-xl font-bold text-white">{letter}</span>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-          {builtWord.length === 0 && (
-            <div className="text-gray-400 text-base">Click letters above...</div>
-          )}
+          {isCloze ? renderClozeDisplay() : renderSpellDisplay()}
         </div>
 
         {/* Show correct word underneath when wrong */}
@@ -94,7 +145,7 @@ export default function SpellingBuildArea({
           </button>
           <button
             onClick={onSubmit}
-            disabled={builtWord.length === 0}
+            disabled={isCloze ? builtWord.length < clozeIndices.length : builtWord.length === 0}
             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 disabled:opacity-40 shadow"
           >
             <Check className="w-3.5 h-3.5" /> Submit

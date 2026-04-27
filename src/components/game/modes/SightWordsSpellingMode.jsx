@@ -299,10 +299,23 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const handleSubmit = async () => {
     if (submittingRef.current || showResult) return;
     submittingRef.current = true;
-    const userWord = builtWord.join('');
-    const correct = userWord === currentWord;
+
+    // For cloze: check only the missing-letter slots
+    let correct;
+    if (challengeType === 'cloze') {
+      const wordLetters = currentWord.split('');
+      const expectedMissing = clozeIndices.map(i => wordLetters[i]);
+      correct = builtWord.length === expectedMissing.length &&
+        builtWord.every((l, i) => l === expectedMissing[i]);
+    } else {
+      correct = builtWord.join('') === currentWord;
+    }
     // Scale pts by module number
-    const letterPts = countCorrectLetters(builtWord, currentWord);
+    const wordLetters = currentWord.split('');
+    const expectedForPts = challengeType === 'cloze'
+      ? clozeIndices.map(i => wordLetters[i])
+      : wordLetters;
+    const letterPts = countCorrectLetters(builtWord, expectedForPts);
     const basePts = letterPts * selectedModule;
 
     // Streak bonus: +10 at streak 10, +10 at streak 20, once per day each
@@ -509,6 +522,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
+          clozeIndices={challengeType === 'cloze' ? clozeIndices : []}
         />
       </div>
       <EmojiPrizeCelebration
