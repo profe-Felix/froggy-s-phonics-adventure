@@ -101,7 +101,7 @@ function pickWord(modeData, lastWord, moduleWords) {
   return candidates[candidates.length - 1];
 }
 
-export default function SpellingMode({ studentData, onUpdateProgress }) {
+export default function SpellingMode({ studentData, onUpdateProgress, onBack }) {
   const [selectedModule, setSelectedModule] = useState(1);
   const [phase, setPhase] = useState('write');
   const [currentWord, setCurrentWord] = useState(null);
@@ -378,47 +378,54 @@ export default function SpellingMode({ studentData, onUpdateProgress }) {
   }
 
   return (
-    <>
-      {/* Module selector strip */}
-      <div className="bg-white border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Module selector strip + back button */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 overflow-x-auto shrink-0">
+        {onBack && (
+          <button onClick={onBack}
+            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 mr-1">
+            ← Back
+          </button>
+        )}
         {moduleProgress.map(({ module, pct }) => (
           <button key={module} onClick={() => handleModuleSelect(module)}
             className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1 ${selectedModule === module ? 'bg-indigo-600 text-white' : pct >= 0.8 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'}`}>
             M{module} {pct >= 0.8 ? '⭐' : <span className="text-xs opacity-60">{Math.round(pct * 100)}%</span>}
           </button>
         ))}
-      </div>
-      <div className="flex justify-center p-2">
         <button
           onClick={handleUnclearAudio}
-          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+          className="shrink-0 ml-auto text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
         >
           😕 No entiendo
         </button>
       </div>
-      <GameCanvas
-        currentLetter={currentWord}
-        options={options}
-        onAnswer={handleLetterClick}
-        score={score}
-        streak={streak}
-        onPlaySound={() => playSound(currentWord)}
-        showFeedback={false}
-        isCorrect={false}
-        mode="spelling"
-        usedIndices={usedIndices}
-      />
-      <SpellingBuildArea
-        builtWord={builtWord}
-        targetWord={currentWord}
-        onUndo={handleUndo}
-        onSubmit={handleSubmit}
-        onClear={handleClear}
-        showResult={showResult}
-        isCorrect={isCorrect}
-        onNext={showResult ? startRound : undefined}
-        pointsEarned={pointsEarned}
-      />
-    </>
+      {/* Canvas fills remaining height */}
+      <div className="flex-1 min-h-0 relative">
+        <GameCanvas
+          currentLetter={currentWord}
+          options={options}
+          onAnswer={handleLetterClick}
+          score={score}
+          streak={streak}
+          onPlaySound={() => playSound(currentWord)}
+          showFeedback={false}
+          isCorrect={false}
+          mode="spelling"
+          usedIndices={usedIndices}
+        />
+        <SpellingBuildArea
+          builtWord={builtWord}
+          targetWord={currentWord}
+          onUndo={handleUndo}
+          onSubmit={handleSubmit}
+          onClear={handleClear}
+          showResult={showResult}
+          isCorrect={isCorrect}
+          onNext={showResult ? startRound : undefined}
+          pointsEarned={pointsEarned}
+        />
+      </div>
+    </div>
   );
 }

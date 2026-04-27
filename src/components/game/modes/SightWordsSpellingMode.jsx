@@ -30,7 +30,7 @@ function pickWord(modeData, lastWord, moduleWords) {
   return pool[pool.length - 1];
 }
 
-export default function SightWordsSpellingMode({ studentData, onUpdateProgress }) {
+export default function SightWordsSpellingMode({ studentData, onUpdateProgress, onBack }) {
   const [selectedModule, setSelectedModule] = useState(1);
   const [modules, setModules] = useState([]);
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
@@ -369,64 +369,72 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
 
 
   return (
-    <>
-      {/* Module selector strip */}
-      <div className="bg-white border-b border-gray-200 px-3 py-2 flex gap-2 overflow-x-auto">
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Module selector strip + back button */}
+      <div className="bg-white border-b border-gray-200 px-3 py-2 flex items-center gap-2 overflow-x-auto shrink-0">
+        {onBack && (
+          <button onClick={onBack}
+            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 mr-1">
+            ← Back
+          </button>
+        )}
         {modules.map(mod => (
           <button
             key={mod}
             onClick={() => handleModuleSelect(mod)}
-            className={`shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all ${
+            className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
               selectedModule === mod
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
             }`}
           >
-            Module {mod}
+            M{mod}
           </button>
         ))}
-      </div>
-      <div className="flex justify-center p-2">
         <button
           onClick={handleUnclearAudio}
-          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
+          className="shrink-0 ml-auto text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
         >
           😕 No entiendo
         </button>
       </div>
-      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl px-4 py-2 mx-4 absolute top-24 left-1/2 -translate-x-1/2 z-20 shadow">
+      {/* Challenge label */}
+      <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 px-4 py-1.5 shrink-0">
         {challengeLabel}
       </div>
-      <GameCanvas
-        currentLetter={
-          challengeType === 'cloze'
-            ? currentWord
-                .split('')
-                .map((l, i) => (clozeIndices.includes(i) ? '_' : l))
-                .join('')
-            : ''
-        }
-        options={options}
-        onAnswer={handleLetterClick}
-        score={score}
-        streak={streak}
-        onPlaySound={() => playSound(currentWord)}
-        showFeedback={false}
-        isCorrect={false}
-        mode="spelling"
-        usedIndices={usedIndices}
-      />
-      <SpellingBuildArea
-        builtWord={builtWord}
-        targetWord={currentWord}
-        onUndo={handleUndo}
-        onSubmit={handleSubmit}
-        onClear={handleClear}
-        showResult={showResult}
-        isCorrect={isCorrect}
-        onNext={showResult ? handleNext : undefined}
-        pointsEarned={pointsEarned}
-      />
-    </>
+      {/* Canvas fills remaining height */}
+      <div className="flex-1 min-h-0 relative">
+        <GameCanvas
+          currentLetter={
+            challengeType === 'cloze'
+              ? currentWord
+                  .split('')
+                  .map((l, i) => (clozeIndices.includes(i) ? '_' : l))
+                  .join('')
+              : ''
+          }
+          options={options}
+          onAnswer={handleLetterClick}
+          score={score}
+          streak={streak}
+          onPlaySound={() => playSound(currentWord)}
+          showFeedback={false}
+          isCorrect={false}
+          mode="spelling"
+          usedIndices={usedIndices}
+        />
+        <SpellingBuildArea
+          builtWord={builtWord}
+          targetWord={currentWord}
+          onUndo={handleUndo}
+          onSubmit={handleSubmit}
+          onClear={handleClear}
+          showResult={showResult}
+          isCorrect={isCorrect}
+          onNext={showResult ? handleNext : undefined}
+          pointsEarned={pointsEarned}
+        />
+      </div>
+    </div>
   );
 }

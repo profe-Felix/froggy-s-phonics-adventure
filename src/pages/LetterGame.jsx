@@ -323,12 +323,14 @@ export default function LetterGame() {
         <SightWordsSpellingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
+          onBack={handleBackToModes}
         />
       )}
       {currentMode === 'spelling' && (
         <SpellingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
+          onBack={handleBackToModes}
         />
       )}
       {currentMode === 'case_matching' && (
@@ -363,13 +365,15 @@ export default function LetterGame() {
         />
       )}
 
-      <Button
-        onClick={handleBackToModes}
-        className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
-      >
-        <ArrowLeft className="w-5 h-5 mr-2" />
-        Back to Modes
-      </Button>
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && (
+        <Button
+          onClick={handleBackToModes}
+          className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Modes
+        </Button>
+      )}
     </div>
   );
 }
