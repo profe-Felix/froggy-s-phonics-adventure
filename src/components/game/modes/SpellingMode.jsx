@@ -3,6 +3,7 @@ import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
+import EmojiPrizeCelebration, { countNewEmojis, getEmojiForIndex, POINTS_PER_EMOJI } from '../EmojiPrizeCelebration';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 let SPELLING_WORDS_BY_MODULE = {};
@@ -115,6 +116,8 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
   const [pointsEarned, setPointsEarned] = useState(0);
   const [writtenStrokes, setWrittenStrokes] = useState(null);
   const [wordsLoaded, setWordsLoaded] = useState(false);
+  const [emojiPrize, setEmojiPrize] = useState(null); // emoji string or null
+  const [spellingTotalPts, setSpellingTotalPts] = useState(() => studentData?.spelling_total_points || 0);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
   const submittingRef = useRef(false);
@@ -297,6 +300,16 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     setPointsEarned(pts);
     if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setScore(s => s + pts); setStreak(0); }
 
+    // Emoji prize check
+    const oldTotal = spellingTotalPts;
+    const newTotal = oldTotal + pts;
+    setSpellingTotalPts(newTotal);
+    const newEmojis = countNewEmojis(oldTotal, newTotal);
+    if (newEmojis > 0) {
+      const idx = Math.floor(newTotal / POINTS_PER_EMOJI) - 1;
+      setEmojiPrize(getEmojiForIndex(idx));
+    }
+
     const attempts = { ...modeData.item_attempts };
     const wordStats = attempts[currentWord] || { correct: 0, total: 0 };
     wordStats.total += 1;
@@ -304,7 +317,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     attempts[currentWord] = wordStats;
     let updatedMastered = [...(modeData.mastered_items || [])];
     let updatedLearning = [...(modeData.learning_items || [])];
-    if (correct && wordStats.correct >= 4 && wordStats.correct / wordStats.total >= 0.75 && !updatedMastered.includes(currentWord)) {
+    if (correct && wordStats.correct >= 3 && wordStats.correct / wordStats.total >= 0.60 && !updatedMastered.includes(currentWord)) {
       updatedMastered.push(currentWord);
       updatedLearning = updatedLearning.filter(w => w !== currentWord);
       const moduleWords = SPELLING_WORDS_BY_MODULE[selectedModule] || [];
@@ -346,9 +359,31 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     );
   }
 
+  const ptsToNextEmoji = POINTS_PER_EMOJI - (spellingTotalPts % POINTS_PER_EMOJI);
+  const emojiIdx = Math.floor(spellingTotalPts / POINTS_PER_EMOJI);
+
   if (phase === 'write') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center p-4 gap-4">
+        {/* Back + module strip */}
+        <div className="w-full max-w-lg flex items-center gap-2">
+          {onBack && (
+            <button onClick={onBack}
+              className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold bg-white/90 text-gray-700 border border-gray-300 hover:bg-white shadow">
+              ← Back
+            </button>
+          )}
+          {/* Emoji prize progress bar */}
+          <div className="flex-1 bg-white/90 rounded-xl px-3 py-2 flex items-center gap-2 shadow">
+            <span className="text-xl">{getEmojiForIndex(emojiIdx)}</span>
+            <div className="flex-1 h-2.5 bg-purple-100 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
+                style={{ width: `${((spellingTotalPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
+            </div>
+            <span className="text-xs font-black text-purple-600 whitespace-nowrap">{ptsToNextEmoji} to prize!</span>
+          </div>
+        </div>
+
         {/* Module selector with progress bars */}
         <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow p-3">
           <p className="text-xs font-bold text-gray-500 uppercase mb-2 text-center">Módulo</p>
@@ -373,6 +408,12 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
             onPlaySound={() => playSound(currentWord)}
           />
         </div>
+
+        <EmojiPrizeCelebration
+          emoji={emojiPrize}
+          pointsTotal={spellingTotalPts}
+          onClose={() => setEmojiPrize(null)}
+        />
       </div>
     );
   }
@@ -393,6 +434,15 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
             M{module} {pct >= 0.8 ? '⭐' : <span className="text-xs opacity-60">{Math.round(pct * 100)}%</span>}
           </button>
         ))}
+        {/* Prize progress */}
+        <div className="shrink-0 flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-full px-2 py-1">
+          <span className="text-base">{getEmojiForIndex(emojiIdx)}</span>
+          <div className="w-14 h-2 bg-purple-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
+              style={{ width: `${((spellingTotalPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
+          </div>
+          <span className="text-xs font-black text-purple-600">{ptsToNextEmoji}pts</span>
+        </div>
         <button
           onClick={handleUnclearAudio}
           className="shrink-0 ml-auto text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
@@ -426,6 +476,11 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
           pointsEarned={pointsEarned}
         />
       </div>
+      <EmojiPrizeCelebration
+        emoji={emojiPrize}
+        pointsTotal={spellingTotalPts}
+        onClose={() => setEmojiPrize(null)}
+      />
     </div>
   );
 }
