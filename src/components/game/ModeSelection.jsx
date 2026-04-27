@@ -8,6 +8,7 @@ import PetAvatar from './avatar/PetAvatar';
 import PetCollection from './avatar/PetCollection';
 import MysteryBoxReveal from './avatar/MysteryBoxReveal';
 import { ALL_PETS } from './avatar/PETS_DATA';
+import FruitCollection, { FruitBadge } from './FruitCollection';
 
 const MODES = [
   {
@@ -81,6 +82,7 @@ const MODES = [
 export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet }) {
   const modeProgress = studentData?.mode_progress || {};
   const [collectionOpen, setCollectionOpen] = useState(false);
+  const [fruitOpen, setFruitOpen] = useState(false);
   const [peerPlayActive, setPeerPlayActive] = useState(false);
   const [bingoActive, setBingoActive] = useState(false);
   const activePetId = studentData?.active_pet || 'pet_frog';
@@ -133,6 +135,13 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
           onClose={() => setCollectionOpen(false)}
         />
       )}
+      {fruitOpen && (
+        <FruitCollection
+          unlockedFruits={studentData?.unlocked_fruits || []}
+          spellingTotalPoints={studentData?.spelling_total_points || 0}
+          onClose={() => setFruitOpen(false)}
+        />
+      )}
       {pendingUnlocks > 0 && (
         <MysteryBoxReveal
           studentData={studentData}
@@ -142,7 +151,7 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
       )}
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-6 mb-4">
+          <div className="flex items-center justify-center gap-8 mb-4">
             <div className="flex flex-col items-center gap-2">
               <PetAvatar petId={activePetId} size="lg" showName />
               <button
@@ -152,6 +161,11 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
                 🐾 My Pets ({unlockedPets.length}/{ALL_PETS.length})
               </button>
             </div>
+            <FruitBadge
+              unlockedFruits={studentData?.unlocked_fruits || []}
+              spellingTotalPoints={studentData?.spelling_total_points || 0}
+              onClick={() => setFruitOpen(true)}
+            />
           </div>
           <h1 className="text-4xl font-bold text-green-700 mb-2">Choose Your Game Mode</h1>
           <p className="text-xl text-gray-600">Student #{studentData?.student_number}</p>

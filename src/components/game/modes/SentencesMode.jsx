@@ -242,12 +242,28 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     }).catch(() => {});
   };
 
-  const W = 800, H = 240;
-  const lineRows = [
-    { top: 0, mid: H * 0.16, base: H * 0.29 },
-    { top: H * 0.35, mid: H * 0.51, base: H * 0.64 },
-    { top: H * 0.70, mid: H * 0.85, base: H * 0.96 },
-  ];
+  const displayH = 220;
+
+  // undo support
+  const undo = () => {
+    if (allStrokes.current.length === 0) return;
+    allStrokes.current = allStrokes.current.slice(0, -1);
+    // Redraw
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    allStrokes.current.forEach(stroke => {
+      if (stroke.length < 2) return;
+      ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+      ctx.beginPath(); ctx.moveTo(stroke[0].x, stroke[0].y);
+      for (let i = 1; i < stroke.length; i++) {
+        const p = stroke[i-1], c = stroke[i];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x+c.x)/2, (p.y+c.y)/2);
+      }
+      ctx.stroke();
+    });
+    if (allStrokes.current.length === 0) setHasDrawn(false);
+  };
 
   return (
     <div className="flex flex-col gap-3 w-full">
@@ -268,27 +284,36 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
         </button>
       </div>
       <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
-      <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: 180, background: '#f0f7ff' }}>
-        <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
-          {lineRows.map((r, i) => (
-            <g key={i}>
-              <line x1="0" y1={r.top + 4} x2={W} y2={r.top + 4} stroke="#b0c4de" strokeWidth="1.5" />
-              <line x1="0" y1={r.mid} x2={W} y2={r.mid} stroke="#b0c4de" strokeWidth="1" strokeDasharray="10,6" />
-              <line x1="0" y1={r.base} x2={W} y2={r.base} stroke="#3b82f6" strokeWidth="2" />
-            </g>
-          ))}
+      <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
+        {/* SVG primary lines — 3 rows scaled */}
+        <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${displayH}`}>
+          {[0,1,2].map(row => {
+            const rowH = displayH / 3;
+            const top = row * rowH + rowH * 0.04;
+            const mid = row * rowH + rowH * 0.40;
+            const base = row * rowH + rowH * 0.74;
+            return (
+              <g key={row}>
+                <line x1="0" y1={top} x2="100" y2={top} stroke="#b0c4de" strokeWidth="0.4" />
+                <line x1="0" y1={mid} x2="100" y2={mid} stroke="#b0c4de" strokeWidth="0.4" strokeDasharray="2,1.5" />
+                <line x1="0" y1={base} x2="100" y2={base} stroke="#3b82f6" strokeWidth="0.6" />
+              </g>
+            );
+          })}
         </svg>
-        <canvas ref={canvasRef} width={W} height={H}
+        <canvas ref={canvasRef} width={1400} height={420}
           className="absolute inset-0 touch-none w-full h-full"
           style={{ background: 'transparent', cursor: 'crosshair' }}
           onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
           onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
         />
       </div>
-      <div className="flex gap-3">
-        <button onClick={clear} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">🗑 Borrar</button>
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={undo} disabled={allStrokes.current.length === 0}
+          className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">↩ Undo</button>
+        <button onClick={clear} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">🗑 Borrar</button>
         <button onClick={() => onDone(allStrokes.current)} disabled={!hasDrawn}
-          className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700">
+          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm">
           Listo → Construir
         </button>
       </div>

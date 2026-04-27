@@ -1,0 +1,216 @@
+{
+  "name": "Student",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer",
+      "description": "Student number (1-30)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Optional student name"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class identifier, e.g. F, V, C"
+    },
+    "active_pet": {
+      "type": "string",
+      "description": "ID of currently active pet"
+    },
+    "unlocked_pets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of unlocked pet IDs"
+    },
+    "pending_pet_unlocks": {
+      "type": "integer",
+      "description": "Number of mystery box reveals waiting",
+      "default": 0
+    },
+    "unlocked_fruits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of fruit emojis collected (one per 75 spelling pts)",
+      "default": []
+    },
+    "spelling_total_points": {
+      "type": "integer",
+      "description": "Lifetime spelling points across spelling + sight words spelling modes",
+      "default": 0
+    },
+    "mode_progress": {
+      "type": "object",
+      "properties": {
+        "letter_sounds": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        },
+        "sight_words_easy": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "sight_words_spelling": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "spelling": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "case_matching": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      }
+    },
+    "current_mode": {
+      "type": "string",
+      "enum": [
+        "letter_sounds",
+        "sight_words_easy",
+        "sight_words_spelling",
+        "spelling",
+        "case_matching"
+      ],
+      "default": "letter_sounds"
+    }
+  },
+  "required": [
+    "student_number"
+  ]
+}

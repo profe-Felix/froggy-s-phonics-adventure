@@ -410,25 +410,26 @@ export default function TeacherNotebookDashboard({ onBack }) {
                   </div>
 
                   {selectedAssignment.page_mode === 'locked' && (
-                    <div className="flex items-center gap-3">
-                      <label className="text-indigo-300 text-sm">Go to page:</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={effectiveTotalPages}
-                        value={selectedAssignment.locked_page || 1}
-                        onChange={e => {
-                          const raw = e.target.value;
-                          if (raw === '') return;
-                          const v = parseInt(raw, 10);
-                          if (Number.isNaN(v)) return;
-                          const clamped = Math.max(1, Math.min(effectiveTotalPages, v));
-                          setLockedPage(clamped);
-                        }}
-                        className="w-20 px-2 py-1.5 rounded-xl border border-indigo-500 text-white text-center font-bold"
-                        style={{ background: '#0f0f1a' }}
-                      />
-                      <span className="text-indigo-400 text-xs">of {effectiveTotalPages}</span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <label className="text-indigo-300 text-sm font-bold">Current page:</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={(selectedAssignment.locked_page || 1) <= 1}
+                          onClick={() => setLockedPage(Math.max(1, (selectedAssignment.locked_page || 1) - 1))}
+                          className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30 transition-all hover:scale-105"
+                          style={{ background: '#4338ca' }}
+                        >‹</button>
+                        <span className="text-white font-black text-xl w-16 text-center">
+                          {selectedAssignment.locked_page || 1}
+                        </span>
+                        <button
+                          disabled={(selectedAssignment.locked_page || 1) >= effectiveTotalPages}
+                          onClick={() => setLockedPage(Math.min(effectiveTotalPages, (selectedAssignment.locked_page || 1) + 1))}
+                          className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30 transition-all hover:scale-105"
+                          style={{ background: '#4338ca' }}
+                        >›</button>
+                      </div>
+                      <span className="text-indigo-400 text-sm">of {effectiveTotalPages}</span>
                     </div>
                   )}
 

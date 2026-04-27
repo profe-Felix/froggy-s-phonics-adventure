@@ -109,6 +109,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       const maxAllowed = limitActive
         ? Math.min(a.page_range_end || pdfMaxPage, pdfMaxPage)
         : pdfMaxPage;
+      // Guard: locked_page must be within valid range
 
       if (a.page_mode === 'locked' && a.locked_page) {
         const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
@@ -355,14 +356,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
   const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
-  const inferredMaxPage =
+  // pdf_page_count / page_count is the ground truth; page_range_end is a limit, not the total
+  const pdfTotal =
     selectedAssignment?.pdf_page_count ||
     selectedAssignment?.page_count ||
-    selectedAssignment?.page_range_end ||
     1;
   const maxPage = limitActive
-    ? Math.min(selectedAssignment?.page_range_end || inferredMaxPage, inferredMaxPage)
-    : inferredMaxPage;
+    ? Math.min(selectedAssignment?.page_range_end || pdfTotal, pdfTotal)
+    : pdfTotal;
 
   const goToPage = async (p) => {
     const clamped = Math.max(minPage, Math.min(maxPage, p));

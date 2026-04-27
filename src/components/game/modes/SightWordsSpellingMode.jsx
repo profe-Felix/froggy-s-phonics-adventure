@@ -360,6 +360,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress }
             word={currentWord}
             onDone={handleWriteDone}
             onPlaySound={() => playSound(currentWord)}
+            wide={false}
           />
         </div>
       </div>

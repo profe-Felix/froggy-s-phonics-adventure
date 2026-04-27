@@ -1,17 +1,18 @@
 import React, { useRef, useState, useCallback } from 'react';
 
 /**
- * Full-width writing canvas with primary lines.
- * Student writes the word, then presses "Done Writing → Build It"
+ * Full-width writing canvas with properly-scaled primary lines.
+ * Supports undo (per stroke), clear, and pixel eraser.
  * onDone(strokesData, dataUrl) is called.
  */
-export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
+export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = false }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
-  const allStrokes = useRef([]);
+  const allStrokes = useRef([]); // array of {points, eraser}
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [tool, setTool] = useState('pen'); // 'pen' | 'eraser'
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -26,6 +27,40 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
     };
   };
 
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Redraw strokes
+    allStrokes.current.forEach(stroke => {
+      if (stroke.points.length < 2) return;
+      ctx.save();
+      if (stroke.eraser) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 24;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#1e40af';
+      }
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        const prev = stroke.points[i - 1];
+        const cur = stroke.points[i];
+        ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+  }, []);
+
   const startDraw = useCallback((e) => {
     e.preventDefault();
     const pos = getPos(e);
@@ -35,38 +70,62 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
     lastPos.current = pos;
     currentStroke.current = [pos];
     drawing.current = true;
-    setHasDrawn(true);
-  }, []);
+    if (tool === 'pen') setHasDrawn(true);
+  }, [tool]);
 
   const draw = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     const pos = getPos(e);
     const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#1e40af';
-    const prev = lastPos.current;
-    const midX = (prev.x + pos.x) / 2;
-    const midY = (prev.y + pos.y) / 2;
-    ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(midX, midY);
+    if (tool === 'eraser') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = 24;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const prev = lastPos.current;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#1e40af';
+      const prev = lastPos.current;
+      const midX = (prev.x + pos.x) / 2;
+      const midY = (prev.y + pos.y) / 2;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(midX, midY);
+    }
     lastPos.current = pos;
     currentStroke.current.push(pos);
-  }, []);
+  }, [tool]);
 
   const endDraw = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     drawing.current = false;
     if (currentStroke.current.length > 0) {
-      allStrokes.current = [...allStrokes.current, currentStroke.current];
+      allStrokes.current = [...allStrokes.current, { points: currentStroke.current, eraser: tool === 'eraser' }];
       currentStroke.current = [];
     }
-  }, []);
+  }, [tool]);
+
+  const undo = () => {
+    if (allStrokes.current.length === 0) return;
+    allStrokes.current = allStrokes.current.slice(0, -1);
+    redraw();
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
+  };
 
   const clear = () => {
     const canvas = canvasRef.current;
@@ -81,50 +140,48 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
-    // Render final image: bg + guide lines + strokes
+
+    // Capture current drawing
+    const imageData = ctx.getImageData(0, 0, w, h);
+
+    // Render final: bg + lines + drawing
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#f0f7ff';
     ctx.fillRect(0, 0, w, h);
 
-    // Draw guide lines (3 rows of primary lines)
-    const lineY = (row, offset) => Math.round(row * (h / 3) + offset * (h / 3));
+    // Draw guide lines matching the SVG overlay (3 rows)
+    const rowH = h / 3;
     [0, 1, 2].forEach(row => {
-      const top = lineY(row, 0.05);
-      const mid = lineY(row, 0.4);
-      const base = lineY(row, 0.72);
-      // top line
-      ctx.save(); ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 1;
+      const top = row * rowH + rowH * 0.04;
+      const mid = row * rowH + rowH * 0.40;
+      const base = row * rowH + rowH * 0.74;
+      ctx.save();
+      ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(w, top); ctx.stroke();
-      // mid dashed
       ctx.setLineDash([8, 5]); ctx.strokeStyle = '#b0c4de';
       ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
       ctx.setLineDash([]);
-      // baseline solid blue
       ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(w, base); ctx.stroke();
       ctx.restore();
     });
 
-    // Redraw strokes
-    ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
-    allStrokes.current.forEach(stroke => {
-      if (stroke.length < 2) return;
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
-      for (let i = 1; i < stroke.length; i++) {
-        const prev = stroke[i - 1];
-        const cur = stroke[i];
-        ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
-      }
-      ctx.stroke();
-    });
+    // Restore drawing on top
+    ctx.putImageData(imageData, 0, 0);
 
+    const penStrokes = allStrokes.current.filter(s => !s.eraser).map(s => s.points);
     const url = canvas.toDataURL('image/png');
-    onDone(allStrokes.current, url);
+    onDone(penStrokes, url);
   };
 
+  // Canvas intrinsic size: wide mode for sentences
+  const canvasW = wide ? 1400 : 900;
+  const canvasH = 420;
+  // Display height: ~5/8 inch per row * 3 rows at 96dpi ≈ 180px per row, total ~220px shown
+  const displayH = 220;
+
   return (
-    <div className="flex flex-col items-center gap-4 p-4 w-full max-w-lg mx-auto">
+    <div className="flex flex-col items-center gap-3 w-full">
       <div className="flex items-center gap-3">
         <p className="text-lg font-black text-indigo-700">✏️ Write the word:</p>
         <button onClick={onPlaySound}
@@ -133,31 +190,37 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
         </button>
       </div>
 
-      {/* Canvas with primary guide lines drawn via SVG overlay */}
-      <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full"
-        style={{ height: 180, background: '#f0f7ff' }}>
-        {/* SVG guide lines — 3 rows */}
-        <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox="0 0 400 180">
+      {/* Canvas with primary guide lines — 3 rows scaled to display height */}
+      <div
+        className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full"
+        style={{ height: displayH, background: '#f0f7ff' }}
+      >
+        {/* SVG guide lines — rows fill the display height */}
+        <svg
+          className="absolute inset-0 pointer-events-none w-full h-full"
+          preserveAspectRatio="none"
+          viewBox={`0 0 100 ${displayH}`}
+        >
           {[0, 1, 2].map(row => {
-            const rowH = 60;
-            const top = row * rowH + 3;
-            const mid = row * rowH + 24;
-            const base = row * rowH + 43;
+            const rowH = displayH / 3;
+            const top = row * rowH + rowH * 0.04;
+            const mid = row * rowH + rowH * 0.40;
+            const base = row * rowH + rowH * 0.74;
             return (
               <g key={row}>
-                <line x1="0" y1={top} x2="400" y2={top} stroke="#b0c4de" strokeWidth="1" />
-                <line x1="0" y1={mid} x2="400" y2={mid} stroke="#b0c4de" strokeWidth="1" strokeDasharray="8,5" />
-                <line x1="0" y1={base} x2="400" y2={base} stroke="#3b82f6" strokeWidth="1.5" />
+                <line x1="0" y1={top} x2="100" y2={top} stroke="#b0c4de" strokeWidth="0.4" />
+                <line x1="0" y1={mid} x2="100" y2={mid} stroke="#b0c4de" strokeWidth="0.4" strokeDasharray="2,1.5" />
+                <line x1="0" y1={base} x2="100" y2={base} stroke="#3b82f6" strokeWidth="0.6" />
               </g>
             );
           })}
         </svg>
         <canvas
           ref={canvasRef}
-          width={800}
-          height={360}
+          width={canvasW}
+          height={canvasH}
           className="absolute inset-0 touch-none w-full h-full"
-          style={{ background: 'transparent', cursor: 'crosshair' }}
+          style={{ background: 'transparent', cursor: tool === 'eraser' ? 'cell' : 'crosshair' }}
           onMouseDown={startDraw}
           onMouseMove={draw}
           onMouseUp={endDraw}
@@ -168,16 +231,34 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound }) {
         />
       </div>
 
-      <div className="flex gap-3 w-full">
+      {/* Toolbar */}
+      <div className="flex gap-2 w-full flex-wrap">
+        <button
+          onClick={() => setTool('pen')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          ✏️ Pen
+        </button>
+        <button
+          onClick={() => setTool('eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          🧹 Eraser
+        </button>
+        <button onClick={undo}
+          disabled={allStrokes.current.length === 0}
+          className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">
+          ↩ Undo
+        </button>
         <button onClick={clear}
-          className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-base">
+          className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">
           🗑 Clear
         </button>
         <button
           onClick={handleDone}
           disabled={!hasDrawn}
-          className="flex-1 py-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-base">
-          Done Writing → Build It
+          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm min-w-[120px]">
+          Done → Build It
         </button>
       </div>
     </div>

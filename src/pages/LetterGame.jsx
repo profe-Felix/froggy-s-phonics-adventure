@@ -15,6 +15,7 @@ import SentencesMode from '../components/game/modes/SentencesMode';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
+import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -199,9 +200,33 @@ export default function LetterGame() {
     });
     // Check if a new pet milestone was reached
     const withMilestone = checkPetMilestone({ ...studentData, mode_progress: updatedModeProgress });
-    if (withMilestone.pending_pet_unlocks !== (studentData.pending_pet_unlocks || 0)) {
-      await base44.entities.Student.update(studentData.id, { pending_pet_unlocks: withMilestone.pending_pet_unlocks });
-      setStudentData({ ...studentData, mode_progress: updatedModeProgress, pending_pet_unlocks: withMilestone.pending_pet_unlocks });
+    const petUpdates = withMilestone.pending_pet_unlocks !== (studentData.pending_pet_unlocks || 0)
+      ? { pending_pet_unlocks: withMilestone.pending_pet_unlocks }
+      : {};
+
+    // Check fruit milestones for spelling modes
+    const spellingModes = ['spelling', 'sight_words_spelling'];
+    let fruitUpdates = {};
+    if (spellingModes.includes(mode)) {
+      const addedPts = (updatedModeProgress[mode]?.total_correct || 0) - (studentData.mode_progress?.[mode]?.total_correct || 0);
+      if (addedPts > 0) {
+        const oldTotal = studentData.spelling_total_points || 0;
+        const newTotal = oldTotal + addedPts;
+        const currentFruits = studentData.unlocked_fruits || [];
+        const newFruits = getNewFruits(oldTotal, newTotal, currentFruits);
+        if (newFruits.length > 0) {
+          const allFruits = [...currentFruits, ...newFruits];
+          fruitUpdates = { spelling_total_points: newTotal, unlocked_fruits: allFruits };
+        } else {
+          fruitUpdates = { spelling_total_points: newTotal };
+        }
+      }
+    }
+
+    const combined = { ...petUpdates, ...fruitUpdates };
+    if (Object.keys(combined).length > 0) {
+      await base44.entities.Student.update(studentData.id, combined);
+      setStudentData({ ...studentData, mode_progress: updatedModeProgress, ...combined });
     }
   };
 
