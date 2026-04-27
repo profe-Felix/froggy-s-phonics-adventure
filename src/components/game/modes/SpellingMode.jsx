@@ -505,6 +505,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
           showResult={showResult}
           isCorrect={isCorrect}
           onNext={showResult ? startRound : undefined}
+          onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
         />

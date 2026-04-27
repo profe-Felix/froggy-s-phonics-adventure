@@ -1,7 +1,6 @@
 import React from 'react';
-import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, Check, X } from 'lucide-react';
+import { Undo2, Check, X, Camera } from 'lucide-react';
 
 // Count correct letters in sequence (partial credit)
 export function countCorrectLetters(builtWord, targetWord) {
@@ -23,133 +22,131 @@ export default function SpellingBuildArea({
   onNext,
   pointsEarned,
   bonusPoints,
+  onRetry,
+  onCamera,
 }) {
   return (
-    <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 w-96 max-w-[90vw] z-10">
-      <div className="text-center mb-4">
-        <p className="text-gray-600 text-sm mb-2">Build the word:</p>
-        <div className="flex justify-center gap-2 min-h-[80px] flex-wrap">
+    <div className="absolute bottom-4 left-4 bg-white/95 rounded-3xl shadow-2xl p-4 z-10"
+      style={{ width: 'min(420px, 55vw)' }}>
+
+      {/* Word display */}
+      <div className="text-center mb-3">
+        <p className="text-gray-500 text-xs mb-1.5">Build the word:</p>
+        <div className="flex justify-center gap-1.5 min-h-[52px] flex-wrap items-center">
           <AnimatePresence>
-            {builtWord.map((letter, index) => (
-              <motion.div
-                key={index}
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                exit={{ scale: 0, rotate: 180 }}
-                className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow-lg flex items-center justify-center"
-              >
-                <span className="text-2xl font-bold text-white">{letter}</span>
-              </motion.div>
-            ))}
+            {builtWord.map((letter, index) => {
+              const targetLetter = targetWord[index];
+              let tileClass = 'bg-gradient-to-br from-green-400 to-green-600';
+              if (showResult) {
+                tileClass = letter === targetLetter
+                  ? 'bg-gradient-to-br from-green-400 to-green-600'
+                  : 'bg-gradient-to-br from-red-400 to-red-600';
+              }
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  exit={{ scale: 0, rotate: 180 }}
+                  className={`w-10 h-10 ${tileClass} rounded-lg shadow-lg flex items-center justify-center`}
+                >
+                  <span className="text-xl font-bold text-white">{letter}</span>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
           {builtWord.length === 0 && (
-            <div className="text-gray-400 text-xl">Click letters above...</div>
+            <div className="text-gray-400 text-base">Click letters above...</div>
           )}
         </div>
+
+        {/* Show correct word underneath when wrong */}
+        {showResult && !isCorrect && (
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="mt-2">
+            <p className="text-xs text-gray-400 mb-1">Correct:</p>
+            <div className="flex justify-center gap-1.5 flex-wrap">
+              {targetWord.split('').map((letter, i) => (
+                <div key={i} className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-lg shadow flex items-center justify-center">
+                  <span className="text-xl font-bold text-white">{letter}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </div>
 
-      <div className="flex gap-2 justify-center">
-        <Button
-          onClick={onUndo}
-          disabled={builtWord.length === 0}
-          variant="outline"
-          className="px-4 py-2 text-sm"
-        >
-          <Undo2 className="w-4 h-4 mr-1" />
-          Undo
-        </Button>
-        <Button
-          onClick={onClear}
-          disabled={builtWord.length === 0}
-          variant="outline"
-          className="px-4 py-2 text-sm"
-        >
-          <X className="w-4 h-4 mr-1" />
-          Clear
-        </Button>
-        <Button
-          onClick={onSubmit}
-          disabled={builtWord.length === 0 || showResult}
-          className="px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600"
-        >
-          <Check className="w-4 h-4 mr-1" />
-          Submit
-        </Button>
-      </div>
+      {/* Controls — hidden after submit */}
+      {!showResult && (
+        <div className="flex gap-1.5 justify-center mb-2">
+          <button
+            onClick={onUndo}
+            disabled={builtWord.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            <Undo2 className="w-3.5 h-3.5" /> Undo
+          </button>
+          <button
+            onClick={onClear}
+            disabled={builtWord.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+          >
+            <X className="w-3.5 h-3.5" /> Clear
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={builtWord.length === 0}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 disabled:opacity-40 shadow"
+          >
+            <Check className="w-3.5 h-3.5" /> Submit
+          </button>
+          {onCamera && (
+            <button
+              onClick={onCamera}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-purple-200 text-purple-600 text-sm font-bold hover:bg-purple-50"
+              title="Mental image — hide word"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
 
+      {/* Result feedback */}
       {showResult && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-4"
-        >
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-2">
           {isCorrect ? (
-            <div className="flex flex-col items-center gap-2">
-              <div className="text-center text-xl font-bold text-green-600">
+            <>
+              <div className="text-center font-bold text-green-600 text-base">
                 ✅ Correct!{' '}
-                {pointsEarned != null && pointsEarned > 0 && (
+                {pointsEarned > 0 && (
                   <span className="inline-flex items-center gap-0.5 text-yellow-600">
                     {Array.from({ length: Math.min(pointsEarned, 8) }).map((_, i) => (
-                      <span key={i} className="text-lg">🏆</span>
+                      <span key={i} className="text-base">🏆</span>
                     ))}
-                    <span className="text-base font-black ml-1">+{pointsEarned}</span>
+                    <span className="text-sm font-black ml-1">+{pointsEarned}</span>
                   </span>
                 )}
               </div>
               {bonusPoints > 0 && (
-                <div className="text-center text-sm font-black text-orange-500 animate-bounce">
-                  🔥 Streak Bonus! +{bonusPoints} pts!
-                </div>
+                <div className="text-xs font-black text-orange-500 animate-bounce">🔥 Streak Bonus! +{bonusPoints}pts!</div>
               )}
-              {onNext && <button onClick={onNext} className="mt-1 px-6 py-2 bg-green-500 text-white font-bold rounded-xl shadow hover:bg-green-600">Next →</button>}
-            </div>
+            </>
           ) : (
-            <div className="flex flex-col items-center gap-2">
-              <div className="text-center text-sm font-bold text-red-500 mb-1">❌ Not quite! Here's the correct answer:</div>
-              {/* Student's attempt vs correct answer — letter by letter */}
-              <div className="flex flex-col gap-1 items-center">
-                {/* Student row */}
-                <div className="flex gap-1 items-start flex-wrap">
-                  <span className="text-xs text-gray-400 w-14 text-right mr-1 mt-1">You:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    {targetWord.split('').map((correctLetter, i) => {
-                      const studentLetter = builtWord[i];
-                      const match = studentLetter === correctLetter;
-                      return (
-                        <div key={i} className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 ${
-                          !studentLetter ? 'bg-gray-100 border-gray-200 text-gray-300' :
-                          match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-600'
-                        }`}>
-                          {studentLetter || '–'}
-                        </div>
-                      );
-                    })}
-                    {/* Extra letters the student typed beyond the word length */}
-                    {builtWord.slice(targetWord.length).map((l, i) => (
-                      <div key={`extra-${i}`} className="w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 bg-red-100 border-red-400 text-red-600">{l}</div>
-                    ))}
-                  </div>
-                </div>
-                {/* Correct row */}
-                <div className="flex gap-1 items-start flex-wrap">
-                  <span className="text-xs text-gray-400 w-14 text-right mr-1 mt-1">Correct:</span>
-                  <div className="flex gap-1 flex-wrap">
-                    {targetWord.split('').map((letter, i) => {
-                      const match = builtWord[i] === letter;
-                      return (
-                        <div key={i} className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm border-2 ${
-                          match ? 'bg-green-100 border-green-400 text-green-700' : 'bg-green-200 border-green-500 text-green-800'
-                        }`}>
-                          {letter}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-              {onNext && <button onClick={onNext} className="mt-2 px-6 py-2 bg-indigo-500 text-white font-bold rounded-xl shadow hover:bg-indigo-600">Next →</button>}
-            </div>
+            <div className="text-center text-sm font-bold text-red-500">❌ Not quite!</div>
           )}
+
+          <div className="flex gap-2 mt-1">
+            {!isCorrect && onRetry && (
+              <button onClick={onRetry} className="px-4 py-1.5 bg-orange-100 text-orange-700 font-bold rounded-xl border border-orange-300 text-sm hover:bg-orange-200">
+                🔄 Retry
+              </button>
+            )}
+            {onNext && (
+              <button onClick={onNext} className={`px-5 py-1.5 font-bold rounded-xl shadow text-sm text-white ${isCorrect ? 'bg-green-500 hover:bg-green-600' : 'bg-indigo-500 hover:bg-indigo-600'}`}>
+                Next →
+              </button>
+            )}
+          </div>
         </motion.div>
       )}
     </div>

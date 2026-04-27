@@ -723,9 +723,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 
   // Tool tiles (always visible, just like WordSentenceBuilder)
   const toolTiles = [
-    { type: 'captool-up', label: '↑A', title: 'Capitalizar', cls: 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100' },
-    { type: 'captool-down', label: '↓a', title: 'Minúscula', cls: 'border-gray-400 bg-gray-50 text-gray-700 hover:bg-gray-100' },
-    { type: 'accenttool', label: '´', title: 'Acento (arrastra sobre la vocal)', cls: 'border-purple-400 bg-purple-50 text-purple-800 hover:bg-purple-100' },
+    { type: 'captool-up', label: '↑', title: 'Capitalizar', cls: 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100' },
+    { type: 'captool-down', label: '↓', title: 'Minúscula', cls: 'border-gray-400 bg-gray-50 text-gray-700 hover:bg-gray-100' },
+    { type: 'accenttool', label: '~', title: 'Acento (arrastra sobre la vocal)', cls: 'border-purple-400 bg-purple-50 text-purple-800 hover:bg-purple-100' },
   ];
 
   return (

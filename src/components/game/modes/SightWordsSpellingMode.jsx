@@ -513,6 +513,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           showResult={showResult}
           isCorrect={isCorrect}
           onNext={showResult ? handleNext : undefined}
+          onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
         />

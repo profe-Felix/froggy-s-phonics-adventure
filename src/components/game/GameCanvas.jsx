@@ -206,8 +206,8 @@ export default function GameCanvas({
         })}
       </AnimatePresence>
 
-      {/* Frog */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2" ref={frogRef}>
+      {/* Frog — pushed right so build area has room */}
+      <div className="absolute bottom-8 right-[8%]" ref={frogRef}>
         <motion.div
           animate={{ 
             y: animationPhase === 'swallow' ? [0, -10, 0] : [0, -5, 0],
