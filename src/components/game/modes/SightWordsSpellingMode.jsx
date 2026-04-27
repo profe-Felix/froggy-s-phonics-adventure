@@ -128,11 +128,11 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const buildOptions = (word, type) => {
     const wordLetters = word.split('');
 
-    // CLOZE MODE
+    // CLOZE MODE — always remove the last 1 or 2 letters (sorted ascending by position)
     if (type === 'cloze') {
-      const indices = [...Array(wordLetters.length).keys()]
-        .sort(() => Math.random() - 0.5)
-        .slice(0, Math.min(2, wordLetters.length));
+      const numMissing = wordLetters.length >= 4 ? 2 : 1;
+      // Take the last `numMissing` indices, sorted ascending
+      const indices = Array.from({ length: numMissing }, (_, k) => wordLetters.length - numMissing + k);
       setClozeIndices(indices);
       const missingLetters = indices.map(i => wordLetters[i]);
 
@@ -300,21 +300,21 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     if (submittingRef.current || showResult) return;
     submittingRef.current = true;
 
-    // For cloze: check only the missing-letter slots
+    const wordLetters = currentWord.split('');
+
+    // For cloze: check only the missing-letter slots (in position order)
     let correct;
+    let expectedForPts;
     if (challengeType === 'cloze') {
-      const wordLetters = currentWord.split('');
       const expectedMissing = clozeIndices.map(i => wordLetters[i]);
+      expectedForPts = expectedMissing;
       correct = builtWord.length === expectedMissing.length &&
         builtWord.every((l, i) => l === expectedMissing[i]);
     } else {
+      expectedForPts = wordLetters;
       correct = builtWord.join('') === currentWord;
     }
-    // Scale pts by module number
-    const wordLetters = currentWord.split('');
-    const expectedForPts = challengeType === 'cloze'
-      ? clozeIndices.map(i => wordLetters[i])
-      : wordLetters;
+
     const letterPts = countCorrectLetters(builtWord, expectedForPts);
     const basePts = letterPts * selectedModule;
 
