@@ -44,12 +44,17 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const [isCorrect, setIsCorrect] = useState(false);
   const [usedIndices, setUsedIndices] = useState([]);
   const [pointsEarned, setPointsEarned] = useState(0);
+  const [bonusPoints, setBonusPoints] = useState(0);
   const [challengeType, setChallengeType] = useState('spell');
   const [roundCount, setRoundCount] = useState(0);
   const [clozeIndices, setClozeIndices] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
   const [emojiPrize, setEmojiPrize] = useState(null);
   const [spellingTotalPts, setSpellingTotalPts] = useState(() => studentData?.spelling_total_points || 0);
+  const [streakBonusToday, setStreakBonusToday] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('spelling_streak_bonus') || '{}'); } catch { return {}; }
+  });
+  const todayKey = new Date().toISOString().slice(0, 10);
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
   const submittingRef = useRef(false);
@@ -182,6 +187,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     setUsedIndices([]);
     setShowResult(false);
     setPointsEarned(0);
+    setBonusPoints(0);
     setPhase('write');
     submittingRef.current = false;
     playSound(word);
@@ -302,11 +308,36 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     submittingRef.current = true;
     const userWord = builtWord.join('');
     const correct = userWord === currentWord;
-    const pts = countCorrectLetters(builtWord, currentWord);
+    // Scale pts by module number
+    const letterPts = countCorrectLetters(builtWord, currentWord);
+    const basePts = letterPts * selectedModule;
+
+    // Streak bonus: +10 at streak 10, +10 at streak 20, once per day each
+    const newStreak = correct ? streak + 1 : 0;
+    const bonusKey10 = `sightspell_10_${todayKey}`;
+    const bonusKey20 = `sightspell_20_${todayKey}`;
+    let bonusPts = 0;
+    const updatedBonusToday = { ...streakBonusToday };
+    if (correct && newStreak === 10 && !updatedBonusToday[bonusKey10]) {
+      bonusPts += 10;
+      updatedBonusToday[bonusKey10] = true;
+    }
+    if (correct && newStreak === 20 && !updatedBonusToday[bonusKey20]) {
+      bonusPts += 10;
+      updatedBonusToday[bonusKey20] = true;
+    }
+    if (bonusPts > 0) {
+      setStreakBonusToday(updatedBonusToday);
+      localStorage.setItem('spelling_streak_bonus', JSON.stringify(updatedBonusToday));
+    }
+
+    const pts = basePts + bonusPts;
     setIsCorrect(correct);
     setShowResult(true);
     setPointsEarned(pts);
-    if (correct) { setScore(s => s + pts); setStreak(s => s + 1); } else { setScore(s => s + pts); setStreak(0); }
+    setBonusPoints(bonusPts);
+    setScore(s => s + pts);
+    setStreak(newStreak);
 
     // Emoji prize check
     const oldTotal = spellingTotalPts;
@@ -483,6 +514,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           isCorrect={isCorrect}
           onNext={showResult ? handleNext : undefined}
           pointsEarned={pointsEarned}
+          bonusPoints={bonusPoints}
         />
       </div>
       <EmojiPrizeCelebration

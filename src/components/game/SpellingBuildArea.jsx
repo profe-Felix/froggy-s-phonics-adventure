@@ -22,6 +22,7 @@ export default function SpellingBuildArea({
   isCorrect,
   onNext,
   pointsEarned,
+  bonusPoints,
 }) {
   return (
     <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-2xl p-6 w-96 max-w-[90vw] z-10">
@@ -84,7 +85,22 @@ export default function SpellingBuildArea({
         >
           {isCorrect ? (
             <div className="flex flex-col items-center gap-2">
-              <div className="text-center text-xl font-bold text-green-600">✅ Correct! {pointsEarned != null ? `+${pointsEarned} pts` : ''}</div>
+              <div className="text-center text-xl font-bold text-green-600">
+                ✅ Correct!{' '}
+                {pointsEarned != null && pointsEarned > 0 && (
+                  <span className="inline-flex items-center gap-0.5 text-yellow-600">
+                    {Array.from({ length: Math.min(pointsEarned, 8) }).map((_, i) => (
+                      <span key={i} className="text-lg">🏆</span>
+                    ))}
+                    <span className="text-base font-black ml-1">+{pointsEarned}</span>
+                  </span>
+                )}
+              </div>
+              {bonusPoints > 0 && (
+                <div className="text-center text-sm font-black text-orange-500 animate-bounce">
+                  🔥 Streak Bonus! +{bonusPoints} pts!
+                </div>
+              )}
               {onNext && <button onClick={onNext} className="mt-1 px-6 py-2 bg-green-500 text-white font-bold rounded-xl shadow hover:bg-green-600">Next →</button>}
             </div>
           ) : (
