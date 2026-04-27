@@ -178,29 +178,55 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       .map((letter, idx) => ({ letter, id: `opt-${idx}-${Math.random().toString(36).slice(2)}` }));
   };
 
-  const startRound = (nextRoundCount, mod = selectedModule) => {
+  const findAudioUrl = async (word) => {
+    const audioName = toAudioName(word);
+    const candidates = [
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.mp3`,
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.wav`,
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) return url;
+      } catch { /* try next */ }
+    }
+    return null;
+  };
+
+  const startRound = async (nextRoundCount, mod = selectedModule) => {
     if (!wordsLoaded) return;
     const moduleWords = SIGHT_WORDS_BY_MODULE[mod] || [];
     if (moduleWords.length === 0) return;
     
     const rc = nextRoundCount ?? roundCount;
-    const word = pickWord(modeData, lastWordRef.current, moduleWords);
-    if (!word) return;
-    
-    lastWordRef.current = word;
-    const type = CHALLENGE_TYPES[rc % CHALLENGE_TYPES.length];
-    setChallengeType(type);
-    setCurrentWord(word);
-    setOptions(buildOptions(word, type));
-    setBuiltWord([]);
-    setUsedIndices([]);
-    setShowResult(false);
-    setPointsEarned(0);
-    setBonusPoints(0);
-    setPhase('write');
-    setIsRetry(false);
-    submittingRef.current = false;
-    playSound(word);
+
+    // Try up to all words to find one with audio
+    for (let attempt = 0; attempt < Math.min(moduleWords.length, 30); attempt++) {
+      const word = pickWord(modeData, lastWordRef.current, moduleWords);
+      if (!word) break;
+
+      const audioUrl = await findAudioUrl(word);
+      if (!audioUrl) {
+        lastWordRef.current = word; // skip it
+        continue;
+      }
+
+      lastWordRef.current = word;
+      const type = CHALLENGE_TYPES[rc % CHALLENGE_TYPES.length];
+      setChallengeType(type);
+      setCurrentWord(word);
+      setOptions(buildOptions(word, type));
+      setBuiltWord([]);
+      setUsedIndices([]);
+      setShowResult(false);
+      setPointsEarned(0);
+      setBonusPoints(0);
+      setPhase('write');
+      setIsRetry(false);
+      submittingRef.current = false;
+      playSound(word);
+      return;
+    }
   };
 
   useEffect(() => {
@@ -240,7 +266,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
 
   useEffect(() => {
     if (wordsLoaded) {
-      startRound(0, selectedModule);
+      startRound(0, selectedModule).catch(() => {});
     }
   }, [wordsLoaded, selectedModule]);
 
@@ -275,7 +301,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const handleNext = () => {
     const next = roundCount + 1;
     setRoundCount(next);
-    startRound(next, selectedModule);
+    startRound(next, selectedModule).catch(() => {});
   };
 
   const saveProgress = async (correct, retry = false) => {
