@@ -47,31 +47,31 @@ export default function SpellingBuildArea({
         </div>
       </div>
 
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-2 justify-center">
         <Button
           onClick={onUndo}
           disabled={builtWord.length === 0}
           variant="outline"
-          className="px-6 py-6 text-lg"
+          className="px-4 py-2 text-sm"
         >
-          <Undo2 className="w-5 h-5 mr-2" />
+          <Undo2 className="w-4 h-4 mr-1" />
           Undo
         </Button>
         <Button
           onClick={onClear}
           disabled={builtWord.length === 0}
           variant="outline"
-          className="px-6 py-6 text-lg"
+          className="px-4 py-2 text-sm"
         >
-          <X className="w-5 h-5 mr-2" />
+          <X className="w-4 h-4 mr-1" />
           Clear
         </Button>
         <Button
           onClick={onSubmit}
           disabled={builtWord.length === 0 || showResult}
-          className="px-6 py-6 text-lg bg-blue-500 hover:bg-blue-600"
+          className="px-4 py-2 text-sm bg-blue-500 hover:bg-blue-600"
         >
-          <Check className="w-5 h-5 mr-2" />
+          <Check className="w-4 h-4 mr-1" />
           Submit
         </Button>
       </div>
