@@ -331,6 +331,157 @@ function CollectionCanvas({ items, containerRef, onMove, trio, xAxisLabels, star
   );
 }
 
+// ── Mini number write panel ────────────────────────────────────────
+function MiniNumberWrite({ onDrop }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPos = useRef(null);
+  const allStrokes = useRef([]);
+  const currentStroke = useRef([]);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [writtenN, setWrittenN] = useState(null);
+
+  const getPos = (e) => {
+    const c = canvasRef.current;
+    const rect = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * (c.width / rect.width), y: (src.clientY - rect.top) * (c.height / rect.height) };
+  };
+  const onDown = (e) => {
+    e.preventDefault(); setWrittenN(null);
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos; currentStroke.current = [pos]; drawing.current = true; setHasDrawn(true);
+  };
+  const onMove = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+    const prev = lastPos.current;
+    ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    lastPos.current = pos; currentStroke.current.push(pos);
+  };
+  const onUp = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    drawing.current = false;
+    if (currentStroke.current.length > 0) { allStrokes.current = [...allStrokes.current, currentStroke.current]; currentStroke.current = []; }
+  };
+  const clear = () => {
+    const c = canvasRef.current;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    allStrokes.current = []; setHasDrawn(false); setWrittenN(null);
+  };
+
+  // Number buttons 0-10 overlay after "confirm"
+  const [showPicker, setShowPicker] = useState(false);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <canvas ref={canvasRef} width={90} height={70}
+            style={{ background: '#f0f7ff', borderRadius: 8, border: '2px solid #93c5fd', cursor: 'crosshair', touchAction: 'none', width: 90, height: 70 }}
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+          />
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={clear} style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 5, cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            <button disabled={!hasDrawn} onClick={() => setShowPicker(true)}
+              style={{ fontSize: 10, padding: '2px 8px', background: hasDrawn ? '#6366f1' : '#e2e8f0', color: hasDrawn ? 'white' : '#94a3b8', border: 'none', borderRadius: 5, cursor: hasDrawn ? 'pointer' : 'default', fontWeight: 700 }}>
+              What # is this?
+            </button>
+          </div>
+        </div>
+        {writtenN !== null && (
+          <div
+            onPointerDown={(e) => { e.preventDefault(); onDrop(writtenN, e.clientX, e.clientY); }}
+            style={{ width: 40, height: 40, borderRadius: 10, background: '#6366f1', color: 'white', fontWeight: 900, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'grab', touchAction: 'none', userSelect: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', alignSelf: 'center' }}>
+            {writtenN}
+          </div>
+        )}
+      </div>
+      {showPicker && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, background: '#eef2ff', borderRadius: 8, padding: 6 }}>
+          <div style={{ width: '100%', fontSize: 9, fontWeight: 700, color: '#6366f1', marginBottom: 2 }}>Tap the number you wrote:</div>
+          {Array.from({ length: 11 }, (_, i) => i).map(n => (
+            <button key={n} onClick={() => { setWrittenN(n); setShowPicker(false); }}
+              style={{ width: 28, height: 28, borderRadius: 6, background: '#6366f1', color: 'white', fontWeight: 900, fontSize: 13, border: 'none', cursor: 'pointer' }}>
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Mini writing canvas for numbers (kept for reference) ──────────────────────────────
+function MiniWriteCanvas({ onNumberWritten }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPos = useRef(null);
+  const allStrokes = useRef([]);
+  const currentStroke = useRef([]);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const getPos = (e) => {
+    const c = canvasRef.current;
+    const rect = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * (c.width / rect.width), y: (src.clientY - rect.top) * (c.height / rect.height) };
+  };
+
+  const onDown = (e) => {
+    e.preventDefault();
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos; currentStroke.current = [pos]; drawing.current = true; setHasDrawn(true);
+  };
+  const onMove = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+    const prev = lastPos.current;
+    ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    lastPos.current = pos; currentStroke.current.push(pos);
+  };
+  const onUp = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    drawing.current = false;
+    if (currentStroke.current.length > 0) { allStrokes.current = [...allStrokes.current, currentStroke.current]; currentStroke.current = []; }
+  };
+  const clear = () => {
+    const c = canvasRef.current;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    allStrokes.current = []; setHasDrawn(false);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: '#f0f7ff', borderRadius: 10, padding: '6px 8px', border: '2px solid #bfdbfe' }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: '#3b82f6', marginBottom: 2 }}>WRITE A NUMBER</div>
+      <canvas ref={canvasRef} width={80} height={60}
+        style={{ background: 'white', borderRadius: 6, border: '1.5px solid #93c5fd', cursor: 'crosshair', touchAction: 'none', width: 80, height: 60 }}
+        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+      />
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button onClick={clear} style={{ fontSize: 10, padding: '2px 6px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 5, cursor: 'pointer', fontWeight: 700, color: '#64748b' }}>✕ Clear</button>
+        <button disabled={!hasDrawn} onClick={() => { /* Teacher drags to axis */ }} style={{ fontSize: 10, padding: '2px 6px', background: hasDrawn ? '#6366f1' : '#e2e8f0', color: hasDrawn ? 'white' : '#94a3b8', border: 'none', borderRadius: 5, cursor: hasDrawn ? 'pointer' : 'default', fontWeight: 700 }}>Use →</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Number drag chip ───────────────────────────────────────────────
 function NumberChip({ n, onDragStart }) {
   return (
@@ -506,6 +657,8 @@ export default function GraphingGame({ onBack }) {
     setFeedback({ xAxis: xFb, bars: barFb }); setGraphChecked(true);
   };
 
+  const [yInputMode, setYInputMode] = useState('tiles'); // 'tiles' | 'write'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)', userSelect: 'none' }}>
       {/* Header */}
@@ -532,10 +685,22 @@ export default function GraphingGame({ onBack }) {
           />
           {/* Number tray */}
           <div style={{ background: '#fff', borderRadius: 12, padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, marginBottom: 6, textAlign: 'center' }}>DRAG NUMBERS TO Y-AXIS →</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {Array.from({ length: 11 }, (_, i) => i).map(n => <NumberChip key={n} n={n} onDragStart={startNumberDrag} />)}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, flex: 1, textAlign: 'center' }}>
+                {yInputMode === 'tiles' ? 'DRAG NUMBERS TO Y-AXIS →' : 'WRITE & DRAG TO Y-AXIS →'}
+              </div>
+              <button onClick={() => setYInputMode(m => m === 'tiles' ? 'write' : 'tiles')}
+                style={{ fontSize: 9, padding: '2px 7px', borderRadius: 8, border: '1.5px solid #a5b4fc', background: '#eef2ff', color: '#6366f1', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {yInputMode === 'tiles' ? '✏️ Write' : '🔢 Tiles'}
+              </button>
             </div>
+            {yInputMode === 'tiles' ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {Array.from({ length: 11 }, (_, i) => i).map(n => <NumberChip key={n} n={n} onDragStart={startNumberDrag} />)}
+              </div>
+            ) : (
+              <MiniNumberWrite onDrop={(n, x, y) => startNumberDrag(n, x, y)} />
+            )}
           </div>
         </div>
 

@@ -97,7 +97,7 @@ export default function GameCanvas({
   }, [showFeedback, isCorrect, animationPhase]);
 
   return (
-    <div className="relative w-full h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-green-300 overflow-hidden">
+    <div className="relative w-full bg-gradient-to-b from-sky-400 via-sky-300 to-green-300 overflow-hidden" style={{ height: '55vh', minHeight: 280, maxHeight: 480 }}>
       {/* Clouds */}
       <div className="absolute top-10 left-10 text-6xl opacity-70 animate-pulse">☁️</div>
       <div className="absolute top-20 right-20 text-8xl opacity-60 animate-pulse">☁️</div>

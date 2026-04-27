@@ -43,6 +43,11 @@
       "description": "Lifetime spelling points across spelling + sight words spelling modes",
       "default": 0
     },
+    "sentences_total_points": {
+      "type": "integer",
+      "description": "Lifetime sentence points (5 pts per completed sentence)",
+      "default": 0
+    },
     "mode_progress": {
       "type": "object",
       "properties": {

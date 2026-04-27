@@ -527,6 +527,8 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
     const handleTouchStart = (e) => {
       const target = e.target.closest('[data-traytile],[data-slottile],[data-tooltile]');
       if (!target) return;
+      // Block page scroll immediately when touching a draggable tile
+      e.preventDefault();
 
       const touch0 = e.touches[0];
       const startX = touch0.clientX, startY = touch0.clientY;
@@ -554,16 +556,16 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       if (!pendingData) return;
 
       const onTouchMove = (ev) => {
+        ev.preventDefault();
         const t = ev.touches[0];
         const dx = t.clientX - startX, dy = t.clientY - startY;
         if (!dragging) {
-          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) { ev.preventDefault(); return; }
+          if (Math.sqrt(dx*dx + dy*dy) < DRAG_THRESHOLD) { return; }
           dragging = true;
           dragRef.current = pendingData;
           createGhostEl(ghostLabel);
           if (!pendingData.isTool) setIsDraggingNormal(true);
         }
-        ev.preventDefault();
         moveGhostEl(t.clientX, t.clientY);
 
         if (pendingData.isTool && dropZoneRef.current) {
@@ -599,7 +601,11 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       const onTouchEnd = (ev) => {
         document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
-        if (!dragging) return; // was a tap — let click fire
+        if (!dragging) {
+          // Was a tap — fire click manually since touchstart used preventDefault
+          target.click();
+          return;
+        }
         ev.preventDefault();
         removeGhostEl();
         dragRef.current = null;
@@ -665,7 +671,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
       document.addEventListener('touchend', onTouchEnd);
     };
 
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
     return () => document.removeEventListener('touchstart', handleTouchStart);
   }, [applyTool]);
 
@@ -936,6 +942,41 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   );
 }
 
+// ── Sticker progress bar ────────────────────────────────────────────────────
+const STICKER_EMOJIS = ['🌟','🦋','🌈','🎀','🐬','🦄','🌸','🍀','🎈','🏆','🦊','🐙'];
+const PTS_PER_SENTENCE = 5;
+const PTS_PER_STICKER = 100;
+
+function StickerProgressBar({ sessionPts, totalPts }) {
+  const stickers = Math.floor(totalPts / PTS_PER_STICKER);
+  const progress = totalPts % PTS_PER_STICKER;
+  const pct = (progress / PTS_PER_STICKER) * 100;
+  return (
+    <div className="bg-white rounded-2xl border-2 border-rose-200 p-3 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-black text-rose-600 uppercase tracking-wide">⭐ Sentence Stars</span>
+        <span className="text-xs font-bold text-gray-500">+{sessionPts} pts today</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-4 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
+          <div className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-xs font-black text-rose-700 whitespace-nowrap">{progress}/{PTS_PER_STICKER}</span>
+      </div>
+      {stickers > 0 && (
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs font-bold text-gray-500">Stickers earned:</span>
+          {Array.from({ length: stickers }, (_, i) => (
+            <span key={i} className="text-lg">{STICKER_EMOJIS[i % STICKER_EMOJIS.length]}</span>
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-gray-400 font-bold">{PTS_PER_STICKER - progress} pts to next sticker 🏷️</p>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function SentencesMode({ studentData, onBack }) {
   const [selectedModule, setSelectedModule] = useState(1);
@@ -944,6 +985,9 @@ export default function SentencesMode({ studentData, onBack }) {
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sessionPts, setSessionPts] = useState(0);
+  const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
+  const [newStickerEmoji, setNewStickerEmoji] = useState(null);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -1015,6 +1059,22 @@ export default function SentencesMode({ studentData, onBack }) {
   };
 
   const handleComplete = () => {
+    // Award points for completing the sentence
+    const newTotal = totalPts + PTS_PER_SENTENCE;
+    const oldStickers = Math.floor(totalPts / PTS_PER_STICKER);
+    const newStickers = Math.floor(newTotal / PTS_PER_STICKER);
+    setTotalPts(newTotal);
+    setSessionPts(p => p + PTS_PER_SENTENCE);
+    if (newStickers > oldStickers) {
+      const emoji = STICKER_EMOJIS[(newStickers - 1) % STICKER_EMOJIS.length];
+      setNewStickerEmoji(emoji);
+      setTimeout(() => setNewStickerEmoji(null), 3000);
+    }
+    // Persist to student record
+    if (studentData?.id) {
+      base44.entities.Student.update(studentData.id, { sentences_total_points: newTotal }).catch(() => {});
+    }
+
     if (currentIdx + 1 < sentences.length) {
       setCurrentIdx(i => i + 1);
       setPhase('write');
@@ -1043,9 +1103,12 @@ export default function SentencesMode({ studentData, onBack }) {
           <span className="text-sm text-gray-500 font-bold">{currentIdx + 1} / {sentences.length}</span>
         </div>
 
+        {/* Sticker progress */}
+        <StickerProgressBar sessionPts={sessionPts} totalPts={totalPts} />
+
         {/* Module selector */}
         {modules.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap mb-4">
+          <div className="flex gap-1.5 flex-wrap my-3">
             {modules.map(m => (
               <button key={m} onClick={() => setSelectedModule(m)}
                 className={`px-4 py-2 rounded-full font-bold text-sm transition-all ${selectedModule === m ? 'bg-rose-500 text-white shadow' : 'bg-white text-gray-600 border hover:bg-rose-50'}`}>
@@ -1054,6 +1117,20 @@ export default function SentencesMode({ studentData, onBack }) {
             ))}
           </div>
         )}
+
+        {/* Sticker celebration overlay */}
+        <AnimatePresence>
+          {newStickerEmoji && (
+            <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+              className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+              <div className="bg-white rounded-3xl shadow-2xl p-8 text-center border-4 border-rose-400">
+                <div className="text-8xl mb-3">{newStickerEmoji}</div>
+                <p className="text-2xl font-black text-rose-600">🎉 ¡Nuevo sticker!</p>
+                <p className="text-gray-500 font-bold mt-1">You earned a sticker — bring it to your teacher on Friday! 🏷️</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {currentSentence && (
           <div className="bg-white/90 rounded-3xl shadow-xl p-5">
