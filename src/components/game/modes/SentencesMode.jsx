@@ -359,6 +359,8 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   const dropZoneRef = useRef(null);
   const dropZoneStateRef = useRef(dropZone);
   const trayStateRef = useRef(tray);
+  const handleTrayTapRef = useRef(null);
+  const handleDropTapRef = useRef(null);
   useEffect(() => { dropZoneStateRef.current = dropZone; }, [dropZone]);
   useEffect(() => { trayStateRef.current = tray; }, [tray]);
 
@@ -389,25 +391,29 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   }, []);
 
   // ── Tray tap → move into dropzone (use up the tile) ───────────────────────
-  const handleTrayTap = (tile) => {
+  const handleTrayTap = useCallback((tile) => {
     if (showResult) return;
     setDropZone(prev => [...prev, { ...tile, id: Math.random().toString(36).slice(2) }]);
     setTray(prev => prev.filter(t => t.id !== tile.id));
     setPendingRemove(null);
-  };
+  }, [showResult]);
 
   // ── Dropzone tile tap ──────────────────────────────────────────────────────
-  const handleDropTap = (tile) => {
+  const handleDropTap = useCallback((tile) => {
     if (showResult) return;
-    if (pendingRemove === tile.id) {
-      setPendingRemove(null);
-          // Delete from dropzone and restore to tray
-          setDropZone(prev => prev.filter(t => t.id !== tile.id));
-          setTray(prev => [...prev, tile]);
-    } else {
-      setPendingRemove(tile.id);
-    }
-  };
+    setPendingRemove(prev => {
+      if (prev === tile.id) {
+        setDropZone(dz => dz.filter(t => t.id !== tile.id));
+        setTray(tr => [...tr, tile]);
+        return null;
+      }
+      return tile.id;
+    });
+  }, [showResult]);
+
+  // Keep refs in sync so touch handler closures can call them
+  useEffect(() => { handleTrayTapRef.current = handleTrayTap; }, [handleTrayTap]);
+  useEffect(() => { handleDropTapRef.current = handleDropTap; }, [handleDropTap]);
 
   // ── Mouse drag: tray tiles and tool tiles ─────────────────────────────────
   const handleTrayDragStart = (e, tile, isTool = false) => {
@@ -603,8 +609,14 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
         document.removeEventListener('touchmove', onTouchMove);
         document.removeEventListener('touchend', onTouchEnd);
         if (!dragging) {
-          // Was a tap — fire click manually since touchstart used preventDefault
-          target.click();
+          // Was a tap — use refs so closure always has latest handler
+          if (isTray && tileId) {
+            const trayTile = trayStateRef.current.find(t => t.id === tileId);
+            if (trayTile) handleTrayTapRef.current?.(trayTile);
+          } else if (!isTool && tileId) {
+            const dzTile = dropZoneStateRef.current.find(t => t.id === tileId);
+            if (dzTile) handleDropTapRef.current?.(dzTile);
+          }
           return;
         }
         ev.preventDefault();
@@ -868,7 +880,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           <AnimatePresence>
             {syllTilesInTray.map(tile => (
               <motion.button key={tile.id}
-                data-traytile data-tiletype="text" data-tilevalue={tile.value}
+                data-traytile data-tileid={tile.id} data-tiletype="text" data-tilevalue={tile.value}
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => handleTrayTap(tile)} disabled={showResult}
                 draggable onDragStart={e => handleTrayDragStart(e, tile)}
@@ -888,13 +900,13 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
               <span className="text-sm text-gray-500 font-bold">Espacio:</span>
               <AnimatePresence>
                 {spaceTilesInTray.map(tile => (
-                  <motion.button key={tile.id}
-                    data-traytile data-tiletype="space" data-tilevalue=" "
-                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
-                    onClick={() => handleTrayTap(tile)} disabled={showResult}
-                    draggable onDragStart={e => handleTrayDragStart(e, tile)}
-                    className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center cursor-grab"
-                  ><span className="w-6 h-1 rounded-full bg-indigo-300 block" /></motion.button>
+                <motion.button key={tile.id}
+                  data-traytile data-tileid={tile.id} data-tiletype="space" data-tilevalue=" "
+                  initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                  onClick={() => handleTrayTap(tile)} disabled={showResult}
+                  draggable onDragStart={e => handleTrayDragStart(e, tile)}
+                  className="w-14 h-10 rounded-xl border-2 border-indigo-300 bg-indigo-50 hover:bg-indigo-100 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center cursor-grab"
+                ><span className="w-6 h-1 rounded-full bg-indigo-300 block" /></motion.button>
                 ))}
               </AnimatePresence>
             </>
@@ -904,13 +916,13 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
               <span className="text-sm text-gray-500 font-bold ml-2">Punt:</span>
               <AnimatePresence>
                 {punctTilesInTray.map(tile => (
-                  <motion.button key={tile.id}
-                    data-traytile data-tiletype="punc" data-tilevalue={tile.value}
-                    initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
-                    onClick={() => handleTrayTap(tile)} disabled={showResult}
-                    draggable onDragStart={e => handleTrayDragStart(e, tile)}
-                    className="w-12 h-10 rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 font-black text-xl hover:bg-yellow-100 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
-                  >{tile.value}</motion.button>
+                <motion.button key={tile.id}
+                  data-traytile data-tileid={tile.id} data-tiletype="punc" data-tilevalue={tile.value}
+                  initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
+                  onClick={() => handleTrayTap(tile)} disabled={showResult}
+                  draggable onDragStart={e => handleTrayDragStart(e, tile)}
+                  className="w-12 h-10 rounded-xl border-2 border-yellow-400 bg-yellow-50 text-yellow-800 font-black text-xl hover:bg-yellow-100 active:scale-95 transition-all disabled:opacity-40 cursor-grab"
+                >{tile.value}</motion.button>
                 ))}
               </AnimatePresence>
             </>

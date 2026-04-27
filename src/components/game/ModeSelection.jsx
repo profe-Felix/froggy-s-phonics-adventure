@@ -10,6 +10,25 @@ import MysteryBoxReveal from './avatar/MysteryBoxReveal';
 import { ALL_PETS } from './avatar/PETS_DATA';
 import FruitCollection, { FruitBadge } from './FruitCollection';
 
+const PTS_PER_STICKER = 100;
+
+function SentenceProgressBadge({ totalPts, onClick }) {
+  const progress = totalPts % PTS_PER_STICKER;
+  const spins = Math.floor(totalPts / PTS_PER_STICKER);
+  const pct = (progress / PTS_PER_STICKER) * 100;
+  return (
+    <button onClick={onClick}
+      className="flex flex-col items-center gap-1 bg-white/80 rounded-2xl px-4 py-2 shadow border-2 border-rose-200 hover:bg-rose-50 transition min-w-[90px]">
+      <span className="text-2xl">🎡</span>
+      <div className="w-full h-2.5 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
+        <div className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs font-black text-rose-600">{progress}/{PTS_PER_STICKER} pts</span>
+      {spins > 0 && <span className="text-xs text-rose-400 font-bold">{spins} spin{spins > 1 ? 's' : ''} used</span>}
+    </button>
+  );
+}
+
 const MODES = [
   {
     id: 'letter_sounds',
@@ -79,7 +98,7 @@ const MODES = [
   }
 ];
 
-export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet }) {
+export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet, onOpenSentences }) {
   const modeProgress = studentData?.mode_progress || {};
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [fruitOpen, setFruitOpen] = useState(false);
@@ -165,6 +184,10 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
               unlockedFruits={studentData?.unlocked_fruits || []}
               spellingTotalPoints={studentData?.spelling_total_points || 0}
               onClick={() => setFruitOpen(true)}
+            />
+            <SentenceProgressBadge
+              totalPts={studentData?.sentences_total_points || 0}
+              onClick={() => onSelectMode('sentences')}
             />
           </div>
           <h1 className="text-4xl font-bold text-green-700 mb-2">Choose Your Game Mode</h1>
