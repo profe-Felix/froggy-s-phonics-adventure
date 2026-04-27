@@ -78,33 +78,27 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     if (!drawing.current) return;
     const pos = getPos(e);
     const ctx = canvasRef.current.getContext('2d');
+    const prev = lastPos.current;
     if (tool === 'eraser') {
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
       ctx.lineWidth = 24;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      const prev = lastPos.current;
       ctx.beginPath();
       ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
       ctx.restore();
     } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 4;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#1e40af';
-      const prev = lastPos.current;
-      const midX = (prev.x + pos.x) / 2;
-      const midY = (prev.y + pos.y) / 2;
-      ctx.beginPath();
-      ctx.moveTo(prev.x, prev.y);
-      ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+      ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(midX, midY);
+      ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
     }
     lastPos.current = pos;
     currentStroke.current.push(pos);

@@ -191,15 +191,19 @@ export default function LetterGame() {
       }
     }
 
-    const updatedData = await updateStudentMutation.mutateAsync({
+    await updateStudentMutation.mutateAsync({
       id: studentData.id,
       data: {
         mode_progress: updatedModeProgress,
         current_mode: mode
       }
     });
+
+    // Use fresh merged state as base for all subsequent calculations
+    const freshStudent = { ...studentData, mode_progress: updatedModeProgress, current_mode: mode };
+
     // Check if a new pet milestone was reached
-    const withMilestone = checkPetMilestone({ ...studentData, mode_progress: updatedModeProgress });
+    const withMilestone = checkPetMilestone(freshStudent);
     const petUpdates = withMilestone.pending_pet_unlocks !== (studentData.pending_pet_unlocks || 0)
       ? { pending_pet_unlocks: withMilestone.pending_pet_unlocks }
       : {};
@@ -214,20 +218,18 @@ export default function LetterGame() {
         const newTotal = oldTotal + addedPts;
         const currentFruits = studentData.unlocked_fruits || [];
         const newFruits = getNewFruits(oldTotal, newTotal, currentFruits);
-        if (newFruits.length > 0) {
-          const allFruits = [...currentFruits, ...newFruits];
-          fruitUpdates = { spelling_total_points: newTotal, unlocked_fruits: allFruits };
-        } else {
-          fruitUpdates = { spelling_total_points: newTotal };
-        }
+        fruitUpdates = newFruits.length > 0
+          ? { spelling_total_points: newTotal, unlocked_fruits: [...currentFruits, ...newFruits] }
+          : { spelling_total_points: newTotal };
       }
     }
 
     const combined = { ...petUpdates, ...fruitUpdates };
     if (Object.keys(combined).length > 0) {
       await base44.entities.Student.update(studentData.id, combined);
-      setStudentData({ ...studentData, mode_progress: updatedModeProgress, ...combined });
     }
+    // Always update local state with the freshest merged data
+    setStudentData({ ...freshStudent, ...combined });
   };
 
   const handleModeSelect = (mode) => {
