@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import PrizeWheel from '@/components/game/PrizeWheel';
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
@@ -943,12 +944,11 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 }
 
 // ── Sticker progress bar ────────────────────────────────────────────────────
-const STICKER_EMOJIS = ['🌟','🦋','🌈','🎀','🐬','🦄','🌸','🍀','🎈','🏆','🦊','🐙'];
 const PTS_PER_SENTENCE = 5;
 const PTS_PER_STICKER = 100;
 
 function StickerProgressBar({ sessionPts, totalPts }) {
-  const stickers = Math.floor(totalPts / PTS_PER_STICKER);
+  const spins = Math.floor(totalPts / PTS_PER_STICKER);
   const progress = totalPts % PTS_PER_STICKER;
   const pct = (progress / PTS_PER_STICKER) * 100;
   return (
@@ -964,15 +964,10 @@ function StickerProgressBar({ sessionPts, totalPts }) {
         </div>
         <span className="text-xs font-black text-rose-700 whitespace-nowrap">{progress}/{PTS_PER_STICKER}</span>
       </div>
-      {stickers > 0 && (
-        <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-xs font-bold text-gray-500">Stickers earned:</span>
-          {Array.from({ length: stickers }, (_, i) => (
-            <span key={i} className="text-lg">{STICKER_EMOJIS[i % STICKER_EMOJIS.length]}</span>
-          ))}
-        </div>
-      )}
-      <p className="text-xs text-gray-400 font-bold">{PTS_PER_STICKER - progress} pts to next sticker 🏷️</p>
+      <p className="text-xs text-gray-400 font-bold">
+        {PTS_PER_STICKER - progress} pts to next prize spin 🎡
+        {spins > 0 && <span className="ml-2 text-rose-500">· {spins} spin{spins > 1 ? 's' : ''} used</span>}
+      </p>
     </div>
   );
 }
@@ -987,7 +982,8 @@ export default function SentencesMode({ studentData, onBack }) {
   const [loading, setLoading] = useState(true);
   const [sessionPts, setSessionPts] = useState(0);
   const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
-  const [newStickerEmoji, setNewStickerEmoji] = useState(null);
+  const [showWheel, setShowWheel] = useState(false);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -1061,16 +1057,17 @@ export default function SentencesMode({ studentData, onBack }) {
   const handleComplete = () => {
     // Award points for completing the sentence
     const newTotal = totalPts + PTS_PER_SENTENCE;
-    const oldStickers = Math.floor(totalPts / PTS_PER_STICKER);
-    const newStickers = Math.floor(newTotal / PTS_PER_STICKER);
+    const oldSpins = Math.floor(totalPts / PTS_PER_STICKER);
+    const newSpins = Math.floor(newTotal / PTS_PER_STICKER);
     setTotalPts(newTotal);
     setSessionPts(p => p + PTS_PER_SENTENCE);
-    if (newStickers > oldStickers) {
-      const emoji = STICKER_EMOJIS[(newStickers - 1) % STICKER_EMOJIS.length];
-      setNewStickerEmoji(emoji);
-      setTimeout(() => setNewStickerEmoji(null), 3000);
+
+    // Trigger prize wheel if crossed a 100-pt milestone
+    if (newSpins > oldSpins) {
+      setShowWheel(true);
     }
-    // Persist to student record
+
+    // Persist points to student record
     if (studentData?.id) {
       base44.entities.Student.update(studentData.id, { sentences_total_points: newTotal }).catch(() => {});
     }
@@ -1082,6 +1079,17 @@ export default function SentencesMode({ studentData, onBack }) {
       setSentences(s => [...s].sort(() => Math.random() - 0.5));
       setCurrentIdx(0);
       setPhase('write');
+    }
+  };
+
+  const handleClaimPrize = (prize) => {
+    setShowWheel(false);
+    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
+      const updated = [...redeemedPrizes, prize.id];
+      setRedeemedPrizes(updated);
+      if (studentData?.id) {
+        base44.entities.Student.update(studentData.id, { redeemed_prizes: updated }).catch(() => {});
+      }
     }
   };
 
@@ -1118,17 +1126,14 @@ export default function SentencesMode({ studentData, onBack }) {
           </div>
         )}
 
-        {/* Sticker celebration overlay */}
+        {/* Prize wheel */}
         <AnimatePresence>
-          {newStickerEmoji && (
-            <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
-              className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-              <div className="bg-white rounded-3xl shadow-2xl p-8 text-center border-4 border-rose-400">
-                <div className="text-8xl mb-3">{newStickerEmoji}</div>
-                <p className="text-2xl font-black text-rose-600">🎉 ¡Nuevo sticker!</p>
-                <p className="text-gray-500 font-bold mt-1">You earned a sticker — bring it to your teacher on Friday! 🏷️</p>
-              </div>
-            </motion.div>
+          {showWheel && (
+            <PrizeWheel
+              redeemedPrizes={redeemedPrizes}
+              onClaim={handleClaimPrize}
+              onClose={() => setShowWheel(false)}
+            />
           )}
         </AnimatePresence>
 

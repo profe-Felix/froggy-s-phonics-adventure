@@ -48,6 +48,14 @@
       "description": "Lifetime sentence points (5 pts per completed sentence)",
       "default": 0
     },
+    "redeemed_prizes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of prize IDs that have been redeemed (used to block one-time prizes like ring)",
+      "default": []
+    },
     "mode_progress": {
       "type": "object",
       "properties": {
