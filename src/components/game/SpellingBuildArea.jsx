@@ -27,7 +27,7 @@ export default function SpellingBuildArea({
 }) {
   return (
     <div className="absolute bottom-4 left-4 bg-white/95 rounded-3xl shadow-2xl p-4 z-10"
-      style={{ width: 'min(420px, 55vw)' }}>
+      style={{ width: 'min(680px, calc(100vw - 2rem))' }}>
 
       {/* Word display */}
       <div className="text-center mb-3">
@@ -66,7 +66,7 @@ export default function SpellingBuildArea({
             <p className="text-xs text-gray-400 mb-1">Correct:</p>
             <div className="flex justify-center gap-1.5 flex-wrap">
               {targetWord.split('').map((letter, i) => (
-                <div key={i} className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-lg shadow flex items-center justify-center">
+                <div key={i} className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-lg shadow flex items-center justify-center">
                   <span className="text-xl font-bold text-white">{letter}</span>
                 </div>
               ))}

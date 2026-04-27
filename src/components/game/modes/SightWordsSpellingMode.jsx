@@ -143,30 +143,23 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
 
       return [...missingLetters, ...distractors]
         .sort(() => Math.random() - 0.5)
-        .map((letter, idx) => ({ letter, id: idx }));
+        .map((letter, idx) => ({ letter, id: `opt-${idx}-${Math.random().toString(36).slice(2)}` }));
     }
     setClozeIndices([]);
 
-    // SPELL MODE (default)
-    // Get all unique letters in word
-    const uniqueLetters = [...new Set(wordLetters)];
-    
-    // Get exact needed count per letter
-    const letterCounts = {};
-    wordLetters.forEach(l => { letterCounts[l] = (letterCounts[l] || 0) + 1; });
-    const neededLetters = Object.entries(letterCounts).flatMap(([letter, count]) => 
-      Array(count).fill(letter)
-    );
+    // SPELL MODE — include every letter the word needs (preserving duplicates)
+    const neededLetters = [...wordLetters];
 
-    // Add distractors (letters NOT in word)
+    // Add distractors (letters NOT in word at all)
+    const wordLetterSet = new Set(wordLetters);
     const distractors = DISTRACTOR_LETTERS
-      .filter(l => !uniqueLetters.includes(l))
+      .filter(l => !wordLetterSet.has(l))
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(2, 6 - uniqueLetters.length));
+      .slice(0, Math.max(2, 6 - wordLetterSet.size));
 
     return [...neededLetters, ...distractors]
       .sort(() => Math.random() - 0.5)
-      .map((letter, idx) => ({ letter, id: idx }));
+      .map((letter, idx) => ({ letter, id: `opt-${idx}-${Math.random().toString(36).slice(2)}` }));
   };
 
   const startRound = (nextRoundCount, mod = selectedModule) => {
