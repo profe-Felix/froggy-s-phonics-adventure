@@ -58,6 +58,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const lastWordRef = useRef(null);
   const audioRef = useRef(null);
   const submittingRef = useRef(false);
+  const clozeIndicesRef = useRef([]);
 
   const modeData = studentData?.mode_progress?.sight_words_spelling || {
     mastered_items: [], learning_items: ['el', 'la', 'un', 'una', 'en'],
@@ -128,12 +129,17 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const buildOptions = (word, type) => {
     const wordLetters = word.split('');
 
-    // CLOZE MODE — always remove the last 1 or 2 letters (sorted ascending by position)
+    // CLOZE MODE — random positions (1 or 2 letters depending on word length)
     if (type === 'cloze') {
       const numMissing = wordLetters.length >= 4 ? 2 : 1;
-      // Take the last `numMissing` indices, sorted ascending
-      const indices = Array.from({ length: numMissing }, (_, k) => wordLetters.length - numMissing + k);
+      const allIndices = wordLetters.map((_, k) => k);
+      // Shuffle and take numMissing, then sort ascending so display order matches position
+      const indices = allIndices
+        .sort(() => Math.random() - 0.5)
+        .slice(0, numMissing)
+        .sort((a, b) => a - b);
       setClozeIndices(indices);
+      clozeIndicesRef.current = indices; // keep ref in sync for handleSubmit
       const missingLetters = indices.map(i => wordLetters[i]);
 
       const distractors = DISTRACTOR_LETTERS
@@ -146,6 +152,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
         .map((letter, idx) => ({ letter, id: `opt-${idx}-${Math.random().toString(36).slice(2)}` }));
     }
     setClozeIndices([]);
+    clozeIndicesRef.current = [];
 
     // SPELL MODE — include every letter the word needs (preserving duplicates)
     const neededLetters = [...wordLetters];
@@ -306,7 +313,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     let correct;
     let expectedForPts;
     if (challengeType === 'cloze') {
-      const expectedMissing = clozeIndices.map(i => wordLetters[i]);
+      const expectedMissing = clozeIndicesRef.current.map(i => wordLetters[i]);
       expectedForPts = expectedMissing;
       correct = builtWord.length === expectedMissing.length &&
         builtWord.every((l, i) => l === expectedMissing[i]);
@@ -496,7 +503,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
             challengeType === 'cloze'
               ? currentWord
                   .split('')
-                  .map((l, i) => (clozeIndices.includes(i) ? '_' : l))
+                  .map((l, i) => (clozeIndicesRef.current.includes(i) ? '_' : l))
                   .join('')
               : ''
           }
@@ -522,7 +529,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
-          clozeIndices={challengeType === 'cloze' ? clozeIndices : []}
+          clozeIndices={challengeType === 'cloze' ? clozeIndicesRef.current : []}
         />
       </div>
       <EmojiPrizeCelebration
