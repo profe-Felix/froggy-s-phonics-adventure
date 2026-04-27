@@ -143,6 +143,12 @@ export default function Dashboard() {
                 >
                   ✍️ Writing Samples
                 </Link>
+                <Link
+                  to="/PrizeDashboard"
+                  className="text-sm text-rose-600 border border-rose-200 rounded-lg px-4 py-2 hover:bg-rose-50"
+                >
+                  🎡 Prizes
+                </Link>
                 <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"

@@ -492,6 +492,63 @@ function NumberChip({ n, onDragStart }) {
   );
 }
 
+// ── Y-axis mini write box ──────────────────────────────────────────
+function YAxisBox({ lineNum, val, onDrop, onYLabelDrop }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPos = useRef(null);
+  const [active, setActive] = useState(false);
+
+  const getPos = (e) => {
+    const c = canvasRef.current; const r = c.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - r.left) * (c.width / r.width), y: (src.clientY - r.top) * (c.height / r.height) };
+  };
+  const onDown = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (window.__draggingNumber !== undefined) { onYLabelDrop(lineNum, window.__draggingNumber); return; }
+    const c = canvasRef.current; const ctx = c.getContext('2d');
+    const pos = getPos(e);
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+    lastPos.current = pos; drawing.current = true; setActive(true);
+  };
+  const onMove = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!drawing.current) return;
+    const pos = getPos(e); const ctx = canvasRef.current.getContext('2d');
+    const prev = lastPos.current;
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#6366f1';
+    ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    lastPos.current = pos;
+  };
+  const onUp = (e) => { e.preventDefault(); e.stopPropagation(); drawing.current = false; };
+  const clearCanvas = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const c = canvasRef.current; c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    onDrop(lineNum, undefined); setActive(false);
+  };
+
+  return (
+    <div data-yrow={lineNum}
+      style={{ position: 'absolute', bottom: `${(lineNum / 10) * 100}%`, left: 0, right: 0, height: 28, transform: 'translateY(50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}>
+      <div style={{ position: 'relative', width: 34, height: 26 }}>
+        <canvas ref={canvasRef} width={68} height={52}
+          style={{ width: 34, height: 26, borderRadius: 5, border: val !== undefined ? '2px solid #6366f1' : '2px dashed #94a3b8', background: val !== undefined ? '#eef2ff' : 'rgba(248,250,252,0.9)', cursor: 'crosshair', touchAction: 'none', display: 'block' }}
+          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+        />
+        {active && (
+          <button onPointerDown={clearCanvas}
+            style={{ position: 'absolute', top: -6, right: -6, width: 12, height: 12, borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: 7, fontWeight: 900, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: 0, zIndex: 10 }}>
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Bar graph ──────────────────────────────────────────────────────
 function BarGraph({ filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxisLabels, onXLabelDrop, feedback }) {
   const COL_COLORS = ['#ef4444', '#f59e0b', '#3b82f6'];
@@ -500,20 +557,13 @@ function BarGraph({ filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxisLabel
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '4px 4px 0 4px' }}>
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* Y-axis */}
-        <div style={{ width: 38, flexShrink: 0, position: 'relative', borderRight: '2px solid #374151' }}>
-          {Array.from({ length: MAX_ROWS + 1 }, (_, i) => i).map(lineNum => {
-            const pct = (lineNum / MAX_ROWS) * 100;
-            const val = yAxisLabels[lineNum];
-            return (
-              <div key={lineNum} data-yrow={lineNum}
-                onClick={() => { if (window.__draggingNumber !== undefined) onYLabelDrop(lineNum, window.__draggingNumber); }}
-                style={{ position: 'absolute', bottom: `${pct}%`, left: 0, right: 0, height: 24, transform: 'translateY(50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 5 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, border: val !== undefined ? '2px solid #6366f1' : '2px dashed #94a3b8', background: val !== undefined ? '#eef2ff' : 'rgba(248,250,252,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: '#6366f1' }}>
-                  {val !== undefined ? val : ''}
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ width: 40, flexShrink: 0, position: 'relative', borderRight: '2px solid #374151' }}>
+          {Array.from({ length: MAX_ROWS + 1 }, (_, i) => i).map(lineNum => (
+            <YAxisBox key={lineNum} lineNum={lineNum} val={yAxisLabels[lineNum]}
+              onDrop={(row, val) => onYLabelDrop(row, val)}
+              onYLabelDrop={onYLabelDrop}
+            />
+          ))}
         </div>
         {/* Grid */}
         <div style={{ display: 'flex', flex: 1, gap: 2, padding: '0 2px' }}>
@@ -531,9 +581,9 @@ function BarGraph({ filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxisLabel
         </div>
       </div>
       {/* X-axis line */}
-      <div style={{ height: 2, background: '#374151', margin: '0 0 0 40px' }} />
+      <div style={{ height: 2, background: '#374151', margin: '0 0 0 42px' }} />
       {/* X-axis slots */}
-      <div style={{ display: 'flex', gap: 2, padding: '4px 2px 0 42px' }}>
+      <div style={{ display: 'flex', gap: 2, padding: '4px 2px 0 44px' }}>
         {[0, 1, 2].map(colIdx => {
           const dropped = xAxisLabels[colIdx];
           const fb = feedback?.xAxis?.[colIdx];
@@ -710,7 +760,7 @@ export default function GraphingGame({ onBack }) {
             Tap squares to color · drag labels &amp; numbers to graph
           </div>
           <div style={{ flex: 1, background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden', minHeight: 280 }}>
-            <BarGraph filledCells={filledCells} onToggle={toggleCell} yAxisLabels={yAxisLabels} onYLabelDrop={(row, n) => setYAxisLabels(prev => ({ ...prev, [row]: n }))} xAxisLabels={xAxisLabels} onXLabelDrop={(col, label) => { setXAxisLabels(prev => ({ ...prev, [col]: label })); setFeedback(null); setGraphChecked(false); }} feedback={feedback} />
+            <BarGraph filledCells={filledCells} onToggle={toggleCell} yAxisLabels={yAxisLabels} onYLabelDrop={(row, n) => setYAxisLabels(prev => { if (n === undefined) { const next = {...prev}; delete next[row]; return next; } return { ...prev, [row]: n }; })} xAxisLabels={xAxisLabels} onXLabelDrop={(col, label) => { setXAxisLabels(prev => ({ ...prev, [col]: label })); setFeedback(null); setGraphChecked(false); }} feedback={feedback} />
           </div>
           <div style={{ background: '#fff', borderRadius: 12, padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             {!graphChecked ? (

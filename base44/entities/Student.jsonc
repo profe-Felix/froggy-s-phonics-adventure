@@ -53,8 +53,20 @@
       "items": {
         "type": "string"
       },
-      "description": "List of prize IDs that have been redeemed (used to block one-time prizes like ring)",
+      "description": "Prize IDs claimed forever (one-time prizes like ring)",
       "default": []
+    },
+    "active_prizes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Prize IDs currently active (e.g. cushion, friend, lollipop). Teacher manages these.",
+      "default": []
+    },
+    "cushion_since": {
+      "type": "number",
+      "description": "Unix timestamp when cushion prize was granted, for FIFO eviction"
     },
     "mode_progress": {
       "type": "object",

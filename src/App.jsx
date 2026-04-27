@@ -16,6 +16,7 @@ import SpellingWritingDashboard from './pages/SpellingWritingDashboard';
 import WordSentenceBuilder from './pages/WordSentenceBuilder';
 import WordBuilderDashboard from './pages/WordBuilderDashboard';
 import Lessons from './pages/Lessons';
+import PrizeDashboard from './pages/PrizeDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -80,6 +81,7 @@ const AuthenticatedApp = () => {
       <Route path="/Lessons" element={<Lessons />} />
       <Route path="/WordSentenceBuilder" element={<WordSentenceBuilder />} />
       <Route path="/WordBuilderDashboard" element={<WordBuilderDashboard />} />
+      <Route path="/PrizeDashboard" element={<PrizeDashboard />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
