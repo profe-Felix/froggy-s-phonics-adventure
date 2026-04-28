@@ -554,7 +554,7 @@ function BarGraph({ filledCells, onToggle, yAxisLabels, onYLabelDrop, xAxisLabel
   const COL_COLORS = ['#ef4444', '#f59e0b', '#3b82f6'];
   const COL_LIGHT = ['#fee2e2', '#fef3c7', '#dbeafe'];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px 4px 0 4px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '24px 4px 0 4px' }}>
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* Y-axis */}
         <div style={{ width: 40, flexShrink: 0, position: 'relative', borderRight: '2px solid #374151' }}>
