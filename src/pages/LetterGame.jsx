@@ -306,7 +306,7 @@ export default function LetterGame() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative h-screen flex flex-col">
       {currentMode === 'letter_sounds' && (
         <LetterSoundsMode
           studentData={studentData}
