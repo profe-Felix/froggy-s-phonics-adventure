@@ -51,6 +51,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
   const [roundCount, setRoundCount] = useState(0);
   const [clozeIndices, setClozeIndices] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
+  const [roundLoading, setRoundLoading] = useState(false);
   const [emojiPrize, setEmojiPrize] = useState(null);
   const [showEmojiCollection, setShowEmojiCollection] = useState(false);
   const [activeEmojiIdx, setActiveEmojiIdx] = useState(() => {
@@ -199,6 +200,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     if (moduleWords.length === 0) return;
     
     const rc = nextRoundCount ?? roundCount;
+    setRoundLoading(true);
 
     // Try up to all words to find one with audio
     for (let attempt = 0; attempt < Math.min(moduleWords.length, 30); attempt++) {
@@ -224,9 +226,11 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       setPhase('write');
       setIsRetry(false);
       submittingRef.current = false;
+      setRoundLoading(false);
       playSound(word);
       return;
     }
+    setRoundLoading(false);
   };
 
   useEffect(() => {
@@ -400,7 +404,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     await saveProgress(correct, isRetry);
   };
 
-  if (!wordsLoaded) {
+  if (!wordsLoaded || roundLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
