@@ -185,10 +185,11 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
-  const allStrokes = useRef([]);
+  const allStrokes = useRef([]); // {points, eraser: false|'pixel'}
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
 
   const getPos = (e) => {
     const c = canvasRef.current;
@@ -196,34 +197,97 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     const src = e.touches ? e.touches[0] : e;
     return { x: ((src.clientX - rect.left) / rect.width) * c.width, y: ((src.clientY - rect.top) / rect.height) * c.height, t: Date.now() };
   };
-  const onDown = (e) => {
+
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    allStrokes.current.forEach(stroke => {
+      if (stroke.points.length < 2) return;
+      ctx.save();
+      if (stroke.eraser === 'pixel') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 36;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#1e40af';
+      }
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        const p = stroke.points[i-1], c2 = stroke.points[i];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x+c2.x)/2, (p.y+c2.y)/2);
+      }
+      ctx.stroke(); ctx.restore();
+    });
+  }, []);
+
+  const objectErase = useCallback((pos) => {
+    const threshold = 30;
+    allStrokes.current = allStrokes.current.filter(stroke => {
+      if (stroke.eraser) return true;
+      return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
+    });
+    redraw();
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
+  }, [redraw]);
+
+  const onDown = useCallback((e) => {
     e.preventDefault();
     const pos = getPos(e);
+    if (tool === 'object-eraser') {
+      objectErase(pos); drawing.current = true; lastPos.current = pos; currentStroke.current = []; return;
+    }
     const ctx = canvasRef.current.getContext('2d');
     ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
-    lastPos.current = pos; currentStroke.current = [pos]; drawing.current = true; setHasDrawn(true);
-  };
-  const onMove = (e) => {
+    lastPos.current = pos; currentStroke.current = [pos]; drawing.current = true;
+    if (tool === 'pen') setHasDrawn(true);
+  }, [tool, objectErase]);
+
+  const onMove = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     const pos = getPos(e);
+    if (tool === 'object-eraser') { objectErase(pos); lastPos.current = pos; return; }
     const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
     const prev = lastPos.current;
-    ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
-    ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    if (tool === 'pixel-eraser') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = 36; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pos.x, pos.y);
+      ctx.stroke(); ctx.restore();
+    } else {
+      ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+      ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+      ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
+    }
     lastPos.current = pos; currentStroke.current.push(pos);
-  };
-  const onUp = (e) => {
+  }, [tool, objectErase]);
+
+  const onUp = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     drawing.current = false;
-    if (currentStroke.current.length > 0) { allStrokes.current = [...allStrokes.current, currentStroke.current]; currentStroke.current = []; }
-  };
+    if (currentStroke.current.length > 0) {
+      allStrokes.current = [...allStrokes.current, { points: currentStroke.current, eraser: tool === 'pixel-eraser' ? 'pixel' : false }];
+      currentStroke.current = [];
+    }
+  }, [tool]);
+
   const clear = () => {
     const c = canvasRef.current;
     c.getContext('2d').clearRect(0, 0, c.width, c.height);
     allStrokes.current = []; setHasDrawn(false);
+  };
+
+  const undo = () => {
+    if (allStrokes.current.length === 0) return;
+    allStrokes.current = allStrokes.current.slice(0, -1);
+    redraw();
+    if (allStrokes.current.length === 0) setHasDrawn(false);
   };
 
   const handlePlay = () => {
@@ -245,26 +309,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
 
   const displayH = 220;
 
-  // undo support
-  const undo = () => {
-    if (allStrokes.current.length === 0) return;
-    allStrokes.current = allStrokes.current.slice(0, -1);
-    // Redraw
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    allStrokes.current.forEach(stroke => {
-      if (stroke.length < 2) return;
-      ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
-      ctx.beginPath(); ctx.moveTo(stroke[0].x, stroke[0].y);
-      for (let i = 1; i < stroke.length; i++) {
-        const p = stroke[i-1], c = stroke[i];
-        ctx.quadraticCurveTo(p.x, p.y, (p.x+c.x)/2, (p.y+c.y)/2);
-      }
-      ctx.stroke();
-    });
-    if (allStrokes.current.length === 0) setHasDrawn(false);
-  };
+  const cursorStyle = tool === 'object-eraser' ? 'pointer' : tool === 'pixel-eraser' ? 'cell' : 'crosshair';
 
   return (
     <div className="flex flex-col gap-3 w-full">
@@ -286,7 +331,6 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
       </div>
       <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
       <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
-        {/* SVG primary lines — 3 rows scaled */}
         <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${displayH}`}>
           {[0,1,2].map(row => {
             const rowH = displayH / 3;
@@ -304,16 +348,28 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
         </svg>
         <canvas ref={canvasRef} width={1400} height={420}
           className="absolute inset-0 touch-none w-full h-full"
-          style={{ background: 'transparent', cursor: 'crosshair' }}
+          style={{ background: 'transparent', cursor: cursorStyle }}
           onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
           onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
         />
       </div>
       <div className="flex gap-2 flex-wrap">
+        <button onClick={() => setTool('pen')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          ✏️ Pencil
+        </button>
+        <button onClick={() => setTool('pixel-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pixel-eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          🩹 Pixel
+        </button>
+        <button onClick={() => setTool('object-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'object-eraser' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          🧹 Object
+        </button>
         <button onClick={undo} disabled={allStrokes.current.length === 0}
           className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">↩ Undo</button>
         <button onClick={clear} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">🗑 Borrar</button>
-        <button onClick={() => onDone(allStrokes.current)} disabled={!hasDrawn}
+        <button onClick={() => onDone(allStrokes.current.filter(s => !s.eraser).map(s => s.points))} disabled={!hasDrawn}
           className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm">
           Listo → Construir
         </button>

@@ -12,7 +12,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
   const allStrokes = useRef([]); // array of {points, eraser}
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
-  const [tool, setTool] = useState('pen'); // 'pen' | 'eraser'
+  const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -39,9 +39,9 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     allStrokes.current.forEach(stroke => {
       if (stroke.points.length < 2) return;
       ctx.save();
-      if (stroke.eraser) {
+      if (stroke.eraser === 'pixel') {
         ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = 24;
+        ctx.lineWidth = 36;
       } else {
         ctx.globalCompositeOperation = 'source-over';
         ctx.lineWidth = 5;
@@ -64,6 +64,13 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
   const startDraw = useCallback((e) => {
     e.preventDefault();
     const pos = getPos(e);
+    if (tool === 'object-eraser') {
+      objectErase(pos);
+      drawing.current = true;
+      lastPos.current = pos;
+      currentStroke.current = [];
+      return;
+    }
     const ctx = canvasRef.current.getContext('2d');
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
@@ -71,18 +78,24 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     currentStroke.current = [pos];
     drawing.current = true;
     if (tool === 'pen') setHasDrawn(true);
-  }, [tool]);
+  }, [tool, objectErase]);
 
   const draw = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     const pos = getPos(e);
+    if (tool === 'object-eraser') {
+      objectErase(pos);
+      lastPos.current = pos;
+      return;
+    }
     const ctx = canvasRef.current.getContext('2d');
     const prev = lastPos.current;
-    if (tool === 'eraser') {
+    if (tool === 'pixel-eraser') {
+...
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = 24;
+      ctx.lineWidth = 36;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -102,14 +115,14 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     }
     lastPos.current = pos;
     currentStroke.current.push(pos);
-  }, [tool]);
+  }, [tool, objectErase]);
 
   const endDraw = useCallback((e) => {
     e.preventDefault();
     if (!drawing.current) return;
     drawing.current = false;
     if (currentStroke.current.length > 0) {
-      allStrokes.current = [...allStrokes.current, { points: currentStroke.current, eraser: tool === 'eraser' }];
+      allStrokes.current = [...allStrokes.current, { points: currentStroke.current, eraser: tool === 'pixel-eraser' ? 'pixel' : false }];
       currentStroke.current = [];
     }
   }, [tool]);
@@ -120,6 +133,17 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     redraw();
     setHasDrawn(allStrokes.current.some(s => !s.eraser));
   };
+
+  const objectErase = useCallback((pos) => {
+    // Remove any pen stroke that passes within ~30px of the tap point
+    const threshold = 30;
+    allStrokes.current = allStrokes.current.filter(stroke => {
+      if (stroke.eraser) return true; // keep existing eraser strokes
+      return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
+    });
+    redraw();
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
+  }, [redraw]);
 
   const clear = () => {
     const canvas = canvasRef.current;
@@ -214,7 +238,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
           width={canvasW}
           height={canvasH}
           className="absolute inset-0 touch-none w-full h-full"
-          style={{ background: 'transparent', cursor: tool === 'eraser' ? 'cell' : 'crosshair' }}
+          style={{ background: 'transparent', cursor: tool === 'object-eraser' ? 'pointer' : tool === 'pixel-eraser' ? 'cell' : 'crosshair' }}
           onMouseDown={startDraw}
           onMouseMove={draw}
           onMouseUp={endDraw}
@@ -231,13 +255,19 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
           onClick={() => setTool('pen')}
           className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
-          ✏️ Pen
+          ✏️ Pencil
         </button>
         <button
-          onClick={() => setTool('eraser')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          onClick={() => setTool('pixel-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pixel-eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
-          🧹 Eraser
+          🩹 Pixel
+        </button>
+        <button
+          onClick={() => setTool('object-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'object-eraser' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          🧹 Object
         </button>
         <button onClick={undo}
           disabled={allStrokes.current.length === 0}
