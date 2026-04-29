@@ -8,6 +8,9 @@ import LaserRecordView from './LaserRecordView';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
 import PageNavBar from './PageNavBar';
+import FloatingMicWidget from './FloatingMicWidget';
+import LaserOverlay from './LaserOverlay';
+import useLaserTracker from '@/hooks/useLaserTracker';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -55,6 +58,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [showAudioHint, setShowAudioHint] = useState(false);
   const [showVoiceNote, setShowVoiceNote] = useState(false);
   const [showLaserRecord, setShowLaserRecord] = useState(false);
+  // Floating mics state: [{id, x_pct, y_pct, audio_url, laser_data, label, role}]
+  const [floatingMics, setFloatingMics] = useState([]);
+  const [addingMic, setAddingMic] = useState(false);
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
@@ -354,6 +360,37 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];
 
+  // Laser tracker — active when tool === 'laser'
+  const laserActive = tool === 'laser';
+  const laserTracker = useLaserTracker({ containerRef, enabled: laserActive });
+
+  // Load floating mics from session for current page
+  useEffect(() => {
+    if (!session) return;
+    const micsForPage = (session.voice_notes_by_page?.[`mics_${currentPage}`]) || '[]';
+    try { setFloatingMics(JSON.parse(micsForPage)); } catch { setFloatingMics([]); }
+  }, [session?.id, currentPage]);
+
+  const saveFloatingMics = useCallback(async (mics) => {
+    if (!session) return;
+    const key = `mics_${currentPage}`;
+    const updated = { ...(session.voice_notes_by_page || {}), [key]: JSON.stringify(mics) };
+    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
+    setSession(s => ({ ...s, voice_notes_by_page: updated }));
+  }, [session, currentPage]);
+
+  const handlePageClickForMic = (e) => {
+    if (!addingMic || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x_pct = (e.clientX - rect.left) / rect.width;
+    const y_pct = (e.clientY - rect.top) / rect.height;
+    const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
+    const updated = [...floatingMics, newMic];
+    setFloatingMics(updated);
+    saveFloatingMics(updated);
+    setAddingMic(false);
+  };
+
   const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
   const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
   // pdf_page_count / page_count is the ground truth; page_range_end is a limit, not the total
@@ -499,7 +536,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           <div
             ref={containerRef}
             className="flex-1 overflow-auto"
-            style={{ background: '#e8e8e8' }}
+            style={{ background: '#e8e8e8', position: 'relative', cursor: addingMic ? 'copy' : 'default' }}
+            onClick={handlePageClickForMic}
           >
             {selectedAssignment.pdf_url ? (
               <div style={{ position: 'relative', display: 'block', width: '100%' }}>
@@ -515,12 +553,57 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     height={pdfRenderedSize.h}
                     color={color}
                     size={size}
-                    tool={tool}
-                    mode="draw"
+                    tool={tool === 'laser' ? 'none' : tool}
+                    mode={tool === 'laser' ? 'none' : 'draw'}
                     onStrokeStart={handleStrokeStart}
                     onStrokeEnd={handleStrokeEnd}
                   />
                 )}
+                {/* Laser overlay */}
+                {laserActive && pdfRenderedSize && (
+                  <LaserOverlay
+                    trailPoints={laserTracker.trailPoints}
+                    width={pdfRenderedSize.w}
+                    height={pdfRenderedSize.h}
+                  />
+                )}
+                {/* Teacher speaker icons from assignment */}
+                {(selectedAssignment.audio_instructions || [])
+                  .filter(a => a.page === currentPage && a.x_pct !== undefined)
+                  .map((ann, i) => (
+                    <div key={i} style={{
+                      position: 'absolute',
+                      left: ann.x_pct * (pdfRenderedSize?.w || 600),
+                      top: ann.y_pct * (pdfRenderedSize?.h || 800),
+                      transform: 'translate(-50%,-50%)',
+                      zIndex: 35,
+                    }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); new Audio(ann.url).play(); }}
+                        style={{ width: 38, height: 38, borderRadius: '50%', background: '#f59e0b', border: '3px solid white', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        🔊
+                      </button>
+                    </div>
+                  ))}
+                {/* Floating student mics */}
+                {pdfRenderedSize && floatingMics.map(mic => (
+                  <FloatingMicWidget
+                    key={mic.id}
+                    note={mic}
+                    containerRef={containerRef}
+                    role="student"
+                    onSave={(updated) => {
+                      const newMics = floatingMics.map(m => m.id === mic.id ? updated : m);
+                      setFloatingMics(newMics);
+                      saveFloatingMics(newMics);
+                    }}
+                    onRemove={() => {
+                      const newMics = floatingMics.filter(m => m.id !== mic.id);
+                      setFloatingMics(newMics);
+                      saveFloatingMics(newMics);
+                    }}
+                  />
+                ))}
               </div>
             ) : (
               <div className="flex items-center justify-center h-full bg-white">
@@ -528,6 +611,16 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
               </div>
             )}
           </div>
+
+          {/* Add floating mic button */}
+          <button
+            onClick={() => setAddingMic(v => !v)}
+            className="absolute bottom-20 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+            style={{ background: addingMic ? '#f59e0b' : '#374151', border: `3px solid ${addingMic ? '#fbbf24' : '#6b7280'}` }}
+            title="Add floating mic"
+          >
+            {addingMic ? '📍' : '🎙+'}
+          </button>
 
           {(selectedAssignment.recording_pages || []).includes(currentPage) && (
             <>

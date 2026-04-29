@@ -1,0 +1,38 @@
+{
+  "name": "StoryAssignment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {id, template, strokes_data, canvas_width, canvas_height}"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "submitted"
+      ],
+      "default": "in_progress"
+    },
+    "last_active": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "class_name",
+    "student_number"
+  ]
+}

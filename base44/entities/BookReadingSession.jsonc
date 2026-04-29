@@ -1,0 +1,42 @@
+{
+  "name": "BookReadingSession",
+  "type": "object",
+  "properties": {
+    "book_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "session_date": {
+      "type": "string",
+      "description": "YYYY-MM-DD \u2014 resets daily"
+    },
+    "recordings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {page, audio_url, laser_data, recorded_at, duration_ms}"
+    },
+    "pages_completed": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "last_page": {
+      "type": "integer",
+      "default": 1
+    }
+  },
+  "required": [
+    "book_id",
+    "class_name",
+    "student_number",
+    "session_date"
+  ]
+}

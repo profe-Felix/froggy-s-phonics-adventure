@@ -1,0 +1,55 @@
+{
+  "name": "FloatingMicNote",
+  "type": "object",
+  "properties": {
+    "assignment_id": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "page": {
+      "type": "integer"
+    },
+    "x_pct": {
+      "type": "number",
+      "description": "X position as fraction of page width 0-1"
+    },
+    "y_pct": {
+      "type": "number",
+      "description": "Y position as fraction of page height 0-1"
+    },
+    "audio_url": {
+      "type": "string"
+    },
+    "laser_data": {
+      "type": "string",
+      "description": "JSON-encoded array of {x_pct, y_pct, t}"
+    },
+    "duration_ms": {
+      "type": "integer"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "student",
+        "teacher"
+      ],
+      "default": "student"
+    },
+    "label": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "assignment_id",
+    "class_name",
+    "page"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "name": "BookAssignment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "cover_image_url": {
+      "type": "string",
+      "description": "Thumbnail/cover image URL"
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "PDF source (if PDF book)"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {page_number, image_url} for image-based books"
+    },
+    "pdf_page_count": {
+      "type": "integer",
+      "default": 1
+    },
+    "book_type": {
+      "type": "string",
+      "enum": [
+        "pdf",
+        "images"
+      ],
+      "default": "pdf"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "closed"
+      ],
+      "default": "draft"
+    },
+    "teacher_annotations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {id, page, x_pct, y_pct, type:'speaker', audio_url, laser_data, label}"
+    },
+    "reset_hour": {
+      "type": "integer",
+      "default": 0,
+      "description": "Hour (0-23) at which student recordings reset (midnight = 0)"
+    }
+  },
+  "required": [
+    "title",
+    "class_name"
+  ]
+}

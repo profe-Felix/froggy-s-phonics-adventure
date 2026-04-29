@@ -149,6 +149,12 @@ export default function Dashboard() {
                 >
                   🎡 Prizes
                 </Link>
+                <Link
+                  to="/BookReading?mode=teacher"
+                  className="text-sm text-teal-600 border border-teal-200 rounded-lg px-4 py-2 hover:bg-teal-50"
+                >
+                  📚 Book Reading
+                </Link>
                 <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"

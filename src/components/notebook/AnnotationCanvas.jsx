@@ -95,6 +95,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (tool === 'highlighter') return 'highlighter';
     if (tool === 'eraser_object') return 'eraser_object';
     if (tool === 'eraser_pixel') return 'eraser_pixel';
+    if (tool === 'laser' || tool === 'none') return 'laser'; // handled outside canvas
     return 'pen';
   };
 
@@ -136,6 +137,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onMouseDown = (e) => {
       if (mode !== 'draw') return;
+      if (tool === 'laser' || tool === 'none') return;
       e.preventDefault();
       beginStrokeAt(getPos(e));
     };
@@ -154,6 +156,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onTouchStart = (e) => {
       if (mode !== 'draw') return;
+      if (tool === 'laser' || tool === 'none') return;
 
       if (e.touches.length >= 2) {
         cancelStrokeForScroll();
@@ -282,7 +285,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
         cursor:
           mode === 'draw'
-            ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair')
+            ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : tool === 'laser' || tool === 'none' ? 'none' : 'crosshair')
             : 'default',
         background: 'transparent',
       }}

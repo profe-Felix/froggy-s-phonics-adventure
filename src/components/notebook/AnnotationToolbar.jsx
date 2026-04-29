@@ -34,6 +34,7 @@ const TOOLS = [
   { id: 'highlighter', label: '🖍', title: 'Highlighter' },
   { id: 'eraser_object', label: '🧹', title: 'Object Eraser (big)' },
   { id: 'eraser_pixel', label: '◻️', title: 'Pixel Eraser (fine)' },
+  { id: 'laser', label: '🔴', title: 'Laser pointer (invisible until moved)' },
 ];
 
 export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear }) {
