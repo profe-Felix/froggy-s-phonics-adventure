@@ -6,11 +6,7 @@ import { Link } from 'react-router-dom';
 const CLASS_NAMES = ['Felix', 'Valero', 'Campos'];
 const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight Words Spelling', sentences: 'Sentences' };
 
-// SpellingWriteStep stores raw pixel coords at 800x360 canvas resolution
-// We scale them to fit the display canvas
-const SRC_W = 800, SRC_H = 360;
-
-function StrokeReplayCanvas({ strokesData }) {
+function StrokeReplayCanvas({ strokesData, mode }) {
   const canvasRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const animRef = useRef(null);
@@ -19,6 +15,10 @@ function StrokeReplayCanvas({ strokesData }) {
     try { return JSON.parse(strokesData); } catch { return []; }
   })();
 
+  // Source canvas dims depend on mode (sentences uses wide=1400, others use 900)
+  const SRC_W = mode === 'sentences' ? 1400 : 900;
+  const SRC_H = 420;
+
   // Scale a point from source canvas coords to display canvas coords
   const scalePoint = (p, dw, dh) => ({
     x: (p.x / SRC_W) * dw,
@@ -26,13 +26,13 @@ function StrokeReplayCanvas({ strokesData }) {
   });
 
   const drawLines = (ctx, dw, dh) => {
-    // Exact same proportions as SpellingWriteStep SVG: viewBox 0 0 400 180
-    // 3 rows, each 60 units tall: top=row*60+3, mid=row*60+24, base=row*60+43
-    const SRC_H_SVG = 180;
+    // Match SpellingWriteStep SVG proportions: displayH=220, 3 rows
+    const displayH = 220;
     [0, 1, 2].forEach(row => {
-      const top  = ((row * 60 + 3)  / SRC_H_SVG) * dh;
-      const mid  = ((row * 60 + 24) / SRC_H_SVG) * dh;
-      const base = ((row * 60 + 43) / SRC_H_SVG) * dh;
+      const rowH = displayH / 3;
+      const top  = ((row * rowH + rowH * 0.04)  / displayH) * dh;
+      const mid  = ((row * rowH + rowH * 0.40) / displayH) * dh;
+      const base = ((row * rowH + rowH * 0.74) / displayH) * dh;
       ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 1; ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(0, top); ctx.lineTo(dw, top); ctx.stroke();
       ctx.strokeStyle = '#b0c4de'; ctx.lineWidth = 0.8; ctx.setLineDash([8, 5]);
@@ -197,7 +197,7 @@ export default function SpellingWritingDashboard() {
                             </span>
                           </div>
                           {sample.strokes_data ? (
-                            <StrokeReplayCanvas strokesData={sample.strokes_data} />
+                            <StrokeReplayCanvas strokesData={sample.strokes_data} mode={sample.mode} />
                           ) : sample.image_url ? (
                             <img src={sample.image_url} alt={sample.word} className="w-full rounded-lg border border-indigo-100" style={{ height: 80, objectFit: 'contain' }} />
                           ) : (
