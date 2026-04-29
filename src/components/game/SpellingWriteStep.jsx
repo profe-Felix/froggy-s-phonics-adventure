@@ -1,15 +1,10 @@
 import React, { useRef, useState, useCallback } from 'react';
 
-/**
- * Full-width writing canvas with properly-scaled primary lines.
- * Supports undo (per stroke), clear, and pixel eraser.
- * onDone(strokesData, dataUrl) is called.
- */
 export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = false }) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
-  const allStrokes = useRef([]); // array of {points, eraser}
+  const allStrokes = useRef([]); // array of {points, eraser: false|'pixel'}
   const currentStroke = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
@@ -31,11 +26,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    // Redraw strokes
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     allStrokes.current.forEach(stroke => {
       if (stroke.points.length < 2) return;
       ctx.save();
@@ -60,6 +51,16 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
       ctx.restore();
     });
   }, []);
+
+  const objectErase = useCallback((pos) => {
+    const threshold = 30;
+    allStrokes.current = allStrokes.current.filter(stroke => {
+      if (stroke.eraser) return true;
+      return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
+    });
+    redraw();
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
+  }, [redraw]);
 
   const startDraw = useCallback((e) => {
     e.preventDefault();
@@ -92,7 +93,6 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     const ctx = canvasRef.current.getContext('2d');
     const prev = lastPos.current;
     if (tool === 'pixel-eraser') {
-...
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
       ctx.lineWidth = 36;
@@ -134,17 +134,6 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     setHasDrawn(allStrokes.current.some(s => !s.eraser));
   };
 
-  const objectErase = useCallback((pos) => {
-    // Remove any pen stroke that passes within ~30px of the tap point
-    const threshold = 30;
-    allStrokes.current = allStrokes.current.filter(stroke => {
-      if (stroke.eraser) return true; // keep existing eraser strokes
-      return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
-    });
-    redraw();
-    setHasDrawn(allStrokes.current.some(s => !s.eraser));
-  }, [redraw]);
-
   const clear = () => {
     const canvas = canvasRef.current;
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
@@ -158,16 +147,10 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
-
-    // Capture current drawing
     const imageData = ctx.getImageData(0, 0, w, h);
-
-    // Render final: bg + lines + drawing
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#f0f7ff';
     ctx.fillRect(0, 0, w, h);
-
-    // Draw guide lines matching the SVG overlay (3 rows)
     const rowH = h / 3;
     [0, 1, 2].forEach(row => {
       const top = row * rowH + rowH * 0.04;
@@ -183,19 +166,14 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
       ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(w, base); ctx.stroke();
       ctx.restore();
     });
-
-    // Restore drawing on top
     ctx.putImageData(imageData, 0, 0);
-
     const penStrokes = allStrokes.current.filter(s => !s.eraser).map(s => s.points);
     const url = canvas.toDataURL('image/png');
     onDone(penStrokes, url);
   };
 
-  // Canvas intrinsic size: wide mode for sentences
   const canvasW = wide ? 1400 : 900;
   const canvasH = 420;
-  // Display height: ~5/8 inch per row * 3 rows at 96dpi ≈ 180px per row, total ~220px shown
   const displayH = 220;
 
   return (
@@ -208,12 +186,10 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
         </button>
       </div>
 
-      {/* Canvas with primary guide lines — 3 rows scaled to display height */}
       <div
         className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full"
         style={{ height: displayH, background: '#f0f7ff' }}
       >
-        {/* SVG guide lines — rows fill the display height */}
         <svg
           className="absolute inset-0 pointer-events-none w-full h-full"
           preserveAspectRatio="none"
@@ -249,24 +225,17 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
         />
       </div>
 
-      {/* Toolbar */}
       <div className="flex gap-2 w-full flex-wrap">
-        <button
-          onClick={() => setTool('pen')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
+        <button onClick={() => setTool('pen')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           ✏️ Pencil
         </button>
-        <button
-          onClick={() => setTool('pixel-eraser')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pixel-eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
+        <button onClick={() => setTool('pixel-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pixel-eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           🩹 Pixel
         </button>
-        <button
-          onClick={() => setTool('object-eraser')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'object-eraser' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
+        <button onClick={() => setTool('object-eraser')}
+          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'object-eraser' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           🧹 Object
         </button>
         <button onClick={undo}
@@ -278,9 +247,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
           className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">
           🗑 Clear
         </button>
-        <button
-          onClick={handleDone}
-          disabled={!hasDrawn}
+        <button onClick={handleDone} disabled={!hasDrawn}
           className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm min-w-[120px]">
           Done → Build It
         </button>
