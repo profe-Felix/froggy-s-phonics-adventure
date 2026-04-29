@@ -31,8 +31,9 @@ const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 export default function MathGames() {
   const urlParams = new URLSearchParams(window.location.search);
   const mode = urlParams.get('mode');
+  const classParam = urlParams.get('class');
 
-  const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedClass, setSelectedClass] = useState(classParam || null);
   const [studentNumber, setStudentNumber] = useState(null);
   const [gameMode, setGameMode] = useState(null); // null=tiles, 'bingo', 'numbers'
   const [selfPlay, setSelfPlay] = useState(null); // null=not chosen, true=peer, false=teacher
