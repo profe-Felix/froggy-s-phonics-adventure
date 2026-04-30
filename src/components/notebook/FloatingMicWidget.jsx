@@ -391,9 +391,7 @@ export default function FloatingMicWidget({
               </div>
             )}
 
-            {/* Hidden audio element */}
-            <audio ref={audioRef} src={savedAudioUrl || ''} style={{ display: 'none' }}
-              onEnded={handleAudioEnded} />
+            {/* audio element is rendered outside the panel — see below */}
 
             {/* Recording controls (not readOnly) */}
             {!readOnly && (
@@ -458,6 +456,10 @@ export default function FloatingMicWidget({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Hidden audio element — always mounted so audioRef is valid during replay */}
+      <audio ref={audioRef} src={savedAudioUrl || ''} style={{ display: 'none' }}
+        onEnded={handleAudioEnded} />
 
       {/* Laser replay overlay — shown during playback */}
       {savedAudioUrl && laserData.length > 0 && showReplay && (
