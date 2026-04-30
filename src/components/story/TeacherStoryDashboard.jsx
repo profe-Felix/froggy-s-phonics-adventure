@@ -5,10 +5,10 @@ import { motion } from 'framer-motion';
 import StoryStudentThumbnail from './StoryStudentThumbnail';
 import StoryReplayModal from './StoryReplayModal';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 
 export default function TeacherStoryDashboard({ onBack }) {
-  const [className, setClassName] = useState('F');
+  const [className, setClassName] = useState('Felix');
   const [reviewing, setReviewing] = useState(null); // {story, pageIdx}
 
   const { data: stories = [], isLoading } = useQuery({
