@@ -211,7 +211,13 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       };
 
       latestStoryRef.current = nextStory;
-      await onSaveRef.current(nextStory);
+      // Save to database immediately, not just to onSaveRef callback
+      await base44.entities.StoryAssignment.update(activeStory.id, {
+        pages: nextStory.pages || [],
+        strokes_by_page: nextStory.strokes_by_page || {},
+        voice_notes_by_page: nextStory.voice_notes_by_page || {},
+        last_active: nextStory.last_active,
+      });
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
