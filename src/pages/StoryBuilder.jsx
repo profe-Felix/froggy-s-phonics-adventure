@@ -359,7 +359,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const saveStory = async () => {
     await saveStrokes();
-    refetch?.();
+    await refetch?.();
   };
 
   const { refetch } = useQuery({
@@ -609,7 +609,7 @@ export default function StoryBuilder(props = {}) {
       voice_notes_by_page: storyData.voice_notes_by_page || selectedStory.voice_notes_by_page || {},
     });
 
-    refetch();
+    await refetch();
   };
 
   if (isTeacher) {
