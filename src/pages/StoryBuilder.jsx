@@ -10,7 +10,7 @@ import LaserOverlay from '@/components/notebook/LaserOverlay';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 const TEMPLATES = [

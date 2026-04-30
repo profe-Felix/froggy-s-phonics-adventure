@@ -4,16 +4,14 @@ import TeacherNotebookDashboard from '../components/notebook/TeacherNotebookDash
 import StudentNotebookView from '../components/notebook/StudentNotebookView';
 import { base44 } from '@/api/base44Client';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
-// Map single-letter codes used in URL to full class names
-// e.g. ?class=Felix or ?class=F both work
+// Map class name aliases to canonical names
 const CLASS_MAP = {
-  'felix': 'Felix', 'f': 'F',
-  'valero': 'Valero', 'v': 'V',
-  'campos': 'Campos', 'c': 'C',
-  'a': 'A', 'b': 'B', 'd': 'D',
+  'felix': 'Felix', 'f': 'Felix',
+  'valero': 'Valero', 'v': 'Valero',
+  'campos': 'Campos', 'c': 'Campos',
 };
 
 function parseClassParam(raw) {

@@ -22,7 +22,9 @@ export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
   const rawClass = urlParams.get('class') || null;
-  const urlClass = rawClass ? rawClass.charAt(0).toUpperCase() + rawClass.slice(1).toLowerCase() : null;
+  // Map all variations to canonical names
+  const classMap = { 'felix': 'Felix', 'f': 'Felix', 'valero': 'Valero', 'v': 'Valero', 'campos': 'Campos', 'c': 'Campos' };
+  const urlClass = rawClass ? classMap[rawClass.toLowerCase()] || null : null;
   const urlNumber = parseInt(urlParams.get('number'));
   const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
 

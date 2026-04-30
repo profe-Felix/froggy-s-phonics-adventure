@@ -77,8 +77,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
               <Button
                 key={num}
                 onClick={() => {
-                  const normalized = selectedClass ? selectedClass.charAt(0).toUpperCase() + selectedClass.slice(1).toLowerCase() : selectedClass;
-                  onSelectStudent({ number: num, class_name: normalized });
+                 onSelectStudent({ number: num, class_name: selectedClass });
                 }}
                 className="h-16 text-xl font-bold bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:scale-110 transition-transform"
               >
