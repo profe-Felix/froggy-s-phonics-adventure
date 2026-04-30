@@ -344,7 +344,7 @@ export default function StoryBuilder() {
   const params = new URLSearchParams(window.location.search);
   const urlClass = params.get('class');
   const urlNumber = parseInt(params.get('number') || params.get('student'));
-  const isTeacher = params.get('teacher') === 'true';
+  const isTeacher = params.get('mode') === 'teacher';
 
   const [studentInfo, setStudentInfo] = useState(null);
   const [selectedStory, setSelectedStory] = useState(null);
