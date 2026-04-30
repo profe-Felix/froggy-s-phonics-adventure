@@ -51,7 +51,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
 }
 
 function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
-  const [pages, setPages] = useState(story.pages || [{ id: 'p1', template: 'blank', strokes: [] }]);
+  const [pages, setPages] = useState(story.pages || [{ id: 'p1', template: 'blank', strokes_data: null }]);
   const [currentPageIdx, setCurrentPageIdx] = useState(0);
   const [showTemplates, setShowTemplates] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,16 +67,17 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 500, h: 650 });
 
-  // Stable refs for save/load logic — EXACT same as StudentNotebookView
-  const isDrawingRef = useRef(false);
-  const currentPageIdxRef = useRef(currentPageIdx);
-  const pagesRef = useRef(pages);
+  const saveTimer = useRef(null);
+  const loadedKeyRef = useRef(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
-  const loadedKeyRef = useRef(null);
-
+  const latestStoryRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const currentPageIdxRef = useRef(currentPageIdx);
+  
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
-  useEffect(() => { pagesRef.current = pages; }, [pages]);
+
+  const draftKey = story ? `story-draft-${story.id}-${currentPageIdx}` : null;
 
   // Laser
   const laserActive = tool === 'laser';
@@ -98,45 +99,43 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const currentPage = pages[currentPageIdx];
 
-  // Load strokes when switching pages
+  // Load strokes when switching pages — EXACT same pattern as StudentNotebookView
   useEffect(() => {
     if (!canvasRef.current || !currentPage || canvasSize.w < 10) return;
-    const key = `${story.id}-${currentPageIdx}-${canvasSize.w}`;
+    const key = `${story.id}-${currentPageIdx}-${canvasSize.w}-${canvasSize.h}`;
     if (loadedKeyRef.current === key) return;
+
     loadedKeyRef.current = key;
+    const pageData = currentPage.strokes_data;
+    const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
-    canvasRef.current.clearStrokes();
-
-    // Try localStorage first (most recent)
-    const localDraft = localStorage.getItem(`story-draft-${story.id}-${currentPageIdx}`);
     if (localDraft) {
       try {
+        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
         canvasRef.current.clearStrokes();
       }
-    } else if (currentPage.strokes_data) {
+    } else if (pageData) {
       try {
-        canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data));
+        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(JSON.parse(pageData));
       } catch {
         canvasRef.current.clearStrokes();
       }
-    } else if (currentPage.strokes && currentPage.strokes.length > 0) {
-      try {
-        canvasRef.current.loadStrokes({ strokes: currentPage.strokes, normalized: true });
-      } catch {
-        canvasRef.current.clearStrokes();
-      }
+    } else {
+      canvasRef.current.clearStrokes();
     }
+    
     try {
       setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []);
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, canvasSize.w]);
+  }, [currentPageIdx, story.id, canvasSize.w, canvasSize.h, currentPage, draftKey]);
 
   // Save current strokes into pages state — EXACT same pattern as StudentNotebookView
-  const saveCurrentPage = useCallback(async (pageIdxOverride) => {
+  const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
 
     if (isDrawingRef.current) {
@@ -149,74 +148,82 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       return;
     }
 
+    const activeStory = latestStoryRef.current;
+    if (!activeStory) return;
+
+    const savePage = pageOverride ?? currentPageIdxRef.current;
+    const saveDraftKey = `story-draft-${activeStory.id}-${savePage}`;
+
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
-       const idx = pageIdxOverride ?? currentPageIdxRef.current;
-       const strokeData = canvasRef.current.getStrokes();
-       const payload = {
-         ...strokeData,
-         canvasWidth: canvasSize.w,
-         canvasHeight: canvasSize.h,
-         normalized: true,
-       };
-       const payloadStr = JSON.stringify(payload);
+      const strokeData = canvasRef.current.getStrokes();
+      const payload = {
+        ...strokeData,
+        canvasWidth: canvasSize.w,
+        canvasHeight: canvasSize.h,
+        normalized: true,
+      };
 
-       const updated = pagesRef.current.map((p, i) =>
-         i === idx ? { ...p, strokes_data: payloadStr } : p
-       );
-       pagesRef.current = updated;
-       setPages(updated);
+      const updated = {
+        ...(activeStory.pages || {}),
+        [String(savePage)]: JSON.stringify(payload),
+      };
 
-       // Save locally first as backup
-       localStorage.setItem(`story-draft-${story.id}-${idx}`, payloadStr);
+      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
-       await onSave({ pages: updated });
-     } finally {
+      const updatedPages = pages.map((p, i) =>
+        i === savePage ? { ...p, strokes_data: JSON.stringify(payload) } : p
+      );
+
+      setPages(updatedPages);
+      const nextStory = {
+        ...activeStory,
+        pages: updatedPages,
+        last_active: new Date().toISOString(),
+      };
+
+      latestStoryRef.current = nextStory;
+
+      await onSave(nextStory);
+    } finally {
       saveInFlightRef.current = false;
       setSaving(false);
 
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
-        void saveCurrentPage();
+        void saveStrokes();
       }
     }
-  }, [onSave]);
+  }, [pages, canvasSize, onSave]);
 
-  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; }, []);
+  const handleStrokeStart = useCallback(() => {
+    isDrawingRef.current = true;
+  }, []);
+
   const handleStrokeEnd = useCallback(() => {
     isDrawingRef.current = false;
-    void saveCurrentPage();
-  }, [saveCurrentPage]);
+    void saveStrokes();
+  }, [saveStrokes]);
 
-  // Periodic autosave (every 20s)
-  useEffect(() => {
-    const interval = setInterval(() => void saveCurrentPage(), 20000);
-    return () => clearInterval(interval);
-  }, [saveCurrentPage]);
-
-  // Save on page hide / tab switch
-  useEffect(() => {
-    const onHide = () => void saveCurrentPage();
-    const onVis = () => { if (document.visibilityState === 'hidden') void saveCurrentPage(); };
-    window.addEventListener('pagehide', onHide);
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      window.removeEventListener('pagehide', onHide);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [saveCurrentPage]);
-
-  const saveMics = (mics) => {
+  const saveMics = useCallback(async (mics) => {
+    if (!canvasRef.current) return;
+    
     setFloatingMics(mics);
-    const updated = pagesRef.current.map((p, i) =>
+    const updatedPages = pages.map((p, i) =>
       i === currentPageIdxRef.current ? { ...p, mics: JSON.stringify(mics) } : p
     );
-    pagesRef.current = updated;
-    setPages(updated);
-    onSave({ pages: updated });
-  };
+    setPages(updatedPages);
+    
+    const nextStory = {
+      ...latestStoryRef.current,
+      pages: updatedPages,
+      last_active: new Date().toISOString(),
+    };
+    latestStoryRef.current = nextStory;
+    await onSave(nextStory);
+  }, [pages, onSave]);
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
@@ -224,52 +231,88 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     const rect = canvasWrapperRef.current.getBoundingClientRect();
     const x_pct = (src.clientX - rect.left) / rect.width;
     const y_pct = (src.clientY - rect.top) / rect.height;
-    const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '' };
-    saveMics([...floatingMics, newMic]);
+    const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
+    const updated = [...floatingMics, newMic];
+    void saveMics(updated);
     setAddingMic(false);
   };
 
+  useEffect(() => {
+    latestStoryRef.current = story;
+  }, [story]);
+
+  useEffect(() => {
+    if (!story) return;
+    const interval = setInterval(() => {
+      void saveStrokes();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [saveStrokes, story]);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      void saveStrokes();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        void saveStrokes();
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [saveStrokes]);
+
   const goToPage = async (idx) => {
-    await saveCurrentPage(currentPageIdxRef.current);
+    await saveStrokes(currentPageIdx);
     loadedKeyRef.current = null;
     setCurrentPageIdx(idx);
   };
 
   const addPage = async () => {
-    await saveCurrentPage();
+    await saveStrokes();
     const newPage = { id: `p${Date.now()}`, template: 'blank', strokes_data: null, mics: null };
-    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), newPage, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
-    pagesRef.current = updated;
+    const updated = [...pages.slice(0, currentPageIdxRef.current + 1), newPage, ...pages.slice(currentPageIdxRef.current + 1)];
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(currentPageIdxRef.current + 1);
-    onSave({ pages: updated });
+    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    latestStoryRef.current = nextStory;
+    await onSave(nextStory);
   };
 
   const duplicatePage = async () => {
-    await saveCurrentPage();
-    const pg = pagesRef.current[currentPageIdxRef.current];
+    await saveStrokes();
+    const pg = pages[currentPageIdxRef.current];
     const dup = { ...pg, id: `p${Date.now()}` };
-    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), dup, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
-    pagesRef.current = updated;
+    const updated = [...pages.slice(0, currentPageIdxRef.current + 1), dup, ...pages.slice(currentPageIdxRef.current + 1)];
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(currentPageIdxRef.current + 1);
-    onSave({ pages: updated });
+    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    latestStoryRef.current = nextStory;
+    await onSave(nextStory);
   };
 
   const deletePage = () => {
     if (pages.length <= 1) return;
-    const updated = pagesRef.current.filter((_, i) => i !== currentPageIdxRef.current);
-    pagesRef.current = updated;
+    const updated = pages.filter((_, i) => i !== currentPageIdxRef.current);
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(Math.max(0, currentPageIdxRef.current - 1));
-    onSave({ pages: updated });
+    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    latestStoryRef.current = nextStory;
+    void onSave(nextStory);
   };
 
   const saveStory = async () => {
-    await saveCurrentPage();
+    await saveStrokes();
   };
 
   return (
@@ -339,8 +382,8 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
               tool={tool} setTool={setTool}
               color={color} setColor={setColor}
               size={size} setSize={setSize}
-              onUndo={() => { canvasRef.current?.undo(); void saveCurrentPage(); }}
-              onClear={() => { canvasRef.current?.clearStrokes(); void saveCurrentPage(); }}
+              onUndo={() => { canvasRef.current?.undo(); }}
+              onClear={() => { canvasRef.current?.clearStrokes(); }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
           </div>
@@ -405,13 +448,13 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
               tool={tool} setTool={setTool}
               color={color} setColor={setColor}
               size={size} setSize={setSize}
-              onUndo={() => { canvasRef.current?.undo(); setTimeout(() => saveCurrentPage(), 50); }}
-              onClear={() => { canvasRef.current?.clearStrokes(); setTimeout(() => saveCurrentPage(), 50); }}
+              onUndo={() => { canvasRef.current?.undo(); }}
+              onClear={() => { canvasRef.current?.clearStrokes(); }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
           </div>
-          )}
-          </div>
+        )}
+      </div>
 
       {/* Page nav footer */}
       <div className="shrink-0 flex items-center justify-center gap-4 px-4 py-2" style={{ background: '#1a1a2e', borderTop: '1px solid #4c1d95' }}>
@@ -467,12 +510,13 @@ export default function StoryBuilder() {
     refetch();
   };
 
-  const saveStory = async (data) => {
+  const saveStory = async (storyData) => {
     if (!selectedStory) return;
     await base44.entities.StoryAssignment.update(selectedStory.id, {
-      ...data,
-      last_active: new Date().toISOString(),
+      pages: storyData.pages,
+      last_active: storyData.last_active,
     });
+    setSelectedStory(storyData);
     refetch();
   };
 
