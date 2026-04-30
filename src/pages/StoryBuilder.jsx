@@ -109,37 +109,62 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
     canvasRef.current.clearStrokes();
     if (currentPage.strokes_data) {
-      try { canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data)); } catch {}
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
     } else if (currentPage.strokes && currentPage.strokes.length > 0) {
-      canvasRef.current.loadStrokes({ strokes: currentPage.strokes, normalized: true });
+      try {
+        canvasRef.current.loadStrokes({ strokes: currentPage.strokes, normalized: true });
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
     }
-    try { setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []); } catch { setFloatingMics([]); }
+    try {
+      setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []);
+    } catch {
+      setFloatingMics([]);
+    }
   }, [currentPageIdx, story.id, canvasSize.w]);
 
   // Save current strokes into pages state (and persist to backend)
   const saveCurrentPage = useCallback(async (pageIdxOverride) => {
     if (!canvasRef.current) return;
-    if (isDrawingRef.current) { pendingSaveRef.current = true; return; }
-    if (saveInFlightRef.current) { pendingSaveRef.current = true; return; }
+
+    // Defer save if drawing or already saving
+    if (isDrawingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
 
     saveInFlightRef.current = true;
     setSaving(true);
+
     try {
       const idx = pageIdxOverride ?? currentPageIdxRef.current;
       const strokeData = canvasRef.current.getStrokes();
       const payload = JSON.stringify({ ...strokeData, normalized: true });
 
       // Update pages state
-      pagesRef.current = pagesRef.current.map((p, i) =>
+      const updated = pagesRef.current.map((p, i) =>
         i === idx ? { ...p, strokes_data: payload } : p
       );
-      setPages(pagesRef.current);
+      pagesRef.current = updated;
+      setPages(updated);
 
-      // Persist immediately to backend
-      await onSave({ pages: pagesRef.current });
+      // Persist to backend
+      await onSave({ pages: updated });
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
+
+      // Handle pending saves
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
         void saveCurrentPage();
