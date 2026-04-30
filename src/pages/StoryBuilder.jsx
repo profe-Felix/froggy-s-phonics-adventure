@@ -1,14 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
+import { AnimatePresence, motion } from 'framer-motion';
 import AnnotationToolbar from '@/components/notebook/AnnotationToolbar';
-import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
-import LaserOverlay from '@/components/notebook/LaserOverlay';
-import useLaserTracker from '@/hooks/useLaserTracker';
-import TeacherStoryDashboard from '@/components/story/TeacherStoryDashboard';
+import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import StoryPageBackground from '@/components/story/StoryPageBackground';
+import TeacherStoryDashboard from '@/components/story/TeacherStoryDashboard';
+import LaserOverlay from '@/components/notebook/LaserOverlay';
+import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
+import useLaserTracker from '@/hooks/useLaserTracker';
+import useCanvasSaveLoad from '@/hooks/useCanvasSaveLoad';
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -21,8 +22,6 @@ const TEMPLATES = [
   { id: 'story_web', label: '🕸 Story web' },
   { id: 'border', label: '🖼 Border' },
 ];
-
-
 
 function StudentLogin({ onEnter, preselectedClass }) {
   const [className, setClassName] = useState(preselectedClass || null);
@@ -69,16 +68,15 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 500, h: 650 });
 
-  // Mirrors of mutable state kept in refs so callbacks never go stale
-  const isDrawingRef = useRef(false);
-  const currentPageIdxRef = useRef(currentPageIdx);
-  const pagesRef = useRef(pages);
-  const saveInFlightRef = useRef(false);
-  const pendingSaveRef = useRef(false);
-  const loadedKeyRef = useRef(null);
-
-  useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
-  useEffect(() => { pagesRef.current = pages; }, [pages]);
+  // Shared save/load hook — EXACT same code as StudentNotebookView
+  const { save: saveCurrentPage, load, handleStrokeStart, handleStrokeEnd } = useCanvasSaveLoad({
+    canvasRef,
+    currentIdx: currentPageIdx,
+    dataByIdx: pages,
+    onSave: (updated) => onSave({ pages: updated }),
+    canvasSize,
+    setSaving,
+  });
 
   // Laser
   const laserActive = tool === 'laser';
@@ -86,7 +84,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const laserTrackerRef = useRef(laserTracker);
   useEffect(() => { laserTrackerRef.current = laserTracker; });
 
-  // Resize — just update canvas size; AnnotationCanvas handles normalized coords itself
+  // Resize
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver(e => {
@@ -100,110 +98,26 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const currentPage = pages[currentPageIdx];
 
-  // Load strokes when switching pages (use loadedKeyRef to avoid double-loads on resize)
+  // Load strokes when switching pages — uses hook's load fn
   useEffect(() => {
-    if (!canvasRef.current || !currentPage || canvasSize.w < 10) return;
+    if (!currentPage || canvasSize.w < 10) return;
     const key = `${story.id}-${currentPageIdx}-${canvasSize.w}`;
-    if (loadedKeyRef.current === key) return;
-    loadedKeyRef.current = key;
-
-    canvasRef.current.clearStrokes();
-    if (currentPage.strokes_data) {
-      try {
-        canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data));
-      } catch {
-        canvasRef.current.clearStrokes();
-      }
-    } else if (currentPage.strokes && currentPage.strokes.length > 0) {
-      try {
-        canvasRef.current.loadStrokes({ strokes: currentPage.strokes, normalized: true });
-      } catch {
-        canvasRef.current.clearStrokes();
-      }
-    }
+    load(currentPage, key);
     try {
       setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []);
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, canvasSize.w]);
+  }, [currentPageIdx, story.id, canvasSize.w, load]);
 
-  // Save current strokes into pages state (and persist to backend)
-  const saveCurrentPage = useCallback(async (pageIdxOverride) => {
-    if (!canvasRef.current) return;
-
-    // Defer save if drawing or already saving
-    if (isDrawingRef.current) {
-      pendingSaveRef.current = true;
-      return;
-    }
-
-    if (saveInFlightRef.current) {
-      pendingSaveRef.current = true;
-      return;
-    }
-
-    saveInFlightRef.current = true;
-    setSaving(true);
-
-    try {
-      const idx = pageIdxOverride ?? currentPageIdxRef.current;
-      const strokeData = canvasRef.current.getStrokes();
-      const payload = JSON.stringify({ ...strokeData, normalized: true });
-
-      // Update pages state using latest refs
-      const updated = pagesRef.current.map((p, i) =>
-        i === idx ? { ...p, strokes_data: payload } : p
-      );
-      pagesRef.current = updated;
-      setPages(updated);
-
-      // Persist to backend with latest story
-      await onSave({ pages: updated });
-    } finally {
-      saveInFlightRef.current = false;
-      setSaving(false);
-
-      // Handle pending saves
-      if (pendingSaveRef.current) {
-        pendingSaveRef.current = false;
-        void saveCurrentPage();
-      }
-    }
-  }, [onSave]);
-
-  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; }, []);
-  const handleStrokeEnd = useCallback(() => {
-    isDrawingRef.current = false;
-    void saveCurrentPage();
-  }, [saveCurrentPage]);
-
-  // Periodic autosave (every 20s)
-  useEffect(() => {
-    const interval = setInterval(() => void saveCurrentPage(), 20000);
-    return () => clearInterval(interval);
-  }, [saveCurrentPage]);
-
-  // Save on page hide / tab switch
-  useEffect(() => {
-    const onHide = () => void saveCurrentPage();
-    const onVis = () => { if (document.visibilityState === 'hidden') void saveCurrentPage(); };
-    window.addEventListener('pagehide', onHide);
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      window.removeEventListener('pagehide', onHide);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [saveCurrentPage]);
-
-  const saveMics = useCallback((mics) => {
+  const saveMics = (mics) => {
     setFloatingMics(mics);
-    pagesRef.current = pagesRef.current.map((p, i) =>
-      i === currentPageIdxRef.current ? { ...p, mics: JSON.stringify(mics) } : p
+    const updated = pages.map((p, i) =>
+      i === currentPageIdx ? { ...p, mics: JSON.stringify(mics) } : p
     );
-    setPages(pagesRef.current);
-    onSave({ pages: pagesRef.current });
-  }, [onSave]);
+    setPages(updated);
+    onSave({ pages: updated });
+  };
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
@@ -217,41 +131,34 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   };
 
   const goToPage = async (idx) => {
-    await saveCurrentPage(currentPageIdxRef.current);
-    loadedKeyRef.current = null;
+    await saveCurrentPage(currentPageIdx);
     setCurrentPageIdx(idx);
   };
 
   const addPage = async () => {
     await saveCurrentPage();
     const newPage = { id: `p${Date.now()}`, template: 'blank', strokes_data: null, mics: null };
-    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), newPage, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
-    pagesRef.current = updated;
+    const updated = [...pages.slice(0, currentPageIdx + 1), newPage, ...pages.slice(currentPageIdx + 1)];
     setPages(updated);
-    loadedKeyRef.current = null;
-    setCurrentPageIdx(currentPageIdxRef.current + 1);
+    setCurrentPageIdx(currentPageIdx + 1);
     onSave({ pages: updated });
   };
 
   const duplicatePage = async () => {
     await saveCurrentPage();
-    const pg = pagesRef.current[currentPageIdxRef.current];
+    const pg = pages[currentPageIdx];
     const dup = { ...pg, id: `p${Date.now()}` };
-    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), dup, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
-    pagesRef.current = updated;
+    const updated = [...pages.slice(0, currentPageIdx + 1), dup, ...pages.slice(currentPageIdx + 1)];
     setPages(updated);
-    loadedKeyRef.current = null;
-    setCurrentPageIdx(currentPageIdxRef.current + 1);
+    setCurrentPageIdx(currentPageIdx + 1);
     onSave({ pages: updated });
   };
 
   const deletePage = () => {
     if (pages.length <= 1) return;
-    const updated = pagesRef.current.filter((_, i) => i !== currentPageIdxRef.current);
-    pagesRef.current = updated;
+    const updated = pages.filter((_, i) => i !== currentPageIdx);
     setPages(updated);
-    loadedKeyRef.current = null;
-    setCurrentPageIdx(Math.max(0, currentPageIdxRef.current - 1));
+    setCurrentPageIdx(Math.max(0, currentPageIdx - 1));
     onSave({ pages: updated });
   };
 
@@ -413,7 +320,6 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 }
 
 export default function StoryBuilder() {
-  const qc = useQueryClient();
   const params = new URLSearchParams(window.location.search);
   const urlClass = params.get('class');
   const urlNumber = parseInt(params.get('number') || params.get('student'));
