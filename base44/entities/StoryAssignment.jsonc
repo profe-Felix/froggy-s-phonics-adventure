@@ -18,6 +18,18 @@
       },
       "description": "Array of {id, template, strokes_data, canvas_width, canvas_height}"
     },
+    "strokes_by_page": {
+      "type": "object",
+      "description": "Map of page index string -> strokes JSON"
+    },
+    "voice_notes_by_page": {
+      "type": "object",
+      "description": "Map of page/mic keys -> audio or mic JSON"
+    },
+    "recordings_by_page": {
+      "type": "object",
+      "description": "Map of page index string -> video/audio recording URL"
+    },
     "status": {
       "type": "string",
       "enum": [
