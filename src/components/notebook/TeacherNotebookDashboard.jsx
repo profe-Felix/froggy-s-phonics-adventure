@@ -7,7 +7,7 @@ import StudentThumbnail from './StudentThumbnail';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 
 
 
@@ -42,7 +42,7 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
 
 export default function TeacherNotebookDashboard({ onBack }) {
   const qc = useQueryClient();
-  const [className, setClassName] = useState('F');
+  const [className, setClassName] = useState('Campos');
   const [tab, setTab] = useState('assignments');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
