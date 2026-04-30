@@ -284,7 +284,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       {/* Page display */}
       <div className="flex-1 relative overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a' }}>
         {twoPerPage ? (
-          <div style={{ display: 'flex', width: '100%', height: '100%', gap: 4 }}>
+          <div style={{ display: 'flex', width: '100%', height: '100%', gap: 0 }}>
             <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {renderPage(currentPage)}
               {pageAnnotations.map((ann, i) => (
