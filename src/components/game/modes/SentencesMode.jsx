@@ -1012,8 +1012,9 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 }
 
 // ── Sticker progress bar ────────────────────────────────────────────────────
-const PTS_PER_SENTENCE = 5;
+const PTS_PER_SENTENCE = 3; // Reduced from 5 (M1 was too generous)
 const PTS_PER_STICKER = 100;
+const MAX_PTS_PER_SENTENCE = 3; // Cap: students can't farm same sentence
 
 function StickerProgressBar({ sessionPts, totalPts }) {
   const spins = Math.floor(totalPts / PTS_PER_STICKER);
@@ -1123,12 +1124,26 @@ export default function SentencesMode({ studentData, onBack }) {
   };
 
   const handleComplete = () => {
-    // Award points for completing the sentence
-    const newTotal = totalPts + PTS_PER_SENTENCE;
+    // Check if this sentence was already completed this session (prevent farming)
+    const completedSentences = JSON.parse(sessionStorage.getItem('completedSentences') || '{}');
+    const sentenceKey = currentSentence.trim();
+    const timesCompleted = completedSentences[sentenceKey] || 0;
+
+    // Award points only if under the cap (max 3 completions per sentence per session)
+    let ptsToAward = 0;
+    if (timesCompleted < MAX_PTS_PER_SENTENCE) {
+      ptsToAward = PTS_PER_SENTENCE;
+      completedSentences[sentenceKey] = timesCompleted + 1;
+      sessionStorage.setItem('completedSentences', JSON.stringify(completedSentences));
+    }
+
+    const newTotal = totalPts + ptsToAward;
     const oldSpins = Math.floor(totalPts / PTS_PER_STICKER);
     const newSpins = Math.floor(newTotal / PTS_PER_STICKER);
     setTotalPts(newTotal);
-    setSessionPts(p => p + PTS_PER_SENTENCE);
+    if (ptsToAward > 0) {
+      setSessionPts(p => p + ptsToAward);
+    }
 
     // Trigger prize wheel if crossed a 100-pt milestone
     if (newSpins > oldSpins) {
@@ -1136,7 +1151,7 @@ export default function SentencesMode({ studentData, onBack }) {
     }
 
     // Persist points to student record
-    if (studentData?.id) {
+    if (studentData?.id && ptsToAward > 0) {
       base44.entities.Student.update(studentData.id, { sentences_total_points: newTotal }).catch(() => {});
     }
 
@@ -1159,6 +1174,10 @@ export default function SentencesMode({ studentData, onBack }) {
         base44.entities.Student.update(studentData.id, { redeemed_prizes: updated }).catch(() => {});
       }
     }
+  };
+
+  const handleCloseWheel = () => {
+    setShowWheel(false);
   };
 
   if (loading) {
@@ -1198,9 +1217,10 @@ export default function SentencesMode({ studentData, onBack }) {
         <AnimatePresence>
           {showWheel && (
             <PrizeWheel
+              key={`wheel-${totalPts}`}
               redeemedPrizes={redeemedPrizes}
               onClaim={handleClaimPrize}
-              onClose={() => setShowWheel(false)}
+              onClose={handleCloseWheel}
             />
           )}
         </AnimatePresence>
