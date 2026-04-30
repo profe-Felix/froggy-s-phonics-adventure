@@ -12,6 +12,11 @@ function getToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// In 2-up mode, the "spread key" is always the left (odd) page number
+function spreadKey(page) {
+  return page % 2 === 0 ? page - 1 : page;
+}
+
 function TeacherSpeakerIcon({ annotation, containerSize }) {
   const px = annotation.x_pct * containerSize.w;
   const py = annotation.y_pct * containerSize.h;
@@ -47,7 +52,6 @@ function TeacherSpeakerIcon({ annotation, containerSize }) {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Laser replay synced to teacher audio */}
       {showing && laserData.length > 0 && (
         <LaserReplayOverlay
           laserData={laserData}
@@ -66,12 +70,17 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const [twoPerPage, setTwoPerPage] = useState(false);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+
+  // Always-mounted audio ref for replay — avoids ref timing issues
   const audioRef = useRef(null);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
   const today = getToday();
 
-  // Session query
+  // The recording key for current view
+  // In 1-up: currentPage. In 2-up: spreadKey(currentPage) (always the odd/left page)
+  const recKey = twoPerPage ? spreadKey(currentPage) : currentPage;
+
   const { data: sessions = [], refetch } = useQuery({
     queryKey: ['book-sessions', book.id, studentNumber, today],
     queryFn: () => base44.entities.BookReadingSession.filter({
@@ -84,15 +93,14 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
 
   const session = sessions[0] || null;
 
-  const getPageRecording = useCallback(() => {
+  const getSpreadRecording = useCallback((key) => {
     if (!session) return null;
-    return (session.recordings || []).find(r => r.page === currentPage) || null;
-  }, [session, currentPage]);
+    return (session.recordings || []).find(r => r.page === key) || null;
+  }, [session]);
 
-  // Laser
+  // Laser — tracks over the full container in both modes
   const laserTracker = useLaserTracker({ containerRef, enabled: true });
 
-  // Audio recorder
   const {
     state: recState,
     audioUrl: liveAudioUrl,
@@ -107,15 +115,28 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   } = useAudioRecorder();
 
   const [uploading, setUploading] = useState(false);
-  const [pageRecording, setPageRecording] = useState(null);
+  const [spreadRecording, setSpreadRecording] = useState(null);
   const [showReplay, setShowReplay] = useState(false);
   const [replayLaserData, setReplayLaserData] = useState([]);
 
+  // Sync recording state when page/mode changes
   useEffect(() => {
-    const rec = getPageRecording();
-    setPageRecording(rec || null);
+    const rec = getSpreadRecording(recKey);
+    setSpreadRecording(rec || null);
     setShowReplay(false);
-  }, [currentPage, session]);
+  }, [recKey, session]);
+
+  // Snap to correct spread when switching to 2-up
+  const handleToggle2Up = () => {
+    setTwoPerPage(v => {
+      const next = !v;
+      if (next) {
+        // Snap to odd page (left of spread)
+        setCurrentPage(p => spreadKey(p));
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -141,17 +162,31 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     const blob = getBlob();
     if (!blob) return;
     setUploading(true);
-    const file = new File([blob], `book-read-p${currentPage}-${Date.now()}.webm`, { type: 'audio/webm' });
+    const file = new File([blob], `book-read-p${recKey}-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const ld = laserTracker.getLaserData();
-    const newRec = { page: currentPage, audio_url: file_url, laser_data: ld, recorded_at: new Date().toISOString() };
+    const newRec = {
+      page: recKey,
+      audio_url: file_url,
+      laser_data: ld,
+      recorded_at: new Date().toISOString(),
+      is_spread: twoPerPage, // track if this was a 2-up recording
+    };
+
+    const prevRecs = session?.recordings || [];
+    // Remove any existing recording(s) for this spread key
+    // In 2-up, a spread covers recKey and recKey+1; also clear any single-page recs for those pages
+    const filtered = twoPerPage
+      ? prevRecs.filter(r => r.page !== recKey && r.page !== recKey + 1)
+      : prevRecs.filter(r => r.page !== recKey);
+    const updatedRecs = [...filtered, newRec];
+
+    const newPages = twoPerPage
+      ? [recKey, recKey + 1 <= totalPages ? recKey + 1 : null].filter(Boolean)
+      : [recKey];
+    const updatedPages = Array.from(new Set([...(session?.pages_completed || []), ...newPages]));
 
     if (session) {
-      const updatedRecs = [
-        ...(session.recordings || []).filter(r => r.page !== currentPage),
-        newRec,
-      ];
-      const updatedPages = Array.from(new Set([...(session.pages_completed || []), currentPage]));
       await base44.entities.BookReadingSession.update(session.id, {
         recordings: updatedRecs,
         pages_completed: updatedPages,
@@ -164,12 +199,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         student_number: studentNumber,
         session_date: today,
         recordings: [newRec],
-        pages_completed: [currentPage],
+        pages_completed: updatedPages,
         last_page: currentPage,
       });
     }
 
-    setPageRecording(newRec);
+    setSpreadRecording(newRec);
     setUploading(false);
     resetRecorder();
     laserTracker.clearLaser();
@@ -179,20 +214,24 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const handleReplay = (rec) => {
     const ld = rec.laser_data || [];
     setReplayLaserData(typeof ld === 'string' ? JSON.parse(ld) : ld);
+    // If it was a spread recording, snap to 2-up mode at correct spread
+    if (rec.is_spread) {
+      setTwoPerPage(true);
+      setCurrentPage(rec.page); // rec.page is always the odd/left page for spreads
+    }
     setShowReplay(true);
   };
 
   const pageAnnotations = (book.teacher_annotations || []).filter(a => a.page === currentPage);
+  const rightPageAnnotations = twoPerPage ? (book.teacher_annotations || []).filter(a => a.page === currentPage + 1) : [];
 
-  // Page navigation — 2-per-page jumps by 2
+  // Navigation — always jumps by spread size
   const step = twoPerPage ? 2 : 1;
   const canGoNext = currentPage + step - 1 < totalPages;
   const canGoPrev = currentPage > 1;
-
-  const goNext = () => setCurrentPage(p => Math.min(totalPages, p + step));
+  const goNext = () => setCurrentPage(p => Math.min(twoPerPage ? totalPages - (totalPages % 2 === 0 ? 1 : 0) : totalPages, p + step));
   const goPrev = () => setCurrentPage(p => Math.max(1, p - step));
 
-  // Render a single book page (PDF or image)
   const renderPage = (pageNum) => {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
@@ -203,6 +242,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
   };
 
+  const isRecording = recState === 'recording' || recState === 'paused';
+
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#042f2e' }}>
       {/* Header */}
@@ -210,11 +251,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm">← Back</button>
         <p className="flex-1 text-white font-black text-sm truncate">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold">#{studentNumber}</span>
-        {/* 2-per-page toggle */}
         <button
-          onClick={() => setTwoPerPage(v => !v)}
+          onClick={handleToggle2Up}
           className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
-          title="Toggle 2 pages per view"
         >
           {twoPerPage ? '📖 2-up' : '📄 1-up'}
         </button>
@@ -223,51 +262,34 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         </span>
       </div>
 
-      {/* Page display — fit to available space, no scroll */}
+      {/* Page display */}
       <div
-        className="flex-1 relative flex items-center justify-center overflow-hidden"
+        className="flex-1 relative overflow-hidden"
         ref={containerRef}
         style={{ background: '#1a1a1a' }}
       >
         {twoPerPage ? (
-          // Two pages side by side
           <div style={{ display: 'flex', width: '100%', height: '100%', gap: 4 }}>
+            {/* Left page */}
             <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {renderPage(currentPage)}
-              </div>
-              {/* Laser live */}
-              {(recState === 'recording' || recState === 'paused') && (
-                <LaserOverlay trailPoints={laserTracker.trailPoints} />
-              )}
-              {/* Replay laser */}
-              {showReplay && replayLaserData.length > 0 && (
-                <LaserReplayOverlay laserData={replayLaserData} audioRef={audioRef} />
-              )}
-              {/* Teacher annotations */}
+              {renderPage(currentPage)}
               {pageAnnotations.map((ann, i) => (
                 <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
               ))}
             </div>
+            {/* Right page */}
             {currentPage + 1 <= totalPages && (
               <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {renderPage(currentPage + 1)}
-                </div>
+                {renderPage(currentPage + 1)}
+                {rightPageAnnotations.map((ann, i) => (
+                  <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
+                ))}
               </div>
             )}
-          </div>
-        ) : (
-          // Single page — fit to container
-          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            <div style={{ maxWidth: '100%', maxHeight: '100%', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {renderPage(currentPage)}
-            </div>
-            {/* Laser live */}
-            {(recState === 'recording' || recState === 'paused') && (
-              <LaserOverlay trailPoints={laserTracker.trailPoints} />
+            {/* Laser overlays span the FULL container (absolute relative to containerRef) */}
+            {isRecording && (
+              <LaserOverlay trailPoints={laserTracker.trailPoints} width={containerSize.w} height={containerSize.h} />
             )}
-            {/* Replay laser */}
             {showReplay && replayLaserData.length > 0 && (
               <LaserReplayOverlay
                 laserData={replayLaserData}
@@ -276,46 +298,71 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
                 containerHeight={containerSize.h}
               />
             )}
-            {/* Teacher speaker annotations */}
+          </div>
+        ) : (
+          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {renderPage(currentPage)}
+            {isRecording && (
+              <LaserOverlay trailPoints={laserTracker.trailPoints} />
+            )}
+            {showReplay && replayLaserData.length > 0 && (
+              <LaserReplayOverlay
+                laserData={replayLaserData}
+                audioRef={audioRef}
+                containerWidth={containerSize.w}
+                containerHeight={containerSize.h}
+              />
+            )}
             {pageAnnotations.map((ann, i) => (
               <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={containerSize} />
             ))}
           </div>
         )}
+
+        {/* Always-mounted hidden audio for replay — avoids ref timing race */}
+        <audio
+          ref={audioRef}
+          src={showReplay && spreadRecording ? spreadRecording.audio_url : ''}
+          style={{ display: 'none' }}
+        />
       </div>
 
       {/* Bottom controls */}
       <div className="shrink-0 p-3 flex flex-col gap-2" style={{ background: '#0f3d3a', borderTop: '2px solid #0d9488' }}>
         {/* Existing recording */}
-        {pageRecording && !showReplay && recState === 'idle' && (
+        {spreadRecording && !showReplay && recState === 'idle' && (
           <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #0d9488' }}>
-            <span className="text-teal-300 text-xs font-bold flex-1">✅ Page {currentPage} recorded</span>
-            <button onClick={() => handleReplay(pageRecording)}
+            <span className="text-teal-300 text-xs font-bold flex-1">
+              ✅ {spreadRecording.is_spread ? `Pages ${recKey}–${recKey + 1}` : `Page ${recKey}`} recorded
+            </span>
+            <button onClick={() => handleReplay(spreadRecording)}
               className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#0d9488' }}>
               ▶ Replay
             </button>
-            <button onClick={() => { resetRecorder(); setPageRecording(null); }}
+            <button onClick={() => { resetRecorder(); setSpreadRecording(null); }}
               className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
               🔄 Re-record
             </button>
           </div>
         )}
 
-        {/* Replay audio */}
-        {showReplay && pageRecording && (
+        {/* Replay controls */}
+        {showReplay && spreadRecording && (
           <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #14b8a6' }}>
-            <span className="text-teal-200 text-xs font-bold">▶ Replay — laser synced</span>
-            <audio ref={audioRef} controls src={pageRecording.audio_url} className="flex-1 h-8" />
-            <button onClick={() => setShowReplay(false)} className="text-teal-400 font-bold text-xs">✕</button>
+            <span className="text-teal-200 text-xs font-bold shrink-0">▶ Replay</span>
+            <button onClick={() => audioRef.current?.play()} className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#0d9488' }}>▶</button>
+            <button onClick={() => audioRef.current?.pause()} className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>⏸</button>
+            <button onClick={() => { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.pause(); } setShowReplay(false); }}
+              className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>✕ Close</button>
           </div>
         )}
 
-        {/* Record controls */}
-        {recState === 'idle' && !pageRecording && (
+        {/* Record button */}
+        {recState === 'idle' && !spreadRecording && (
           <button onClick={handleStartRecord}
             className="w-full py-3 rounded-2xl font-black text-white text-base"
             style={{ background: '#dc2626' }}>
-            ⏺ Record Reading — Page {currentPage}
+            ⏺ Record Reading — {twoPerPage && currentPage + 1 <= totalPages ? `Pages ${currentPage}–${currentPage + 1}` : `Page ${currentPage}`}
           </button>
         )}
         {recState === 'recording' && (
