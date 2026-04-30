@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,7 +9,6 @@ import TeacherStoryDashboard from '@/components/story/TeacherStoryDashboard';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
-import useCanvasSaveLoad from '@/hooks/useCanvasSaveLoad';
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -68,16 +67,16 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 500, h: 650 });
 
-  // Shared save/load hook — EXACT same code as StudentNotebookView
-  const { save: saveCurrentPage, load, handleStrokeStart, handleStrokeEnd } = useCanvasSaveLoad({
-    canvasRef,
-    currentIdx: currentPageIdx,
-    dataByIdx: pages,
-    onSave: (updated) => onSave({ pages: updated }),
-    canvasSize,
-    setSaving,
-    setDataByIdx: setPages,
-  });
+  // Stable refs for save/load logic — EXACT same as StudentNotebookView
+  const isDrawingRef = useRef(false);
+  const currentPageIdxRef = useRef(currentPageIdx);
+  const pagesRef = useRef(pages);
+  const saveInFlightRef = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const loadedKeyRef = useRef(null);
+
+  useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
+  useEffect(() => { pagesRef.current = pages; }, [pages]);
 
   // Laser
   const laserActive = tool === 'laser';
@@ -99,23 +98,104 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const currentPage = pages[currentPageIdx];
 
-  // Load strokes when switching pages — uses hook's load fn
+  // Load strokes when switching pages
   useEffect(() => {
-    if (!currentPage || canvasSize.w < 10) return;
+    if (!canvasRef.current || !currentPage || canvasSize.w < 10) return;
     const key = `${story.id}-${currentPageIdx}-${canvasSize.w}`;
-    load(currentPage, key);
+    if (loadedKeyRef.current === key) return;
+    loadedKeyRef.current = key;
+
+    canvasRef.current.clearStrokes();
+    if (currentPage.strokes_data) {
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
+    } else if (currentPage.strokes && currentPage.strokes.length > 0) {
+      try {
+        canvasRef.current.loadStrokes({ strokes: currentPage.strokes, normalized: true });
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
+    }
     try {
       setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []);
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, canvasSize.w, load]);
+  }, [currentPageIdx, story.id, canvasSize.w]);
+
+  // Save current strokes into pages state — EXACT same pattern as StudentNotebookView
+  const saveCurrentPage = useCallback(async (pageIdxOverride) => {
+    if (!canvasRef.current) return;
+
+    if (isDrawingRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+
+    try {
+      const idx = pageIdxOverride ?? currentPageIdxRef.current;
+      const strokeData = canvasRef.current.getStrokes();
+      const payload = JSON.stringify({ ...strokeData, normalized: true });
+
+      const updated = pagesRef.current.map((p, i) =>
+        i === idx ? { ...p, strokes_data: payload } : p
+      );
+      pagesRef.current = updated;
+      setPages(updated);
+
+      await onSave({ pages: updated });
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        void saveCurrentPage();
+      }
+    }
+  }, [onSave]);
+
+  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; }, []);
+  const handleStrokeEnd = useCallback(() => {
+    isDrawingRef.current = false;
+    void saveCurrentPage();
+  }, [saveCurrentPage]);
+
+  // Periodic autosave (every 20s)
+  useEffect(() => {
+    const interval = setInterval(() => void saveCurrentPage(), 20000);
+    return () => clearInterval(interval);
+  }, [saveCurrentPage]);
+
+  // Save on page hide / tab switch
+  useEffect(() => {
+    const onHide = () => void saveCurrentPage();
+    const onVis = () => { if (document.visibilityState === 'hidden') void saveCurrentPage(); };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [saveCurrentPage]);
 
   const saveMics = (mics) => {
     setFloatingMics(mics);
     const updated = pages.map((p, i) =>
-      i === currentPageIdx ? { ...p, mics: JSON.stringify(mics) } : p
+      i === currentPageIdxRef.current ? { ...p, mics: JSON.stringify(mics) } : p
     );
+    pagesRef.current = updated;
     setPages(updated);
     onSave({ pages: updated });
   };
@@ -132,34 +212,41 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   };
 
   const goToPage = async (idx) => {
-    await saveCurrentPage(currentPageIdx);
+    await saveCurrentPage(currentPageIdxRef.current);
+    loadedKeyRef.current = null;
     setCurrentPageIdx(idx);
   };
 
   const addPage = async () => {
     await saveCurrentPage();
     const newPage = { id: `p${Date.now()}`, template: 'blank', strokes_data: null, mics: null };
-    const updated = [...pages.slice(0, currentPageIdx + 1), newPage, ...pages.slice(currentPageIdx + 1)];
+    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), newPage, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
+    pagesRef.current = updated;
     setPages(updated);
-    setCurrentPageIdx(currentPageIdx + 1);
+    loadedKeyRef.current = null;
+    setCurrentPageIdx(currentPageIdxRef.current + 1);
     onSave({ pages: updated });
   };
 
   const duplicatePage = async () => {
     await saveCurrentPage();
-    const pg = pages[currentPageIdx];
+    const pg = pagesRef.current[currentPageIdxRef.current];
     const dup = { ...pg, id: `p${Date.now()}` };
-    const updated = [...pages.slice(0, currentPageIdx + 1), dup, ...pages.slice(currentPageIdx + 1)];
+    const updated = [...pagesRef.current.slice(0, currentPageIdxRef.current + 1), dup, ...pagesRef.current.slice(currentPageIdxRef.current + 1)];
+    pagesRef.current = updated;
     setPages(updated);
-    setCurrentPageIdx(currentPageIdx + 1);
+    loadedKeyRef.current = null;
+    setCurrentPageIdx(currentPageIdxRef.current + 1);
     onSave({ pages: updated });
   };
 
   const deletePage = () => {
     if (pages.length <= 1) return;
-    const updated = pages.filter((_, i) => i !== currentPageIdx);
+    const updated = pagesRef.current.filter((_, i) => i !== currentPageIdxRef.current);
+    pagesRef.current = updated;
     setPages(updated);
-    setCurrentPageIdx(Math.max(0, currentPageIdx - 1));
+    loadedKeyRef.current = null;
+    setCurrentPageIdx(Math.max(0, currentPageIdxRef.current - 1));
     onSave({ pages: updated });
   };
 
