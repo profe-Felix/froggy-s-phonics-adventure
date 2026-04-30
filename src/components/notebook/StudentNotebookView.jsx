@@ -364,7 +364,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   // Laser tracker — tracks against the inner PDF wrapper for correct coordinates
   // Always enabled so it can record during mic recording regardless of tool
   const laserActive = tool === 'laser';
-  const laserTracker = useLaserTracker({ containerRef: pdfWrapperRef, enabled: true });
+  const laserTracker = useLaserTracker({ containerRef: pdfWrapperRef, enabled: laserActive });
 
   // Load floating mics from session for current page
   useEffect(() => {
@@ -522,18 +522,18 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
-          <div className="p-1.5 overflow-y-auto shrink-0" style={{ background: '#1a1a2e' }}>
-            <AnnotationToolbar
-              tool={tool}
-              setTool={setTool}
-              color={color}
-              setColor={setColor}
-              size={size}
-              setSize={setSize}
-              onUndo={() => canvasRef.current?.undo()}
-              onClear={() => canvasRef.current?.clearStrokes()}
-            />
-          </div>
+            {side === 'left' && (
+            <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+              <AnnotationToolbar
+                tool={tool} setTool={setTool}
+                color={color} setColor={setColor}
+                size={size} setSize={setSize}
+                onUndo={() => canvasRef.current?.undo()}
+                onClear={() => canvasRef.current?.clearStrokes()}
+                side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+              />
+            </div>
+          )}
 
           <div
             ref={containerRef}
@@ -615,6 +615,19 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
               </div>
             )}
           </div>
+
+          {side === 'right' && (
+            <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+              <AnnotationToolbar
+                tool={tool} setTool={setTool}
+                color={color} setColor={setColor}
+                size={size} setSize={setSize}
+                onUndo={() => canvasRef.current?.undo()}
+                onClear={() => canvasRef.current?.clearStrokes()}
+                side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+              />
+            </div>
+          )}
 
           {/* Add floating mic button */}
           <button

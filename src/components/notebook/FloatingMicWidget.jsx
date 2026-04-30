@@ -299,7 +299,7 @@ export default function FloatingMicWidget({
 
   return (
     <>
-      {/* The floating icon */}
+      {/* The floating icon — small hit area so it doesn't intercept nearby drawing */}
       <div
         style={{
           position: 'absolute',
@@ -310,6 +310,10 @@ export default function FloatingMicWidget({
           cursor: hasSavedAudio ? 'pointer' : 'grab',
           userSelect: 'none',
           touchAction: 'none',
+          // Tight 44px hit area — anything outside falls through to canvas
+          width: 44,
+          height: 44,
+          borderRadius: '50%',
         }}
         onMouseDown={onDragStart}
         onTouchStart={onDragStart}

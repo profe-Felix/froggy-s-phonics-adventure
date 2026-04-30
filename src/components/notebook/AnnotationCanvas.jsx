@@ -1,4 +1,4 @@
-import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
+import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 
 function drawStroke(ctx, s, w, h) {
   if (!s.pts || s.pts.length === 0) return;
@@ -11,11 +11,6 @@ function drawStroke(ctx, s, w, h) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = Math.max(1, s.size * 2.5);
     ctx.globalAlpha = 0.35;
-  } else if (s.tool === 'eraser_object') {
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = Math.max(1, s.size * 6);
-    ctx.globalAlpha = 1;
   } else if (s.tool === 'eraser_pixel') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
@@ -40,6 +35,18 @@ function drawStroke(ctx, s, w, h) {
   ctx.restore();
 }
 
+// Returns true if point (px, py) in canvas coords is within hitDist of stroke s
+function strokeHitTest(s, px, py, w, h, hitDist = 18) {
+  if (!s.pts || s.pts.length === 0) return false;
+  for (let i = 0; i < s.pts.length; i++) {
+    const spx = s.pts[i].x * w;
+    const spy = s.pts[i].y * h;
+    const dx = spx - px, dy = spy - py;
+    if (dx * dx + dy * dy <= hitDist * hitDist) return true;
+  }
+  return false;
+}
+
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd },
   ref
@@ -48,6 +55,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const strokes = useRef([]);
   const current = useRef(null);
   const drawing = useRef(false);
+  const [eraserCursorPos, setEraserCursorPos] = useState(null); // {x, y} in px for pixel eraser cursor
 
   const setupCanvas = () => {
     const c = canvasRef.current;
@@ -135,14 +143,45 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const c = canvasRef.current;
     if (!c) return;
 
+    // Stroke eraser: remove any stroke that the pointer touches
+    const eraseStrokeAt = (p) => {
+      const px = p.x * width;
+      const py = p.y * height;
+      const hitDist = Math.max(12, size * 3);
+      const before = strokes.current.length;
+      strokes.current = strokes.current.filter(s => !strokeHitTest(s, px, py, width, height, hitDist));
+      if (strokes.current.length !== before) {
+        redraw();
+        onStrokeEnd?.();
+      }
+    };
+
     const onMouseDown = (e) => {
       if (mode !== 'draw') return;
       if (tool === 'laser' || tool === 'none') return;
       e.preventDefault();
+      if (tool === 'eraser_object') {
+        drawing.current = true;
+        eraseStrokeAt(getPos(e));
+        return;
+      }
       beginStrokeAt(getPos(e));
     };
 
     const onMouseMove = (e) => {
+      // Update eraser cursor position for pixel eraser
+      if (tool === 'eraser_pixel') {
+        const r = c.getBoundingClientRect();
+        setEraserCursorPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+      } else {
+        setEraserCursorPos(null);
+      }
+
+      if (tool === 'eraser_object' && drawing.current) {
+        e.preventDefault();
+        eraseStrokeAt(getPos(e));
+        return;
+      }
       if (!drawing.current || !current.current) return;
       e.preventDefault();
       const p = getPos(e);
@@ -151,30 +190,37 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onMouseUp = () => {
+      if (tool === 'eraser_object') { drawing.current = false; return; }
+      finishStroke();
+    };
+
+    const onMouseLeave = () => {
+      setEraserCursorPos(null);
+      if (tool === 'eraser_object') { drawing.current = false; return; }
       finishStroke();
     };
 
     const onTouchStart = (e) => {
       if (mode !== 'draw') return;
       if (tool === 'laser' || tool === 'none') return;
-
-      if (e.touches.length >= 2) {
-        cancelStrokeForScroll();
+      if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
+      e.preventDefault();
+      if (tool === 'eraser_object') {
+        drawing.current = true;
+        eraseStrokeAt(getPos(e));
         return;
       }
-
-      e.preventDefault();
       beginStrokeAt(getPos(e));
     };
 
     const onTouchMove = (e) => {
-      if (e.touches.length >= 2) {
-        cancelStrokeForScroll();
+      if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
+      if (tool === 'eraser_object' && drawing.current) {
+        e.preventDefault();
+        eraseStrokeAt(getPos(e));
         return;
       }
-
       if (!drawing.current || !current.current) return;
-
       e.preventDefault();
       const p = getPos(e);
       current.current.pts.push(p);
@@ -182,6 +228,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onTouchEnd = () => {
+      if (tool === 'eraser_object') { drawing.current = false; return; }
       finishStroke();
     };
 
@@ -192,7 +239,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     c.addEventListener('mousedown', onMouseDown);
     c.addEventListener('mousemove', onMouseMove);
     c.addEventListener('mouseup', onMouseUp);
-    c.addEventListener('mouseleave', onMouseUp);
+    c.addEventListener('mouseleave', onMouseLeave);
 
     c.addEventListener('touchstart', onTouchStart, { passive: false });
     c.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -203,7 +250,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       c.removeEventListener('mousedown', onMouseDown);
       c.removeEventListener('mousemove', onMouseMove);
       c.removeEventListener('mouseup', onMouseUp);
-      c.removeEventListener('mouseleave', onMouseUp);
+      c.removeEventListener('mouseleave', onMouseLeave);
 
       c.removeEventListener('touchstart', onTouchStart);
       c.removeEventListener('touchmove', onTouchMove);
@@ -273,24 +320,41 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     },
   }));
 
+  const eraserRadius = tool === 'eraser_pixel' ? Math.max(4, size * 1.5) : Math.max(12, size * 3);
+
   return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 10,
-        width: width + 'px',
-        height: height + 'px',
-        touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
-        // When mode is not draw (e.g. laser tool), let events pass through to the laser tracker
-        pointerEvents: mode === 'draw' ? 'auto' : 'none',
-        cursor: mode === 'draw'
-          ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair')
-          : 'none',
-        background: 'transparent',
-      }}
-    />
+    <div style={{ position: 'absolute', inset: 0, zIndex: 10, width: width + 'px', height: height + 'px' }}>
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: width + 'px',
+          height: height + 'px',
+          touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
+          pointerEvents: mode === 'draw' ? 'auto' : 'none',
+          cursor: tool === 'eraser_pixel' || tool === 'eraser_object' ? 'none' : 'crosshair',
+          background: 'transparent',
+        }}
+      />
+      {/* Pixel eraser cursor — gray semitransparent circle */}
+      {eraserCursorPos && (tool === 'eraser_pixel') && (
+        <div
+          style={{
+            position: 'absolute',
+            left: eraserCursorPos.x - eraserRadius,
+            top: eraserCursorPos.y - eraserRadius,
+            width: eraserRadius * 2,
+            height: eraserRadius * 2,
+            borderRadius: '50%',
+            background: 'rgba(150,150,150,0.35)',
+            border: '2px solid rgba(100,100,100,0.6)',
+            pointerEvents: 'none',
+            zIndex: 20,
+          }}
+        />
+      )}
+    </div>
   );
 });
 
