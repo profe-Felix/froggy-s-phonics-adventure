@@ -95,6 +95,14 @@ const MODES = [
     description: 'Spell words from jumbled letters',
     icon: '🔠',
     color: 'from-orange-400 to-orange-600'
+  },
+  {
+    id: 'storybuilder',
+    title: 'Story Builder',
+    description: 'Create and draw your own stories',
+    icon: '📚',
+    color: 'from-amber-400 to-orange-600',
+    alwaysUnlocked: true
   }
 ];
 

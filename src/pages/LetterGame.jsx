@@ -12,6 +12,7 @@ import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
 import SentencesMode from '../components/game/modes/SentencesMode';
+import StoryBuilder from '../pages/StoryBuilder';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
@@ -359,6 +360,13 @@ export default function LetterGame() {
       )}
       {currentMode === 'spanish_reading' && (
         <SpanishReadingIframe
+          studentNumber={selectedStudent?.number}
+          className={selectedStudent?.class_name}
+          onBack={handleBackToModes}
+        />
+      )}
+      {currentMode === 'storybuilder' && (
+        <StoryBuilder
           studentNumber={selectedStudent?.number}
           className={selectedStudent?.class_name}
           onBack={handleBackToModes}
