@@ -99,13 +99,20 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const currentPage = pages[currentPageIdx];
 
-  // Load strokes when switching pages — EXACT same pattern as StudentNotebookView
+  // Load strokes when switching pages — SAFE: do not reload on resize
   useEffect(() => {
     if (!canvasRef.current || !currentPage || canvasSize.w < 10) return;
-    const key = `${story.id}-${currentPageIdx}-${canvasSize.w}-${canvasSize.h}`;
+
+    // Do not reload/clear while a stroke is happening.
+    if (isDrawingRef.current) return;
+
+    // IMPORTANT: do not include canvasSize in this key.
+    // Resizing was causing the canvas to clear/reload and cut strokes off.
+    const key = `${story.id}-${currentPageIdx}`;
     if (loadedKeyRef.current === key) return;
 
     loadedKeyRef.current = key;
+
     const pageData = story.strokes_by_page?.[String(currentPageIdx)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
@@ -133,7 +140,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, story.strokes_by_page, story.voice_notes_by_page, canvasSize.w, canvasSize.h, draftKey]);
+  }, [currentPageIdx, story.id, story.strokes_by_page, story.voice_notes_by_page, draftKey, currentPage]);
 
   // Save current strokes — EXACT same pattern as StudentNotebookView
   const saveStrokes = useCallback(async (pageOverride) => {
@@ -324,7 +331,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0d0d1a' }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #7c3aed' }}>
-        <button onClick={onBack} className="text-violet-300 hover:text-white font-bold text-sm">← Back</button>
+        <button onClick={async () => { await saveStrokes(); onBack(); }} className="text-violet-300 hover:text-white font-bold text-sm">← Back</button>
         <p className="flex-1 text-white font-black text-sm truncate">{story.title}</p>
         <span className="text-violet-400 text-xs">#{studentNumber}</span>
         {saving && <span className="text-xs text-violet-400 animate-pulse">Saving…</span>}
@@ -507,6 +514,9 @@ export default function StoryBuilder() {
       class_name: studentInfo.className,
       student_number: studentInfo.number,
       pages: [{ id: 'p1', template: 'blank', strokes_data: null, mics: null }],
+      strokes_by_page: {},
+      voice_notes_by_page: {},
+      status: 'in_progress',
       status: 'in_progress',
       last_active: new Date().toISOString(),
     });
@@ -517,10 +527,15 @@ export default function StoryBuilder() {
 
   const saveStory = async (storyData) => {
     if (!selectedStory) return;
+
     await base44.entities.StoryAssignment.update(selectedStory.id, {
       pages: storyData.pages,
+      strokes_by_page: storyData.strokes_by_page || {},
+      voice_notes_by_page: storyData.voice_notes_by_page || {},
+      status: storyData.status || 'in_progress',
       last_active: storyData.last_active,
     });
+
     setSelectedStory(storyData);
     refetch();
   };
