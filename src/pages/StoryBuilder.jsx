@@ -76,6 +76,12 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const currentPageIdxRef = useRef(currentPageIdx);
   const canvasSizeRef = useRef(canvasSize);
   const onSaveRef = useRef(onSave);
+
+  // Sync protection
+  const localDirtyRef = useRef(false);
+  const lastLocalSaveAtRef = useRef(0);
+  const lastAppliedServerStrokeRef = useRef({});
+  const pollingPausedRef = useRef(false);
   
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
   useEffect(() => { canvasSizeRef.current = canvasSize; }, [canvasSize]);
@@ -149,7 +155,16 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     } else if (pageData) {
       try {
         canvasRef.current.clearStrokes();
-        canvasRef.current.loadStrokes(JSON.parse(pageData));
+
+        const parsed = typeof pageData === 'string'
+          ? JSON.parse(pageData)
+          : pageData;
+
+        canvasRef.current.loadStrokes(parsed);
+
+        // 🔑 IMPORTANT: track what we loaded so polling doesn't overwrite repeatedly
+        lastAppliedServerStrokeRef.current[String(currentPageIdx)] = pageData;
+
       } catch {
         canvasRef.current.clearStrokes();
       }
@@ -236,6 +251,11 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       });
 
       localStorage.removeItem(saveDraftKey);
+      localDirtyRef.current = false;
+      lastLocalSaveAtRef.current = Date.now();
+      lastAppliedServerStrokeRef.current[String(savePage)] = payloadString;
+
+      localStorage.removeItem(saveDraftKey);
       
     } finally {
       saveInFlightRef.current = false;
@@ -250,8 +270,8 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
+    localDirtyRef.current = true;
   }, []);
-
   const handleStrokeEnd = useCallback(() => {
     isDrawingRef.current = false;
     void saveStrokes();
@@ -294,13 +314,74 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     };
   }, [story, pages]);
 
-  useEffect(() => {
-    if (!story) return;
-    const interval = setInterval(() => {
-      void saveStrokes();
-    }, 20000);
-    return () => clearInterval(interval);
-  }, [saveStrokes, story]);
+  // Auto-save local work
+useEffect(() => {
+  if (!story) return;
+
+  const interval = setInterval(() => {
+    void saveStrokes();
+  }, 20000);
+
+  return () => clearInterval(interval);
+}, [saveStrokes, story]);
+
+// Poll server for updates from other devices
+useEffect(() => {
+  if (!story?.id) return;
+
+  const interval = setInterval(async () => {
+    if (pollingPausedRef.current) return;
+    if (isDrawingRef.current) return;
+    if (saveInFlightRef.current) return;
+    if (localDirtyRef.current) return;
+
+    // Give our own recent save a moment so we don't reload against ourselves.
+    if (Date.now() - lastLocalSaveAtRef.current < 2500) return;
+
+    try {
+      const fresh = await base44.entities.StoryAssignment.get(story.id);
+      if (!fresh) return;
+
+      const pageIdx = currentPageIdxRef.current;
+      const pageKey = String(pageIdx);
+
+      const serverStroke =
+        fresh.strokes_by_page?.[pageKey] ||
+        fresh.pages?.[pageIdx]?.strokes_data ||
+        null;
+
+      if (!serverStroke) return;
+
+      if (lastAppliedServerStrokeRef.current[pageKey] === serverStroke) return;
+
+      latestStoryRef.current = {
+        ...latestStoryRef.current,
+        ...fresh,
+        strokes_by_page: fresh.strokes_by_page || {},
+        voice_notes_by_page: fresh.voice_notes_by_page || {},
+        recordings_by_page: fresh.recordings_by_page || {},
+      };
+
+      setPages(fresh.pages || []);
+
+      if (canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
+        try {
+          canvasRef.current.clearStrokes();
+          canvasRef.current.loadStrokes(
+            typeof serverStroke === 'string' ? JSON.parse(serverStroke) : serverStroke
+          );
+          lastAppliedServerStrokeRef.current[pageKey] = serverStroke;
+        } catch {
+          // skip bad remote payload rather than wiping local work
+        }
+      }
+    } catch {
+      // silent polling failure
+    }
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [story?.id]);
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -323,9 +404,16 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   }, [saveStrokes]);
 
   const goToPage = async (idx) => {
+    pollingPausedRef.current = true;
+
     await saveStrokes(currentPageIdx);
+
     loadedKeyRef.current = null;
     setCurrentPageIdx(idx);
+
+    setTimeout(() => {
+      pollingPausedRef.current = false;
+    }, 750);
   };
 
   const addPage = async () => {
