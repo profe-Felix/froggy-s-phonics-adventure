@@ -173,8 +173,12 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     }
 
     try {
-      const micsData = activeStory.voice_notes_by_page?.[`mics_${currentPageIdx}`] || '[]';
-      setFloatingMics(JSON.parse(micsData));
+      const micsData =
+        activeStory.voice_notes_by_page?.[`mics_${currentPageIdx}`] ||
+        activeStory.pages?.[currentPageIdx]?.mics ||
+        '[]';
+
+      setFloatingMics(typeof micsData === 'string' ? JSON.parse(micsData) : micsData);
     } catch {
       setFloatingMics([]);
     }
@@ -278,20 +282,36 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   }, [saveStrokes]);
 
   const saveMics = useCallback(async (mics) => {
-    if (!latestStoryRef.current) return;
-    
+    const activeStory = latestStoryRef.current;
+    if (!activeStory?.id) return;
+
     setFloatingMics(mics);
+
     const key = `mics_${currentPageIdxRef.current}`;
-    const updated = { ...(latestStoryRef.current.voice_notes_by_page || {}), [key]: JSON.stringify(mics) };
-    
+    const updatedVoiceNotes = {
+      ...(activeStory.voice_notes_by_page || {}),
+      [key]: JSON.stringify(mics),
+    };
+
     const nextStory = {
-      ...latestStoryRef.current,
-      voice_notes_by_page: updated,
+      ...activeStory,
+      voice_notes_by_page: updatedVoiceNotes,
       last_active: new Date().toISOString(),
     };
+
     latestStoryRef.current = nextStory;
-    await onSave(nextStory);
-  }, [onSave]);
+
+    await base44.entities.StoryAssignment.update(activeStory.id, {
+      pages: nextStory.pages || [],
+      strokes_by_page: nextStory.strokes_by_page || {},
+      voice_notes_by_page: updatedVoiceNotes,
+      recordings_by_page: nextStory.recordings_by_page || {},
+      status: nextStory.status || 'in_progress',
+      last_active: nextStory.last_active,
+    });
+
+    await onSaveRef.current(nextStory);
+  }, []);
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
@@ -350,9 +370,17 @@ useEffect(() => {
         fresh.pages?.[pageIdx]?.strokes_data ||
         null;
 
-      if (!serverStroke) return;
+      const serverMicsRaw =
+        fresh.voice_notes_by_page?.[`mics_${pageIdx}`] ||
+        '[]';
 
-      if (lastAppliedServerStrokeRef.current[pageKey] === serverStroke) return;
+      const serverChanged =
+        serverStroke && lastAppliedServerStrokeRef.current[pageKey] !== serverStroke;
+
+      const micsChanged =
+        serverMicsRaw !== JSON.stringify(floatingMics);
+
+      if (!serverChanged && !micsChanged) return;
 
       latestStoryRef.current = {
         ...latestStoryRef.current,
@@ -364,7 +392,13 @@ useEffect(() => {
 
       setPages(fresh.pages || []);
 
-      if (canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
+      try {
+        setFloatingMics(JSON.parse(serverMicsRaw));
+      } catch {
+        setFloatingMics([]);
+      }
+
+      if (serverStroke && canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
         try {
           canvasRef.current.clearStrokes();
           canvasRef.current.loadStrokes(
