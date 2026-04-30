@@ -206,7 +206,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
   const startRound = async (mod = selectedModule) => {
     if (!wordsLoaded) return;
 
-    const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || SPELLING_WORDS_BY_MODULE[1] || [];
+    const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || [];
     if (!moduleWords.length) return;
 
     // Try a limited number of words so missing audio can never freeze the app
@@ -534,7 +534,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
           onClear={handleClear}
           showResult={showResult}
           isCorrect={isCorrect}
-          onNext={showResult ? startRound : undefined}
+          onNext={showResult ? () => startRound(selectedModule) : undefined}
           onRetry={() => { setBuiltWord([]); setUsedIndices([]); setShowResult(false); setIsRetry(true); submittingRef.current = false; }}
           pointsEarned={pointsEarned}
           bonusPoints={bonusPoints}
