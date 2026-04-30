@@ -151,6 +151,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const handleStop = () => {
     stopRecording();
     laserTracker.stopRecordingLaser();
+    // Auto-save immediately — no preview step
+    setTimeout(() => saveRecording(), 100);
   };
 
   // saveRecording saves for a given recKey (defaults to current)
@@ -229,9 +231,11 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       setCurrentPage(rec.page);
     }
     setShowReplay(true);
-    // Reset audio to start
     setTimeout(() => {
-      if (audioRef.current) { audioRef.current.currentTime = 0; }
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
     }, 50);
   };
 
@@ -307,7 +311,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           </div>
         )}
         {/* Always-mounted hidden audio for replay */}
-        <audio ref={audioRef} src={showReplay && spreadRecording ? spreadRecording.audio_url : ''} style={{ display: 'none' }} />
+        <audio ref={audioRef} src={spreadRecording?.audio_url || ''} style={{ display: 'none' }}
+          onEnded={() => setShowReplay(false)} />
       </div>
 
       {/* Bottom controls */}
@@ -319,24 +324,23 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
             <span className="text-teal-300 text-xs font-bold shrink-0">
               ✅ {spreadRecording.is_spread ? `Pgs ${recKey}–${recKey + 1}` : `Pg ${recKey}`}
             </span>
-            {/* Inline audio player */}
-            <audio
-              controls
-              src={spreadRecording.audio_url}
-              className="flex-1 h-8"
-              onPlay={() => {
-                // sync laser replay when this audio plays
-                const ld = spreadRecording.laser_data || [];
-                setReplayLaserData(typeof ld === 'string' ? JSON.parse(ld) : ld);
-                setShowReplay(true);
-              }}
-              onEnded={() => setShowReplay(false)}
-              onPause={() => setShowReplay(false)}
-            />
+            {!showReplay ? (
+              <button onClick={() => handleReplay(spreadRecording)}
+                className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm"
+                style={{ background: '#0d9488' }}>
+                ▶ Play Recording
+              </button>
+            ) : (
+              <button onClick={stopReplay}
+                className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm"
+                style={{ background: '#374151' }}>
+                ⏹ Stop
+              </button>
+            )}
             <button
-              onClick={() => { resetRecorder(); setSpreadRecording(null); setShowReplay(false); }}
+              onClick={() => { resetRecorder(); setSpreadRecording(null); setShowReplay(false); stopReplay(); }}
               className="shrink-0 px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
-              🔄
+              🔄 Re-record
             </button>
           </div>
         )}
@@ -374,20 +378,10 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           </div>
         )}
 
-        {/* === STOPPED — preview + save/discard on same bar === */}
-        {recState === 'stopped' && (
-          <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #14b8a6' }}>
-            <span className="text-teal-200 text-xs font-bold shrink-0">Preview:</span>
-            {liveAudioUrl && <audio controls src={liveAudioUrl} className="flex-1 h-8" />}
-            <button onClick={() => saveRecording()} disabled={uploading}
-              className="shrink-0 px-3 py-1 rounded-lg font-bold text-white text-xs"
-              style={{ background: '#16a34a', opacity: uploading ? 0.6 : 1 }}>
-              {uploading ? '⏳' : '💾 Save'}
-            </button>
-            <button onClick={() => { resetRecorder(); laserTracker.clearLaser(); }}
-              className="shrink-0 px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
-              🔄
-            </button>
+        {/* === STOPPED — auto-saving === */}
+        {(recState === 'stopped' || uploading) && (
+          <div className="flex items-center justify-center gap-2 py-2 rounded-xl" style={{ background: '#134e4a' }}>
+            <span className="text-teal-300 font-bold text-sm animate-pulse">⏳ Saving…</span>
           </div>
         )}
 
