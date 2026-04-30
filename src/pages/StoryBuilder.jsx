@@ -76,11 +76,9 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const loadedKeyRef = useRef(null);
-  const latestStoryRef = useRef(story);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
   useEffect(() => { pagesRef.current = pages; }, [pages]);
-  useEffect(() => { latestStoryRef.current = story; }, [story]);
 
   // Laser
   const laserActive = tool === 'laser';
