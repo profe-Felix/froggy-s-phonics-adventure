@@ -63,6 +63,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [addingMic, setAddingMic] = useState(false);
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const pdfWrapperRef = useRef(null); // inner PDF wrapper — laser tracks against this
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const saveTimer = useRef(null);
@@ -360,9 +361,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];
 
-  // Laser tracker — active when tool === 'laser'
+  // Laser tracker — tracks against the inner PDF wrapper for correct coordinates
+  // Always enabled so it can record during mic recording regardless of tool
   const laserActive = tool === 'laser';
-  const laserTracker = useLaserTracker({ containerRef, enabled: laserActive });
+  const laserTracker = useLaserTracker({ containerRef: pdfWrapperRef, enabled: true });
 
   // Load floating mics from session for current page
   useEffect(() => {
@@ -540,7 +542,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
             onClick={handlePageClickForMic}
           >
             {selectedAssignment.pdf_url ? (
-              <div style={{ position: 'relative', display: 'block', width: '100%' }}>
+              <div ref={pdfWrapperRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
@@ -559,7 +561,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     onStrokeEnd={handleStrokeEnd}
                   />
                 )}
-                {/* Laser overlay */}
+                {/* Laser overlay — only shown when laser tool selected */}
                 {laserActive && pdfRenderedSize && (
                   <LaserOverlay
                     trailPoints={laserTracker.trailPoints}
@@ -567,6 +569,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     height={pdfRenderedSize.h}
                   />
                 )}
+                {/* Prevent AnnotationCanvas from capturing events when laser tool active */}
                 {/* Teacher speaker icons from assignment */}
                 {(selectedAssignment.audio_instructions || [])
                   .filter(a => a.page === currentPage && a.x_pct !== undefined)

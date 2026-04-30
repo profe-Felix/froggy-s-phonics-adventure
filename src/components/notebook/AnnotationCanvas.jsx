@@ -283,10 +283,11 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         width: width + 'px',
         height: height + 'px',
         touchAction: mode === 'draw' ? 'pan-x pan-y' : 'auto',
-        cursor:
-          mode === 'draw'
-            ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : tool === 'laser' || tool === 'none' ? 'none' : 'crosshair')
-            : 'default',
+        // When mode is not draw (e.g. laser tool), let events pass through to the laser tracker
+        pointerEvents: mode === 'draw' ? 'auto' : 'none',
+        cursor: mode === 'draw'
+          ? (tool === 'eraser_object' || tool === 'eraser_pixel' ? 'cell' : 'crosshair')
+          : 'none',
         background: 'transparent',
       }}
     />

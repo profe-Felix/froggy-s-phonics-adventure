@@ -208,14 +208,21 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     refetch();
   }, [getBlob, recKey, twoPerPage, totalPages, currentPage, laserTracker, resetRecorder, refetch, book, className, studentNumber, today]);
 
-  // Navigate to a new page, auto-saving any stopped-but-unsaved recording first
+  // Navigate to a new page — stop+save any active/stopped recording first
   const navigateTo = useCallback(async (newPage) => {
-    if (recStateRef.current === 'stopped') {
+    const state = recStateRef.current;
+    if (state === 'recording' || state === 'paused') {
+      stopRecording();
+      laserTracker.stopRecordingLaser();
+      // small delay so the blob finalizes
+      await new Promise(r => setTimeout(r, 150));
+    }
+    if (recStateRef.current === 'stopped' || state === 'recording' || state === 'paused') {
       await saveRecording(recKey);
     }
     setCurrentPage(newPage);
     setShowReplay(false);
-  }, [saveRecording, recKey]);
+  }, [saveRecording, recKey, stopRecording, laserTracker]);
 
   const step = twoPerPage ? 2 : 1;
   const canGoNext = currentPage + step - 1 < totalPages;

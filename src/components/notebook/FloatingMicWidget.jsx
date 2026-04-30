@@ -8,14 +8,8 @@ import { base44 } from '@/api/base44Client';
 
 /**
  * FloatingMicWidget — a draggable mic/speaker icon that records or plays back audio + laser.
- *
- * Props:
- *   note: { id, x_pct, y_pct, audio_url, laser_data, label, role }
- *   containerRef: ref to the page container (for sizing)
- *   onSave(noteData): called with updated note after recording
- *   onRemove(): called when user deletes
- *   readOnly: if true, can only playback (teacher speaker mode)
- *   role: 'student' | 'teacher'
+ * Laser tracks against `containerRef` (the PDF wrapper) so coordinates are correct.
+ * Auto-saves on stop. After saving, shows ▶ Play Recording that replays audio + laser.
  */
 export default function FloatingMicWidget({
   note,
@@ -26,22 +20,20 @@ export default function FloatingMicWidget({
   role = 'student',
 }) {
   const [pos, setPos] = useState({ x: note.x_pct ?? 0.1, y: note.y_pct ?? 0.1 });
-  const [locked, setLocked] = useState(!!note.audio_url); // locked after first recording
+  const [locked, setLocked] = useState(!!note.audio_url);
   const [showPanel, setShowPanel] = useState(false);
+  const [showReplay, setShowReplay] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [laserData, setLaserData] = useState(
     note.laser_data ? (typeof note.laser_data === 'string' ? JSON.parse(note.laser_data) : note.laser_data) : []
   );
   const [savedAudioUrl, setSavedAudioUrl] = useState(note.audio_url || null);
   const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
-
-  // Laser tracking (for student recording)
-  const laserContainerRef = useRef(null);
-  const audioRef = useRef(null); // for replay
+  const panelRef = useRef(null);
+  const audioRef = useRef(null);
 
   const {
     state: recState,
-    audioUrl: liveAudioUrl,
     elapsed,
     formatTime,
     startRecording,
@@ -52,8 +44,9 @@ export default function FloatingMicWidget({
     getBlob,
   } = useAudioRecorder();
 
+  // Laser tracks against the PDF container ref — always enabled during recording
   const laserTracker = useLaserTracker({
-    containerRef: containerRef,
+    containerRef,
     enabled: recState === 'recording' || recState === 'paused',
   });
 
@@ -67,6 +60,19 @@ export default function FloatingMicWidget({
     obs.observe(containerRef.current);
     return () => obs.disconnect();
   }, [containerRef]);
+
+  // Click-away to close panel
+  useEffect(() => {
+    if (!showPanel) return;
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        setShowPanel(false);
+      }
+    };
+    // slight delay so the click that opened it doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 100);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
+  }, [showPanel]);
 
   // Drag handling
   const dragging = useRef(false);
@@ -95,9 +101,7 @@ export default function FloatingMicWidget({
     });
   }, [containerRef]);
 
-  const onDragEnd = useCallback(() => {
-    dragging.current = false;
-  }, []);
+  const onDragEnd = useCallback(() => { dragging.current = false; }, []);
 
   useEffect(() => {
     window.addEventListener('mousemove', onDragMove);
@@ -117,12 +121,14 @@ export default function FloatingMicWidget({
     await startRecording();
   };
 
-  const handleStop = async () => {
+  const handleStop = () => {
     stopRecording();
     laserTracker.stopRecordingLaser();
+    // Auto-save after a tick for blob to finalize
+    setTimeout(() => doSave(), 150);
   };
 
-  const handleSave = async () => {
+  const doSave = async () => {
     const blob = getBlob();
     if (!blob) return;
     setUploading(true);
@@ -134,6 +140,7 @@ export default function FloatingMicWidget({
     setLocked(true);
     setUploading(false);
     resetRecorder();
+    laserTracker.clearLaser();
     onSave?.({
       ...note,
       x_pct: pos.x,
@@ -147,13 +154,28 @@ export default function FloatingMicWidget({
     setSavedAudioUrl(null);
     setLaserData([]);
     setLocked(false);
+    setShowReplay(false);
     resetRecorder();
+  };
+
+  const handlePlayReplay = () => {
+    setShowReplay(true);
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      }
+    }, 50);
+  };
+
+  const handleStopReplay = () => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+    setShowReplay(false);
   };
 
   const isTeacher = role === 'teacher';
   const icon = isTeacher ? '🔊' : '🎙';
   const iconColor = isTeacher ? '#f59e0b' : (recState === 'recording' ? '#ef4444' : '#4338ca');
-
   const pixelX = pos.x * containerSize.w;
   const pixelY = pos.y * containerSize.h;
 
@@ -179,13 +201,8 @@ export default function FloatingMicWidget({
           animate={{ scale: recState === 'recording' ? [1, 1.15, 1] : 1 }}
           transition={{ repeat: recState === 'recording' ? Infinity : 0, duration: 0.8 }}
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            background: iconColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            width: 44, height: 44, borderRadius: '50%', background: iconColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 22,
             boxShadow: recState === 'recording' ? '0 0 16px rgba(239,68,68,0.8)' : '0 4px 12px rgba(0,0,0,0.4)',
             border: '3px solid rgba(255,255,255,0.3)',
@@ -208,6 +225,7 @@ export default function FloatingMicWidget({
       <AnimatePresence>
         {showPanel && (
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.85 }}
@@ -235,44 +253,52 @@ export default function FloatingMicWidget({
               <p style={{ color: '#e0e7ff', fontSize: 11, marginBottom: 8, fontStyle: 'italic' }}>{note.label}</p>
             )}
 
-            {/* Playback */}
+            {/* Saved recording — replay button */}
             {savedAudioUrl && (
-              <div className="mb-2">
-                <audio
-                  ref={audioRef}
-                  controls
-                  src={savedAudioUrl}
-                  style={{ width: '100%', height: 32 }}
-                />
+              <div className="mb-2 flex flex-col gap-1">
+                {!showReplay ? (
+                  <button onClick={handlePlayReplay}
+                    style={{ width: '100%', padding: '8px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
+                    ▶ Play Recording
+                  </button>
+                ) : (
+                  <button onClick={handleStopReplay}
+                    style={{ width: '100%', padding: '8px 0', background: '#374151', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
+                    ⏹ Stop
+                  </button>
+                )}
                 {laserData.length > 0 && (
-                  <p style={{ color: '#818cf8', fontSize: 10, marginTop: 4 }}>
-                    🔴 Laser replay active while playing
-                  </p>
+                  <p style={{ color: '#818cf8', fontSize: 10 }}>🔴 Laser replays while playing</p>
                 )}
               </div>
             )}
 
-            {/* Recording controls (student only when not readOnly) */}
+            {/* Hidden audio element for replay */}
+            <audio ref={audioRef} src={savedAudioUrl || ''} style={{ display: 'none' }}
+              onEnded={() => setShowReplay(false)} />
+
+            {/* Recording controls (student only) */}
             {!readOnly && (
               <>
                 {recState === 'idle' && !savedAudioUrl && (
-                  <button
-                    onClick={handleStartRecord}
-                    style={{ width: '100%', padding: '8px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}
-                  >
+                  <button onClick={handleStartRecord}
+                    style={{ width: '100%', padding: '8px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
                     ⏺ Start Recording
                   </button>
                 )}
 
                 {recState === 'recording' && (
                   <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1, padding: '8px 0', background: '#7f1d1d', color: '#fca5a5', borderRadius: 10, fontWeight: 'bold', fontSize: 12, textAlign: 'center' }}>
+                      ● {formatTime(elapsed)}
+                    </div>
                     <button onClick={pauseRecording}
                       style={{ flex: 1, padding: '8px 0', background: '#d97706', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
-                      ⏸ Pause
+                      ⏸
                     </button>
                     <button onClick={handleStop}
                       style={{ flex: 1, padding: '8px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
-                      ⏹ Stop
+                      ⏹
                     </button>
                   </div>
                 )}
@@ -290,23 +316,16 @@ export default function FloatingMicWidget({
                   </div>
                 )}
 
-                {recState === 'stopped' && !savedAudioUrl && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {liveAudioUrl && <audio controls src={liveAudioUrl} style={{ width: '100%', height: 32 }} />}
-                    <button onClick={handleSave} disabled={uploading}
-                      style={{ padding: '8px 0', background: '#16a34a', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer', opacity: uploading ? 0.6 : 1 }}>
-                      {uploading ? '⏳ Saving…' : '💾 Save'}
-                    </button>
-                    <button onClick={() => { resetRecorder(); }}
-                      style={{ padding: '8px 0', background: '#374151', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
-                      🔄 Re-record
-                    </button>
+                {/* Auto-saving spinner */}
+                {(recState === 'stopped' || uploading) && (
+                  <div style={{ padding: '8px 0', color: '#a5b4fc', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
+                    ⏳ Saving…
                   </div>
                 )}
 
-                {savedAudioUrl && (
+                {savedAudioUrl && !readOnly && (
                   <button onClick={handleReRecord}
-                    style={{ width: '100%', padding: '8px 0', background: '#374151', color: '#fbbf24', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer', marginTop: 6 }}>
+                    style={{ width: '100%', padding: '6px 0', background: '#374151', color: '#fbbf24', borderRadius: 10, fontWeight: 'bold', fontSize: 12, border: 'none', cursor: 'pointer', marginTop: 6 }}>
                     🔄 Re-record
                   </button>
                 )}
@@ -323,8 +342,8 @@ export default function FloatingMicWidget({
         )}
       </AnimatePresence>
 
-      {/* Laser replay overlay — active when audio plays */}
-      {savedAudioUrl && laserData.length > 0 && showPanel && (
+      {/* Laser replay overlay */}
+      {savedAudioUrl && laserData.length > 0 && showReplay && (
         <LaserReplayOverlay
           laserData={laserData}
           audioRef={audioRef}
@@ -339,7 +358,6 @@ export default function FloatingMicWidget({
           trailPoints={laserTracker.trailPoints}
           width={containerSize.w}
           height={containerSize.h}
-          style={{ zIndex: 25 }}
         />
       )}
     </>
