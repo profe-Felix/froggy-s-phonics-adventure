@@ -78,15 +78,11 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
       return img
-        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-        : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
+        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', display: 'block' }} />
+        : <div className="flex items-center justify-center w-full h-40 text-gray-400">No image</div>;
     }
-    // Match exactly how StudentBookReader renders: centered with contain fit inside each half
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#1a1a1a' }}>
-        <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />
-      </div>
-    );
+    // Use width mode so PDF fills full width with no black bars — matches student reader recording layout
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="width" />;
   };
 
   return (
@@ -102,38 +98,29 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
           <button onClick={onClose} className="text-teal-300 font-bold text-lg">✕</button>
         </div>
 
-        {/* Page display — mirrors StudentBookReader layout exactly */}
-        <div className="relative flex-1 overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a', minHeight: 320 }}>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+        {/* Page display — use relative positioning so laser overlay matches rendered page size */}
+        <div className="relative overflow-auto" ref={containerRef} style={{ background: '#1a1a1a' }}>
+          <div style={{ display: 'flex', gap: isSpread ? 4 : 0 }}>
             {isSpread ? (
               <>
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                  {renderPage(recording.page)}
-                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>{renderPage(recording.page)}</div>
                 {recording.page + 1 <= totalPages && (
-                  <>
-                    <div style={{ width: 4, background: '#1a1a1a', flexShrink: 0 }} />
-                    <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                      {renderPage(recording.page + 1)}
-                    </div>
-                  </>
+                  <div style={{ flex: 1, minWidth: 0 }}>{renderPage(recording.page + 1)}</div>
                 )}
               </>
             ) : (
-              <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                {renderPage(recording.page)}
-              </div>
-            )}
-            {/* Laser overlay spans the full container, matching how it was recorded */}
-            {laserData.length > 0 && containerSize.w > 0 && (
-              <LaserReplayOverlay
-                laserData={laserData}
-                audioRef={audioRef}
-                containerWidth={containerSize.w}
-                containerHeight={containerSize.h}
-              />
+              <div style={{ flex: 1 }}>{renderPage(recording.page)}</div>
             )}
           </div>
+          {/* Laser overlay spans the full container, matching how it was recorded */}
+          {laserData.length > 0 && containerSize.w > 0 && (
+            <LaserReplayOverlay
+              laserData={laserData}
+              audioRef={audioRef}
+              containerWidth={containerSize.w}
+              containerHeight={containerSize.h}
+            />
+          )}
         </div>
 
         <div className="p-3 shrink-0 flex flex-col gap-2" style={{ background: '#042f2e', borderTop: '1px solid #0d9488' }}>
