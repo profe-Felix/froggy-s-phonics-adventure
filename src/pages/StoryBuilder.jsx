@@ -530,11 +530,21 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   );
 }
 
-export default function StoryBuilder() {
+export default function StoryBuilder(props = {}) {
+  // Props can come from LetterGame component
+  const propClass = props.className;
+  const propNumber = props.studentNumber;
+  const propOnBack = props.onBack;
+
   const params = new URLSearchParams(window.location.search);
   const urlClass = params.get('class');
   const urlNumber = parseInt(params.get('number') || params.get('student'));
   const isTeacher = params.get('mode') === 'teacher';
+
+  // Use props if available (from LetterGame), otherwise use URL params
+  const className = propClass || urlClass;
+  const studentNumber = propNumber || urlNumber;
+  const onBackDefault = propOnBack || (() => window.history.back());
 
   const [studentInfo, setStudentInfo] = useState(null);
   const [selectedStory, setSelectedStory] = useState(null);
@@ -543,13 +553,20 @@ export default function StoryBuilder() {
 
   useEffect(() => {
     if (autoResolved) return;
-    if (urlClass && !isNaN(urlNumber) && urlNumber > 0) {
-      setStudentInfo({ className: urlClass, number: urlNumber });
+    // If props provided directly, use them immediately
+    if (propClass && propNumber) {
+      setStudentInfo({ className: propClass, number: propNumber });
       setAutoResolved(true);
-    } else if (urlClass) {
+      return;
+    }
+    // Otherwise fall back to URL params
+    if (className && !isNaN(studentNumber) && studentNumber > 0) {
+      setStudentInfo({ className, number: studentNumber });
+      setAutoResolved(true);
+    } else if (className) {
       setAutoResolved(true);
     }
-  }, [urlClass, urlNumber, autoResolved]);
+  }, [propClass, propNumber, className, studentNumber, autoResolved]);
 
   const { data: stories = [], refetch } = useQuery({
     queryKey: ['stories', studentInfo?.className, studentInfo?.number],
@@ -618,7 +635,7 @@ export default function StoryBuilder() {
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#7c3aed', background: '#1a1a2e' }}>
           <h1 className="text-lg font-black text-white">📖 Story Builder</h1>
         </div>
-        <StudentLogin onEnter={(cls, num) => setStudentInfo({ className: cls, number: num })} preselectedClass={urlClass} />
+        <StudentLogin onEnter={(cls, num) => setStudentInfo({ className: cls, number: num })} preselectedClass={className} />
       </div>
     );
   }
@@ -626,7 +643,7 @@ export default function StoryBuilder() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0d0d1a' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#7c3aed', background: '#1a1a2e' }}>
-        <button onClick={() => setStudentInfo(null)} className="text-violet-300 hover:text-white font-bold">← Back</button>
+        <button onClick={() => propOnBack ? onBackDefault() : setStudentInfo(null)} className="text-violet-300 hover:text-white font-bold">← Back</button>
         <h1 className="text-lg font-black text-white flex-1">📖 My Stories</h1>
         <span className="text-violet-400 text-xs font-bold">Class {studentInfo.className} · #{studentInfo.number}</span>
       </div>
