@@ -221,16 +221,16 @@ export default function FloatingMicWidget({
       audioRef.current.play().catch(() => {});
     }
 
-    // Animate recorded strokes in sync with elapsed wall-clock time (matches audio)
+    // Animate recorded strokes in sync with audio currentTime
     if (recordedStrokes.length > 0) {
       // Normalise stroke timestamps so they start at 0
       const allPtTs = recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0);
       const minT = allPtTs.length > 0 ? Math.min(...allPtTs) : 0;
-      const playbackStart = Date.now();
       const strokesProgress = recordedStrokes.map(() => 0);
 
       const animate = () => {
-        const elapsed = Date.now() - playbackStart;
+        // Sync to audio's actual playback time, not wall-clock time
+        const elapsed = (audioRef.current?.currentTime ?? 0) * 1000;
         let changed = false;
 
         recordedStrokes.forEach((stroke, si) => {
