@@ -106,7 +106,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     if (loadedKeyRef.current === key) return;
 
     loadedKeyRef.current = key;
-    const pageData = currentPage.strokes_data;
+    const pageData = story.strokes_by_page?.[String(currentPageIdx)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
     if (localDraft) {
@@ -126,15 +126,16 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     } else {
       canvasRef.current.clearStrokes();
     }
-    
+
     try {
-      setFloatingMics(currentPage.mics ? JSON.parse(currentPage.mics) : []);
+      const micsData = story.voice_notes_by_page?.[`mics_${currentPageIdx}`] || '[]';
+      setFloatingMics(JSON.parse(micsData));
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, canvasSize.w, canvasSize.h, currentPage, draftKey]);
+  }, [currentPageIdx, story.id, story.strokes_by_page, story.voice_notes_by_page, canvasSize.w, canvasSize.h, draftKey]);
 
-  // Save current strokes into pages state — EXACT same pattern as StudentNotebookView
+  // Save current strokes — EXACT same pattern as StudentNotebookView
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
 
@@ -167,26 +168,25 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       };
 
       const updated = {
-        ...(activeStory.pages || {}),
+        ...(activeStory.strokes_by_page || {}),
         [String(savePage)]: JSON.stringify(payload),
       };
 
       localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
-      const updatedPages = pages.map((p, i) =>
-        i === savePage ? { ...p, strokes_data: JSON.stringify(payload) } : p
-      );
+      await onSave({
+        ...activeStory,
+        strokes_by_page: updated,
+        last_active: new Date().toISOString(),
+      });
 
-      setPages(updatedPages);
       const nextStory = {
         ...activeStory,
-        pages: updatedPages,
+        strokes_by_page: updated,
         last_active: new Date().toISOString(),
       };
 
       latestStoryRef.current = nextStory;
-
-      await onSave(nextStory);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
@@ -196,7 +196,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
         void saveStrokes();
       }
     }
-  }, [pages, canvasSize, onSave]);
+  }, [canvasSize, onSave]);
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
@@ -208,22 +208,20 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   }, [saveStrokes]);
 
   const saveMics = useCallback(async (mics) => {
-    if (!canvasRef.current) return;
+    if (!latestStoryRef.current) return;
     
     setFloatingMics(mics);
-    const updatedPages = pages.map((p, i) =>
-      i === currentPageIdxRef.current ? { ...p, mics: JSON.stringify(mics) } : p
-    );
-    setPages(updatedPages);
+    const key = `mics_${currentPageIdxRef.current}`;
+    const updated = { ...(latestStoryRef.current.voice_notes_by_page || {}), [key]: JSON.stringify(mics) };
     
     const nextStory = {
       ...latestStoryRef.current,
-      pages: updatedPages,
+      voice_notes_by_page: updated,
       last_active: new Date().toISOString(),
     };
     latestStoryRef.current = nextStory;
     await onSave(nextStory);
-  }, [pages, onSave]);
+  }, [onSave]);
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
@@ -277,7 +275,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const addPage = async () => {
     await saveStrokes();
-    const newPage = { id: `p${Date.now()}`, template: 'blank', strokes_data: null, mics: null };
+    const newPage = { id: `p${Date.now()}`, template: 'blank' };
     const updated = [...pages.slice(0, currentPageIdxRef.current + 1), newPage, ...pages.slice(currentPageIdxRef.current + 1)];
     setPages(updated);
     loadedKeyRef.current = null;
@@ -313,7 +311,14 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const saveStory = async () => {
     await saveStrokes();
+    refetch?.();
   };
+
+  const { refetch } = useQuery({
+    queryKey: ['story', story?.id],
+    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: className, student_number: studentNumber }),
+    enabled: false,
+  });
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0d0d1a' }}>
