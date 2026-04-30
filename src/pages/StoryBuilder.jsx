@@ -230,6 +230,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
         pages: updatedPages,
         strokes_by_page: updatedStrokesByPage,
         voice_notes_by_page: nextStory.voice_notes_by_page || {},
+        recordings_by_page: nextStory.recordings_by_page || {},
         status: nextStory.status || 'in_progress',
         last_active: nextStory.last_active,
       });
@@ -607,6 +608,7 @@ export default function StoryBuilder(props = {}) {
       pages: [{ id: 'p1', template: 'blank', strokes_data: null, mics: null }],
       strokes_by_page: {},
       voice_notes_by_page: {},
+      recordings_by_page: {},
       status: 'in_progress',
       last_active: new Date().toISOString(),
     });
@@ -624,6 +626,7 @@ export default function StoryBuilder(props = {}) {
       pages: storyData.pages || selectedStory.pages || [],
       strokes_by_page: storyData.strokes_by_page || selectedStory.strokes_by_page || {},
       voice_notes_by_page: storyData.voice_notes_by_page || selectedStory.voice_notes_by_page || {},
+      recordings_by_page: storyData.recordings_by_page || selectedStory.recordings_by_page || {},
       status: storyData.status || selectedStory.status || 'in_progress',
       last_active: storyData.last_active || new Date().toISOString(),
     };
@@ -632,6 +635,7 @@ export default function StoryBuilder(props = {}) {
       pages: nextStory.pages,
       strokes_by_page: nextStory.strokes_by_page,
       voice_notes_by_page: nextStory.voice_notes_by_page,
+      recordings_by_page: nextStory.recordings_by_page || {},
       status: nextStory.status,
       last_active: nextStory.last_active,
     });
