@@ -564,6 +564,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     size={size}
                     tool={tool === 'laser' ? 'none' : tool}
                     mode={tool === 'laser' ? 'none' : 'draw'}
+                    passThrough={addingMic}
                     onStrokeStart={handleStrokeStart}
                     onStrokeEnd={handleStrokeEnd}
                   />

@@ -83,7 +83,7 @@ function splitStrokeByPixelErase(s, px, py, w, h, eraserRadius) {
 }
 
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
-  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd },
+  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -295,8 +295,15 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const onTouchStart = (e) => {
       if (mode !== 'draw') return;
       if (tool === 'laser' || tool === 'none') return;
+      if (passThrough) return; // let parent handle the tap (e.g. place mic)
       if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
       e.preventDefault();
+      // Show eraser cursor on touch
+      if (tool === 'eraser_pixel' || tool === 'eraser_object') {
+        const r = c.getBoundingClientRect();
+        const t0 = e.touches[0];
+        setEraserCursorPos({ x: t0.clientX - r.left, y: t0.clientY - r.top });
+      }
       if (tool === 'eraser_object') {
         drawing.current = true;
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
@@ -314,6 +321,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onTouchMove = (e) => {
       if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
+      // Update eraser cursor position for touch
+      if (tool === 'eraser_pixel' || tool === 'eraser_object') {
+        const r = c.getBoundingClientRect();
+        const t0 = e.touches[0];
+        setEraserCursorPos({ x: t0.clientX - r.left, y: t0.clientY - r.top });
+      }
       if (!drawing.current) return;
       if (tool === 'eraser_object') {
         e.preventDefault();
@@ -335,6 +348,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
         drawing.current = false;
         eraserUndoPushed.current = false;
+        setEraserCursorPos(null);
         return;
       }
       finishStroke();

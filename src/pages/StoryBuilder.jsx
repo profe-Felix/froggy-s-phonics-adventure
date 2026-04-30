@@ -328,6 +328,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
                 size={size}
                 tool={tool === 'laser' ? 'none' : tool}
                 mode={tool === 'laser' ? 'none' : 'draw'}
+                passThrough={addingMic}
                 onStrokeStart={handleStrokeStart}
                 onStrokeEnd={handleStrokeEnd}
               />
