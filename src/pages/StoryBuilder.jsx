@@ -133,10 +133,11 @@ const DrawingCanvas = ({ pageData, onUpdate, width, height }) => {
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, c.width, c.height);
-    strokes.current.forEach(s => drawStroke(ctx, s, c.width, c.height));
-    if (current.current) drawStroke(ctx, current.current, c.width, c.height);
-    // Draw lasso
+    // Clear in CSS-pixel space (ctx is scaled by DPR)
+    ctx.clearRect(0, 0, width, height);
+    strokes.current.forEach(s => drawStroke(ctx, s, width, height));
+    if (current.current) drawStroke(ctx, current.current, width, height);
+    // Draw lasso (points stored as CSS pixels)
     if (lassoPts.length > 1) {
       ctx.save();
       ctx.setLineDash([4, 4]);
@@ -148,7 +149,7 @@ const DrawingCanvas = ({ pageData, onUpdate, width, height }) => {
       ctx.stroke();
       ctx.restore();
     }
-  }, [lassoPts]);
+  }, [lassoPts, width, height]);
 
   function drawStroke(ctx, s, w, h) {
     if (!s.pts || s.pts.length === 0) return;
