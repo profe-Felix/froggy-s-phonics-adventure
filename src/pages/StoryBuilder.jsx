@@ -192,7 +192,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const saveMics = (mics) => {
     setFloatingMics(mics);
-    const updated = pages.map((p, i) =>
+    const updated = pagesRef.current.map((p, i) =>
       i === currentPageIdxRef.current ? { ...p, mics: JSON.stringify(mics) } : p
     );
     pagesRef.current = updated;
@@ -387,13 +387,13 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
               tool={tool} setTool={setTool}
               color={color} setColor={setColor}
               size={size} setSize={setSize}
-              onUndo={() => { canvasRef.current?.undo(); void saveCurrentPage(); }}
-              onClear={() => { canvasRef.current?.clearStrokes(); void saveCurrentPage(); }}
+              onUndo={() => { canvasRef.current?.undo(); setTimeout(() => saveCurrentPage(), 50); }}
+              onClear={() => { canvasRef.current?.clearStrokes(); setTimeout(() => saveCurrentPage(), 50); }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
           </div>
-        )}
-      </div>
+          )}
+          </div>
 
       {/* Page nav footer */}
       <div className="shrink-0 flex items-center justify-center gap-4 px-4 py-2" style={{ background: '#1a1a2e', borderTop: '1px solid #4c1d95' }}>
