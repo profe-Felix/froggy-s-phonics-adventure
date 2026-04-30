@@ -76,6 +76,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     onSave: (updated) => onSave({ pages: updated }),
     canvasSize,
     setSaving,
+    setDataByIdx: setPages,
   });
 
   // Laser

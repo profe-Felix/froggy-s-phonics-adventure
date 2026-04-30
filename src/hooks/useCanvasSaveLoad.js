@@ -15,6 +15,7 @@ export default function useCanvasSaveLoad({
   onSave,
   canvasSize,
   setSaving,
+  setDataByIdx, // NEW: for immediate state sync
 }) {
   const isDrawingRef = useRef(false);
   const currentIdxRef = useRef(currentIdx);
@@ -53,6 +54,12 @@ export default function useCanvasSaveLoad({
         i === idx ? { ...item, strokes_data: payload } : item
       );
 
+      // Update local state immediately so re-renders work
+      if (setDataByIdx) {
+        setDataByIdx(updated);
+        dataByIdxRef.current = updated;
+      }
+
       await onSave(updated);
     } finally {
       saveInFlightRef.current = false;
@@ -63,7 +70,7 @@ export default function useCanvasSaveLoad({
         void save();
       }
     }
-  }, [onSave, setSaving]);
+  }, [onSave, setSaving, setDataByIdx]);
 
   // Load logic
   const load = useCallback((page, key) => {
