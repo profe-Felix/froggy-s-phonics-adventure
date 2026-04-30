@@ -27,6 +27,7 @@ export default function FloatingMicWidget({
   const [pos, setPos] = useState({ x: note.x_pct ?? 0.1, y: note.y_pct ?? 0.1 });
   const [showPanel, setShowPanel] = useState(false);
   const [showReplay, setShowReplay] = useState(false);
+  const fullStrokesBeforeReplayRef = useRef(null);
   const [uploading, setUploading] = useState(false);
 
   // Saved data
@@ -46,6 +47,9 @@ export default function FloatingMicWidget({
   const panelRef = useRef(null);
   const audioRef = useRef(null);
   const replayRafRef = useRef(null);
+  // Strokes drawn ONLY during the recording session
+  const strokesDuringRecordingRef = useRef(null);
+  const strokeCountAtRecordStart = useRef(0);
 
   const {
     state: recState,
@@ -135,6 +139,10 @@ export default function FloatingMicWidget({
   }, [onDragMove, onDragEnd]);
 
   const handleStartRecord = async () => {
+    // Remember how many strokes existed before recording started
+    const existing = canvasRef?.current?.getStrokes();
+    strokeCountAtRecordStart.current = existing?.strokes?.length ?? 0;
+    strokesDuringRecordingRef.current = null;
     laserTracker.startRecordingLaser();
     await startRecording();
   };
@@ -142,6 +150,10 @@ export default function FloatingMicWidget({
   const handleStop = () => {
     stopRecording();
     laserTracker.stopRecordingLaser();
+    // Capture only strokes added SINCE recording started
+    const all = canvasRef?.current?.getStrokes();
+    const newStrokes = all?.strokes?.slice(strokeCountAtRecordStart.current) ?? [];
+    strokesDuringRecordingRef.current = { strokes: newStrokes };
     setTimeout(() => doSave(), 150);
   };
 
@@ -150,8 +162,8 @@ export default function FloatingMicWidget({
     if (!blob) return;
     setUploading(true);
 
-    // Snapshot current strokes from the canvas before saving
-    const snapshot = canvasRef?.current?.getStrokes() || null;
+    // Snapshot ONLY the strokes added during this recording
+    const snapshot = strokesDuringRecordingRef.current || { strokes: [] };
 
     const file = new File([blob], `mic-note-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -163,6 +175,7 @@ export default function FloatingMicWidget({
     setUploading(false);
     resetRecorder();
     laserTracker.clearLaser();
+    strokesDuringRecordingRef.current = null;
 
     onSave?.({
       ...note,
@@ -184,22 +197,34 @@ export default function FloatingMicWidget({
   };
 
   // ── Stroke replay logic ──────────────────────────────────────────────────
-  const stopStrokeReplay = useCallback(() => {
+  const stopStrokeReplay = useCallback((allCurrentStrokes) => {
     cancelAnimationFrame(replayRafRef.current);
-    // Restore full strokes
-    if (canvasRef?.current && strokeSnapshot) {
-      canvasRef.current.loadStrokes(strokeSnapshot);
+    // Restore all strokes (base + recorded)
+    if (canvasRef?.current) {
+      canvasRef.current.loadStrokes(allCurrentStrokes || { strokes: [], normalized: true });
     }
     setShowReplay(false);
-  }, [canvasRef, strokeSnapshot]);
+  }, [canvasRef]);
 
   const handlePlayReplay = useCallback(() => {
     if (!savedAudioUrl) return;
     setShowReplay(true);
 
-    // Clear canvas to start replay from blank
+    // Snapshot full current strokes so we can restore on stop
+    const allCurrent = canvasRef?.current?.getStrokes();
+    fullStrokesBeforeReplayRef.current = allCurrent;
+
+    // Get the strokes that existed BEFORE this recording (everything to keep visible)
+    const allStrokes = allCurrent?.strokes ?? [];
+    // The snapshot only contains strokes from during the recording
+    const recordedStrokes = strokeSnapshot?.strokes ?? [];
+    // Pre-recording strokes = everything minus the recorded ones (by count, from the end)
+    const preCount = Math.max(0, allStrokes.length - recordedStrokes.length);
+    const baseStrokes = allStrokes.slice(0, preCount);
+
+    // Load just the base (pre-recording) strokes — recorded ones will animate in
     if (canvasRef?.current) {
-      canvasRef.current.clearStrokes();
+      canvasRef.current.loadStrokes({ strokes: baseStrokes, normalized: true });
     }
 
     // Start audio
@@ -210,50 +235,38 @@ export default function FloatingMicWidget({
       }
     }, 30);
 
-    // Animate strokes by timestamp during playback
-    if (strokeSnapshot?.strokes?.length > 0) {
-      // Build a flat sorted list of {stroke, ptIndex, absoluteT}
-      // t on pts is Date.now() timestamps; find earliest t to normalize
-      const allStrokes = strokeSnapshot.strokes;
-      const minT = Math.min(...allStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0));
-
+    // Animate the recorded strokes by timestamp on top of base
+    if (recordedStrokes.length > 0) {
+      const minT = Math.min(
+        ...recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0)
+      );
       const playbackStart = Date.now();
-      const strokesProgress = allStrokes.map(() => 0); // how many pts drawn per stroke
+      const strokesProgress = recordedStrokes.map(() => 0);
 
       const animate = () => {
         const elapsed = Date.now() - playbackStart;
         let changed = false;
 
-        allStrokes.forEach((stroke, si) => {
+        recordedStrokes.forEach((stroke, si) => {
           const prevCount = strokesProgress[si];
-          // Count how many pts have t <= elapsed (normalized)
           let newCount = 0;
           for (let pi = 0; pi < stroke.pts.length; pi++) {
-            const pt = stroke.pts[pi];
-            const ptT = (pt.t || 0) > 0 ? (pt.t - minT) : (pi * 16); // fallback: 60fps spacing
+            const ptT = (stroke.pts[pi].t || 0) > 0 ? (stroke.pts[pi].t - minT) : pi * 16;
             if (ptT <= elapsed) newCount = pi + 1;
             else break;
           }
-          if (newCount !== prevCount) {
-            strokesProgress[si] = newCount;
-            changed = true;
-          }
+          if (newCount !== prevCount) { strokesProgress[si] = newCount; changed = true; }
         });
 
         if (changed && canvasRef?.current) {
-          // Build partial strokes
-          const partialStrokes = allStrokes
-            .map((s, si) => strokesProgress[si] > 0
-              ? { ...s, pts: s.pts.slice(0, strokesProgress[si]) }
-              : null
-            )
+          const partialRecorded = recordedStrokes
+            .map((s, si) => strokesProgress[si] > 0 ? { ...s, pts: s.pts.slice(0, strokesProgress[si]) } : null)
             .filter(Boolean);
-          canvasRef.current.loadStrokes({ ...strokeSnapshot, strokes: partialStrokes });
+          // Combine base + animated recorded strokes
+          canvasRef.current.loadStrokes({ strokes: [...baseStrokes, ...partialRecorded], normalized: true });
         }
 
-        // Check if audio ended or all strokes are done
-        const audioEl = audioRef.current;
-        if (audioEl && audioEl.ended) return; // onEnded will handle cleanup
+        if (audioRef.current?.ended) return;
         replayRafRef.current = requestAnimationFrame(animate);
       };
 
@@ -263,17 +276,17 @@ export default function FloatingMicWidget({
 
   const handleStopReplay = useCallback(() => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
-    stopStrokeReplay();
+    stopStrokeReplay(fullStrokesBeforeReplayRef.current);
   }, [stopStrokeReplay]);
 
   const handleAudioEnded = useCallback(() => {
     cancelAnimationFrame(replayRafRef.current);
-    // Restore all strokes
-    if (canvasRef?.current && strokeSnapshot) {
-      canvasRef.current.loadStrokes(strokeSnapshot);
+    // Restore all strokes to pre-replay state
+    if (canvasRef?.current) {
+      canvasRef.current.loadStrokes(fullStrokesBeforeReplayRef.current || { strokes: [], normalized: true });
     }
     setShowReplay(false);
-  }, [canvasRef, strokeSnapshot]);
+  }, [canvasRef]);
 
   // Cleanup on unmount
   useEffect(() => () => cancelAnimationFrame(replayRafRef.current), []);
