@@ -35,8 +35,8 @@ function drawStroke(ctx, s, w, h) {
   ctx.restore();
 }
 
-// Returns true if point (px, py) in canvas coords is within hitDist of stroke s
-function strokeHitTest(s, px, py, w, h, hitDist = 18) {
+// Returns true if point (px, py) in canvas coords is within hitDist of any point in stroke s
+function strokeHitTest(s, px, py, w, h, hitDist) {
   if (!s.pts || s.pts.length === 0) return false;
   for (let i = 0; i < s.pts.length; i++) {
     const spx = s.pts[i].x * w;
@@ -47,15 +47,59 @@ function strokeHitTest(s, px, py, w, h, hitDist = 18) {
   return false;
 }
 
+/**
+ * Split a stroke into sub-strokes by removing points within eraserRadius of (px, py).
+ * Returns an array of strokes (0 if fully erased, 1 if untouched, 2+ if split).
+ */
+function splitStrokeByPixelErase(s, px, py, w, h, eraserRadius) {
+  if (!s.pts || s.pts.length === 0) return [];
+
+  const segments = [];
+  let current = [];
+
+  for (const pt of s.pts) {
+    const spx = pt.x * w;
+    const spy = pt.y * h;
+    const dx = spx - px, dy = spy - py;
+    const inside = (dx * dx + dy * dy) <= (eraserRadius * eraserRadius);
+
+    if (inside) {
+      // This point is erased — end current segment if it has points
+      if (current.length > 0) {
+        segments.push({ ...s, pts: current });
+        current = [];
+      }
+    } else {
+      current.push(pt);
+    }
+  }
+
+  if (current.length > 0) {
+    segments.push({ ...s, pts: current });
+  }
+
+  // Filter out single-point segments (invisible)
+  return segments.filter(seg => seg.pts.length >= 2);
+}
+
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd },
   ref
 ) {
   const canvasRef = useRef(null);
+  // strokes.current = current visible strokes array
   const strokes = useRef([]);
+  // undoStack.current = array of stroke-array snapshots, for undo
+  const undoStack = useRef([]);
   const current = useRef(null);
   const drawing = useRef(false);
-  const [eraserCursorPos, setEraserCursorPos] = useState(null); // {x, y} in px for pixel eraser cursor
+  const [eraserCursorPos, setEraserCursorPos] = useState(null);
+
+  const pushUndo = () => {
+    undoStack.current.push([...strokes.current]);
+    // Cap undo stack at 50
+    if (undoStack.current.length > 50) undoStack.current.shift();
+  };
 
   const setupCanvas = () => {
     const c = canvasRef.current;
@@ -74,10 +118,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext('2d');
-
-    // Clear in CSS-pixel space because the context is scaled to DPR.
     ctx.clearRect(0, 0, width, height);
-
     for (const s of strokes.current) drawStroke(ctx, s, width, height);
     if (current.current) drawStroke(ctx, current.current, width, height);
   };
@@ -103,17 +144,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (tool === 'highlighter') return 'highlighter';
     if (tool === 'eraser_object') return 'eraser_object';
     if (tool === 'eraser_pixel') return 'eraser_pixel';
-    if (tool === 'laser' || tool === 'none') return 'laser'; // handled outside canvas
+    if (tool === 'laser' || tool === 'none') return 'laser';
     return 'pen';
   };
 
   const beginStrokeAt = (p) => {
-    current.current = {
-      color,
-      size,
-      tool: makeToolName(),
-      pts: [p],
-    };
+    current.current = { color, size, tool: makeToolName(), pts: [p] };
     drawing.current = true;
     onStrokeStart?.();
     redraw();
@@ -121,12 +157,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
   const finishStroke = () => {
     if (!drawing.current || !current.current) return;
-
-    // Keep even very short strokes/taps.
     if (current.current.pts.length >= 1) {
+      pushUndo();
       strokes.current.push(current.current);
     }
-
     current.current = null;
     drawing.current = false;
     redraw();
@@ -143,11 +177,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const c = canvasRef.current;
     if (!c) return;
 
-    // Stroke eraser: remove any stroke that the pointer touches
+    // Object eraser: remove entire strokes touched by the pointer
+    // We push undo once on mousedown, then erase freely until mouseup
     const eraseStrokeAt = (p) => {
       const px = p.x * width;
       const py = p.y * height;
-      const hitDist = Math.max(12, size * 3);
+      const hitDist = Math.max(8, size * 1.5);
       const before = strokes.current.length;
       strokes.current = strokes.current.filter(s => !strokeHitTest(s, px, py, width, height, hitDist));
       if (strokes.current.length !== before) {
@@ -156,20 +191,63 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
     };
 
+    // Pixel eraser: split strokes at the erased point
+    // We push undo once on mousedown, then split freely until mouseup
+    const pixelEraseAt = (p) => {
+      const px = p.x * width;
+      const py = p.y * height;
+      const eraserRadius = Math.max(4, size * 0.75);
+
+      let changed = false;
+      const next = [];
+      for (const s of strokes.current) {
+        if (s.tool === 'eraser_pixel') {
+          // Don't try to split eraser strokes themselves — just keep them
+          next.push(s);
+          continue;
+        }
+        if (strokeHitTest(s, px, py, width, height, eraserRadius)) {
+          const split = splitStrokeByPixelErase(s, px, py, width, height, eraserRadius);
+          next.push(...split);
+          changed = true;
+        } else {
+          next.push(s);
+        }
+      }
+      if (changed) {
+        strokes.current = next;
+        redraw();
+        onStrokeEnd?.();
+      }
+    };
+
+    // Track whether we've pushed undo for the current eraser drag
+    const eraserUndoPushed = { current: false };
+
     const onMouseDown = (e) => {
       if (mode !== 'draw') return;
       if (tool === 'laser' || tool === 'none') return;
       e.preventDefault();
       if (tool === 'eraser_object') {
         drawing.current = true;
+        eraserUndoPushed.current = false;
+        pushUndo();
+        eraserUndoPushed.current = true;
         eraseStrokeAt(getPos(e));
+        return;
+      }
+      if (tool === 'eraser_pixel') {
+        drawing.current = true;
+        eraserUndoPushed.current = false;
+        pushUndo();
+        eraserUndoPushed.current = true;
+        pixelEraseAt(getPos(e));
         return;
       }
       beginStrokeAt(getPos(e));
     };
 
     const onMouseMove = (e) => {
-      // Update eraser cursor position for both erasers
       if (tool === 'eraser_pixel' || tool === 'eraser_object') {
         const r = c.getBoundingClientRect();
         setEraserCursorPos({ x: e.clientX - r.left, y: e.clientY - r.top });
@@ -177,26 +255,40 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         setEraserCursorPos(null);
       }
 
-      if (tool === 'eraser_object' && drawing.current) {
+      if (!drawing.current) return;
+
+      if (tool === 'eraser_object') {
         e.preventDefault();
         eraseStrokeAt(getPos(e));
         return;
       }
-      if (!drawing.current || !current.current) return;
+      if (tool === 'eraser_pixel') {
+        e.preventDefault();
+        pixelEraseAt(getPos(e));
+        return;
+      }
+      if (!current.current) return;
       e.preventDefault();
-      const p = getPos(e);
-      current.current.pts.push(p);
+      current.current.pts.push(getPos(e));
       redraw();
     };
 
     const onMouseUp = () => {
-      if (tool === 'eraser_object') { drawing.current = false; return; }
+      if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        drawing.current = false;
+        eraserUndoPushed.current = false;
+        return;
+      }
       finishStroke();
     };
 
     const onMouseLeave = () => {
       setEraserCursorPos(null);
-      if (tool === 'eraser_object') { drawing.current = false; return; }
+      if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        drawing.current = false;
+        eraserUndoPushed.current = false;
+        return;
+      }
       finishStroke();
     };
 
@@ -207,7 +299,14 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       e.preventDefault();
       if (tool === 'eraser_object') {
         drawing.current = true;
+        if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         eraseStrokeAt(getPos(e));
+        return;
+      }
+      if (tool === 'eraser_pixel') {
+        drawing.current = true;
+        if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
+        pixelEraseAt(getPos(e));
         return;
       }
       beginStrokeAt(getPos(e));
@@ -215,32 +314,38 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onTouchMove = (e) => {
       if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
-      if (tool === 'eraser_object' && drawing.current) {
+      if (!drawing.current) return;
+      if (tool === 'eraser_object') {
         e.preventDefault();
         eraseStrokeAt(getPos(e));
         return;
       }
-      if (!drawing.current || !current.current) return;
+      if (tool === 'eraser_pixel') {
+        e.preventDefault();
+        pixelEraseAt(getPos(e));
+        return;
+      }
+      if (!current.current) return;
       e.preventDefault();
-      const p = getPos(e);
-      current.current.pts.push(p);
+      current.current.pts.push(getPos(e));
       redraw();
     };
 
     const onTouchEnd = () => {
-      if (tool === 'eraser_object') { drawing.current = false; return; }
+      if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        drawing.current = false;
+        eraserUndoPushed.current = false;
+        return;
+      }
       finishStroke();
     };
 
-    const onTouchCancel = () => {
-      cancelStrokeForScroll();
-    };
+    const onTouchCancel = () => { cancelStrokeForScroll(); };
 
     c.addEventListener('mousedown', onMouseDown);
     c.addEventListener('mousemove', onMouseMove);
     c.addEventListener('mouseup', onMouseUp);
     c.addEventListener('mouseleave', onMouseLeave);
-
     c.addEventListener('touchstart', onTouchStart, { passive: false });
     c.addEventListener('touchmove', onTouchMove, { passive: false });
     c.addEventListener('touchend', onTouchEnd);
@@ -251,12 +356,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       c.removeEventListener('mousemove', onMouseMove);
       c.removeEventListener('mouseup', onMouseUp);
       c.removeEventListener('mouseleave', onMouseLeave);
-
       c.removeEventListener('touchstart', onTouchStart);
       c.removeEventListener('touchmove', onTouchMove);
       c.removeEventListener('touchend', onTouchEnd);
       c.removeEventListener('touchcancel', onTouchCancel);
-
       current.current = null;
       drawing.current = false;
     };
@@ -265,21 +368,14 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({ strokes: strokes.current }),
     loadStrokes: (data) => {
-      if (!data) {
-        strokes.current = [];
-        redraw();
-        return;
-      }
-
+      if (!data) { strokes.current = []; undoStack.current = []; redraw(); return; }
       const raw = data.strokes || (Array.isArray(data) ? data : []);
       const sw = data.canvasWidth;
       const sh = data.canvasHeight;
-
       const samplePt = raw?.[0]?.pts?.[0];
       const alreadyNormalized =
         data?.normalized === true ||
         (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
-
       if (sw && sh && !alreadyNormalized) {
         strokes.current = raw.map((s) => ({
           ...s,
@@ -288,20 +384,25 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       } else {
         strokes.current = raw;
       }
-
+      undoStack.current = [];
       current.current = null;
       drawing.current = false;
       redraw();
     },
     clearStrokes: () => {
+      pushUndo();
       strokes.current = [];
       current.current = null;
       drawing.current = false;
       redraw();
     },
     undo: () => {
-      strokes.current.pop();
+      if (undoStack.current.length === 0) return;
+      strokes.current = undoStack.current.pop();
+      current.current = null;
+      drawing.current = false;
       redraw();
+      onStrokeEnd?.();
     },
     replayStrokes: (data, onFrame) => {
       const allPts = [];
@@ -320,10 +421,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     },
   }));
 
-  // Pixel eraser: lineWidth = size * 1.5, so radius = size * 0.75
-  // Object eraser: hitDist = max(12, size * 3), so radius = max(12, size * 3)
   const pixelEraserRadius = Math.max(4, size * 0.75);
-  const objectEraserRadius = Math.max(12, size * 3);
+  const objectEraserRadius = Math.max(8, size * 1.5);
   const eraserRadius = tool === 'eraser_pixel' ? pixelEraserRadius : objectEraserRadius;
 
   return (
@@ -341,7 +440,6 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           background: 'transparent',
         }}
       />
-      {/* Eraser cursor overlay */}
       {eraserCursorPos && (tool === 'eraser_pixel' || tool === 'eraser_object') && (
         <div
           style={{
@@ -351,12 +449,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
             width: eraserRadius * 2,
             height: eraserRadius * 2,
             borderRadius: '50%',
-            background: tool === 'eraser_object'
-              ? 'rgba(220,38,38,0.25)'
-              : 'rgba(150,150,150,0.35)',
-            border: tool === 'eraser_object'
-              ? '2px solid rgba(220,38,38,0.8)'
-              : '2px solid rgba(100,100,100,0.6)',
+            background: tool === 'eraser_object' ? 'rgba(220,38,38,0.2)' : 'rgba(150,150,150,0.35)',
+            border: tool === 'eraser_object' ? '2px solid rgba(220,38,38,0.7)' : '2px solid rgba(100,100,100,0.6)',
             pointerEvents: 'none',
             zIndex: 20,
           }}
