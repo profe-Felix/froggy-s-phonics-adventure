@@ -60,13 +60,6 @@ const MODES = [
     color: 'from-purple-400 to-purple-600'
   },
   {
-    id: 'spelling',
-    title: 'Spelling Words',
-    description: 'Spell words from jumbled letters',
-    icon: '🔠',
-    color: 'from-orange-400 to-orange-600'
-  },
-  {
     id: 'case_matching',
     title: 'Upper & Lowercase',
     description: 'Match uppercase with lowercase',
@@ -95,6 +88,13 @@ const MODES = [
     icon: '📖',
     color: 'from-sky-400 to-blue-600',
     alwaysUnlocked: true
+  },
+  {
+    id: 'spelling',
+    title: 'Spelling Words',
+    description: 'Spell words from jumbled letters',
+    icon: '🔠',
+    color: 'from-orange-400 to-orange-600'
   }
 ];
 
