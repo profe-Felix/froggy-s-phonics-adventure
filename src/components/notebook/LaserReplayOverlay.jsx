@@ -14,8 +14,8 @@ export default function LaserReplayOverlay({ laserData = [], audioRef, container
     const canvas = canvasRef.current;
     if (!canvas || !audioRef?.current) return;
 
-    const w = canvas.offsetWidth;
-    const h = canvas.offsetHeight;
+    const w = canvas.width;
+    const h = canvas.height;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, w, h);
 
@@ -60,7 +60,7 @@ export default function LaserReplayOverlay({ laserData = [], audioRef, container
       const canvas = canvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
     };
 
@@ -81,12 +81,22 @@ export default function LaserReplayOverlay({ laserData = [], audioRef, container
     };
   }, [audioRef, draw]);
 
-  // Sync canvas internal size to CSS dimensions
+  // Sync canvas internal resolution to its actual rendered CSS size
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.width = containerWidth || canvas.offsetWidth;
-    canvas.height = containerHeight || canvas.offsetHeight;
+    const sync = () => {
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+      if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    };
+    sync();
+    const obs = new ResizeObserver(sync);
+    obs.observe(canvas);
+    return () => obs.disconnect();
   }, [containerWidth, containerHeight]);
 
   return (
