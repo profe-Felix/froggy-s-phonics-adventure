@@ -12,7 +12,7 @@ function getToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function TeacherSpeakerIcon({ annotation, containerSize, onTap }) {
+function TeacherSpeakerIcon({ annotation, containerSize }) {
   const px = annotation.x_pct * containerSize.w;
   const py = annotation.y_pct * containerSize.h;
   const [showing, setShowing] = useState(false);
@@ -47,8 +47,14 @@ function TeacherSpeakerIcon({ annotation, containerSize, onTap }) {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Laser replay synced to teacher audio */}
       {showing && laserData.length > 0 && (
-        <LaserReplayOverlay laserData={laserData} audioRef={audioRef} containerWidth={containerSize.w} containerHeight={containerSize.h} />
+        <LaserReplayOverlay
+          laserData={laserData}
+          audioRef={audioRef}
+          containerWidth={containerSize.w}
+          containerHeight={containerSize.h}
+        />
       )}
     </>
   );
@@ -57,9 +63,9 @@ function TeacherSpeakerIcon({ annotation, containerSize, onTap }) {
 export default function StudentBookReader({ book, studentNumber, className, onBack }) {
   const qc = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
-  const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
-  const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
+  const [twoPerPage, setTwoPerPage] = useState(false);
   const containerRef = useRef(null);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const audioRef = useRef(null);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
@@ -78,14 +84,13 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
 
   const session = sessions[0] || null;
 
-  const getPageRecording = () => {
+  const getPageRecording = useCallback(() => {
     if (!session) return null;
     return (session.recordings || []).find(r => r.page === currentPage) || null;
-  };
+  }, [session, currentPage]);
 
   // Laser
-  const laserEnabled = true;
-  const laserTracker = useLaserTracker({ containerRef, enabled: laserEnabled });
+  const laserTracker = useLaserTracker({ containerRef, enabled: true });
 
   // Audio recorder
   const {
@@ -104,7 +109,6 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const [uploading, setUploading] = useState(false);
   const [pageRecording, setPageRecording] = useState(null);
   const [showReplay, setShowReplay] = useState(false);
-  const replayAudioRef = useRef(null);
   const [replayLaserData, setReplayLaserData] = useState([]);
 
   useEffect(() => {
@@ -117,7 +121,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     if (!containerRef.current) return;
     const obs = new ResizeObserver(entries => {
       const { width, height } = entries[0].contentRect;
-      setContainerSize({ w: width, h: height });
+      setContainerSize({ w: Math.round(width), h: Math.round(height) });
     });
     obs.observe(containerRef.current);
     return () => obs.disconnect();
@@ -140,7 +144,6 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     const file = new File([blob], `book-read-p${currentPage}-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const ld = laserTracker.getLaserData();
-
     const newRec = { page: currentPage, audio_url: file_url, laser_data: ld, recorded_at: new Date().toISOString() };
 
     if (session) {
@@ -180,12 +183,25 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   };
 
   const pageAnnotations = (book.teacher_annotations || []).filter(a => a.page === currentPage);
-  const pageImageUrl = book.book_type === 'images'
-    ? (book.pages || []).find(p => p.page_number === currentPage)?.image_url
-    : null;
 
-  const canGoNext = currentPage < totalPages;
+  // Page navigation — 2-per-page jumps by 2
+  const step = twoPerPage ? 2 : 1;
+  const canGoNext = currentPage + step - 1 < totalPages;
   const canGoPrev = currentPage > 1;
+
+  const goNext = () => setCurrentPage(p => Math.min(totalPages, p + step));
+  const goPrev = () => setCurrentPage(p => Math.max(1, p - step));
+
+  // Render a single book page (PDF or image)
+  const renderPage = (pageNum) => {
+    if (book.book_type === 'images') {
+      const img = (book.pages || []).find(p => p.page_number === pageNum);
+      return img
+        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+        : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
+    }
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
+  };
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#042f2e' }}>
@@ -194,68 +210,92 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm">← Back</button>
         <p className="flex-1 text-white font-black text-sm truncate">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold">#{studentNumber}</span>
-        <span className="text-teal-300 text-sm font-bold">Page {currentPage} / {totalPages}</span>
+        {/* 2-per-page toggle */}
+        <button
+          onClick={() => setTwoPerPage(v => !v)}
+          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
+          title="Toggle 2 pages per view"
+        >
+          {twoPerPage ? '📖 2-up' : '📄 1-up'}
+        </button>
+        <span className="text-teal-300 text-sm font-bold">
+          Pg {currentPage}{twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''} / {totalPages}
+        </span>
       </div>
 
-      {/* Page display */}
-      <div className="flex-1 overflow-auto relative" ref={containerRef} style={{ background: '#e8e8e8', cursor: 'default' }}>
-        {book.book_type === 'pdf' || !book.book_type ? (
-          <div style={{ position: 'relative', display: 'block', width: '100%' }}>
-            <PdfPageRenderer
-              pdfUrl={book.pdf_url}
-              pageNumber={currentPage}
-              onRendered={(w, h) => setPdfRenderedSize({ w, h })}
-            />
-          </div>
-        ) : pageImageUrl ? (
-          <div style={{ position: 'relative' }}>
-            <img src={pageImageUrl} alt={`Page ${currentPage}`} style={{ width: '100%', display: 'block' }} />
+      {/* Page display — fit to available space, no scroll */}
+      <div
+        className="flex-1 relative flex items-center justify-center overflow-hidden"
+        ref={containerRef}
+        style={{ background: '#1a1a1a' }}
+      >
+        {twoPerPage ? (
+          // Two pages side by side
+          <div style={{ display: 'flex', width: '100%', height: '100%', gap: 4 }}>
+            <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {renderPage(currentPage)}
+              </div>
+              {/* Laser live */}
+              {(recState === 'recording' || recState === 'paused') && (
+                <LaserOverlay trailPoints={laserTracker.trailPoints} />
+              )}
+              {/* Replay laser */}
+              {showReplay && replayLaserData.length > 0 && (
+                <LaserReplayOverlay laserData={replayLaserData} audioRef={audioRef} />
+              )}
+              {/* Teacher annotations */}
+              {pageAnnotations.map((ann, i) => (
+                <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
+              ))}
+            </div>
+            {currentPage + 1 <= totalPages && (
+              <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {renderPage(currentPage + 1)}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-400">No page image</p>
+          // Single page — fit to container
+          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            <div style={{ maxWidth: '100%', maxHeight: '100%', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {renderPage(currentPage)}
+            </div>
+            {/* Laser live */}
+            {(recState === 'recording' || recState === 'paused') && (
+              <LaserOverlay trailPoints={laserTracker.trailPoints} />
+            )}
+            {/* Replay laser */}
+            {showReplay && replayLaserData.length > 0 && (
+              <LaserReplayOverlay
+                laserData={replayLaserData}
+                audioRef={audioRef}
+                containerWidth={containerSize.w}
+                containerHeight={containerSize.h}
+              />
+            )}
+            {/* Teacher speaker annotations */}
+            {pageAnnotations.map((ann, i) => (
+              <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={containerSize} />
+            ))}
           </div>
         )}
-
-        {/* Live laser overlay while recording */}
-        {(recState === 'recording' || recState === 'paused') && (
-          <LaserOverlay trailPoints={laserTracker.trailPoints} width={containerSize.w} height={containerSize.h} />
-        )}
-
-        {/* Replay laser overlay */}
-        {showReplay && replayLaserData.length > 0 && (
-          <LaserReplayOverlay
-            laserData={replayLaserData}
-            audioRef={replayAudioRef}
-            containerWidth={containerSize.w}
-            containerHeight={containerSize.h}
-          />
-        )}
-
-        {/* Teacher speaker annotations */}
-        {pageAnnotations.map((ann, i) => (
-          <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={pdfRenderedSize || containerSize} />
-        ))}
       </div>
 
-      {/* Recording controls bottom bar */}
+      {/* Bottom controls */}
       <div className="shrink-0 p-3 flex flex-col gap-2" style={{ background: '#0f3d3a', borderTop: '2px solid #0d9488' }}>
-        {/* Existing recording for this page */}
+        {/* Existing recording */}
         {pageRecording && !showReplay && recState === 'idle' && (
           <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #0d9488' }}>
             <span className="text-teal-300 text-xs font-bold flex-1">✅ Page {currentPage} recorded</span>
-            <button
-              onClick={() => handleReplay(pageRecording)}
-              className="px-3 py-1 rounded-lg font-bold text-white text-xs"
-              style={{ background: '#0d9488' }}
-            >
+            <button onClick={() => handleReplay(pageRecording)}
+              className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#0d9488' }}>
               ▶ Replay
             </button>
-            <button
-              onClick={() => { resetRecorder(); setPageRecording(null); }}
-              className="px-3 py-1 rounded-lg font-bold text-white text-xs"
-              style={{ background: '#374151' }}
-            >
+            <button onClick={() => { resetRecorder(); setPageRecording(null); }}
+              className="px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
               🔄 Re-record
             </button>
           </div>
@@ -265,12 +305,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         {showReplay && pageRecording && (
           <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #14b8a6' }}>
             <span className="text-teal-200 text-xs font-bold">▶ Replay — laser synced</span>
-            <audio ref={replayAudioRef} controls src={pageRecording.audio_url} className="flex-1 h-8" />
+            <audio ref={audioRef} controls src={pageRecording.audio_url} className="flex-1 h-8" />
             <button onClick={() => setShowReplay(false)} className="text-teal-400 font-bold text-xs">✕</button>
           </div>
         )}
 
-        {/* Recording controls */}
+        {/* Record controls */}
         {recState === 'idle' && !pageRecording && (
           <button onClick={handleStartRecord}
             className="w-full py-3 rounded-2xl font-black text-white text-base"
@@ -278,37 +318,26 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
             ⏺ Record Reading — Page {currentPage}
           </button>
         )}
-
         {recState === 'recording' && (
           <div className="flex gap-2">
             <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: '#7f1d1d' }}>
               <span className="text-red-300 font-black text-sm animate-pulse">● REC</span>
               <span className="text-white font-bold text-sm">{formatTime(elapsed)}</span>
             </div>
-            <button onClick={pauseRecording}
-              className="px-4 py-2 rounded-xl font-bold text-white"
-              style={{ background: '#d97706' }}>⏸</button>
-            <button onClick={handleStop}
-              className="px-4 py-2 rounded-xl font-bold text-white"
-              style={{ background: '#dc2626' }}>⏹ Stop</button>
+            <button onClick={pauseRecording} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#d97706' }}>⏸</button>
+            <button onClick={handleStop} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#dc2626' }}>⏹ Stop</button>
           </div>
         )}
-
         {recState === 'paused' && (
           <div className="flex gap-2">
             <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: '#374151' }}>
               <span className="text-gray-300 font-bold text-sm">⏸ Paused</span>
               <span className="text-white font-bold text-sm">{formatTime(elapsed)}</span>
             </div>
-            <button onClick={resumeRecording}
-              className="px-4 py-2 rounded-xl font-bold text-white"
-              style={{ background: '#0d9488' }}>▶ Resume</button>
-            <button onClick={handleStop}
-              className="px-4 py-2 rounded-xl font-bold text-white"
-              style={{ background: '#dc2626' }}>⏹ Stop</button>
+            <button onClick={resumeRecording} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#0d9488' }}>▶ Resume</button>
+            <button onClick={handleStop} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#dc2626' }}>⏹ Stop</button>
           </div>
         )}
-
         {recState === 'stopped' && (
           <div className="flex flex-col gap-2">
             {liveAudioUrl && <audio controls src={liveAudioUrl} className="w-full h-8" />}
@@ -319,18 +348,17 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
                 {uploading ? '⏳ Saving…' : '💾 Save Recording'}
               </button>
               <button onClick={() => { resetRecorder(); laserTracker.clearLaser(); }}
-                className="px-4 py-2 rounded-xl font-bold text-white"
-                style={{ background: '#374151' }}>🔄</button>
+                className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#374151' }}>🔄</button>
             </div>
           </div>
         )}
 
         {/* Page navigation */}
         <div className="flex gap-2">
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={!canGoPrev}
+          <button onClick={goPrev} disabled={!canGoPrev}
             className="flex-1 py-2 rounded-xl font-bold text-white disabled:opacity-30"
             style={{ background: '#0f766e' }}>‹ Prev</button>
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={!canGoNext}
+          <button onClick={goNext} disabled={!canGoNext}
             className="flex-1 py-2 rounded-xl font-bold text-white disabled:opacity-30"
             style={{ background: '#0f766e' }}>Next ›</button>
         </div>

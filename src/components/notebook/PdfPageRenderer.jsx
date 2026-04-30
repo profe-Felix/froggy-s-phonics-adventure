@@ -3,33 +3,34 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-// Module-level cache so re-mounting never re-downloads the same PDF
 const pdfCache = {};
 
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
+/**
+ * PdfPageRenderer
+ * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
+ *          'contain' — scale to fit both width AND height (for book reader, no scroll)
+ */
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width' }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
   const renderTask = useRef(null);
-  const [containerWidth, setContainerWidth] = useState(0);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [loading, setLoading] = useState(true);
 
-  // Watch container width via ResizeObserver
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const obs = new ResizeObserver(entries => {
-      const w = Math.round(entries[0].contentRect.width);
-      if (w > 10) setContainerWidth(w);
+      const { width, height } = entries[0].contentRect;
+      if (width > 10) setContainerSize({ w: Math.round(width), h: Math.round(height) });
     });
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
 
-
-  // Render whenever url, page, or container width changes
-    useEffect(() => {
-    if (!pdfUrl || containerWidth < 10) return;
+  useEffect(() => {
+    if (!pdfUrl || containerSize.w < 10) return;
     let cancelled = false;
 
     setError(null);
@@ -40,13 +41,13 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
           pdfCache[pdfUrl] = pdfjsLib.getDocument({
             url: pdfUrl,
             withCredentials: false,
-            disableAutoFetch: false,  // allow full pre-download for fast page turns
+            disableAutoFetch: false,
             disableStream: false,
           }).promise;
         }
         const doc = await pdfCache[pdfUrl];
         if (cancelled) return;
-        // Pre-fetch adjacent pages in the background for faster page turns
+
         const totalPages = doc.numPages;
         if (pageNumber < totalPages) doc.getPage(pageNumber + 1).catch(() => {});
         if (pageNumber > 1) doc.getPage(pageNumber - 1).catch(() => {});
@@ -58,7 +59,16 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
         if (!canvas) return;
 
         const viewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / viewport.width;
+
+        let scale;
+        if (fitMode === 'contain' && containerSize.h > 10) {
+          const scaleW = containerSize.w / viewport.width;
+          const scaleH = containerSize.h / viewport.height;
+          scale = Math.min(scaleW, scaleH);
+        } else {
+          scale = containerSize.w / viewport.width;
+        }
+
         const scaled = page.getViewport({ scale });
 
         canvas.width = scaled.width;
@@ -84,21 +94,21 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered }) {
     })();
 
     return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, containerWidth]);
+  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
   return (
-    <div ref={containerRef} style={{ width: '100%', position: 'relative' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {loading && (
-        <div style={{ position: 'absolute', inset: 0, minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
+        <div style={{ position: 'absolute', inset: 0, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div className="w-10 h-10 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin" />
             <span style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 13 }}>Loading page…</span>
           </div>
         </div>
       )}
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', opacity: loading ? 0 : 1 }} />
+      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1 }} />
     </div>
   );
 }
