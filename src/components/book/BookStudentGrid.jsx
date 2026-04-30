@@ -66,7 +66,7 @@ function ReviewModal({ session, recording, book, onClose }) {
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
+    return <div style={{ width: '100%', height: '100%' }}><PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" /></div>;
   };
 
   return (
@@ -82,40 +82,34 @@ function ReviewModal({ session, recording, book, onClose }) {
         </div>
 
         {/* Page display — mirrors 1-up or 2-up exactly as recorded */}
-        <div className="relative flex-1 overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a', minHeight: 300 }}>
-          {isSpread ? (
-            <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-              <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <div className="relative flex-1 overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a', minHeight: 320 }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+            {isSpread ? (
+              <>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+                  {renderPage(recording.page)}
+                </div>
+                {recording.page + 1 <= totalPages && (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+                    {renderPage(recording.page + 1)}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
                 {renderPage(recording.page)}
               </div>
-              {recording.page + 1 <= totalPages && (
-                <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  {renderPage(recording.page + 1)}
-                </div>
-              )}
-              {/* Laser spans the full 2-up container, matching how it was recorded */}
-              {laserData.length > 0 && containerSize.w > 0 && (
-                <LaserReplayOverlay
-                  laserData={laserData}
-                  audioRef={audioRef}
-                  containerWidth={containerSize.w}
-                  containerHeight={containerSize.h}
-                />
-              )}
-            </div>
-          ) : (
-            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {renderPage(recording.page)}
-              {laserData.length > 0 && containerSize.w > 0 && (
-                <LaserReplayOverlay
-                  laserData={laserData}
-                  audioRef={audioRef}
-                  containerWidth={containerSize.w}
-                  containerHeight={containerSize.h}
-                />
-              )}
-            </div>
-          )}
+            )}
+            {/* Laser overlay spans the full container, matching how it was recorded */}
+            {laserData.length > 0 && containerSize.w > 0 && (
+              <LaserReplayOverlay
+                laserData={laserData}
+                audioRef={audioRef}
+                containerWidth={containerSize.w}
+                containerHeight={containerSize.h}
+              />
+            )}
+          </div>
         </div>
 
         <div className="p-3 shrink-0" style={{ background: '#042f2e', borderTop: '1px solid #0d9488' }}>

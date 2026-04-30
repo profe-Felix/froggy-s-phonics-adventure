@@ -278,6 +278,19 @@ export default function FloatingMicWidget({
   const pixelX = pos.x * containerSize.w;
   const pixelY = pos.y * containerSize.h;
 
+  // Teacher readOnly: tap to play, tap again to stop — no panel
+  const handleIconClick = () => {
+    if (readOnly && isTeacher) {
+      if (showReplay) {
+        handleStopReplay();
+      } else {
+        handlePlayReplay();
+      }
+      return;
+    }
+    setShowPanel(v => !v);
+  };
+
   return (
     <>
       {/* The floating icon — small hit area so it doesn't intercept nearby drawing */}
@@ -288,17 +301,16 @@ export default function FloatingMicWidget({
           top: pixelY,
           transform: 'translate(-50%, -50%)',
           zIndex: 30,
-          cursor: hasSavedAudio ? 'pointer' : 'grab',
+          cursor: 'pointer',
           userSelect: 'none',
           touchAction: 'none',
-          // Tight 44px hit area — anything outside falls through to canvas
           width: 44,
           height: 44,
           borderRadius: '50%',
         }}
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
-        onClick={() => setShowPanel(v => !v)}
+        onMouseDown={readOnly ? undefined : onDragStart}
+        onTouchStart={readOnly ? undefined : onDragStart}
+        onClick={handleIconClick}
       >
         <motion.div
           animate={{ scale: recState === 'recording' ? [1, 1.15, 1] : 1 }}
@@ -324,9 +336,9 @@ export default function FloatingMicWidget({
         )}
       </div>
 
-      {/* Panel */}
+      {/* Panel — not shown for readOnly teacher icons */}
       <AnimatePresence>
-        {showPanel && (
+        {showPanel && !readOnly && (
           <motion.div
             ref={panelRef}
             initial={{ opacity: 0, scale: 0.85 }}
