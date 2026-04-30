@@ -74,8 +74,12 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const latestStoryRef = useRef(null);
   const isDrawingRef = useRef(false);
   const currentPageIdxRef = useRef(currentPageIdx);
+  const canvasSizeRef = useRef(canvasSize);
+  const onSaveRef = useRef(onSave);
   
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
+  useEffect(() => { canvasSizeRef.current = canvasSize; }, [canvasSize]);
+  useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
   const draftKey = story ? `story-draft-${story.id}-${currentPageIdx}` : null;
 
@@ -85,35 +89,51 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const laserTrackerRef = useRef(laserTracker);
   useEffect(() => { laserTrackerRef.current = laserTracker; });
 
-  // Resize
+  // Resize — do NOT resize/remount canvas while drawing
   useEffect(() => {
     if (!containerRef.current) return;
+
+    let raf = null;
+
     const obs = new ResizeObserver(e => {
-      const { width } = e[0].contentRect;
-      const w = Math.max(300, width - 60);
-      setCanvasSize({ w, h: Math.round(w * 1.3) });
+      if (isDrawingRef.current) return;
+
+      if (raf) cancelAnimationFrame(raf);
+
+      raf = requestAnimationFrame(() => {
+        const { width } = e[0].contentRect;
+        const w = Math.max(300, Math.round(width - 60));
+        const h = Math.round(w * 1.3);
+
+        setCanvasSize(prev => {
+          if (Math.abs(prev.w - w) < 3 && Math.abs(prev.h - h) < 3) return prev;
+          return { w, h };
+        });
+      });
     });
+
     obs.observe(containerRef.current);
-    return () => obs.disconnect();
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      obs.disconnect();
+    };
   }, []);
 
   const currentPage = pages[currentPageIdx];
 
-  // Load strokes when switching pages — SAFE: do not reload on resize
+  // Load strokes when switching pages — do not reload just because canvas resized
   useEffect(() => {
     if (!canvasRef.current || !currentPage || canvasSize.w < 10) return;
-
-    // Do not reload/clear while a stroke is happening.
     if (isDrawingRef.current) return;
 
-    // IMPORTANT: do not include canvasSize in this key.
-    // Resizing was causing the canvas to clear/reload and cut strokes off.
     const key = `${story.id}-${currentPageIdx}`;
     if (loadedKeyRef.current === key) return;
 
     loadedKeyRef.current = key;
 
-    const pageData = story.strokes_by_page?.[String(currentPageIdx)];
+    const activeStory = latestStoryRef.current || story;
+    const pageData = activeStory.strokes_by_page?.[String(currentPageIdx)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
     if (localDraft) {
@@ -135,14 +155,14 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     }
 
     try {
-      const micsData = story.voice_notes_by_page?.[`mics_${currentPageIdx}`] || '[]';
+      const micsData = activeStory.voice_notes_by_page?.[`mics_${currentPageIdx}`] || '[]';
       setFloatingMics(JSON.parse(micsData));
     } catch {
       setFloatingMics([]);
     }
-  }, [currentPageIdx, story.id, story.strokes_by_page, story.voice_notes_by_page, draftKey, currentPage]);
+  }, [currentPageIdx, story.id, draftKey, currentPage, canvasSize.w]);
 
-  // Save current strokes — EXACT same pattern as StudentNotebookView
+  // Save current strokes — stable refs so saves do not overwrite newer story data
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
 
@@ -161,16 +181,18 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
     const savePage = pageOverride ?? currentPageIdxRef.current;
     const saveDraftKey = `story-draft-${activeStory.id}-${savePage}`;
+    const sizeNow = canvasSizeRef.current;
 
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
       const strokeData = canvasRef.current.getStrokes();
+
       const payload = {
         ...strokeData,
-        canvasWidth: canvasSize.w,
-        canvasHeight: canvasSize.h,
+        canvasWidth: sizeNow.w,
+        canvasHeight: sizeNow.h,
         normalized: true,
       };
 
@@ -181,19 +203,15 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
       localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
-      await onSave({
-        ...activeStory,
-        strokes_by_page: updated,
-        last_active: new Date().toISOString(),
-      });
-
       const nextStory = {
         ...activeStory,
+        pages,
         strokes_by_page: updated,
         last_active: new Date().toISOString(),
       };
 
       latestStoryRef.current = nextStory;
+      await onSaveRef.current(nextStory);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
@@ -203,7 +221,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
         void saveStrokes();
       }
     }
-  }, [canvasSize, onSave]);
+  }, [pages]);
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
@@ -243,8 +261,13 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   };
 
   useEffect(() => {
-    latestStoryRef.current = story;
-  }, [story]);
+    latestStoryRef.current = {
+      ...story,
+      pages,
+      strokes_by_page: story.strokes_by_page || {},
+      voice_notes_by_page: story.voice_notes_by_page || {},
+    };
+  }, [story, pages]);
 
   useEffect(() => {
     if (!story) return;
@@ -282,38 +305,56 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const addPage = async () => {
     await saveStrokes();
+
+    const activeStory = latestStoryRef.current || story;
     const newPage = { id: `p${Date.now()}`, template: 'blank' };
-    const updated = [...pages.slice(0, currentPageIdxRef.current + 1), newPage, ...pages.slice(currentPageIdxRef.current + 1)];
+    const insertAt = currentPageIdxRef.current + 1;
+    const updated = [...pages.slice(0, insertAt), newPage, ...pages.slice(insertAt)];
+
     setPages(updated);
     loadedKeyRef.current = null;
-    setCurrentPageIdx(currentPageIdxRef.current + 1);
-    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    setCurrentPageIdx(insertAt);
+
+    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
     latestStoryRef.current = nextStory;
-    await onSave(nextStory);
+    await onSaveRef.current(nextStory);
   };
 
   const duplicatePage = async () => {
     await saveStrokes();
+
+    const activeStory = latestStoryRef.current || story;
     const pg = pages[currentPageIdxRef.current];
     const dup = { ...pg, id: `p${Date.now()}` };
-    const updated = [...pages.slice(0, currentPageIdxRef.current + 1), dup, ...pages.slice(currentPageIdxRef.current + 1)];
+    const insertAt = currentPageIdxRef.current + 1;
+    const updated = [...pages.slice(0, insertAt), dup, ...pages.slice(insertAt)];
+
     setPages(updated);
     loadedKeyRef.current = null;
-    setCurrentPageIdx(currentPageIdxRef.current + 1);
-    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    setCurrentPageIdx(insertAt);
+
+    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
     latestStoryRef.current = nextStory;
-    await onSave(nextStory);
+    await onSaveRef.current(nextStory);
   };
 
-  const deletePage = () => {
+  const deletePage = async () => {
     if (pages.length <= 1) return;
-    const updated = pages.filter((_, i) => i !== currentPageIdxRef.current);
+
+    await saveStrokes();
+
+    const activeStory = latestStoryRef.current || story;
+    const deleteIdx = currentPageIdxRef.current;
+    const updated = pages.filter((_, i) => i !== deleteIdx);
+    const nextIdx = Math.max(0, deleteIdx - 1);
+
     setPages(updated);
     loadedKeyRef.current = null;
-    setCurrentPageIdx(Math.max(0, currentPageIdxRef.current - 1));
-    const nextStory = { ...story, pages: updated, last_active: new Date().toISOString() };
+    setCurrentPageIdx(nextIdx);
+
+    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
     latestStoryRef.current = nextStory;
-    void onSave(nextStory);
+    await onSaveRef.current(nextStory);
   };
 
   const saveStory = async () => {
@@ -374,9 +415,18 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
             className="shrink-0 flex gap-2 px-3 py-2 overflow-x-auto"
             style={{ background: '#1a1a2e', borderBottom: '1px solid #4c1d95' }}>
             {TEMPLATES.map(t => (
-              <button key={t.id} onClick={() => {
-                setPages(prev => prev.map((p, i) => i === currentPageIdx ? { ...p, template: t.id } : p));
+              <button key={t.id} onClick={async () => {
+                await saveStrokes();
+
+                const activeStory = latestStoryRef.current || story;
+                const updated = pages.map((p, i) => i === currentPageIdx ? { ...p, template: t.id } : p);
+
+                setPages(updated);
                 setShowTemplates(false);
+
+                const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
+                latestStoryRef.current = nextStory;
+                await onSaveRef.current(nextStory);
               }}
                 className={`shrink-0 px-4 py-2 rounded-xl font-bold text-xs ${currentPage?.template === t.id ? 'bg-violet-600 text-white' : 'text-violet-300 border border-indigo-700 hover:bg-indigo-900'}`}>
                 {t.label}
@@ -517,7 +567,6 @@ export default function StoryBuilder() {
       strokes_by_page: {},
       voice_notes_by_page: {},
       status: 'in_progress',
-      status: 'in_progress',
       last_active: new Date().toISOString(),
     });
     setNewTitle('');
@@ -529,14 +578,20 @@ export default function StoryBuilder() {
     if (!selectedStory) return;
 
     await base44.entities.StoryAssignment.update(selectedStory.id, {
-      pages: storyData.pages,
+      pages: storyData.pages || [],
       strokes_by_page: storyData.strokes_by_page || {},
       voice_notes_by_page: storyData.voice_notes_by_page || {},
       status: storyData.status || 'in_progress',
-      last_active: storyData.last_active,
+      last_active: storyData.last_active || new Date().toISOString(),
     });
 
-    setSelectedStory(storyData);
+    setSelectedStory({
+      ...selectedStory,
+      ...storyData,
+      strokes_by_page: storyData.strokes_by_page || selectedStory.strokes_by_page || {},
+      voice_notes_by_page: storyData.voice_notes_by_page || selectedStory.voice_notes_by_page || {},
+    });
+
     refetch();
   };
 
