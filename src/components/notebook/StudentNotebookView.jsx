@@ -390,9 +390,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   const handlePageClickForMic = (e) => {
     if (!addingMic || !pdfWrapperRef.current) return;
+    const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = pdfWrapperRef.current.getBoundingClientRect();
-    const x_pct = (e.clientX - rect.left) / rect.width;
-    const y_pct = (e.clientY - rect.top) / rect.height;
+    const x_pct = (src.clientX - rect.left) / rect.width;
+    const y_pct = (src.clientY - rect.top) / rect.height;
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
     const updated = [...floatingMics, newMic];
     setFloatingMics(updated);
@@ -547,6 +548,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
             className="flex-1 overflow-auto"
             style={{ background: '#e8e8e8', position: 'relative', cursor: addingMic ? 'copy' : 'default' }}
             onClick={handlePageClickForMic}
+            onTouchEnd={addingMic ? handlePageClickForMic : undefined}
           >
             {selectedAssignment.pdf_url ? (
               <div ref={pdfWrapperRef} style={{ position: 'relative', display: 'block', width: '100%' }}>

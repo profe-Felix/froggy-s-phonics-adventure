@@ -182,9 +182,10 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
+    const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = canvasWrapperRef.current.getBoundingClientRect();
-    const x_pct = (e.clientX - rect.left) / rect.width;
-    const y_pct = (e.clientY - rect.top) / rect.height;
+    const x_pct = (src.clientX - rect.left) / rect.width;
+    const y_pct = (src.clientY - rect.top) / rect.height;
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '' };
     saveMics([...floatingMics, newMic]);
     setAddingMic(false);
@@ -312,6 +313,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
           className="flex-1 overflow-auto flex items-start justify-center p-4"
           style={{ background: '#1a1a1a', cursor: addingMic ? 'copy' : 'default' }}
           onClick={handleCanvasClick}
+          onTouchEnd={addingMic ? handleCanvasClick : undefined}
         >
           {canvasSize.w > 0 && (
             <div
