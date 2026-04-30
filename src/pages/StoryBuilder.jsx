@@ -76,9 +76,11 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const loadedKeyRef = useRef(null);
+  const latestStoryRef = useRef(story);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
   useEffect(() => { pagesRef.current = pages; }, [pages]);
+  useEffect(() => { latestStoryRef.current = story; }, [story]);
 
   // Laser
   const laserActive = tool === 'laser';
@@ -151,14 +153,14 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       const strokeData = canvasRef.current.getStrokes();
       const payload = JSON.stringify({ ...strokeData, normalized: true });
 
-      // Update pages state
+      // Update pages state using latest refs
       const updated = pagesRef.current.map((p, i) =>
         i === idx ? { ...p, strokes_data: payload } : p
       );
       pagesRef.current = updated;
       setPages(updated);
 
-      // Persist to backend
+      // Persist to backend with latest story
       await onSave({ pages: updated });
     } finally {
       saveInFlightRef.current = false;
