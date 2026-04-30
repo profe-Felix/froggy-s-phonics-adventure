@@ -42,6 +42,8 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
   const [colorBtnPos, setColorBtnPos] = useState(null);
   const colorBtnRef = useRef(null);
 
+  const PICKER_W = 128;
+
   return (
     <div className="relative flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl shrink-0"
       style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: '100%', overflowY: 'auto', overflowX: 'hidden' }}
@@ -59,7 +61,6 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
           className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all
             ${tool === t.id ? 'bg-indigo-600 shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}>
           {t.id === 'laser' ? (
-            // Red dot laser icon
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36 }}>
               <span style={{
                 width: 14, height: 14, borderRadius: '50%',
@@ -79,7 +80,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         onClick={() => {
           if (!showColors && colorBtnRef.current) {
             const r = colorBtnRef.current.getBoundingClientRect();
-            setColorBtnPos({ top: r.top, left: r.left, width: r.width });
+            setColorBtnPos({ top: r.top, left: r.left, right: r.right, width: r.width });
           }
           setShowColors(v => !v);
         }}
@@ -92,14 +93,18 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         <div
           className="fixed z-50"
           style={{
-            top: Math.min(colorBtnPos.top, window.innerHeight - Math.min(320, window.innerHeight - 20)),
-            left: colorBtnPos.left + colorBtnPos.width + 4,
+            // Clamp top so picker never goes below viewport
+            top: Math.min(colorBtnPos.top, window.innerHeight - Math.min(340, window.innerHeight - 16)),
+            // Open to the right when toolbar is on the left; to the left when on the right
+            left: side === 'left'
+              ? colorBtnPos.right + 4
+              : colorBtnPos.left - PICKER_W - 4,
             background: '#1a1a2e',
             border: '2px solid #4338ca',
             borderRadius: 16,
             padding: 8,
-            width: 120,
-            maxHeight: window.innerHeight - 24,
+            width: PICKER_W,
+            maxHeight: window.innerHeight - 16,
             overflowY: 'auto',
           }}
         >

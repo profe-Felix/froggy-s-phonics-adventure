@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import useLaserTracker from '@/hooks/useLaserTracker';
-import LaserOverlay from './LaserOverlay';
 import LaserReplayOverlay from './LaserReplayOverlay';
 import { base44 } from '@/api/base44Client';
 
@@ -15,10 +13,17 @@ import { base44 } from '@/api/base44Client';
  * - On "Play Recording": clears canvas, animates strokes by timestamp, replays laser,
  *   then restores full strokes when audio ends/stops.
  */
+/**
+ * laserTrackerRef: optional ref to the parent's useLaserTracker instance.
+ * The widget uses it to start/stop laser recording and show live laser during recording.
+ * The laser TOOL itself remains on the parent toolbar — the widget only hooks into the recording.
+ */
 export default function FloatingMicWidget({
   note,
   containerRef,
   canvasRef,
+  laserTrackerRef,
+  containerSize: containerSizeProp,
   onSave,
   onRemove,
   readOnly = false,
@@ -43,7 +48,8 @@ export default function FloatingMicWidget({
     catch { return null; }
   });
 
-  const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
+  // Use containerSize from prop (passed by parent who already tracks it) or fallback
+  const containerSize = containerSizeProp || { w: 600, h: 800 };
   const panelRef = useRef(null);
   const audioRef = useRef(null);
   const replayRafRef = useRef(null);
@@ -62,26 +68,6 @@ export default function FloatingMicWidget({
     reset: resetRecorder,
     getBlob,
   } = useAudioRecorder();
-
-  // Laser tracks against the PDF container ref — active during recording/paused
-  const laserTracker = useLaserTracker({
-    containerRef,
-    enabled: recState === 'recording' || recState === 'paused',
-  });
-
-  // Track container size for positioning
-  useEffect(() => {
-    if (!containerRef?.current) return;
-    const obs = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      setContainerSize({ w: width, h: height });
-    });
-    obs.observe(containerRef.current);
-    // set immediately
-    const rect = containerRef.current.getBoundingClientRect();
-    setContainerSize({ w: rect.width, h: rect.height });
-    return () => obs.disconnect();
-  }, [containerRef]);
 
   // Click-away to close panel
   useEffect(() => {
@@ -143,13 +129,14 @@ export default function FloatingMicWidget({
     const existing = canvasRef?.current?.getStrokes();
     strokeCountAtRecordStart.current = existing?.strokes?.length ?? 0;
     strokesDuringRecordingRef.current = null;
-    laserTracker.startRecordingLaser();
+    // Start recording from the parent's laser tracker (toolbar laser)
+    laserTrackerRef?.current?.startRecordingLaser();
     await startRecording();
   };
 
   const handleStop = () => {
     stopRecording();
-    laserTracker.stopRecordingLaser();
+    laserTrackerRef?.current?.stopRecordingLaser();
     // Capture only strokes added SINCE recording started
     const all = canvasRef?.current?.getStrokes();
     const newStrokes = all?.strokes?.slice(strokeCountAtRecordStart.current) ?? [];
@@ -167,14 +154,13 @@ export default function FloatingMicWidget({
 
     const file = new File([blob], `mic-note-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    const ld = laserTracker.getLaserData();
+    const ld = laserTrackerRef?.current?.getLaserData() ?? [];
 
     setSavedAudioUrl(file_url);
     setLaserData(ld);
     setStrokeSnapshot(snapshot);
     setUploading(false);
     resetRecorder();
-    laserTracker.clearLaser();
     strokesDuringRecordingRef.current = null;
 
     onSave?.({
@@ -192,54 +178,54 @@ export default function FloatingMicWidget({
     setLaserData([]);
     setStrokeSnapshot(null);
     setShowReplay(false);
-    stopStrokeReplay();
     resetRecorder();
   };
 
   // ── Stroke replay logic ──────────────────────────────────────────────────
-  const stopStrokeReplay = useCallback((allCurrentStrokes) => {
+  const restoreStrokes = useCallback(() => {
     cancelAnimationFrame(replayRafRef.current);
-    // Restore all strokes (base + recorded)
-    if (canvasRef?.current) {
-      canvasRef.current.loadStrokes(allCurrentStrokes || { strokes: [], normalized: true });
+    if (canvasRef?.current && fullStrokesBeforeReplayRef.current) {
+      canvasRef.current.loadStrokes(fullStrokesBeforeReplayRef.current);
     }
     setShowReplay(false);
   }, [canvasRef]);
 
   const handlePlayReplay = useCallback(() => {
     if (!savedAudioUrl) return;
-    setShowReplay(true);
 
-    // Snapshot full current strokes so we can restore on stop
+    // Cancel any previous replay
+    cancelAnimationFrame(replayRafRef.current);
+
+    // Snapshot full current strokes NOW before we touch anything
     const allCurrent = canvasRef?.current?.getStrokes();
-    fullStrokesBeforeReplayRef.current = allCurrent;
+    fullStrokesBeforeReplayRef.current = allCurrent
+      ? { strokes: [...(allCurrent.strokes ?? [])], normalized: true }
+      : { strokes: [], normalized: true };
 
-    // Get the strokes that existed BEFORE this recording (everything to keep visible)
-    const allStrokes = allCurrent?.strokes ?? [];
-    // The snapshot only contains strokes from during the recording
+    const allStrokes = fullStrokesBeforeReplayRef.current.strokes;
     const recordedStrokes = strokeSnapshot?.strokes ?? [];
-    // Pre-recording strokes = everything minus the recorded ones (by count, from the end)
+    // Pre-recording strokes = all strokes minus the ones in the snapshot (tail)
     const preCount = Math.max(0, allStrokes.length - recordedStrokes.length);
     const baseStrokes = allStrokes.slice(0, preCount);
 
-    // Load just the base (pre-recording) strokes — recorded ones will animate in
+    setShowReplay(true);
+
+    // Show only pre-recording strokes; animated ones will be added frame by frame
     if (canvasRef?.current) {
       canvasRef.current.loadStrokes({ strokes: baseStrokes, normalized: true });
     }
 
     // Start audio
-    setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      }
-    }, 30);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
 
-    // Animate the recorded strokes by timestamp on top of base
+    // Animate recorded strokes in sync with elapsed wall-clock time (matches audio)
     if (recordedStrokes.length > 0) {
-      const minT = Math.min(
-        ...recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0)
-      );
+      // Normalise stroke timestamps so they start at 0
+      const allPtTs = recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0);
+      const minT = allPtTs.length > 0 ? Math.min(...allPtTs) : 0;
       const playbackStart = Date.now();
       const strokesProgress = recordedStrokes.map(() => 0);
 
@@ -249,8 +235,8 @@ export default function FloatingMicWidget({
 
         recordedStrokes.forEach((stroke, si) => {
           const prevCount = strokesProgress[si];
-          let newCount = 0;
-          for (let pi = 0; pi < stroke.pts.length; pi++) {
+          let newCount = prevCount;
+          for (let pi = prevCount; pi < stroke.pts.length; pi++) {
             const ptT = (stroke.pts[pi].t || 0) > 0 ? (stroke.pts[pi].t - minT) : pi * 16;
             if (ptT <= elapsed) newCount = pi + 1;
             else break;
@@ -262,11 +248,10 @@ export default function FloatingMicWidget({
           const partialRecorded = recordedStrokes
             .map((s, si) => strokesProgress[si] > 0 ? { ...s, pts: s.pts.slice(0, strokesProgress[si]) } : null)
             .filter(Boolean);
-          // Combine base + animated recorded strokes
           canvasRef.current.loadStrokes({ strokes: [...baseStrokes, ...partialRecorded], normalized: true });
         }
 
-        if (audioRef.current?.ended) return;
+        // Keep animating until audio ends (checked via showReplay flag cleared by audioEnded)
         replayRafRef.current = requestAnimationFrame(animate);
       };
 
@@ -276,17 +261,13 @@ export default function FloatingMicWidget({
 
   const handleStopReplay = useCallback(() => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
-    stopStrokeReplay(fullStrokesBeforeReplayRef.current);
-  }, [stopStrokeReplay]);
+    restoreStrokes();
+  }, [restoreStrokes]);
 
   const handleAudioEnded = useCallback(() => {
     cancelAnimationFrame(replayRafRef.current);
-    // Restore all strokes to pre-replay state
-    if (canvasRef?.current) {
-      canvasRef.current.loadStrokes(fullStrokesBeforeReplayRef.current || { strokes: [], normalized: true });
-    }
-    setShowReplay(false);
-  }, [canvasRef]);
+    restoreStrokes();
+  }, [restoreStrokes]);
 
   // Cleanup on unmount
   useEffect(() => () => cancelAnimationFrame(replayRafRef.current), []);
@@ -472,15 +453,6 @@ export default function FloatingMicWidget({
           audioRef={audioRef}
           containerWidth={containerSize.w}
           containerHeight={containerSize.h}
-        />
-      )}
-
-      {/* Live laser overlay — shown during active recording */}
-      {(recState === 'recording' || recState === 'paused') && (
-        <LaserOverlay
-          trailPoints={laserTracker.trailPoints}
-          width={containerSize.w}
-          height={containerSize.h}
         />
       )}
     </>

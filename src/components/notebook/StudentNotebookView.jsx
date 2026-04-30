@@ -361,10 +361,17 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];
 
-  // Laser tracker — tracks against the inner PDF wrapper for correct coordinates
-  // Always enabled so it can record during mic recording regardless of tool
+  // Laser tracker — active when laser tool is selected OR when a mic recording is active
+  // (so the laser can be recorded even if the user switches to pencil mid-session)
+  // We always enable it so the mic widget can record laser strokes; we only SHOW the overlay
+  // when the laser tool is the selected tool.
   const laserActive = tool === 'laser';
   const laserTracker = useLaserTracker({ containerRef: pdfWrapperRef, enabled: laserActive });
+  // Expose laserTracker methods via a stable ref so FloatingMicWidget can call them
+  const laserTrackerRef = useRef(laserTracker);
+  useEffect(() => {
+    laserTrackerRef.current = laserTracker;
+  });
 
   // Load floating mics from session for current page
   useEffect(() => {
@@ -595,6 +602,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     note={mic}
                     containerRef={pdfWrapperRef}
                     canvasRef={canvasRef}
+                    laserTrackerRef={laserTrackerRef}
+                    containerSize={pdfRenderedSize ? { w: pdfRenderedSize.w, h: pdfRenderedSize.h } : undefined}
                     role="student"
                     onSave={(updated) => {
                       const newMics = floatingMics.map(m => m.id === mic.id ? updated : m);

@@ -169,8 +169,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onMouseMove = (e) => {
-      // Update eraser cursor position for pixel eraser
-      if (tool === 'eraser_pixel') {
+      // Update eraser cursor position for both erasers
+      if (tool === 'eraser_pixel' || tool === 'eraser_object') {
         const r = c.getBoundingClientRect();
         setEraserCursorPos({ x: e.clientX - r.left, y: e.clientY - r.top });
       } else {
@@ -320,7 +320,11 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     },
   }));
 
-  const eraserRadius = tool === 'eraser_pixel' ? Math.max(4, size * 1.5) : Math.max(12, size * 3);
+  // Pixel eraser: lineWidth = size * 1.5, so radius = size * 0.75
+  // Object eraser: hitDist = max(12, size * 3), so radius = max(12, size * 3)
+  const pixelEraserRadius = Math.max(4, size * 0.75);
+  const objectEraserRadius = Math.max(12, size * 3);
+  const eraserRadius = tool === 'eraser_pixel' ? pixelEraserRadius : objectEraserRadius;
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 10, width: width + 'px', height: height + 'px' }}>
@@ -337,8 +341,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           background: 'transparent',
         }}
       />
-      {/* Pixel eraser cursor — gray semitransparent circle */}
-      {eraserCursorPos && (tool === 'eraser_pixel') && (
+      {/* Eraser cursor overlay */}
+      {eraserCursorPos && (tool === 'eraser_pixel' || tool === 'eraser_object') && (
         <div
           style={{
             position: 'absolute',
@@ -347,8 +351,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
             width: eraserRadius * 2,
             height: eraserRadius * 2,
             borderRadius: '50%',
-            background: 'rgba(150,150,150,0.35)',
-            border: '2px solid rgba(100,100,100,0.6)',
+            background: tool === 'eraser_object'
+              ? 'rgba(220,38,38,0.25)'
+              : 'rgba(150,150,150,0.35)',
+            border: tool === 'eraser_object'
+              ? '2px solid rgba(220,38,38,0.8)'
+              : '2px solid rgba(100,100,100,0.6)',
             pointerEvents: 'none',
             zIndex: 20,
           }}
