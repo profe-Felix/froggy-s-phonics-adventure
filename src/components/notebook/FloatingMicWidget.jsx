@@ -125,13 +125,15 @@ export default function FloatingMicWidget({
   }, [onDragMove, onDragEnd]);
 
   const handleStartRecord = async () => {
-    // Remember how many strokes existed before recording started
-    const existing = canvasRef?.current?.getStrokes();
-    strokeCountAtRecordStart.current = existing?.strokes?.length ?? 0;
-    strokesDuringRecordingRef.current = null;
-    // Start recording from the parent's laser tracker (toolbar laser)
-    laserTrackerRef?.current?.startRecordingLaser();
-    await startRecording();
+   // Remember how many strokes existed before recording started
+   const existing = canvasRef?.current?.getStrokes();
+   strokeCountAtRecordStart.current = existing?.strokes?.length ?? 0;
+   strokesDuringRecordingRef.current = null;
+   // Capture the wall-clock time when recording starts (for normalizing stroke timestamps)
+   strokesDuringRecordingRef.current = { recordingStartTime: Date.now() };
+   // Start recording from the parent's laser tracker (toolbar laser)
+   laserTrackerRef?.current?.startRecordingLaser();
+   await startRecording();
   };
 
   const handleStop = () => {
@@ -140,7 +142,8 @@ export default function FloatingMicWidget({
     // Capture only strokes added SINCE recording started
     const all = canvasRef?.current?.getStrokes();
     const newStrokes = all?.strokes?.slice(strokeCountAtRecordStart.current) ?? [];
-    strokesDuringRecordingRef.current = { strokes: newStrokes };
+    const recordingStartTime = strokesDuringRecordingRef.current?.recordingStartTime ?? Date.now();
+    strokesDuringRecordingRef.current = { strokes: newStrokes, recordingStartTime };
     setTimeout(() => doSave(), 150);
   };
 
@@ -223,13 +226,13 @@ export default function FloatingMicWidget({
 
     // Animate recorded strokes in sync with audio currentTime
     if (recordedStrokes.length > 0) {
-      // Normalise stroke timestamps so they start at 0
+      // Find min/max timestamps from the actual recording session
       const allPtTs = recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0);
-      const minT = allPtTs.length > 0 ? Math.min(...allPtTs) : 0;
+      const recordingStartTime = Math.min(...allPtTs);
       const strokesProgress = recordedStrokes.map(() => 0);
 
       const animate = () => {
-        // Sync to audio's actual playback time, not wall-clock time
+        // Sync to audio's actual playback time (in milliseconds)
         const elapsed = (audioRef.current?.currentTime ?? 0) * 1000;
         let changed = false;
 
@@ -237,7 +240,8 @@ export default function FloatingMicWidget({
           const prevCount = strokesProgress[si];
           let newCount = prevCount;
           for (let pi = prevCount; pi < stroke.pts.length; pi++) {
-            const ptT = (stroke.pts[pi].t || 0) > 0 ? (stroke.pts[pi].t - minT) : pi * 16;
+            // Normalize each point timestamp relative to when recording started
+            const ptT = (stroke.pts[pi].t ?? 0) - recordingStartTime;
             if (ptT <= elapsed) newCount = pi + 1;
             else break;
           }
