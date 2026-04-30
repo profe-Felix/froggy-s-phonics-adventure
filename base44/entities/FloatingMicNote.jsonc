@@ -32,6 +32,10 @@
       "type": "string",
       "description": "JSON-encoded array of {x_pct, y_pct, t}"
     },
+    "stroke_snapshot": {
+      "type": "string",
+      "description": "JSON-encoded strokes snapshot at time of recording, for replay"
+    },
     "duration_ms": {
       "type": "integer"
     },

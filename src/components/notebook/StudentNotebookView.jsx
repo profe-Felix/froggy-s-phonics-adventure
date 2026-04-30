@@ -382,8 +382,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   }, [session, currentPage]);
 
   const handlePageClickForMic = (e) => {
-    if (!addingMic || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
+    if (!addingMic || !pdfWrapperRef.current) return;
+    const rect = pdfWrapperRef.current.getBoundingClientRect();
     const x_pct = (e.clientX - rect.left) / rect.width;
     const y_pct = (e.clientY - rect.top) / rect.height;
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
@@ -593,7 +593,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                   <FloatingMicWidget
                     key={mic.id}
                     note={mic}
-                    containerRef={containerRef}
+                    containerRef={pdfWrapperRef}
+                    canvasRef={canvasRef}
                     role="student"
                     onSave={(updated) => {
                       const newMics = floatingMics.map(m => m.id === mic.id ? updated : m);

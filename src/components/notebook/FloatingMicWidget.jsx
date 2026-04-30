@@ -7,30 +7,45 @@ import LaserReplayOverlay from './LaserReplayOverlay';
 import { base44 } from '@/api/base44Client';
 
 /**
- * FloatingMicWidget — a draggable mic/speaker icon that records or plays back audio + laser.
- * Laser tracks against `containerRef` (the PDF wrapper) so coordinates are correct.
- * Auto-saves on stop. After saving, shows ▶ Play Recording that replays audio + laser.
+ * FloatingMicWidget
+ * - containerRef: the inner PDF wrapper div (for correct coordinate mapping)
+ * - canvasRef:    the AnnotationCanvas imperative handle (for stroke replay during playback)
+ * - Laser tracks against containerRef.
+ * - On record: captures laser + snapshots strokes from canvasRef.
+ * - On "Play Recording": clears canvas, animates strokes by timestamp, replays laser,
+ *   then restores full strokes when audio ends/stops.
  */
 export default function FloatingMicWidget({
   note,
   containerRef,
+  canvasRef,
   onSave,
   onRemove,
   readOnly = false,
   role = 'student',
 }) {
   const [pos, setPos] = useState({ x: note.x_pct ?? 0.1, y: note.y_pct ?? 0.1 });
-  const [locked, setLocked] = useState(!!note.audio_url);
   const [showPanel, setShowPanel] = useState(false);
   const [showReplay, setShowReplay] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [laserData, setLaserData] = useState(
-    note.laser_data ? (typeof note.laser_data === 'string' ? JSON.parse(note.laser_data) : note.laser_data) : []
-  );
+
+  // Saved data
   const [savedAudioUrl, setSavedAudioUrl] = useState(note.audio_url || null);
+  const [laserData, setLaserData] = useState(() => {
+    if (!note.laser_data) return [];
+    try { return typeof note.laser_data === 'string' ? JSON.parse(note.laser_data) : note.laser_data; }
+    catch { return []; }
+  });
+  const [strokeSnapshot, setStrokeSnapshot] = useState(() => {
+    if (!note.stroke_snapshot) return null;
+    try { return typeof note.stroke_snapshot === 'string' ? JSON.parse(note.stroke_snapshot) : note.stroke_snapshot; }
+    catch { return null; }
+  });
+
   const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
   const panelRef = useRef(null);
   const audioRef = useRef(null);
+  const replayRafRef = useRef(null);
 
   const {
     state: recState,
@@ -44,7 +59,7 @@ export default function FloatingMicWidget({
     getBlob,
   } = useAudioRecorder();
 
-  // Laser tracks against the PDF container ref — always enabled during recording
+  // Laser tracks against the PDF container ref — active during recording/paused
   const laserTracker = useLaserTracker({
     containerRef,
     enabled: recState === 'recording' || recState === 'paused',
@@ -58,6 +73,9 @@ export default function FloatingMicWidget({
       setContainerSize({ w: width, h: height });
     });
     obs.observe(containerRef.current);
+    // set immediately
+    const rect = containerRef.current.getBoundingClientRect();
+    setContainerSize({ w: rect.width, h: rect.height });
     return () => obs.disconnect();
   }, [containerRef]);
 
@@ -69,7 +87,6 @@ export default function FloatingMicWidget({
         setShowPanel(false);
       }
     };
-    // slight delay so the click that opened it doesn't immediately close it
     const t = setTimeout(() => document.addEventListener('mousedown', handler), 100);
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
   }, [showPanel]);
@@ -77,15 +94,16 @@ export default function FloatingMicWidget({
   // Drag handling
   const dragging = useRef(false);
   const dragStart = useRef({ mouseX: 0, mouseY: 0, posX: 0, posY: 0 });
+  const hasSavedAudio = !!savedAudioUrl;
 
   const onDragStart = useCallback((e) => {
-    if (locked) return;
+    if (hasSavedAudio) return; // locked once saved
     e.preventDefault();
     dragging.current = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStart.current = { mouseX: clientX, mouseY: clientY, posX: pos.x, posY: pos.y };
-  }, [locked, pos]);
+  }, [hasSavedAudio, pos]);
 
   const onDragMove = useCallback((e) => {
     if (!dragging.current || !containerRef?.current) return;
@@ -124,7 +142,6 @@ export default function FloatingMicWidget({
   const handleStop = () => {
     stopRecording();
     laserTracker.stopRecordingLaser();
-    // Auto-save after a tick for blob to finalize
     setTimeout(() => doSave(), 150);
   };
 
@@ -132,50 +149,138 @@ export default function FloatingMicWidget({
     const blob = getBlob();
     if (!blob) return;
     setUploading(true);
+
+    // Snapshot current strokes from the canvas before saving
+    const snapshot = canvasRef?.current?.getStrokes() || null;
+
     const file = new File([blob], `mic-note-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const ld = laserTracker.getLaserData();
+
     setSavedAudioUrl(file_url);
     setLaserData(ld);
-    setLocked(true);
+    setStrokeSnapshot(snapshot);
     setUploading(false);
     resetRecorder();
     laserTracker.clearLaser();
+
     onSave?.({
       ...note,
       x_pct: pos.x,
       y_pct: pos.y,
       audio_url: file_url,
       laser_data: JSON.stringify(ld),
+      stroke_snapshot: JSON.stringify(snapshot),
     });
   };
 
   const handleReRecord = () => {
     setSavedAudioUrl(null);
     setLaserData([]);
-    setLocked(false);
+    setStrokeSnapshot(null);
     setShowReplay(false);
+    stopStrokeReplay();
     resetRecorder();
   };
 
-  const handlePlayReplay = () => {
+  // ── Stroke replay logic ──────────────────────────────────────────────────
+  const stopStrokeReplay = useCallback(() => {
+    cancelAnimationFrame(replayRafRef.current);
+    // Restore full strokes
+    if (canvasRef?.current && strokeSnapshot) {
+      canvasRef.current.loadStrokes(strokeSnapshot);
+    }
+    setShowReplay(false);
+  }, [canvasRef, strokeSnapshot]);
+
+  const handlePlayReplay = useCallback(() => {
+    if (!savedAudioUrl) return;
     setShowReplay(true);
+
+    // Clear canvas to start replay from blank
+    if (canvasRef?.current) {
+      canvasRef.current.clearStrokes();
+    }
+
+    // Start audio
     setTimeout(() => {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => {});
       }
-    }, 50);
-  };
+    }, 30);
 
-  const handleStopReplay = () => {
+    // Animate strokes by timestamp during playback
+    if (strokeSnapshot?.strokes?.length > 0) {
+      // Build a flat sorted list of {stroke, ptIndex, absoluteT}
+      // t on pts is Date.now() timestamps; find earliest t to normalize
+      const allStrokes = strokeSnapshot.strokes;
+      const minT = Math.min(...allStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0));
+
+      const playbackStart = Date.now();
+      const strokesProgress = allStrokes.map(() => 0); // how many pts drawn per stroke
+
+      const animate = () => {
+        const elapsed = Date.now() - playbackStart;
+        let changed = false;
+
+        allStrokes.forEach((stroke, si) => {
+          const prevCount = strokesProgress[si];
+          // Count how many pts have t <= elapsed (normalized)
+          let newCount = 0;
+          for (let pi = 0; pi < stroke.pts.length; pi++) {
+            const pt = stroke.pts[pi];
+            const ptT = (pt.t || 0) > 0 ? (pt.t - minT) : (pi * 16); // fallback: 60fps spacing
+            if (ptT <= elapsed) newCount = pi + 1;
+            else break;
+          }
+          if (newCount !== prevCount) {
+            strokesProgress[si] = newCount;
+            changed = true;
+          }
+        });
+
+        if (changed && canvasRef?.current) {
+          // Build partial strokes
+          const partialStrokes = allStrokes
+            .map((s, si) => strokesProgress[si] > 0
+              ? { ...s, pts: s.pts.slice(0, strokesProgress[si]) }
+              : null
+            )
+            .filter(Boolean);
+          canvasRef.current.loadStrokes({ ...strokeSnapshot, strokes: partialStrokes });
+        }
+
+        // Check if audio ended or all strokes are done
+        const audioEl = audioRef.current;
+        if (audioEl && audioEl.ended) return; // onEnded will handle cleanup
+        replayRafRef.current = requestAnimationFrame(animate);
+      };
+
+      replayRafRef.current = requestAnimationFrame(animate);
+    }
+  }, [savedAudioUrl, strokeSnapshot, canvasRef]);
+
+  const handleStopReplay = useCallback(() => {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+    stopStrokeReplay();
+  }, [stopStrokeReplay]);
+
+  const handleAudioEnded = useCallback(() => {
+    cancelAnimationFrame(replayRafRef.current);
+    // Restore all strokes
+    if (canvasRef?.current && strokeSnapshot) {
+      canvasRef.current.loadStrokes(strokeSnapshot);
+    }
     setShowReplay(false);
-  };
+  }, [canvasRef, strokeSnapshot]);
+
+  // Cleanup on unmount
+  useEffect(() => () => cancelAnimationFrame(replayRafRef.current), []);
 
   const isTeacher = role === 'teacher';
   const icon = isTeacher ? '🔊' : '🎙';
-  const iconColor = isTeacher ? '#f59e0b' : (recState === 'recording' ? '#ef4444' : '#4338ca');
+  const iconBg = isTeacher ? '#f59e0b' : (recState === 'recording' ? '#ef4444' : '#4338ca');
   const pixelX = pos.x * containerSize.w;
   const pixelY = pos.y * containerSize.h;
 
@@ -189,7 +294,7 @@ export default function FloatingMicWidget({
           top: pixelY,
           transform: 'translate(-50%, -50%)',
           zIndex: 30,
-          cursor: locked ? 'pointer' : 'grab',
+          cursor: hasSavedAudio ? 'pointer' : 'grab',
           userSelect: 'none',
           touchAction: 'none',
         }}
@@ -201,7 +306,7 @@ export default function FloatingMicWidget({
           animate={{ scale: recState === 'recording' ? [1, 1.15, 1] : 1 }}
           transition={{ repeat: recState === 'recording' ? Infinity : 0, duration: 0.8 }}
           style={{
-            width: 44, height: 44, borderRadius: '50%', background: iconColor,
+            width: 44, height: 44, borderRadius: '50%', background: iconBg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 22,
             boxShadow: recState === 'recording' ? '0 0 16px rgba(239,68,68,0.8)' : '0 4px 12px rgba(0,0,0,0.4)',
@@ -253,11 +358,11 @@ export default function FloatingMicWidget({
               <p style={{ color: '#e0e7ff', fontSize: 11, marginBottom: 8, fontStyle: 'italic' }}>{note.label}</p>
             )}
 
-            {/* Saved recording — replay button */}
+            {/* Saved: show replay button */}
             {savedAudioUrl && (
               <div className="mb-2 flex flex-col gap-1">
                 {!showReplay ? (
-                  <button onClick={handlePlayReplay}
+                  <button onClick={() => { setShowPanel(false); handlePlayReplay(); }}
                     style={{ width: '100%', padding: '8px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
                     ▶ Play Recording
                   </button>
@@ -268,16 +373,16 @@ export default function FloatingMicWidget({
                   </button>
                 )}
                 {laserData.length > 0 && (
-                  <p style={{ color: '#818cf8', fontSize: 10 }}>🔴 Laser replays while playing</p>
+                  <p style={{ color: '#818cf8', fontSize: 10 }}>🔴 Laser + drawings replay while playing</p>
                 )}
               </div>
             )}
 
-            {/* Hidden audio element for replay */}
+            {/* Hidden audio element */}
             <audio ref={audioRef} src={savedAudioUrl || ''} style={{ display: 'none' }}
-              onEnded={() => setShowReplay(false)} />
+              onEnded={handleAudioEnded} />
 
-            {/* Recording controls (student only) */}
+            {/* Recording controls (not readOnly) */}
             {!readOnly && (
               <>
                 {recState === 'idle' && !savedAudioUrl && (
@@ -316,7 +421,6 @@ export default function FloatingMicWidget({
                   </div>
                 )}
 
-                {/* Auto-saving spinner */}
                 {(recState === 'stopped' || uploading) && (
                   <div style={{ padding: '8px 0', color: '#a5b4fc', fontWeight: 'bold', fontSize: 13, textAlign: 'center' }}>
                     ⏳ Saving…
@@ -342,7 +446,7 @@ export default function FloatingMicWidget({
         )}
       </AnimatePresence>
 
-      {/* Laser replay overlay */}
+      {/* Laser replay overlay — shown during playback */}
       {savedAudioUrl && laserData.length > 0 && showReplay && (
         <LaserReplayOverlay
           laserData={laserData}
@@ -352,7 +456,7 @@ export default function FloatingMicWidget({
         />
       )}
 
-      {/* Live laser overlay during recording */}
+      {/* Live laser overlay — shown during active recording */}
       {(recState === 'recording' || recState === 'paused') && (
         <LaserOverlay
           trailPoints={laserTracker.trailPoints}
