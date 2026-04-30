@@ -7,6 +7,8 @@ import AnnotationToolbar from '@/components/notebook/AnnotationToolbar';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
+import TeacherStoryDashboard from '@/components/story/TeacherStoryDashboard';
+import StoryPageBackground from '@/components/story/StoryPageBackground';
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -20,76 +22,7 @@ const TEMPLATES = [
   { id: 'border', label: '🖼 Border' },
 ];
 
-function PageBackground({ template, width, height }) {
-  switch (template) {
-    case 'lined': {
-      const lineCount = 14;
-      const lineSpacing = height / (lineCount + 1);
-      return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
-          {Array.from({ length: lineCount }, (_, i) => (
-            <line key={i} x1={30} y1={(i + 1) * lineSpacing} x2={width - 10} y2={(i + 1) * lineSpacing} stroke="#aaaadd" strokeWidth="1" />
-          ))}
-          <line x1={52} y1={0} x2={52} y2={height} stroke="#ffaaaa" strokeWidth="1.5" />
-        </svg>
-      );
-    }
-    case 'half_image_top': {
-      const midY = height / 2;
-      return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
-          <rect x={0} y={0} width={width} height={midY} fill="#f0f0f0" stroke="#cccccc" strokeWidth="1" />
-          <text x={width / 2} y={midY / 2 + 10} textAnchor="middle" fill="#aaaaaa" fontSize={14}>Draw here</text>
-          {Array.from({ length: 7 }, (_, i) => (
-            <line key={i} x1={30} y1={midY + (i + 1) * (midY / 8)} x2={width - 10} y2={midY + (i + 1) * (midY / 8)} stroke="#aaaadd" strokeWidth="1" />
-          ))}
-          <line x1={52} y1={midY} x2={52} y2={height} stroke="#ffaaaa" strokeWidth="1.5" />
-        </svg>
-      );
-    }
-    case 'half_image_bottom': {
-      const midY = height / 2;
-      return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
-          {Array.from({ length: 7 }, (_, i) => (
-            <line key={i} x1={30} y1={(i + 1) * (midY / 8)} x2={width - 10} y2={(i + 1) * (midY / 8)} stroke="#aaaadd" strokeWidth="1" />
-          ))}
-          <line x1={52} y1={0} x2={52} y2={midY} stroke="#ffaaaa" strokeWidth="1.5" />
-          <rect x={0} y={midY} width={width} height={midY} fill="#f0f0f0" stroke="#cccccc" strokeWidth="1" />
-          <text x={width / 2} y={midY + midY / 2 + 10} textAnchor="middle" fill="#aaaaaa" fontSize={14}>Draw here</text>
-        </svg>
-      );
-    }
-    case 'border':
-      return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
-          <rect x={10} y={10} width={width - 20} height={height - 20} fill="none" stroke="#4338ca" strokeWidth="3" rx={8} />
-          <rect x={18} y={18} width={width - 36} height={height - 36} fill="none" stroke="#818cf8" strokeWidth="1" rx={5} />
-        </svg>
-      );
-    case 'story_web': {
-      const cx = width / 2, cy = height / 2;
-      return (
-        <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={width} height={height}>
-          <circle cx={cx} cy={cy} r={50} fill="#f0f0ff" stroke="#818cf8" strokeWidth="1.5" />
-          <text x={cx} y={cy + 5} textAnchor="middle" fill="#818cf8" fontSize={12}>Topic</text>
-          {[0, 60, 120, 180, 240, 300].map((angle, i) => {
-            const rad = (angle * Math.PI) / 180;
-            const nx = cx + 130 * Math.cos(rad), ny = cy + 130 * Math.sin(rad);
-            return (
-              <g key={i}>
-                <line x1={cx + 50 * Math.cos(rad)} y1={cy + 50 * Math.sin(rad)} x2={nx} y2={ny} stroke="#c4b5fd" strokeWidth="1" />
-                <circle cx={nx} cy={ny} r={35} fill="#fdf4ff" stroke="#a78bfa" strokeWidth="1.5" />
-              </g>
-            );
-          })}
-        </svg>
-      );
-    }
-    default:
-      return null;
-  }
-}
+
 
 function StudentLogin({ onEnter, preselectedClass }) {
   const [className, setClassName] = useState(preselectedClass || null);
@@ -145,12 +78,21 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const laserTrackerRef = useRef(laserTracker);
   useEffect(() => { laserTrackerRef.current = laserTracker; });
 
-  // Resize canvas to fit outer container
+  // Resize canvas — save strokes first so orientation changes don't lose work
   useEffect(() => {
     if (!containerRef.current) return;
     const obs = new ResizeObserver(e => {
       const { width } = e[0].contentRect;
       const w = Math.max(300, width - 60);
+      // Save current strokes before dimensions change
+      if (canvasRef.current) {
+        const strokeData = canvasRef.current.getStrokes();
+        setPages(prev => prev.map((p, i) =>
+          i === currentPageIdxRef.current
+            ? { ...p, strokes_data: JSON.stringify({ ...strokeData, normalized: true }) }
+            : p
+        ));
+      }
       setCanvasSize({ w, h: Math.round(w * 1.3) });
     });
     obs.observe(containerRef.current);
@@ -331,7 +273,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
               ref={canvasWrapperRef}
               style={{ position: 'relative', width: canvasSize.w, height: canvasSize.h, background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', flexShrink: 0 }}
             >
-              <PageBackground template={currentPage?.template} width={canvasSize.w} height={canvasSize.h} />
+              <StoryPageBackground template={currentPage?.template} width={canvasSize.w} height={canvasSize.h} />
 
               <AnnotationCanvas
                 ref={canvasRef}
@@ -402,6 +344,7 @@ export default function StoryBuilder() {
   const params = new URLSearchParams(window.location.search);
   const urlClass = params.get('class');
   const urlNumber = parseInt(params.get('number') || params.get('student'));
+  const isTeacher = params.get('teacher') === 'true';
 
   const [studentInfo, setStudentInfo] = useState(null);
   const [selectedStory, setSelectedStory] = useState(null);
@@ -447,6 +390,10 @@ export default function StoryBuilder() {
     });
     refetch();
   };
+
+  if (isTeacher) {
+    return <TeacherStoryDashboard onBack={() => window.history.back()} />;
+  }
 
   if (selectedStory && studentInfo) {
     return (
