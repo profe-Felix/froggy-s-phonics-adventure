@@ -38,16 +38,31 @@ function StudentSessionCard({ session, book, onReview }) {
   );
 }
 
-function ReviewModal({ session, recording, book, onClose }) {
+function ReviewModal({ session, initialRecording, book, onClose }) {
   const audioRef = useRef(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
-  const isSpread = !!recording.is_spread;
   const totalPages = book.pdf_page_count || 1;
+
+  // All recordings for this session, sorted by page
+  const allRecs = [...(session.recordings || [])].sort((a, b) => a.page - b.page);
+  const [recIdx, setRecIdx] = useState(() => {
+    const i = allRecs.findIndex(r => r.page === initialRecording.page);
+    return i >= 0 ? i : 0;
+  });
+  const recording = allRecs[recIdx] || initialRecording;
+  const isSpread = !!recording.is_spread;
 
   const laserData = recording.laser_data
     ? (typeof recording.laser_data === 'string' ? JSON.parse(recording.laser_data) : recording.laser_data)
     : [];
+
+  // Reset audio when recording changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.load();
+    }
+  }, [recIdx]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -66,14 +81,20 @@ function ReviewModal({ session, recording, book, onClose }) {
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <div style={{ width: '100%', height: '100%' }}><PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" /></div>;
+    // Match exactly how StudentBookReader renders: centered with contain fit inside each half
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#1a1a1a' }}>
+        <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />
+      </div>
+    );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }} onClick={onClose}>
       <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}
         className="rounded-2xl overflow-hidden flex flex-col w-full max-w-4xl"
-        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '90vh' }}>
+        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '90vh' }}
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: '#042f2e', borderBottom: '1px solid #0d9488' }}>
           <p className="font-black text-white">
             Student #{session.student_number} — {isSpread && recording.page + 1 <= totalPages ? `Pages ${recording.page}–${recording.page + 1}` : `Page ${recording.page}`}
@@ -81,22 +102,25 @@ function ReviewModal({ session, recording, book, onClose }) {
           <button onClick={onClose} className="text-teal-300 font-bold text-lg">✕</button>
         </div>
 
-        {/* Page display — mirrors 1-up or 2-up exactly as recorded */}
+        {/* Page display — mirrors StudentBookReader layout exactly */}
         <div className="relative flex-1 overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a', minHeight: 320 }}>
           <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
             {isSpread ? (
               <>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+                <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                   {renderPage(recording.page)}
                 </div>
                 {recording.page + 1 <= totalPages && (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
-                    {renderPage(recording.page + 1)}
-                  </div>
+                  <>
+                    <div style={{ width: 4, background: '#1a1a1a', flexShrink: 0 }} />
+                    <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+                      {renderPage(recording.page + 1)}
+                    </div>
+                  </>
                 )}
               </>
             ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+              <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                 {renderPage(recording.page)}
               </div>
             )}
@@ -112,10 +136,29 @@ function ReviewModal({ session, recording, book, onClose }) {
           </div>
         </div>
 
-        <div className="p-3 shrink-0" style={{ background: '#042f2e', borderTop: '1px solid #0d9488' }}>
+        <div className="p-3 shrink-0 flex flex-col gap-2" style={{ background: '#042f2e', borderTop: '1px solid #0d9488' }}>
           <audio ref={audioRef} controls src={recording.audio_url} className="w-full" />
           {laserData.length > 0 && (
-            <p className="text-teal-400 text-xs mt-1">🔴 Laser replays in sync with audio{isSpread ? ' — recorded in 2-page spread view' : ''}</p>
+            <p className="text-teal-400 text-xs">🔴 Laser replays in sync with audio{isSpread ? ' — recorded in 2-page spread view' : ''}</p>
+          )}
+          {allRecs.length > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRecIdx(i => Math.max(0, i - 1))}
+                disabled={recIdx === 0}
+                className="px-4 py-1.5 rounded-xl font-bold text-white disabled:opacity-30 text-sm"
+                style={{ background: '#0d9488' }}
+              >‹ Prev</button>
+              <span className="flex-1 text-center text-teal-300 text-xs font-bold">
+                Recording {recIdx + 1} of {allRecs.length}
+              </span>
+              <button
+                onClick={() => setRecIdx(i => Math.min(allRecs.length - 1, i + 1))}
+                disabled={recIdx === allRecs.length - 1}
+                className="px-4 py-1.5 rounded-xl font-bold text-white disabled:opacity-30 text-sm"
+                style={{ background: '#0d9488' }}
+              >Next ›</button>
+            </div>
           )}
         </div>
       </motion.div>
@@ -182,7 +225,7 @@ export default function BookStudentGrid({ book, className, reviewDate }) {
       {reviewing && (
         <ReviewModal
           session={reviewing.session}
-          recording={reviewing.recording}
+          initialRecording={reviewing.recording}
           book={book}
           onClose={() => setReviewing(null)}
         />
