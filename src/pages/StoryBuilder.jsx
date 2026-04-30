@@ -133,7 +133,10 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     loadedKeyRef.current = key;
 
     const activeStory = latestStoryRef.current || story;
-    const pageData = activeStory.strokes_by_page?.[String(currentPageIdx)];
+    const pageData =
+      activeStory.strokes_by_page?.[String(currentPageIdx)] ||
+      activeStory.pages?.[currentPageIdx]?.strokes_data ||
+      currentPage?.strokes_data;
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
     if (localDraft) {
@@ -162,7 +165,9 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     }
   }, [currentPageIdx, story.id, draftKey, currentPage, canvasSize.w]);
 
-  // Save current strokes — stable refs so saves do not overwrite newer story data
+  // Save current strokes — save in BOTH places:
+  // 1. strokes_by_page for teacher/replay systems
+  // 2. pages[n].strokes_data because StoryAssignment already uses pages
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
 
@@ -196,28 +201,41 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
         normalized: true,
       };
 
-      const updated = {
+      const payloadString = JSON.stringify(payload);
+
+      const updatedStrokesByPage = {
         ...(activeStory.strokes_by_page || {}),
-        [String(savePage)]: JSON.stringify(payload),
+        [String(savePage)]: payloadString,
       };
 
-      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
+      const updatedPages = (pages || []).map((page, idx) =>
+        idx === savePage
+          ? { ...page, strokes_data: payloadString }
+          : page
+      );
+
+      localStorage.setItem(saveDraftKey, payloadString);
 
       const nextStory = {
         ...activeStory,
-        pages,
-        strokes_by_page: updated,
+        pages: updatedPages,
+        strokes_by_page: updatedStrokesByPage,
         last_active: new Date().toISOString(),
       };
 
       latestStoryRef.current = nextStory;
-      // Save to database immediately, not just to onSaveRef callback
+      setPages(updatedPages);
+
       await base44.entities.StoryAssignment.update(activeStory.id, {
-        pages: nextStory.pages || [],
-        strokes_by_page: nextStory.strokes_by_page || {},
+        pages: updatedPages,
+        strokes_by_page: updatedStrokesByPage,
         voice_notes_by_page: nextStory.voice_notes_by_page || {},
+        status: nextStory.status || 'in_progress',
         last_active: nextStory.last_active,
       });
+
+      localStorage.removeItem(saveDraftKey);
+      
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
@@ -600,22 +618,26 @@ export default function StoryBuilder(props = {}) {
   const saveStory = async (storyData) => {
     if (!selectedStory) return;
 
-    await base44.entities.StoryAssignment.update(selectedStory.id, {
-      pages: storyData.pages || [],
-      strokes_by_page: storyData.strokes_by_page || {},
-      voice_notes_by_page: storyData.voice_notes_by_page || {},
-      status: storyData.status || 'in_progress',
-      last_active: storyData.last_active || new Date().toISOString(),
-    });
-
-    setSelectedStory({
+    const nextStory = {
       ...selectedStory,
       ...storyData,
+      pages: storyData.pages || selectedStory.pages || [],
       strokes_by_page: storyData.strokes_by_page || selectedStory.strokes_by_page || {},
       voice_notes_by_page: storyData.voice_notes_by_page || selectedStory.voice_notes_by_page || {},
+      status: storyData.status || selectedStory.status || 'in_progress',
+      last_active: storyData.last_active || new Date().toISOString(),
+    };
+
+    await base44.entities.StoryAssignment.update(selectedStory.id, {
+      pages: nextStory.pages,
+      strokes_by_page: nextStory.strokes_by_page,
+      voice_notes_by_page: nextStory.voice_notes_by_page,
+      status: nextStory.status,
+      last_active: nextStory.last_active,
     });
 
-    await refetch();
+    setSelectedStory(nextStory);
+    refetch();
   };
 
   if (isTeacher) {
@@ -678,7 +700,10 @@ export default function StoryBuilder(props = {}) {
 
         <div className="flex flex-col gap-3">
           {stories.map(s => (
-            <motion.button key={s.id} whileTap={{ scale: 0.98 }} onClick={() => setSelectedStory(s)}
+            <motion.button key={s.id} whileTap={{ scale: 0.98 }} onClick={async () => {
+              const fresh = await base44.entities.StoryAssignment.get(s.id);
+              setSelectedStory(fresh || s);
+            }}
               className="rounded-2xl p-4 text-left flex items-center gap-3"
               style={{ background: '#1a1a2e', border: '1px solid #7c3aed' }}>
               <span className="text-3xl">📖</span>
