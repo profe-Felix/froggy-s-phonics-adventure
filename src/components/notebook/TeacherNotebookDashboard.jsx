@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import LaserRecordView from './LaserRecordView';
+import TeacherInstructionAnnotator from './TeacherInstructionAnnotator';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReplayModal from './ReplayModal';
 import StudentThumbnail from './StudentThumbnail';
@@ -8,78 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
 
-function AudioRecorder({ onSave, onCancel }) {
-  const [recording, setRecording] = useState(false);
-  const [blob, setBlob] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const mediaRef = useRef(null);
-  const chunksRef = useRef([]);
 
-  const start = async () => {
-    chunksRef.current = [];
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRef.current = new MediaRecorder(stream);
-    mediaRef.current.ondataavailable = e => chunksRef.current.push(e.data);
-    mediaRef.current.onstop = () => {
-      const b = new Blob(chunksRef.current, { type: 'audio/webm' });
-      setBlob(b);
-      setAudioUrl(URL.createObjectURL(b));
-    };
-    mediaRef.current.start();
-    setRecording(true);
-  };
-
-  const stop = () => { mediaRef.current?.stop(); setRecording(false); };
-
-  const handleSave = async () => {
-    if (!blob) return;
-    const file = new File([blob], 'instruction.webm', { type: 'audio/webm' });
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    onSave(file_url);
-  };
-
-  return (
-    <div className="p-4 rounded-2xl bg-indigo-900 border border-indigo-500 flex flex-col gap-3">
-      <p className="text-white font-bold text-sm">🎙 Record Audio Instruction</p>
-      {!blob && (
-        <button onClick={recording ? stop : start}
-          className={`py-2 rounded-xl font-bold text-white ${recording ? 'bg-red-600 animate-pulse' : 'bg-indigo-600'}`}>
-          {recording ? '⏹ Stop Recording' : '🎙 Start Recording'}
-        </button>
-      )}
-      {audioUrl && (
-        <>
-          <audio controls src={audioUrl} className="w-full" />
-          <div className="flex gap-2">
-            <button onClick={handleSave} className="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold">Save</button>
-            <button onClick={onCancel} className="flex-1 py-2 rounded-xl bg-gray-600 text-white font-bold">Cancel</button>
-          </div>
-        </>
-      )}
-      {!blob && !recording && (
-        <button onClick={onCancel} className="py-2 rounded-xl bg-gray-700 text-white font-bold">Cancel</button>
-      )}
-    </div>
-  );
-}
-
-function VideoUrlInput({ onSave, onCancel }) {
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  return (
-    <div className="p-4 rounded-2xl bg-indigo-900 border border-indigo-500 flex flex-col gap-3">
-      <p className="text-white font-bold text-sm">🎬 Add Video Instruction</p>
-      <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (e.g. Letter Formation)"
-        className="px-3 py-2 rounded-xl bg-indigo-800 text-white border border-indigo-500 text-sm" />
-      <input value={url} onChange={e => setUrl(e.target.value)} placeholder="YouTube or video URL"
-        className="px-3 py-2 rounded-xl bg-indigo-800 text-white border border-indigo-500 text-sm" />
-      <div className="flex gap-2">
-        <button onClick={() => url && onSave(url, label)} className="flex-1 py-2 rounded-xl bg-green-600 text-white font-bold disabled:opacity-40" disabled={!url}>Save</button>
-        <button onClick={onCancel} className="flex-1 py-2 rounded-xl bg-gray-600 text-white font-bold">Cancel</button>
-      </div>
-    </div>
-  );
-}
 
 function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
   const page = session.current_page || 1;
@@ -117,9 +47,6 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [showAudio, setShowAudio] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
-  const [audioPage, setAudioPage] = useState(1);
   const [videoBroadcast, setVideoBroadcast] = useState('');
   const [globalViewPage, setGlobalViewPage] = useState(null);
   const [replaySession, setReplaySession] = useState(null);
@@ -187,24 +114,12 @@ export default function TeacherNotebookDashboard({ onBack }) {
     qc.invalidateQueries(['notebook-assignments', className]);
   };
 
-  const handleSaveAudio = async (url) => {
-    const existing = selectedAssignment.audio_instructions || [];
+  const handleSaveInstructions = async (instructions) => {
     await updateAssignment.mutateAsync({
       id: selectedAssignment.id,
-      data: { audio_instructions: [...existing, { page: audioPage, url, label: `Page ${audioPage} instruction` }] }
+      data: { audio_instructions: instructions }
     });
-    setShowAudio(false);
-    const refreshed = assignments.find(a => a.id === selectedAssignment.id);
-    if (refreshed) setSelectedAssignment(refreshed);
-  };
-
-  const handleSaveVideo = async (url, label) => {
-    const existing = selectedAssignment.video_instructions || [];
-    await updateAssignment.mutateAsync({
-      id: selectedAssignment.id,
-      data: { video_instructions: [...existing, { page: audioPage, url, label: label || 'Video', type: 'url' }] }
-    });
-    setShowVideo(false);
+    setSelectedAssignment(a => ({ ...a, audio_instructions: instructions }));
   };
 
   useEffect(() => {
@@ -214,37 +129,26 @@ export default function TeacherNotebookDashboard({ onBack }) {
   }, [selectedAssignment?.id]);
 
   const setPageMode = (mode) => {
-  if (!selectedAssignment) return;
-
-  const effectiveTotalPages =
-    selectedAssignment.pdf_page_count ||
-    selectedAssignment.page_count ||
-    selectedAssignment.page_range_end ||
-    1;
-
-  const safeLockedPage = Math.max(
-    1,
-    Math.min(
-      effectiveTotalPages,
-      selectedAssignment.locked_page ||
-      selectedAssignment.page_range_start ||
-      selectedAssignment.current_page ||
-      1
-    )
-  );
-
-  const data =
-    mode === 'locked'
+    if (!selectedAssignment) return;
+    const effectiveTotalPagesLocal =
+      selectedAssignment.pdf_page_count ||
+      selectedAssignment.page_count ||
+      selectedAssignment.page_range_end ||
+      1;
+    const safeLockedPage = Math.max(1, Math.min(effectiveTotalPagesLocal,
+      selectedAssignment.locked_page || selectedAssignment.page_range_start || 1));
+    // When switching to free: clear locked_page so students aren't force-navigated away
+    const data = mode === 'locked'
       ? { page_mode: mode, locked_page: safeLockedPage }
-      : { page_mode: mode };
-
-  updateAssignment.mutate({ id: selectedAssignment.id, data });
-  setSelectedAssignment(a => ({ ...a, ...data }));
-};
+      : { page_mode: mode, locked_page: null };
+    updateAssignment.mutate({ id: selectedAssignment.id, data });
+    setSelectedAssignment(a => ({ ...a, ...data }));
+  };
 
   const setLockedPage = (page) => {
-    updateAssignment.mutate({ id: selectedAssignment.id, data: { locked_page: page } });
-    setSelectedAssignment(a => ({ ...a, locked_page: page }));
+    const clamped = Math.max(1, Math.min(effectiveTotalPages, page));
+    updateAssignment.mutate({ id: selectedAssignment.id, data: { locked_page: clamped } });
+    setSelectedAssignment(a => ({ ...a, locked_page: clamped }));
   };
 
   const setStatus = (status) => {
@@ -415,16 +319,29 @@ export default function TeacherNotebookDashboard({ onBack }) {
                       <div className="flex items-center gap-2">
                         <button
                           disabled={(selectedAssignment.locked_page || 1) <= 1}
-                          onClick={() => setLockedPage(Math.max(1, (selectedAssignment.locked_page || 1) - 1))}
+                          onClick={() => setLockedPage((selectedAssignment.locked_page || 1) - 1)}
                           className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30 transition-all hover:scale-105"
                           style={{ background: '#4338ca' }}
                         >‹</button>
-                        <span className="text-white font-black text-xl w-16 text-center">
-                          {selectedAssignment.locked_page || 1}
-                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={effectiveTotalPages}
+                          value={selectedAssignment.locked_page || 1}
+                          onChange={e => {
+                            const v = parseInt(e.target.value);
+                            if (!isNaN(v)) setSelectedAssignment(a => ({ ...a, locked_page: v }));
+                          }}
+                          onBlur={e => {
+                            const v = parseInt(e.target.value);
+                            if (!isNaN(v)) setLockedPage(v);
+                          }}
+                          className="w-20 text-center px-2 py-1.5 rounded-xl border border-indigo-500 text-white font-black text-lg"
+                          style={{ background: '#0f0f1a' }}
+                        />
                         <button
                           disabled={(selectedAssignment.locked_page || 1) >= effectiveTotalPages}
-                          onClick={() => setLockedPage(Math.min(effectiveTotalPages, (selectedAssignment.locked_page || 1) + 1))}
+                          onClick={() => setLockedPage((selectedAssignment.locked_page || 1) + 1)}
                           className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30 transition-all hover:scale-105"
                           style={{ background: '#4338ca' }}
                         >›</button>
@@ -495,33 +412,12 @@ export default function TeacherNotebookDashboard({ onBack }) {
                 </div>
 
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
-                  <p className="text-indigo-200 font-bold text-sm">Instructions</p>
-                  <div className="flex items-center gap-2">
-                    <label className="text-indigo-300 text-xs">For page:</label>
-                    <input type="number" min="1" value={audioPage} onChange={e => setAudioPage(parseInt(e.target.value))}
-                      className="w-16 px-2 py-1 rounded-lg border border-indigo-500 text-white text-center text-sm"
-                      style={{ background: '#0f0f1a' }} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowAudio(true)} className="flex-1 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#4338ca' }}>🎙 Record Audio</button>
-                    <button onClick={() => setShowVideo(true)} className="flex-1 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#9333ea' }}>🎬 Add Video</button>
-                  </div>
-
-                  {showAudio && <AudioRecorder onSave={handleSaveAudio} onCancel={() => setShowAudio(false)} />}
-                  {showVideo && <VideoUrlInput onSave={handleSaveVideo} onCancel={() => setShowVideo(false)} />}
-
-                  {(selectedAssignment.audio_instructions || []).map((ai, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#0f0f1a' }}>
-                      <span className="text-xs text-indigo-300">Pg {ai.page}:</span>
-                      <audio controls src={ai.url} className="flex-1 h-8" />
-                    </div>
-                  ))}
-                  {(selectedAssignment.video_instructions || []).map((vi, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#0f0f1a' }}>
-                      <span className="text-xs text-indigo-300">Pg {vi.page}:</span>
-                      <span className="text-xs text-white flex-1 truncate">{vi.label}</span>
-                    </div>
-                  ))}
+                  <p className="text-indigo-200 font-bold text-sm">🔊 Instructions — Place speaker icons on the PDF</p>
+                  <p className="text-indigo-400 text-xs">Students tap the icons to hear your instruction and see your laser pointer replay.</p>
+                  <TeacherInstructionAnnotator
+                    assignment={selectedAssignment}
+                    onSave={handleSaveInstructions}
+                  />
                 </div>
 
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>

@@ -1,29 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
-import LaserOverlay from '@/components/notebook/LaserOverlay';
-import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
+import PdfPageRenderer from './PdfPageRenderer';
+import LaserOverlay from './LaserOverlay';
+import LaserReplayOverlay from './LaserReplayOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
- * A single floating speaker icon on the annotation canvas.
- * Teacher: can record/re-record. Shows full widget panel.
+ * Single floating speaker icon for teacher instruction placement.
+ * Identical UX to FloatingMicWidget but for teacher-side annotation of notebook assignments.
  */
-function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, recState, isEditing, onSetEditing }) {
+function InstructionIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, isEditing, onSetEditing }) {
   const [showPanel, setShowPanel] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [liveAudioUrl, setLiveAudioUrl] = useState(null);
-  const panelRef = useRef(null);
-  const audioRef = useRef(null);
   const [showReplay, setShowReplay] = useState(false);
-  const [laserData] = useState(() => {
+  const [currentLaserData, setCurrentLaserData] = useState(() => {
     if (!ann.laser_data) return [];
     try { return typeof ann.laser_data === 'string' ? JSON.parse(ann.laser_data) : ann.laser_data; }
     catch { return []; }
   });
-  const [currentLaserData, setCurrentLaserData] = useState(laserData);
+  const panelRef = useRef(null);
+  const audioRef = useRef(null);
 
   const {
     state, elapsed, formatTime,
@@ -31,13 +29,10 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
     reset: resetRecorder, getBlob, audioUrl,
   } = useAudioRecorder();
 
-  // Click-away to close panel
   useEffect(() => {
     if (!showPanel) return;
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
-        setShowPanel(false);
-      }
+      if (panelRef.current && !panelRef.current.contains(e.target)) setShowPanel(false);
     };
     const t = setTimeout(() => document.addEventListener('mousedown', handler), 100);
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
@@ -58,7 +53,7 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
     const blob = getBlob();
     if (!blob) return;
     setUploading(true);
-    const file = new File([blob], `teacher-ann-${Date.now()}.webm`, { type: 'audio/webm' });
+    const file = new File([blob], `nb-instr-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     const ld = laserTracker.getLaserData();
     setCurrentLaserData(ld);
@@ -69,19 +64,11 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
     onUpdate({ ...ann, audio_url: file_url, laser_data: ld });
   };
 
-  const handleReRecord = () => {
-    resetRecorder();
-    setShowReplay(false);
-  };
-
   const handlePlayReplay = () => {
     setShowReplay(true);
     setShowPanel(false);
     setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      }
+      if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); }
     }, 50);
   };
 
@@ -92,7 +79,6 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
 
   return (
     <>
-      {/* Icon button */}
       <div
         style={{
           position: 'absolute', left: px, top: py,
@@ -107,8 +93,7 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
           style={{
             width: 44, height: 44, borderRadius: '50%',
             background: hasAudio ? '#f59e0b' : '#4338ca',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
             border: isEditing ? '3px solid white' : '3px solid rgba(255,255,255,0.3)',
             boxShadow: isRec ? '0 0 16px rgba(239,68,68,0.8)' : '0 4px 12px rgba(0,0,0,0.4)',
           }}
@@ -120,13 +105,10 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
             position: 'absolute', top: -8, right: -8,
             background: '#ef4444', color: 'white', fontSize: 9,
             fontWeight: 'bold', borderRadius: 8, padding: '1px 5px',
-          }}>
-            {formatTime(elapsed)}
-          </div>
+          }}>{formatTime(elapsed)}</div>
         )}
       </div>
 
-      {/* Panel */}
       <AnimatePresence>
         {showPanel && (
           <motion.div
@@ -138,29 +120,22 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
               position: 'absolute',
               left: Math.min(px + 28, containerSize.w - 240),
               top: Math.max(py - 60, 10),
-              zIndex: 50,
-              background: '#0f3d3a',
-              border: '2px solid #0d9488',
-              borderRadius: 16, padding: 14, width: 230,
+              zIndex: 50, background: '#1a1a2e',
+              border: '2px solid #4338ca', borderRadius: 16, padding: 14, width: 230,
               boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
             }}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-2">
-              <span style={{ color: '#5eead4', fontSize: 12, fontWeight: 'bold' }}>🔊 Speaker Annotation</span>
-              <button onClick={() => setShowPanel(false)} style={{ color: '#0d9488', fontWeight: 'bold', fontSize: 14 }}>✕</button>
+              <span style={{ color: '#a5b4fc', fontSize: 12, fontWeight: 'bold' }}>🔊 Instruction</span>
+              <button onClick={() => setShowPanel(false)} style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 14 }}>✕</button>
             </div>
 
-            {ann.label && (
-              <p style={{ color: '#e0e7ff', fontSize: 11, marginBottom: 8, fontStyle: 'italic' }}>{ann.label}</p>
-            )}
-
-            {/* Existing audio */}
             {hasAudio && state === 'idle' && (
               <div style={{ marginBottom: 8 }}>
                 {!showReplay ? (
                   <button onClick={handlePlayReplay}
-                    style={{ width: '100%', padding: '7px 0', background: '#0d9488', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer', marginBottom: 4 }}>
+                    style={{ width: '100%', padding: '7px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer', marginBottom: 4 }}>
                     ▶ Play Recording
                   </button>
                 ) : (
@@ -172,7 +147,6 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
               </div>
             )}
 
-            {/* Recording controls */}
             {state === 'idle' && (
               <button onClick={handleStartRecord}
                 style={{ width: '100%', padding: '7px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
@@ -185,19 +159,15 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
                 <div style={{ flex: 1, padding: '7px 0', background: '#7f1d1d', color: '#fca5a5', borderRadius: 10, fontWeight: 'bold', fontSize: 12, textAlign: 'center' }}>
                   ● {formatTime(elapsed)}
                 </div>
-                <button onClick={pauseRecording}
-                  style={{ flex: 1, padding: '7px 0', background: '#d97706', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏸</button>
-                <button onClick={handleStop}
-                  style={{ flex: 1, padding: '7px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏹</button>
+                <button onClick={pauseRecording} style={{ flex: 1, padding: '7px 0', background: '#d97706', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏸</button>
+                <button onClick={handleStop} style={{ flex: 1, padding: '7px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏹</button>
               </div>
             )}
 
             {state === 'paused' && (
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={resumeRecording}
-                  style={{ flex: 1, padding: '7px 0', background: '#0d9488', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>▶ Resume</button>
-                <button onClick={handleStop}
-                  style={{ flex: 1, padding: '7px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏹</button>
+                <button onClick={resumeRecording} style={{ flex: 1, padding: '7px 0', background: '#4338ca', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>▶ Resume</button>
+                <button onClick={handleStop} style={{ flex: 1, padding: '7px 0', background: '#dc2626', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>⏹</button>
               </div>
             )}
 
@@ -208,7 +178,7 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
                   style={{ padding: '7px 0', background: '#16a34a', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer', opacity: uploading ? 0.6 : 1 }}>
                   {uploading ? '⏳ Saving…' : '💾 Save'}
                 </button>
-                <button onClick={handleReRecord}
+                <button onClick={() => resetRecorder()}
                   style={{ padding: '7px 0', background: '#374151', color: 'white', borderRadius: 10, fontWeight: 'bold', fontSize: 13, border: 'none', cursor: 'pointer' }}>
                   🔄 Re-record
                 </button>
@@ -216,7 +186,7 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
             )}
 
             {(state === 'idle' || isRec) && (
-              <p style={{ color: '#5eead4', fontSize: 10, marginTop: 8 }}>
+              <p style={{ color: '#818cf8', fontSize: 10, marginTop: 8 }}>
                 🔴 Move finger/mouse on page to record laser while speaking
               </p>
             )}
@@ -229,11 +199,9 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
         )}
       </AnimatePresence>
 
-      {/* Hidden audio for replay */}
       <audio ref={audioRef} src={ann.audio_url || ''} style={{ display: 'none' }}
         onEnded={() => setShowReplay(false)} />
 
-      {/* Laser replay overlay */}
       {showReplay && currentLaserData.length > 0 && (
         <LaserReplayOverlay
           laserData={currentLaserData}
@@ -246,20 +214,29 @@ function AnnotationIcon({ ann, containerSize, onUpdate, onRemove, laserTracker, 
   );
 }
 
-export default function TeacherBookAnnotator({ book, onUpdate }) {
+/**
+ * TeacherInstructionAnnotator
+ * Replaces the old audio/video instruction system.
+ * Shows the PDF page, teacher places speaker icons, records audio+laser per icon.
+ * Saves to assignment.audio_instructions as [{id, page, x_pct, y_pct, url, laser_data, label}]
+ */
+export default function TeacherInstructionAnnotator({ assignment, onSave }) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [annotations, setAnnotations] = useState(book.teacher_annotations || []);
+  const [annotations, setAnnotations] = useState(() => {
+    // Load from audio_instructions — support both old {page,url,label} and new {id,page,x_pct,y_pct,url,laser_data}
+    return (assignment.audio_instructions || []).filter(a => a.x_pct !== undefined);
+  });
   const [placing, setPlacing] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
   const [pdfSize, setPdfSize] = useState(null);
+  const [containerSize, setContainerSize] = useState({ w: 600, h: 800 });
 
   const containerRef = useRef(null);
-  const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
-  const pageAnnotations = annotations.filter(a => a.page === currentPage);
-
-  // Laser tracker always on so any active AnnotationIcon can use it
   const laserTracker = useLaserTracker({ containerRef, enabled: true });
+
+  const totalPages = assignment.pdf_page_count || assignment.page_count || 1;
+  const pageAnnotations = annotations.filter(a => a.page === currentPage);
+  const effectiveSize = pdfSize || containerSize;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -271,91 +248,90 @@ export default function TeacherBookAnnotator({ book, onUpdate }) {
     return () => obs.disconnect();
   }, []);
 
+  const persist = useCallback((next) => {
+    // Preserve any old-style non-positioned instructions alongside new ones
+    const oldStyle = (assignment.audio_instructions || []).filter(a => a.x_pct === undefined);
+    onSave([...oldStyle, ...next]);
+  }, [assignment.audio_instructions, onSave]);
+
   const handlePageClick = (e) => {
     if (!placing || !containerRef.current) return;
     e.stopPropagation();
     const rect = containerRef.current.getBoundingClientRect();
-    const x_pct = (e.clientX - rect.left) / rect.width;
-    const y_pct = (e.clientY - rect.top) / rect.height;
     const newAnn = {
-      id: `ann-${Date.now()}`,
+      id: `instr-${Date.now()}`,
       page: currentPage,
-      x_pct, y_pct,
-      type: 'speaker',
+      x_pct: (e.clientX - rect.left) / rect.width,
+      y_pct: (e.clientY - rect.top) / rect.height,
+      url: null,
       audio_url: null,
       laser_data: null,
-      label: '',
+      label: `Page ${currentPage} instruction`,
     };
-    const updated = [...annotations, newAnn];
-    setAnnotations(updated);
+    const next = [...annotations, newAnn];
+    setAnnotations(next);
     setPlacing(false);
-    onUpdate?.({ ...book, teacher_annotations: updated });
+    persist(next);
   };
 
   const handleUpdate = useCallback((updatedAnn) => {
     setAnnotations(prev => {
       const next = prev.map(a => a.id === updatedAnn.id ? updatedAnn : a);
-      onUpdate?.({ ...book, teacher_annotations: next });
+      persist(next);
       return next;
     });
-  }, [book, onUpdate]);
+  }, [persist]);
 
   const handleRemove = useCallback((id) => {
     setAnnotations(prev => {
       const next = prev.filter(a => a.id !== id);
-      onUpdate?.({ ...book, teacher_annotations: next });
+      persist(next);
       return next;
     });
     if (editingId === id) setEditingId(null);
-  }, [book, onUpdate, editingId]);
+  }, [persist, editingId]);
 
-  const effectiveSize = pdfSize || containerSize;
+  if (!assignment.pdf_url) {
+    return <p className="text-indigo-400 text-sm">No PDF uploaded for this assignment.</p>;
+  }
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Controls */}
-      <div className="flex items-center gap-2 flex-wrap p-3 rounded-2xl" style={{ background: '#0f3d3a', border: '1px solid #0d9488' }}>
+      <div className="flex items-center gap-2 flex-wrap p-3 rounded-2xl" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
         <button
           onClick={() => setPlacing(v => !v)}
-          className={`px-4 py-2 rounded-xl font-bold text-sm ${placing ? 'bg-yellow-500 text-black' : 'border border-teal-600 text-teal-300'}`}>
-          {placing ? '🖱 Click page to place' : '➕ Place Speaker'}
+          className={`px-4 py-2 rounded-xl font-bold text-sm ${placing ? 'bg-yellow-500 text-black' : 'border border-indigo-500 text-indigo-300'}`}>
+          {placing ? '🖱 Click page to place' : '➕ Place Speaker Icon'}
         </button>
-        <p className="text-teal-400 text-xs flex-1">
+        <p className="text-indigo-400 text-xs flex-1">
           {pageAnnotations.length} icon{pageAnnotations.length !== 1 ? 's' : ''} on this page
         </p>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2">
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}
-            className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30" style={{ background: '#0d9488' }}>‹</button>
+            className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30" style={{ background: '#4338ca' }}>‹</button>
           <span className="text-white font-black text-sm">Pg {currentPage} / {totalPages}</span>
           <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}
-            className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30" style={{ background: '#0d9488' }}>›</button>
+            className="w-8 h-8 rounded-lg font-bold text-white disabled:opacity-30" style={{ background: '#4338ca' }}>›</button>
         </div>
       </div>
 
-      {/* PDF page with annotation icons */}
       <div
         ref={containerRef}
         style={{ position: 'relative', background: '#e8e8e8', cursor: placing ? 'crosshair' : 'default' }}
         onClick={handlePageClick}
       >
-        {book.pdf_url ? (
-          <PdfPageRenderer
-            pdfUrl={book.pdf_url}
-            pageNumber={currentPage}
-            onRendered={(w, h) => setPdfSize({ w, h })}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-64 text-gray-400">No PDF</div>
-        )}
+        <PdfPageRenderer
+          pdfUrl={assignment.pdf_url}
+          pageNumber={currentPage}
+          onRendered={(w, h) => setPdfSize({ w, h })}
+        />
 
-        {/* Live laser overlay while any icon is recording */}
         {editingId && (
           <LaserOverlay trailPoints={laserTracker.trailPoints} width={effectiveSize.w} height={effectiveSize.h} />
         )}
 
-        {/* Annotation icons */}
         {pageAnnotations.map(ann => (
-          <AnnotationIcon
+          <InstructionIcon
             key={ann.id}
             ann={ann}
             containerSize={effectiveSize}

@@ -118,7 +118,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         : pdfMaxPage;
       // Guard: locked_page must be within valid range
 
-      if (a.page_mode === 'locked' && a.locked_page) {
+      if (a.page_mode === 'locked' && a.locked_page != null) {
         const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
         if (locked !== currentPage) {
           await saveStrokes(currentPage);
@@ -577,23 +577,22 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                   />
                 )}
                 {/* Prevent AnnotationCanvas from capturing events when laser tool active */}
-                {/* Teacher speaker icons from assignment */}
-                {(selectedAssignment.audio_instructions || [])
+                {/* Teacher instruction icons — tap to replay audio+laser */}
+                {pdfRenderedSize && (selectedAssignment.audio_instructions || [])
                   .filter(a => a.page === currentPage && a.x_pct !== undefined)
                   .map((ann, i) => (
-                    <div key={i} style={{
-                      position: 'absolute',
-                      left: ann.x_pct * (pdfRenderedSize?.w || 600),
-                      top: ann.y_pct * (pdfRenderedSize?.h || 800),
-                      transform: 'translate(-50%,-50%)',
-                      zIndex: 35,
-                    }}>
-                      <button
-                        onClick={e => { e.stopPropagation(); new Audio(ann.url).play(); }}
-                        style={{ width: 38, height: 38, borderRadius: '50%', background: '#f59e0b', border: '3px solid white', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        🔊
-                      </button>
-                    </div>
+                    <FloatingMicWidget
+                      key={ann.id || i}
+                      note={{ ...ann, audio_url: ann.audio_url || ann.url }}
+                      containerRef={pdfWrapperRef}
+                      canvasRef={null}
+                      laserTrackerRef={null}
+                      containerSize={pdfRenderedSize}
+                      role="teacher"
+                      readOnly={true}
+                      onSave={null}
+                      onRemove={null}
+                    />
                   ))}
                 {/* Floating student mics */}
                 {pdfRenderedSize && floatingMics.map(mic => (
