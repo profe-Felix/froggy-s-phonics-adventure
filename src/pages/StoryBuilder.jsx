@@ -106,7 +106,16 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     loadedKeyRef.current = key;
 
     canvasRef.current.clearStrokes();
-    if (currentPage.strokes_data) {
+
+    // Try localStorage first (most recent)
+    const localDraft = localStorage.getItem(`story-draft-${story.id}-${currentPageIdx}`);
+    if (localDraft) {
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(localDraft));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
+    } else if (currentPage.strokes_data) {
       try {
         canvasRef.current.loadStrokes(JSON.parse(currentPage.strokes_data));
       } catch {
@@ -144,18 +153,27 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     setSaving(true);
 
     try {
-      const idx = pageIdxOverride ?? currentPageIdxRef.current;
-      const strokeData = canvasRef.current.getStrokes();
-      const payload = JSON.stringify({ ...strokeData, normalized: true });
+       const idx = pageIdxOverride ?? currentPageIdxRef.current;
+       const strokeData = canvasRef.current.getStrokes();
+       const payload = {
+         ...strokeData,
+         canvasWidth: canvasSize.w,
+         canvasHeight: canvasSize.h,
+         normalized: true,
+       };
+       const payloadStr = JSON.stringify(payload);
 
-      const updated = pagesRef.current.map((p, i) =>
-        i === idx ? { ...p, strokes_data: payload } : p
-      );
-      pagesRef.current = updated;
-      setPages(updated);
+       const updated = pagesRef.current.map((p, i) =>
+         i === idx ? { ...p, strokes_data: payloadStr } : p
+       );
+       pagesRef.current = updated;
+       setPages(updated);
 
-      await onSave({ pages: updated });
-    } finally {
+       // Save locally first as backup
+       localStorage.setItem(`story-draft-${story.id}-${idx}`, payloadStr);
+
+       await onSave({ pages: updated });
+     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
 
