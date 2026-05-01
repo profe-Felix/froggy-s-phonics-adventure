@@ -153,9 +153,18 @@ export default function TeacherBookDashboard({ onBack }) {
                     <option value="">No module</option>
                     {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${b.status === 'active' ? 'bg-green-800 text-green-200' : 'bg-gray-700 text-gray-300'}`}>
+                  <button
+                    onClick={() => {
+                      const next = b.status === 'draft' ? 'active' : b.status === 'active' ? 'closed' : 'draft';
+                      updateBook.mutate({ id: b.id, data: { status: next } });
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                      b.status === 'active' ? 'bg-green-700 text-green-100 hover:bg-green-600' :
+                      b.status === 'closed' ? 'bg-red-900 text-red-200 hover:bg-red-800' :
+                      'bg-gray-700 text-gray-300 hover:bg-teal-800 hover:text-teal-100'
+                    }`}>
                     {b.status}
-                  </span>
+                  </button>
                 </div>
               </motion.div>
             ))}
