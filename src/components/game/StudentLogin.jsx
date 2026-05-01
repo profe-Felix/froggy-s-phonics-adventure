@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function StudentLogin({ onSelectStudent, preselectedClass = null }) {
   const numbers = Array.from({ length: 30 }, (_, i) => i + 1);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(preselectedClass);
   const [loadingClasses, setLoadingClasses] = useState(!preselectedClass);
+  const navigate = useNavigate();
 
   useEffect(() => {
     base44.entities.Student.list('-updated_date', 200).then(students => {
@@ -20,6 +22,15 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex items-center justify-center p-4">
+      {/* Toggle in top-right corner */}
+      <div className="fixed top-4 right-4 z-50">
+        <button
+          onClick={() => navigate('/MathGames')}
+          className="bg-white/90 hover:bg-white text-indigo-700 font-bold text-sm px-4 py-2 rounded-full shadow-lg border border-indigo-200 transition-all hover:scale-105"
+        >
+          🧮 Math Games →
+        </button>
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -64,7 +75,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
                 <button
                   key={cls}
                   onClick={() => setSelectedClass(cls)}
-                  className="w-28 h-28 text-4xl font-bold bg-green-500 hover:bg-green-600 text-white rounded-2xl shadow-lg hover:scale-110 transition-transform"
+                  className="min-w-24 h-24 px-4 text-2xl font-bold bg-green-500 hover:bg-green-600 text-white rounded-2xl shadow-lg hover:scale-110 transition-transform"
                 >
                   {cls}
                 </button>

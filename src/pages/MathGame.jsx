@@ -149,6 +149,13 @@ export default function MathGames() {
   if (!selectedClass) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
+        {/* Toggle to Letter Games */}
+        <div className="fixed top-4 right-4 z-50">
+          <a href="/LetterGame"
+            className="bg-white/90 hover:bg-white text-green-700 font-bold text-sm px-4 py-2 rounded-full shadow-lg border border-green-200 transition-all hover:scale-105 inline-block">
+            🐸 Letter Games →
+          </a>
+        </div>
         <div className="text-5xl">🧮</div>
         <h1 className="text-3xl font-bold text-white">Math Games</h1>
         <p className="text-white/80 text-lg">Which class are you in?</p>
