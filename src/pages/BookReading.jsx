@@ -15,10 +15,10 @@ function StudentLogin({ onEnter, preselectedClass }) {
     return (
       <div className="flex flex-col items-center gap-6 py-10 px-4">
         <h2 className="text-2xl font-black text-white">📚 Select Your Class</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-col gap-3 w-full max-w-xs">
           {CLASS_NAMES.map(c => (
             <motion.button key={c} whileTap={{ scale: 0.9 }} onClick={() => setClassName(c)}
-              className="w-20 h-20 rounded-2xl text-3xl font-black text-white shadow-xl"
+              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
               style={{ background: '#0d9488', border: '3px solid #14b8a6' }}>
               {c}
             </motion.button>
