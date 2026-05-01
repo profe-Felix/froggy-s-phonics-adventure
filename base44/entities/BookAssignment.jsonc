@@ -60,6 +60,11 @@
       "type": "integer",
       "default": 0,
       "description": "Hour (0-23) at which student recordings reset"
+    },
+    "shared_across_classes": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this book is visible in the shared library for all classes"
     }
   },
   "required": [

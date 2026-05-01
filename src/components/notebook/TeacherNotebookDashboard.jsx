@@ -64,6 +64,12 @@ export default function TeacherNotebookDashboard({ onBack }) {
     refetchInterval: 5000,
   });
 
+  const { data: sharedAssignments = [] } = useQuery({
+    queryKey: ['notebook-shared'],
+    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ shared_across_classes: true }),
+    refetchInterval: 30000,
+  });
+
   const { data: sessions = [] } = useQuery({
     queryKey: ['notebook-sessions', selectedAssignment?.id],
     queryFn: () => base44.entities.NotebookSession.filter({ assignment_id: selectedAssignment.id }),
@@ -246,12 +252,58 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     {a.status} • {a.page_mode} mode • {a.pdf_page_count || a.page_count || a.page_range_end || '?'} pages
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold
-                  ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
-                  {a.status}
-                </span>
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <button
+                    title={a.shared_across_classes ? 'Shared with all classes — click to unshare' : 'Share with all classes'}
+                    onClick={() => updateAssignment.mutate({ id: a.id, data: { shared_across_classes: !a.shared_across_classes } })}
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${a.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-indigo-900 hover:text-indigo-300'}`}>
+                    {a.shared_across_classes ? '🌐' : '🔒'}
+                  </button>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold
+                    ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
+                    {a.status}
+                  </span>
+                </div>
               </motion.div>
             ))}
+
+            {/* Shared library from other classes */}
+            {sharedAssignments.filter(a => a.class_name !== className).length > 0 && (
+              <div className="mt-2">
+                <p className="text-indigo-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
+                {sharedAssignments.filter(a => a.class_name !== className).map(a => (
+                  <div key={a.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
+                    style={{ background: '#0f0f24', border: '1px dashed #4338ca' }}>
+                    <span className="text-2xl">📓</span>
+                    <div className="flex-1">
+                      <p className="font-black text-white text-sm">{a.title}</p>
+                      <p className="text-indigo-400 text-xs">From class {a.class_name} · {a.pdf_page_count || '?'} pages</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const pageCount = a.pdf_page_count || 1;
+                        await base44.entities.DigitalNotebookAssignment.create({
+                          title: a.title,
+                          class_name: className,
+                          pdf_url: a.pdf_url,
+                          pdf_page_count: pageCount,
+                          status: 'draft',
+                          page_mode: 'free',
+                          page_range_start: 1,
+                          page_range_end: pageCount,
+                          page_count: pageCount,
+                          shared_across_classes: false,
+                        });
+                        qc.invalidateQueries(['notebook-assignments', className]);
+                      }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
+                      style={{ background: '#4338ca', border: '1px solid #6366f1' }}>
+                      + Add to my class
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

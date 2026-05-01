@@ -27,6 +27,12 @@ export default function TeacherBookDashboard({ onBack }) {
     refetchInterval: 10000,
   });
 
+  const { data: sharedBooks = [] } = useQuery({
+    queryKey: ['books-shared'],
+    queryFn: () => base44.entities.BookAssignment.filter({ shared_across_classes: true }),
+    refetchInterval: 30000,
+  });
+
   const updateBook = useMutation({
     mutationFn: ({ id, data }) => base44.entities.BookAssignment.update(id, data),
     onSuccess: () => qc.invalidateQueries(['books-all', className]),
@@ -154,6 +160,12 @@ export default function TeacherBookDashboard({ onBack }) {
                     {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                   <button
+                    title={b.shared_across_classes ? 'Shared with all classes — click to unshare' : 'Share with all classes'}
+                    onClick={() => updateBook.mutate({ id: b.id, data: { shared_across_classes: !b.shared_across_classes } })}
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${b.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-teal-900 hover:text-teal-300'}`}>
+                    {b.shared_across_classes ? '🌐 Shared' : '🔒 Private'}
+                  </button>
+                  <button
                     onClick={() => {
                       const next = b.status === 'draft' ? 'active' : b.status === 'active' ? 'closed' : 'draft';
                       updateBook.mutate({ id: b.id, data: { status: next } });
@@ -168,6 +180,45 @@ export default function TeacherBookDashboard({ onBack }) {
                 </div>
               </motion.div>
             ))}
+
+            {/* Shared library from other classes */}
+            {sharedBooks.filter(b => b.class_name !== className).length > 0 && (
+              <div className="mt-2">
+                <p className="text-teal-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
+                {sharedBooks.filter(b => b.class_name !== className).map(b => (
+                  <div key={b.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
+                    style={{ background: '#0a2e2c', border: '1px dashed #0d9488' }}>
+                    {b.cover_image_url
+                      ? <img src={b.cover_image_url} alt={b.title} className="w-12 h-12 rounded-xl object-cover" />
+                      : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
+                    <div className="flex-1">
+                      <p className="font-black text-white text-sm">{b.title}</p>
+                      <p className="text-teal-400 text-xs">From class {b.class_name} · {b.pdf_page_count || '?'} pages {b.module ? `· ${b.module}` : ''}</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await base44.entities.BookAssignment.create({
+                          title: b.title,
+                          class_name: className,
+                          pdf_url: b.pdf_url,
+                          cover_image_url: b.cover_image_url,
+                          pdf_page_count: b.pdf_page_count,
+                          book_type: b.book_type || 'pdf',
+                          module: b.module || '',
+                          status: 'draft',
+                          teacher_annotations: [],
+                          shared_across_classes: false,
+                        });
+                        qc.invalidateQueries(['books-all', className]);
+                      }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
+                      style={{ background: '#0f766e', border: '1px solid #14b8a6' }}>
+                      + Add to my class
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -73,6 +73,11 @@
       },
       "description": "Pages where students can record voice/video notes",
       "default": []
+    },
+    "shared_across_classes": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this assignment is visible in the shared library for all classes"
     }
   },
   "required": [
