@@ -7,6 +7,7 @@ import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
+import SnapshotViewer from './SnapshotViewer';
 
 /**
  * AssessmentStudentView
@@ -29,6 +30,8 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const [floatingMics, setFloatingMics] = useState([]);
   const [addingMic, setAddingMic] = useState(false);
   const [showPasteImage, setShowPasteImage] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [viewingSnapshot, setViewingSnapshot] = useState(null);
   const [pastedImages, setPastedImages] = useState(() => {
     const map = {};
     Object.entries(record.pasted_images_by_page || {}).forEach(([k, v]) => {
@@ -237,6 +240,12 @@ export default function AssessmentStudentView({ record, template, studentNumber,
           className="px-2 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#374151' }}>
           📷 Paste
         </button>
+        {snapshots.length > 0 && (
+          <button onClick={() => setShowHistory(true)}
+            className="px-2 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#7c3aed' }}>
+            🗓 History ({snapshots.length})
+          </button>
+        )}
         <button onClick={handleSaveAndStartNew}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#16a34a' }}>
           ✅ Save & Start New
@@ -397,6 +406,54 @@ export default function AssessmentStudentView({ record, template, studentNumber,
           className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30"
           style={{ background: '#4338ca' }}>›</button>
       </div>
+
+      {/* History / Snapshots modal */}
+      <AnimatePresence>
+        {showHistory && !viewingSnapshot && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex flex-col"
+            style={{ background: '#0f0f1a' }}>
+            <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #7c3aed' }}>
+              <button onClick={() => setShowHistory(false)} className="text-purple-300 hover:text-white font-bold text-sm">← Back</button>
+              <p className="font-black text-white text-base">🗓 Session History · Student #{studentNumber}</p>
+            </div>
+            <div className="flex-1 overflow-auto p-4 flex flex-col gap-3">
+              {snapshots.length === 0 && (
+                <p className="text-gray-500 text-center mt-8">No saved sessions yet.</p>
+              )}
+              {[...snapshots].reverse().map((snap, i) => (
+                <button key={snap.id} onClick={() => setViewingSnapshot(snap)}
+                  className="w-full text-left rounded-2xl p-4 flex items-center gap-4 hover:opacity-90 transition-all"
+                  style={{ background: '#1a1a2e', border: '2px solid #7c3aed' }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-white text-lg flex-shrink-0"
+                    style={{ background: '#7c3aed' }}>
+                    {snapshots.length - i}
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm">{snap.label || `Session ${snapshots.length - i}`}</p>
+                    <p className="text-purple-400 text-xs">📅 {new Date(snap.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      {Object.keys(snap.strokes_by_page || {}).filter(k => !k.startsWith('mics_')).length} page(s) with annotations
+                    </p>
+                  </div>
+                  <div className="ml-auto text-purple-400 text-lg">›</div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Snapshot viewer — read-only canvas replay */}
+      <AnimatePresence>
+        {showHistory && viewingSnapshot && (
+          <SnapshotViewer
+            snapshot={viewingSnapshot}
+            template={template}
+            onBack={() => setViewingSnapshot(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Paste image modal */}
       <AnimatePresence>

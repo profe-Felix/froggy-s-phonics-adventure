@@ -20,9 +20,10 @@ export default function AssessmentStudentGrid({ template, className, students, o
   // Collect all tags from students in this class
   const allTags = ['all', ...new Set(students.flatMap(s => s.tags || []))];
 
-  const filteredStudents = tagFilter === 'all'
+  const filteredStudents = (tagFilter === 'all'
     ? students
-    : students.filter(s => (s.tags || []).includes(tagFilter));
+    : students.filter(s => (s.tags || []).includes(tagFilter))
+  ).slice().sort((a, b) => a.student_number - b.student_number);
 
   const getStudentRecord = (studentNumber) =>
     records.find(r => r.student_number === studentNumber);
@@ -69,8 +70,11 @@ export default function AssessmentStudentGrid({ template, className, students, o
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {filteredStudents.map(student => {
             const rec = getStudentRecord(student.student_number);
-            const hasWork = rec && rec.strokes_by_page && Object.keys(rec.strokes_by_page).length > 0;
+            const hasWork = rec && rec.strokes_by_page && Object.keys(rec.strokes_by_page).filter(k => !k.startsWith('mics_')).length > 0;
             const snapCount = rec?.snapshots?.length || 0;
+            const lastDate = rec?.last_active
+              ? new Date(rec.last_active).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : null;
 
             return (
               <motion.button
@@ -82,7 +86,7 @@ export default function AssessmentStudentGrid({ template, className, students, o
                   const r = await getOrCreateRecord(student.student_number);
                   onSelectStudent(student, r);
                 }}
-                className="rounded-2xl p-3 flex flex-col items-center gap-2 transition-all hover:scale-105"
+                className="rounded-2xl p-3 flex flex-col items-center gap-1.5 transition-all hover:scale-105"
                 style={{ background: '#1a1a2e', border: `2px solid ${hasWork ? '#4338ca' : '#2d2d5e'}` }}>
                 <div className="w-12 h-12 rounded-full flex items-center justify-center font-black text-white text-xl"
                   style={{ background: hasWork ? '#4338ca' : '#374151' }}>
@@ -98,6 +102,11 @@ export default function AssessmentStudentGrid({ template, className, students, o
                   )}
                   {!hasWork && !snapCount && (
                     <span className="text-gray-600 text-xs">Not started</span>
+                  )}
+                  {lastDate && (
+                    <span className="text-yellow-400 text-xs flex items-center gap-0.5">
+                      📅 {lastDate}
+                    </span>
                   )}
                   {(student.tags || []).length > 0 && (
                     <div className="flex flex-wrap gap-0.5 justify-center mt-0.5">
