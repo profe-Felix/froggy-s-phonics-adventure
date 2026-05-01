@@ -75,6 +75,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const pendingSaveRef = useRef(false);
   const latestSessionRef = useRef(null);
   const isDrawingRef = useRef(false);
+  const localDirtyRef = useRef(false); // 👈 ADD THIS LINE
+
   // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
   const currentPageRef = useRef(currentPage);
   useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
@@ -216,10 +218,19 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   useEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
-    const key = `${session.id}-${currentPage}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
+
+    // Do not reload/clear while the student is drawing.
+    if (isDrawingRef.current) return;
+    if (localDirtyRef.current) return;
+
+    // IMPORTANT:
+    // Do NOT include pdfRenderedSize in the key.
+    // PDF/canvas resize/render events were causing the canvas to clear/reload.
+    const key = `${session.id}-${currentPage}`;
     if (loadedKeyRef.current === key) return;
 
     loadedKeyRef.current = key;
+
     const pageData = session.strokes_by_page?.[String(currentPage)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
 
@@ -233,14 +244,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     } else if (pageData) {
       try {
         canvasRef.current.clearStrokes();
-        canvasRef.current.loadStrokes(JSON.parse(pageData));
+        canvasRef.current.loadStrokes(typeof pageData === 'string' ? JSON.parse(pageData) : pageData);
       } catch {
         canvasRef.current.clearStrokes();
       }
     } else {
       canvasRef.current.clearStrokes();
     }
-  }, [currentPage, session?.id, pdfRenderedSize, draftKey]);
+  }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
 
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
@@ -287,6 +298,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         last_active: new Date().toISOString(),
       });
 
+localStorage.removeItem(saveDraftKey);
+localDirtyRef.current = false;
+
       const nextSession = {
         ...activeSession,
         strokes_by_page: updated,
@@ -309,6 +323,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
+    localDirtyRef.current = true;
   }, []);
 
   const handleStrokeEnd = useCallback(() => {
