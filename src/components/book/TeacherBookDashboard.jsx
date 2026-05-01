@@ -7,11 +7,13 @@ import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import BookStudentGrid from './BookStudentGrid';
 import TeacherBookAnnotator from './TeacherBookAnnotator';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
 export default function TeacherBookDashboard({ onBack }) {
   const qc = useQueryClient();
-  const [className, setClassName] = useState('F');
+  const [className, setClassName] = useState('Felix');
+  const [newModule, setNewModule] = useState('');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);
   const [newTitle, setNewTitle] = useState('');
@@ -55,6 +57,7 @@ export default function TeacherBookDashboard({ onBack }) {
       cover_image_url: !isPdf ? file_url : null,
       pdf_page_count: pageCount,
       book_type: isPdf ? 'pdf' : 'images',
+      module: newModule || '',
       status: 'draft',
       teacher_annotations: [],
     });
@@ -106,6 +109,12 @@ export default function TeacherBookDashboard({ onBack }) {
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Book title…"
                 className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
                 style={{ background: '#042f2e' }} />
+              <select value={newModule} onChange={e => setNewModule(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
+                style={{ background: '#042f2e' }}>
+                <option value="">No module</option>
+                {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -130,11 +139,24 @@ export default function TeacherBookDashboard({ onBack }) {
                   : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
                 <div className="flex-1">
                   <p className="font-black text-white">{b.title}</p>
-                  <p className="text-xs text-teal-400">{b.status} · {b.pdf_page_count || '?'} pages</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-teal-400">{b.status} · {b.pdf_page_count || '?'} pages</p>
+                    {b.module && <span className="text-xs text-teal-200 bg-teal-800 px-2 py-0.5 rounded-full">{b.module}</span>}
+                  </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${b.status === 'active' ? 'bg-green-800 text-green-200' : 'bg-gray-700 text-gray-300'}`}>
-                  {b.status}
-                </span>
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <select
+                    value={b.module || ''}
+                    onChange={e => updateBook.mutate({ id: b.id, data: { module: e.target.value } })}
+                    className="px-2 py-1 rounded-lg text-xs font-bold text-white border border-teal-700"
+                    style={{ background: '#042f2e' }}>
+                    <option value="">No module</option>
+                    {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${b.status === 'active' ? 'bg-green-800 text-green-200' : 'bg-gray-700 text-gray-300'}`}>
+                    {b.status}
+                  </span>
+                </div>
               </motion.div>
             ))}
           </div>

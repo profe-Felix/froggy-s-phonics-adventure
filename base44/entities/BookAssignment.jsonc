@@ -8,6 +8,11 @@
     "class_name": {
       "type": "string"
     },
+    "module": {
+      "type": "string",
+      "description": "Module folder e.g. M1, M2 \u2026 M9",
+      "default": ""
+    },
     "cover_image_url": {
       "type": "string",
       "description": "Thumbnail/cover image URL"
@@ -54,7 +59,7 @@
     "reset_hour": {
       "type": "integer",
       "default": 0,
-      "description": "Hour (0-23) at which student recordings reset (midnight = 0)"
+      "description": "Hour (0-23) at which student recordings reset"
     }
   },
   "required": [

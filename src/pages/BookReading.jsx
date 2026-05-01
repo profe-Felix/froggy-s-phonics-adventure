@@ -4,6 +4,9 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
+import PdfThumbnail from '@/components/book/PdfThumbnail';
+
+const MODULES = ['All', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -51,11 +54,16 @@ function StudentLogin({ onEnter, preselectedClass }) {
 }
 
 function BookShelf({ className, studentNumber, onSelectBook }) {
+  const [selectedModule, setSelectedModule] = useState('All');
+
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['books', className],
     queryFn: () => base44.entities.BookAssignment.filter({ class_name: className, status: 'active' }),
     refetchInterval: 10000,
   });
+
+  const availableModules = ['All', ...Array.from(new Set(books.map(b => b.module).filter(Boolean))).sort()];
+  const filtered = selectedModule === 'All' ? books : books.filter(b => b.module === selectedModule);
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-20">
@@ -72,10 +80,23 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
   );
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-black text-white mb-6">📚 Your Books — Class {className} · #{studentNumber}</h2>
+    <div className="p-4">
+      <h2 className="text-xl font-black text-white mb-4">📚 Your Books — Class {className} · #{studentNumber}</h2>
+
+      {/* Module filter */}
+      {availableModules.length > 1 && (
+        <div className="flex gap-2 flex-wrap mb-4">
+          {availableModules.map(m => (
+            <button key={m} onClick={() => setSelectedModule(m)}
+              className={`px-4 py-1.5 rounded-full font-bold text-sm transition-all ${selectedModule === m ? 'bg-teal-500 text-white' : 'text-teal-300 border border-teal-700 hover:bg-teal-900'}`}>
+              {m === 'All' ? '📚 All' : `📁 ${m}`}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {books.map(book => (
+        {filtered.map(book => (
           <motion.button
             key={book.id}
             whileTap={{ scale: 0.97 }}
@@ -84,18 +105,21 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
             className="rounded-2xl overflow-hidden flex flex-col text-left shadow-xl"
             style={{ background: '#134e4a', border: '2px solid #0d9488' }}
           >
-            {book.cover_image_url ? (
-              <img src={book.cover_image_url} alt={book.title} className="w-full h-40 object-cover" />
-            ) : (
-              <div className="w-full h-40 flex items-center justify-center text-5xl" style={{ background: '#0f766e' }}>
-                📖
-              </div>
-            )}
+            <div className="w-full h-40 overflow-hidden">
+              {book.cover_image_url ? (
+                <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover" />
+              ) : book.pdf_url ? (
+                <PdfThumbnail pdfUrl={book.pdf_url} pageNumber={2} width={300} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-5xl" style={{ background: '#0f766e' }}>📖</div>
+              )}
+            </div>
             <div className="p-3">
               <p className="font-black text-white text-sm">{book.title}</p>
-              <p className="text-teal-400 text-xs mt-0.5">
-                {book.pdf_page_count || (book.pages || []).length || '?'} pages
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-teal-400 text-xs">{book.pdf_page_count || (book.pages || []).length || '?'} pages</p>
+                {book.module && <span className="text-xs text-teal-300 bg-teal-900 px-2 py-0.5 rounded-full">{book.module}</span>}
+              </div>
             </div>
           </motion.button>
         ))}
