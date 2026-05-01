@@ -103,6 +103,14 @@ const MODES = [
     icon: '📚',
     color: 'from-amber-400 to-orange-600',
     alwaysUnlocked: true
+  },
+  {
+    id: 'book_reading',
+    title: 'Book Reading',
+    description: 'Read your assigned books aloud',
+    icon: '📖',
+    color: 'from-teal-400 to-teal-600',
+    alwaysUnlocked: true
   }
 ];
 

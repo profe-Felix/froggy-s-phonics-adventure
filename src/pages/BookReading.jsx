@@ -128,11 +128,11 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
   );
 }
 
-export default function BookReading() {
+export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('mode') === 'teacher';
-  const urlClass = params.get('class');
-  const urlNumber = parseInt(params.get('number') || params.get('student'));
+  const urlClass = prefillClass || params.get('class');
+  const urlNumber = prefillNumber || parseInt(params.get('number') || params.get('student'));
 
   const [role, setRole] = useState(isTeacher ? 'teacher' : null);
   const [studentInfo, setStudentInfo] = useState(null);
@@ -170,7 +170,7 @@ export default function BookReading() {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => { setStudentInfo(null); }} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <button onClick={() => { if (selectedBook) { setSelectedBook(null); } else { onBack ? onBack() : setStudentInfo(null); } }} className="text-teal-300 hover:text-white font-bold">← Back</button>
           <h1 className="text-lg font-black text-white">📚 Book Reading</h1>
         </div>
         <BookShelf className={studentInfo.className} studentNumber={studentInfo.number} onSelectBook={setSelectedBook} />
@@ -182,7 +182,7 @@ export default function BookReading() {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => setRole(null)} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <button onClick={() => onBack ? onBack() : setRole(null)} className="text-teal-300 hover:text-white font-bold">← Back</button>
           <h1 className="text-lg font-black text-white">📚 Book Reading</h1>
         </div>
         <StudentLogin

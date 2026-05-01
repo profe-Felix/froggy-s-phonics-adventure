@@ -13,6 +13,7 @@ import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import StoryBuilder from '../pages/StoryBuilder';
+import BookReading from '../pages/BookReading';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
@@ -374,8 +375,15 @@ export default function LetterGame() {
           onBack={handleBackToModes}
         />
       )}
+      {currentMode === 'book_reading' && (
+        <BookReading
+          prefillClass={selectedStudent?.class_name}
+          prefillNumber={selectedStudent?.number}
+          onBack={handleBackToModes}
+        />
+      )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
