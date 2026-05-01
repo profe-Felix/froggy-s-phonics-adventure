@@ -10,7 +10,10 @@ import PdfPageRenderer from './PdfPageRenderer';
 import PageNavBar from './PageNavBar';
 import FloatingMicWidget from './FloatingMicWidget';
 import LaserOverlay from './LaserOverlay';
+import LassoLayer from './LassoLayer';
+import CutPiecesLayer from './CutPiecesLayer';
 import useLaserTracker from '@/hooks/useLaserTracker';
+import useCutPaste from '@/hooks/useCutPaste';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -373,6 +376,19 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     laserTrackerRef.current = laserTracker;
   });
 
+  // ── Cut & Paste ─────────────────────────────────────────────────────────
+  const cutPaste = useCutPaste({
+    pdfWrapperRef,
+    session,
+    currentPage,
+    onSessionUpdate: (updated) => setSession(s => ({ ...s, voice_notes_by_page: updated })),
+  });
+
+  // Sync cut pieces whenever page or session changes
+  useEffect(() => {
+    if (session) cutPaste.syncFromSession(session, currentPage);
+  }, [session?.id, currentPage]);
+
   // Load floating mics from session for current page
   useEffect(() => {
     if (!session) return;
@@ -564,11 +580,31 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     height={pdfRenderedSize.h}
                     color={color}
                     size={size}
-                    tool={tool === 'laser' ? 'none' : tool}
-                    mode={tool === 'laser' ? 'none' : 'draw'}
-                    passThrough={addingMic}
+                    tool={tool === 'laser' || tool === 'lasso' ? 'none' : tool}
+                    mode={tool === 'laser' || tool === 'lasso' ? 'none' : 'draw'}
+                    passThrough={addingMic || tool === 'lasso' || !!cutPaste.selectedPieceId}
                     onStrokeStart={handleStrokeStart}
                     onStrokeEnd={handleStrokeEnd}
+                  />
+                )}
+                {/* Lasso layer — only active when lasso tool selected */}
+                {tool === 'lasso' && pdfRenderedSize && (
+                  <LassoLayer
+                    width={pdfRenderedSize.w}
+                    height={pdfRenderedSize.h}
+                    onCutRequest={cutPaste.handleCutRequest}
+                    disabled={false}
+                  />
+                )}
+                {/* Cut pieces layer */}
+                {pdfRenderedSize && cutPaste.pieces.length > 0 && (
+                  <CutPiecesLayer
+                    pieces={cutPaste.pieces}
+                    containerW={pdfRenderedSize.w}
+                    containerH={pdfRenderedSize.h}
+                    onUpdate={cutPaste.handlePiecesUpdate}
+                    selectedId={cutPaste.selectedPieceId}
+                    onSelect={cutPaste.setSelectedPieceId}
                   />
                 )}
                 {/* Laser overlay — only shown when laser tool selected */}
@@ -649,6 +685,50 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           >
             {addingMic ? '📍' : '🎙+'}
           </button>
+
+          {/* Clipboard paste button — shown when clipboard has content */}
+          {cutPaste.clipboard && (
+            <button
+              onClick={cutPaste.pasteFromClipboard}
+              className="absolute bottom-20 left-20 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
+              style={{ background: '#7c3aed', border: '3px solid #a78bfa' }}
+              title="Paste cut piece from clipboard"
+            >
+              📋
+            </button>
+          )}
+
+          {/* Selected piece action bar */}
+          {cutPaste.selectedPieceId && (
+            <div
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-50 flex gap-2 px-4 py-2 rounded-2xl shadow-2xl"
+              style={{ background: '#1a1a2e', border: '2px solid #7c3aed' }}
+            >
+              <span className="text-xs text-purple-300 font-bold self-center">✂️ Piece selected</span>
+              <button
+                onClick={cutPaste.copyToClipboard}
+                className="px-3 py-1 rounded-xl text-xs font-bold text-white"
+                style={{ background: '#4338ca' }}
+                title="Copy to clipboard for pasting on another page"
+              >
+                📋 Copy to Clipboard
+              </button>
+              <button
+                onClick={cutPaste.deleteSelectedPiece}
+                className="px-3 py-1 rounded-xl text-xs font-bold"
+                style={{ background: '#7f1d1d', color: '#fca5a5' }}
+              >
+                🗑 Delete
+              </button>
+              <button
+                onClick={() => cutPaste.setSelectedPieceId(null)}
+                className="px-3 py-1 rounded-xl text-xs font-bold text-gray-400"
+                style={{ background: '#374151' }}
+              >
+                ✕ Done
+              </button>
+            </div>
+          )}
 
           {(selectedAssignment.recording_pages || []).includes(currentPage) && (
             <>
