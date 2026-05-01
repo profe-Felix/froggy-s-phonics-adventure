@@ -47,17 +47,21 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const isDrawingRef = useRef(false);
+  const localDirtyRef = useRef(false);
   const latestRecordRef = useRef(record);
   const currentPageIdxRef = useRef(currentPageIdx);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
   useEffect(() => { latestRecordRef.current = record; }, [record]);
 
-  // Load strokes when page or renderedSize changes
+  // Load strokes when page changes OR when canvas first becomes ready
+  // Key is only page-based — NOT pixel-size-based — so resize never clobbers local work
   useEffect(() => {
     if (!canvasRef.current || !pdfRenderedSize) return;
-    const key = `${record.id}-${currentPageIdx}-${pdfRenderedSize.w}-${pdfRenderedSize.h}`;
+    const key = `${record.id}-${currentPageIdx}`;
     if (loadedKeyRef.current === key) return;
+    // Don't overwrite unsaved local work
+    if (localDirtyRef.current) return;
     loadedKeyRef.current = key;
 
     const pageData = latestRecordRef.current.strokes_by_page?.[String(currentPageIdx)];
@@ -111,6 +115,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
       });
 
       latestRecordRef.current = { ...rec, strokes_by_page: updated, last_active: new Date().toISOString() };
+      localDirtyRef.current = false;
       onRecordUpdate?.(latestRecordRef.current);
     } finally {
       saveInFlightRef.current = false;
@@ -122,7 +127,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     }
   }, [onRecordUpdate]);
 
-  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; }, []);
+  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; localDirtyRef.current = true; }, []);
   const handleStrokeEnd = useCallback(() => { isDrawingRef.current = false; void saveStrokes(); }, [saveStrokes]);
 
   // Auto-save every 20s
@@ -144,8 +149,8 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     const clamped = Math.max(0, Math.min(totalPages - 1, idx));
     if (clamped === currentPageIdx) return;
     await saveStrokes(currentPageIdx);
+    localDirtyRef.current = false;
     loadedKeyRef.current = null;
-    setPdfRenderedSize(null);
     setCurrentPageIdx(clamped);
   };
 
@@ -168,9 +173,9 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     });
     latestRecordRef.current = updatedRec;
     onRecordUpdate?.(updatedRec);
+    localDirtyRef.current = false;
     loadedKeyRef.current = null;
     setCurrentPageIdx(0);
-    setPdfRenderedSize(null);
     canvasRef.current?.clearStrokes();
   };
 
