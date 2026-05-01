@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
 
-const CLASS_NAMES = ['F', 'V', 'C', 'A', 'B', 'D'];
+const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 function StudentLogin({ onEnter, preselectedClass }) {
