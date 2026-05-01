@@ -1,0 +1,49 @@
+{
+  "name": "AssessmentRecord",
+  "type": "object",
+  "properties": {
+    "template_id": {
+      "type": "string",
+      "description": "ID of the AssessmentTemplate"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "session_label": {
+      "type": "string",
+      "description": "Label for this session e.g. 'Session 1' or a date"
+    },
+    "strokes_by_page": {
+      "type": "object",
+      "description": "Map of page index (string) -> strokes JSON \u2014 current live drawing"
+    },
+    "pasted_images_by_page": {
+      "type": "object",
+      "description": "Map of page index (string) -> array of {id, url, x_pct, y_pct, w_pct, h_pct}"
+    },
+    "snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {id, label, date, strokes_by_page, pasted_images_by_page} \u2014 locked dated copies"
+    },
+    "last_active": {
+      "type": "string",
+      "description": "ISO timestamp"
+    },
+    "session_number": {
+      "type": "integer",
+      "default": 1,
+      "description": "Which session number this is (increments on Save & Start New)"
+    }
+  },
+  "required": [
+    "template_id",
+    "student_number",
+    "class_name"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "name": "AssessmentTemplate",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Name of the assessment (e.g. Phonological Awareness)"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class this template belongs to"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {id, type:'pdf'|'image'|'blank', url, label} pages"
+    },
+    "template_strokes_by_page": {
+      "type": "object",
+      "description": "Map of page index (string) -> strokes JSON \u2014 teacher pre-drawn marks shown on all student copies"
+    },
+    "audio_annotations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Array of {id, page, x_pct, y_pct, audio_url, laser_data, label} speaker pins"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "title",
+    "class_name"
+  ]
+}

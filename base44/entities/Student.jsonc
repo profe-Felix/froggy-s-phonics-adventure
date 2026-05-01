@@ -14,6 +14,14 @@
       "type": "string",
       "description": "Class identifier, e.g. F, V, C"
     },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Assessment grouping tags e.g. 'Math SG 1', 'Decoding SG 2'",
+      "default": []
+    },
     "active_pet": {
       "type": "string",
       "description": "ID of currently active pet"
