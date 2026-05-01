@@ -20,6 +20,7 @@ export default function useAudioRecorder() {
   const accumulatedRef = useRef(0);
   const timerRef = useRef(null);
   const blobRef = useRef(null);
+  const recordingStartWallTimeRef = useRef(0);
 
   const [elapsed, setElapsed] = useState(0);
 
@@ -64,7 +65,9 @@ export default function useAudioRecorder() {
     };
 
     mr.start(100);
-    startTimeRef.current = Date.now();
+    const now = Date.now();
+    startTimeRef.current = now;
+    recordingStartWallTimeRef.current = now;
     tickTimer();
     setState('recording');
   }, [tickTimer, stopTimer]);
@@ -114,6 +117,7 @@ export default function useAudioRecorder() {
   }, [stopTimer]);
 
   const getBlob = useCallback(() => blobRef.current, []);
+  const getRecordingStartTime = useCallback(() => recordingStartWallTimeRef.current, []);
 
   const formatTime = (ms) => {
     const s = Math.floor(ms / 1000);
@@ -134,5 +138,6 @@ export default function useAudioRecorder() {
     stopRecording,
     reset,
     getBlob,
+    getRecordingStartTime,
   };
 }

@@ -67,6 +67,7 @@ export default function FloatingMicWidget({
     stopRecording,
     reset: resetRecorder,
     getBlob,
+    getRecordingStartTime,
   } = useAudioRecorder();
 
   // Click-away to close panel
@@ -129,11 +130,11 @@ export default function FloatingMicWidget({
    const existing = canvasRef?.current?.getStrokes();
    strokeCountAtRecordStart.current = existing?.strokes?.length ?? 0;
    strokesDuringRecordingRef.current = null;
-   // Capture the wall-clock time when recording starts (for normalizing stroke timestamps)
-   strokesDuringRecordingRef.current = { recordingStartTime: Date.now() };
    // Start recording from the parent's laser tracker (toolbar laser)
    laserTrackerRef?.current?.startRecordingLaser();
    await startRecording();
+   // Capture the precise wall-clock time when MediaRecorder actually started
+   strokesDuringRecordingRef.current = { recordingStartTime: getRecordingStartTime() };
   };
 
   const handleStop = () => {
@@ -152,8 +153,8 @@ export default function FloatingMicWidget({
     if (!blob) return;
     setUploading(true);
 
-    // Snapshot ONLY the strokes added during this recording
-    const snapshot = strokesDuringRecordingRef.current || { strokes: [] };
+    // Snapshot ONLY the strokes added during this recording, plus the precise start time
+    const snapshot = strokesDuringRecordingRef.current || { strokes: [], recordingStartTime: 0 };
 
     const file = new File([blob], `mic-note-${Date.now()}.webm`, { type: 'audio/webm' });
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
@@ -225,11 +226,13 @@ export default function FloatingMicWidget({
     }
 
     // Animate recorded strokes in sync with audio currentTime
-    if (recordedStrokes.length > 0) {
-      // Find min/max timestamps from the actual recording session
-      const allPtTs = recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0);
-      const recordingStartTime = Math.min(...allPtTs);
-      const strokesProgress = recordedStrokes.map(() => 0);
+     if (recordedStrokes.length > 0) {
+       // Use the saved recording start time for accurate sync.
+       // Fall back to min point timestamp if not available (legacy snapshots).
+       const savedStart = strokeSnapshot?.recordingStartTime;
+       const allPtTs = recordedStrokes.flatMap(s => s.pts.map(p => p.t || 0)).filter(t => t > 0);
+       const recordingStartTime = savedStart ?? (allPtTs.length > 0 ? Math.min(...allPtTs) : 0);
+       const strokesProgress = recordedStrokes.map(() => 0);
 
       const animate = () => {
         // Sync to audio's actual playback time (in milliseconds)
