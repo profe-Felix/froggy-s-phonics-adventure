@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
-import SpecialCharPicker from '@/components/game/SpecialCharPicker';
 import PrizeWheel from '@/components/game/PrizeWheel';
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
@@ -331,12 +330,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
             😕 No entiendo
           </button>
         </div>
-        <button
-          onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); typingStartRef.current = null; keystrokeLog.current = []; }}
-          className={`self-start px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
-          title="Toggle keyboard input">
-          ⌨️
-        </button>
+
       </div>
 
       {keyboardMode ? (
@@ -356,15 +350,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
             className="w-full border-4 border-indigo-400 rounded-2xl px-4 py-3 text-2xl font-bold outline-none focus:border-indigo-600 bg-indigo-50 resize-none"
             style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
           />
-          <SpecialCharPicker onInsert={ch => {
-            const ta = textareaRef.current;
-            if (!ta) { setTypedSentence(s => s + ch); return; }
-            const start = ta.selectionStart ?? typedSentence.length;
-            const end = ta.selectionEnd ?? typedSentence.length;
-            const newVal = typedSentence.slice(0, start) + ch + typedSentence.slice(end);
-            setTypedSentence(newVal);
-            requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + ch.length, start + ch.length); });
-          }} />
+
           <button onClick={() => {
             const durationMs = typingStartRef.current ? Date.now() - typingStartRef.current : null;
             onDone([], typedSentence, { durationMs, keystrokes: keystrokeLog.current.length });

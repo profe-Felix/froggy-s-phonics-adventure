@@ -1,5 +1,4 @@
 import React, { useRef, useState, useCallback } from 'react';
-import SpecialCharPicker from './SpecialCharPicker';
 
 export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = false }) {
   const canvasRef = useRef(null);
@@ -162,12 +161,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
             🔊
           </button>
         </div>
-        <button
-          onClick={() => { setKeyboardMode(k => !k); setTypedWord(''); typingStartRef.current = null; keystrokeLog.current = []; }}
-          className={`px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
-          title="Toggle keyboard input">
-          ⌨️
-        </button>
+
       </div>
 
       {keyboardMode ? (
@@ -183,7 +177,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
             className="w-full border-4 border-indigo-400 rounded-2xl px-5 py-4 text-4xl font-bold text-center outline-none focus:border-indigo-600 bg-indigo-50"
             style={{ fontFamily: 'Andika, system-ui, sans-serif', letterSpacing: '0.08em' }}
           />
-          <SpecialCharPicker onInsert={insertSpecialChar} />
+
           <button onClick={handleKeyboardDone} disabled={!typedWord.trim()}
             className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-lg">
             Done → Build It
