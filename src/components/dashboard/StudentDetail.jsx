@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { LETTER_SOUNDS } from '../data/letterSounds';
 
 const MODE_LABELS = {
   letter_sounds: 'Letter Sounds',
@@ -37,6 +38,82 @@ function CaseBadge({ letter, attempts }) {
       <span className="text-gray-300">|</span>
       <span className={`text-xs font-medium ${hiColor}`}>{letter.toUpperCase()} {hiPct !== null ? `${hiPct}%` : '–'}</span>
     </span>
+  );
+}
+
+function LetterSoundsEditor({ student, onUpdate }) {
+  const mp = student.mode_progress || {};
+  const ls = mp.letter_sounds || { mastered_items: [], learning_items: [], item_attempts: {}, total_correct: 0, total_attempts: 0, unlocked: true };
+  const mastered = new Set(ls.mastered_items || []);
+  const learning = new Set(ls.learning_items || []);
+  const [saving, setSaving] = useState(false);
+
+  const getStatus = (letter) => {
+    if (mastered.has(letter)) return 'mastered';
+    if (learning.has(letter)) return 'learning';
+    return 'none';
+  };
+
+  const cycleStatus = async (letter) => {
+    const current = getStatus(letter);
+    let newMastered = [...mastered];
+    let newLearning = [...learning];
+
+    if (current === 'none') {
+      newLearning.push(letter);
+    } else if (current === 'learning') {
+      newLearning = newLearning.filter(l => l !== letter);
+      newMastered.push(letter);
+    } else {
+      newMastered = newMastered.filter(l => l !== letter);
+    }
+
+    setSaving(true);
+    const updated = {
+      ...student,
+      mode_progress: {
+        ...mp,
+        letter_sounds: { ...ls, mastered_items: newMastered, learning_items: newLearning }
+      }
+    };
+    await base44.entities.Student.update(student.id, { mode_progress: updated.mode_progress });
+    onUpdate(updated);
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="font-semibold">Letter Sounds</h3>
+        {saving && <span className="text-xs text-blue-500 animate-pulse">Saving…</span>}
+        <span className="ml-auto text-xs text-gray-400">Tap to cycle: none → learning → mastered → none</span>
+      </div>
+      <div className="flex gap-2 mb-2 text-xs">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-200 inline-block border border-green-400"></span> Mastered</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-100 inline-block border border-yellow-400"></span> Learning</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block border border-gray-300"></span> Not started</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {LETTER_SOUNDS.map(letter => {
+          const status = getStatus(letter);
+          const stats = ls.item_attempts?.[letter] || { correct: 0, total: 0 };
+          const pct = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : null;
+          return (
+            <button
+              key={letter}
+              onClick={() => cycleStatus(letter)}
+              className={`flex flex-col items-center px-3 py-2 rounded-xl border-2 font-bold text-sm transition hover:scale-105 active:scale-95
+                ${status === 'mastered' ? 'bg-green-100 border-green-400 text-green-800' :
+                  status === 'learning' ? 'bg-yellow-50 border-yellow-400 text-yellow-800' :
+                  'bg-gray-50 border-gray-200 text-gray-400'}`}
+            >
+              <span className="text-base">{letter}</span>
+              {pct !== null && <span className="text-xs opacity-70">{pct}%</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -130,7 +207,10 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
         </div>
 
         <div className="p-5 space-y-5">
-          {Object.entries(MODE_LABELS).map(([modeKey, modeLabel]) => {
+          {/* Letter Sounds interactive editor */}
+          <LetterSoundsEditor student={student} onUpdate={onUpdate} />
+
+          {Object.entries(MODE_LABELS).filter(([k]) => k !== 'letter_sounds').map(([modeKey, modeLabel]) => {
             const data = mp[modeKey];
             if (!data?.unlocked) return (
               <div key={modeKey} className="opacity-40">

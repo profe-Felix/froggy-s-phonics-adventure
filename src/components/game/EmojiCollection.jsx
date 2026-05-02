@@ -1,59 +1,65 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { getEmojiForIndex } from './EmojiPrizeCelebration';
+import { X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { getEmojiForIndex, POINTS_PER_EMOJI } from './EmojiPrizeCelebration';
+
+// Total number of emoji faces in the collection (matches FACE_EMOJIS array length)
+const TOTAL_EMOJI_SLOTS = 30;
 
 /**
- * Tappable emoji collection display — like the pet system.
- * Shows all earned emojis; tap one to set it as active (shown in the bar).
+ * Emoji collection modal — like the pet system.
+ * Shows all 30 slots; earned ones are revealed, unearned show ?.
+ * Tap an earned emoji to set it as the active one shown on the bar.
  */
 export default function EmojiCollection({ totalEmojiCount, activeEmojiIdx, onSelectEmoji, onClose }) {
-  const emojis = Array.from({ length: totalEmojiCount }, (_, i) => ({
-    idx: i,
-    emoji: getEmojiForIndex(i),
-  }));
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center pb-4 px-4"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 80, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
-        onClick={e => e.stopPropagation()}
-        className="bg-white rounded-3xl shadow-2xl p-5 w-full max-w-sm"
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
       >
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-black text-purple-700 text-lg">My Emoji Collection ✨</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 font-bold text-xl leading-none">✕</button>
+        <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-5 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white">✨ My Emoji Faces</h2>
+          <button onClick={onClose}><X className="w-6 h-6 text-white" /></button>
         </div>
-        <p className="text-xs text-gray-500 font-bold mb-3 text-center">Tap an emoji to show it on your bar!</p>
-        {emojis.length === 0 ? (
-          <p className="text-center text-gray-400 font-bold py-4">No emojis yet — keep spelling! 🎯</p>
-        ) : (
-          <div className="grid grid-cols-5 gap-2">
-            {emojis.map(({ idx, emoji }) => (
+
+        <div className="p-4 grid grid-cols-5 gap-3 max-h-96 overflow-y-auto">
+          {Array.from({ length: TOTAL_EMOJI_SLOTS }, (_, i) => {
+            const earned = i < totalEmojiCount;
+            const active = earned && i === activeEmojiIdx;
+            return (
               <button
-                key={idx}
-                onClick={() => onSelectEmoji(idx)}
-                className={`w-full aspect-square rounded-2xl flex items-center justify-center text-3xl transition-all active:scale-90
-                  ${activeEmojiIdx === idx
-                    ? 'bg-purple-100 border-2 border-purple-500 scale-110 shadow-lg'
-                    : 'bg-gray-50 border-2 border-gray-200 hover:bg-purple-50 hover:border-purple-300'
-                  }`}
+                key={i}
+                onClick={() => earned && onSelectEmoji(i)}
+                className={`relative flex flex-col items-center gap-1 p-2 rounded-2xl border-2 transition
+                  ${active ? 'border-purple-500 bg-purple-50 shadow' : 'border-gray-200'}
+                  ${!earned ? 'opacity-40 cursor-not-allowed' : 'hover:border-purple-300 cursor-pointer hover:scale-105'}
+                `}
               >
-                {emoji}
+                <div className="w-12 h-12 rounded-full flex items-center justify-center text-3xl bg-gray-50">
+                  {earned ? getEmojiForIndex(i) : '❓'}
+                </div>
+                <span className="text-xs font-medium text-gray-500">
+                  {earned ? `#${i + 1}` : '???'}
+                </span>
+                {active && (
+                  <span className="absolute -top-1 -right-1 text-base">✅</span>
+                )}
               </button>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
+
+        <div className="p-4 text-center text-sm text-gray-400">
+          {totalEmojiCount}/{TOTAL_EMOJI_SLOTS} faces collected 🎉
+          {totalEmojiCount < TOTAL_EMOJI_SLOTS && (
+            <p className="text-xs mt-1 text-purple-400">
+              Next face in {POINTS_PER_EMOJI - (totalEmojiCount * POINTS_PER_EMOJI % POINTS_PER_EMOJI || POINTS_PER_EMOJI)} pts
+            </p>
+          )}
+        </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }

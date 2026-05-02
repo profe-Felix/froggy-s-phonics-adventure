@@ -10,6 +10,7 @@ import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
+import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import StoryBuilder from '../pages/StoryBuilder';
@@ -355,6 +356,12 @@ export default function LetterGame() {
           onUpdateProgress={handleUpdateProgress}
         />
       )}
+      {currentMode === 'phonics' && (
+        <PhonicsMode
+          studentData={studentData}
+          onBack={handleBackToModes}
+        />
+      )}
       {currentMode === 'sentences' && (
         <SentencesMode
           studentData={studentData}
@@ -383,7 +390,7 @@ export default function LetterGame() {
         />
       )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"

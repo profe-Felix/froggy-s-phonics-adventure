@@ -37,7 +37,8 @@ const MODES = [
     title: 'Letter Sounds',
     description: 'Match letters to their sounds',
     icon: '🔤',
-    color: 'from-blue-400 to-blue-600'
+    color: 'from-blue-400 to-blue-600',
+    alwaysUnlocked: true
   },
   {
     id: 'letter_tracing',
@@ -52,28 +53,32 @@ const MODES = [
     title: 'Sight Words',
     description: 'Catch the word you hear',
     icon: '👀',
-    color: 'from-green-400 to-green-600'
+    color: 'from-green-400 to-green-600',
+    alwaysUnlocked: true
   },
   {
     id: 'sight_words_spelling',
     title: 'Spell Sight Words',
     description: 'Build sight words letter by letter',
     icon: '✍️',
-    color: 'from-purple-400 to-purple-600'
+    color: 'from-purple-400 to-purple-600',
+    alwaysUnlocked: true
   },
   {
     id: 'case_matching',
     title: 'Upper & Lowercase',
     description: 'Match uppercase with lowercase',
     icon: '🔄',
-    color: 'from-pink-400 to-pink-600'
+    color: 'from-pink-400 to-pink-600',
+    alwaysUnlocked: true
   },
   {
-    id: 'number_hearing',
-    title: 'Number Sounds',
-    description: 'Catch the number you hear (0–20)',
-    icon: '🔢',
-    color: 'from-teal-400 to-teal-600'
+    id: 'phonics',
+    title: 'Phonics Cloze',
+    description: 'Listen and fill the missing sound!',
+    icon: '🎧',
+    color: 'from-cyan-400 to-blue-500',
+    alwaysUnlocked: true
   },
   {
     id: 'sentences',
@@ -96,7 +101,8 @@ const MODES = [
     title: 'Spelling Words',
     description: 'Spell words from jumbled letters',
     icon: '🔠',
-    color: 'from-orange-400 to-orange-600'
+    color: 'from-orange-400 to-orange-600',
+    alwaysUnlocked: true
   },
   {
     id: 'storybuilder',
