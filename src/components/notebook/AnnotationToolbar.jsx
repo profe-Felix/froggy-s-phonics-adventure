@@ -35,7 +35,7 @@ const TOOLS = [
   { id: 'eraser_object', label: '🧹', title: 'Stroke Eraser (tap a stroke to remove it)' },
   { id: 'eraser_pixel', label: '◻️', title: 'Pixel Eraser (fine)' },
   { id: 'laser', label: 'laser', title: 'Laser pointer' },
-  { id: 'lasso', label: '✂️', title: 'Lasso & Cut — draw around a region to cut it out' },
+  // lasso hidden for now
 ];
 
 export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear, side, onSwapSide }) {

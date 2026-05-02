@@ -1411,8 +1411,16 @@ export default function WordSentenceBuilder() {
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 
 function StudentLoginFlow({ searchParams }) {
-  const [selectedClass, setSelectedClass] = useState(null);
+  const urlClass = searchParams.get('class');
   const preset = searchParams.get('preset');
+
+  // Normalize class param (case-insensitive match)
+  const normalizeClass = (raw) => {
+    if (!raw) return null;
+    return CLASSES.find(c => c.toLowerCase() === raw.toLowerCase()) || null;
+  };
+
+  const [selectedClass, setSelectedClass] = useState(() => normalizeClass(urlClass));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-indigo-50 flex items-center justify-center p-6">
@@ -1438,7 +1446,9 @@ function StudentLoginFlow({ searchParams }) {
                   className="w-full aspect-square rounded-xl bg-indigo-50 border-2 border-indigo-200 text-indigo-700 font-black text-lg hover:bg-indigo-600 hover:text-white active:scale-95 transition-all">{n}</button>
               ))}
             </div>
-            <button onClick={()=>setSelectedClass(null)} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 font-bold">← Cambiar clase</button>
+            {!normalizeClass(urlClass) && (
+              <button onClick={()=>setSelectedClass(null)} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 font-bold">← Cambiar clase</button>
+            )}
           </>
         )}
       </div>
