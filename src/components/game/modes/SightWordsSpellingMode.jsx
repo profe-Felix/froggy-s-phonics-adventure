@@ -462,7 +462,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
               <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
                 style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
             </div>
-            <span className="text-sm font-black text-purple-600 whitespace-nowrap">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI} 🍎</span>
+            <span className="text-sm font-black text-purple-600 whitespace-nowrap">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI} {totalEmojiCount > 0 ? getEmojiForIndex(displayEmojiIdx) : '🎯'}</span>
           </button>
         </div>
 
@@ -544,7 +544,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
             <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
               style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
           </div>
-          <span className="text-xs font-black text-purple-600">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI}🍎</span>
+          <span className="text-xs font-black text-purple-600">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI} {totalEmojiCount > 0 ? getEmojiForIndex(displayEmojiIdx) : '🎯'}</span>
         </button>
         <button
           onClick={handleUnclearAudio}
