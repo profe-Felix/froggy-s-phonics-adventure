@@ -54,46 +54,193 @@ function tokenize(word) {
 
 // ── Syllabification ────────────────────────────────────────────────
 const VOWEL_SET = new Set('aeiouáéíóúü');
+// Stressed weak vowels break diphthongs (á/é/ó are always strong)
+const STRONG_VOWELS = new Set('aeoáéó');
+const WEAK_VOWELS = new Set('iuüíú');
 function isVowelToken(t) { return t.length === 1 && VOWEL_SET.has(t); }
 
-function syllabify(word) {
-  const tokens = tokenize(word);
-  // Group into syllables by nuclei
-  // Simple nucleus-based split: each vowel (or diphthong pair) starts a new syllable
-  const syllables = [];
-  let current = [];
-  const diphthongPairs = new Set(['ai','ia','au','ua','ei','ie','eu','ue','oi','io','ou','uo','ui','iu','ay','ey','oy','uy']);
+/**
+ * Returns true if two adjacent vowel tokens form a diphthong (stay in same syllable).
+ * Rules: strong+weak or weak+strong → diphthong UNLESS weak has accent (becomes strong).
+ * Two strong vowels → hiatus (separate syllables).
+ * Two weak vowels → diphthong.
+ * Accented weak vowel (í, ú) → acts as strong → hiatus.
+ */
+function formsDiphthong(v1, v2) {
+  const s1 = STRONG_VOWELS.has(v1), w1 = WEAK_VOWELS.has(v1);
+  const s2 = STRONG_VOWELS.has(v2), w2 = WEAK_VOWELS.has(v2);
+  // accented weak = strong (í ú already in STRONG via áéó set? No — handle explicitly)
+  const accentedWeak = new Set('íú');
+  if (accentedWeak.has(v1) || accentedWeak.has(v2)) return false; // hiatus
+  if (w1 && w2) return true;       // ui, iu → diphthong
+  if (s1 && s2) return false;       // ae, eo etc → hiatus
+  return true;                       // strong+weak or weak+strong → diphthong
+}
 
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    current.push(t);
-    const isV = isVowelToken(t);
-    if (isV) {
-      // Look ahead: if next token is a vowel and they form a diphthong, keep in same syllable
-      const next = tokens[i + 1];
-      if (next && isVowelToken(next) && diphthongPairs.has(t + next)) {
-        current.push(next);
-        i++;
-      }
-      // Look ahead for trailing consonants (coda)
-      // Take consonants until we hit another vowel or end
-      while (i + 1 < tokens.length && !isVowelToken(tokens[i + 1])) {
-        // If next+1 is also consonant, only take first (onset of next syllable)
-        if (i + 2 < tokens.length && !isVowelToken(tokens[i + 2])) {
-          current.push(tokens[i + 1]);
-          i++;
+/**
+ * Unbreakable onset clusters (consonant + consonant that must start next syllable together).
+ * Based on LDC/RAE rules:
+ *   stop/f + liquid: pr br tr dr cr gr fr pl bl cl gl fl
+ *   tl (Mexican Spanish)
+ * These are checked on PHONEME tokens (after digraph splitting).
+ */
+const UNBREAKABLE_ONSET_PAIRS = new Set([
+  'pr','br','tr','dr','cr','gr','fr',
+  'pl','bl','cl','gl','fl',
+  'tl', // Mexican Spanish
+]);
+
+function isConsonantToken(t) { return !isVowelToken(t); }
+
+/**
+ * Proper Spanish syllabification following RAE/LDC rules.
+ *
+ * Algorithm operates on phoneme tokens (digraphs already merged).
+ * Steps:
+ *  1. Split tokens into nuclei (vowels, handling diphthongs/triphthongs).
+ *  2. Distribute inter-nucleus consonants:
+ *     - 1 consonant → onset of next syllable
+ *     - 2 consonants: if they form unbreakable onset (pr,bl,cl,etc.) → both go to next syllable
+ *                     otherwise → first is coda of prev, second is onset of next
+ *     - 3 consonants: if last 2 form unbreakable onset → first is coda, last 2 are onset
+ *                     if first 2 are ns/bs → first 2 are coda, last is onset
+ *                     otherwise → first 2 are coda, last is onset
+ */
+function syllabify(word) {
+  const tokens = tokenize(word.toLowerCase());
+
+  // Step 1: find nuclei positions (vowels, merging diphthongs)
+  // Build list of nucleus groups with their token indices
+  const nuclei = []; // [{indices: [i, j, ...]}]
+  let i = 0;
+  while (i < tokens.length) {
+    if (!isVowelToken(tokens[i])) { i++; continue; }
+    // Start a nucleus
+    const nucTokens = [i];
+    // Check for diphthong/triphthong
+    if (i + 1 < tokens.length && isVowelToken(tokens[i + 1])) {
+      if (formsDiphthong(tokens[i], tokens[i + 1])) {
+        nucTokens.push(i + 1);
+        // Triphthong: weak+strong+weak
+        if (i + 2 < tokens.length && isVowelToken(tokens[i + 2]) && WEAK_VOWELS.has(tokens[i + 2])) {
+          nucTokens.push(i + 2);
         }
-        break;
       }
-      syllables.push(current.join(''));
-      current = [];
     }
+    nuclei.push(nucTokens);
+    i = nucTokens[nucTokens.length - 1] + 1;
   }
-  if (current.length > 0) {
-    if (syllables.length > 0) syllables[syllables.length - 1] += current.join('');
-    else syllables.push(current.join(''));
+
+  if (nuclei.length === 0) return [word]; // no vowels
+
+  // Step 2: build syllable token-index ranges
+  // Each syllable = [onset consonants] + [nucleus] + [coda consonants]
+  const syllableRanges = []; // [{start, end}] inclusive token indices
+
+  for (let n = 0; n < nuclei.length; n++) {
+    const nucStart = nuclei[n][0];
+    const nucEnd = nuclei[n][nuclei[n].length - 1];
+    const prevNucEnd = n === 0 ? -1 : nuclei[n - 1][nuclei[n - 1].length - 1];
+    const nextNucStart = n === nuclei.length - 1 ? tokens.length : nuclei[n + 1][0];
+
+    // Consonants before this nucleus (after previous nucleus)
+    const prevConsonants = [];
+    for (let k = prevNucEnd + 1; k < nucStart; k++) prevConsonants.push(k);
+
+    // Consonants after this nucleus (before next nucleus)
+    const nextConsonants = [];
+    for (let k = nucEnd + 1; k < nextNucStart; k++) nextConsonants.push(k);
+
+    // Determine how many of prevConsonants belong to THIS syllable's onset
+    // vs the PREVIOUS syllable's coda (already handled when we built prev syllable)
+    // We handle distribution when assigning coda to prev syllable below.
+
+    // For now, store nucleus range; we'll assemble after distributing consonants
+    syllableRanges.push({ nucStart, nucEnd, nextConsonants });
   }
-  return syllables.length > 0 ? syllables : [word];
+
+  // Distribute consonant clusters between nuclei into coda/onset
+  // Result: for each nucleus, onsetExtra = extra consonants taken from prev cluster
+  const syllables = [];
+  let pendingOnset = []; // token indices that belong to onset of current nucleus
+
+  // Pre-word consonants (before first vowel)
+  const preWord = [];
+  for (let k = 0; k < nuclei[0][0]; k++) preWord.push(k);
+
+  for (let n = 0; n < nuclei.length; n++) {
+    const { nucStart, nucEnd, nextConsonants } = syllableRanges[n];
+
+    // My onset = pendingOnset (distributed from previous cluster)
+    const myOnset = [...pendingOnset];
+    if (n === 0) myOnset.unshift(...preWord);
+    pendingOnset = [];
+
+    // My nucleus
+    const myNucleus = nuclei[n];
+
+    // Distribute nextConsonants into coda (mine) and onset (next syllable)
+    const nc = nextConsonants.length;
+    let myCoda = [];
+    let nextOnset = [];
+
+    if (nc === 0) {
+      // nothing
+    } else if (nc === 1) {
+      // Single consonant → onset of next syllable
+      if (n < nuclei.length - 1) nextOnset = [nextConsonants[0]];
+      else myCoda = [nextConsonants[0]]; // word-final
+    } else if (nc === 2) {
+      const c1 = tokens[nextConsonants[0]];
+      const c2 = tokens[nextConsonants[1]];
+      const pair = c1 + c2;
+      if (UNBREAKABLE_ONSET_PAIRS.has(pair) && n < nuclei.length - 1) {
+        // Both go to next onset: e.g. chi-cle, a-bri-go
+        nextOnset = [nextConsonants[0], nextConsonants[1]];
+      } else {
+        // Split: first is coda, second is onset
+        myCoda = [nextConsonants[0]];
+        if (n < nuclei.length - 1) nextOnset = [nextConsonants[1]];
+        else myCoda.push(nextConsonants[1]);
+      }
+    } else if (nc >= 3) {
+      const c1 = tokens[nextConsonants[0]];
+      const c2 = tokens[nextConsonants[1]];
+      const c3 = tokens[nextConsonants[2]];
+      const last2 = c2 + c3;
+      const first2 = c1 + c2;
+      if (UNBREAKABLE_ONSET_PAIRS.has(last2) && n < nuclei.length - 1) {
+        // e.g. em-ple-a: first is coda, last 2 are onset
+        myCoda = [nextConsonants[0]];
+        nextOnset = nextConsonants.slice(1);
+      } else if (first2 === 'ns' || first2 === 'bs') {
+        // e.g. cons-ti: first 2 are coda, rest are onset
+        myCoda = [nextConsonants[0], nextConsonants[1]];
+        if (n < nuclei.length - 1) nextOnset = nextConsonants.slice(2);
+        else myCoda.push(...nextConsonants.slice(2));
+      } else {
+        // Default: first 2 coda, last onset
+        myCoda = nextConsonants.slice(0, nc - 1);
+        if (n < nuclei.length - 1) nextOnset = [nextConsonants[nc - 1]];
+        else myCoda.push(nextConsonants[nc - 1]);
+      }
+    }
+
+    pendingOnset = nextOnset;
+
+    // Build syllable string from token indices
+    const allIdx = [...myOnset, ...myNucleus, ...myCoda].sort((a, b) => a - b);
+    syllables.push(allIdx.map(idx => tokens[idx]).join(''));
+  }
+
+  // Append any trailing consonants to last syllable
+  if (pendingOnset.length > 0) {
+    syllables[syllables.length - 1] += pendingOnset.map(idx => tokens[idx]).join('');
+  }
+
+  return syllables.filter(s => s.length > 0).length > 0
+    ? syllables.filter(s => s.length > 0)
+    : [word];
 }
 
 // ── Confusion map: what letters/digraphs confuse Spanish learners ──
