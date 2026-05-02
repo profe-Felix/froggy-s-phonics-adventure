@@ -1204,6 +1204,13 @@ export default function WordSentenceBuilder() {
                   className="border border-gray-300 rounded-lg px-2 py-1 w-16 text-sm" />
               </label>
               <button onClick={applyProblems} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">Aplicar</button>
+              <select value={qrTeacherClass} onChange={e=>setQrTeacherClass(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold text-gray-700 bg-white">
+                <option value="">Clase: todas</option>
+                {['Felix','Valero','Campos'].map(c=>(
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
               {config.answers && <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>}
               <button onClick={()=>setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
             </div>
@@ -1389,16 +1396,7 @@ export default function WordSentenceBuilder() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={()=>setShowQR(false)}>
           <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e=>e.stopPropagation()}>
             <p className="font-black text-lg mb-3">📱 Escanea para abrir</p>
-            <div className="flex items-center gap-2 mb-3 justify-center">
-              <span className="text-sm font-bold text-gray-600">Clase:</span>
-              <select value={qrTeacherClass} onChange={e=>setQrTeacherClass(e.target.value)}
-                className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold">
-                <option value="">Todas (estudiante elige)</option>
-                {['Felix','Valero','Campos'].map(c=>(
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+            {qrTeacherClass && <p className="text-sm font-bold text-indigo-600 mb-2">Clase: {qrTeacherClass}</p>}
             <div className="flex justify-center mb-3"><QRCodeSVG value={qrUrl} size={220} level="M" /></div>
             <p className="text-xs text-gray-400 mb-4 break-all">{qrUrl}</p>
             <button onClick={()=>setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Cerrar</button>

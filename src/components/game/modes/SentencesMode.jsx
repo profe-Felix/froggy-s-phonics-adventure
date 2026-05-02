@@ -190,6 +190,8 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   const [hasDrawn, setHasDrawn] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
+  const [keyboardMode, setKeyboardMode] = useState(false);
+  const [typedSentence, setTypedSentence] = useState('');
 
   const getPos = (e) => {
     const c = canvasRef.current;
@@ -308,72 +310,84 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   };
 
   const displayH = 220;
-
   const cursorStyle = tool === 'object-eraser' ? 'pointer' : tool === 'pixel-eraser' ? 'cell' : 'crosshair';
 
   return (
     <div className="flex flex-col gap-3 w-full">
       {/* Speaker-only prompt */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col items-center gap-1 flex-1">
+          <button onClick={handlePlay}
+            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-xl transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}>
+            🔊
+          </button>
+          <p className="text-sm text-rose-500 font-bold">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
+          <button onClick={handleUnclearAudio}
+            className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200">
+            😕 No entiendo
+          </button>
+        </div>
         <button
-          onClick={handlePlay}
-          className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-xl transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
-        >
-          🔊
-        </button>
-        <p className="text-sm text-rose-500 font-bold">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
-        <button
-          onClick={handleUnclearAudio}
-          className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200"
-        >
-          😕 No entiendo
+          onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); }}
+          className={`self-start px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+          title="Toggle keyboard input">
+          ⌨️
         </button>
       </div>
-      <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
-      <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
-        <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${displayH}`}>
-          {[0,1,2].map(row => {
-            const rowH = displayH / 3;
-            const top = row * rowH + rowH * 0.04;
-            const mid = row * rowH + rowH * 0.40;
-            const base = row * rowH + rowH * 0.74;
-            return (
-              <g key={row}>
-                <line x1="0" y1={top} x2="100" y2={top} stroke="#b0c4de" strokeWidth="0.4" />
-                <line x1="0" y1={mid} x2="100" y2={mid} stroke="#b0c4de" strokeWidth="0.4" strokeDasharray="2,1.5" />
-                <line x1="0" y1={base} x2="100" y2={base} stroke="#3b82f6" strokeWidth="0.6" />
-              </g>
-            );
-          })}
-        </svg>
-        <canvas ref={canvasRef} width={1400} height={420}
-          className="absolute inset-0 touch-none w-full h-full"
-          style={{ background: 'transparent', cursor: cursorStyle }}
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-        />
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={() => setTool('pen')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pen' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          ✏️ Pencil
-        </button>
-        <button onClick={() => setTool('pixel-eraser')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'pixel-eraser' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          🩹 Pixel
-        </button>
-        <button onClick={() => setTool('object-eraser')}
-          className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool === 'object-eraser' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-          🧹 Object
-        </button>
-        <button onClick={undo} disabled={allStrokes.current.length === 0}
-          className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">↩ Undo</button>
-        <button onClick={clear} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">🗑 Borrar</button>
-        <button onClick={() => onDone(allStrokes.current.filter(s => !s.eraser).map(s => s.points))} disabled={!hasDrawn}
-          className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm">
-          Listo → Construir
-        </button>
-      </div>
+
+      {keyboardMode ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-base font-black text-indigo-700 text-center">⌨️ Escribe la oración primero</p>
+          <textarea
+            value={typedSentence}
+            onChange={e => setTypedSentence(e.target.value)}
+            placeholder="Escribe la oración aquí…"
+            autoFocus
+            rows={3}
+            className="w-full border-4 border-indigo-400 rounded-2xl px-4 py-3 text-2xl font-bold outline-none focus:border-indigo-600 bg-indigo-50 resize-none"
+            style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+          />
+          <button onClick={() => onDone([], typedSentence)} disabled={!typedSentence.trim()}
+            className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700">
+            Listo → Construir
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
+          <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
+            <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${displayH}`}>
+              {[0,1,2].map(row => {
+                const rowH = displayH / 3;
+                const top = row * rowH + rowH * 0.04, mid = row * rowH + rowH * 0.40, base = row * rowH + rowH * 0.74;
+                return (
+                  <g key={row}>
+                    <line x1="0" y1={top} x2="100" y2={top} stroke="#b0c4de" strokeWidth="0.4" />
+                    <line x1="0" y1={mid} x2="100" y2={mid} stroke="#b0c4de" strokeWidth="0.4" strokeDasharray="2,1.5" />
+                    <line x1="0" y1={base} x2="100" y2={base} stroke="#3b82f6" strokeWidth="0.6" />
+                  </g>
+                );
+              })}
+            </svg>
+            <canvas ref={canvasRef} width={1400} height={420}
+              className="absolute inset-0 touch-none w-full h-full"
+              style={{ background: 'transparent', cursor: cursorStyle }}
+              onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+              onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp} />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setTool('pen')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='pen'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>✏️ Pencil</button>
+            <button onClick={() => setTool('pixel-eraser')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='pixel-eraser'?'bg-orange-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🩹 Pixel</button>
+            <button onClick={() => setTool('object-eraser')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='object-eraser'?'bg-red-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🧹 Object</button>
+            <button onClick={undo} disabled={allStrokes.current.length === 0} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">↩ Undo</button>
+            <button onClick={clear} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">🗑 Borrar</button>
+            <button onClick={() => onDone(allStrokes.current.filter(s => !s.eraser).map(s => s.points))} disabled={!hasDrawn}
+              className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm">
+              Listo → Construir
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
