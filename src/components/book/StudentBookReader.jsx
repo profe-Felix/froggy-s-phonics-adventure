@@ -262,7 +262,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" fillHeight={twoPerPage} />;
   };
 
   const handleFullscreen = () => {

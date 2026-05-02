@@ -10,7 +10,7 @@ const pdfCache = {};
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
  *          'contain' — scale to fit both width AND height (for book reader, no scroll)
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width' }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
@@ -61,7 +61,10 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const viewport = page.getViewport({ scale: 1 });
 
         let scale;
-        if (fitMode === 'contain' && containerSize.h > 10) {
+        if (fillHeight && containerSize.h > 10) {
+          // Scale so height fills container exactly — pages will be flush edge-to-edge in 2-up mode
+          scale = containerSize.h / viewport.height;
+        } else if (fitMode === 'contain' && containerSize.h > 10) {
           const scaleW = containerSize.w / viewport.width;
           const scaleH = containerSize.h / viewport.height;
           scale = Math.min(scaleW, scaleH);
@@ -108,7 +111,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           </div>
         </div>
       )}
-      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: fillHeight ? 'none' : '100%', maxHeight: '100%' }} />
     </div>
   );
 }
