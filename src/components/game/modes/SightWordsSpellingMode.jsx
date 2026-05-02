@@ -359,8 +359,13 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       correct = builtWord.join('') === currentWord;
     }
 
-    // Points = module number flat. Retry = half points (floor).
-    const basePts = correct ? (isRetry ? Math.floor(selectedModule / 2) : selectedModule) : 0;
+    // Partial points: (correctLetters / wordLength) * module, floored. Retry = half.
+    const targetLetters = challengeType === 'cloze'
+      ? clozeIndicesRef.current.map(i => wordLetters[i])
+      : wordLetters;
+    const correctLetterCount = builtWord.filter((l, i) => l === (targetLetters[i] ?? null)).length;
+    const rawPts = Math.floor((correctLetterCount / targetLetters.length) * selectedModule);
+    const basePts = isRetry ? Math.floor(rawPts / 2) : rawPts;
 
     // Streak bonus only on first-attempt correct
     const newStreak = correct && !isRetry ? streak + 1 : (correct ? streak : 0);
@@ -457,7 +462,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
               <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
                 style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
             </div>
-            <span className="text-xs font-black text-purple-600 whitespace-nowrap">{ptsToNextEmoji} to prize!</span>
+            <span className="text-sm font-black text-purple-600 whitespace-nowrap">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI} 🍎</span>
           </button>
         </div>
 
@@ -539,7 +544,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
             <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all"
               style={{ width: `${((spellingEmojiPts % POINTS_PER_EMOJI) / POINTS_PER_EMOJI) * 100}%` }} />
           </div>
-          <span className="text-xs font-black text-purple-600">{ptsToNextEmoji}pts</span>
+          <span className="text-xs font-black text-purple-600">{spellingEmojiPts % POINTS_PER_EMOJI}/{POINTS_PER_EMOJI}🍎</span>
         </button>
         <button
           onClick={handleUnclearAudio}

@@ -7,7 +7,7 @@ export const FRUIT_LIST = [
   '🍈', '🫐', '🍉', '🥝', '🍐', '🫒', '🍅', '🥥', '🌽', '🍆'
 ];
 
-export const POINTS_PER_FRUIT = 75;
+export const POINTS_PER_FRUIT = 25;
 
 /**
  * Compute how many fruits should be unlocked based on lifetime spelling points.
@@ -50,14 +50,14 @@ export function FruitBadge({ unlockedFruits = [], spellingTotalPoints = 0, onCli
           </span>
         )}
       </div>
-      {/* Progress bar to next fruit */}
+      {/* Progress tracker */}
       <div className="w-14 h-1.5 bg-white/60 rounded-full overflow-hidden">
         <div
           className="h-full bg-orange-500 rounded-full transition-all"
           style={{ width: `${(progressToNext / POINTS_PER_FRUIT) * 100}%` }}
         />
       </div>
-      <span className="text-xs font-bold text-orange-800">🍎 Fruits</span>
+      <span className="text-xs font-black text-orange-800">{progressToNext}/{POINTS_PER_FRUIT}</span>
     </button>
   );
 }
@@ -94,8 +94,8 @@ export default function FruitCollection({ unlockedFruits = [], spellingTotalPoin
         {/* Progress to next fruit */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-400 font-bold mb-1">
-            <span>{progressToNext} pts</span>
-            <span>{nextMilestone} pts → next fruit!</span>
+            <span className="text-sm font-black text-orange-600">{progressToNext}/{POINTS_PER_FRUIT}</span>
+            <span>→ next fruit! 🍎</span>
           </div>
           <div className="h-3 bg-orange-100 rounded-full overflow-hidden border border-orange-200">
             <motion.div

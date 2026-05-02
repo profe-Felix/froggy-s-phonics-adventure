@@ -1003,7 +1003,7 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
           <p className="font-black text-lg mb-1">{isCorrect ? '🎉 ¡Perfecto!' : '📖 ¡Corrige las partes en rojo!'}</p>
           <div className="flex gap-2 justify-center mt-2">
             {!isCorrect && <button onClick={reset} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200">↩ Intentar de nuevo</button>}
-            <button onClick={onComplete} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">Siguiente →</button>
+            <button onClick={() => onComplete(isCorrect)} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">Siguiente →</button>
           </div>
         </motion.div>
       )}
@@ -1031,12 +1031,9 @@ function StickerProgressBar({ sessionPts, totalPts }) {
           <div className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all duration-700"
             style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs font-black text-rose-700 whitespace-nowrap">{progress}/{PTS_PER_STICKER}</span>
+        <span className="text-sm font-black text-rose-700 whitespace-nowrap">{progress}/{PTS_PER_STICKER}</span>
       </div>
-      <p className="text-xs text-gray-400 font-bold">
-        {PTS_PER_STICKER - progress} pts to next prize spin 🎡
-        {spins > 0 && <span className="ml-2 text-rose-500">· {spins} spin{spins > 1 ? 's' : ''} used</span>}
-      </p>
+      {spins > 0 && <p className="text-xs text-rose-500 font-bold">{spins} prize spin{spins > 1 ? 's' : ''} earned 🎡</p>}
     </div>
   );
 }
@@ -1123,7 +1120,21 @@ export default function SentencesMode({ studentData, onBack }) {
     }
   };
 
-  const handleComplete = () => {
+  const handleComplete = (wasCorrect = false) => {
+    // Only award points for fully correct answers
+    if (!wasCorrect) {
+      // Advance to next sentence without points
+      if (currentIdx + 1 < sentences.length) {
+        setCurrentIdx(i => i + 1);
+        setPhase('write');
+      } else {
+        setSentences(s => [...s].sort(() => Math.random() - 0.5));
+        setCurrentIdx(0);
+        setPhase('write');
+      }
+      return;
+    }
+
     // Check if this sentence was already completed this session (prevent farming)
     const completedSentences = JSON.parse(sessionStorage.getItem('completedSentences') || '{}');
     const sentenceKey = currentSentence.trim();
