@@ -271,30 +271,29 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" fillHeight={twoPerPage} alignSelf={align} />;
   };
 
-  const [fakeFullscreen, setFakeFullscreen] = useState(false);
+  const readerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => {
+      const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setIsFullscreen(fs);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
+  }, []);
 
   const handleFullscreen = () => {
-    // Try native fullscreen first (works on Android/desktop)
-    const el = document.documentElement;
-    const enterNative = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-    if (!document.fullscreenElement && !document.webkitFullscreenElement && enterNative) {
-      const p = enterNative.call(el);
-      if (p) p.then(() => {}).catch(() => setFakeFullscreen(true));
-      else setFakeFullscreen(true);
-      return;
-    }
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-      setFakeFullscreen(false);
-      return;
-    }
-    // iOS Safari fallback: scroll to hide browser chrome + lock to top
-    setFakeFullscreen(v => !v);
-    if (!fakeFullscreen) {
-      window.scrollTo(0, 1);
-      try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch {}
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
     } else {
-      try { screen.orientation?.unlock?.(); } catch {}
+      const el = readerRef.current;
+      if (!el) return;
+      (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
     }
   };
 
@@ -302,7 +301,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const pageLabel = `${currentPage}${twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''}/${totalPages}`;
 
   return (
-    <div className="flex flex-col" style={{ background: '#042f2e', position: 'fixed', inset: 0, zIndex: fakeFullscreen ? 9999 : undefined }}>
+    <div ref={readerRef} className="flex flex-col" style={{ background: '#042f2e', position: 'fixed', inset: 0 }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488' }}>
         <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm shrink-0">← Back</button>
@@ -313,8 +312,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           {twoPerPage ? '2-up' : '1-up'}
         </button>
         <button onClick={handleFullscreen}
-          className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${fakeFullscreen ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
-          title="Fullscreen">{fakeFullscreen ? '⊡' : '⛶'}</button>
+          className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${isFullscreen ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
+          title="Fullscreen">{isFullscreen ? '⊡' : '⛶'}</button>
         <span className="text-teal-300 text-xs font-bold shrink-0">
           Pg {currentPage}{twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''} / {totalPages}
         </span>
