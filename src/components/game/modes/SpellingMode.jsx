@@ -282,16 +282,19 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     startRound(mod);
   };
 
-  const handleWriteDone = async (strokes, imageUrl) => {
+  const handleWriteDone = async (strokes, imageUrl, typedWord, typingMeta) => {
     setWrittenStrokes(strokes);
     setPhase('build');
     if (studentData) {
+      const isKeyboard = Array.isArray(strokes) && strokes.length === 0 && typingMeta;
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
         mode: 'spelling',
         word: currentWord,
-        strokes_data: JSON.stringify(strokes),
+        strokes_data: isKeyboard
+          ? JSON.stringify({ typed: typedWord, durationMs: typingMeta?.durationMs, keystrokes: typingMeta?.keystrokes })
+          : JSON.stringify(strokes),
         was_correct: null,
       }).catch(() => {});
     }

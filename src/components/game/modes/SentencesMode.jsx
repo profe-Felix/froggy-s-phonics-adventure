@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import SpecialCharPicker from '@/components/game/SpecialCharPicker';
 import PrizeWheel from '@/components/game/PrizeWheel';
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
@@ -192,6 +193,9 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
   const [keyboardMode, setKeyboardMode] = useState(false);
   const [typedSentence, setTypedSentence] = useState('');
+  const textareaRef = useRef(null);
+  const typingStartRef = useRef(null);
+  const keystrokeLog = useRef([]);
 
   const getPos = (e) => {
     const c = canvasRef.current;
@@ -328,7 +332,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
           </button>
         </div>
         <button
-          onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); }}
+          onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); typingStartRef.current = null; keystrokeLog.current = []; }}
           className={`self-start px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
           title="Toggle keyboard input">
           ⌨️
@@ -339,15 +343,32 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
         <div className="flex flex-col gap-3">
           <p className="text-base font-black text-indigo-700 text-center">⌨️ Escribe la oración primero</p>
           <textarea
+            ref={textareaRef}
             value={typedSentence}
-            onChange={e => setTypedSentence(e.target.value)}
+            onChange={e => {
+              if (!typingStartRef.current && e.target.value.length > 0) typingStartRef.current = Date.now();
+              keystrokeLog.current.push({ val: e.target.value, t: Date.now() });
+              setTypedSentence(e.target.value);
+            }}
             placeholder="Escribe la oración aquí…"
             autoFocus
             rows={3}
             className="w-full border-4 border-indigo-400 rounded-2xl px-4 py-3 text-2xl font-bold outline-none focus:border-indigo-600 bg-indigo-50 resize-none"
             style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
           />
-          <button onClick={() => onDone([], typedSentence)} disabled={!typedSentence.trim()}
+          <SpecialCharPicker onInsert={ch => {
+            const ta = textareaRef.current;
+            if (!ta) { setTypedSentence(s => s + ch); return; }
+            const start = ta.selectionStart ?? typedSentence.length;
+            const end = ta.selectionEnd ?? typedSentence.length;
+            const newVal = typedSentence.slice(0, start) + ch + typedSentence.slice(end);
+            setTypedSentence(newVal);
+            requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + ch.length, start + ch.length); });
+          }} />
+          <button onClick={() => {
+            const durationMs = typingStartRef.current ? Date.now() - typingStartRef.current : null;
+            onDone([], typedSentence, { durationMs, keystrokes: keystrokeLog.current.length });
+          }} disabled={!typedSentence.trim()}
             className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700">
             Listo → Construir
           </button>
@@ -1121,15 +1142,18 @@ export default function SentencesMode({ studentData, onBack }) {
     if (currentItem) playAudioById(currentItem.id);
   };
 
-  const handleWriteDone = async (strokes) => {
+  const handleWriteDone = async (strokes, typedText, typingMeta) => {
     setPhase('build');
     if (studentData) {
+      const isKeyboard = Array.isArray(strokes) && strokes.length === 0 && typingMeta;
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
         mode: 'sentences',
         word: currentSentence,
-        strokes_data: JSON.stringify(strokes),
+        strokes_data: isKeyboard
+          ? JSON.stringify({ typed: typedText, durationMs: typingMeta?.durationMs, keystrokes: typingMeta?.keystrokes })
+          : JSON.stringify(strokes),
         was_correct: null,
       }).catch(() => {});
     }

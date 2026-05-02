@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
+import SpecialCharPicker from './SpecialCharPicker';
 
 export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = false }) {
   const canvasRef = useRef(null);
@@ -10,6 +11,9 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
   const [tool, setTool] = useState('pen');
   const [keyboardMode, setKeyboardMode] = useState(false);
   const [typedWord, setTypedWord] = useState('');
+  const inputRef = useRef(null);
+  const typingStartRef = useRef(null);
+  const keystrokeLog = useRef([]); // [{char, t}] for speed tracking
 
   const getPos = (e) => {
     const canvas = canvasRef.current;
@@ -117,9 +121,31 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     onDone(penStrokes, url);
   };
 
+  const handleTyping = (e) => {
+    const val = e.target.value;
+    if (!typingStartRef.current && val.length > 0) typingStartRef.current = Date.now();
+    keystrokeLog.current.push({ val, t: Date.now() });
+    setTypedWord(val);
+  };
+
+  const insertSpecialChar = (ch) => {
+    const input = inputRef.current;
+    if (!input) { setTypedWord(w => w + ch); return; }
+    const start = input.selectionStart ?? typedWord.length;
+    const end = input.selectionEnd ?? typedWord.length;
+    const newVal = typedWord.slice(0, start) + ch + typedWord.slice(end);
+    setTypedWord(newVal);
+    // Restore cursor after React re-render
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(start + ch.length, start + ch.length);
+    });
+  };
+
   const handleKeyboardDone = () => {
-    // Create a blank canvas snapshot and pass empty strokes — word is typed
-    onDone([], null, typedWord);
+    const durationMs = typingStartRef.current ? Date.now() - typingStartRef.current : null;
+    // Pass typed word + timing metadata as 3rd arg
+    onDone([], null, typedWord, { durationMs, keystrokes: keystrokeLog.current.length });
   };
 
   const canvasW = wide ? 1400 : 900;
@@ -137,7 +163,7 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
           </button>
         </div>
         <button
-          onClick={() => { setKeyboardMode(k => !k); setTypedWord(''); }}
+          onClick={() => { setKeyboardMode(k => !k); setTypedWord(''); typingStartRef.current = null; keystrokeLog.current = []; }}
           className={`px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
           title="Toggle keyboard input">
           ⌨️
@@ -145,18 +171,19 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
       </div>
 
       {keyboardMode ? (
-        <div className="w-full flex flex-col items-center gap-4 py-4">
+        <div className="w-full flex flex-col items-center gap-3">
           <input
+            ref={inputRef}
             type="text"
             value={typedWord}
-            onChange={e => setTypedWord(e.target.value)}
+            onChange={handleTyping}
             onKeyDown={e => { if (e.key === 'Enter' && typedWord.trim()) handleKeyboardDone(); }}
             placeholder="Type the word here…"
             autoFocus
             className="w-full border-4 border-indigo-400 rounded-2xl px-5 py-4 text-4xl font-bold text-center outline-none focus:border-indigo-600 bg-indigo-50"
             style={{ fontFamily: 'Andika, system-ui, sans-serif', letterSpacing: '0.08em' }}
           />
-          <p className="text-sm text-gray-400 font-bold">Press Enter or tap Done when ready</p>
+          <SpecialCharPicker onInsert={insertSpecialChar} />
           <button onClick={handleKeyboardDone} disabled={!typedWord.trim()}
             className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-lg">
             Done → Build It

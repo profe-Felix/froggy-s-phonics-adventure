@@ -274,15 +274,18 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     }
   }, [wordsLoaded, selectedModule]);
 
-  const handleWriteDone = async (strokes) => {
+  const handleWriteDone = async (strokes, imageUrl, typedWord, typingMeta) => {
     setPhase('build');
     if (studentData) {
+      const isKeyboard = Array.isArray(strokes) && strokes.length === 0 && typingMeta;
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
         mode: 'sight_words_spelling',
         word: currentWord,
-        strokes_data: JSON.stringify(strokes),
+        strokes_data: isKeyboard
+          ? JSON.stringify({ typed: typedWord, durationMs: typingMeta?.durationMs, keystrokes: typingMeta?.keystrokes })
+          : JSON.stringify(strokes),
         was_correct: null,
       }).catch(() => {});
     }
