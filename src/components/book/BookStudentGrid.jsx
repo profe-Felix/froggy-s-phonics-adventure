@@ -63,7 +63,7 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
         </div>
 
         {/* Page display — contain-fit, fills remaining modal height */}
-        <div className="flex-1 overflow-hidden relative" ref={containerRef} style={{ background: '#1a1a1a' }}>
+        <div className="flex-1 overflow-hidden relative" ref={containerRef} style={{ background: '#fff' }}>
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%' }}>
             {isSpread ? (
               <>

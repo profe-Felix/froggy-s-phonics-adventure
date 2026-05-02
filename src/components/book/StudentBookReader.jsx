@@ -265,6 +265,15 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
   };
 
+  const handleFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+    } else {
+      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+    }
+  };
+
   // Single combined bottom bar
   const pageLabel = `${currentPage}${twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''}/${totalPages}`;
 
@@ -279,15 +288,18 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}>
           {twoPerPage ? '2-up' : '1-up'}
         </button>
+        <button onClick={handleFullscreen}
+          className="px-2 py-0.5 rounded text-xs font-bold border border-teal-700 text-teal-300 shrink-0"
+          title="Fullscreen">⛶</button>
         <span className="text-teal-300 text-xs font-bold shrink-0">
           Pg {currentPage}{twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''} / {totalPages}
         </span>
       </div>
 
       {/* Page display — fixed height, contain-fit so nothing scrolls */}
-      <div className="flex-1 relative overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a' }}>
+      <div className="flex-1 relative overflow-hidden" ref={containerRef} style={{ background: '#fff' }}>
         {twoPerPage ? (
-          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%' }}>
+          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
               {renderPage(currentPage)}
             </div>

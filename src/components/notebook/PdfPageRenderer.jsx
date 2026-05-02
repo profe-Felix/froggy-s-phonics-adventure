@@ -99,7 +99,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: fitMode === 'contain' ? '100%' : 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100%', height: fitMode === 'contain' ? '100%' : 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: fitMode === 'contain' ? '#fff' : undefined }}>
       {loading && (
         <div style={{ position: 'absolute', inset: 0, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
@@ -108,7 +108,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           </div>
         </div>
       )}
-      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: '100%', maxHeight: '100%' }} />
+      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
     </div>
   );
 }
