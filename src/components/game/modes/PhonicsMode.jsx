@@ -276,6 +276,12 @@ const CONFUSION_MAP = {
   'l': ['r', 'll', 'n'],
   't': ['d', 'c', 'p'],
   'f': ['p', 'v', 'b'],
+  // Vowel confusions
+  'i': ['y', 'e', 'u', 'o', 'a'],
+  'e': ['i', 'a', 'o', 'u', 'y'],
+  'a': ['e', 'o', 'i', 'u'],
+  'o': ['u', 'a', 'e', 'i'],
+  'u': ['o', 'i', 'a', 'e'],
 };
 
 // Syllable confusions: given a syllable, what are confusable syllable options?
@@ -358,7 +364,7 @@ function buildLetterCloze(word) {
   // Add some random single letters as fallback
   const fallback = 'bcdfghjklmnpqrstvxyz'.split('').filter(l => l !== missingToken && !confused.includes(l));
   const all = [...confused, ...fallback.sort(() => Math.random() - 0.5)];
-  const distractors = all.slice(0, 3);
+  const distractors = all.slice(0, 5);
   const options = [missingToken, ...distractors].sort(() => Math.random() - 0.5);
 
   return { type: 'letter', display, missingToken, missingTokenIdx, tokens, charStart, charEnd, position, options };
@@ -382,16 +388,32 @@ function buildSyllableCloze(word) {
   const confused = getSyllableConfusions(missingSyllable).filter(s => s !== missingSyllable);
   const position = idx === 0 ? 'initial' : idx === syllables.length - 1 ? 'final' : 'medial';
 
-  // Pad to 4 options with vowel+consonant combos
-  const vowels = 'aeiou';
-  const consonants = 'bcdfghjklmnpqrstvyz'.split('');
-  while (confused.length < 3) {
-    const r = consonants[Math.floor(Math.random() * consonants.length)] +
-              vowels[Math.floor(Math.random() * vowels.length)];
-    if (r !== missingSyllable && !confused.includes(r)) confused.push(r);
+  // Determine if the missing syllable is vowel-only (e.g. "i", "a", "e")
+  const isVowelOnly = [...missingSyllable].every(c => VOWEL_SET.has(c));
+
+  if (isVowelOnly) {
+    // For pure-vowel syllables, confuse with: other vowels, y, hi, and ll+vowel combos
+    const otherVowels = ['a','e','i','o','u'].filter(v => v !== missingSyllable);
+    const yVariants = ['y', 'hi', 'li', 'yi', 'ya', 'ye', 'yo'].filter(s => s !== missingSyllable);
+    const llVariants = ['lla','lle','lli','llo','llu'].filter(s => s !== missingSyllable);
+    const pool = [...otherVowels, ...yVariants, ...llVariants];
+    while (confused.length < 5) {
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      if (pick && !confused.includes(pick) && pick !== missingSyllable) confused.push(pick);
+      if (confused.length >= pool.length) break;
+    }
+  } else {
+    // Pad to 5 distractors with CV combos
+    const vowels = 'aeiou';
+    const consonants = 'bcdfghjklmnpqrstvyz'.split('');
+    while (confused.length < 5) {
+      const r = consonants[Math.floor(Math.random() * consonants.length)] +
+                vowels[Math.floor(Math.random() * vowels.length)];
+      if (r !== missingSyllable && !confused.includes(r)) confused.push(r);
+    }
   }
 
-  const options = [missingSyllable, ...confused.slice(0, 3)].sort(() => Math.random() - 0.5);
+  const options = [missingSyllable, ...confused.slice(0, 5)].sort(() => Math.random() - 0.5);
 
   return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
 }
@@ -592,7 +614,7 @@ export default function PhonicsMode({ studentData, onBack }) {
           </div>
 
           {/* Answer options */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {cloze.options.map((option) => {
               const isSelected = selected === option;
               const isRight = option === cloze.missingToken;
