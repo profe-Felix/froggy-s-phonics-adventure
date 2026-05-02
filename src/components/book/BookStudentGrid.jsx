@@ -42,18 +42,17 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
       return img
-        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', display: 'block' }} />
-        : <div className="flex items-center justify-center w-full h-40 text-gray-400">No image</div>;
+        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    // Use width fitMode — same as student reader so laser overlay coordinates match
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="width" />;
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.88)' }} onClick={onClose}>
       <motion.div initial={{ scale: 0.92 }} animate={{ scale: 1 }}
         className="rounded-2xl overflow-hidden flex flex-col w-full max-w-3xl"
-        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '95vh' }}
+        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '95vh', height: '90vh' }}
         onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between px-4 py-2 shrink-0" style={{ background: '#042f2e', borderBottom: '1px solid #0d9488' }}>
@@ -63,18 +62,18 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
           <button onClick={onClose} className="text-teal-300 font-bold text-lg ml-4">✕</button>
         </div>
 
-        {/* Page display — scrollable, width-fit, matches student reader exactly */}
-        <div className="overflow-y-auto overflow-x-hidden relative" ref={containerRef} style={{ background: '#1a1a1a' }}>
-          <div style={{ position: 'relative', display: 'flex', width: '100%' }}>
+        {/* Page display — contain-fit, fills remaining modal height */}
+        <div className="flex-1 overflow-hidden relative" ref={containerRef} style={{ background: '#1a1a1a' }}>
+          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%' }}>
             {isSpread ? (
               <>
-                <div style={{ flex: 1, minWidth: 0 }}>{renderPage(recording.page)}</div>
+                <div style={{ flex: 1, minWidth: 0, height: '100%' }}>{renderPage(recording.page)}</div>
                 {recording.page + 1 <= totalPages && (
-                  <div style={{ flex: 1, minWidth: 0 }}>{renderPage(recording.page + 1)}</div>
+                  <div style={{ flex: 1, minWidth: 0, height: '100%' }}>{renderPage(recording.page + 1)}</div>
                 )}
               </>
             ) : (
-              <div style={{ flex: 1 }}>{renderPage(recording.page)}</div>
+              <div style={{ flex: 1, height: '100%' }}>{renderPage(recording.page)}</div>
             )}
             {laserData.length > 0 && containerSize.w > 0 && (
               <LaserReplayOverlay
