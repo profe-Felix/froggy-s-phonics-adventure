@@ -330,7 +330,12 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
             😕 No entiendo
           </button>
         </div>
-
+        <button
+          onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); typingStartRef.current = null; keystrokeLog.current = []; }}
+          className={`self-start px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+          title="Toggle keyboard input">
+          ⌨️
+        </button>
       </div>
 
       {keyboardMode ? (
