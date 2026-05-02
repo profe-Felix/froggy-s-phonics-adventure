@@ -216,9 +216,9 @@ function PaletteCard({ title, cols, perRow, rawTiles, renderTile, children }) {
     }
     const gridStyle = { display:'grid', gridTemplateColumns:`repeat(${perRow},max-content)`, gap:'6px' };
     return (
-      <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-2xl p-3 md:p-4 shadow-sm">
         <h2 className="text-sm font-black text-gray-600 mb-2 uppercase tracking-wide">{title}</h2>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 md:gap-3">
           {groups.filter(g => g.length > 0).map((group, gi) => (
             <div key={gi} style={gridStyle}>
               {group.map((val, ti) => renderTile(val, `${gi}-${ti}`))}
@@ -230,12 +230,12 @@ function PaletteCard({ title, cols, perRow, rawTiles, renderTile, children }) {
   }
 
   const gridStyle = cols > 0
-    ? { display:'grid', gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`, gap:'6px' }
+    ? { display:'grid', gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`, gap:'8px' }
     : {};
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-3 shadow-sm">
+    <div className="bg-white border border-gray-200 rounded-2xl p-3 md:p-4 shadow-sm">
       <h2 className="text-sm font-black text-gray-600 mb-2 uppercase tracking-wide">{title}</h2>
-      {cols > 0 ? <div style={gridStyle}>{children}</div> : <div className="flex flex-wrap gap-2">{children}</div>}
+      {cols > 0 ? <div style={gridStyle}>{children}</div> : <div className="flex flex-wrap gap-2 md:gap-3">{children}</div>}
     </div>
   );
 }
@@ -262,11 +262,11 @@ function TrayTile({ tile, onDragStart, activeProblem, problems, onDropIntoProble
       draggable
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'copy'; onDragStart(tile); }}
       onClick={handleTap}
-      className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold text-xl min-w-[44px] h-11 px-3 hover:bg-indigo-50 shadow-sm transition-colors"
+      className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold min-w-[3rem] sm:min-w-[3.5rem] md:min-w-[4rem] h-12 sm:h-14 md:h-16 px-3 sm:px-4 hover:bg-indigo-50 shadow-sm transition-colors text-2xl sm:text-3xl md:text-4xl"
       style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
     >
-      {tile.type === 'space' ? <span className="w-5 h-0.5 bg-gray-400 block rounded pointer-events-none" />
-       : tile.type === 'img' ? <img src={tile.value} alt="" className="max-h-9 max-w-[80px] object-contain pointer-events-none" />
+      {tile.type === 'space' ? <span className="w-6 h-0.5 bg-gray-400 block rounded pointer-events-none" />
+       : tile.type === 'img' ? <img src={tile.value} alt="" className="max-h-12 max-w-[100px] object-contain pointer-events-none" />
        : tile.value}
     </button>
   );
@@ -388,7 +388,7 @@ function InlineTile({ tile, onDragStart, pendingRemove, tileIdx, onTap, swapMode
         data-slottile data-tile-id={tile.id}
         className="font-bold transition-colors cursor-grab active:cursor-grabbing rounded"
         style={{ background:bg, outline, border:'none', padding:0, margin:0,
-          font:'inherit', color, fontSize:'1.875rem', fontWeight:'bold',
+          font:'inherit', color, fontSize:'clamp(1.5rem, 4vw, 2.5rem)', fontWeight:'bold',
           verticalAlign:'baseline', fontFamily:'Andika,system-ui,sans-serif', lineHeight:1.1 }}>
         {displayText}
       </button>
@@ -484,7 +484,7 @@ function ProblemZone({
         data-drop-inner={index}
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop_}
         onClick={() => onActivate(isActive ? null : index)}
-        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[56px] px-3 py-2 gap-0 transition-all cursor-pointer ${isActive?'ring-2 ring-blue-400':''} ${border} ${ring}`}>
+        className={`flex-1 relative bg-white border-2 rounded-xl flex flex-wrap items-center min-h-[4rem] sm:min-h-[5rem] md:min-h-[6rem] px-3 py-2 gap-0 transition-all cursor-pointer ${isActive?'ring-2 ring-blue-400':''} ${border} ${ring}`}>
         {tiles.length === 0 && <span className="text-gray-300 text-sm select-none pointer-events-none">Arrastra aquí…</span>}
         {tiles.map((tile, i) => (
           <React.Fragment key={tile.id}>
@@ -543,6 +543,9 @@ export default function WordSentenceBuilder() {
   const [swapMode, setSwapMode] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [sessionRestored, setSessionRestored] = useState(false);
+  const [keyboardMode, setKeyboardMode] = useState(false);
+  const [keyboardInput, setKeyboardInput] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [sessionId, setSessionId] = useState(null); // DB session record id
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -639,8 +642,12 @@ export default function WordSentenceBuilder() {
           // Restore tile state
           try {
             const savedProblems = JSON.parse(sess.problems_data || 'null');
-            if (Array.isArray(savedProblems) && savedProblems.length === np) {
-              setProblems(savedProblems);
+            if (Array.isArray(savedProblems) && savedProblems.length > 0) {
+              // Pad or trim to match current numProblems
+              const restored = Array.from({ length: np }, (_, i) =>
+                Array.isArray(savedProblems[i]) ? savedProblems[i] : []
+              );
+              setProblems(restored);
               setProblemStates(Array(np).fill(null));
               setSessionRestored(true);
               setTimeout(() => setSessionRestored(false), 3000);
@@ -1122,6 +1129,7 @@ export default function WordSentenceBuilder() {
           tiles: tiles.map(t=>({type:t.type,value:t.value}))
         };
       });
+      // Always save attempt on validate (so teacher can see latest)
       base44.entities.WordBuilderAttempt.create({
         student_number: parseInt(config.studentNumber),
         class_name: config.className,
@@ -1133,7 +1141,6 @@ export default function WordSentenceBuilder() {
         all_correct: allCorrect,
         submitted_at: new Date().toISOString(),
       }).catch(()=>{});
-      // Mark session as submitted
       setSubmitted(true);
       if (sessionIdRef.current) {
         base44.entities.WordBuilderSession.update(sessionIdRef.current, {
@@ -1145,10 +1152,12 @@ export default function WordSentenceBuilder() {
     }
   };
 
+  const [qrTeacherClass, setQrTeacherClass] = useState('');
   const qrUrl = (() => {
     try {
       const preset = config?.presetId;
-      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}login=1`;
+      const classPart = qrTeacherClass ? `class=${qrTeacherClass}&` : '';
+      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1`;
     } catch { return window.location.href; }
   })();
 
@@ -1179,7 +1188,7 @@ export default function WordSentenceBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white" style={{fontFamily:'Andika,system-ui,sans-serif'}}>
+    <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white ${isFullscreen ? 'fixed inset-0 overflow-auto z-50' : ''}`} style={{fontFamily:'Andika,system-ui,sans-serif'}}>
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
           <Link to="/Lessons" className="text-blue-600 hover:underline font-bold text-sm">← Lecciones</Link>
@@ -1200,19 +1209,35 @@ export default function WordSentenceBuilder() {
             </div>
           )}
           {isStudent && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {saving && <span className="text-xs text-gray-400 animate-pulse font-bold">Guardando…</span>}
               {submitted && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">✓ Entregado</span>}
-              {config.answers && !submitted && (
+              <button
+                onClick={() => setKeyboardMode(k => !k)}
+                className={`rounded-lg px-3 py-2 text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                title="Alternar teclado">
+                ⌨️
+              </button>
+              <button
+                onClick={() => {
+                  if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen?.().catch(()=>{});
+                    setIsFullscreen(true);
+                  } else {
+                    document.exitFullscreen?.().catch(()=>{});
+                    setIsFullscreen(false);
+                  }
+                }}
+                className="rounded-lg px-3 py-2 text-sm font-bold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                title="Pantalla completa">
+                {isFullscreen ? '⊡' : '⛶'}
+              </button>
+              {config.answers && (
                 <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-blue-700">✓ Validar</button>
               )}
-              {!submitted && (
-                <button onClick={() => {
-                  validate();
-                }} className="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-green-700 shadow-md">
-                  📤 Entregar
-                </button>
-              )}
+              <button onClick={validate} className="bg-green-600 text-white rounded-lg px-4 py-2 text-sm font-bold hover:bg-green-700 shadow-md">
+                📤 Entregar
+              </button>
             </div>
           )}
         </div>
@@ -1265,6 +1290,44 @@ export default function WordSentenceBuilder() {
         </section>
 
         <aside className="lg:w-1/2 flex flex-col gap-3">
+          {/* Keyboard mode bar */}
+          {keyboardMode && (
+            <div className="bg-purple-50 border-2 border-purple-300 rounded-2xl p-3 shadow-sm flex flex-col gap-2">
+              <h2 className="text-sm font-black text-purple-700 uppercase tracking-wide">⌨️ Teclado</h2>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={keyboardInput}
+                  onChange={e => setKeyboardInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && keyboardInput.trim() && activeProblem !== null) {
+                      const tile = createTile('text', keyboardInput.trim());
+                      handleDropIntoProblem(activeProblem, problems[activeProblem]?.length || 0, tile);
+                      setKeyboardInput('');
+                    }
+                  }}
+                  placeholder="Escribe y presiona Enter…"
+                  className="flex-1 border-2 border-purple-300 bg-white rounded-xl px-3 py-2 text-xl font-bold outline-none focus:border-purple-500"
+                  style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    if (keyboardInput.trim() && activeProblem !== null) {
+                      const tile = createTile('text', keyboardInput.trim());
+                      handleDropIntoProblem(activeProblem, problems[activeProblem]?.length || 0, tile);
+                      setKeyboardInput('');
+                    }
+                  }}
+                  className="bg-purple-600 text-white rounded-xl px-4 font-bold text-lg hover:bg-purple-700">
+                  +
+                </button>
+              </div>
+              {activeProblem === null && (
+                <p className="text-xs text-purple-500 font-bold">👆 Toca una fila para activarla primero</p>
+              )}
+            </div>
+          )}
           {toggles.write && (
             <PaletteCard title="Escribe" cols={0}>
               <WriteTile dragRef={dragRef} activeProblem={activeProblem} problems={problems} onDropIntoProblem={handleDropIntoProblem} />
@@ -1326,6 +1389,16 @@ export default function WordSentenceBuilder() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={()=>setShowQR(false)}>
           <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e=>e.stopPropagation()}>
             <p className="font-black text-lg mb-3">📱 Escanea para abrir</p>
+            <div className="flex items-center gap-2 mb-3 justify-center">
+              <span className="text-sm font-bold text-gray-600">Clase:</span>
+              <select value={qrTeacherClass} onChange={e=>setQrTeacherClass(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold">
+                <option value="">Todas (estudiante elige)</option>
+                {['Felix','Valero','Campos'].map(c=>(
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex justify-center mb-3"><QRCodeSVG value={qrUrl} size={220} level="M" /></div>
             <p className="text-xs text-gray-400 mb-4 break-all">{qrUrl}</p>
             <button onClick={()=>setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Cerrar</button>
