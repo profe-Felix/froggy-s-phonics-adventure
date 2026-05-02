@@ -135,6 +135,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     return () => obs.disconnect();
   }, []);
 
+  // Auto-disable 2-up when container is portrait (too narrow)
+  const isPortrait = containerSize.w > 0 && containerSize.h > containerSize.w;
+  useEffect(() => {
+    if (isPortrait && twoPerPage) setTwoPerPage(false);
+  }, [isPortrait]);
+
   const handleToggle2Up = () => {
     setTwoPerPage(v => {
       const next = !v;
@@ -255,22 +261,40 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const rightPageAnnotations = twoPerPage ? (book.teacher_annotations || []).filter(a => a.page === currentPage + 1) : [];
   const isRecording = recState === 'recording' || recState === 'paused';
 
-  const renderPage = (pageNum, fitH) => {
+  const renderPage = (pageNum, align = 'center') => {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
       return img
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" fillHeight={twoPerPage} />;
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" fillHeight={twoPerPage} alignSelf={align} />;
   };
 
+  const [fakeFullscreen, setFakeFullscreen] = useState(false);
+
   const handleFullscreen = () => {
+    // Try native fullscreen first (works on Android/desktop)
     const el = document.documentElement;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.() || el.webkitRequestFullscreen?.();
+    const enterNative = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && enterNative) {
+      const p = enterNative.call(el);
+      if (p) p.then(() => {}).catch(() => setFakeFullscreen(true));
+      else setFakeFullscreen(true);
+      return;
+    }
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      setFakeFullscreen(false);
+      return;
+    }
+    // iOS Safari fallback: scroll to hide browser chrome + lock to top
+    setFakeFullscreen(v => !v);
+    if (!fakeFullscreen) {
+      window.scrollTo(0, 1);
+      try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch {}
     } else {
-      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+      try { screen.orientation?.unlock?.(); } catch {}
     }
   };
 
@@ -278,7 +302,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const pageLabel = `${currentPage}${twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''}/${totalPages}`;
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ background: '#042f2e' }}>
+    <div className="flex flex-col" style={{ background: '#042f2e', position: 'fixed', inset: 0, zIndex: fakeFullscreen ? 9999 : undefined }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488' }}>
         <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm shrink-0">← Back</button>
@@ -289,8 +313,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           {twoPerPage ? '2-up' : '1-up'}
         </button>
         <button onClick={handleFullscreen}
-          className="px-2 py-0.5 rounded text-xs font-bold border border-teal-700 text-teal-300 shrink-0"
-          title="Fullscreen">⛶</button>
+          className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${fakeFullscreen ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
+          title="Fullscreen">{fakeFullscreen ? '⊡' : '⛶'}</button>
         <span className="text-teal-300 text-xs font-bold shrink-0">
           Pg {currentPage}{twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''} / {totalPages}
         </span>
@@ -301,11 +325,11 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         {twoPerPage ? (
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
-              {renderPage(currentPage)}
+              {renderPage(currentPage, 'flex-end')}
             </div>
             {currentPage + 1 <= totalPages && (
               <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
-                {renderPage(currentPage + 1)}
+                {renderPage(currentPage + 1, 'flex-start')}
               </div>
             )}
             {pageAnnotations.map((ann, i) => (

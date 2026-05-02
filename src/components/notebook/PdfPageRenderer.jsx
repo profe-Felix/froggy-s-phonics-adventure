@@ -10,7 +10,7 @@ const pdfCache = {};
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
  *          'contain' — scale to fit both width AND height (for book reader, no scroll)
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center' }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
@@ -62,8 +62,11 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         let scale;
         if (fillHeight && containerSize.h > 10) {
-          // Scale so height fills container exactly — pages will be flush edge-to-edge in 2-up mode
-          scale = containerSize.h / viewport.height;
+          // Scale to fill height exactly; page may be narrower than container (gap handled by alignment)
+          // but never exceed container width (portrait fallback)
+          const scaleByH = containerSize.h / viewport.height;
+          const scaleByW = containerSize.w / viewport.width;
+          scale = Math.min(scaleByH, scaleByW);
         } else if (fitMode === 'contain' && containerSize.h > 10) {
           const scaleW = containerSize.w / viewport.width;
           const scaleH = containerSize.h / viewport.height;
@@ -101,8 +104,10 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
+  const justifyContent = alignSelf === 'flex-start' ? 'flex-start' : alignSelf === 'flex-end' ? 'flex-end' : 'center';
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: fitMode === 'contain' ? '100%' : 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: fitMode === 'contain' ? '#fff' : undefined }}>
+    <div ref={containerRef} style={{ width: '100%', height: fitMode === 'contain' || fillHeight ? '100%' : 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent, overflow: 'hidden', background: (fitMode === 'contain' || fillHeight) ? '#fff' : undefined }}>
       {loading && (
         <div style={{ position: 'absolute', inset: 0, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
@@ -111,7 +116,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           </div>
         </div>
       )}
-      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: fillHeight ? 'none' : '100%', maxHeight: '100%' }} />
+      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: '100%', maxHeight: '100%' }} />
     </div>
   );
 }
