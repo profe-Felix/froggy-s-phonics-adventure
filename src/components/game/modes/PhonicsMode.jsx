@@ -4,6 +4,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
+// ── Spanish homophones to exclude from phonics cloze ──────────────
+// These words sound identical to another word, so hearing alone can't
+// determine the correct spelling — they need sentence context.
+const HOMOPHONES = new Set([
+  // b/v homophones
+  'vaca','baca','vino','bino','vello','bello','vaya','baya','vota','bota',
+  'tubo','tuvo','cavo','cabo','rebelar','revelar','bienes','vienes',
+  'votar','botar','volar','bolar','varón','barón','vault','bault',
+  // h homophones (silent h)
+  'hola','ola','hasta','asta','hoya','oya','hora','ora','honda','onda',
+  'horca','orca','habría','abría','hecho','echo','hay','ay','ha','a',
+  'he','e','ah','a','oh','o',
+  // ll/y homophones (yeísmo)
+  'halla','haya','valla','vaya','pollo','poyo','malla','maya','sello','seyo',
+  'callo','cayo','rollo','royo','lloro','yoro','llama','yama',
+  // s/z/c homophones (seseo)
+  'caza','casa','cocer','coser','cede','sede','cierra','sierra',
+  'abrasar','abrazar','cauce','cause','tasa','taza','poso','pozo',
+  // g/j homophones
+  'gira','jira','giro','jiro',
+  // other common pairs
+  'mas','más','si','sí','te','té','tu','tú','el','él','se','sé','de','dé',
+  'mi','mí','aun','aún',
+]);
+
 // ── Audio helpers ──────────────────────────────────────────────────
 function toAudioName(word) {
   return word
@@ -445,7 +470,7 @@ export default function PhonicsMode({ studentData, onBack }) {
             if (Array.isArray(mod?.new)) all.push(...mod.new);
           });
         }
-        const filtered = [...new Set(all)].filter(w => w.length >= 2);
+        const filtered = [...new Set(all)].filter(w => w.length >= 2 && !HOMOPHONES.has(w.toLowerCase()));
         setWords(filtered);
       } catch { setWords([]); }
       setWordsLoaded(true);
