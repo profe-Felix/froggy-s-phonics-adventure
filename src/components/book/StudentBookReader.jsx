@@ -259,10 +259,10 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
       return img
-        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" />;
+    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="width" />;
   };
 
   return (
@@ -281,32 +281,32 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         </span>
       </div>
 
-      {/* Page display */}
-      <div className="flex-1 relative overflow-hidden" ref={containerRef} style={{ background: '#1a1a1a' }}>
+      {/* Page display — scrollable so full-width pages show without gaps */}
+      <div className="flex-1 relative overflow-y-auto overflow-x-hidden" ref={containerRef} style={{ background: '#1a1a1a' }}>
         {twoPerPage ? (
-          <div style={{ display: 'flex', width: '100%', height: '100%', gap: 0 }}>
-            <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', display: 'flex', width: '100%' }}>
+            <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
               {renderPage(currentPage)}
-              {pageAnnotations.map((ann, i) => (
-                <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
-              ))}
             </div>
             {currentPage + 1 <= totalPages && (
-              <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
                 {renderPage(currentPage + 1)}
-                {rightPageAnnotations.map((ann, i) => (
-                  <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
-                ))}
               </div>
             )}
-            {/* Laser spans full container */}
+            {/* Annotations */}
+            {pageAnnotations.map((ann, i) => (
+              <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
+            ))}
+            {rightPageAnnotations.map((ann, i) => (
+              <TeacherSpeakerIcon key={`r-${ann.id || i}`} annotation={{ ...ann, x_pct: 0.5 + ann.x_pct / 2 }} containerSize={{ w: containerSize.w, h: containerSize.h }} />
+            ))}
             {isRecording && <LaserOverlay trailPoints={laserTracker.trailPoints} width={containerSize.w} height={containerSize.h} />}
             {showReplay && replayLaserData.length > 0 && (
               <LaserReplayOverlay laserData={replayLaserData} audioRef={audioRef} containerWidth={containerSize.w} containerHeight={containerSize.h} />
             )}
           </div>
         ) : (
-          <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', width: '100%' }}>
             {renderPage(currentPage)}
             {isRecording && <LaserOverlay trailPoints={laserTracker.trailPoints} />}
             {showReplay && replayLaserData.length > 0 && (
@@ -322,32 +322,28 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           onEnded={() => setShowReplay(false)} />
       </div>
 
-      {/* Bottom controls */}
-      <div className="shrink-0 p-3 flex flex-col gap-2" style={{ background: '#0f3d3a', borderTop: '2px solid #0d9488' }}>
+      {/* Bottom controls — compact for mobile */}
+      <div className="shrink-0 px-2 py-1.5 flex flex-col gap-1.5" style={{ background: '#0f3d3a', borderTop: '2px solid #0d9488' }}>
 
         {/* === IDLE with existing recording === */}
         {recState === 'idle' && spreadRecording && (
-          <div className="flex items-center gap-2 p-2 rounded-xl" style={{ background: '#134e4a', border: '1px solid #0d9488' }}>
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl" style={{ background: '#134e4a', border: '1px solid #0d9488' }}>
             <span className="text-teal-300 text-xs font-bold shrink-0">
-              ✅ {spreadRecording.is_spread ? `Pgs ${recKey}–${recKey + 1}` : `Pg ${recKey}`}
+              ✅ Pg {recKey}{spreadRecording.is_spread ? `–${recKey+1}` : ''}
             </span>
             {!showReplay ? (
               <button onClick={() => handleReplay(spreadRecording)}
-                className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm"
-                style={{ background: '#0d9488' }}>
-                ▶ Play Recording
-              </button>
+                className="flex-1 py-1 rounded-lg font-bold text-white text-xs"
+                style={{ background: '#0d9488' }}>▶ Play</button>
             ) : (
               <button onClick={stopReplay}
-                className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm"
-                style={{ background: '#374151' }}>
-                ⏹ Stop
-              </button>
+                className="flex-1 py-1 rounded-lg font-bold text-white text-xs"
+                style={{ background: '#374151' }}>⏹ Stop</button>
             )}
             <button
               onClick={() => { resetRecorder(); setSpreadRecording(null); setShowReplay(false); stopReplay(); }}
-              className="shrink-0 px-3 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
-              🔄 Re-record
+              className="shrink-0 px-2 py-1 rounded-lg font-bold text-white text-xs" style={{ background: '#374151' }}>
+              🔄
             </button>
           </div>
         )}
@@ -355,50 +351,53 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         {/* === IDLE no recording === */}
         {recState === 'idle' && !spreadRecording && (
           <button onClick={handleStartRecord}
-            className="w-full py-3 rounded-2xl font-black text-white text-base"
+            className="w-full py-2 rounded-xl font-black text-white text-sm"
             style={{ background: '#dc2626' }}>
-            ⏺ Record — {twoPerPage && currentPage + 1 <= totalPages ? `Pages ${currentPage}–${currentPage + 1}` : `Page ${currentPage}`}
+            ⏺ Record — {twoPerPage && currentPage + 1 <= totalPages ? `Pgs ${currentPage}–${currentPage + 1}` : `Pg ${currentPage}`}
           </button>
         )}
 
         {/* === RECORDING === */}
         {recState === 'recording' && (
-          <div className="flex gap-2">
-            <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: '#7f1d1d' }}>
-              <span className="text-red-300 font-black text-sm animate-pulse">● REC</span>
-              <span className="text-white font-bold text-sm">{formatTime(elapsed)}</span>
+          <div className="flex gap-1.5">
+            <div className="flex items-center gap-2 flex-1 px-2 py-1.5 rounded-xl" style={{ background: '#7f1d1d' }}>
+              <span className="text-red-300 font-black text-xs animate-pulse">● REC</span>
+              <span className="text-white font-bold text-xs">{formatTime(elapsed)}</span>
             </div>
-            <button onClick={pauseRecording} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#d97706' }}>⏸</button>
-            <button onClick={handleStop} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#dc2626' }}>⏹ Stop</button>
+            <button onClick={pauseRecording} className="px-3 py-1.5 rounded-xl font-bold text-white text-sm" style={{ background: '#d97706' }}>⏸</button>
+            <button onClick={handleStop} className="px-3 py-1.5 rounded-xl font-bold text-white text-sm" style={{ background: '#dc2626' }}>⏹</button>
           </div>
         )}
 
         {/* === PAUSED === */}
         {recState === 'paused' && (
-          <div className="flex gap-2">
-            <div className="flex items-center gap-2 flex-1 px-3 py-2 rounded-xl" style={{ background: '#374151' }}>
-              <span className="text-gray-300 font-bold text-sm">⏸ Paused</span>
-              <span className="text-white font-bold text-sm">{formatTime(elapsed)}</span>
+          <div className="flex gap-1.5">
+            <div className="flex items-center gap-2 flex-1 px-2 py-1.5 rounded-xl" style={{ background: '#374151' }}>
+              <span className="text-gray-300 font-bold text-xs">⏸ Paused</span>
+              <span className="text-white font-bold text-xs">{formatTime(elapsed)}</span>
             </div>
-            <button onClick={resumeRecording} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#0d9488' }}>▶</button>
-            <button onClick={handleStop} className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#dc2626' }}>⏹ Stop</button>
+            <button onClick={resumeRecording} className="px-3 py-1.5 rounded-xl font-bold text-white text-sm" style={{ background: '#0d9488' }}>▶</button>
+            <button onClick={handleStop} className="px-3 py-1.5 rounded-xl font-bold text-white text-sm" style={{ background: '#dc2626' }}>⏹</button>
           </div>
         )}
 
         {/* === STOPPED — auto-saving === */}
         {(recState === 'stopped' || uploading) && (
-          <div className="flex items-center justify-center gap-2 py-2 rounded-xl" style={{ background: '#134e4a' }}>
-            <span className="text-teal-300 font-bold text-sm animate-pulse">⏳ Saving…</span>
+          <div className="flex items-center justify-center gap-2 py-1.5 rounded-xl" style={{ background: '#134e4a' }}>
+            <span className="text-teal-300 font-bold text-xs animate-pulse">⏳ Saving…</span>
           </div>
         )}
 
         {/* Page navigation */}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 items-center">
           <button onClick={goPrev} disabled={!canGoPrev || uploading}
-            className="flex-1 py-2 rounded-xl font-bold text-white disabled:opacity-30"
+            className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm disabled:opacity-30"
             style={{ background: '#0f766e' }}>‹ Prev</button>
+          <span className="text-teal-400 text-xs font-bold whitespace-nowrap px-1">
+            {currentPage}{twoPerPage && currentPage+1<=totalPages?`–${currentPage+1}`:''}/{totalPages}
+          </span>
           <button onClick={goNext} disabled={!canGoNext || uploading}
-            className="flex-1 py-2 rounded-xl font-bold text-white disabled:opacity-30"
+            className="flex-1 py-1.5 rounded-xl font-bold text-white text-sm disabled:opacity-30"
             style={{ background: '#0f766e' }}>Next ›</button>
         </div>
       </div>

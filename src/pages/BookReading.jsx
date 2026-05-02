@@ -54,6 +54,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
 }
 
 function BookShelf({ className, studentNumber, onSelectBook }) {
+  // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
 
   const { data: books = [], isLoading } = useQuery({
@@ -62,8 +63,29 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
     refetchInterval: 10000,
   });
 
-  const availableModules = ['All', ...Array.from(new Set(books.map(b => b.module).filter(Boolean))).sort()];
-  const filtered = selectedModule === 'All' ? books : books.filter(b => b.module === selectedModule);
+  // Sort by queue_order, then figure out which books the student can access
+  const sortedBooks = [...books].sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0));
+
+  // A student can read a book if:
+  // - It has no queue_order set (legacy / unordered), OR
+  // - They have mastered all previous books in the queue
+  const getAccessibleBooks = () => {
+    const hasQueue = sortedBooks.some(b => b.queue_order > 0);
+    if (!hasQueue) return sortedBooks;
+
+    const accessible = [];
+    for (const b of sortedBooks) {
+      accessible.push(b);
+      // If this student hasn't mastered this book, stop here
+      const mastered = (b.mastered_students || []).includes(studentNumber);
+      if (!mastered) break;
+    }
+    return accessible;
+  };
+
+  const accessibleBooks = getAccessibleBooks();
+  const availableModules = ['All', ...Array.from(new Set(accessibleBooks.map(b => b.module).filter(Boolean))).sort()];
+  const filtered = selectedModule === 'All' ? accessibleBooks : accessibleBooks.filter(b => b.module === selectedModule);
 
   if (isLoading) return (
     <div className="flex items-center justify-center py-20">
@@ -95,6 +117,23 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
         </div>
       )}
 
+      {/* Show locked next book hint */}
+      {(() => {
+        const hasQueue = sortedBooks.some(b => b.queue_order > 0);
+        if (!hasQueue) return null;
+        const nextLocked = sortedBooks.find(b => !accessibleBooks.includes(b));
+        if (!nextLocked) return null;
+        return (
+          <div className="rounded-2xl p-3 flex items-center gap-3" style={{ background: '#042f2e', border: '1px dashed #0d9488' }}>
+            <span className="text-2xl">🔒</span>
+            <div>
+              <p className="text-teal-300 font-bold text-sm">Next: {nextLocked.title}</p>
+              <p className="text-teal-500 text-xs">Master the current book to unlock this one</p>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {filtered.map(book => (
           <motion.button
@@ -116,9 +155,12 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
             </div>
             <div className="p-3">
               <p className="font-black text-white text-sm">{book.title}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <p className="text-teal-400 text-xs">{book.pdf_page_count || (book.pages || []).length || '?'} pages</p>
                 {book.module && <span className="text-xs text-teal-300 bg-teal-900 px-2 py-0.5 rounded-full">{book.module}</span>}
+                {(book.mastered_students || []).includes(studentNumber) && (
+                  <span className="text-xs text-green-300 bg-green-900 px-2 py-0.5 rounded-full">✅ Mastered</span>
+                )}
               </div>
             </div>
           </motion.button>

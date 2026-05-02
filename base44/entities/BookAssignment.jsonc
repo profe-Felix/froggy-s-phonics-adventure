@@ -65,6 +65,19 @@
       "type": "boolean",
       "default": false,
       "description": "If true, this book is visible in the shared library for all classes"
+    },
+    "queue_order": {
+      "type": "integer",
+      "default": 0,
+      "description": "Position in the reading queue (lower = earlier)"
+    },
+    "mastered_students": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": [],
+      "description": "Student numbers who have mastered this book and can advance to next"
     }
   },
   "required": [

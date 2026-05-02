@@ -99,9 +99,9 @@ export default function TeacherBookDashboard({ onBack }) {
       </div>
 
       <div className="flex gap-0 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-        {[['books', '📚 Books'], ['annotate', '🔊 Annotate'], ['students', '👥 Students']].map(([id, label]) => (
+        {[['books', '📚 Books'], ['queue', '📋 Queue'], ['annotate', '🔊 Annotate'], ['students', '👥 Students']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`px-5 py-2.5 font-bold text-sm ${tab === id ? 'text-white border-b-2 border-teal-400' : 'text-teal-400 hover:text-white'}`}>
+            className={`px-4 py-2.5 font-bold text-sm ${tab === id ? 'text-white border-b-2 border-teal-400' : 'text-teal-400 hover:text-white'}`}>
             {label}
           </button>
         ))}
@@ -222,6 +222,76 @@ export default function TeacherBookDashboard({ onBack }) {
           </div>
         )}
 
+        {tab === 'queue' && (
+          <div className="max-w-2xl mx-auto flex flex-col gap-4">
+            <p className="text-teal-300 text-sm">Arrange books in reading order. Mark students as "mastered" to let them advance to the next book in the queue.</p>
+
+            {/* Active books sorted by queue_order */}
+            {[...books].filter(b => b.status === 'active' || b.status === 'draft').sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0)).map((b, idx, arr) => (
+              <div key={b.id} className="rounded-2xl p-4 flex flex-col gap-3"
+                style={{ background: '#0f3d3a', border: '1px solid #0d9488' }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-1">
+                    <button disabled={idx === 0}
+                      onClick={() => {
+                        const prev = arr[idx - 1];
+                        updateBook.mutate({ id: b.id, data: { queue_order: prev.queue_order || idx - 1 } });
+                        updateBook.mutate({ id: prev.id, data: { queue_order: b.queue_order || idx } });
+                      }}
+                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20">▲</button>
+                    <button disabled={idx === arr.length - 1}
+                      onClick={() => {
+                        const next = arr[idx + 1];
+                        updateBook.mutate({ id: b.id, data: { queue_order: next.queue_order || idx + 1 } });
+                        updateBook.mutate({ id: next.id, data: { queue_order: b.queue_order || idx } });
+                      }}
+                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20">▼</button>
+                  </div>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shrink-0"
+                    style={{ background: '#0d9488', color: 'white' }}>{idx + 1}</div>
+                  {b.cover_image_url
+                    ? <img src={b.cover_image_url} alt={b.title} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                    : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: '#0f766e' }}>📖</div>}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-white text-sm truncate">{b.title}</p>
+                    <p className="text-teal-400 text-xs">{b.status} · {b.pdf_page_count || '?'} pages</p>
+                  </div>
+                </div>
+
+                {/* Mastery grid */}
+                <div>
+                  <p className="text-teal-300 text-xs font-bold mb-1.5">✅ Mastered (can advance to next book):</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map(n => {
+                      const mastered = (b.mastered_students || []).includes(n);
+                      return (
+                        <button key={n}
+                          onClick={() => {
+                            const current = b.mastered_students || [];
+                            const next = mastered ? current.filter(s => s !== n) : [...current, n];
+                            updateBook.mutate({ id: b.id, data: { mastered_students: next } });
+                          }}
+                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${mastered ? 'bg-green-600 text-white' : 'text-teal-500 border border-teal-800 hover:border-teal-500'}`}>
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(b.mastered_students || []).length > 0 && (
+                    <p className="text-green-400 text-xs mt-1 font-bold">
+                      {(b.mastered_students || []).length} student{(b.mastered_students || []).length !== 1 ? 's' : ''} mastered → can read next book
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {books.filter(b => b.status === 'active' || b.status === 'draft').length === 0 && (
+              <p className="text-teal-400 text-center mt-8">No active books yet. Create books in the Books tab.</p>
+            )}
+          </div>
+        )}
+
         {tab === 'annotate' && (
           <div className="max-w-3xl mx-auto">
             {!selectedBook
@@ -251,24 +321,21 @@ export default function TeacherBookDashboard({ onBack }) {
         )}
 
         {tab === 'students' && (
-          <div className="max-w-5xl mx-auto">
-            {!selectedBook
-              ? <p className="text-teal-400 text-center mt-8">Select a book first</p>
-              : (
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <p className="font-black text-white">{selectedBook.title}</p>
-                    <div className="flex items-center gap-2 ml-auto">
-                      <label className="text-teal-300 text-xs font-bold">Date:</label>
-                      <input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)}
-                        className="px-3 py-1 rounded-xl border border-teal-600 text-white text-sm"
-                        style={{ background: '#042f2e' }} />
-                    </div>
-                  </div>
-                  <BookStudentGrid book={selectedBook} className={className} reviewDate={reviewDate} />
-                </div>
-              )
-            }
+          <div className="max-w-5xl mx-auto flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <p className="font-black text-white text-sm">📋 Student Recordings</p>
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-teal-300 text-xs font-bold">Date:</label>
+                <input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)}
+                  className="px-3 py-1 rounded-xl border border-teal-600 text-white text-sm"
+                  style={{ background: '#042f2e' }} />
+              </div>
+            </div>
+            <BookStudentGrid
+              books={books}
+              className={className}
+              reviewDate={reviewDate}
+            />
           </div>
         )}
       </div>
