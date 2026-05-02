@@ -9,6 +9,8 @@ import PetCollection from './avatar/PetCollection';
 import MysteryBoxReveal from './avatar/MysteryBoxReveal';
 import { ALL_PETS } from './avatar/PETS_DATA';
 import FruitCollection, { FruitBadge } from './FruitCollection';
+import EmojiCollection from './EmojiCollection';
+import { getEmojiForIndex, POINTS_PER_EMOJI } from './EmojiPrizeCelebration';
 
 const PTS_PER_STICKER = 100;
 
@@ -114,10 +116,33 @@ const MODES = [
   }
 ];
 
+function EmojiBadge({ spellingTotalPoints, onClick }) {
+  const totalEmojiCount = Math.floor(spellingTotalPoints / POINTS_PER_EMOJI);
+  const progress = spellingTotalPoints % POINTS_PER_EMOJI;
+  const pct = (progress / POINTS_PER_EMOJI) * 100;
+  const activeEmoji = totalEmojiCount > 0 ? getEmojiForIndex(totalEmojiCount - 1) : '🎯';
+  return (
+    <button onClick={onClick}
+      className="flex flex-col items-center gap-1 bg-white/80 rounded-2xl px-4 py-2 shadow border-2 border-purple-200 hover:bg-purple-50 transition min-w-[90px]">
+      <span className="text-2xl">{activeEmoji}</span>
+      <div className="w-full h-2.5 rounded-full bg-purple-100 overflow-hidden border border-purple-200">
+        <div className="h-full bg-gradient-to-r from-purple-400 to-pink-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs font-black text-purple-600">{progress}/{POINTS_PER_EMOJI} pts</span>
+      {totalEmojiCount > 0 && <span className="text-xs text-purple-400 font-bold">{totalEmojiCount} face{totalEmojiCount !== 1 ? 's' : ''}</span>}
+    </button>
+  );
+}
+
 export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet, onOpenSentences }) {
   const modeProgress = studentData?.mode_progress || {};
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [fruitOpen, setFruitOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [activeEmojiIdx, setActiveEmojiIdx] = useState(() => {
+    const saved = localStorage.getItem('dashboard_active_emoji_idx');
+    return saved !== null ? parseInt(saved) : 0;
+  });
   const [peerPlayActive, setPeerPlayActive] = useState(false);
   const [bingoActive, setBingoActive] = useState(false);
   const activePetId = studentData?.active_pet || 'pet_frog';
@@ -177,6 +202,18 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
           onClose={() => setFruitOpen(false)}
         />
       )}
+      {emojiOpen && (
+        <EmojiCollection
+          totalEmojiCount={Math.floor((studentData?.spelling_total_points || 0) / POINTS_PER_EMOJI)}
+          activeEmojiIdx={activeEmojiIdx}
+          onSelectEmoji={(idx) => {
+            setActiveEmojiIdx(idx);
+            localStorage.setItem('dashboard_active_emoji_idx', String(idx));
+            setEmojiOpen(false);
+          }}
+          onClose={() => setEmojiOpen(false)}
+        />
+      )}
       {pendingUnlocks > 0 && (
         <MysteryBoxReveal
           studentData={studentData}
@@ -204,6 +241,10 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
             <SentenceProgressBadge
               totalPts={studentData?.sentences_total_points || 0}
               onClick={() => onSelectMode('sentences')}
+            />
+            <EmojiBadge
+              spellingTotalPoints={studentData?.spelling_total_points || 0}
+              onClick={() => setEmojiOpen(true)}
             />
           </div>
           <h1 className="text-4xl font-bold text-green-700 mb-2">Choose Your Game Mode</h1>
