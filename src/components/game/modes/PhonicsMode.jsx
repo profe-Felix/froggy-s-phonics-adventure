@@ -1,48 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { base44 } from '@/api/base44Client';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
 
-// Spanish vowels and consonants for distractors
-const SPANISH_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
-
-// Spanish syllabification: count syllable nuclei (vowel groups)
-function countSyllables(word) {
-  const clean = word.toLowerCase().replace(/[^a-záéíóúüñ]/g, '');
-  const vowels = /[aeiouáéíóúü]/g;
-  const matches = clean.match(vowels);
-  if (!matches) return 1;
-  // Simple heuristic: consecutive vowels that form diphthongs count as one
-  let count = 0;
-  let prevWasVowel = false;
-  const diphthongPairs = new Set(['ai','ia','au','ua','ei','ie','eu','ue','oi','io','ou','uo','ui','iu','ay','ey','oy','uy']);
-  const vowelSet = new Set('aeiouáéíóúü');
-  for (let i = 0; i < clean.length; i++) {
-    const ch = clean[i];
-    const isV = vowelSet.has(ch);
-    if (isV) {
-      if (!prevWasVowel) {
-        count++;
-      } else {
-        // Check if this forms a diphthong with previous vowel
-        const pair = clean[i-1] + ch;
-        if (!diphthongPairs.has(pair)) count++; // hiatus
-      }
-    }
-    prevWasVowel = isV;
-  }
-  return Math.max(1, count);
-}
-
+// ── Audio helpers ──────────────────────────────────────────────────
 function toAudioName(word) {
   return word
     .replace(/á/g, 'a..').replace(/é/g, 'e..').replace(/í/g, 'i..')
     .replace(/ó/g, 'o..').replace(/ú/g, 'u..')
     .replace(/ü/g, 'u,,').replace(/ñ/g, 'n..');
 }
-
 async function findAudioUrl(word) {
   const audioName = toAudioName(word);
   for (const ext of ['mp3', 'wav']) {
@@ -55,66 +23,237 @@ async function findAudioUrl(word) {
   return null;
 }
 
+// ── Digraph / token splitting ──────────────────────────────────────
+// Spanish digraphs that act as single phonemes
+const DIGRAPHS = ['ch', 'qu', 'gu', 'gü', 'll', 'rr', 'güe', 'güi', 'gue', 'gui'];
+
 /**
- * Build a cloze challenge for a word.
- * Returns { display, missingLetter, position: 'initial'|'final'|'medial', distractors }
- * 
- * - 3+ syllables: initial or final sound only
- * - 2 syllables: random position
- * - 1 syllable: initial or final
+ * Split a word into phonemic tokens (digraphs first, then single chars).
+ * e.g. "chivo" → ["ch","i","v","o"]
+ *      "guerra" → ["gu","e","rr","a"]
  */
-function buildCloze(word) {
-  const letters = word.split('');
-  const syllables = countSyllables(word);
-  
-  let position;
-  if (syllables >= 3) {
-    position = Math.random() < 0.5 ? 'initial' : 'final';
-  } else {
-    const positions = ['initial', 'final', 'medial'];
-    position = positions[Math.floor(Math.random() * (syllables === 1 ? 2 : 3))];
+function tokenize(word) {
+  const w = word.toLowerCase();
+  const tokens = [];
+  let i = 0;
+  while (i < w.length) {
+    // Try longest digraph first
+    let found = false;
+    for (const dg of ['güe','güi','gue','gui','ch','qu','gu','gü','ll','rr']) {
+      if (w.startsWith(dg, i)) {
+        tokens.push(dg);
+        i += dg.length;
+        found = true;
+        break;
+      }
+    }
+    if (!found) { tokens.push(w[i]); i++; }
   }
-
-  let missingIdx;
-  if (position === 'initial') missingIdx = 0;
-  else if (position === 'final') missingIdx = letters.length - 1;
-  else {
-    // Medial: pick a middle letter that isn't a vowel if possible
-    const vowelSet = new Set('aeiouáéíóúü');
-    const middles = letters.map((l, i) => i).filter(i => i > 0 && i < letters.length - 1);
-    const consonantMiddles = middles.filter(i => !vowelSet.has(letters[i]));
-    const pool = consonantMiddles.length > 0 ? consonantMiddles : middles;
-    missingIdx = pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  const missingLetter = letters[missingIdx];
-  const display = letters.map((l, i) => i === missingIdx ? '_' : l).join('');
-
-  // Build distractors: phonetically similar Spanish letters
-  const similarLetters = {
-    'b': ['v', 'd', 'p'], 'v': ['b', 'd', 'f'], 'd': ['b', 't', 'n'],
-    'c': ['k', 's', 'z'], 'k': ['c', 'q', 'g'], 'q': ['c', 'k'],
-    's': ['z', 'c', 'x'], 'z': ['s', 'c'], 'x': ['s', 'j'],
-    'g': ['j', 'h', 'k'], 'j': ['g', 'h', 'y'], 'h': ['j', 'g'],
-    'l': ['r', 'n', 'll'], 'll': ['y', 'l'], 'y': ['ll', 'i'],
-    'r': ['l', 'rr', 'n'], 'n': ['m', 'ñ', 'l'], 'ñ': ['n', 'ny'],
-    'm': ['n', 'b', 'p'], 'p': ['b', 'm', 'f'], 'f': ['p', 'v'],
-    't': ['d', 'c', 'p'], 'ch': ['sh', 'c', 'y'],
-  };
-
-  const simil = (similarLetters[missingLetter] || []).filter(l => l !== missingLetter && !letters.includes(l));
-  const extra = SPANISH_LETTERS.filter(l => l !== missingLetter && !letters.includes(l) && !simil.includes(l))
-    .sort(() => Math.random() - 0.5);
-
-  const distractors = [...simil, ...extra].slice(0, 3);
-  const options = [missingLetter, ...distractors].sort(() => Math.random() - 0.5);
-
-  return { display, missingLetter, position, missingIdx, options };
+  return tokens;
 }
 
+// ── Syllabification ────────────────────────────────────────────────
+const VOWEL_SET = new Set('aeiouáéíóúü');
+function isVowelToken(t) { return t.length === 1 && VOWEL_SET.has(t); }
+
+function syllabify(word) {
+  const tokens = tokenize(word);
+  // Group into syllables by nuclei
+  // Simple nucleus-based split: each vowel (or diphthong pair) starts a new syllable
+  const syllables = [];
+  let current = [];
+  const diphthongPairs = new Set(['ai','ia','au','ua','ei','ie','eu','ue','oi','io','ou','uo','ui','iu','ay','ey','oy','uy']);
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    current.push(t);
+    const isV = isVowelToken(t);
+    if (isV) {
+      // Look ahead: if next token is a vowel and they form a diphthong, keep in same syllable
+      const next = tokens[i + 1];
+      if (next && isVowelToken(next) && diphthongPairs.has(t + next)) {
+        current.push(next);
+        i++;
+      }
+      // Look ahead for trailing consonants (coda)
+      // Take consonants until we hit another vowel or end
+      while (i + 1 < tokens.length && !isVowelToken(tokens[i + 1])) {
+        // If next+1 is also consonant, only take first (onset of next syllable)
+        if (i + 2 < tokens.length && !isVowelToken(tokens[i + 2])) {
+          current.push(tokens[i + 1]);
+          i++;
+        }
+        break;
+      }
+      syllables.push(current.join(''));
+      current = [];
+    }
+  }
+  if (current.length > 0) {
+    if (syllables.length > 0) syllables[syllables.length - 1] += current.join('');
+    else syllables.push(current.join(''));
+  }
+  return syllables.length > 0 ? syllables : [word];
+}
+
+// ── Confusion map: what letters/digraphs confuse Spanish learners ──
+const CONFUSION_MAP = {
+  'b': ['v', 'd', 'p'],
+  'v': ['b', 'f', 'd'],
+  'd': ['b', 't', 'n', 'p'],
+  'p': ['b', 'q', 't', 'f'],
+  'q': ['p', 'b', 'c', 'k'],
+  'c': ['k', 'qu', 's', 'z'],
+  'k': ['c', 'qu', 'g'],
+  'qu': ['c', 'k', 'cu', 'q'],
+  'g': ['j', 'gu', 'h', 'k'],
+  'gu': ['g', 'gü', 'j', 'hu'],
+  'gü': ['gu', 'g', 'j'],
+  'gue': ['ge', 'je', 'güe', 'que'],
+  'gui': ['gi', 'ji', 'güi', 'qui'],
+  'güe': ['gue', 'ge', 'je'],
+  'güi': ['gui', 'gi', 'ji'],
+  'j': ['g', 'h', 'y', 'x'],
+  'h': ['j', 'ch', 'g'],
+  'ch': ['h', 'c', 'y', 'sh'],
+  'll': ['y', 'l', 'li'],
+  'y': ['ll', 'i', 'hi'],
+  'n': ['m', 'ñ', 'l'],
+  'ñ': ['n', 'ni', 'ny'],
+  'm': ['n', 'b', 'p'],
+  's': ['z', 'c', 'x'],
+  'z': ['s', 'c', 'x'],
+  'x': ['s', 'j', 'ks'],
+  'r': ['l', 'rr', 'n'],
+  'rr': ['r', 'l'],
+  'l': ['r', 'll', 'n'],
+  't': ['d', 'c', 'p'],
+  'f': ['p', 'v', 'b'],
+};
+
+// Syllable confusions: given a syllable, what are confusable syllable options?
+function getSyllableConfusions(syllable) {
+  const nucleus = [...syllable].find(c => VOWEL_SET.has(c)) || '';
+  // Map of onset confusions
+  const onsetMap = {
+    'ca': ['ka','ke','ce','co','cu','qui'], 'co': ['ca','ko','que'], 'cu': ['qu','ku'],
+    'ce': ['se','ze','ke','ca'], 'ci': ['si','zi','ki'],
+    'ke': ['ce','se','ca'], 'ki': ['ci','si'],
+    'ga': ['ja','ha'], 'go': ['jo'], 'gu_': ['ju'],
+    'ge': ['je','güe','gue'], 'gi': ['ji','güi','gui'],
+    'gue': ['ge','je','güe'], 'gui': ['gi','ji','güi'],
+    'güe': ['gue','ge','je'], 'güi': ['gui','gi','ji'],
+    'que': ['ce','ke','ge'], 'qui': ['ci','ki','gi'],
+    'ja': ['ga','ha','ya'], 'je': ['ge','güe','he'], 'ji': ['gi','güi','hi'],
+    'jo': ['go','ho'], 'ju': ['gu'],
+    'ha': ['ja','a'], 'he': ['e','je'], 'hi': ['i','ji'], 'ho': ['o','jo'],
+    'cha': ['ca','ya','sha'], 'che': ['ce','je'], 'chi': ['ci','ji'],
+    'cho': ['co','jo'], 'chu': ['cu','ju'],
+    'lla': ['ya','la'], 'lle': ['ye','le'], 'lli': ['yi','li'],
+    'llo': ['yo','lo'], 'llu': ['yu','lu'],
+    'ya': ['lla','ia'], 'ye': ['lle','ie'], 'yo': ['llo'], 'yu': ['llu'],
+    'ba': ['va','da'], 'be': ['ve','de'], 'bi': ['vi','di'],
+    'va': ['ba','fa'], 've': ['be','fe'], 'vi': ['bi','fi'],
+    'pa': ['ba','ta'], 'pe': ['be','te'], 'pi': ['bi','ti'],
+    'ta': ['da','pa'], 'te': ['de','pe'], 'ti': ['di','pi'],
+    'na': ['ma','ña'], 'ne': ['me','ñe'], 'ni': ['mi','ñi'],
+    'ña': ['na','nya'], 'ñe': ['ne','nie'], 'ño': ['no'],
+  };
+  const confusions = onsetMap[syllable] || [];
+  // Also generate all CV combos with same vowel and confused consonants
+  const tokens = tokenize(syllable);
+  const onsetTokens = tokens.filter(t => !isVowelToken(t));
+  const onset = onsetTokens.join('');
+  const confused = CONFUSION_MAP[onset] || [];
+  const extraSyllables = confused.map(c => c + nucleus).filter(s => s !== syllable);
+  const all = [...new Set([...confusions, ...extraSyllables])];
+  return all.slice(0, 5);
+}
+
+// ── Build LETTER cloze ─────────────────────────────────────────────
+function buildLetterCloze(word) {
+  const tokens = tokenize(word);
+  const syllables = syllabify(word);
+  const numSyl = syllables.length;
+
+  // Pick position: initial or final preferred for long words
+  let position;
+  if (numSyl >= 3) position = Math.random() < 0.5 ? 'initial' : 'final';
+  else {
+    const opts = ['initial', 'final'];
+    if (numSyl === 2) opts.push('medial');
+    position = opts[Math.floor(Math.random() * opts.length)];
+  }
+
+  let missingTokenIdx;
+  if (position === 'initial') missingTokenIdx = 0;
+  else if (position === 'final') missingTokenIdx = tokens.length - 1;
+  else {
+    // Medial: prefer consonant tokens
+    const middles = tokens.map((t, i) => i).filter(i => i > 0 && i < tokens.length - 1);
+    const consonantMiddles = middles.filter(i => !isVowelToken(tokens[i]));
+    const pool = consonantMiddles.length > 0 ? consonantMiddles : middles;
+    missingTokenIdx = pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  const missingToken = tokens[missingTokenIdx];
+
+  // Build display: replace the missing token span with underscores
+  // Find character range for this token in original word
+  let charStart = 0;
+  for (let i = 0; i < missingTokenIdx; i++) charStart += tokens[i].length;
+  const charEnd = charStart + missingToken.length;
+  const blank = '_'.repeat(missingToken.length);
+  const display = word.substring(0, charStart) + blank + word.substring(charEnd);
+
+  // Build distractors
+  const confused = (CONFUSION_MAP[missingToken] || []).filter(l => l !== missingToken);
+  // Add some random single letters as fallback
+  const fallback = 'bcdfghjklmnpqrstvxyz'.split('').filter(l => l !== missingToken && !confused.includes(l));
+  const all = [...confused, ...fallback.sort(() => Math.random() - 0.5)];
+  const distractors = all.slice(0, 3);
+  const options = [missingToken, ...distractors].sort(() => Math.random() - 0.5);
+
+  return { type: 'letter', display, missingToken, missingTokenIdx, tokens, charStart, charEnd, position, options };
+}
+
+// ── Build SYLLABLE cloze ───────────────────────────────────────────
+function buildSyllableCloze(word) {
+  const syllables = syllabify(word);
+  if (syllables.length < 2) return null; // need 2+ syllables
+
+  // Pick a syllable to remove
+  const idx = Math.floor(Math.random() * syllables.length);
+  const missingSyllable = syllables[idx];
+
+  const before = syllables.slice(0, idx).join('');
+  const after = syllables.slice(idx + 1).join('');
+  const blank = '_'.repeat(missingSyllable.length);
+  const display = before + blank + after;
+
+  // Build syllable confusions
+  const confused = getSyllableConfusions(missingSyllable).filter(s => s !== missingSyllable);
+  const position = idx === 0 ? 'initial' : idx === syllables.length - 1 ? 'final' : 'medial';
+
+  // Pad to 4 options with vowel+consonant combos
+  const vowels = 'aeiou';
+  const consonants = 'bcdfghjklmnpqrstvyz'.split('');
+  while (confused.length < 3) {
+    const r = consonants[Math.floor(Math.random() * consonants.length)] +
+              vowels[Math.floor(Math.random() * vowels.length)];
+    if (r !== missingSyllable && !confused.includes(r)) confused.push(r);
+  }
+
+  const options = [missingSyllable, ...confused.slice(0, 3)].sort(() => Math.random() - 0.5);
+
+  return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
+}
+
+// ── Main Component ─────────────────────────────────────────────────
 export default function PhonicsMode({ studentData, onBack }) {
   const [words, setWords] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
+  const [subMode, setSubMode] = useState('letter'); // 'letter' | 'syllable'
   const [currentWord, setCurrentWord] = useState(null);
   const [cloze, setCloze] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -125,7 +264,6 @@ export default function PhonicsMode({ studentData, onBack }) {
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
 
-  // Load words from both Palabras and Palabras 💙 lists
   useEffect(() => {
     const load = async () => {
       try {
@@ -138,19 +276,16 @@ export default function PhonicsMode({ studentData, onBack }) {
             if (Array.isArray(mod?.new)) all.push(...mod.new);
           });
         }
-        // Filter: only words with 2+ letters
         const filtered = [...new Set(all)].filter(w => w.length >= 2);
         setWords(filtered);
-      } catch {
-        setWords([]);
-      }
+      } catch { setWords([]); }
       setWordsLoaded(true);
     };
     load();
   }, []);
 
   const playWord = async (word) => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; }
+    if (audioRef.current) { audioRef.current.pause(); }
     const url = await findAudioUrl(word);
     if (!url) return;
     const audio = new Audio(url);
@@ -158,24 +293,24 @@ export default function PhonicsMode({ studentData, onBack }) {
     audio.play().catch(() => {});
   };
 
-  const nextRound = async (wordList = words) => {
+  const nextRound = async (wordList = words, mode = subMode) => {
     if (!wordList.length) return;
     setSelected(null);
     setIsCorrect(null);
     setLocked(false);
 
-    // Try up to 15 words to find one with audio
     const shuffled = [...wordList].sort(() => Math.random() - 0.5);
-    for (const word of shuffled.slice(0, 15)) {
+    for (const word of shuffled.slice(0, 20)) {
       if (word === lastWordRef.current) continue;
+      // For syllable mode, require 2+ syllables
+      if (mode === 'syllable' && syllabify(word).length < 2) continue;
       const url = await findAudioUrl(word);
       if (!url) continue;
       lastWordRef.current = word;
       setCurrentWord(word);
-      const c = buildCloze(word);
+      const c = mode === 'syllable' ? (buildSyllableCloze(word) || buildLetterCloze(word)) : buildLetterCloze(word);
       setCloze(c);
-      // Play audio
-      if (audioRef.current) { audioRef.current.pause(); }
+      if (audioRef.current) audioRef.current.pause();
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.play().catch(() => {});
@@ -184,25 +319,32 @@ export default function PhonicsMode({ studentData, onBack }) {
   };
 
   useEffect(() => {
-    if (wordsLoaded && words.length > 0) nextRound(words);
+    if (wordsLoaded && words.length > 0) nextRound(words, subMode);
   }, [wordsLoaded]);
 
-  const handleSelect = (letter) => {
-    if (locked || selected !== null) return;
-    const correct = letter === cloze.missingLetter;
-    setSelected(letter);
-    setIsCorrect(correct);
-    setLocked(true);
-    if (correct) {
-      setScore(s => s + 1);
-      setStreak(s => s + 1);
-    } else {
-      setStreak(0);
-    }
+  // When subMode changes, start a new round
+  const handleSubModeChange = (mode) => {
+    setSubMode(mode);
+    setSelected(null);
+    setIsCorrect(null);
+    setLocked(false);
+    nextRound(words, mode);
   };
 
-  const positionLabel = cloze?.position === 'initial' ? '🔵 Initial sound' :
-    cloze?.position === 'final' ? '🔴 Final sound' : '🟡 Middle sound';
+  const handleSelect = (option) => {
+    if (locked) return;
+    const correct = option === cloze.missingToken;
+    setSelected(option);
+    setIsCorrect(correct);
+    setLocked(true);
+    if (correct) { setScore(s => s + 1); setStreak(s => s + 1); }
+    else setStreak(0);
+  };
+
+  const positionLabel = cloze?.position === 'initial' ? '🔵 Initial' :
+    cloze?.position === 'final' ? '🔴 Final' : '🟡 Middle';
+
+  const modeLabel = cloze?.type === 'syllable' ? 'Syllable' : 'Sound';
 
   if (!wordsLoaded) {
     return (
@@ -232,24 +374,62 @@ export default function PhonicsMode({ studentData, onBack }) {
         </div>
       </div>
 
+      {/* Sub-mode toggle */}
+      <div className="flex gap-2 bg-white/90 rounded-xl p-1 shadow">
+        <button
+          onClick={() => handleSubModeChange('letter')}
+          className={`px-4 py-2 rounded-lg font-black text-sm transition-all ${subMode === 'letter' ? 'bg-cyan-500 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+          🔤 Letter Sound
+        </button>
+        <button
+          onClick={() => handleSubModeChange('syllable')}
+          className={`px-4 py-2 rounded-lg font-black text-sm transition-all ${subMode === 'syllable' ? 'bg-purple-500 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+          📚 Syllable
+        </button>
+      </div>
+
       {currentWord && cloze && (
         <div className="w-full max-w-lg flex flex-col gap-4">
           {/* Word display */}
           <div className="bg-white/95 rounded-3xl shadow-xl p-6 flex flex-col items-center gap-4">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{positionLabel}</span>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+              {positionLabel} {modeLabel}
+            </span>
 
             {/* Big word with blank */}
-            <div className="flex items-center gap-1 text-5xl font-black text-gray-800 tracking-widest">
-              {currentWord.split('').map((l, i) => (
-                <span key={i}
-                  className={i === cloze.missingIdx
-                    ? `border-b-4 ${isCorrect === null ? 'border-cyan-400 text-transparent' : isCorrect ? 'border-green-500 text-green-600' : 'border-red-400 text-red-500'} min-w-[2rem] text-center`
-                    : 'text-gray-800'}>
-                  {i === cloze.missingIdx
-                    ? (isCorrect !== null ? cloze.missingLetter : '_')
-                    : l}
-                </span>
-              ))}
+            <div className="flex items-center justify-center flex-wrap gap-0.5 text-5xl font-black text-gray-800 tracking-widest">
+              {cloze.type === 'syllable' ? (
+                // Show syllable-level display
+                cloze.syllables.map((syl, i) => (
+                  <span key={i}
+                    className={i === cloze.missingIdx
+                      ? `border-b-4 min-w-[2.5rem] text-center ${isCorrect === null ? 'border-purple-400 text-transparent' : isCorrect ? 'border-green-500 text-green-600' : 'border-red-400 text-red-500'}`
+                      : 'text-gray-800'}>
+                    {i === cloze.missingIdx ? (isCorrect !== null ? cloze.missingToken : '_'.repeat(cloze.missingToken.length)) : syl}
+                  </span>
+                ))
+              ) : (
+                // Show character-level display with digraph awareness
+                (() => {
+                  const parts = [];
+                  const { tokens, missingTokenIdx, missingToken } = cloze;
+                  tokens.forEach((tok, i) => {
+                    if (i === missingTokenIdx) {
+                      parts.push(
+                        <span key={i}
+                          className={`border-b-4 min-w-[2rem] text-center ${isCorrect === null ? 'border-cyan-400 text-transparent' : isCorrect ? 'border-green-500 text-green-600' : 'border-red-400 text-red-500'}`}>
+                          {isCorrect !== null ? missingToken : '_'.repeat(missingToken.length)}
+                        </span>
+                      );
+                    } else {
+                      parts.push(<span key={i}>{tok}</span>);
+                    }
+                  });
+                  return parts;
+                })()
+              )}
             </div>
 
             {/* Play audio button */}
@@ -259,14 +439,16 @@ export default function PhonicsMode({ studentData, onBack }) {
             >
               🔊
             </button>
-            <p className="text-sm text-gray-500 font-bold">Tap 🔊 to hear the word, then pick the missing sound!</p>
+            <p className="text-sm text-gray-500 font-bold text-center">
+              Tap 🔊 to hear the word, then pick the missing {cloze.type === 'syllable' ? 'syllable' : 'sound'}!
+            </p>
           </div>
 
           {/* Answer options */}
           <div className="grid grid-cols-2 gap-3">
-            {cloze.options.map((letter) => {
-              const isSelected = selected === letter;
-              const isRight = letter === cloze.missingLetter;
+            {cloze.options.map((option) => {
+              const isSelected = selected === option;
+              const isRight = option === cloze.missingToken;
               let btnClass = 'bg-white border-2 border-gray-200 text-gray-800 hover:border-cyan-400 hover:bg-cyan-50';
               if (locked) {
                 if (isRight) btnClass = 'bg-green-100 border-2 border-green-500 text-green-700 shadow-lg';
@@ -275,13 +457,13 @@ export default function PhonicsMode({ studentData, onBack }) {
               }
               return (
                 <motion.button
-                  key={letter}
+                  key={option}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => handleSelect(letter)}
+                  onClick={() => handleSelect(option)}
                   className={`rounded-2xl p-5 text-4xl font-black shadow transition-all ${btnClass}`}
                   disabled={locked}
                 >
-                  {letter}
+                  {option}
                   {locked && isRight && <span className="text-lg ml-2">✓</span>}
                   {locked && isSelected && !isRight && <span className="text-lg ml-2">✗</span>}
                 </motion.button>
@@ -299,11 +481,11 @@ export default function PhonicsMode({ studentData, onBack }) {
                 className={`rounded-2xl p-4 flex items-center justify-between shadow-lg ${isCorrect ? 'bg-green-100 border-2 border-green-400' : 'bg-red-50 border-2 border-red-300'}`}
               >
                 <div>
-                  <p className="font-black text-lg">{isCorrect ? '¡Correcto! 🎉' : `Era "${cloze.missingLetter}" 😅`}</p>
+                  <p className="font-black text-lg">{isCorrect ? '¡Correcto! 🎉' : `Era "${cloze.missingToken}" 😅`}</p>
                   <p className="text-sm font-bold text-gray-600">{currentWord}</p>
                 </div>
                 <button
-                  onClick={() => nextRound(words)}
+                  onClick={() => nextRound(words, subMode)}
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black shadow hover:opacity-90 active:scale-95"
                 >
                   Siguiente →
