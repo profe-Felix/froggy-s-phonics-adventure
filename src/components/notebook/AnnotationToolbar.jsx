@@ -55,6 +55,20 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         {side === 'left' ? '→' : '←'}
       </button>
 
+      <button
+        ref={colorBtnRef}
+        onClick={() => {
+          if (!showColors && colorBtnRef.current) {
+            const r = colorBtnRef.current.getBoundingClientRect();
+            setColorBtnPos({ top: r.top, left: r.left, right: r.right, width: r.width });
+          }
+          setShowColors(v => !v);
+        }}
+        title="Color"
+        className="w-9 h-9 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
+        style={{ background: color }}
+      />
+      
       <div className="h-px bg-indigo-800 my-0.5" />
 
       {TOOLS.map(t => (
@@ -76,19 +90,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
       <div className="h-px bg-indigo-800 my-1" />
 
-      <button
-        ref={colorBtnRef}
-        onClick={() => {
-          if (!showColors && colorBtnRef.current) {
-            const r = colorBtnRef.current.getBoundingClientRect();
-            setColorBtnPos({ top: r.top, left: r.left, right: r.right, width: r.width });
-          }
-          setShowColors(v => !v);
-        }}
-        title="Color"
-        className="w-9 h-9 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
-        style={{ background: color }}
-      />
+
 
       {showColors && colorBtnPos && (
         <div
