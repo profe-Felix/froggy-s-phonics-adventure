@@ -274,24 +274,24 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
           </button>
         )}
         {showQR && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200]" onClick={() => setShowQR(false)}>
-            <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e => e.stopPropagation()}>
-              <p className="font-black text-lg mb-1">📱 Share Book QR</p>
-              <p className="text-xs text-gray-500 mb-3">{urlBook || selectedBook.title}</p>
-              <div className="flex items-center gap-2 mb-3 justify-center">
-                <span className="text-sm font-bold text-gray-600">Class:</span>
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setShowQR(false)}>
+            <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+              <p className="font-black text-2xl mb-1">📚 Share Book QR</p>
+              <p className="text-sm text-gray-500 mb-4">{urlBook || selectedBook.title}</p>
+              <div className="flex items-center gap-3 mb-5 justify-center">
+                <span className="text-base font-bold text-gray-700">Class:</span>
                 <select value={qrClass || studentInfo.className}
                   onChange={e => setQrClass(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold">
+                  className="border-2 border-gray-300 rounded-xl px-3 py-2 text-base font-bold">
                   <option value="">All classes</option>
                   {CLASS_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div className="flex justify-center mb-3">
-                <QRCodeSVG value={qrUrl} size={220} level="M" />
+              <div className="flex justify-center mb-4">
+                <QRCodeSVG value={qrUrl} size={320} level="M" />
               </div>
-              <p className="text-xs text-gray-400 mb-4 break-all">{qrUrl}</p>
-              <button onClick={() => setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Close</button>
+              <p className="text-xs text-gray-400 mb-5 break-all">{qrUrl}</p>
+              <button onClick={() => setShowQR(false)} className="border-2 border-gray-300 bg-white rounded-2xl px-8 py-3 text-base font-bold hover:bg-gray-50">Close</button>
             </div>
           </div>
         )}

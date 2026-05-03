@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QRCodeSVG } from 'qrcode.react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import BookStudentGrid from './BookStudentGrid';
@@ -20,6 +21,8 @@ export default function TeacherBookDashboard({ onBack }) {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [reviewDate, setReviewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [qrBook, setQrBook] = useState(null);
+  const [qrBookClass, setQrBookClass] = useState('Felix');
 
   const { data: books = [] } = useQuery({
     queryKey: ['books-all', className],
@@ -151,6 +154,12 @@ export default function TeacherBookDashboard({ onBack }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => { setQrBook(b); setQrBookClass(className); }}
+                    className="px-2 py-1 rounded-lg text-xs font-bold text-teal-300 border border-teal-700 hover:bg-teal-900"
+                    title="Generate QR for this book">
+                    📱 QR
+                  </button>
                   <select
                     value={b.module || ''}
                     onChange={e => updateBook.mutate({ id: b.id, data: { module: e.target.value } })}
@@ -339,6 +348,31 @@ export default function TeacherBookDashboard({ onBack }) {
           </div>
         )}
       </div>
+
+      {/* Book QR Modal */}
+      {qrBook && (() => {
+        const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(qrBook.title)}&class=${qrBookClass}`;
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setQrBook(null)}>
+            <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+              <p className="font-black text-2xl mb-1">📚 Book QR</p>
+              <p className="text-sm text-gray-500 mb-4">{qrBook.title}</p>
+              <div className="flex items-center gap-3 mb-5 justify-center">
+                <span className="text-base font-bold text-gray-700">Class:</span>
+                <select value={qrBookClass} onChange={e => setQrBookClass(e.target.value)}
+                  className="border-2 border-gray-300 rounded-xl px-3 py-2 text-base font-bold">
+                  {CLASS_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-center mb-4">
+                <QRCodeSVG value={qrUrl} size={320} level="M" />
+              </div>
+              <p className="text-xs text-gray-400 mb-5 break-all">{qrUrl}</p>
+              <button onClick={() => setQrBook(null)} className="border-2 border-gray-300 bg-white rounded-2xl px-8 py-3 text-base font-bold hover:bg-gray-50">Close</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
