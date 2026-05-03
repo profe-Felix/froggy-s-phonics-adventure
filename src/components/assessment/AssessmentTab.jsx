@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import AssessmentTemplateEditor from './AssessmentTemplateEditor';
 import AssessmentStudentGrid from './AssessmentStudentGrid';
 import AssessmentStudentView from './AssessmentStudentView';
@@ -13,9 +13,8 @@ const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
  * Teacher-only tab inside the Digital Notebook area.
  * Flow: Template list → Student grid → Student annotation view
  */
-export default function AssessmentTab() {
+export default function AssessmentTab({ className }) {
   const qc = useQueryClient();
-  const [className, setClassName] = useState('Campos');
   const [view, setView] = useState('templates'); // 'templates' | 'create' | 'edit-template' | 'students' | 'student-view'
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -33,6 +32,12 @@ export default function AssessmentTab() {
     queryKey: ['students-for-class', className],
     queryFn: () => base44.entities.Student.filter({ class_name: className }),
     enabled: view === 'students' || view === 'templates',
+  });
+
+  const { data: sharedTemplates = [] } = useQuery({
+    queryKey: ['assessment-templates-shared'],
+    queryFn: () => base44.entities.AssessmentTemplate.filter({ shared_across_classes: true }),
+    refetchInterval: 30000,
   });
 
   const handleCreateTemplate = async (firstFile) => {
@@ -119,16 +124,6 @@ export default function AssessmentTab() {
   // Template list view
   return (
     <div className="flex flex-col h-full overflow-auto" style={{ background: '#0f0f1a', color: 'white' }}>
-      {/* Class selector */}
-      <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-        <h2 className="text-base font-black text-white flex-1">📋 Assessments</h2>
-        <select value={className} onChange={e => setClassName(e.target.value)}
-          className="px-3 py-1.5 rounded-xl font-bold text-white border border-indigo-500 text-sm"
-          style={{ background: '#1a1a2e' }}>
-          {CLASS_NAMES.map(c => <option key={c} value={c}>Class {c}</option>)}
-        </select>
-      </div>
-
       <div className="flex-1 overflow-auto p-4">
         {/* Create new template */}
         <div className="rounded-2xl p-4 flex flex-col gap-3 mb-4" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
@@ -156,7 +151,7 @@ export default function AssessmentTab() {
 
         {/* Template list */}
         {templates.length === 0 && (
-          <p className="text-indigo-500 text-center text-sm mt-8">No assessment templates yet. Create one above.</p>
+          <p className="text-indigo-500 text-center text-sm mt-4">No assessment templates yet. Create one above.</p>
         )}
         <div className="flex flex-col gap-3">
           {templates.map(t => (
@@ -167,7 +162,16 @@ export default function AssessmentTab() {
                 <p className="font-black text-white">{t.title}</p>
                 <p className="text-xs text-indigo-400">{(t.pages || []).length} page{(t.pages || []).length !== 1 ? 's' : ''} · {t.status}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <button
+                  title={t.shared_across_classes ? 'Shared — click to make private' : 'Make shared with all classes'}
+                  onClick={async () => {
+                    await base44.entities.AssessmentTemplate.update(t.id, { shared_across_classes: !t.shared_across_classes });
+                    qc.invalidateQueries(['assessment-templates', className]);
+                  }}
+                  className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${t.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-indigo-900 hover:text-indigo-300'}`}>
+                  {t.shared_across_classes ? '🌐' : '🔒'}
+                </button>
                 <button onClick={() => { setSelectedTemplate(t); setView('edit-template'); }}
                   className="px-3 py-2 rounded-xl text-xs font-bold text-indigo-300 border border-indigo-700 hover:border-indigo-400">
                   ✏️ Edit
@@ -177,10 +181,53 @@ export default function AssessmentTab() {
                   style={{ background: '#4338ca' }}>
                   👥 Students
                 </button>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Delete "${t.title}"?`)) return;
+                    await base44.entities.AssessmentTemplate.delete(t.id);
+                    qc.invalidateQueries(['assessment-templates', className]);
+                  }}
+                  className="px-2 py-1 rounded-full text-xs font-bold text-red-400 border border-red-800 hover:bg-red-900">
+                  🗑
+                </button>
               </div>
             </motion.div>
           ))}
         </div>
+
+        {/* Shared library from other classes */}
+        {sharedTemplates.filter(t => t.class_name !== className).length > 0 && (
+          <div className="mt-4">
+            <p className="text-indigo-300 text-xs font-bold uppercase mb-2">🌐 Shared Assessments — from other classes</p>
+            {sharedTemplates.filter(t => t.class_name !== className).map(t => (
+              <div key={t.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
+                style={{ background: '#0f0f24', border: '1px dashed #4338ca' }}>
+                <span className="text-2xl">📋</span>
+                <div className="flex-1">
+                  <p className="font-black text-white text-sm">{t.title}</p>
+                  <p className="text-indigo-400 text-xs">From class {t.class_name} · {(t.pages || []).length} page{(t.pages || []).length !== 1 ? 's' : ''}</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    await base44.entities.AssessmentTemplate.create({
+                      title: t.title,
+                      class_name: className,
+                      pages: t.pages || [],
+                      template_strokes_by_page: t.template_strokes_by_page || {},
+                      audio_annotations: t.audio_annotations || [],
+                      status: 'active',
+                      shared_across_classes: false,
+                    });
+                    qc.invalidateQueries(['assessment-templates', className]);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
+                  style={{ background: '#4338ca', border: '1px solid #6366f1' }}>
+                  + Add to my class
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

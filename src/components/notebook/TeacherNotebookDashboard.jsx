@@ -43,7 +43,7 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
 
 export default function TeacherNotebookDashboard({ onBack }) {
   const qc = useQueryClient();
-  const [className, setClassName] = useState('Campos');
+  const [className, setClassName] = useState(null);
   const [tab, setTab] = useState('assignments');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -61,12 +61,14 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
+    enabled: !!className,
     refetchInterval: 5000,
   });
 
   const { data: sharedAssignments = [] } = useQuery({
     queryKey: ['notebook-shared'],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ shared_across_classes: true }),
+    enabled: !!className,
     refetchInterval: 30000,
   });
 
@@ -174,6 +176,29 @@ export default function TeacherNotebookDashboard({ onBack }) {
     selectedAssignment?.page_range_end ||
     1;
 
+  // Class picker gate — must select before entering
+  if (!className) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#0f0f1a' }}>
+        <div className="text-center">
+          <div className="text-5xl mb-3">📓</div>
+          <h1 className="text-2xl font-black text-white mb-1">Digital Notebook</h1>
+          <p className="text-indigo-300 text-sm">Select your class to continue</p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          {CLASS_NAMES.map(c => (
+            <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => setClassName(c)}
+              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
+              style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
+              {c}
+            </motion.button>
+          ))}
+        </div>
+        <button onClick={onBack} className="text-indigo-400 hover:text-white font-bold text-sm">← Back</button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a', color: 'white' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
@@ -263,6 +288,16 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
                     {a.status}
                   </span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Delete "${a.title}"?`)) return;
+                      await base44.entities.DigitalNotebookAssignment.delete(a.id);
+                      if (selectedAssignment?.id === a.id) setSelectedAssignment(null);
+                      qc.invalidateQueries(['notebook-assignments', className]);
+                    }}
+                    className="px-2 py-1 rounded-full text-xs font-bold text-red-400 border border-red-800 hover:bg-red-900">
+                    🗑
+                  </button>
                 </div>
               </motion.div>
             ))}
@@ -559,7 +594,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
           <LaserRecordView assignment={selectedAssignment} />
         )}
 
-        {tab === 'assessments' && <AssessmentTab />}
+        {tab === 'assessments' && <AssessmentTab className={className} />}
       </div>
     </div>
   );
