@@ -593,9 +593,6 @@ localDirtyRef.current = false;
               background: '#e8e8e8',
               position: 'relative',
               cursor: addingMic ? 'copy' : 'default',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: fitMode === 'height' || fitMode === 'page' ? 'center' : 'flex-start',
             }}
             onClick={handlePageClickForMic}
             onTouchEnd={addingMic ? handlePageClickForMic : undefined}
@@ -607,14 +604,14 @@ localDirtyRef.current = false;
                   position: 'relative',
                   display: 'block',
                   width: '100%',
-                  height: fitMode === 'height' || fitMode === 'page' ? '100%' : 'auto',
+                  height: 'auto',
                 }}
               >
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
-                  fitMode={fitMode === 'page' ? 'contain' : 'width'}
-                  fillHeight={fitMode === 'height'}
+                  fitMode={fitMode === 'height' || fitMode === 'page' ? 'contain' : 'width'}
+                  fillHeight={false}
                   onRendered={(w, h) => setPdfRenderedSize({ w, h })}
                 />
                 {pdfRenderedSize && (
