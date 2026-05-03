@@ -61,9 +61,9 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const viewport = page.getViewport({ scale: 1 });
 
         let scale;
-        if (fillHeight && containerSize.h > 10) {
-          // Scale to fill height exactly; page may be narrower than container (gap handled by alignment)
-          // but never exceed container width (portrait fallback)
+        if (fitMode === 'height' && containerSize.h > 10) {
+          scale = containerSize.h / viewport.height;
+        } else if (fillHeight && containerSize.h > 10) {
           const scaleByH = containerSize.h / viewport.height;
           const scaleByW = containerSize.w / viewport.width;
           scale = Math.min(scaleByH, scaleByW);
@@ -112,7 +112,19 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   const justifyContent = alignSelf === 'flex-start' ? 'flex-start' : alignSelf === 'flex-end' ? 'flex-end' : 'center';
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: fitMode === 'contain' || fillHeight ? '100%' : 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent, overflow: 'hidden', background: (fitMode === 'contain' || fillHeight) ? '#fff' : undefined }}>
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: fitMode === 'height' || fitMode === 'contain' || fillHeight ? '100%' : 'auto',
+        position: 'relative',
+        display: 'flex',
+        alignItems: fitMode === 'height' || fitMode === 'contain' || fillHeight ? 'center' : 'flex-start',
+        justifyContent,
+        overflow: 'hidden',
+        background: fitMode === 'height' || fitMode === 'contain' || fillHeight ? '#fff' : undefined,
+      }}
+    >
       {loading && (
         <div style={{ position: 'absolute', inset: 0, minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8e8e8' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
