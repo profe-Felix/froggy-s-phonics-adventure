@@ -63,7 +63,7 @@ function TeacherSpeakerIcon({ annotation, containerSize }) {
   );
 }
 
-export default function StudentBookReader({ book, studentNumber, className, onBack }) {
+export default function StudentBookReader({ book, studentNumber, className, onBack, showQrButton = false, onShowQR }) {
   const qc = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [twoPerPage, setTwoPerPage] = useState(false);
@@ -268,7 +268,16 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
     }
-    return <PdfPageRenderer pdfUrl={book.pdf_url} pageNumber={pageNum} fitMode="contain" fillHeight={twoPerPage} alignSelf={align} />;
+    return (
+      <PdfPageRenderer
+        pdfUrl={book.pdf_url}
+        pageNumber={pageNum}
+        fitMode="contain"
+        fillHeight={true}
+        alignSelf={align}
+        renderScale={twoPerPage ? 2.5 : 2}
+      />
+    );
   };
 
   const readerRef = useRef(null);
@@ -288,20 +297,51 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   }, []);
 
   const handleFullscreen = () => {
+    const el = readerRef.current;
+    if (!el) return;
+
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      setIsFullscreen(false);
+      return;
+    }
+
+    const requestFull =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.webkitEnterFullscreen;
+
+    if (requestFull) {
+      try {
+        const result = requestFull.call(el);
+        if (result?.catch) {
+          result.catch(() => setIsFullscreen(true));
+        } else {
+          setIsFullscreen(true);
+        }
+      } catch {
+        setIsFullscreen(true);
+      }
     } else {
-      const el = readerRef.current;
-      if (!el) return;
-      (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+      setIsFullscreen(v => !v);
     }
   };
-
   // Single combined bottom bar
   const pageLabel = `${currentPage}${twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''}/${totalPages}`;
 
   return (
-    <div ref={readerRef} className="flex flex-col" style={{ background: '#042f2e', position: 'fixed', inset: 0 }}>
+    <div
+      ref={readerRef}
+      className="flex flex-col"
+      style={{
+        background: '#042f2e',
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: isFullscreen ? '100dvh' : '100vh',
+        zIndex: isFullscreen ? 9999 : 'auto',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488' }}>
         <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm shrink-0">← Back</button>
@@ -311,6 +351,15 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}>
           {twoPerPage ? '2-up' : '1-up'}
         </button>
+        {showQrButton && (
+          <button
+            onClick={onShowQR}
+            className="px-2 py-0.5 rounded text-xs font-bold border border-teal-500 text-teal-300 hover:bg-teal-900 shrink-0"
+            style={{ background: '#0f3d3a' }}
+          >
+            📱 QR
+          </button>
+        )}        
         <button onClick={handleFullscreen}
           className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${isFullscreen ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
           title="Fullscreen">{isFullscreen ? '⊡' : '⛶'}</button>
