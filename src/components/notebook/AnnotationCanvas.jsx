@@ -377,7 +377,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       current.current = null;
       drawing.current = false;
     };
-  }, [mode, color, size, tool, width, height, onStrokeStart, onStrokeEnd]);
+  }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd]);
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({ strokes: strokes.current }),
@@ -448,7 +448,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           inset: 0,
           width: width + 'px',
           height: height + 'px',
-          touchAction: (mode === 'draw' && !passThrough) ? 'none' : 'auto',
+          touchAction: (mode === 'draw' && !passThrough) ? 'pinch-zoom' : 'auto',
           pointerEvents: (mode === 'draw' && !passThrough) ? 'auto' : 'none',
           cursor: tool === 'eraser_pixel' || tool === 'eraser_object' ? 'none' : 'crosshair',
           background: 'transparent',
