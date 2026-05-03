@@ -440,7 +440,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const eraserRadius = tool === 'eraser_pixel' ? pixelEraserRadius : objectEraserRadius;
 
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 10, width: width + 'px', height: height + 'px', pointerEvents: passThrough ? 'none' : 'auto' }}>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 10, width: width + 'px', height: height + 'px', pointerEvents: (mode === 'draw' && !passThrough) ? 'auto' : 'none' }}>
       <canvas
         ref={canvasRef}
         style={{
