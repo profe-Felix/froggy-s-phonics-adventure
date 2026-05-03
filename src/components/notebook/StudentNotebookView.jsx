@@ -612,6 +612,7 @@ localDirtyRef.current = false;
                     pageNumber={currentPage}
                     fitMode={fitMode}
                     fillHeight={false}
+                    alignSelf="flex-start"
                     targetWidth={canvasSize.w}
                     targetHeight={canvasSize.h}
                     onRendered={(w, h) => setPdfRenderedSize({ w, h })}
