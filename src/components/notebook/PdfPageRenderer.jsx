@@ -75,7 +75,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           scale = containerSize.w / viewport.width;
         }
 
-        const scaled = page.getViewport({ scale: scale * renderScale });
+        const scaled = page.getViewport({ scale });
 
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
