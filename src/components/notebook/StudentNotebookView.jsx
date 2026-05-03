@@ -589,7 +589,14 @@ localDirtyRef.current = false;
           <div
             ref={containerRef}
             className="flex-1 overflow-auto"
-            style={{ background: '#e8e8e8', position: 'relative', cursor: addingMic ? 'copy' : 'default' }}
+            style={{
+              background: '#e8e8e8',
+              position: 'relative',
+              cursor: addingMic ? 'copy' : 'default',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: fitMode === 'height' || fitMode === 'page' ? 'center' : 'flex-start',
+            }}
             onClick={handlePageClickForMic}
             onTouchEnd={addingMic ? handlePageClickForMic : undefined}
           >
