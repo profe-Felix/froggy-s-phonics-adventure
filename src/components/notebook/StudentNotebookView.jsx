@@ -46,7 +46,7 @@ function AssignmentPicker({ assignments, onSelect }) {
   );
 }
 
-export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName, directPage }) {
+export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName, directPage, extraHeaderContent }) {
   const qc = useQueryClient();
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -481,6 +481,7 @@ localDirtyRef.current = false;
         </span>
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
+        {extraHeaderContent}
         <button
           onClick={async () => {
             await saveStrokes();

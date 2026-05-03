@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
+import { QRCodeSVG } from 'qrcode.react';
 
 const MODULES = ['All', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
@@ -53,7 +54,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
   );
 }
 
-function BookShelf({ className, studentNumber, onSelectBook }) {
+function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, directBookTitle }) {
   // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
 
@@ -62,6 +63,13 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
     queryFn: () => base44.entities.BookAssignment.filter({ class_name: className, status: 'active' }),
     refetchInterval: 10000,
   });
+
+  // Auto-select book when directBookTitle is provided
+  useEffect(() => {
+    if (!directBookTitle || books.length === 0) return;
+    const match = books.find(b => b.title?.toLowerCase().trim() === directBookTitle.toLowerCase().trim());
+    if (match) onSelectBook(match);
+  }, [books, directBookTitle]);
 
   // Sort by queue_order, then figure out which books the student can access
   const sortedBooks = [...books].sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0));
@@ -170,16 +178,44 @@ function BookShelf({ className, studentNumber, onSelectBook }) {
   );
 }
 
+function BookClassPicker({ title, onSelect }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#042f2e' }}>
+      <div className="text-center">
+        <div className="text-5xl mb-3">📚</div>
+        <h1 className="text-2xl font-black text-white mb-1">{title}</h1>
+        <p className="text-teal-300 text-sm">Select your class to continue</p>
+      </div>
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        {CLASS_NAMES.map(c => (
+          <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => onSelect(c)}
+            className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
+            style={{ background: '#0d9488', border: '3px solid #14b8a6' }}>
+            {c}
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('mode') === 'teacher';
   const urlClass = prefillClass || params.get('class');
   const urlNumber = prefillNumber || parseInt(params.get('number') || params.get('student'));
+  const urlBook = params.get('book') || null; // book title deep-link
+
+  // Assignment-style link: has book name but no class/number
+  const isBookLink = !!urlBook && !urlClass && !urlNumber;
 
   const [role, setRole] = useState(isTeacher ? 'teacher' : null);
   const [studentInfo, setStudentInfo] = useState(null);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [pickedClass, setPickedClass] = useState(urlClass || null);
   const [autoResolved, setAutoResolved] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [qrClass, setQrClass] = useState('');
 
   useEffect(() => {
     if (autoResolved) return;
@@ -197,14 +233,69 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
     return <TeacherBookDashboard onBack={() => setRole(null)} />;
   }
 
-  if (role === 'student' && studentInfo && selectedBook) {
+  // Book link flow: pick class first
+  if (isBookLink && !pickedClass) {
+    return <BookClassPicker title={urlBook} onSelect={(c) => { setPickedClass(c); setRole('student'); }} />;
+  }
+
+  // Book link flow: pick student number
+  if (isBookLink && pickedClass && !studentInfo) {
     return (
-      <StudentBookReader
-        book={selectedBook}
-        studentNumber={studentInfo.number}
-        className={studentInfo.className}
-        onBack={() => setSelectedBook(null)}
-      />
+      <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
+        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
+          <button onClick={() => setPickedClass(null)} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <h1 className="text-lg font-black text-white">📚 {urlBook}</h1>
+        </div>
+        <StudentLogin
+          onEnter={(className, number) => setStudentInfo({ className, number })}
+          preselectedClass={pickedClass}
+        />
+      </div>
+    );
+  }
+
+  if (role === 'student' && studentInfo && selectedBook) {
+    const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}`;
+    return (
+      <>
+        <StudentBookReader
+          book={selectedBook}
+          studentNumber={studentInfo.number}
+          className={studentInfo.className}
+          onBack={() => setSelectedBook(null)}
+        />
+        {urlBook && (
+          <button
+            onClick={() => setShowQR(true)}
+            className="fixed top-2 right-24 z-50 px-2 py-1 rounded-lg text-xs font-bold border border-teal-500 text-teal-300 hover:bg-teal-900"
+            style={{ background: '#0f3d3a' }}
+          >
+            📱 QR
+          </button>
+        )}
+        {showQR && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200]" onClick={() => setShowQR(false)}>
+            <div className="bg-white rounded-2xl p-6 text-center shadow-2xl w-80" onClick={e => e.stopPropagation()}>
+              <p className="font-black text-lg mb-1">📱 Share Book QR</p>
+              <p className="text-xs text-gray-500 mb-3">{urlBook || selectedBook.title}</p>
+              <div className="flex items-center gap-2 mb-3 justify-center">
+                <span className="text-sm font-bold text-gray-600">Class:</span>
+                <select value={qrClass || studentInfo.className}
+                  onChange={e => setQrClass(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold">
+                  <option value="">All classes</option>
+                  {CLASS_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex justify-center mb-3">
+                <QRCodeSVG value={qrUrl} size={220} level="M" />
+              </div>
+              <p className="text-xs text-gray-400 mb-4 break-all">{qrUrl}</p>
+              <button onClick={() => setShowQR(false)} className="border border-gray-300 bg-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-gray-50">Close</button>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -212,10 +303,15 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => { if (selectedBook) { setSelectedBook(null); } else { onBack ? onBack() : setStudentInfo(null); } }} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <button onClick={() => { onBack ? onBack() : (isBookLink ? setPickedClass(null) : setStudentInfo(null)); }} className="text-teal-300 hover:text-white font-bold">← Back</button>
           <h1 className="text-lg font-black text-white">📚 Book Reading</h1>
         </div>
-        <BookShelf className={studentInfo.className} studentNumber={studentInfo.number} onSelectBook={setSelectedBook} />
+        <BookShelfWithAutoSelect
+          className={studentInfo.className}
+          studentNumber={studentInfo.number}
+          directBookTitle={urlBook}
+          onSelectBook={setSelectedBook}
+        />
       </div>
     );
   }
@@ -237,8 +333,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
 
   // Landing
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
-      style={{ background: '#042f2e' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center gap-8 px-6" style={{ background: '#042f2e' }}>
       <div className="text-center">
         <div className="text-6xl mb-4">📚</div>
         <h1 className="text-4xl font-black text-white mb-2">Book Reading</h1>
