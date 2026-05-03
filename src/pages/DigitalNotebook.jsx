@@ -71,6 +71,7 @@ export default function DigitalNotebook() {
   const urlClass = parseClassParam(params.get('class'));
   const urlAssignment = params.get('assignment') || params.get('Assignment') || null;
   const urlNumber = parseInt(params.get('number') || params.get('student'));
+  const urlPage = parseInt(params.get('page')) || null;
 
   const [role, setRole] = useState(isTeacherMode ? 'teacher' : null);
   const [studentInfo, setStudentInfo] = useState(null);
@@ -81,7 +82,7 @@ export default function DigitalNotebook() {
   useEffect(() => {
     if (autoResolved) return;
     if (urlClass && !isNaN(urlNumber) && urlNumber > 0) {
-      setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment });
+      setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment, directPage: urlPage });
       setRole('student');
       setAutoResolved(true);
     } else if (urlClass && !isTeacherMode) {
@@ -101,6 +102,7 @@ export default function DigitalNotebook() {
         studentNumber={studentInfo.number}
         className={studentInfo.className}
         directAssignmentName={studentInfo.directAssignment || null}
+        directPage={studentInfo.directPage || null}
         onBack={() => { setStudentInfo(null); setRole(null); }}
       />
     );
@@ -114,7 +116,7 @@ export default function DigitalNotebook() {
           <h1 className="text-lg font-black text-white">📓 Digital Notebook</h1>
         </div>
         <StudentLogin
-          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment })}
+          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
           preselectedClass={urlClass}
         />
       </div>

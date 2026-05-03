@@ -46,7 +46,7 @@ function AssignmentPicker({ assignments, onSelect }) {
   );
 }
 
-export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName }) {
+export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName, directPage }) {
   const qc = useQueryClient();
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -191,14 +191,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         const desiredPage =
           selectedAssignment.page_mode === 'locked'
             ? (selectedAssignment.locked_page || 1)
-            : page;
+            : (directPage || page);
         setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
       } else {
         const newSession = await base44.entities.NotebookSession.create({
           assignment_id: selectedAssignment.id,
           class_name: className,
           student_number: studentNumber,
-          current_page: 1,
+          current_page: directPage || 1,
           strokes_by_page: {},
         });
         setSession(newSession);
@@ -206,7 +206,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         const desiredPage =
           selectedAssignment.page_mode === 'locked'
             ? (selectedAssignment.locked_page || 1)
-            : 1;
+            : (directPage || 1);
         setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
       }
     })();
