@@ -10,7 +10,7 @@ const pdfCache = {};
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
  *          'contain' — scale to fit both width AND height (for book reader, no scroll)
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1 }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
@@ -61,15 +61,18 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const viewport = page.getViewport({ scale: 1 });
 
         let scale;
-        if (fitMode === 'height' && containerSize.h > 10) {
-          scale = containerSize.h / viewport.height;
-        } else if (fillHeight && containerSize.h > 10) {
-          const scaleByH = containerSize.h / viewport.height;
-          const scaleByW = containerSize.w / viewport.width;
+        const availableW = targetWidth || containerSize.w;
+        const availableH = targetHeight || containerSize.h;
+
+        if (fitMode === 'height' && availableH > 10) {
+          scale = availableH / viewport.height;
+        } else if (fillHeight && availableH > 10) {
+          const scaleByH = availableH / viewport.height;
+          const scaleByW = availableW / viewport.width;
           scale = Math.min(scaleByH, scaleByW);
-        } else if (fitMode === 'contain' && containerSize.h > 10) {
-          const scaleW = containerSize.w / viewport.width;
-          const scaleH = containerSize.h / viewport.height;
+        } else if (fitMode === 'contain' && availableH > 10) {
+          const scaleW = availableW / viewport.width;
+          const scaleH = availableH / viewport.height;
           scale = Math.min(scaleW, scaleH);
         } else {
           scale = containerSize.w / viewport.width;
@@ -105,7 +108,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     })();
 
     return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode, fillHeight, renderScale]);
+  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode, fillHeight, renderScale, targetWidth, targetHeight]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
