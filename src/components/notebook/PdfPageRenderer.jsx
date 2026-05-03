@@ -77,15 +77,20 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         const scaled = page.getViewport({ scale });
 
-        canvas.width = scaled.width;
-        canvas.height = scaled.height;
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+        canvas.width = Math.floor(scaled.width * dpr);
+        canvas.height = Math.floor(scaled.height * dpr);
         canvas.style.width = scaled.width + 'px';
         canvas.style.height = scaled.height + 'px';
+
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         if (renderTask.current) renderTask.current.cancel();
 
         renderTask.current = page.render({
-          canvasContext: canvas.getContext('2d'),
+          canvasContext: ctx,
           viewport: scaled,
         });
 
