@@ -273,9 +273,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         pdfUrl={book.pdf_url}
         pageNumber={pageNum}
         fitMode="contain"
-        fillHeight={true}
+        fillHeight={twoPerPage}
         alignSelf={align}
-        renderScale={twoPerPage ? 2.5 : 2}
       />
     );
   };
