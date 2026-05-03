@@ -54,6 +54,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [color, setColor] = useState('#4338ca');
   const [size, setSize] = useState(4);
   const [side, setSide] = useState('left');
+  const [fitMode, setFitMode] = useState('width'); // width | height | page
   const [session, setSession] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -491,6 +492,16 @@ localDirtyRef.current = false;
         >
           💾 Save
         </button>
+                <select
+          value={fitMode}
+          onChange={(e) => setFitMode(e.target.value)}
+          className="px-2 py-1.5 rounded-xl text-xs font-bold bg-white text-gray-900"
+          title="Page fit mode"
+        >
+          <option value="width">Fit Width</option>
+          <option value="height">Fit Height</option>
+          <option value="page">Full Page</option>
+        </select>
       </div>
 
       <AnimatePresence>
@@ -583,10 +594,20 @@ localDirtyRef.current = false;
             onTouchEnd={addingMic ? handlePageClickForMic : undefined}
           >
             {selectedAssignment.pdf_url ? (
-              <div ref={pdfWrapperRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
+              <div
+                ref={pdfWrapperRef}
+                style={{
+                  position: 'relative',
+                  display: 'block',
+                  width: '100%',
+                  height: fitMode === 'height' || fitMode === 'page' ? '100%' : 'auto',
+                }}
+              >
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
+                  fitMode={fitMode === 'page' ? 'contain' : 'width'}
+                  fillHeight={fitMode === 'height'}
                   onRendered={(w, h) => setPdfRenderedSize({ w, h })}
                 />
                 {pdfRenderedSize && (
