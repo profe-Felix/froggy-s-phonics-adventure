@@ -263,16 +263,9 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
           studentNumber={studentInfo.number}
           className={studentInfo.className}
           onBack={() => setSelectedBook(null)}
+          showQrButton={!!urlBook}
+          onShowQR={() => setShowQR(true)}
         />
-        {urlBook && (
-          <button
-            onClick={() => setShowQR(true)}
-            className="px-2 py-1 rounded-lg text-xs font-bold border border-teal-500 text-teal-300 hover:bg-teal-900"
-            style={{ background: '#0f3d3a' }}
-          >
-            📱 QR
-          </button>
-        )}
         {showQR && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setShowQR(false)}>
             <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
