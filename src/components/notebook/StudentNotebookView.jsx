@@ -607,13 +607,15 @@ localDirtyRef.current = false;
                   height: 'auto',
                 }}
               >
-                <PdfPageRenderer
-                  pdfUrl={selectedAssignment.pdf_url}
-                  pageNumber={currentPage}
-                  fitMode={fitMode}
-                  fillHeight={false}
-                  onRendered={(w, h) => setPdfRenderedSize({ w, h })}
-                />
+                  <PdfPageRenderer
+                    pdfUrl={selectedAssignment.pdf_url}
+                    pageNumber={currentPage}
+                    fitMode={fitMode}
+                    fillHeight={false}
+                    targetWidth={canvasSize.w}
+                    targetHeight={canvasSize.h}
+                    onRendered={(w, h) => setPdfRenderedSize({ w, h })}
+                  />
                 {pdfRenderedSize && (
                   <AnnotationCanvas
                     ref={canvasRef}
