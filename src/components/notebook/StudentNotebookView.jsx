@@ -610,7 +610,7 @@ localDirtyRef.current = false;
                 <PdfPageRenderer
                   pdfUrl={selectedAssignment.pdf_url}
                   pageNumber={currentPage}
-                  fitMode={fitMode === 'height' || fitMode === 'page' ? 'contain' : 'width'}
+                  fitMode={fitMode}
                   fillHeight={false}
                   onRendered={(w, h) => setPdfRenderedSize({ w, h })}
                 />
