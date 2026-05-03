@@ -10,7 +10,7 @@ const pdfCache = {};
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
  *          'contain' — scale to fit both width AND height (for book reader, no scroll)
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center' }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
@@ -75,7 +75,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           scale = containerSize.w / viewport.width;
         }
 
-        const scaled = page.getViewport({ scale });
+        const scaled = page.getViewport({ scale: scale * renderScale });
 
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
@@ -105,7 +105,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     })();
 
     return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode]);
+  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode, fillHeight, renderScale]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
