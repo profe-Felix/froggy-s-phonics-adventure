@@ -267,7 +267,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
         {urlBook && (
           <button
             onClick={() => setShowQR(true)}
-            className="fixed top-2 right-24 z-50 px-2 py-1 rounded-lg text-xs font-bold border border-teal-500 text-teal-300 hover:bg-teal-900"
+            className="px-2 py-1 rounded-lg text-xs font-bold border border-teal-500 text-teal-300 hover:bg-teal-900"
             style={{ background: '#0f3d3a' }}
           >
             📱 QR
