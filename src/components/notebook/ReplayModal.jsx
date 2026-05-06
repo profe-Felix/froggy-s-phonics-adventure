@@ -91,9 +91,16 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
   ctx.restore();
 
   const hiddenStrokeIds = new Set();
+  let lastClearIndex = -1;
 
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
     const { type, s } = timeline[idx];
+
+    if (type === 'clear_page') {
+      lastClearIndex = idx;
+      hiddenStrokeIds.clear();
+      continue;
+    }
 
     if (type === 'eraser_object') {
       (s.erasedStrokeIds || []).forEach(id => hiddenStrokeIds.add(id));
@@ -101,8 +108,11 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
   }
 
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
+    if (idx <= lastClearIndex) continue;
+
     const { type, s, i } = timeline[idx];
 
+    if (type === 'clear_page') continue;
     if (type === 'eraser_object') continue;
     if (s.id && hiddenStrokeIds.has(s.id)) continue;
 
@@ -114,7 +124,7 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
       const p = s.pts[0];
       ctx.moveTo(p.x * sx, p.y * sy);
       ctx.lineTo((p.x * sx) + 0.01, (p.y * sy) + 0.01);
-    } else {
+    } else if (s.pts[i - 1] && s.pts[i]) {
       ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
       ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
     }
