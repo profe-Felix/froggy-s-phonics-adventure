@@ -186,6 +186,7 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
 
     const pos = tl.length;
     setScrubPos(pos);
+    setPlaying(false);
     renderToFrame(ctx, tl, pos, sx, sy, widthScale);
   }, [pdfSize, strokesData]);
 
