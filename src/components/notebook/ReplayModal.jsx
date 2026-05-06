@@ -33,11 +33,25 @@ function getWidthScale(data, w, h, sx, sy) {
 }
 
 function buildTimeline(data) {
-  const strokes = (data?.strokes || []).filter(s => s.pts && s.pts.length >= 2);
+  const strokes = (data?.history || data?.events || data?.strokes || []).filter(s => s.pts && s.pts.length >= 1);
   const timeline = [];
+
   for (const s of strokes) {
-    for (let i = 1; i < s.pts.length; i++) timeline.push({ s, i });
+    if (s.tool === 'eraser_object') {
+      timeline.push({ type: 'eraser_object', s, i: 1 });
+      continue;
+    }
+
+    if (s.pts.length === 1) {
+      timeline.push({ type: 'dot', s, i: 0 });
+      continue;
+    }
+
+    for (let i = 1; i < s.pts.length; i++) {
+      timeline.push({ type: 'segment', s, i });
+    }
   }
+
   return timeline;
 }
 
@@ -76,13 +90,35 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.restore();
 
+  const hiddenStrokeIds = new Set();
+
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
-    const { s, i } = timeline[idx];
+    const { type, s } = timeline[idx];
+
+    if (type === 'eraser_object') {
+      (s.erasedStrokeIds || []).forEach(id => hiddenStrokeIds.add(id));
+    }
+  }
+
+  for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
+    const { type, s, i } = timeline[idx];
+
+    if (type === 'eraser_object') continue;
+    if (s.id && hiddenStrokeIds.has(s.id)) continue;
+
     ctx.save();
     ctx.beginPath();
     applyStrokeStyle(ctx, s, widthScale);
-    ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
-    ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
+
+    if (type === 'dot') {
+      const p = s.pts[0];
+      ctx.moveTo(p.x * sx, p.y * sy);
+      ctx.lineTo((p.x * sx) + 0.01, (p.y * sy) + 0.01);
+    } else {
+      ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
+      ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
+    }
+
     ctx.stroke();
     ctx.restore();
   }
@@ -175,22 +211,8 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
 
       const batch = Math.min(3, tl.length - idx);
 
-      for (let b = 0; b < batch; b++) {
-        const { s, i } = tl[idx + b];
-
-        ctxRef.current.save();
-        ctxRef.current.beginPath();
-        applyStrokeStyle(ctxRef.current, s, widthScale);
-        ctxRef.current.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
-        ctxRef.current.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
-        ctxRef.current.stroke();
-        ctxRef.current.restore();
-      }
-
-      ctxRef.current.globalCompositeOperation = 'source-over';
-      ctxRef.current.globalAlpha = 1;
-
       idx += batch;
+      renderToFrame(ctxRef.current, tl, idx, sx, sy, widthScale);
       setScrubPos(idx);
       animRef.current = setTimeout(() => requestAnimationFrame(step), 8);
     };
