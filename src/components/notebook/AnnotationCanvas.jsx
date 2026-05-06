@@ -553,11 +553,11 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       const snap = undoStack.current.pop();
 
       if (Array.isArray(snap)) {
-        strokes.current = snap;
+        strokes.current = snap.map(cloneStroke);
         history.current = snap.map(cloneStroke);
       } else {
-        strokes.current = snap.strokes || [];
-        history.current = snap.history || strokes.current.map(cloneStroke);
+        strokes.current = (snap.strokes || []).map(cloneStroke);
+        history.current = (snap.history || strokes.current).map(cloneStroke);
       }
 
       current.current = null;
