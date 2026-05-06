@@ -178,21 +178,42 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (!c) return;
 
     // Object eraser: remove entire strokes touched by the pointer
-    // We push undo once on mousedown, then erase freely until mouseup
+    // Also records an eraser event in history so replay shows the erase.
     const eraseStrokeAt = (p) => {
       const px = p.x * width;
       const py = p.y * height;
       const hitDist = Math.max(8, size * 1.5);
-      const before = strokes.current.length;
-      strokes.current = strokes.current.filter(s => !strokeHitTest(s, px, py, width, height, hitDist));
-      if (strokes.current.length !== before) {
+      const removed = [];
+
+      strokes.current = strokes.current.filter(s => {
+        if (s.tool === 'eraser_object' || s.tool === 'eraser_pixel') return true;
+
+        const hit = strokeHitTest(s, px, py, width, height, hitDist);
+
+        if (hit) {
+          removed.push(ensureStrokeId(s));
+        }
+
+        return !hit;
+      });
+
+      if (removed.length > 0) {
+        const eraseEvent = ensureStrokeId({
+          color: '#000',
+          size,
+          tool: 'eraser_object',
+          pts: [p, { ...p, t: (p.t || Date.now()) + 1 }],
+          erasedStrokeIds: removed.map(s => s.id),
+        });
+
+        history.current.push(eraseEvent);
+        eraserChanged.current = true;
         redraw();
-        onStrokeEnd?.();
       }
     };
 
     // Pixel eraser: split strokes at the erased point
-    // We push undo once on mousedown, then split freely until mouseup
+    // The visible result is still updated, but the eraser path is saved in history.
     const pixelEraseAt = (p) => {
       const px = p.x * width;
       const py = p.y * height;
@@ -200,12 +221,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
       let changed = false;
       const next = [];
+
       for (const s of strokes.current) {
-        if (s.tool === 'eraser_pixel') {
-          // Don't try to split eraser strokes themselves — just keep them
+        if (s.tool === 'eraser_pixel' || s.tool === 'eraser_object') {
           next.push(s);
           continue;
         }
+
         if (strokeHitTest(s, px, py, width, height, eraserRadius)) {
           const split = splitStrokeByPixelErase(s, px, py, width, height, eraserRadius);
           next.push(...split);
@@ -214,15 +236,17 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           next.push(s);
         }
       }
+
       if (changed) {
         strokes.current = next;
+        eraserChanged.current = true;
         redraw();
-        onStrokeEnd?.();
       }
     };
 
-    // Track whether we've pushed undo for the current eraser drag
+    // Track whether we've pushed undo/changed data for the current eraser drag
     const eraserUndoPushed = { current: false };
+    const eraserChanged = { current: false };
 
     const onMouseDown = (e) => {
       if (mode !== 'draw') return;
