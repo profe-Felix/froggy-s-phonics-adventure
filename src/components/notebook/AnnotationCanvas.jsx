@@ -335,7 +335,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
       if (tool === 'eraser_pixel') {
         e.preventDefault();
-        pixelEraseAt(getPos(e));
+        const p = getPos(e);
+        if (current.current) current.current.pts.push(p);
+        pixelEraseAt(p);
         return;
       }
       if (!current.current) return;
@@ -346,11 +348,23 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onTouchEnd = () => {
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
+          history.current.push(cloneStroke(current.current));
+          current.current = null;
+          onStrokeEnd?.();
+        }
+
+        if (tool === 'eraser_object' && eraserChanged.current) {
+          onStrokeEnd?.();
+        }
+
         drawing.current = false;
         eraserUndoPushed.current = false;
+        eraserChanged.current = false;
         setEraserCursorPos(null);
         return;
       }
+
       finishStroke();
     };
 
@@ -380,50 +394,92 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd]);
 
   useImperativeHandle(ref, () => ({
-    getStrokes: () => ({ strokes: strokes.current }),
+    getStrokes: () => ({
+      strokes: strokes.current,
+      history: history.current,
+      historyVersion: 2,
+    }),
+
     loadStrokes: (data) => {
-      if (!data) { strokes.current = []; undoStack.current = []; redraw(); return; }
+      if (!data) {
+        strokes.current = [];
+        history.current = [];
+        undoStack.current = [];
+        redraw();
+        return;
+      }
+
       const raw = data.strokes || (Array.isArray(data) ? data : []);
+      const rawHistory = data.history || data.events || raw;
       const sw = data.canvasWidth;
       const sh = data.canvasHeight;
-      const samplePt = raw?.[0]?.pts?.[0];
+      const samplePt = raw?.[0]?.pts?.[0] || rawHistory?.[0]?.pts?.[0];
+
       const alreadyNormalized =
         data?.normalized === true ||
         (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
-      if (sw && sh && !alreadyNormalized) {
-        strokes.current = raw.map((s) => ({
+
+      const normalizeList = (list) => {
+        const mapped = (list || []).map((s) => ({
           ...s,
-          pts: s.pts.map((p) => ({ ...p, x: p.x / sw, y: p.y / sh })),
+          pts: (s.pts || []).map((p) =>
+            sw && sh && !alreadyNormalized
+              ? { ...p, x: p.x / sw, y: p.y / sh }
+              : { ...p }
+          ),
+          erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
         }));
-      } else {
-        strokes.current = raw;
-      }
+
+        mapped.forEach(ensureStrokeId);
+        return mapped;
+      };
+
+      strokes.current = normalizeList(raw);
+      history.current = normalizeList(rawHistory);
       undoStack.current = [];
       current.current = null;
       drawing.current = false;
       redraw();
     },
+
     clearStrokes: () => {
       pushUndo();
       strokes.current = [];
+      history.current = [];
       current.current = null;
       drawing.current = false;
       redraw();
     },
+
     undo: () => {
       if (undoStack.current.length === 0) return;
-      strokes.current = undoStack.current.pop();
+
+      const snap = undoStack.current.pop();
+
+      if (Array.isArray(snap)) {
+        strokes.current = snap;
+        history.current = snap.map(cloneStroke);
+      } else {
+        strokes.current = snap.strokes || [];
+        history.current = snap.history || strokes.current.map(cloneStroke);
+      }
+
       current.current = null;
       drawing.current = false;
       redraw();
       onStrokeEnd?.();
     },
+
     replayStrokes: (data, onFrame) => {
       const allPts = [];
-      (data?.strokes || []).forEach((s) => {
-        s.pts.forEach((p) => allPts.push({ ...p, stroke: s }));
+      const source = data?.history || data?.events || data?.strokes || [];
+
+      source.forEach((s) => {
+        (s.pts || []).forEach((p) => allPts.push({ ...p, stroke: s }));
       });
+
       allPts.sort((a, b) => (a.t || 0) - (b.t || 0));
+
       let i = 0;
       const step = () => {
         if (i >= allPts.length) return;
@@ -431,6 +487,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         i++;
         requestAnimationFrame(step);
       };
+
       step();
     },
   }));
