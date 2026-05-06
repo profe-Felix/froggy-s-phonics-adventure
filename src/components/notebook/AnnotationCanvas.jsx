@@ -530,11 +530,21 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     clearStrokes: () => {
       pushUndo();
+
+      const clearEvent = ensureStrokeId({
+        color: '#000',
+        size: 1,
+        tool: 'clear_page',
+        pts: [{ x: 0, y: 0, t: Date.now() }],
+      });
+
       strokes.current = [];
-      history.current = [];
+      history.current.push(clearEvent);
       current.current = null;
       drawing.current = false;
       redraw();
+
+      onStrokeEnd?.();
     },
 
     undo: () => {
