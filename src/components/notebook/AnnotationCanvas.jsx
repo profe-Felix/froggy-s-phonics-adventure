@@ -11,6 +11,11 @@ function drawStroke(ctx, s, w, h) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = Math.max(1, s.size * 2.5);
     ctx.globalAlpha = 0.35;
+  } else if (s.tool === 'eraser_object') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = Math.max(1, s.size * 6);
+    ctx.globalAlpha = 1;
   } else if (s.tool === 'eraser_pixel') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
@@ -89,14 +94,32 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const canvasRef = useRef(null);
   // strokes.current = current visible strokes array
   const strokes = useRef([]);
-  // undoStack.current = array of stroke-array snapshots, for undo
+  // history.current = chronological history including eraser actions for replay
+  const history = useRef([]);
+  // undoStack.current = snapshots for undo
   const undoStack = useRef([]);
+  const strokeIdCounter = useRef(1);
   const current = useRef(null);
   const drawing = useRef(false);
   const [eraserCursorPos, setEraserCursorPos] = useState(null);
 
+  const cloneStroke = (s) => ({
+    ...s,
+    pts: (s.pts || []).map((p) => ({ ...p })),
+    erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
+  });
+
+  const ensureStrokeId = (s) => {
+    if (!s.id) s.id = `stroke_${Date.now()}_${strokeIdCounter.current++}`;
+    return s;
+  };
+
   const pushUndo = () => {
-    undoStack.current.push([...strokes.current]);
+    undoStack.current.push({
+      strokes: strokes.current.map(cloneStroke),
+      history: history.current.map(cloneStroke),
+    });
+
     // Cap undo stack at 50
     if (undoStack.current.length > 50) undoStack.current.shift();
   };
@@ -159,7 +182,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (!drawing.current || !current.current) return;
     if (current.current.pts.length >= 1) {
       pushUndo();
-      strokes.current.push(current.current);
+      const finished = ensureStrokeId(current.current);
+      strokes.current.push(finished);
+      history.current.push(cloneStroke(finished));
     }
     current.current = null;
     drawing.current = false;
@@ -255,17 +280,22 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       if (tool === 'eraser_object') {
         drawing.current = true;
         eraserUndoPushed.current = false;
+        eraserChanged.current = false;
         pushUndo();
         eraserUndoPushed.current = true;
         eraseStrokeAt(getPos(e));
         return;
       }
+
       if (tool === 'eraser_pixel') {
+        const p = getPos(e);
         drawing.current = true;
         eraserUndoPushed.current = false;
+        eraserChanged.current = false;
         pushUndo();
         eraserUndoPushed.current = true;
-        pixelEraseAt(getPos(e));
+        current.current = ensureStrokeId({ color: '#000', size, tool: 'eraser_pixel', pts: [p] });
+        pixelEraseAt(p);
         return;
       }
       beginStrokeAt(getPos(e));
@@ -288,7 +318,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
       if (tool === 'eraser_pixel') {
         e.preventDefault();
-        pixelEraseAt(getPos(e));
+        const p = getPos(e);
+        if (current.current) current.current.pts.push(p);
+        pixelEraseAt(p);
         return;
       }
       if (!current.current) return;
@@ -299,20 +331,45 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onMouseUp = () => {
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
+          history.current.push(cloneStroke(current.current));
+          current.current = null;
+          onStrokeEnd?.();
+        }
+
+        if (tool === 'eraser_object' && eraserChanged.current) {
+          onStrokeEnd?.();
+        }
+
         drawing.current = false;
         eraserUndoPushed.current = false;
+        eraserChanged.current = false;
         return;
       }
+
       finishStroke();
     };
 
     const onMouseLeave = () => {
       setEraserCursorPos(null);
+
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
+          history.current.push(cloneStroke(current.current));
+          current.current = null;
+          onStrokeEnd?.();
+        }
+
+        if (tool === 'eraser_object' && eraserChanged.current) {
+          onStrokeEnd?.();
+        }
+
         drawing.current = false;
         eraserUndoPushed.current = false;
+        eraserChanged.current = false;
         return;
       }
+
       finishStroke();
     };
 
@@ -330,14 +387,19 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
       if (tool === 'eraser_object') {
         drawing.current = true;
+        eraserChanged.current = false;
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         eraseStrokeAt(getPos(e));
         return;
       }
+
       if (tool === 'eraser_pixel') {
+        const p = getPos(e);
         drawing.current = true;
+        eraserChanged.current = false;
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
-        pixelEraseAt(getPos(e));
+        current.current = ensureStrokeId({ color: '#000', size, tool: 'eraser_pixel', pts: [p] });
+        pixelEraseAt(p);
         return;
       }
       beginStrokeAt(getPos(e));
