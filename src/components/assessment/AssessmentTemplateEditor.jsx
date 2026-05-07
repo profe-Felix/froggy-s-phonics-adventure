@@ -27,6 +27,16 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
+  const getPdfPageCount = async (file) => {
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    return pdf.numPages;
+  };
+
   // strokes per page, keyed by page id
   const [strokesByPage, setStrokesByPage] = useState(() => {
     const map = {};
@@ -89,10 +99,36 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
 
   const handleUploadPageFile = async (file, type) => {
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    const newPage = { id: `page-${Date.now()}`, type, url: file_url, label: file.name };
-    setPages(prev => [...prev, newPage]);
-    setUploading(false);
+
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+
+      if (type === 'pdf') {
+        const pageCount = await getPdfPageCount(file);
+        const baseId = `page-${Date.now()}`;
+
+        const newPages = Array.from({ length: pageCount }, (_, i) => ({
+          id: `${baseId}-${i + 1}`,
+          type: 'pdf',
+          url: file_url,
+          pdfPage: i + 1,
+          label: `${file.name} — page ${i + 1}`,
+        }));
+
+        setPages(prev => [...prev, ...newPages]);
+      } else {
+        const newPage = {
+          id: `page-${Date.now()}`,
+          type,
+          url: file_url,
+          label: file.name,
+        };
+
+        setPages(prev => [...prev, newPage]);
+      }
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleUpdatePageUrl = async (idx, file, type) => {
@@ -179,8 +215,11 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
                     </div>
                   ) : currentPage.url ? (
                     currentPage.type === 'pdf' ? (
-                      <PdfPageRenderer pdfUrl={currentPage.url} pageNumber={1}
-                        onRendered={(w, h) => setRenderedSize({ w, h })} />
+                      <PdfPageRenderer
+                        pdfUrl={currentPage.url}
+                        pageNumber={currentPage.pdfPage || 1}
+                        onRendered={(w, h) => setRenderedSize({ w, h })}
+                      />
                     ) : (
                       <img src={currentPage.url} alt="page" style={{ width: '100%', display: 'block' }}
                         onLoad={e => setRenderedSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
