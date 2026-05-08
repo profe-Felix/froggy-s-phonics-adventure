@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { exportAssessmentClassPdf } from './exportAssessmentPdf';
 
 /**
  * Shows a grid of students for an assessment template.
