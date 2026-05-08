@@ -8,6 +8,7 @@ import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import SnapshotViewer from './SnapshotViewer';
+import { exportAssessmentStudentPdf } from './exportAssessmentPdf';
 
 /**
  * AssessmentStudentView
@@ -26,6 +27,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const [size, setSize] = useState(4);
   const [side, setSide] = useState('left');
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
   const [floatingMics, setFloatingMics] = useState([]);
   const [addingMic, setAddingMic] = useState(false);
@@ -244,6 +246,28 @@ export default function AssessmentStudentView({ record, template, studentNumber,
         <button onClick={() => setShowPasteImage(true)}
           className="px-2 py-1.5 rounded-xl text-xs font-bold text-white" style={{ background: '#374151' }}>
           📷 Paste
+        </button>
+
+        <button
+          disabled={exporting}
+          onClick={async () => {
+            try {
+              setExporting(true);
+              await saveStrokes();
+
+              await exportAssessmentStudentPdf({
+                template,
+                record: latestRecordRef.current,
+                studentNumber,
+              });
+            } finally {
+              setExporting(false);
+            }
+          }}
+          className="px-2 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-40"
+          style={{ background: '#9333ea' }}
+        >
+          {exporting ? '⏳ Exporting…' : '🖨 Export PDF'}
         </button>
         {snapshots.length > 0 && (
           <button onClick={() => setShowHistory(true)}
