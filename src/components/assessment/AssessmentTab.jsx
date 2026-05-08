@@ -7,7 +7,15 @@ import AssessmentStudentGrid from './AssessmentStudentGrid';
 import AssessmentStudentView from './AssessmentStudentView';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const getPdfPageCount = async (file) => {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  return pdf.numPages;
+};
 /**
  * AssessmentTab
  * Teacher-only tab inside the Digital Notebook area.
@@ -45,12 +53,37 @@ export default function AssessmentTab({ className }) {
     setUploading(true);
 
     let pages = [];
+
     if (firstFile) {
       const { file_url } = await base44.integrations.Core.UploadFile({ file: firstFile });
       const type = firstFile.type === 'application/pdf' ? 'pdf' : 'image';
-      pages = [{ id: `page-${Date.now()}`, type, url: file_url, label: firstFile.name }];
+
+      if (type === 'pdf') {
+        const pageCount = await getPdfPageCount(firstFile);
+        const baseId = `page-${Date.now()}`;
+
+        pages = Array.from({ length: pageCount }, (_, i) => ({
+          id: `${baseId}-${i + 1}`,
+          type: 'pdf',
+          url: file_url,
+          pdfPage: i + 1,
+          label: `${firstFile.name} — page ${i + 1}`,
+        }));
+      } else {
+        pages = [{
+          id: `page-${Date.now()}`,
+          type,
+          url: file_url,
+          label: firstFile.name,
+        }];
+      }
     } else {
-      pages = [{ id: `page-${Date.now()}`, type: 'blank', url: null, label: 'Page 1' }];
+      pages = [{
+        id: `page-${Date.now()}`,
+        type: 'blank',
+        url: null,
+        label: 'Page 1',
+      }];
     }
 
     const t = await base44.entities.AssessmentTemplate.create({
