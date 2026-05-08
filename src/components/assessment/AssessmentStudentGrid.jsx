@@ -10,6 +10,7 @@ import { exportAssessmentClassPdf } from './exportAssessmentPdf';
  */
 export default function AssessmentStudentGrid({ template, className, students, onSelectStudent, onBack }) {
   const [tagFilter, setTagFilter] = useState('all');
+  const [exporting, setExporting] = useState(false);
 
   // Fetch all records for this template
   const { data: records = [] } = useQuery({
@@ -45,12 +46,42 @@ export default function AssessmentStudentGrid({ template, className, students, o
   return (
     <div className="flex flex-col h-full" style={{ background: '#0f0f1a', color: 'white' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-        <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
+            <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
+        <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold text-sm">
+          ← Back
+        </button>
+
         <div className="flex-1">
           <p className="font-black text-white text-base">{template.title}</p>
-          <p className="text-indigo-400 text-xs">Class {className} · {filteredStudents.length} students</p>
+          <p className="text-indigo-400 text-xs">
+            Class {className} · {filteredStudents.length} students
+          </p>
         </div>
+
+        <button
+          disabled={exporting || records.length === 0}
+          onClick={async () => {
+            try {
+              setExporting(true);
+
+              const usableRecords = records.filter(r =>
+                r?.strokes_by_page &&
+                Object.keys(r.strokes_by_page).length > 0
+              );
+
+              await exportAssessmentClassPdf({
+                template,
+                records: usableRecords,
+              });
+            } finally {
+              setExporting(false);
+            }
+          }}
+          className="px-3 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-40"
+          style={{ background: '#4338ca' }}
+        >
+          {exporting ? '⏳ Exporting…' : '🖨 Export Class PDF'}
+        </button>
       </div>
 
       {/* Tag filter */}
