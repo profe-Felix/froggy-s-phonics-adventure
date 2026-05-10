@@ -87,6 +87,22 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const currentPageRef = useRef(currentPage);
   useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
 
+  useEffect(() => {
+    const applyAutoFit = () => {
+      const portrait = window.innerHeight > window.innerWidth;
+      setFitMode(portrait ? 'height' : 'width');
+    };
+
+    applyAutoFit();
+    window.addEventListener('resize', applyAutoFit);
+    window.addEventListener('orientationchange', applyAutoFit);
+
+    return () => {
+      window.removeEventListener('resize', applyAutoFit);
+      window.removeEventListener('orientationchange', applyAutoFit);
+    };
+  }, []);
+
   const draftKey = session ? `notebook-draft-${session.id}-${currentPage}` : null;
 
   const { data: assignments = [] } = useQuery({
