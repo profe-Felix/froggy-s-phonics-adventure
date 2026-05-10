@@ -37,6 +37,11 @@ function buildTimeline(data) {
   const timeline = [];
 
   for (const s of strokes) {
+    if (s.tool === 'clear_page') {
+      timeline.push({ type: 'clear_page', s, i: 0 });
+      continue;
+    }
+
     if (s.tool === 'eraser_object') {
       timeline.push({ type: 'eraser_object', s, i: 1 });
       continue;
