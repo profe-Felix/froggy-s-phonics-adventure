@@ -115,6 +115,45 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     return s;
   };
 
+  const limitHistory = () => {
+    if (history.current.length > MAX_UNDO_ACTIONS) {
+      history.current = history.current.slice(history.current.length - MAX_UNDO_ACTIONS);
+    }
+  };
+
+  const rebuildVisibleStrokesFromHistory = () => {
+    const visible = [];
+
+    for (const item of history.current) {
+      if (!item) continue;
+
+      if (item.tool === 'clear_page') {
+        visible.length = 0;
+        continue;
+      }
+
+      if (item.tool === 'eraser_object') {
+        const erasedIds = new Set(item.erasedStrokeIds || []);
+        for (let i = visible.length - 1; i >= 0; i--) {
+          if (visible[i]?.id && erasedIds.has(visible[i].id)) {
+            visible.splice(i, 1);
+          }
+        }
+        continue;
+      }
+
+      if (item.tool === 'eraser_pixel') {
+        // Pixel erase is already baked into strokes.current during drawing.
+        // Keep the event in history for replay, but don't add it as visible ink.
+        continue;
+      }
+
+      visible.push(cloneStroke(item));
+    }
+
+    strokes.current = visible;
+  };
+
   const pushUndo = () => {
     undoStack.current.push({
       strokes: strokes.current.map(cloneStroke),
@@ -186,6 +225,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       const finished = ensureStrokeId(current.current);
       strokes.current.push(finished);
       history.current.push(cloneStroke(finished));
+      limitHistory();
     }
     current.current = null;
     drawing.current = false;
