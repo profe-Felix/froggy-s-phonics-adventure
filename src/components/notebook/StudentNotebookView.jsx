@@ -54,7 +54,12 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [color, setColor] = useState('#4338ca');
   const [size, setSize] = useState(4);
   const [side, setSide] = useState('left');
-  const [fitMode, setFitMode] = useState('width'); // width | height | page
+  const [fitMode, setFitMode] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerHeight > window.innerWidth) {
+      return 'height';
+    }
+    return 'width';
+  }); // width | height | page
   const [session, setSession] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showBroadcast, setShowBroadcast] = useState(false);
