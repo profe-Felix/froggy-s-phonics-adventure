@@ -107,6 +107,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     ...s,
     pts: (s.pts || []).map((p) => ({ ...p })),
     erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
+    removedStrokes: s.removedStrokes ? s.removedStrokes.map(cloneStroke) : undefined,
   });
 
   const ensureStrokeId = (s) => {
