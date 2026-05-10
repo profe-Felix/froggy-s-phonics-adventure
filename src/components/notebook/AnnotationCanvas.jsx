@@ -108,6 +108,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     pts: (s.pts || []).map((p) => ({ ...p })),
     erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
     removedStrokes: s.removedStrokes ? s.removedStrokes.map(cloneStroke) : undefined,
+    resultStrokes: s.resultStrokes ? s.resultStrokes.map(cloneStroke) : undefined,
   });
 
   const ensureStrokeId = (s) => {
@@ -145,8 +146,18 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       }
 
       if (item.tool === 'eraser_pixel') {
-        // Pixel erase is already baked into strokes.current during drawing.
-        // Keep the event in history for replay, but don't add it as visible ink.
+        const removedIds = new Set((item.removedStrokes || []).map(s => s.id));
+
+        for (let i = visible.length - 1; i >= 0; i--) {
+          if (visible[i]?.id && removedIds.has(visible[i].id)) {
+            visible.splice(i, 1);
+          }
+        }
+
+        for (const s of item.resultStrokes || []) {
+          visible.push(cloneStroke(s));
+        }
+
         continue;
       }
 
@@ -287,6 +298,9 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       let changed = false;
       const next = [];
 
+      const removedMap = current.current?.removedMap || new Map();
+      const resultMap = new Map();
+
       for (const s of strokes.current) {
         if (s.tool === 'eraser_pixel' || s.tool === 'eraser_object') {
           next.push(s);
@@ -294,7 +308,21 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         }
 
         if (strokeHitTest(s, px, py, width, height, eraserRadius)) {
-          const split = splitStrokeByPixelErase(s, px, py, width, height, eraserRadius);
+          const originalId = s.originalId || s.id || ensureStrokeId(s).id;
+
+          if (!removedMap.has(originalId)) {
+            removedMap.set(originalId, cloneStroke(s));
+          }
+
+          const split = splitStrokeByPixelErase(s, px, py, width, height, eraserRadius).map(part =>
+            ensureStrokeId({
+              ...part,
+              id: part.id || `stroke_${Date.now()}_${strokeIdCounter.current++}`,
+              originalId,
+            })
+          );
+
+          split.forEach(part => resultMap.set(part.id, cloneStroke(part)));
           next.push(...split);
           changed = true;
         } else {
@@ -304,6 +332,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
       if (changed) {
         strokes.current = next;
+
+        if (current.current) {
+          current.current.removedMap = removedMap;
+          current.current.resultMap = resultMap;
+        }
+
         eraserChanged.current = true;
         redraw();
       }
@@ -546,17 +580,21 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         data?.normalized === true ||
         (samplePt && samplePt.x <= 1.5 && samplePt.y <= 1.5);
 
-      const normalizeList = (list) => {
-        const mapped = (list || []).map((s) => ({
-          ...s,
-          pts: (s.pts || []).map((p) =>
-            sw && sh && !alreadyNormalized
-              ? { ...p, x: p.x / sw, y: p.y / sh }
-              : { ...p }
-          ),
-          erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
-        }));
+      const normalizePoint = (p) =>
+        sw && sh && !alreadyNormalized
+          ? { ...p, x: p.x / sw, y: p.y / sh }
+          : { ...p };
 
+      const normalizeStroke = (s) => ({
+        ...s,
+        pts: (s.pts || []).map(normalizePoint),
+        erasedStrokeIds: s.erasedStrokeIds ? [...s.erasedStrokeIds] : undefined,
+        removedStrokes: s.removedStrokes ? s.removedStrokes.map(normalizeStroke) : undefined,
+        resultStrokes: s.resultStrokes ? s.resultStrokes.map(normalizeStroke) : undefined,
+      });
+
+      const normalizeList = (list) => {
+        const mapped = (list || []).map(normalizeStroke);
         mapped.forEach(ensureStrokeId);
         return mapped;
       };
