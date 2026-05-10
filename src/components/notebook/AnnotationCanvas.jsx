@@ -579,10 +579,12 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         size: 1,
         tool: 'clear_page',
         pts: [{ x: 0, y: 0, t: Date.now() }],
+        removedStrokes: strokes.current.map(cloneStroke),
       });
 
       strokes.current = [];
       history.current.push(clearEvent);
+      limitHistory();
       current.current = null;
       drawing.current = false;
       redraw();
