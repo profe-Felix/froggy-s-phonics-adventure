@@ -359,7 +359,61 @@ localDirtyRef.current = false;
     isDrawingRef.current = false;
     void saveStrokes();
   }, [saveStrokes]);
+  const getClearBackupKey = useCallback((page = currentPageRef.current) => {
+    const activeSession = latestSessionRef.current;
+    if (!activeSession) return null;
+    return `notebook-clear-backup-${activeSession.id}-${page}`;
+  }, []);
 
+  const handleClearPage = useCallback(() => {
+    if (!canvasRef.current) return;
+
+    const activeSession = latestSessionRef.current;
+    const page = currentPageRef.current;
+    if (!activeSession) return;
+
+    const currentData = canvasRef.current.getStrokes();
+
+    localStorage.setItem(
+      getClearBackupKey(page),
+      JSON.stringify({
+        ...currentData,
+        canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+        canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+        normalized: true,
+        backedUpAt: new Date().toISOString(),
+      })
+    );
+
+    localDirtyRef.current = true;
+    canvasRef.current.clearStrokes();
+    void saveStrokes(page);
+  }, [canvasSize, getClearBackupKey, pdfRenderedSize, saveStrokes]);
+
+  const handleUndoPage = useCallback(() => {
+    if (!canvasRef.current) return;
+
+    const page = currentPageRef.current;
+    const backupKey = getClearBackupKey(page);
+    const backupRaw = backupKey ? localStorage.getItem(backupKey) : null;
+
+    if (backupRaw) {
+      try {
+        canvasRef.current.loadStrokes(JSON.parse(backupRaw));
+        localStorage.removeItem(backupKey);
+        localDirtyRef.current = true;
+        void saveStrokes(page);
+        return;
+      } catch {
+        localStorage.removeItem(backupKey);
+      }
+    }
+
+    canvasRef.current.undo();
+    localDirtyRef.current = true;
+    void saveStrokes(page);
+  }, [getClearBackupKey, saveStrokes]);
+  
   const saveVoiceNote = useCallback(async (url) => {
     if (!session) return;
     const updated = { ...(session.voice_notes_by_page || {}), [String(currentPage)]: url };
