@@ -340,8 +340,12 @@ localDirtyRef.current = false;
       setSaving(false);
 
       if (pendingSaveRef.current) {
+        const queuedPage = pendingSavePageRef.current;
+
         pendingSaveRef.current = false;
-        void saveStrokes();
+        pendingSavePageRef.current = null;
+
+        void saveStrokes(queuedPage);
       }
     }
   }, [pdfRenderedSize, canvasSize]);
