@@ -281,11 +281,13 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
+      pendingSavePageRef.current = pageOverride ?? currentPageRef.current;
       return;
     }
 
     if (saveInFlightRef.current) {
       pendingSaveRef.current = true;
+      pendingSavePageRef.current = pageOverride ?? currentPageRef.current;
       return;
     }
 
