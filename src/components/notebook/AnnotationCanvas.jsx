@@ -134,11 +134,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
       if (item.tool === 'eraser_object') {
         const erasedIds = new Set(item.erasedStrokeIds || []);
+
         for (let i = visible.length - 1; i >= 0; i--) {
           if (visible[i]?.id && erasedIds.has(visible[i].id)) {
             visible.splice(i, 1);
           }
         }
+
         continue;
       }
 
