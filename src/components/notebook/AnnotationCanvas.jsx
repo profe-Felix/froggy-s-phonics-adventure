@@ -375,6 +375,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
         if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
           history.current.push(cloneStroke(current.current));
+          limitHistory();
           current.current = null;
           onStrokeEnd?.();
         }
