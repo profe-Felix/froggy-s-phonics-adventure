@@ -155,13 +155,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const pushUndo = () => {
-    undoStack.current.push({
-      strokes: strokes.current.map(cloneStroke),
-      history: history.current.map(cloneStroke),
-    });
-
-    // Cap undo stack at 50
-    if (undoStack.current.length > 50) undoStack.current.shift();
+    // Kept for compatibility with older paths.
+    // Main undo now uses saved history so it survives reload.
   };
 
   const setupCanvas = () => {
