@@ -265,6 +265,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           tool: 'eraser_object',
           pts: [p, { ...p, t: (p.t || Date.now()) + 1 }],
           erasedStrokeIds: removed.map(s => s.id),
+          removedStrokes: removed.map(cloneStroke),
         });
 
         history.current.push(eraseEvent);
