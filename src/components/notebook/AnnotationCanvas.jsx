@@ -563,8 +563,14 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         return mapped;
       };
 
-      strokes.current = normalizeList(raw);
       history.current = normalizeList(rawHistory);
+      limitHistory();
+      rebuildVisibleStrokesFromHistory();
+
+      if (history.current.length === 0) {
+        strokes.current = normalizeList(raw);
+      }
+
       undoStack.current = [];
       current.current = null;
       drawing.current = false;
