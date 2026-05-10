@@ -795,8 +795,8 @@ localDirtyRef.current = false;
                 tool={tool} setTool={setTool}
                 color={color} setColor={setColor}
                 size={size} setSize={setSize}
-                onUndo={() => canvasRef.current?.undo()}
-                onClear={() => canvasRef.current?.clearStrokes()}
+                onUndo={handleUndoPage}
+                onClear={handleClearPage}
                 side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
               />
             </div>
