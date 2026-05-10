@@ -1,5 +1,5 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
-
+const MAX_UNDO_ACTIONS = 50;
 function drawStroke(ctx, s, w, h) {
   if (!s.pts || s.pts.length === 0) return;
   ctx.save();
