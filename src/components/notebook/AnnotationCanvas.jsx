@@ -273,6 +273,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         });
 
         history.current.push(eraseEvent);
+        limitHistory();
         eraserChanged.current = true;
         redraw();
       }
