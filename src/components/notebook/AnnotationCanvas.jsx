@@ -441,7 +441,19 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
         if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
-          history.current.push(cloneStroke(current.current));
+          const pixelEvent = {
+            ...current.current,
+            removedStrokes: Array.from(current.current.removedMap?.values() || []).map(cloneStroke),
+            resultStrokes: strokes.current
+              .filter(s => Array.from(current.current.removedMap?.keys() || []).includes(s.originalId || s.id))
+              .map(cloneStroke),
+          };
+
+          delete pixelEvent.removedMap;
+          delete pixelEvent.resultMap;
+
+          history.current.push(cloneStroke(pixelEvent));
+          limitHistory();
           current.current = null;
           onStrokeEnd?.();
         }
