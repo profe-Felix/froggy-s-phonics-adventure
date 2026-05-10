@@ -79,6 +79,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const loadedKeyRef = useRef(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
+  const pendingSavePageRef = useRef(null);
   const latestSessionRef = useRef(null);
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false); // 👈 ADD THIS LINE
