@@ -115,6 +115,12 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
     if (type === 'eraser_object') {
       (s.erasedStrokeIds || []).forEach(id => hiddenStrokeIds.add(id));
     }
+
+    if (type === 'eraser_pixel') {
+      (s.removedStrokes || []).forEach(stroke => {
+        if (stroke.id) hiddenStrokeIds.add(stroke.id);
+      });
+    }
   }
 
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
