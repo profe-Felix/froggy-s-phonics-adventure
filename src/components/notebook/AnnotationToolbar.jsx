@@ -140,6 +140,17 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
         className="w-9 h-9 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↩</button>
       <button onClick={onClear} title="Clear page"
         className="w-9 h-9 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
+
+      {onAddMic && (
+        <button
+          onClick={onAddMic}
+          title={addingMic ? 'Tap the page to place the mic' : 'Add voice note to page'}
+          className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all
+            ${addingMic ? 'bg-yellow-600 text-white shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}
+        >
+          {addingMic ? '📍' : '🎙'}
+        </button>
+      )}
     </div>
   );
 }
