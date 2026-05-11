@@ -47,6 +47,11 @@ function buildTimeline(data) {
       continue;
     }
 
+    if (s.tool === 'eraser_pixel') {
+      timeline.push({ type: 'eraser_pixel', s, i: 0 });
+      continue;
+    }
+
     if (s.pts.length === 1) {
       timeline.push({ type: 'dot', s, i: 0 });
       continue;
