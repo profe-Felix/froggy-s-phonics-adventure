@@ -27,7 +27,7 @@ const COLORS = [
   { label: 'Skin 6', value: '#4a2010' },
 ];
 
-const SIZES = [2, 4, 7, 12];
+const SIZES = [4, 7, 10];
 
 const TOOLS = [
   { id: 'pen', label: '✏️', title: 'Pen' },
@@ -46,12 +46,12 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
   const PICKER_W = 128;
 
   return (
-    <div className="relative flex flex-col gap-0.5 p-1.5 rounded-2xl shadow-2xl shrink-0"
+    <div className="relative flex flex-col gap-0.5 p-1 rounded-2xl shadow-2xl shrink-0"
       style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: '100%', overflowY: 'auto', overflowX: 'hidden' }}
     >
       {/* Swap side button */}
       <button onClick={onSwapSide} title={side === 'left' ? 'Move toolbar to right' : 'Move toolbar to left'}
-        className="w-9 h-9 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center transition-all">
+        className="w-8 h-8 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center transition-all">
         {side === 'left' ? '→' : '←'}
       </button>
 
@@ -65,7 +65,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
           setShowColors(v => !v);
         }}
         title="Color"
-        className="w-9 h-9 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
+        className="w-8 h-8 rounded-full border-4 border-white shadow-md hover:scale-110 transition-all"
         style={{ background: color }}
       />
       
@@ -73,7 +73,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
       {TOOLS.map(t => (
         <button key={t.id} onClick={() => setTool(t.id)} title={t.title}
-          className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all
+          className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
             ${tool === t.id ? 'bg-indigo-600 shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}>
           {t.id === 'laser' ? (
             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36 }}>
@@ -128,7 +128,7 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
       {SIZES.map(s => (
         <button key={s} onClick={() => setSize(s)} title={`Size ${s}`}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all
+          className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all
             ${size === s ? 'bg-indigo-600' : 'hover:bg-indigo-900'}`}>
           <div className="rounded-full bg-white" style={{ width: Math.min(s * 2, 18), height: Math.min(s * 2, 18) }} />
         </button>
@@ -137,15 +137,15 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       <div className="h-px bg-indigo-800 my-1" />
 
       <button onClick={onUndo} title="Undo"
-        className="w-9 h-9 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↩</button>
+        className="w-8 h-8 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↩</button>
       <button onClick={onClear} title="Clear page"
-        className="w-9 h-9 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
+        className="w-8 h-8 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
 
       {onAddMic && (
         <button
           onClick={onAddMic}
           title={addingMic ? 'Tap the page to place the mic' : 'Add voice note to page'}
-          className={`w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all
+          className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
             ${addingMic ? 'bg-yellow-600 text-white shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}
         >
           {addingMic ? '📍' : '🎙'}
