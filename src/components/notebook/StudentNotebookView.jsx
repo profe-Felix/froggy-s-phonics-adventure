@@ -629,6 +629,8 @@ localDirtyRef.current = false;
                 onUndo={handleUndoPage}
                 onClear={handleClearPage}
                 side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+                onAddMic={() => setAddingMic(v => !v)}
+                addingMic={addingMic}
               />
             </div>
           )}
@@ -763,6 +765,8 @@ localDirtyRef.current = false;
                 onUndo={handleUndoPage}
                 onClear={handleClearPage}
                 side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+                onAddMic={() => setAddingMic(v => !v)}
+                addingMic={addingMic}
               />
             </div>
           )}
