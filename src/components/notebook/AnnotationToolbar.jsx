@@ -38,7 +38,7 @@ const TOOLS = [
   // lasso hidden for now
 ];
 
-export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear, side, onSwapSide }) {
+export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear, side, onSwapSide, onAddMic, addingMic }) {
   const [showColors, setShowColors] = useState(false);
   const [colorBtnPos, setColorBtnPos] = useState(null);
   const colorBtnRef = useRef(null);
