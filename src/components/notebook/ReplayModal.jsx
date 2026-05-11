@@ -130,6 +130,29 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
 
     if (type === 'clear_page') continue;
     if (type === 'eraser_object') continue;
+
+    if (type === 'eraser_pixel') {
+      for (const resultStroke of s.resultStrokes || []) {
+        ctx.save();
+        ctx.beginPath();
+        applyStrokeStyle(ctx, resultStroke, widthScale);
+
+        for (let j = 0; j < resultStroke.pts.length; j++) {
+          const p = resultStroke.pts[j];
+          const x = p.x * sx;
+          const y = p.y * sy;
+
+          if (j === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      continue;
+    }
+
     if (s.id && hiddenStrokeIds.has(s.id)) continue;
 
     ctx.save();
