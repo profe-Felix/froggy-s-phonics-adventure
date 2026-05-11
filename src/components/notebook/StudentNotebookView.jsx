@@ -771,16 +771,6 @@ localDirtyRef.current = false;
             </div>
           )}
 
-          {/* Add floating mic button */}
-          <button
-            onClick={() => setAddingMic(v => !v)}
-            className="absolute bottom-20 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center text-xl"
-            style={{ background: addingMic ? '#f59e0b' : '#374151', border: `3px solid ${addingMic ? '#fbbf24' : '#6b7280'}` }}
-            title="Add floating mic"
-          >
-            {addingMic ? '📍' : '🎙+'}
-          </button>
-
           {/* Clipboard paste button — shown when clipboard has content */}
           {cutPaste.clipboard && (
             <button
