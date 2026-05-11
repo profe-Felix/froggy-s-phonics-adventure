@@ -72,20 +72,33 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       <div className="h-px bg-indigo-800 my-0.5" />
 
       {TOOLS.map(t => (
-        <button key={t.id} onClick={() => setTool(t.id)} title={t.title}
-          className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
-            ${tool === t.id ? 'bg-indigo-600 shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}>
-          {t.id === 'laser' ? (
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36 }}>
-              <span style={{
-                width: 14, height: 14, borderRadius: '50%',
-                background: 'radial-gradient(circle, #fff 0%, #ff2222 40%, #ff000088 70%, transparent 100%)',
-                boxShadow: tool === t.id ? '0 0 10px 4px #ff4444cc' : '0 0 6px 2px #ff222266',
-                display: 'block',
-              }} />
-            </span>
-          ) : t.label}
-        </button>
+        <div key={t.id} className="flex flex-col gap-0.5">
+          <button onClick={() => setTool(t.id)} title={t.title}
+            className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
+              ${tool === t.id ? 'bg-indigo-600 shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}>
+            {t.id === 'laser' ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}>
+                <span style={{
+                  width: 13, height: 13, borderRadius: '50%',
+                  background: 'radial-gradient(circle, #fff 0%, #ff2222 40%, #ff000088 70%, transparent 100%)',
+                  boxShadow: tool === t.id ? '0 0 10px 4px #ff4444cc' : '0 0 6px 2px #ff222266',
+                  display: 'block',
+                }} />
+              </span>
+            ) : t.label}
+          </button>
+
+          {t.id === 'laser' && onAddMic && (
+            <button
+              onClick={onAddMic}
+              title={addingMic ? 'Tap the page to place the mic' : 'Add voice note to page'}
+              className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
+                ${addingMic ? 'bg-yellow-600 text-white shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}
+            >
+              {addingMic ? '📍' : '🎙'}
+            </button>
+          )}
+        </div>
       ))}
 
       <div className="h-px bg-indigo-800 my-1" />
@@ -141,16 +154,6 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
       <button onClick={onClear} title="Clear page"
         className="w-8 h-8 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
 
-      {onAddMic && (
-        <button
-          onClick={onAddMic}
-          title={addingMic ? 'Tap the page to place the mic' : 'Add voice note to page'}
-          className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all
-            ${addingMic ? 'bg-yellow-600 text-white shadow-lg scale-110' : 'hover:bg-indigo-900 text-white'}`}
-        >
-          {addingMic ? '📍' : '🎙'}
-        </button>
-      )}
     </div>
   );
 }
