@@ -493,16 +493,10 @@ localDirtyRef.current = false;
     const clamped = Math.max(minPage, Math.min(maxPage, p));
     if (clamped === currentPageRef.current) return;
 
-    // Do not switch pages while a save is still reading/writing canvas data.
-    while (saveInFlightRef.current || pendingSaveRef.current) {
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
+    const fromPage = currentPageRef.current;
 
-    await saveStrokes(currentPageRef.current);
-
-    while (saveInFlightRef.current || pendingSaveRef.current) {
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
+    // Save the page we are leaving, but do not trap navigation forever.
+    await saveStrokes(fromPage);
 
     localDirtyRef.current = false;
     loadedKeyRef.current = null;
