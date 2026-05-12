@@ -700,7 +700,21 @@ export default function PhonicsMode({ studentData, onBack }) {
           </div>
         </div>
       </div>
+      <RouletteProgressMini
+        totalPts={totalPts}
+        syllableCorrectCount={syllableCorrectCount}
+      />
 
+      <AnimatePresence>
+        {showWheel && (
+          <PrizeWheel
+            key={`phonics-wheel-${totalPts}`}
+            redeemedPrizes={redeemedPrizes}
+            onClaim={handleClaimPrize}
+            onClose={handleCloseWheel}
+          />
+        )}
+      </AnimatePresence>
       {/* Sub-mode toggle */}
       <div className="flex gap-2 bg-white/90 rounded-xl p-1 shadow">
         <button
