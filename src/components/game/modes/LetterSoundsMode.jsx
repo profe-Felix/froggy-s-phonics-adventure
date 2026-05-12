@@ -28,11 +28,27 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     setCanAnswer(false);
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
-    const allKnown = [...mastered, ...learning];
-    const knownLetters = allKnown.length > 0 ? allKnown : ['o', 'i', 'a'];
-    
-    // Always pick target from known letters only — new letters introduced only via mastery progression
-    const targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
+
+    const fallbackLearning = ['o', 'i', 'a'];
+    const hasLearning = learning.length > 0;
+    const hasMastered = mastered.length > 0;
+
+    // 80% learning letters, 20% mastered review.
+    // If there are no learning letters, use fallback starting letters.
+    // If there are no mastered letters, use learning only.
+    let targetPool;
+
+    if (hasLearning && hasMastered) {
+      targetPool = Math.random() < 0.8 ? learning : mastered;
+    } else if (hasLearning) {
+      targetPool = learning;
+    } else if (hasMastered) {
+      targetPool = mastered;
+    } else {
+      targetPool = fallbackLearning;
+    }
+
+    const targetLetter = targetPool[Math.floor(Math.random() * targetPool.length)];
 
     // Confusing pairs to avoid
     const confusingPairs = { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] };
