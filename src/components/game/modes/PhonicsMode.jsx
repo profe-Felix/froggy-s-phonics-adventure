@@ -549,6 +549,9 @@ export default function PhonicsMode({ studentData, onBack }) {
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [syllableCorrectCount, setSyllableCorrectCount] = useState(0);
+  const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
+  const [showWheel, setShowWheel] = useState(false);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
   const [locked, setLocked] = useState(false);
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
@@ -636,16 +639,27 @@ export default function PhonicsMode({ studentData, onBack }) {
         setSyllableCorrectCount(prev => {
           const next = prev + 1;
 
-          if (next >= 5) {
-            if (studentData?.id) {
-              const currentTotal = studentData?.sentences_total_points || 0;
-              base44.entities.Student.update(studentData.id, {
-                sentences_total_points: currentTotal + 1
-              }).catch(() => {});
-            }
+          if (next >= PHONICS_CORRECT_PER_POINT) {
+            setTotalPts(prevTotal => {
+              const newTotal = prevTotal + 1;
+              const oldSpins = Math.floor(prevTotal / PTS_PER_STICKER);
+              const newSpins = Math.floor(newTotal / PTS_PER_STICKER);
+
+              if (newSpins > oldSpins) {
+                setShowWheel(true);
+              }
+
+              if (studentData?.id) {
+                base44.entities.Student.update(studentData.id, {
+                  sentences_total_points: newTotal
+                }).catch(() => {});
+              }
+
+              return newTotal;
+            });
+
             return 0;
           }
-
           return next;
         });
       }
