@@ -556,7 +556,13 @@ export default function AssessmentStudentView({ record, template, studentNumber,
                   ref={el => {
                     if (el && !pdfRenderedSize) {
                       const r = el.getBoundingClientRect();
-                      if (r.width > 0) setPdfRenderedSize({ w: Math.round(r.width), h: Math.round(r.width * 1.29) });
+
+                      if (r.width > 0) {
+                        setPdfRenderedSize({
+                          w: Math.round(r.width),
+                          h: Math.round(r.width * 1.29),
+                        });
+                      }
                     }
                   }} />
               ) : currentPageData.type === 'pdf' && currentPageData.url ? (
