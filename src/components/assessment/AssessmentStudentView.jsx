@@ -114,8 +114,16 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
-    if (isDrawingRef.current || saveInFlightRef.current) {
+
+    if (isDrawingRef.current) {
       pendingSaveRef.current = true;
+      pendingSavePageRef.current = pageOverride ?? currentPageIdxRef.current;
+      return;
+    }
+
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      pendingSavePageRef.current = pageOverride ?? currentPageIdxRef.current;
       return;
     }
 
@@ -123,35 +131,58 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     if (!rec) return;
 
     const savePage = pageOverride ?? currentPageIdxRef.current;
+    const saveDraftKey = `assessment-draft-${rec.id}-${savePage}`;
+
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
       const strokeData = canvasRef.current.getStrokes();
-      const payload = { ...strokeData, normalized: true };
+      const payload = {
+        ...strokeData,
+        canvasWidth: pdfRenderedSize?.w,
+        canvasHeight: pdfRenderedSize?.h,
+        normalized: true,
+      };
 
       const updated = {
         ...(rec.strokes_by_page || {}),
         [String(savePage)]: JSON.stringify(payload),
       };
 
-      const updatedRec = await base44.entities.AssessmentRecord.update(rec.id, {
+      // Local safety backup first. If Base44 fails, refresh will still restore the strokes.
+      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
+
+      await base44.entities.AssessmentRecord.update(rec.id, {
         strokes_by_page: updated,
         last_active: new Date().toISOString(),
       });
 
-      latestRecordRef.current = { ...rec, strokes_by_page: updated, last_active: new Date().toISOString() };
+      localStorage.removeItem(saveDraftKey);
       localDirtyRef.current = false;
-      onRecordUpdate?.(latestRecordRef.current);
+
+      const nextRecord = {
+        ...rec,
+        strokes_by_page: updated,
+        last_active: new Date().toISOString(),
+      };
+
+      latestRecordRef.current = nextRecord;
+      onRecordUpdate?.(nextRecord);
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
+
       if (pendingSaveRef.current) {
+        const queuedPage = pendingSavePageRef.current;
+
         pendingSaveRef.current = false;
-        void saveStrokes();
+        pendingSavePageRef.current = null;
+
+        void saveStrokes(queuedPage);
       }
     }
-  }, [onRecordUpdate]);
+  }, [onRecordUpdate, pdfRenderedSize]);
 
   const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; localDirtyRef.current = true; }, []);
   const handleStrokeEnd = useCallback(() => { isDrawingRef.current = false; void saveStrokes(); }, [saveStrokes]);
