@@ -285,9 +285,9 @@ export default function FloatingMicWidget({
   const pixelX = pos.x * containerSize.w;
   const pixelY = pos.y * containerSize.h;
 
-  // Teacher readOnly: tap to play, tap again to stop — no panel
+  // Read-only preview: tap to play, tap again to stop — no panel
   const handleIconClick = () => {
-    if (readOnly && isTeacher) {
+    if (readOnly) {
       if (showReplay) {
         handleStopReplay();
       } else {
@@ -297,7 +297,6 @@ export default function FloatingMicWidget({
     }
     setShowPanel(v => !v);
   };
-
   return (
     <>
       {/* The floating icon — small hit area so it doesn't intercept nearby drawing */}
