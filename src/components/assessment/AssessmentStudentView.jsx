@@ -576,7 +576,12 @@ export default function AssessmentStudentView({ record, template, studentNumber,
                   style={{ width: '100%', display: 'block' }}
                   onLoad={e => {
                     const el = e.target;
-                    setPdfRenderedSize({ w: el.offsetWidth, h: el.offsetHeight });
+                    const w = el.offsetWidth;
+                    const h = el.offsetHeight;
+
+                    if (w > 0 && h > 0) {
+                      setPdfRenderedSize({ w, h });
+                    }
                   }} />
               ) : null}
 
