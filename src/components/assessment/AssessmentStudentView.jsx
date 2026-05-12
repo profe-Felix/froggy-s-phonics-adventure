@@ -53,6 +53,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const localDirtyRef = useRef(false);
   const latestRecordRef = useRef(record);
   const currentPageIdxRef = useRef(currentPageIdx);
+  const lastMicTouchRef = useRef(0);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
 
@@ -354,6 +355,14 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
     e.preventDefault?.();
     e.stopPropagation?.();
+
+    if (e.type === 'touchend') {
+      lastMicTouchRef.current = Date.now();
+    }
+
+    if (e.type === 'click' && Date.now() - lastMicTouchRef.current < 700) {
+      return;
+    }
 
     const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = pdfWrapperRef.current.getBoundingClientRect();
