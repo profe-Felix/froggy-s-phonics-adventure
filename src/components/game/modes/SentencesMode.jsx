@@ -1039,9 +1039,15 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
 }
 
 // ── Sticker progress bar ────────────────────────────────────────────────────
-const PTS_PER_SENTENCE = 3; // Reduced from 5 (M1 was too generous)
 const PTS_PER_STICKER = 100;
 const MAX_PTS_PER_SENTENCE = 3; // Cap: students can't farm same sentence
+
+function getSentencePointsForModule(moduleNumber) {
+  if (moduleNumber <= 2) return 2;
+  if (moduleNumber === 3) return 3;
+  if (moduleNumber === 4) return 4;
+  return 5;
+}
 
 function StickerProgressBar({ sessionPts, totalPts }) {
   const spins = Math.floor(totalPts / PTS_PER_STICKER);
