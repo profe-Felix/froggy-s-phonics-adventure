@@ -543,6 +543,8 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onTouchEnd = () => {
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
+        let changed = false;
+
         if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
           const pixelEvent = {
             ...current.current,
@@ -558,17 +560,21 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           history.current.push(cloneStroke(pixelEvent));
           limitHistory();
           current.current = null;
-          onStrokeEnd?.();
+          changed = true;
         }
 
         if (tool === 'eraser_object' && eraserChanged.current) {
-          onStrokeEnd?.();
+          changed = true;
         }
 
         drawing.current = false;
         eraserUndoPushed.current = false;
         eraserChanged.current = false;
-        setEraserCursorPos(null);
+
+        if (changed) {
+          onStrokeEnd?.();
+        }
+
         return;
       }
 
