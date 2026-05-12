@@ -317,21 +317,45 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
           style={{ background: '#fff', minHeight: 200 }}
         >
           {assignment?.pdf_url ? (
-            <PdfPageRenderer
-              key={activePage}
-              pdfUrl={assignment.pdf_url}
-              pageNumber={activePage}
-              onRendered={(w, h) => setPdfSize({ w, h })}
-            />
+            <div
+              ref={pdfWrapperRef}
+              style={{
+                position: 'relative',
+                width: '100%',
+                minHeight: pdfSize ? `${pdfSize.h}px` : 200,
+              }}
+            >
+              <PdfPageRenderer
+                key={activePage}
+                pdfUrl={assignment.pdf_url}
+                pageNumber={activePage}
+                onRendered={(w, h) => setPdfSize({ w, h })}
+              />
+
+              {pdfSize && (
+                <canvas
+                  ref={overlayCanvasRef}
+                  style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+                />
+              )}
+
+              {pdfSize && pageMics.map((mic) => (
+                <FloatingMicWidget
+                  key={mic.id}
+                  note={mic}
+                  containerRef={pdfWrapperRef}
+                  canvasRef={null}
+                  laserTrackerRef={null}
+                  containerSize={{ w: pdfSize.w, h: pdfSize.h }}
+                  role="student"
+                  readOnly={true}
+                  onSave={null}
+                  onRemove={null}
+                />
+              ))}
+            </div>
           ) : (
             <div className="flex items-center justify-center h-40 text-gray-400">No PDF</div>
-          )}
-
-          {pdfSize && (
-            <canvas
-              ref={overlayCanvasRef}
-              style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-            />
           )}
         </div>
 
