@@ -1179,7 +1179,7 @@ export default function SentencesMode({ studentData, onBack }) {
     // Award points only if under the cap (max 3 completions per sentence per session)
     let ptsToAward = 0;
     if (timesCompleted < MAX_PTS_PER_SENTENCE) {
-      ptsToAward = PTS_PER_SENTENCE;
+      ptsToAward = getSentencePointsForModule(selectedModule);
       completedSentences[sentenceKey] = timesCompleted + 1;
       sessionStorage.setItem('completedSentences', JSON.stringify(completedSentences));
     }
