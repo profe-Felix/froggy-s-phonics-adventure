@@ -500,7 +500,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
       {/* Page turner strip */}
       <div className="flex gap-1.5 px-3 py-1.5 overflow-x-auto shrink-0" style={{ background: '#111122', borderBottom: '1px solid #2d2d5e' }}>
         {pages.map((p, i) => (
-          <button key={i} onClick={() => goToPage(i)}
+          <button key={i} onClick={() => void goToPage(i)}
             className={`flex-shrink-0 w-12 h-16 rounded-lg border-2 flex items-center justify-center text-xs font-bold transition-all
               ${currentPageIdx === i ? 'border-indigo-400 text-white' : 'border-indigo-800 text-indigo-500 opacity-60'}`}
             style={{ background: '#1a1a2e' }}>
@@ -662,11 +662,11 @@ export default function AssessmentStudentView({ record, template, studentNumber,
       {/* Page nav */}
       <div className="shrink-0 flex items-center justify-center gap-3 py-2"
         style={{ background: '#1a1a2e', borderTop: '2px solid #4338ca' }}>
-        <button onClick={() => goToPage(currentPageIdx - 1)} disabled={currentPageIdx === 0}
+        <button onClick={() => void goToPage(currentPageIdx - 1)} disabled={currentPageIdx === 0}
           className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30"
           style={{ background: '#4338ca' }}>‹</button>
         <span className="text-white font-bold text-sm">{currentPageIdx + 1} / {totalPages}</span>
-        <button onClick={() => goToPage(currentPageIdx + 1)} disabled={currentPageIdx >= totalPages - 1}
+        <button onClick={() => void goToPage(currentPageIdx + 1)} disabled={currentPageIdx >= totalPages - 1}
           className="w-10 h-10 rounded-xl font-black text-white text-lg flex items-center justify-center disabled:opacity-30"
           style={{ background: '#4338ca' }}>›</button>
       </div>
