@@ -54,6 +54,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const latestRecordRef = useRef(record);
   const currentPageIdxRef = useRef(currentPageIdx);
   const lastMicTouchRef = useRef(0);
+  const pageChangeInFlightRef = useRef(false);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
 
