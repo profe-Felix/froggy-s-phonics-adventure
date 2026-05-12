@@ -667,7 +667,24 @@ export default function PhonicsMode({ studentData, onBack }) {
       setStreak(0);
     }
   };
+  const handleClaimPrize = (prize) => {
+    setShowWheel(false);
 
+    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
+      const updated = [...redeemedPrizes, prize.id];
+      setRedeemedPrizes(updated);
+
+      if (studentData?.id) {
+        base44.entities.Student.update(studentData.id, {
+          redeemed_prizes: updated
+        }).catch(() => {});
+      }
+    }
+  };
+
+  const handleCloseWheel = () => {
+    setShowWheel(false);
+  };
   const positionLabel = cloze?.position === 'initial' ? '🔵 Initial' :
     cloze?.position === 'final' ? '🔴 Final' : '🟡 Middle';
 
