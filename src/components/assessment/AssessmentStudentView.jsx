@@ -214,8 +214,32 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
   const handleStrokeEnd = useCallback(() => {
     isDrawingRef.current = false;
-    void saveStrokes(currentPageIdxRef.current);
-  }, [saveStrokes]);
+
+    const rec = latestRecordRef.current;
+    const canvas = canvasRef.current;
+    const page = currentPageIdxRef.current;
+
+    if (rec && canvas) {
+      try {
+        const strokeData = canvas.getStrokes();
+        const payload = {
+          ...strokeData,
+          canvasWidth: pdfRenderedSize?.w,
+          canvasHeight: pdfRenderedSize?.h,
+          normalized: true,
+        };
+
+        localStorage.setItem(
+          `assessment-draft-${rec.id}-${page}`,
+          JSON.stringify(payload)
+        );
+      } catch {
+        // Keep drawing responsive even if local draft write fails.
+      }
+    }
+
+    void saveStrokes(page);
+  }, [saveStrokes, pdfRenderedSize]);
 
   // Auto-save every 20s, but only when this page has unsaved local work.
   // This avoids repeatedly saving a clean/empty canvas over existing page data.
