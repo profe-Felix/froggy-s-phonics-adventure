@@ -501,7 +501,7 @@ function buildSyllableCloze(word) {
     }
   }
 
-  const options = [missingSyllable, ...confused.slice(0, 5)].sort(() => Math.random() - 0.5);
+  const options = [missingSyllable, ...confused.slice(0, 7)].sort(() => Math.random() - 0.5);
 
   return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
 }
@@ -727,7 +727,7 @@ export default function PhonicsMode({ studentData, onBack }) {
           </div>
 
           {/* Answer options */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             {cloze.options.map((option) => {
               const isSelected = selected === option;
               const isRight = option === cloze.missingToken;
