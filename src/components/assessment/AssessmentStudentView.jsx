@@ -279,18 +279,24 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   }, [saveStrokes, pdfRenderedSize]);
 
   const goToPage = async (idx) => {
+    if (pageChangeInFlightRef.current) return;
+
     const clamped = Math.max(0, Math.min(totalPages - 1, idx));
-    if (clamped === currentPageIdx) return;
+    if (clamped === currentPageIdxRef.current) return;
 
-    await saveStrokes(currentPageIdx);
+    pageChangeInFlightRef.current = true;
 
-    localDirtyRef.current = false;
-    loadedKeyRef.current = null;
+    try {
+      await saveStrokes(currentPageIdxRef.current);
 
-    // Important: do not let the next page load using the old page's rendered size.
-    // The canvas should remount only after the new page/image/pdf reports its real size.
-    setPdfRenderedSize(null);
-    setCurrentPageIdx(clamped);
+      localDirtyRef.current = false;
+      loadedKeyRef.current = null;
+
+      setPdfRenderedSize(null);
+      setCurrentPageIdx(clamped);
+    } finally {
+      pageChangeInFlightRef.current = false;
+    }
   };
 
   const handleSaveAndStartNew = async () => {
