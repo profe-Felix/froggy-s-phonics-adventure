@@ -259,20 +259,18 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
     if (localDraft) {
       try {
-        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else if (pageData) {
       try {
-        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(typeof pageData === 'string' ? JSON.parse(pageData) : pageData);
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else {
-      canvasRef.current.clearStrokes();
+      canvasRef.current.loadStrokes(null);
     }
   }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
 
@@ -357,7 +355,7 @@ localDirtyRef.current = false;
 
   const handleStrokeEnd = useCallback(() => {
     isDrawingRef.current = false;
-    void saveStrokes();
+    void saveStrokes(currentPageRef.current);
   }, [saveStrokes]);
   const handleClearPage = useCallback(() => {
     if (!canvasRef.current) return;
@@ -493,9 +491,20 @@ localDirtyRef.current = false;
 
   const goToPage = async (p) => {
     const clamped = Math.max(minPage, Math.min(maxPage, p));
-    if (clamped === currentPage) return;
-    // Save with the current page explicitly before switching
-    await saveStrokes(currentPage);
+    if (clamped === currentPageRef.current) return;
+
+    // Do not switch pages while a save is still reading/writing canvas data.
+    while (saveInFlightRef.current || pendingSaveRef.current) {
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+
+    await saveStrokes(currentPageRef.current);
+
+    while (saveInFlightRef.current || pendingSaveRef.current) {
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+
+    localDirtyRef.current = false;
     loadedKeyRef.current = null;
     setCurrentPage(clamped);
   };
