@@ -48,6 +48,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const loadedKeyRef = useRef(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
+  const pendingSavePageRef = useRef(null);
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
   const latestRecordRef = useRef(record);
@@ -56,31 +57,54 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
   useEffect(() => { latestRecordRef.current = record; }, [record]);
 
-  // Load strokes when page changes OR when canvas first becomes ready
-  // Key is only page-based — NOT pixel-size-based — so resize never clobbers local work
+  const draftKey = record?.id ? `assessment-draft-${record.id}-${currentPageIdx}` : null;
+
+  // Load strokes when page changes OR when canvas first becomes ready.
+  // Key is only record/page-based — NOT pixel-size-based — so resize never clobbers local work.
   useEffect(() => {
     if (!canvasRef.current || !pdfRenderedSize) return;
+
+    if (isDrawingRef.current) return;
+    if (localDirtyRef.current) return;
+
     const key = `${record.id}-${currentPageIdx}`;
     if (loadedKeyRef.current === key) return;
-    // Don't overwrite unsaved local work
-    if (localDirtyRef.current) return;
+
     loadedKeyRef.current = key;
 
-    const pageData = latestRecordRef.current.strokes_by_page?.[String(currentPageIdx)];
-    if (pageData) {
-      try { canvasRef.current.clearStrokes(); canvasRef.current.loadStrokes(JSON.parse(pageData)); }
-      catch { canvasRef.current.clearStrokes(); }
+    const pageKey = String(currentPageIdx);
+    const pageData = latestRecordRef.current.strokes_by_page?.[pageKey];
+    const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
+
+    if (localDraft) {
+      try {
+        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(JSON.parse(localDraft));
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
+    } else if (pageData) {
+      try {
+        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(typeof pageData === 'string' ? JSON.parse(pageData) : pageData);
+      } catch {
+        canvasRef.current.clearStrokes();
+      }
     } else {
-      // Load template base strokes if any
-      const templateStrokes = template.template_strokes_by_page?.[String(currentPageIdx)];
+      const templateStrokes = template.template_strokes_by_page?.[pageKey];
+
       if (templateStrokes) {
-        try { canvasRef.current.clearStrokes(); canvasRef.current.loadStrokes(JSON.parse(templateStrokes)); }
-        catch { canvasRef.current.clearStrokes(); }
+        try {
+          canvasRef.current.clearStrokes();
+          canvasRef.current.loadStrokes(typeof templateStrokes === 'string' ? JSON.parse(templateStrokes) : templateStrokes);
+        } catch {
+          canvasRef.current.clearStrokes();
+        }
       } else {
         canvasRef.current.clearStrokes();
       }
     }
-  }, [currentPageIdx, record.id, pdfRenderedSize]);
+  }, [currentPageIdx, record.id, draftKey, !!pdfRenderedSize]);
 
   // Load floating mics for current page
   useEffect(() => {
