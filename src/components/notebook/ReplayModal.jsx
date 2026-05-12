@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import PdfPageRenderer from './PdfPageRenderer';
+import FloatingMicWidget from './FloatingMicWidget';
 
 function setupCanvas(canvas, w, h) {
   const dpr = window.devicePixelRatio || 1;
@@ -188,6 +189,7 @@ function drawAllStrokes(canvas, strokesData, w, h) {
 export default function ReplayModal({ session, assignment, onClose, pageOverride }) {
   const overlayCanvasRef = useRef(null);
   const containerRef = useRef(null);
+  const pdfWrapperRef = useRef(null);
   const [pdfSize, setPdfSize] = useState(null);
   const [playing, setPlaying] = useState(false);
   const animRef = useRef(null);
@@ -201,6 +203,13 @@ export default function ReplayModal({ session, assignment, onClose, pageOverride
   const allPages = Object.keys(session.strokes_by_page || {}).map(Number).sort((a, b) => a - b);
   const pageKey = String(activePage);
   const strokesData = session.strokes_by_page?.[pageKey];
+
+  let pageMics = [];
+  try {
+    pageMics = JSON.parse(session.voice_notes_by_page?.[`mics_${activePage}`] || '[]');
+  } catch {
+    pageMics = [];
+  }
 
   useEffect(() => {
     setPdfSize(null);
