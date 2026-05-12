@@ -330,7 +330,12 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     loadedKeyRef.current = null;
     setPdfRenderedSize(null);
     setCurrentPageIdx(0);
-    canvasRef.current?.clearStrokes();
+
+    requestAnimationFrame(() => {
+      canvasRef.current?.clearStrokes();
+      loadedKeyRef.current = null;
+      localDirtyRef.current = false;
+    });
   };
 
   const saveFloatingMics = useCallback(async (mics) => {
