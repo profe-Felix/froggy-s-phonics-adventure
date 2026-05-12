@@ -55,7 +55,20 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const currentPageIdxRef = useRef(currentPageIdx);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
-  useEffect(() => { latestRecordRef.current = record; }, [record]);
+
+  useEffect(() => {
+    latestRecordRef.current = record;
+
+    const map = {};
+    Object.entries(record.pasted_images_by_page || {}).forEach(([k, v]) => {
+      try {
+        map[k] = typeof v === 'string' ? JSON.parse(v) : v;
+      } catch {
+        map[k] = [];
+      }
+    });
+    setPastedImages(map);
+  }, [record]);
 
   const draftKey = record?.id ? `assessment-draft-${record.id}-${currentPageIdx}` : null;
 
@@ -106,11 +119,18 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     }
   }, [currentPageIdx, record.id, draftKey, !!pdfRenderedSize]);
 
-  // Load floating mics for current page
+  // Load floating mics for current page.
+  // Use latestRecordRef so page changes do not read an older record prop.
   useEffect(() => {
-    const raw = record.strokes_by_page?.[`mics_${currentPageIdx}`];
-    try { setFloatingMics(raw ? JSON.parse(raw) : []); } catch { setFloatingMics([]); }
-  }, [record.id, currentPageIdx]);
+    const rec = latestRecordRef.current || record;
+    const raw = rec.strokes_by_page?.[`mics_${currentPageIdx}`];
+
+    try {
+      setFloatingMics(raw ? JSON.parse(raw) : []);
+    } catch {
+      setFloatingMics([]);
+    }
+  }, [record, currentPageIdx]);
 
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
