@@ -193,14 +193,55 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     return () => clearInterval(interval);
   }, [saveStrokes]);
 
-  // Save on hide/pagehide
+  // Save on hide/pagehide.
+  // Also writes a local draft synchronously because iPad/Safari may kill async saves.
   useEffect(() => {
-    const onHide = () => void saveStrokes();
-    const onVis = () => { if (document.visibilityState === 'hidden') void saveStrokes(); };
+    const writeLocalEmergencyDraft = () => {
+      const rec = latestRecordRef.current;
+      const canvas = canvasRef.current;
+      if (!rec || !canvas) return;
+
+      try {
+        const page = currentPageIdxRef.current;
+        const strokeData = canvas.getStrokes();
+        const payload = {
+          ...strokeData,
+          canvasWidth: pdfRenderedSize?.w,
+          canvasHeight: pdfRenderedSize?.h,
+          normalized: true,
+        };
+
+        localStorage.setItem(
+          `assessment-draft-${rec.id}-${page}`,
+          JSON.stringify(payload)
+        );
+      } catch {
+        // Do not block navigation if emergency draft fails.
+      }
+    };
+
+    const onHide = () => {
+      writeLocalEmergencyDraft();
+      void saveStrokes();
+    };
+
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        writeLocalEmergencyDraft();
+        void saveStrokes();
+      }
+    };
+
     window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
     document.addEventListener('visibilitychange', onVis);
-    return () => { window.removeEventListener('pagehide', onHide); document.removeEventListener('visibilitychange', onVis); };
-  }, [saveStrokes]);
+
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [saveStrokes, pdfRenderedSize]);
 
   const goToPage = async (idx) => {
     const clamped = Math.max(0, Math.min(totalPages - 1, idx));
@@ -218,8 +259,11 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   };
 
   const handleSaveAndStartNew = async () => {
-    await saveStrokes();
+    await saveStrokes(currentPageIdxRef.current);
+
     const rec = latestRecordRef.current;
+    if (!rec) return;
+
     // Lock current as snapshot
     const snapshot = {
       id: `snap-${Date.now()}`,
@@ -228,16 +272,28 @@ export default function AssessmentStudentView({ record, template, studentNumber,
       strokes_by_page: rec.strokes_by_page || {},
       pasted_images_by_page: rec.pasted_images_by_page || {},
     };
+
     const updatedRec = await base44.entities.AssessmentRecord.update(rec.id, {
       snapshots: [...(rec.snapshots || []), snapshot],
       strokes_by_page: {},
       session_number: (rec.session_number || 1) + 1,
       last_active: new Date().toISOString(),
     });
+
+    // Clear local emergency drafts for this assessment record so old ink does not reload
+    // after starting a new session.
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith(`assessment-draft-${rec.id}-`)) {
+        localStorage.removeItem(key);
+      }
+    });
+
     latestRecordRef.current = updatedRec;
     onRecordUpdate?.(updatedRec);
+
     localDirtyRef.current = false;
     loadedKeyRef.current = null;
+    setPdfRenderedSize(null);
     setCurrentPageIdx(0);
     canvasRef.current?.clearStrokes();
   };
@@ -245,12 +301,33 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const saveFloatingMics = useCallback(async (mics) => {
     const rec = latestRecordRef.current;
     if (!rec) return;
+
+    // Save current ink first so mic updates do not accidentally preserve an older strokes_by_page object.
+    await saveStrokes(currentPageIdxRef.current);
+
+    const freshRec = latestRecordRef.current;
+    if (!freshRec) return;
+
     const key = `mics_${currentPageIdxRef.current}`;
-    const updated = { ...(rec.strokes_by_page || {}), [key]: JSON.stringify(mics) };
-    await base44.entities.AssessmentRecord.update(rec.id, { strokes_by_page: updated });
-    latestRecordRef.current = { ...rec, strokes_by_page: updated };
-    onRecordUpdate?.(latestRecordRef.current);
-  }, [onRecordUpdate]);
+    const updated = {
+      ...(freshRec.strokes_by_page || {}),
+      [key]: JSON.stringify(mics),
+    };
+
+    await base44.entities.AssessmentRecord.update(freshRec.id, {
+      strokes_by_page: updated,
+      last_active: new Date().toISOString(),
+    });
+
+    const nextRecord = {
+      ...freshRec,
+      strokes_by_page: updated,
+      last_active: new Date().toISOString(),
+    };
+
+    latestRecordRef.current = nextRecord;
+    onRecordUpdate?.(nextRecord);
+  }, [onRecordUpdate, saveStrokes]);
 
   const handlePageClickForMic = (e) => {
     if (!addingMic || !pdfWrapperRef.current) return;
@@ -266,18 +343,46 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   };
 
   const handlePasteImage = async (file) => {
+    await saveStrokes(currentPageIdxRef.current);
+
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    const img = { id: `img-${Date.now()}`, url: file_url, x_pct: 0.1, y_pct: 0.1, w_pct: 0.5, h_pct: 0.3 };
-    const pageKey = String(currentPageIdx);
+
+    const img = {
+      id: `img-${Date.now()}`,
+      url: file_url,
+      x_pct: 0.1,
+      y_pct: 0.1,
+      w_pct: 0.5,
+      h_pct: 0.3,
+    };
+
+    const pageKey = String(currentPageIdxRef.current);
     const updatedPage = [...(pastedImages[pageKey] || []), img];
     const updatedAll = { ...pastedImages, [pageKey]: updatedPage };
+
     setPastedImages(updatedAll);
+
     const rec = latestRecordRef.current;
+    if (!rec) return;
+
     const serialized = {};
-    Object.entries(updatedAll).forEach(([k, v]) => { serialized[k] = JSON.stringify(v); });
-    await base44.entities.AssessmentRecord.update(rec.id, { pasted_images_by_page: serialized });
-    latestRecordRef.current = { ...rec, pasted_images_by_page: serialized };
-    onRecordUpdate?.(latestRecordRef.current);
+    Object.entries(updatedAll).forEach(([k, v]) => {
+      serialized[k] = JSON.stringify(v);
+    });
+
+    await base44.entities.AssessmentRecord.update(rec.id, {
+      pasted_images_by_page: serialized,
+      last_active: new Date().toISOString(),
+    });
+
+    const nextRecord = {
+      ...rec,
+      pasted_images_by_page: serialized,
+      last_active: new Date().toISOString(),
+    };
+
+    latestRecordRef.current = nextRecord;
+    onRecordUpdate?.(nextRecord);
     setShowPasteImage(false);
   };
 
