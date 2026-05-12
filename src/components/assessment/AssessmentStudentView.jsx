@@ -351,15 +351,29 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
   const handlePageClickForMic = (e) => {
     if (!addingMic || !pdfWrapperRef.current) return;
+
+    e.preventDefault?.();
+    e.stopPropagation?.();
+
     const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = pdfWrapperRef.current.getBoundingClientRect();
+
     const x_pct = (src.clientX - rect.left) / rect.width;
     const y_pct = (src.clientY - rect.top) / rect.height;
-    const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, role: 'teacher' };
+
+    const newMic = {
+      id: `mic-${Date.now()}`,
+      x_pct,
+      y_pct,
+      audio_url: null,
+      role: 'teacher',
+    };
+
     const updated = [...floatingMics, newMic];
+
     setFloatingMics(updated);
-    saveFloatingMics(updated);
     setAddingMic(false);
+    void saveFloatingMics(updated);
   };
 
   const handlePasteImage = async (file) => {
@@ -419,8 +433,15 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     <div className="flex flex-col h-full w-full relative" style={{ background: '#0f0f1a' }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0 flex-wrap" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-        <button onClick={async () => { await saveStrokes(); onBack(); }}
-          className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
+        <button
+          onClick={async () => {
+            await saveStrokes(currentPageIdxRef.current);
+            onBack();
+          }}
+          className="text-indigo-300 hover:text-white font-bold text-sm"
+        >
+          ← Back
+        </button>
         <div className="flex-1 min-w-0">
           <p className="text-white font-black text-sm truncate">{template.title}</p>
           <p className="text-indigo-400 text-xs">Student #{studentNumber} · Session {record.session_number || 1}
@@ -439,7 +460,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
           onClick={async () => {
             try {
               setExporting(true);
-              await saveStrokes();
+              await saveStrokes(currentPageIdxRef.current);
 
               await exportAssessmentStudentPdf({
                 template,
@@ -503,7 +524,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
         <div ref={containerRef} className="flex-1 overflow-auto"
           style={{ background: '#e8e8e8', position: 'relative', cursor: addingMic ? 'copy' : 'default' }}
-          onClick={handlePageClickForMic}
+          onClick={addingMic ? handlePageClickForMic : undefined}
           onTouchEnd={addingMic ? handlePageClickForMic : undefined}>
           {currentPageData ? (
             <div ref={pdfWrapperRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
