@@ -11,7 +11,7 @@ const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/
 let SIGHT_WORDS_BY_MODULE = {};
 
 // Only 'spell' and 'unscramble' — no missing-letter
-const CHALLENGE_TYPES = ['spell', 'cloze', 'spell', 'cloze'];
+const CHALLENGE_TYPES = ['spell'];
 const DISTRACTOR_LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'.split('');
 
 function pickWord(modeData, lastWord, moduleWords) {
