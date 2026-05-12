@@ -75,7 +75,8 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const draftKey = record?.id ? `assessment-draft-${record.id}-${currentPageIdx}` : null;
 
   // Load strokes when page changes OR when canvas first becomes ready.
-  // Key is only record/page-based — NOT pixel-size-based — so resize never clobbers local work.
+  // IMPORTANT: do not call clearStrokes() here.
+  // clearStrokes() is a user action and triggers save. loadStrokes(null) resets silently.
   useEffect(() => {
     if (!canvasRef.current || !pdfRenderedSize) return;
 
@@ -93,30 +94,27 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
     if (localDraft) {
       try {
-        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else if (pageData) {
       try {
-        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(typeof pageData === 'string' ? JSON.parse(pageData) : pageData);
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else {
       const templateStrokes = template.template_strokes_by_page?.[pageKey];
 
       if (templateStrokes) {
         try {
-          canvasRef.current.clearStrokes();
           canvasRef.current.loadStrokes(typeof templateStrokes === 'string' ? JSON.parse(templateStrokes) : templateStrokes);
         } catch {
-          canvasRef.current.clearStrokes();
+          canvasRef.current.loadStrokes(null);
         }
       } else {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     }
   }, [currentPageIdx, record.id, draftKey, !!pdfRenderedSize]);
