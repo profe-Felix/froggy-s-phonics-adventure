@@ -56,8 +56,8 @@ function LetterSoundsEditor({ student, onUpdate }) {
 
   const cycleStatus = async (letter) => {
     const current = getStatus(letter);
-    let newMastered = [...mastered];
-    let newLearning = [...learning];
+    let newMastered = Array.from(mastered);
+    let newLearning = Array.from(learning);
 
     if (current === 'none') {
       newLearning.push(letter);
