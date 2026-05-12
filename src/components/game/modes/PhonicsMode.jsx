@@ -717,10 +717,12 @@ export default function PhonicsMode({ studentData, onBack }) {
           </div>
         </div>
       </div>
-      <RouletteProgressMini
-        totalPts={totalPts}
-        syllableCorrectCount={syllableCorrectCount}
-      />
+      {subMode === 'syllable' && (
+        <RouletteProgressMini
+          totalPts={totalPts}
+          syllableCorrectCount={syllableCorrectCount}
+        />
+      )}
 
       <AnimatePresence>
         {showWheel && (
