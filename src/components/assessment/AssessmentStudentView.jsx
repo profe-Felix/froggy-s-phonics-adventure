@@ -569,7 +569,11 @@ export default function AssessmentStudentView({ record, template, studentNumber,
                 <PdfPageRenderer
                   pdfUrl={currentPageData.url}
                   pageNumber={currentPageData.pdfPage || 1}
-                  onRendered={(w, h) => setPdfRenderedSize({ w, h })}
+                  onRendered={(w, h) => {
+                    if (w > 0 && h > 0) {
+                      setPdfRenderedSize({ w, h });
+                    }
+                  }}
                 />
               ) : currentPageData.url ? (
                 <img src={currentPageData.url} alt={`page ${currentPageIdx + 1}`}
