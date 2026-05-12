@@ -404,7 +404,7 @@ function getSyllableConfusions(syllable) {
   const confused = CONFUSION_MAP[onset] || [];
   confused.forEach(c => candidates.push(c + nucleus + coda));
 
-  return shuffle(unique(candidates)).slice(0, 8);
+  return unique(shuffle(candidates));
 }
 
 // ── Build LETTER cloze ─────────────────────────────────────────────
