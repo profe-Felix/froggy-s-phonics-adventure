@@ -488,6 +488,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       if (tool === 'eraser_object') {
         drawing.current = true;
         eraserChanged.current = false;
+        onStrokeStart?.();
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         eraseStrokeAt(getPos(e));
         return;
@@ -497,6 +498,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         const p = getPos(e);
         drawing.current = true;
         eraserChanged.current = false;
+        onStrokeStart?.();
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         current.current = ensureStrokeId({ color: '#000', size, tool: 'eraser_pixel', pts: [p] });
         pixelEraseAt(p);
