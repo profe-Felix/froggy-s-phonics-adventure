@@ -448,7 +448,7 @@ function buildLetterCloze(word) {
   // Add some random single letters as fallback
   const fallback = 'bcdfghjklmnpqrstvxyz'.split('').filter(l => l !== missingToken && !confused.includes(l));
   const all = [...confused, ...fallback.sort(() => Math.random() - 0.5)];
-  const distractors = all.slice(0, 5);
+  const distractors = all.slice(0, 7);
   const options = [missingToken, ...distractors].sort(() => Math.random() - 0.5);
 
   return { type: 'letter', display, missingToken, missingTokenIdx, tokens, charStart, charEnd, position, options };
