@@ -529,12 +529,36 @@ export default function PhonicsMode({ studentData, onBack }) {
 
   const handleSelect = (option) => {
     if (locked) return;
+
     const correct = option === cloze.missingToken;
     setSelected(option);
     setIsCorrect(correct);
     setLocked(true);
-    if (correct) { setScore(s => s + 1); setStreak(s => s + 1); }
-    else setStreak(0);
+
+    if (correct) {
+      setScore(s => s + 1);
+      setStreak(s => s + 1);
+
+      if (subMode === 'syllable' && cloze?.type === 'syllable') {
+        setSyllableCorrectCount(prev => {
+          const next = prev + 1;
+
+          if (next >= 5) {
+            if (studentData?.id) {
+              const currentTotal = studentData?.sentences_total_points || 0;
+              base44.entities.Student.update(studentData.id, {
+                sentences_total_points: currentTotal + 1
+              }).catch(() => {});
+            }
+            return 0;
+          }
+
+          return next;
+        });
+      }
+    } else {
+      setStreak(0);
+    }
   };
 
   const positionLabel = cloze?.position === 'initial' ? '🔵 Initial' :
