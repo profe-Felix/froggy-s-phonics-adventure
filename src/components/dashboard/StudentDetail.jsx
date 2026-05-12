@@ -219,7 +219,6 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
             );
             const mastered = data.mastered_items || [];
             const learning = data.learning_items || [];
-            const attempts = data.item_attempts || {};
             const accuracy = data.total_attempts > 0
               ? Math.round((data.total_correct / data.total_attempts) * 100)
               : 0;
