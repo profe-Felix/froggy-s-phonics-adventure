@@ -135,6 +135,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
   const saveStrokes = useCallback(async (pageOverride) => {
     if (!canvasRef.current) return;
+    if (!pdfRenderedSize?.w || !pdfRenderedSize?.h) return;
 
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
@@ -205,12 +206,25 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     }
   }, [onRecordUpdate, pdfRenderedSize]);
 
-  const handleStrokeStart = useCallback(() => { isDrawingRef.current = true; localDirtyRef.current = true; }, []);
-  const handleStrokeEnd = useCallback(() => { isDrawingRef.current = false; void saveStrokes(); }, [saveStrokes]);
+  const handleStrokeStart = useCallback(() => {
+    isDrawingRef.current = true;
+    localDirtyRef.current = true;
+  }, []);
 
-  // Auto-save every 20s
+  const handleStrokeEnd = useCallback(() => {
+    isDrawingRef.current = false;
+    void saveStrokes(currentPageIdxRef.current);
+  }, [saveStrokes]);
+
+  // Auto-save every 20s, but only when this page has unsaved local work.
+  // This avoids repeatedly saving a clean/empty canvas over existing page data.
   useEffect(() => {
-    const interval = setInterval(() => void saveStrokes(), 20000);
+    const interval = setInterval(() => {
+      if (localDirtyRef.current) {
+        void saveStrokes(currentPageIdxRef.current);
+      }
+    }, 20000);
+
     return () => clearInterval(interval);
   }, [saveStrokes]);
 
@@ -519,12 +533,12 @@ export default function AssessmentStudentView({ record, template, studentNumber,
               onUndo={() => {
                 localDirtyRef.current = true;
                 canvasRef.current?.undo();
-                void saveStrokes();
+                void saveStrokes(currentPageIdxRef.current);
               }}
               onClear={() => {
                 localDirtyRef.current = true;
                 canvasRef.current?.clearStrokes();
-                void saveStrokes();
+                void saveStrokes(currentPageIdxRef.current);
               }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
@@ -638,12 +652,12 @@ export default function AssessmentStudentView({ record, template, studentNumber,
               onUndo={() => {
                 localDirtyRef.current = true;
                 canvasRef.current?.undo();
-                void saveStrokes();
+                void saveStrokes(currentPageIdxRef.current);
               }}
               onClear={() => {
                 localDirtyRef.current = true;
                 canvasRef.current?.clearStrokes();
-                void saveStrokes();
+                void saveStrokes(currentPageIdxRef.current);
               }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
