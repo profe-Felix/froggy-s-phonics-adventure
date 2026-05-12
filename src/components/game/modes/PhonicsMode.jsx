@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import PrizeWheel from '@/components/game/PrizeWheel';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
@@ -504,6 +505,36 @@ function buildSyllableCloze(word) {
   const options = [missingSyllable, ...confused.slice(0, 7)].sort(() => Math.random() - 0.5);
 
   return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
+}
+
+const PTS_PER_STICKER = 100;
+const PHONICS_CORRECT_PER_POINT = 5;
+
+function RouletteProgressMini({ totalPts, syllableCorrectCount }) {
+  const progress = totalPts % PTS_PER_STICKER;
+  const pct = (progress / PTS_PER_STICKER) * 100;
+
+  return (
+    <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow border-2 border-rose-200 px-4 py-3">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-black text-rose-600 uppercase">🎡 Prize Wheel Progress</span>
+        <span className="text-xs font-bold text-purple-600">
+          Syllables: {syllableCorrectCount}/{PHONICS_CORRECT_PER_POINT} = +1 pt
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-4 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
+          <div
+            className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-sm font-black text-rose-700 whitespace-nowrap">
+          {progress}/{PTS_PER_STICKER}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 // ── Main Component ─────────────────────────────────────────────────
