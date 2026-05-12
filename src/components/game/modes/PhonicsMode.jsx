@@ -312,8 +312,67 @@ const CONFUSION_MAP = {
 
 // Syllable confusions: given a syllable, what are confusable syllable options?
 function getSyllableConfusions(syllable) {
-  const nucleus = [...syllable].find(c => VOWEL_SET.has(c)) || '';
-  // Map of onset confusions
+  const unique = (arr) => [...new Set(arr.filter(Boolean).filter(x => x !== syllable))];
+  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+
+  const tokens = tokenize(syllable);
+  const vowelIdx = tokens.findIndex(t => isVowelToken(t));
+  const nucleus = vowelIdx >= 0 ? tokens[vowelIdx] : '';
+  const onset = vowelIdx >= 0 ? tokens.slice(0, vowelIdx).join('') : '';
+  const coda = vowelIdx >= 0 ? tokens.slice(vowelIdx + 1).join('') : '';
+
+  const candidates = [];
+
+  // Blend syllables like cre, cla, bra, plo, etc.
+  const blendGroups = {
+    cr: ['cl', 'gr', 'tr', 'br', 'pr', 'kr'],
+    cl: ['cr', 'gl', 'pl', 'bl', 'fl'],
+    br: ['bl', 'pr', 'gr', 'cr'],
+    bl: ['br', 'pl', 'cl', 'fl'],
+    pr: ['pl', 'br', 'tr', 'cr'],
+    pl: ['pr', 'bl', 'cl', 'fl'],
+    tr: ['dr', 'cr', 'pr', 'br'],
+    dr: ['tr', 'gr', 'br'],
+    gr: ['gl', 'cr', 'br', 'dr'],
+    gl: ['gr', 'cl', 'bl'],
+    fr: ['fl', 'pr', 'br'],
+    fl: ['fr', 'pl', 'bl', 'cl'],
+  };
+
+  if (blendGroups[onset]) {
+    // Same vowel, different/confusable blends: cre → cle, gre, tre
+    blendGroups[onset].forEach(b => candidates.push(b + nucleus + coda));
+
+    // Same blend, different vowels: cre → cra, cri, cro, cru
+    ['a', 'e', 'i', 'o', 'u'].forEach(v => {
+      if (v !== nucleus) candidates.push(onset + v + coda);
+    });
+
+    // Tricky Spanish-looking reversals: cre → cer
+    if (!coda && onset.length === 2) {
+      candidates.push(onset[0] + nucleus + onset[1]);
+      candidates.push(onset[1] + nucleus);
+    }
+  }
+
+  // Closed syllables like mas, con, sol, pan
+  if (coda) {
+    // Same onset/coda, different vowel: mas → mes, mis, mos, mus
+    ['a', 'e', 'i', 'o', 'u'].forEach(v => {
+      if (v !== nucleus) candidates.push(onset + v + coda);
+    });
+
+    // Same vowel/coda, different onset: mas → pas, las, nas, bas
+    const onsetConfusions = CONFUSION_MAP[onset] || [];
+    onsetConfusions.forEach(o => candidates.push(o + nucleus + coda));
+
+    // Same onset/vowel, different final consonant: mas → mal, man, mar
+    ['s', 'n', 'l', 'r', 'd', 'z'].forEach(final => {
+      if (final !== coda) candidates.push(onset + nucleus + final);
+    });
+  }
+
+  // Existing special Spanish confusion map
   const onsetMap = {
     'ca': ['ka','ke','ce','co','cu','qui'], 'co': ['ca','ko','que'], 'cu': ['qu','ku'],
     'ce': ['se','ze','ke','ca'], 'ci': ['si','zi','ki'],
@@ -338,15 +397,14 @@ function getSyllableConfusions(syllable) {
     'na': ['ma','ña'], 'ne': ['me','ñe'], 'ni': ['mi','ñi'],
     'ña': ['na','nya'], 'ñe': ['ne','nie'], 'ño': ['no'],
   };
-  const confusions = onsetMap[syllable] || [];
-  // Also generate all CV combos with same vowel and confused consonants
-  const tokens = tokenize(syllable);
-  const onsetTokens = tokens.filter(t => !isVowelToken(t));
-  const onset = onsetTokens.join('');
+
+  candidates.push(...(onsetMap[syllable] || []));
+
+  // CV fallback only after better options
   const confused = CONFUSION_MAP[onset] || [];
-  const extraSyllables = confused.map(c => c + nucleus).filter(s => s !== syllable);
-  const all = [...new Set([...confusions, ...extraSyllables])];
-  return all.slice(0, 5);
+  confused.forEach(c => candidates.push(c + nucleus + coda));
+
+  return shuffle(unique(candidates)).slice(0, 8);
 }
 
 // ── Build LETTER cloze ─────────────────────────────────────────────
@@ -411,7 +469,11 @@ function buildSyllableCloze(word) {
   const display = before + blank + after;
 
   // Build syllable confusions
-  const confused = getSyllableConfusions(missingSyllable).filter(s => s !== missingSyllable);
+  const siblingSyllables = syllables.filter((s, i) => i !== idx && s !== missingSyllable);
+  const confused = [
+    ...siblingSyllables,
+    ...getSyllableConfusions(missingSyllable)
+  ].filter(s => s !== missingSyllable);
   const position = idx === 0 ? 'initial' : idx === syllables.length - 1 ? 'final' : 'medial';
 
   // Determine if the missing syllable is vowel-only (e.g. "i", "a", "e")
