@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { base44 } from '@/api/base44Client';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
@@ -454,6 +455,7 @@ export default function PhonicsMode({ studentData, onBack }) {
   const [isCorrect, setIsCorrect] = useState(null);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [syllableCorrectCount, setSyllableCorrectCount] = useState(0);
   const [locked, setLocked] = useState(false);
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
