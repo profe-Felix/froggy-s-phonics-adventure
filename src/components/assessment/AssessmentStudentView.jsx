@@ -205,9 +205,15 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const goToPage = async (idx) => {
     const clamped = Math.max(0, Math.min(totalPages - 1, idx));
     if (clamped === currentPageIdx) return;
+
     await saveStrokes(currentPageIdx);
+
     localDirtyRef.current = false;
     loadedKeyRef.current = null;
+
+    // Important: do not let the next page load using the old page's rendered size.
+    // The canvas should remount only after the new page/image/pdf reports its real size.
+    setPdfRenderedSize(null);
     setCurrentPageIdx(clamped);
   };
 
@@ -355,8 +361,16 @@ export default function AssessmentStudentView({ record, template, studentNumber,
             <AnnotationToolbar
               tool={tool} setTool={setTool} color={color} setColor={setColor}
               size={size} setSize={setSize}
-              onUndo={() => canvasRef.current?.undo()}
-              onClear={() => canvasRef.current?.clearStrokes()}
+              onUndo={() => {
+                localDirtyRef.current = true;
+                canvasRef.current?.undo();
+                void saveStrokes();
+              }}
+              onClear={() => {
+                localDirtyRef.current = true;
+                canvasRef.current?.clearStrokes();
+                void saveStrokes();
+              }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
           </div>
@@ -466,8 +480,16 @@ export default function AssessmentStudentView({ record, template, studentNumber,
             <AnnotationToolbar
               tool={tool} setTool={setTool} color={color} setColor={setColor}
               size={size} setSize={setSize}
-              onUndo={() => canvasRef.current?.undo()}
-              onClear={() => canvasRef.current?.clearStrokes()}
+              onUndo={() => {
+                localDirtyRef.current = true;
+                canvasRef.current?.undo();
+                void saveStrokes();
+              }}
+              onClear={() => {
+                localDirtyRef.current = true;
+                canvasRef.current?.clearStrokes();
+                void saveStrokes();
+              }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
             />
           </div>
