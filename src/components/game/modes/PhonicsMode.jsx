@@ -579,6 +579,7 @@ export default function PhonicsMode({ studentData, onBack }) {
   const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
   const [showWheel, setShowWheel] = useState(false);
   const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
+  const [claimedSpins, setClaimedSpins] = useState(() => studentData?.sentence_prize_spins_claimed || 0);
   const [locked, setLocked] = useState(false);
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
@@ -669,10 +670,11 @@ export default function PhonicsMode({ studentData, onBack }) {
           if (next >= PHONICS_CORRECT_PER_POINT) {
             setTotalPts(prevTotal => {
               const newTotal = prevTotal + 1;
-              const oldSpins = Math.floor(prevTotal / PTS_PER_STICKER);
-              const newSpins = Math.floor(newTotal / PTS_PER_STICKER);
 
-              if (newSpins > oldSpins) {
+              const availableSpins =
+                Math.floor(newTotal / PTS_PER_STICKER) - claimedSpins;
+
+              if (availableSpins > 0) {
                 setShowWheel(true);
               }
 
@@ -696,6 +698,15 @@ export default function PhonicsMode({ studentData, onBack }) {
   };
   const handleClaimPrize = (prize) => {
     setShowWheel(false);
+
+    const nextClaimedSpins = claimedSpins + 1;
+    setClaimedSpins(nextClaimedSpins);
+
+    if (studentData?.id) {
+      base44.entities.Student.update(studentData.id, {
+        sentence_prize_spins_claimed: nextClaimedSpins
+      }).catch(() => {});
+    }
 
     if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
       const updated = [...redeemedPrizes, prize.id];
