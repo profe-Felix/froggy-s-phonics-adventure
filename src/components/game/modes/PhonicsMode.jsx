@@ -79,6 +79,29 @@ function tokenize(word) {
   return tokens;
 }
 
+function tokenizeForSyllables(word) {
+  const w = word.toLowerCase();
+  const tokens = [];
+  let i = 0;
+
+  while (i < w.length) {
+    const two = w.slice(i, i + 2);
+
+    // Keep true Spanish digraph consonants together.
+    // Do NOT merge gue/gui/güe/güi here because syllabication needs to see the vowel.
+    if (['ch', 'll', 'rr'].includes(two)) {
+      tokens.push(two);
+      i += 2;
+      continue;
+    }
+
+    tokens.push(w[i]);
+    i += 1;
+  }
+
+  return tokens;
+}
+
 // ── Syllabification ────────────────────────────────────────────────
 const VOWEL_SET = new Set('aeiouáéíóúü');
 // Stressed weak vowels break diphthongs (á/é/ó are always strong)
@@ -134,7 +157,7 @@ function isConsonantToken(t) { return !isVowelToken(t); }
  *                     otherwise → first 2 are coda, last is onset
  */
 function syllabify(word) {
-  const tokens = tokenize(word.toLowerCase());
+  const tokens = tokenizeForSyllables(word.toLowerCase());
 
   // Step 1: find nuclei positions (vowels, merging diphthongs)
   // Build list of nucleus groups with their token indices
@@ -472,9 +495,11 @@ function buildSyllableCloze(word) {
   // Build syllable confusions
   const siblingSyllables = syllables.filter((s, i) => i !== idx && s !== missingSyllable);
   const confused = [
-    ...siblingSyllables,
-    ...getSyllableConfusions(missingSyllable)
-  ].filter(s => s !== missingSyllable);
+    ...new Set([
+      ...siblingSyllables,
+      ...getSyllableConfusions(missingSyllable)
+    ].filter(s => s !== missingSyllable))
+  ];
   const position = idx === 0 ? 'initial' : idx === syllables.length - 1 ? 'final' : 'medial';
 
   // Determine if the missing syllable is vowel-only (e.g. "i", "a", "e")
@@ -486,7 +511,7 @@ function buildSyllableCloze(word) {
     const yVariants = ['y', 'hi', 'li', 'yi', 'ya', 'ye', 'yo'].filter(s => s !== missingSyllable);
     const llVariants = ['lla','lle','lli','llo','llu'].filter(s => s !== missingSyllable);
     const pool = [...otherVowels, ...yVariants, ...llVariants];
-    while (confused.length < 5) {
+    while (confused.length < 7) {
       const pick = pool[Math.floor(Math.random() * pool.length)];
       if (pick && !confused.includes(pick) && pick !== missingSyllable) confused.push(pick);
       if (confused.length >= pool.length) break;
@@ -495,14 +520,16 @@ function buildSyllableCloze(word) {
     // Pad to 5 distractors with CV combos
     const vowels = 'aeiou';
     const consonants = 'bcdfghjklmnpqrstvyz'.split('');
-    while (confused.length < 5) {
+    while (confused.length < 7) {
       const r = consonants[Math.floor(Math.random() * consonants.length)] +
                 vowels[Math.floor(Math.random() * vowels.length)];
       if (r !== missingSyllable && !confused.includes(r)) confused.push(r);
     }
   }
 
-  const options = [missingSyllable, ...confused.slice(0, 7)].sort(() => Math.random() - 0.5);
+  const options = [...new Set([missingSyllable, ...confused])]
+    .slice(0, 8)
+    .sort(() => Math.random() - 0.5);
 
   return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
 }
