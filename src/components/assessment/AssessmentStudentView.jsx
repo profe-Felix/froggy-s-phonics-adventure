@@ -647,6 +647,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
                   tool={tool === 'laser' ? 'none' : tool}
                   mode={tool === 'laser' ? 'none' : 'draw'}
                   passThrough={addingMic}
+                  scrollContainerRef={containerRef}
                   onStrokeStart={handleStrokeStart}
                   onStrokeEnd={handleStrokeEnd}
                 />
