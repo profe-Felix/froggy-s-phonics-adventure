@@ -679,6 +679,7 @@ localDirtyRef.current = false;
                     tool={tool === 'laser' || tool === 'lasso' ? 'none' : tool}
                     mode={tool === 'laser' || tool === 'lasso' ? 'none' : 'draw'}
                     passThrough={addingMic || tool === 'lasso' || !!cutPaste.selectedPieceId}
+                    scrollContainerRef={containerRef}
                     onStrokeStart={handleStrokeStart}
                     onStrokeEnd={handleStrokeEnd}
                   />
