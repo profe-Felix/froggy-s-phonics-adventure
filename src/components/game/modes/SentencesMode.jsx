@@ -1083,6 +1083,7 @@ export default function SentencesMode({ studentData, onBack }) {
   const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
   const [showWheel, setShowWheel] = useState(false);
   const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
+  const [claimedSpins, setClaimedSpins] = useState(() => studentData?.sentence_prize_spins_claimed || 0);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -1185,8 +1186,7 @@ export default function SentencesMode({ studentData, onBack }) {
     }
 
     const newTotal = totalPts + ptsToAward;
-    const oldSpins = Math.floor(totalPts / PTS_PER_STICKER);
-    const newSpins = Math.floor(newTotal / PTS_PER_STICKER);
+    const newAvailableSpins = Math.floor(newTotal / PTS_PER_STICKER) - claimedSpins;
     setTotalPts(newTotal);
     if (ptsToAward > 0) {
       setSessionPts(p => p + ptsToAward);
