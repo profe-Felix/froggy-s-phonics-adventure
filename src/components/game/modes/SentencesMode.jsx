@@ -1192,8 +1192,8 @@ export default function SentencesMode({ studentData, onBack }) {
       setSessionPts(p => p + ptsToAward);
     }
 
-    // Trigger prize wheel if crossed a 100-pt milestone
-    if (newSpins > oldSpins) {
+    // Trigger prize wheel only if there is an unclaimed spin
+    if (newAvailableSpins > 0) {
       setShowWheel(true);
     }
 
@@ -1213,8 +1213,18 @@ export default function SentencesMode({ studentData, onBack }) {
   };
 
   const handleClaimPrize = (prize) => {
-    setShowWheel(false);
-    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
+  setShowWheel(false);
+
+  const nextClaimedSpins = claimedSpins + 1;
+  setClaimedSpins(nextClaimedSpins);
+
+  if (studentData?.id) {
+    base44.entities.Student.update(studentData.id, {
+      sentence_prize_spins_claimed: nextClaimedSpins
+    }).catch(() => {});
+  }
+
+  if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
       const updated = [...redeemedPrizes, prize.id];
       setRedeemedPrizes(updated);
       if (studentData?.id) {
