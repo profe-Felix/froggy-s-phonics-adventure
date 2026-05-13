@@ -88,7 +88,7 @@ function splitStrokeByPixelErase(s, px, py, w, h, eraserRadius) {
 }
 
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
-  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false },
+  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false, scrollContainerRef = null },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -102,6 +102,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const current = useRef(null);
   const drawing = useRef(false);
   const [eraserCursorPos, setEraserCursorPos] = useState(null);
+  const twoFingerScroll = useRef({
+    active: false,
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
 
   const cloneStroke = (s) => ({
     ...s,
@@ -480,12 +487,63 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       finishStroke();
     };
 
-    const onTouchStart = (e) => {
-      if (mode !== 'draw') return;
-      if (tool === 'laser' || tool === 'none') return;
-      if (passThrough) return; // let parent handle the tap (e.g. place mic)
-      if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
-      e.preventDefault();
+    const getTouchCenter = (e) => {
+  const t1 = e.touches[0];
+  const t2 = e.touches[1] || e.touches[0];
+  return {
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2,
+  };
+};
+
+const beginTwoFingerScroll = (e) => {
+  const scroller = scrollContainerRef?.current;
+  if (!scroller) return false;
+
+  cancelStrokeForScroll();
+
+  const center = getTouchCenter(e);
+  twoFingerScroll.current = {
+    active: true,
+    x: center.x,
+    y: center.y,
+    scrollLeft: scroller.scrollLeft,
+    scrollTop: scroller.scrollTop,
+  };
+
+  setEraserCursorPos(null);
+  e.preventDefault();
+  return true;
+};
+
+const updateTwoFingerScroll = (e) => {
+  const scroller = scrollContainerRef?.current;
+  if (!scroller || !twoFingerScroll.current.active) return false;
+
+  const center = getTouchCenter(e);
+  const dx = center.x - twoFingerScroll.current.x;
+  const dy = center.y - twoFingerScroll.current.y;
+
+  scroller.scrollLeft = twoFingerScroll.current.scrollLeft - dx;
+  scroller.scrollTop = twoFingerScroll.current.scrollTop - dy;
+
+  e.preventDefault();
+  return true;
+};
+
+const endTwoFingerScroll = () => {
+  twoFingerScroll.current.active = false;
+};
+
+const onTouchStart = (e) => {
+  if (mode !== 'draw') return;
+  if (tool === 'laser' || tool === 'none') return;
+  if (passThrough) return; // let parent handle the tap (e.g. place mic)
+  if (e.touches.length >= 2) {
+    beginTwoFingerScroll(e);
+    return;
+  }
+  e.preventDefault();
       // Show eraser cursor on touch
       if (tool === 'eraser_pixel' || tool === 'eraser_object') {
         const r = c.getBoundingClientRect();
@@ -515,7 +573,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onTouchMove = (e) => {
-      if (e.touches.length >= 2) { cancelStrokeForScroll(); return; }
+      if (twoFingerScroll.current.active || e.touches.length >= 2) {
+        updateTwoFingerScroll(e);
+        return;
+      }
       // Update eraser cursor position for touch
       if (tool === 'eraser_pixel' || tool === 'eraser_object') {
         const r = c.getBoundingClientRect();
@@ -541,7 +602,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       redraw();
     };
 
-    const onTouchEnd = () => {
+    const onTouchEnd = (e) => {
+      if (twoFingerScroll.current.active) {
+        if (!e.touches || e.touches.length < 2) {
+          endTwoFingerScroll();
+        }
+        return;
+      }
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
         let changed = false;
 
@@ -581,7 +648,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       finishStroke();
     };
 
-    const onTouchCancel = () => { cancelStrokeForScroll(); };
+    const onTouchCancel = () => {
+      endTwoFingerScroll();
+      cancelStrokeForScroll();
+    };
 
     c.addEventListener('mousedown', onMouseDown);
     c.addEventListener('mousemove', onMouseMove);
@@ -604,7 +674,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       current.current = null;
       drawing.current = false;
     };
-  }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd]);
+  }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd, scrollContainerRef]);
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({
@@ -733,7 +803,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           inset: 0,
           width: width + 'px',
           height: height + 'px',
-          touchAction: (mode === 'draw' && !passThrough) ? 'pan-x pan-y' : 'auto',
+          touchAction: (mode === 'draw' && !passThrough) ? 'none' : 'auto',
           pointerEvents: (mode === 'draw' && !passThrough) ? 'auto' : 'none',
           cursor: tool === 'eraser_pixel' || tool === 'eraser_object' ? 'none' : 'crosshair',
           background: 'transparent',
