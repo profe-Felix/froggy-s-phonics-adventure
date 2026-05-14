@@ -176,7 +176,7 @@ export default function PrizeDashboard() {
             <div className="flex flex-col divide-y divide-gray-100">
               {studentsWithPrizes.map(s => {
                 const pts = s.sentences_total_points || 0;
-                const spins = Math.floor(pts / PTS_PER_SPIN);
+                const spins = s.sentence_prize_spins_claimed || 0;
                 const progress = pts % PTS_PER_SPIN;
                 const activePrizes = s.active_prizes || [];
                 const redeemedPrizes = s.redeemed_prizes || [];
@@ -193,7 +193,9 @@ export default function PrizeDashboard() {
                         <span className="font-bold text-gray-800 text-sm">{s.name || `Student ${s.student_number}`}</span>
                         <span className="text-xs text-gray-400">({s.class_name})</span>
                         <span className="text-xs font-black text-rose-600">⭐ {pts} pts</span>
-                        <span className="text-xs text-gray-400">{spins} spin{spins !== 1 ? 's' : ''} used</span>
+                        <span className="text-xs text-gray-400">
+                          {spins} spin{spins !== 1 ? 's' : ''} claimed
+                        </span>
                       </div>
                       {/* Progress bar */}
                       <div className="flex items-center gap-2 mt-1">
