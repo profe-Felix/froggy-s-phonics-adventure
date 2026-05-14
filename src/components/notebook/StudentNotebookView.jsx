@@ -778,6 +778,7 @@ localDirtyRef.current = false;
                 color={color} setColor={setColor}
                 size={size} setSize={setSize}
                 onUndo={handleUndoPage}
+                onRedo={handleRedoPage}
                 onClear={handleClearPage}
                 side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
                 onAddMic={() => setAddingMic(v => !v)}
