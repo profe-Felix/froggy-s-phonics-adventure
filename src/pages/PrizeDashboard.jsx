@@ -180,6 +180,8 @@ export default function PrizeDashboard() {
                 const progress = pts % PTS_PER_SPIN;
                 const activePrizes = s.active_prizes || [];
                 const redeemedPrizes = s.redeemed_prizes || [];
+                const prizeHistory = [...(s.prize_history || [])]
+                  .sort((a, b) => new Date(b.claimed_at || 0) - new Date(a.claimed_at || 0));
 
                 return (
                   <div key={s.id} className="py-3 flex flex-wrap items-center gap-3">
