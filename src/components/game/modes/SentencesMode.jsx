@@ -1249,6 +1249,20 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
 
   const handleCloseWheel = () => {
     setShowWheel(false);
+
+    const earnedSpins = Math.floor(totalPts / PTS_PER_STICKER);
+    const availableSpins = earnedSpins - claimedSpins;
+
+    if (availableSpins > 0) {
+      const nextClaimedSpins = claimedSpins + 1;
+      setClaimedSpins(nextClaimedSpins);
+
+      if (studentData?.id) {
+        const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
+        onStudentPatch?.(patch);
+        base44.entities.Student.update(studentData.id, patch).catch(() => {});
+      }
+    }
   };
 
   if (loading) {
