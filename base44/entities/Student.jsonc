@@ -69,6 +69,14 @@
       "description": "Prize IDs claimed forever (one-time prizes like ring)",
       "default": []
     },
+    "prize_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Every prize wheel result claimed by the student",
+      "default": []
+    },
     "active_prizes": {
       "type": "array",
       "items": {
