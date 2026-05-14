@@ -695,6 +695,7 @@ const onTouchStart = (e) => {
         strokes.current = [];
         history.current = [];
         undoStack.current = [];
+        redoStack.current = [];
         redraw();
         return;
       }
@@ -737,6 +738,7 @@ const onTouchStart = (e) => {
       }
 
       undoStack.current = [];
+      redoStack.current = [];
       current.current = null;
       drawing.current = false;
       redraw();
