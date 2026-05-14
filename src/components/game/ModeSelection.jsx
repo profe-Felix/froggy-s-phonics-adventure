@@ -220,11 +220,13 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
           onClose={() => setEmojiOpen(false)}
         />
       )}
-      {pendingUnlocks > 0 && (
+      {pendingUnlocks > 0 && unlockedPets.length < ALL_PETS.length && (
         <MysteryBoxReveal
           studentData={studentData}
           onUnlock={(petId, setActive) => onPetUnlock(petId, setActive)}
-          onClose={() => {}}
+          onClose={() => {
+            // no-op fallback; this should rarely be needed now
+          }}
         />
       )}
       <div className="max-w-6xl mx-auto">
