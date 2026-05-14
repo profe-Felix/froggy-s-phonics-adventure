@@ -376,6 +376,16 @@ localDirtyRef.current = false;
     canvasRef.current.undo();
     void saveStrokes(page);
   }, [saveStrokes]);
+
+  const handleRedoPage = useCallback(() => {
+    if (!canvasRef.current) return;
+
+    const page = currentPageRef.current;
+    localDirtyRef.current = true;
+
+    canvasRef.current.redo();
+    void saveStrokes(page);
+  }, [saveStrokes]);
   
   const saveVoiceNote = useCallback(async (url) => {
     if (!session) return;
