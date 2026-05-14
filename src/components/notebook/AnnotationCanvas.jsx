@@ -767,7 +767,23 @@ const onTouchStart = (e) => {
     undo: () => {
       if (history.current.length === 0) return;
 
-      history.current.pop();
+      const undone = history.current.pop();
+      redoStack.current.push(cloneStroke(undone));
+
+      rebuildVisibleStrokesFromHistory();
+
+      current.current = null;
+      drawing.current = false;
+      redraw();
+      onStrokeEnd?.();
+    },
+
+    redo: () => {
+      if (redoStack.current.length === 0) return;
+
+      const redone = redoStack.current.pop();
+      history.current.push(cloneStroke(redone));
+
       rebuildVisibleStrokesFromHistory();
 
       current.current = null;
