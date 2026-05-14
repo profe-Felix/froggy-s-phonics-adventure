@@ -74,6 +74,24 @@ export default function PrizeDashboard() {
     qc.invalidateQueries({ queryKey: ['students-prizes'] });
   };
 
+  const giveEveryone80Points = async () => {
+    const ok = window.confirm(
+      'Set ALL currently filtered students to 80 sentence points and 0 claimed spins?'
+    );
+
+    if (!ok) return;
+
+    for (const student of filtered) {
+      await base44.entities.Student.update(student.id, {
+        sentences_total_points: 80,
+        sentence_prize_spins_claimed: 0
+      });
+    }
+
+    qc.invalidateQueries({ queryKey: ['students-prizes'] });
+    alert('Done. Students are now set to 80/100 points.');
+  };
+
   // Students who have pending prizes (won but not yet marked active)
   const studentsWithPrizes = filtered.filter(s =>
     (s.prize_history?.length > 0) ||
@@ -91,7 +109,14 @@ export default function PrizeDashboard() {
           <h1 className="text-2xl font-black text-rose-700 flex-1">🎡 Prize Dashboard</h1>
           <span className="text-xs text-gray-500 font-bold bg-white rounded-full px-3 py-1 border">Every 100 pts = 1 spin</span>
         </div>
-
+        <div className="mb-4">
+          <button
+            onClick={giveEveryone80Points}
+            className="px-4 py-2 rounded-xl bg-orange-500 text-white font-black shadow hover:bg-orange-600 active:scale-95"
+          >
+            🎁 Set filtered students to 80 pts
+          </button>
+        </div>
         {/* Class filter */}
         <div className="flex gap-2 flex-wrap mb-6">
           {classes.map(cls => (
