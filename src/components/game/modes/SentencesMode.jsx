@@ -1049,10 +1049,12 @@ function getSentencePointsForModule(moduleNumber) {
   return 5;
 }
 
-function StickerProgressBar({ sessionPts, totalPts }) {
-  const spins = Math.floor(totalPts / PTS_PER_STICKER);
+function StickerProgressBar({ sessionPts, totalPts, claimedSpins }) {
+  const earnedSpins = Math.floor(totalPts / PTS_PER_STICKER);
+  const availableSpins = Math.max(0, earnedSpins - claimedSpins);
   const progress = totalPts % PTS_PER_STICKER;
   const pct = (progress / PTS_PER_STICKER) * 100;
+
   return (
     <div className="bg-white rounded-2xl border-2 border-rose-200 p-3 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
@@ -1061,12 +1063,20 @@ function StickerProgressBar({ sessionPts, totalPts }) {
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 h-4 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
-          <div className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all duration-700"
-            style={{ width: `${pct}%` }} />
+          <div
+            className="h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
         </div>
-        <span className="text-sm font-black text-rose-700 whitespace-nowrap">{progress}/{PTS_PER_STICKER} 🎡</span>
+        <span className="text-sm font-black text-rose-700 whitespace-nowrap">
+          {progress}/{PTS_PER_STICKER} 🎡
+        </span>
       </div>
-      {spins > 0 && <p className="text-xs text-rose-500 font-bold">{spins} prize spin{spins > 1 ? 's' : ''} earned 🎡</p>}
+      {availableSpins > 0 && (
+        <p className="text-xs text-rose-500 font-bold">
+          {availableSpins} prize spin{availableSpins > 1 ? 's' : ''} available 🎡
+        </p>
+      )}
     </div>
   );
 }
@@ -1260,7 +1270,11 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
         </div>
 
         {/* Sticker progress */}
-        <StickerProgressBar sessionPts={sessionPts} totalPts={totalPts} />
+        <StickerProgressBar
+          sessionPts={sessionPts}
+          totalPts={totalPts}
+          claimedSpins={claimedSpins}
+        />
 
         {/* Module selector */}
         {modules.length > 0 && (
