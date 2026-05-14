@@ -202,6 +202,21 @@ export default function PrizeDashboard() {
                         </div>
                         <span className="text-xs text-gray-400">{progress}/100</span>
                       </div>
+                      {/* Prize history */}
+                      {prizeHistory.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-xs text-gray-500 font-bold">Spun:</span>
+                          {prizeHistory.slice(0, 6).map((entry, idx) => (
+                            <span
+                              key={`${entry.id}-${entry.claimed_at || idx}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-pink-50 border border-pink-200 text-pink-700"
+                              title={entry.claimed_at ? new Date(entry.claimed_at).toLocaleString() : ''}
+                            >
+                              {entry.emoji || '🎁'} {entry.label || entry.id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {/* Active prizes */}
                       {activePrizes.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
