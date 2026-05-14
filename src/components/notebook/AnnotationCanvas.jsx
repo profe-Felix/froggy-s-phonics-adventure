@@ -98,6 +98,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const history = useRef([]);
   // undoStack.current = snapshots for undo
   const undoStack = useRef([]);
+  const redoStack = useRef([]);
   const strokeIdCounter = useRef(1);
   const current = useRef(null);
   const drawing = useRef(false);
@@ -241,6 +242,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       const finished = ensureStrokeId(current.current);
       strokes.current.push(finished);
       history.current.push(cloneStroke(finished));
+      redoStack.current = [];
       limitHistory();
     }
     current.current = null;
@@ -290,6 +292,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         });
 
         history.current.push(eraseEvent);
+        redoStack.current = [];
         limitHistory();
         eraserChanged.current = true;
         redraw();
@@ -430,6 +433,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           delete pixelEvent.resultMap;
 
           history.current.push(cloneStroke(pixelEvent));
+          redoStack.current = [];
           limitHistory();
           current.current = null;
           changed = true;
@@ -470,6 +474,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           delete pixelEvent.resultMap;
 
           history.current.push(cloneStroke(pixelEvent));
+          redoStack.current = [];
           limitHistory();
           current.current = null;
           onStrokeEnd?.();
@@ -626,6 +631,7 @@ const onTouchStart = (e) => {
           delete pixelEvent.resultMap;
 
           history.current.push(cloneStroke(pixelEvent));
+          redoStack.current = [];
           limitHistory();
           current.current = null;
           changed = true;
@@ -749,6 +755,7 @@ const onTouchStart = (e) => {
 
       strokes.current = [];
       history.current.push(clearEvent);
+      redoStack.current = [];
       limitHistory();
       current.current = null;
       drawing.current = false;
