@@ -679,9 +679,9 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
               }
 
               if (studentData?.id) {
-                base44.entities.Student.update(studentData.id, {
-                  sentences_total_points: newTotal
-                }).catch(() => {});
+                const patch = { sentences_total_points: newTotal };
+                onStudentPatch?.(patch);
+                base44.entities.Student.update(studentData.id, patch).catch(() => {});
               }
 
               return newTotal;
@@ -703,9 +703,9 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
     setClaimedSpins(nextClaimedSpins);
 
     if (studentData?.id) {
-      base44.entities.Student.update(studentData.id, {
-        sentence_prize_spins_claimed: nextClaimedSpins
-      }).catch(() => {});
+      const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
+      onStudentPatch?.(patch);
+      base44.entities.Student.update(studentData.id, patch).catch(() => {});
     }
 
     if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
@@ -713,9 +713,9 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
       setRedeemedPrizes(updated);
 
       if (studentData?.id) {
-        base44.entities.Student.update(studentData.id, {
-          redeemed_prizes: updated
-        }).catch(() => {});
+        const patch = { redeemed_prizes: updated };
+        onStudentPatch?.(patch);
+        base44.entities.Student.update(studentData.id, patch).catch(() => {});
       }
     }
   };
