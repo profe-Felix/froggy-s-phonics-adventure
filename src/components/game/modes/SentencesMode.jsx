@@ -1072,7 +1072,7 @@ function StickerProgressBar({ sessionPts, totalPts }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export default function SentencesMode({ studentData, onBack }) {
+export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
   const [selectedModule, setSelectedModule] = useState(1);
   const [sentences, setSentences] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -1199,7 +1199,9 @@ export default function SentencesMode({ studentData, onBack }) {
 
     // Persist points to student record
     if (studentData?.id && ptsToAward > 0) {
-      base44.entities.Student.update(studentData.id, { sentences_total_points: newTotal }).catch(() => {});
+      const patch = { sentences_total_points: newTotal };
+      onStudentPatch?.(patch);
+      base44.entities.Student.update(studentData.id, patch).catch(() => {});
     }
 
     if (currentIdx + 1 < sentences.length) {
@@ -1219,16 +1221,18 @@ export default function SentencesMode({ studentData, onBack }) {
   setClaimedSpins(nextClaimedSpins);
 
   if (studentData?.id) {
-    base44.entities.Student.update(studentData.id, {
-      sentence_prize_spins_claimed: nextClaimedSpins
-    }).catch(() => {});
+    const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
+    onStudentPatch?.(patch);
+    base44.entities.Student.update(studentData.id, patch).catch(() => {});
   }
 
   if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
       const updated = [...redeemedPrizes, prize.id];
       setRedeemedPrizes(updated);
       if (studentData?.id) {
-        base44.entities.Student.update(studentData.id, { redeemed_prizes: updated }).catch(() => {});
+        const patch = { redeemed_prizes: updated };
+        onStudentPatch?.(patch);
+        base44.entities.Student.update(studentData.id, patch).catch(() => {});
       }
     }
   };
