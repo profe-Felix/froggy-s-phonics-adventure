@@ -76,7 +76,10 @@ export default function PrizeDashboard() {
 
   // Students who have pending prizes (won but not yet marked active)
   const studentsWithPrizes = filtered.filter(s =>
-    (s.redeemed_prizes?.length > 0) || (s.active_prizes?.length > 0) || (s.sentences_total_points || 0) > 0
+    (s.prize_history?.length > 0) ||
+    (s.redeemed_prizes?.length > 0) ||
+    (s.active_prizes?.length > 0) ||
+    (s.sentences_total_points || 0) > 0
   ).sort((a, b) => (b.sentences_total_points || 0) - (a.sentences_total_points || 0));
 
   return (
