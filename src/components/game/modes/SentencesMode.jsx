@@ -1225,25 +1225,39 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
   };
 
   const handleClaimPrize = (prize) => {
-  setShowWheel(false);
+    setShowWheel(false);
 
-  const nextClaimedSpins = claimedSpins + 1;
-  setClaimedSpins(nextClaimedSpins);
+    const nextClaimedSpins = claimedSpins + 1;
+    setClaimedSpins(nextClaimedSpins);
 
-  if (studentData?.id) {
-    const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
-    onStudentPatch?.(patch);
-    base44.entities.Student.update(studentData.id, patch).catch(() => {});
-  }
+    const prizeEntry = {
+      id: prize.id,
+      label: prize.label,
+      emoji: prize.emoji,
+      source: 'sentences',
+      claimed_at: new Date().toISOString(),
+    };
 
-  if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
-      const updated = [...redeemedPrizes, prize.id];
-      setRedeemedPrizes(updated);
-      if (studentData?.id) {
-        const patch = { redeemed_prizes: updated };
-        onStudentPatch?.(patch);
-        base44.entities.Student.update(studentData.id, patch).catch(() => {});
-      }
+    const updatedPrizeHistory = [
+      ...(studentData?.prize_history || []),
+      prizeEntry,
+    ];
+
+    let updatedRedeemedPrizes = redeemedPrizes;
+    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
+      updatedRedeemedPrizes = [...redeemedPrizes, prize.id];
+      setRedeemedPrizes(updatedRedeemedPrizes);
+    }
+
+    if (studentData?.id) {
+      const patch = {
+        sentence_prize_spins_claimed: nextClaimedSpins,
+        prize_history: updatedPrizeHistory,
+        redeemed_prizes: updatedRedeemedPrizes,
+      };
+
+      onStudentPatch?.(patch);
+      base44.entities.Student.update(studentData.id, patch).catch(() => {});
     }
   };
 
