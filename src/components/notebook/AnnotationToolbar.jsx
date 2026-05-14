@@ -38,7 +38,7 @@ const TOOLS = [
   // lasso hidden for now
 ];
 
-export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onClear, side, onSwapSide, onAddMic, addingMic }) {
+export default function AnnotationToolbar({ tool, setTool, color, setColor, size, setSize, onUndo, onRedo, onClear, side, onSwapSide, onAddMic, addingMic }) {
   const [showColors, setShowColors] = useState(false);
   const [colorBtnPos, setColorBtnPos] = useState(null);
   const colorBtnRef = useRef(null);
@@ -151,6 +151,8 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
 
       <button onClick={onUndo} title="Undo"
         className="w-8 h-8 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↩</button>
+      <button onClick={onRedo} title="Redo"
+        className="w-8 h-8 rounded-xl hover:bg-indigo-900 text-white text-base flex items-center justify-center">↪</button>
       <button onClick={onClear} title="Clear page"
         className="w-8 h-8 rounded-xl hover:bg-red-900 text-red-400 text-sm flex items-center justify-center font-bold">✕</button>
 
