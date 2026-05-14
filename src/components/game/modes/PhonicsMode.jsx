@@ -565,7 +565,7 @@ function RouletteProgressMini({ totalPts, syllableCorrectCount }) {
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export default function PhonicsMode({ studentData, onBack }) {
+export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
   const [words, setWords] = useState([]);
   const [wordsLoaded, setWordsLoaded] = useState(false);
   const [subMode, setSubMode] = useState('letter'); // 'letter' | 'syllable'
