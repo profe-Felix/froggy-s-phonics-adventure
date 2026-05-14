@@ -245,6 +245,15 @@ export default function LetterGame() {
     setCurrentMode(null);
   };
 
+  const handleStudentPatch = (patch) => {
+    setStudentData(prev => prev ? { ...prev, ...patch } : prev);
+
+    queryClient.setQueryData(['students'], old => {
+      if (!Array.isArray(old)) return old;
+      return old.map(s => s.id === studentData?.id ? { ...s, ...patch } : s);
+    });
+  };
+
   // --- Pet system ---
   // Check for new milestone and grant pending unlock
   const checkPetMilestone = (newStudentData) => {
@@ -360,12 +369,14 @@ export default function LetterGame() {
         <PhonicsMode
           studentData={studentData}
           onBack={handleBackToModes}
+          onStudentPatch={handleStudentPatch}
         />
       )}
       {currentMode === 'sentences' && (
         <SentencesMode
           studentData={studentData}
           onBack={handleBackToModes}
+          onStudentPatch={handleStudentPatch}
         />
       )}
       {currentMode === 'spanish_reading' && (
