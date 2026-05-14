@@ -702,21 +702,34 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
     const nextClaimedSpins = claimedSpins + 1;
     setClaimedSpins(nextClaimedSpins);
 
-    if (studentData?.id) {
-      const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
-      onStudentPatch?.(patch);
-      base44.entities.Student.update(studentData.id, patch).catch(() => {});
+    const prizeEntry = {
+      id: prize.id,
+      label: prize.label,
+      emoji: prize.emoji,
+      source: 'phonics',
+      claimed_at: new Date().toISOString(),
+    };
+
+    const updatedPrizeHistory = [
+      ...(studentData?.prize_history || []),
+      prizeEntry,
+    ];
+
+    let updatedRedeemedPrizes = redeemedPrizes;
+    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
+      updatedRedeemedPrizes = [...redeemedPrizes, prize.id];
+      setRedeemedPrizes(updatedRedeemedPrizes);
     }
 
-    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
-      const updated = [...redeemedPrizes, prize.id];
-      setRedeemedPrizes(updated);
+    if (studentData?.id) {
+      const patch = {
+        sentence_prize_spins_claimed: nextClaimedSpins,
+        prize_history: updatedPrizeHistory,
+        redeemed_prizes: updatedRedeemedPrizes,
+      };
 
-      if (studentData?.id) {
-        const patch = { redeemed_prizes: updated };
-        onStudentPatch?.(patch);
-        base44.entities.Student.update(studentData.id, patch).catch(() => {});
-      }
+      onStudentPatch?.(patch);
+      base44.entities.Student.update(studentData.id, patch).catch(() => {});
     }
   };
 
