@@ -124,9 +124,10 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const limitHistory = () => {
-    if (history.current.length > MAX_UNDO_ACTIONS) {
-      history.current = history.current.slice(history.current.length - MAX_UNDO_ACTIONS);
-    }
+    // IMPORTANT:
+    // Do NOT trim history here.
+    // Undo rebuilds the visible page from history, so trimming history causes
+    // older student work to disappear when Undo is pressed.
   };
 
   const rebuildVisibleStrokesFromHistory = () => {
