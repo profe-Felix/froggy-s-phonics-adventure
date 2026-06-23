@@ -477,14 +477,14 @@ export default function SlideToReadCanvas({ text, itemId, onRecordingComplete, o
   return (
     <div className="flex flex-col h-full" style={{ background: BG_COLOR }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2.5 shrink-0 border-b-2" style={{ background: '#f8f9fa', borderColor: '#007bff' }}>
+      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 border-b-2" style={{ background: '#f8f9fa', borderColor: '#007bff' }}>
         <button onClick={() => {
           if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
           onBack?.();
         }} className="text-blue-600 hover:text-blue-800 font-bold text-sm">← Back</button>
         {itemId && (
           <button onClick={handlePlayAudio}
-            className={`ml-auto w-10 h-10 rounded-full flex items-center justify-center text-xl shadow transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
+            className={`ml-auto w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-xl shadow transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
             title="Escucha la palabra/oración">
             🔊
           </button>
@@ -511,17 +511,17 @@ export default function SlideToReadCanvas({ text, itemId, onRecordingComplete, o
       </div>
 
       {/* Controls */}
-      <div className="shrink-0 px-4 pb-4 pt-2" style={{ background: '#f8f9fa' }}>
+      <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2" style={{ background: '#f8f9fa' }}>
         {recordingState === 'idle' && (
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleStartRecording}
-            className="w-full py-3 rounded-xl font-black text-white text-sm shadow-lg"
+            className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
             style={{ background: '#007bff' }}>
             🔴 Start Recording
           </motion.button>
         )}
         {recordingState === 'recording' && (
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
-            className="w-full py-3 rounded-xl font-black text-white text-sm shadow-lg"
+            className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
             style={{ background: '#dc2626' }}>
             ⏹ Stop & Grade
           </motion.button>

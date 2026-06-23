@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import SlideToReadCanvas from './SlideToReadCanvas';
+import RecordingsProgressBar from './RecordingsProgressBar';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -12,7 +13,10 @@ const SECTIONS = [
   { key: 'Oraciones', label: 'Oraciones', icon: '📝', type: 'sentence' },
 ];
 
-// ── Self-grade screen ────────────────────────────────────────────────────────
+const getItemText = (item) => typeof item === 'string' ? item : item?.text || '';
+const getItemId = (item) => typeof item === 'object' ? item?.id : undefined;
+
+// ── Self-grade screen (responsive) ───────────────────────────────────────────
 function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
   const videoUrl = blob ? URL.createObjectURL(blob) : null;
   const [saving, setSaving] = useState(false);
@@ -28,40 +32,75 @@ function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
   };
 
   return (
-    <div className="flex flex-col items-center gap-5 px-4 py-6 w-full max-w-md mx-auto">
-      <p className="text-white font-black text-lg text-center">🎧 Escucha tu lectura</p>
+    <div className="flex flex-col items-center gap-4 sm:gap-5 px-3 sm:px-4 py-4 sm:py-6 w-full max-w-md mx-auto">
+      <p className="text-white font-black text-base sm:text-lg text-center">🎧 Escucha tu lectura</p>
 
       {videoUrl && (
-        <video src={videoUrl} controls className="w-full rounded-2xl shadow-2xl" style={{ maxHeight: 300 }} />
+        <video src={videoUrl} controls className="w-full rounded-xl sm:rounded-2xl shadow-2xl" style={{ maxHeight: 220 }} />
       )}
 
-      <div className="w-full rounded-2xl p-4 text-center" style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
+      <div className="w-full rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center" style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
         <p className="text-white/60 text-xs font-bold mb-1">Leíste:</p>
-        <p className="text-white font-black text-lg">{itemText}</p>
+        <p className="text-white font-black text-sm sm:text-lg">{itemText}</p>
       </div>
 
       {!saving ? (
-        <div className="flex gap-3 w-full">
+        <div className="flex gap-2 sm:gap-3 w-full">
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleGrade('correct')}
-            className="flex-1 py-5 rounded-2xl font-black text-white text-lg shadow-lg flex flex-col items-center gap-1"
+            className="flex-1 py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black text-white text-sm sm:text-lg shadow-lg flex flex-col items-center gap-0.5 sm:gap-1"
             style={{ background: '#16a34a' }}>
-            <span className="text-3xl">👍</span>
-            <span>¡Lo leí bien!</span>
+            <span className="text-2xl sm:text-3xl">👍</span>
+            <span className="text-xs sm:text-base">¡Lo leí bien!</span>
           </motion.button>
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleGrade('incorrect')}
-            className="flex-1 py-5 rounded-2xl font-black text-white text-lg shadow-lg flex flex-col items-center gap-1"
+            className="flex-1 py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black text-white text-sm sm:text-lg shadow-lg flex flex-col items-center gap-0.5 sm:gap-1"
             style={{ background: '#dc2626' }}>
-            <span className="text-3xl">👎</span>
-            <span>Necesito practicar</span>
+            <span className="text-2xl sm:text-3xl">👎</span>
+            <span className="text-xs sm:text-base">Necesito practicar</span>
           </motion.button>
         </div>
       ) : (
         <div className="text-indigo-300 font-bold text-sm animate-pulse">Saving…</div>
       )}
 
-      <button onClick={onBack} className="text-indigo-400 hover:text-white font-bold text-sm">
-        ← Back to Lists
+      <button onClick={onBack} className="text-indigo-400 hover:text-white font-bold text-xs sm:text-sm">
+        ← Back to List
       </button>
+    </div>
+  );
+}
+
+// ── Item list view ───────────────────────────────────────────────────────────
+function ItemListView({ items, completedTexts, onItemClick }) {
+  const firstUncompleted = items.findIndex(it => !completedTexts.has(getItemText(it)));
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-col gap-1.5 px-2 sm:px-4 py-3 max-w-2xl mx-auto w-full">
+        {items.map((item, idx) => {
+          const text = getItemText(item);
+          const isDone = completedTexts.has(text);
+          const isNext = idx === firstUncompleted;
+          return (
+            <motion.button key={idx} whileTap={{ scale: 0.98 }} onClick={() => onItemClick(idx)}
+              className={`w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl font-bold text-left flex items-center gap-3 transition-all ${
+                isDone ? 'bg-emerald-900/30 text-white/50' :
+                isNext ? 'bg-indigo-600 text-white shadow-lg' :
+                'bg-gray-800/60 text-white/80 hover:bg-gray-700/60'
+              }`}>
+              <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                isDone ? 'bg-emerald-500 text-white' :
+                isNext ? 'bg-white text-indigo-600' :
+                'bg-gray-700 text-gray-400'
+              }`}>
+                {isDone ? '✓' : idx + 1}
+              </span>
+              <span className="flex-1 truncate text-sm sm:text-base">{text}</span>
+              {isNext && <span className="text-[10px] sm:text-xs uppercase font-black opacity-80 shrink-0">▶ Next</span>}
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -73,9 +112,11 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const [selectedModule, setSelectedModule] = useState(null);
   const [items, setItems] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'reading'
   const [phase, setPhase] = useState('reading'); // 'reading' | 'selfgrade'
   const [recordingBlob, setRecordingBlob] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [completedTexts, setCompletedTexts] = useState(new Set());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Load lists from Supabase
   useEffect(() => {
@@ -94,20 +135,38 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const sectionConfig = SECTIONS.find(s => s.key === selectedSection);
   const itemType = sectionConfig?.type || 'word';
 
-  // Load items when section + module selected
+  // Fetch today's completed items for this student
+  const fetchCompleted = async () => {
+    if (!studentNumber || !className) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const sessions = await base44.entities.SpanishReadingSession.filter({
+        student_number: studentNumber,
+        class_name: className,
+        attempt_date: today,
+      });
+      setCompletedTexts(new Set(sessions.map(s => s.item_text)));
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (selectedSection) fetchCompleted();
+  }, [refreshKey, selectedSection]);
+
   const loadModule = (sectionKey, moduleNum) => {
     const section = listsData?.[sectionKey] || {};
     const moduleData = section[`M${moduleNum}`]?.new || [];
     const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
     setItems(shuffled);
     setCurrentIdx(0);
+    setViewMode('list');
     setPhase('reading');
     setRecordingBlob(null);
+    fetchCompleted();
   };
 
   const handleSectionSelect = (sectionKey) => {
     setSelectedSection(sectionKey);
-    // Auto-select first available module
     const section = listsData?.[sectionKey] || {};
     const moduleNums = Object.keys(section)
       .map(k => parseInt(k.replace(/\D/g, '')))
@@ -124,17 +183,22 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     loadModule(selectedSection, moduleNum);
   };
 
+  const handleItemClick = (idx) => {
+    setCurrentIdx(idx);
+    setPhase('reading');
+    setViewMode('reading');
+    setRecordingBlob(null);
+  };
+
   const handleRecordingComplete = (blob) => {
     setRecordingBlob(blob);
     setPhase('selfgrade');
   };
 
   const handleSelfGrade = async (grade) => {
-    setSaving(true);
     const currentItem = items[currentIdx];
-    const itemText = typeof currentItem === 'string' ? currentItem : currentItem?.text || '';
+    const itemText = getItemText(currentItem);
 
-    // Upload recording
     let recordingUrl = null;
     if (recordingBlob) {
       const ext = recordingBlob.type?.includes('mp4') ? 'mp4' : 'webm';
@@ -142,9 +206,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       try {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
         recordingUrl = file_url;
-      } catch {
-        // Upload failed — save session without recording
-      }
+      } catch {}
     }
 
     const today = new Date().toISOString().slice(0, 10);
@@ -162,24 +224,14 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       attempt_date: today,
     });
 
-    setSaving(false);
-
-    // Move to next item or back to lists
-    if (currentIdx + 1 < items.length) {
-      setCurrentIdx(i => i + 1);
-      setPhase('reading');
-      setRecordingBlob(null);
-    } else {
-      // List complete — go back to section selection
-      setSelectedSection(null);
-      setSelectedModule(null);
-      setItems([]);
-      setPhase('reading');
-      setRecordingBlob(null);
-    }
+    setCompletedTexts(prev => new Set(prev).add(itemText));
+    setRefreshKey(k => k + 1);
+    setViewMode('list');
+    setPhase('reading');
+    setRecordingBlob(null);
   };
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading ──
   if (!listsData) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
@@ -188,30 +240,33 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     );
   }
 
-  // ── Section selector ───────────────────────────────────────────────────────
+  // ── Section selector (responsive) ──
   if (!selectedSection) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
-        <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-          <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
-          <span className="text-white font-black text-sm flex-1 text-center">📖 Spanish Reading</span>
+        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
+          <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">← Back</button>
+          <span className="text-white font-black text-sm sm:text-base flex-1 text-center">📖 Spanish Reading</span>
+          <div className="w-24 sm:w-32 shrink-0">
+            <RecordingsProgressBar studentNumber={studentNumber} className={className} refreshKey={refreshKey} />
+          </div>
         </div>
-        <div className="flex flex-col items-center gap-4 px-4 py-6 w-full max-w-sm mx-auto">
-          <p className="text-white font-black text-lg">Choose a List</p>
-          <div className="w-full flex flex-col gap-2">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 px-3 sm:px-4 py-4 sm:py-6 w-full max-w-md mx-auto">
+          <p className="text-white font-black text-base sm:text-lg">Choose a List</p>
+          <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             {SECTIONS.map(sec => {
               const section = listsData[sec.key] || {};
               const moduleCount = Object.keys(section).filter(k => k.startsWith('M')).length;
               return (
                 <motion.button key={sec.key} whileTap={{ scale: 0.97 }} onClick={() => handleSectionSelect(sec.key)}
-                  className="w-full py-4 rounded-2xl font-bold text-left px-5 flex items-center justify-between"
+                  className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-left px-3 sm:px-5 flex items-center justify-between"
                   style={{ background: '#1a1a2e', border: '2px solid #4338ca', opacity: moduleCount === 0 ? 0.4 : 1 }}
                   disabled={moduleCount === 0}>
                   <span className="text-white flex items-center gap-2">
-                    <span className="text-2xl">{sec.icon}</span>
-                    {sec.label}
+                    <span className="text-xl sm:text-2xl">{sec.icon}</span>
+                    <span className="text-sm sm:text-base">{sec.label}</span>
                   </span>
-                  <span className="text-indigo-400 text-xs uppercase">{moduleCount} modules</span>
+                  <span className="text-indigo-400 text-[10px] sm:text-xs uppercase shrink-0 ml-2">{moduleCount} mod</span>
                 </motion.button>
               );
             })}
@@ -221,76 +276,85 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     );
   }
 
-  // ── Module selector ────────────────────────────────────────────────────────
+  // ── Module + list/reading view ──
   const section = listsData[selectedSection] || {};
   const moduleNums = Object.keys(section)
     .map(k => parseInt(k.replace(/\D/g, '')))
     .filter(n => !isNaN(n) && n > 0)
     .sort((a, b) => a - b);
 
-  // ── Reading / self-grade phase ─────────────────────────────────────────────
   const currentItem = items[currentIdx];
-  const itemText = typeof currentItem === 'string' ? currentItem : currentItem?.text || '';
+  const itemText = getItemText(currentItem);
 
-  if (currentItem) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '1px solid #4338ca' }}>
-          <button onClick={() => { setSelectedSection(null); setSelectedModule(null); }}
-            className="text-indigo-300 hover:text-white font-bold text-sm">← Lists</button>
-          <span className="text-white font-black text-sm flex-1 text-center">
-            {sectionConfig?.icon} {selectedSection} · M{selectedModule}
-          </span>
-          <span className="text-indigo-400 text-xs font-bold">{currentIdx + 1}/{items.length}</span>
-        </div>
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '1px solid #4338ca' }}>
+        <button onClick={() => { setSelectedSection(null); setSelectedModule(null); setViewMode('list'); }}
+          className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">← Lists</button>
+        <span className="text-white font-black text-xs sm:text-sm flex-1 text-center truncate min-w-0 px-1">
+          {sectionConfig?.icon} {selectedSection} · M{selectedModule}
+        </span>
+        {viewMode === 'reading' ? (
+          <button onClick={() => setViewMode('list')}
+            className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">📋 List</button>
+        ) : (
+          <div className="w-20 sm:w-32 shrink-0">
+            <RecordingsProgressBar studentNumber={studentNumber} className={className} refreshKey={refreshKey} />
+          </div>
+        )}
+      </div>
 
-        {/* Module pills */}
-        <div className="flex gap-1.5 px-4 py-2 overflow-x-auto shrink-0" style={{ background: '#1a1a2e' }}>
-          {moduleNums.map(m => (
-            <button key={m} onClick={() => handleModuleSelect(m)}
-              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                selectedModule === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-indigo-300 hover:bg-gray-700'
-              }`}>
-              M{m}
-            </button>
-          ))}
-        </div>
+      {/* Module pills */}
+      <div className="flex gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 overflow-x-auto shrink-0" style={{ background: '#1a1a2e' }}>
+        {moduleNums.map(m => (
+          <button key={m} onClick={() => handleModuleSelect(m)}
+            className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all ${
+              selectedModule === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-indigo-300 hover:bg-gray-700'
+            }`}>
+            M{m}
+          </button>
+        ))}
+      </div>
 
-        {/* Main content area */}
+      {/* Content */}
+      {viewMode === 'list' ? (
+        <ItemListView
+          items={items}
+          completedTexts={completedTexts}
+          onItemClick={handleItemClick}
+        />
+      ) : currentItem ? (
         <div className="flex-1 overflow-hidden flex flex-col">
           {phase === 'reading' && (
             <SlideToReadCanvas
               key={`${selectedSection}-${selectedModule}-${currentIdx}`}
               text={itemText}
-              itemId={typeof currentItem === 'object' ? currentItem?.id : undefined}
+              itemId={getItemId(currentItem)}
               onRecordingComplete={handleRecordingComplete}
-              onBack={() => { setSelectedSection(null); setSelectedModule(null); }}
+              onBack={() => setViewMode('list')}
             />
           )}
           {phase === 'selfgrade' && (
-            <div className="flex-1 overflow-y-auto" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
+            <div className="flex-1 overflow-y-auto">
               <SelfGradeScreen
                 blob={recordingBlob}
                 itemText={itemText}
                 onGrade={handleSelfGrade}
-                onBack={() => { setSelectedSection(null); setSelectedModule(null); }}
+                onBack={() => setViewMode('list')}
               />
             </div>
           )}
         </div>
-      </div>
-    );
-  }
-
-  // No items fallback
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
-      <p className="text-indigo-400">No items in this module.</p>
-      <button onClick={() => { setSelectedSection(null); setSelectedModule(null); }}
-        className="px-4 py-2 rounded-xl font-bold text-white" style={{ background: '#4338ca' }}>
-        ← Back to Lists
-      </button>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="text-indigo-400">No items in this module.</p>
+          <button onClick={() => { setSelectedSection(null); setSelectedModule(null); }}
+            className="px-4 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#4338ca' }}>
+            ← Back to Lists
+          </button>
+        </div>
+      )}
     </div>
   );
 }

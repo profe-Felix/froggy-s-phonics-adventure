@@ -32,7 +32,7 @@ function SessionCard({ session, onGrade, onDelete }) {
   else if (studentGrade === 'correct') borderColor = '#ca8a04'; // pending review but student said correct
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-4 flex flex-col gap-3"
+    <div className="bg-white rounded-xl sm:rounded-2xl shadow-md p-3 sm:p-4 flex flex-col gap-3"
       style={{ borderLeft: `4px solid ${borderColor}` }}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
@@ -150,14 +150,14 @@ export default function SpanishReadingDashboard() {
 
   if (!selectedClass) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-600 to-purple-700 flex flex-col items-center justify-center gap-6 p-6">
-        <div className="text-5xl">📖</div>
-        <h1 className="text-3xl font-bold text-white">Spanish Reading</h1>
-        <p className="text-white/70">Teacher Dashboard — Select a class</p>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-600 to-purple-700 flex flex-col items-center justify-center gap-4 sm:gap-6 p-4 sm:p-6">
+        <div className="text-4xl sm:text-5xl">📖</div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white">Spanish Reading</h1>
+        <p className="text-white/70 text-sm sm:text-base">Teacher Dashboard — Select a class</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-md sm:max-w-2xl">
           {CLASSES.map(cls => (
             <button key={cls} onClick={() => setSelectedClass(cls)}
-              className="bg-white text-indigo-700 font-bold text-xl py-5 rounded-2xl hover:bg-indigo-50 shadow-lg">
+              className="bg-white text-indigo-700 font-bold text-base sm:text-xl py-4 sm:py-5 rounded-2xl hover:bg-indigo-50 shadow-lg truncate">
               {cls}
             </button>
           ))}
@@ -169,9 +169,9 @@ export default function SpanishReadingDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-indigo-600 text-white px-4 py-3 flex items-center gap-3">
-        <button onClick={() => setSelectedClass(null)} className="text-white/80 hover:text-white font-bold text-sm">← Classes</button>
-        <h1 className="font-black text-lg flex-1">📖 Spanish Reading — {selectedClass}</h1>
+      <div className="bg-indigo-600 text-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3">
+        <button onClick={() => setSelectedClass(null)} className="text-white/80 hover:text-white font-bold text-xs sm:text-sm shrink-0">← Classes</button>
+        <h1 className="font-black text-sm sm:text-lg flex-1 truncate min-w-0">📖 Spanish Reading — {selectedClass}</h1>
         {pendingCount > 0 && (
           <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-1 rounded-full">{pendingCount} to review</span>
         )}
@@ -179,7 +179,7 @@ export default function SpanishReadingDashboard() {
 
       {/* Points leaderboard */}
       {Object.keys(studentPoints).length > 0 && (
-        <div className="px-4 py-3 bg-white border-b">
+        <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b">
           <p className="text-xs font-black text-gray-500 uppercase mb-2">⭐ Points Leaderboard</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(studentPoints)
@@ -194,16 +194,16 @@ export default function SpanishReadingDashboard() {
       )}
 
       {/* Filters */}
-      <div className="px-4 py-3 bg-white border-b flex flex-wrap gap-2 items-center">
+      <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b flex flex-wrap gap-2 items-center">
         <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none">
+          className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none">
           <option value="all">All</option>
           <option value="pending">Needs Review</option>
           <option value="reviewed">Reviewed</option>
         </select>
         {uniqueLists.length > 1 && (
           <select value={filterList} onChange={e => setFilterList(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none">
+            className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none max-w-[140px] truncate">
             <option value="all">All Lists</option>
             {uniqueLists.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
@@ -212,7 +212,7 @@ export default function SpanishReadingDashboard() {
       </div>
 
       {/* Sessions grid */}
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {isLoading ? (
           <div className="col-span-full text-center text-gray-400 py-12">Loading…</div>
         ) : filtered.length === 0 ? (
