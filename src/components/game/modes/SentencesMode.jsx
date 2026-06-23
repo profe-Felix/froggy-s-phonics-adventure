@@ -203,20 +203,28 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     return { x: ((src.clientX - rect.left) / rect.width) * c.width, y: ((src.clientY - rect.top) / rect.height) * c.height, t: Date.now() };
   };
 
+  const getDpr = () => {
+    const c = canvasRef.current;
+    if (!c || !c.width) return window.devicePixelRatio || 1;
+    const rect = c.getBoundingClientRect();
+    return rect.width > 0 ? c.width / rect.width : (window.devicePixelRatio || 1);
+  };
+
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const dpr = getDpr();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     allStrokes.current.forEach(stroke => {
       if (stroke.points.length < 2) return;
       ctx.save();
       if (stroke.eraser === 'pixel') {
         ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = 36;
+        ctx.lineWidth = 36 * dpr;
       } else {
         ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 4 * dpr;
         ctx.strokeStyle = '#1e40af';
       }
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -230,7 +238,8 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   }, []);
 
   const objectErase = useCallback((pos) => {
-    const threshold = 30;
+    const dpr = getDpr();
+    const threshold = 30 * dpr;
     allStrokes.current = allStrokes.current.filter(stroke => {
       if (stroke.eraser) return true;
       return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
@@ -258,14 +267,15 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     if (tool === 'object-eraser') { objectErase(pos); lastPos.current = pos; return; }
     const ctx = canvasRef.current.getContext('2d');
     const prev = lastPos.current;
+    const dpr = getDpr();
     if (tool === 'pixel-eraser') {
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = 36; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.lineWidth = 36 * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pos.x, pos.y);
       ctx.stroke(); ctx.restore();
     } else {
-      ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+      ctx.lineWidth = 4 * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
       ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
       ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
     }
@@ -312,27 +322,43 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     }).catch(() => {});
   };
 
-  const displayH = 220;
+  const displayH = 200;
   const cursorStyle = tool === 'object-eraser' ? 'pointer' : tool === 'pixel-eraser' ? 'cell' : 'crosshair';
 
+  // Sync canvas internal resolution to display size × DPR for crisp strokes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const sync = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      redraw();
+    };
+    sync();
+    const obs = new ResizeObserver(sync);
+    obs.observe(canvas);
+    return () => obs.disconnect();
+  }, [redraw]);
+
   return (
-    <div className="flex flex-col gap-3 w-full">
-      {/* Speaker-only prompt */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col items-center gap-1 flex-1">
-          <button onClick={handlePlay}
-            className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-xl transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}>
-            🔊
-          </button>
-          <p className="text-sm text-rose-500 font-bold">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
-          <button onClick={handleUnclearAudio}
-            className="text-xs bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-3 py-1 font-bold hover:bg-yellow-200">
-            😕 No entiendo
-          </button>
-        </div>
+    <div className="flex flex-col gap-2 w-full">
+      {/* Speaker + keyboard toggle — compact single row */}
+      <div className="flex items-center gap-2">
+        <button onClick={handlePlay}
+          className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center text-xl shadow-md transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}>
+          🔊
+        </button>
+        <p className="text-xs text-rose-500 font-bold flex-1">{playing ? 'Escuchando…' : 'Toca para escuchar'}</p>
+        <button onClick={handleUnclearAudio}
+          className="text-[10px] bg-yellow-100 text-yellow-700 border border-yellow-300 rounded-full px-2 py-1 font-bold hover:bg-yellow-200 whitespace-nowrap">
+          😕 No entiendo
+        </button>
         <button
           onClick={() => { setKeyboardMode(k => !k); setTypedSentence(''); typingStartRef.current = null; keystrokeLog.current = []; }}
-          className={`self-start px-3 py-1.5 rounded-xl text-sm font-bold border transition-all ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+          className={`px-2.5 py-1.5 rounded-lg text-sm font-bold border transition-all shrink-0 ${keyboardMode ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}`}
           title="Toggle keyboard input">
           ⌨️
         </button>
@@ -366,8 +392,8 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
         </div>
       ) : (
         <>
-          <p className="text-base font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
-          <div className="relative rounded-2xl border-4 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
+          <p className="text-sm font-black text-indigo-700 text-center">✏️ Escribe la oración primero</p>
+          <div className="relative rounded-xl border-2 border-indigo-300 overflow-hidden w-full" style={{ height: displayH, background: '#f0f7ff' }}>
             <svg className="absolute inset-0 pointer-events-none w-full h-full" preserveAspectRatio="none" viewBox={`0 0 100 ${displayH}`}>
               {[0,1,2].map(row => {
                 const rowH = displayH / 3;
@@ -381,20 +407,20 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
                 );
               })}
             </svg>
-            <canvas ref={canvasRef} width={1400} height={420}
+            <canvas ref={canvasRef}
               className="absolute inset-0 touch-none w-full h-full"
               style={{ background: 'transparent', cursor: cursorStyle }}
               onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
               onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp} />
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={() => setTool('pen')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='pen'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>✏️ Pencil</button>
-            <button onClick={() => setTool('pixel-eraser')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='pixel-eraser'?'bg-orange-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🩹 Pixel</button>
-            <button onClick={() => setTool('object-eraser')} className={`px-3 py-2 rounded-xl font-bold text-sm transition-all ${tool==='object-eraser'?'bg-red-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🧹 Object</button>
-            <button onClick={undo} disabled={allStrokes.current.length === 0} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm disabled:opacity-40">↩ Undo</button>
-            <button onClick={clear} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">🗑 Borrar</button>
+          <div className="flex gap-1.5 items-center">
+            <button onClick={() => setTool('pen')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='pen'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>✏️</button>
+            <button onClick={() => setTool('pixel-eraser')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='pixel-eraser'?'bg-orange-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🩹</button>
+            <button onClick={() => setTool('object-eraser')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='object-eraser'?'bg-red-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🧹</button>
+            <button onClick={undo} disabled={allStrokes.current.length === 0} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs disabled:opacity-40">↩</button>
+            <button onClick={clear} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs">🗑</button>
             <button onClick={() => onDone(allStrokes.current.filter(s => !s.eraser).map(s => s.points))} disabled={!hasDrawn}
-              className="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-sm">
+              className="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-xs">
               Listo → Construir
             </button>
           </div>
