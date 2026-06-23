@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { parseText } from './phonetics';
 
-// ── Colors (white bg, black text — matching old version) ─────────────────────
+// ── Colors (white bg, black text) ─────────────────────────────────────────────
 const BG_COLOR = '#ffffff';
 const TEXT_REVEALED = '#000000';
 const TEXT_UNREVEALED = '#d3d3d3';
@@ -56,6 +56,8 @@ function wrapLines(ctx, units, maxWidth, fontSize) {
 }
 
 // ── Layout ───────────────────────────────────────────────────────────────────
+// Each line reserves space below it for the pill + slider cluster so the
+// interactive elements sit directly under the active line without overlap.
 function calculateLayout(ctx, units, canvasW, canvasH) {
   const padding = Math.max(16, canvasW * 0.06);
   const contentW = canvasW - padding * 2;
@@ -63,18 +65,17 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
   const pillH = Math.max(6, canvasH * 0.014);
   const sliderH = Math.max(4, canvasH * 0.008);
   const thumbR = Math.max(12, canvasH * 0.022);
-  const bottomGap = Math.max(16, canvasH * 0.03);
-  const bottomReserve = pillH + sliderH + thumbR * 2 + bottomGap * 2;
-  const textAreaH = canvasH - bottomReserve - padding;
+  // vertical space reserved under each line for the slider cluster
+  const clusterSpace = pillH + sliderH + thumbR * 2 + Math.max(6, canvasH * 0.01);
 
   let fontSize = 16, lines = null, lineHeight = 22;
-  const maxFs = Math.min(48, textAreaH * 0.25, contentW * 0.09);
+  const maxFs = Math.min(48, canvasH * 0.22, contentW * 0.09);
   for (let fs = maxFs; fs >= 14; fs -= 1) {
     const wrapped = wrapLines(ctx, units, contentW, fs);
-    const lh = fs * 1.35;
-    if (wrapped.length * lh <= textAreaH) { fontSize = fs; lines = wrapped; lineHeight = lh; break; }
+    const lh = fs * 1.35 + clusterSpace;
+    if (wrapped.length * lh <= canvasH - padding * 2) { fontSize = fs; lines = wrapped; lineHeight = lh; break; }
   }
-  if (!lines) { lines = wrapLines(ctx, units, contentW, 14); lineHeight = 14 * 1.35; fontSize = 14; }
+  if (!lines) { lines = wrapLines(ctx, units, contentW, 14); lineHeight = 14 * 1.35 + clusterSpace; fontSize = 14; }
 
   ctx.font = `bold ${fontSize}px Lexend, sans-serif`;
 
@@ -94,25 +95,24 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
     return { units: line, tokenPositions, tokenCount: tokIdx, width: lineWidth, startX };
   });
 
+  // Vertically center the whole text block
+  const blockH = lineData.length * lineHeight;
+  const textStartY = Math.max(padding + fontSize, (canvasH - blockH) / 2 + fontSize);
+
   const totalTokens = lineData.reduce((s, l) => s + l.tokenCount, 0);
-  const textStartY = padding + fontSize;
-  const sliderAreaBottom = canvasH - padding;
-  const sliderY = sliderAreaBottom - sliderH / 2 - thumbR;
-  const pillY = sliderY - pillH - fontSize * 0.15;
 
   return {
     fontSize, lineHeight, padding, contentW,
     lines: lineData, totalTokens, textStartY,
-    pillY, pillH, sliderY, sliderH, thumbR, canvasW, canvasH,
+    pillH, sliderH, thumbR, clusterSpace, canvasW, canvasH,
   };
 }
 
-// ── Pill layout for active line (exact text coordinates — no gap offset) ──────
+// ── Pill layout for active line (exact text coordinates) ──────────────────────
 function getPillLayout(layout, activeLineIdx) {
   const line = layout.lines[activeLineIdx];
   if (!line || line.tokenPositions.length === 0) return null;
 
-  // Pills use EXACT text token positions — slider coordinates = text coordinates
   const positions = line.tokenPositions.map(tp => ({
     x: tp.x,
     width: tp.width,
@@ -127,6 +127,16 @@ function getPillLayout(layout, activeLineIdx) {
   return { positions, startX, endX, totalW: endX - startX };
 }
 
+// Position pills + slider directly under the active text line
+function getClusterY(layout, activeLineIdx) {
+  const lineTopY = layout.textStartY - layout.fontSize + activeLineIdx * layout.lineHeight;
+  const textBottomY = lineTopY + layout.fontSize;
+  const gap = Math.max(4, layout.fontSize * 0.2);
+  const pillY = textBottomY + gap;
+  const sliderY = pillY + layout.pillH + gap;
+  return { pillY, sliderY, textBottomY };
+}
+
 // ── Render ───────────────────────────────────────────────────────────────────
 function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH) {
   ctx.fillStyle = BG_COLOR;
@@ -135,7 +145,7 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
 
   const { fontSize, lineHeight, lines, textStartY, padding } = layout;
 
-  // Determine revealed count: token is revealed when thumb enters its LEFT edge
+  // Determine revealed count: token is revealed when thumb reaches its LEFT edge
   const pillLayout = getPillLayout(layout, activeLine);
   let revealedCount = 0;
   if (isRecording && pillLayout && thumbX !== null) {
@@ -180,13 +190,13 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     return;
   }
 
-  // ── Pills + Slider (active line only) ──
+  // ── Pills + Slider (directly under active line) ──
   if (!pillLayout) return;
-  const { pillY, pillH, sliderY, sliderH, thumbR } = layout;
+  const { pillY, pillH, sliderY, sliderH, thumbR } = { ...layout, ...getClusterY(layout, activeLine) };
   const { startX, endX, totalW, positions } = pillLayout;
   const currentThumbX = thumbX !== null ? thumbX : startX;
 
-  // Pills — small visual inset for separation, but coordinates match text exactly
+  // Pills
   const inset = Math.min(1.5, pillH * 0.15);
   for (const pos of positions) {
     const isRevealed = pos.tokenIdx < revealedCount;
@@ -247,6 +257,7 @@ async function startCanvasRecording(canvas) {
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
   return new Promise(resolve => {
     recorder.onstart = () => resolve({ recorder, chunks, audioStream, canvasStream });
+    recorder.onerror = () => resolve(null);
     recorder.start();
   });
 }
@@ -268,7 +279,7 @@ function stopCanvasRecording(rec) {
 export default function SlideToReadCanvas({ text, onRecordingComplete, onBack }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
-  const [recordingState, setRecordingState] = useState('idle'); // 'idle' | 'recording' | 'stopping'
+  const [recordingState, setRecordingState] = useState('idle');
   const [activeLine, setActiveLine] = useState(0);
   const [thumbX, setThumbX] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -280,7 +291,6 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
   const activeLineRef = useRef(0);
   const thumbXRef = useRef(null);
   const recordingStateRef = useRef('idle');
-  // After a line transition: 1 = waiting for finger left, -1 = waiting for finger right
   const advanceDirRef = useRef(0);
 
   const units = useMemo(() => parseText(text), [text]);
@@ -334,19 +344,24 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
     if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
   }, []);
 
-  // ── Start recording ──
+  // ── Start recording (interaction reveals regardless of media success) ──
   const handleStartRecording = async () => {
+    // Enter interactive mode immediately so slider/pills show
+    setRecordingState('recording');
+    recordingStateRef.current = 'recording';
+    const layout = layoutRef.current;
+    if (layout) {
+      const pillLayout = getPillLayout(layout, 0);
+      setThumbX(pillLayout ? pillLayout.startX : 0);
+      thumbXRef.current = pillLayout ? pillLayout.startX : 0;
+    }
+    // Best-effort media capture — if it fails, interaction still works
     try {
       recordingRef.current = await startCanvasRecording(canvasRef.current);
-      setRecordingState('recording');
-      recordingStateRef.current = 'recording';
-      const layout = layoutRef.current;
-      if (layout) {
-        const pillLayout = getPillLayout(layout, 0);
-        setThumbX(pillLayout ? pillLayout.startX : 0);
-        thumbXRef.current = pillLayout ? pillLayout.startX : 0;
-      }
-    } catch (err) { console.warn('Recording failed:', err); }
+    } catch (err) {
+      console.warn('Media recording unavailable, continuing without it:', err);
+      recordingRef.current = null;
+    }
   };
 
   // ── Stop recording ──
@@ -369,7 +384,6 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
     const x = clientX - rect.left;
     const { startX, endX, totalW } = pillLayout;
 
-    // After forward line advance: thumb reset to start, wait for finger to reach left half
     if (advanceDirRef.current === 1) {
       if (x < startX + totalW * 0.5) {
         advanceDirRef.current = 0;
@@ -377,7 +391,6 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
       }
       return;
     }
-    // After backward line advance: thumb reset to end, wait for finger to reach right half
     if (advanceDirRef.current === -1) {
       if (x > startX + totalW * 0.5) {
         advanceDirRef.current = 0;
@@ -388,7 +401,6 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
 
     const newThumbX = Math.max(startX, Math.min(endX, x));
 
-    // Forward line advance
     if (newThumbX >= endX - 1 && activeLineRef.current < layout.lines.length - 1) {
       const nextLine = activeLineRef.current + 1;
       const nextPillLayout = getPillLayout(layout, nextLine);
@@ -400,7 +412,6 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
       return;
     }
 
-    // Backward line advance
     if (newThumbX <= startX + 1 && activeLineRef.current > 0) {
       const prevLine = activeLineRef.current - 1;
       const prevPillLayout = getPillLayout(layout, prevLine);
