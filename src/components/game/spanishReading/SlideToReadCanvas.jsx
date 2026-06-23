@@ -10,6 +10,20 @@ const PILL_COLORS = { green: '#008000', red: '#ff0000', grey: '#999999' };
 const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
 const THUMB_COLOR = '#007bff';
+const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+
+function playAudioById(id) {
+  if (!id) return;
+  const candidates = [`${SUPABASE_AUDIO_BASE}/${id}.mp3`, `${SUPABASE_AUDIO_BASE}/${id}.wav`];
+  let i = 0;
+  const tryNext = () => {
+    if (i >= candidates.length) return;
+    const a = new Audio(candidates[i++]);
+    a.onerror = tryNext;
+    a.play().catch(() => {});
+  };
+  tryNext();
+}
 
 function roundRect(ctx, x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -276,13 +290,14 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, onRecordingComplete, onBack }) {
+export default function SlideToReadCanvas({ text, itemId, onRecordingComplete, onBack }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
   const [activeLine, setActiveLine] = useState(0);
   const [thumbX, setThumbX] = useState(null);
   const [dragging, setDragging] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);
@@ -343,6 +358,12 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
   useEffect(() => () => {
     if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
   }, []);
+
+  const handlePlayAudio = () => {
+    setPlaying(true);
+    playAudioById(itemId);
+    setTimeout(() => setPlaying(false), 2000);
+  };
 
   // ── Start recording (interaction reveals regardless of media success) ──
   const handleStartRecording = async () => {
@@ -455,8 +476,15 @@ export default function SlideToReadCanvas({ text, onRecordingComplete, onBack })
           if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
           onBack?.();
         }} className="text-blue-600 hover:text-blue-800 font-bold text-sm">← Back</button>
+        {itemId && (
+          <button onClick={handlePlayAudio}
+            className={`ml-auto w-10 h-10 rounded-full flex items-center justify-center text-xl shadow transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
+            title="Escucha la palabra/oración">
+            🔊
+          </button>
+        )}
         {recordingState === 'recording' && (
-          <span className="flex items-center gap-1.5 ml-auto">
+          <span className="flex items-center gap-1.5 ml-1">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
             <span className="text-red-500 font-bold text-xs">REC</span>
           </span>

@@ -263,6 +263,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
             <SlideToReadCanvas
               key={`${selectedSection}-${selectedModule}-${currentIdx}`}
               text={itemText}
+              itemId={typeof currentItem === 'object' ? currentItem?.id : undefined}
               onRecordingComplete={handleRecordingComplete}
               onBack={() => { setSelectedSection(null); setSelectedModule(null); }}
             />
