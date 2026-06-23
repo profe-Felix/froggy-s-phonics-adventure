@@ -57,10 +57,11 @@ function wrapLines(ctx, units, maxWidth, fontSize) {
   for (const word of words) {
     const wordW = word.units.reduce((s, u) => s + ctx.measureText(u.text).width, 0);
     const spaceW = word.space ? ctx.measureText(word.space.text).width : 0;
-    if (lineW + wordW + spaceW <= maxWidth || line.length === 0) {
+    const gapW = line.length > 0 ? spaceW : 0;
+    if (lineW + gapW + wordW <= maxWidth || line.length === 0) {
+      if (gapW > 0 && word.space) line.push(word.space);
       line.push(...word.units);
-      if (word.space) line.push(word.space);
-      lineW += wordW + spaceW;
+      lineW += gapW + wordW;
     } else {
       lines.push(line); line = [...word.units]; lineW = wordW;
     }
@@ -176,6 +177,7 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     const y = textStartY + li * lineHeight;
     let x = line.startX;
     let tokIdx = 0;
+    let prevRevealed = li < activeLine;
 
     for (const unit of line.units) {
       const w = ctx.measureText(unit.text).width;
@@ -183,9 +185,10 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
         const isRevealed = li < activeLine || (li === activeLine && tokIdx < revealedCount);
         ctx.fillStyle = isRevealed ? TEXT_REVEALED : TEXT_UNREVEALED;
         ctx.fillText(unit.text, x, y);
+        prevRevealed = isRevealed;
         tokIdx++;
       } else {
-        ctx.fillStyle = TEXT_UNREVEALED;
+        ctx.fillStyle = prevRevealed ? TEXT_REVEALED : TEXT_UNREVEALED;
         ctx.fillText(unit.text, x, y);
       }
       x += w;
