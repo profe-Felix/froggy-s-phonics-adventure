@@ -1,0 +1,33 @@
+{
+  "name": "PeerGameVoice",
+  "type": "object",
+  "properties": {
+    "game_id": {
+      "type": "string",
+      "description": "Reference to the peer game"
+    },
+    "player_number": {
+      "type": "integer",
+      "description": "Which player (1 or 2)"
+    },
+    "webrtc_offer": {
+      "type": "string",
+      "description": "SDP offer for WebRTC connection"
+    },
+    "webrtc_answer": {
+      "type": "string",
+      "description": "SDP answer for WebRTC connection"
+    },
+    "ice_candidates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Serialized ICE candidates for connection establishment"
+    }
+  },
+  "required": [
+    "game_id",
+    "player_number"
+  ]
+}

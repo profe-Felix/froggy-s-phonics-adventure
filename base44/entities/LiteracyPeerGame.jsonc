@@ -1,0 +1,55 @@
+{
+  "name": "LiteracyPeerGame",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "spelling",
+        "sight_words_spelling"
+      ]
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "player1_number": {
+      "type": "integer"
+    },
+    "player2_number": {
+      "type": "integer"
+    },
+    "player1_position": {
+      "type": "integer",
+      "default": 0
+    },
+    "player2_position": {
+      "type": "integer",
+      "default": 0
+    },
+    "player1_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "player2_ready": {
+      "type": "boolean",
+      "default": false
+    },
+    "current_item": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "active",
+        "finished"
+      ],
+      "default": "waiting"
+    },
+    "winner": {
+      "type": "integer",
+      "description": "Player number of the winner"
+    }
+  },
+  "required": []
+}

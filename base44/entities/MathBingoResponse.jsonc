@@ -1,0 +1,43 @@
+{
+  "name": "MathBingoResponse",
+  "type": "object",
+  "properties": {
+    "game_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "called_number": {
+      "type": "integer"
+    },
+    "clicked_number": {
+      "type": "integer"
+    },
+    "is_correct": {
+      "type": "boolean"
+    },
+    "response_time_ms": {
+      "type": "integer",
+      "description": "Milliseconds from number being called to student clicking a tile"
+    },
+    "free_space_click": {
+      "type": "boolean",
+      "default": false
+    },
+    "not_on_card": {
+      "type": "boolean",
+      "default": false,
+      "description": "Student indicated the called number was not on their card"
+    }
+  },
+  "required": [
+    "game_id",
+    "class_name",
+    "student_number",
+    "called_number"
+  ]
+}

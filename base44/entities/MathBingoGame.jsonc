@@ -1,0 +1,43 @@
+{
+  "name": "MathBingoGame",
+  "type": "object",
+  "properties": {
+    "game_name": {
+      "type": "string",
+      "default": "Bingo"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": false
+    },
+    "called_numbers": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "current_number": {
+      "type": "integer"
+    },
+    "ten_frame_seed": {
+      "type": "integer",
+      "description": "Random seed for partial ten-frame dot layout, shared across all students"
+    },
+    "min_number": {
+      "type": "integer",
+      "default": 10
+    },
+    "max_number": {
+      "type": "integer",
+      "default": 20
+    },
+    "free_space": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": []
+}

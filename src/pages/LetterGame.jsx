@@ -11,7 +11,7 @@ import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import PhonicsMode from '../components/game/modes/PhonicsMode';
-import SpanishReadingIframe from '../components/game/SpanishReadingIframe';
+import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import StoryBuilder from '../pages/StoryBuilder';
 import BookReading from '../pages/BookReading';
@@ -380,7 +380,7 @@ export default function LetterGame() {
         />
       )}
       {currentMode === 'spanish_reading' && (
-        <SpanishReadingIframe
+        <SpanishReadingGame
           studentNumber={selectedStudent?.number}
           className={selectedStudent?.class_name}
           onBack={handleBackToModes}
@@ -401,7 +401,7 @@ export default function LetterGame() {
         />
       )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
