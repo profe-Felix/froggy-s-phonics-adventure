@@ -16,7 +16,16 @@ const SECTIONS = [
 const getItemText = (item) => typeof item === 'string' ? item : item?.text || '';
 const getItemId = (item) => typeof item === 'object' ? item?.id : undefined;
 
-// ── Self-grade screen (responsive) ───────────────────────────────────────────
+function playRecording(url) {
+  const v = document.createElement('video');
+  v.src = url;
+  v.style.display = 'none';
+  document.body.appendChild(v);
+  v.play().catch(() => {});
+  v.onended = () => v.remove();
+}
+
+// ── Self-grade screen ────────────────────────────────────────────────────────
 function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
   const videoUrl = blob ? URL.createObjectURL(blob) : null;
   const [saving, setSaving] = useState(false);
@@ -64,42 +73,78 @@ function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
       )}
 
       <button onClick={onBack} className="text-indigo-400 hover:text-white font-bold text-xs sm:text-sm">
-        ← Back to List
+        ← Re-record
       </button>
     </div>
   );
 }
 
-// ── Item list view ───────────────────────────────────────────────────────────
-function ItemListView({ items, completedTexts, onItemClick }) {
-  const firstUncompleted = items.findIndex(it => !completedTexts.has(getItemText(it)));
+// ── Session overview (reflection screen) ─────────────────────────────────────
+function SessionOverview({ sessions, onContinue }) {
+  const correctCount = sessions.filter(s => s.teacher_grade === 'correct' || (s.teacher_grade === 'pending' && s.student_self_grade === 'correct')).length;
+  const needsWorkCount = sessions.filter(s => s.teacher_grade === 'incorrect' || (s.teacher_grade === 'pending' && s.student_self_grade === 'incorrect')).length;
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="flex flex-col gap-1.5 px-2 sm:px-4 py-3 max-w-2xl mx-auto w-full">
-        {items.map((item, idx) => {
-          const text = getItemText(item);
-          const isDone = completedTexts.has(text);
-          const isNext = idx === firstUncompleted;
-          return (
-            <motion.button key={idx} whileTap={{ scale: 0.98 }} onClick={() => onItemClick(idx)}
-              className={`w-full py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl font-bold text-left flex items-center gap-3 transition-all ${
-                isDone ? 'bg-emerald-900/30 text-white/50' :
-                isNext ? 'bg-indigo-600 text-white shadow-lg' :
-                'bg-gray-800/60 text-white/80 hover:bg-gray-700/60'
-              }`}>
-              <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                isDone ? 'bg-emerald-500 text-white' :
-                isNext ? 'bg-white text-indigo-600' :
-                'bg-gray-700 text-gray-400'
-              }`}>
-                {isDone ? '✓' : idx + 1}
-              </span>
-              <span className="flex-1 truncate text-sm sm:text-base">{text}</span>
-              {isNext && <span className="text-[10px] sm:text-xs uppercase font-black opacity-80 shrink-0">▶ Next</span>}
-            </motion.button>
-          );
-        })}
+      <div className="flex flex-col gap-2 px-3 sm:px-4 py-3 max-w-2xl mx-auto w-full">
+        <p className="text-white font-black text-base sm:text-lg text-center">📊 Today's Session</p>
+        <p className="text-indigo-300 text-xs sm:text-sm text-center mb-2">Listen to your recordings and reflect 🎧</p>
+
+        {sessions.length > 0 && (
+          <div className="flex gap-2 justify-center mb-2">
+            <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: '#163935', color: '#4ade80' }}>
+              ✅ {correctCount} correct
+            </span>
+            <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: '#3a1635', color: '#f87171' }}>
+              👎 {needsWorkCount} needs work
+            </span>
+          </div>
+        )}
+
+        {sessions.length === 0 ? (
+          <p className="text-indigo-400 text-center text-sm py-8">No recordings yet today. Start reading to build your session!</p>
+        ) : (
+          sessions.map((s, idx) => {
+            const isTeacherCorrect = s.teacher_grade === 'correct';
+            const isTeacherIncorrect = s.teacher_grade === 'incorrect';
+            const isPending = s.teacher_grade === 'pending';
+            const selfCorrect = s.student_self_grade === 'correct';
+
+            return (
+              <div key={idx} className="rounded-xl p-3 flex items-center gap-3" style={{
+                background: isTeacherCorrect ? '#163935' : isTeacherIncorrect ? '#3a1635' : '#262a3f',
+              }}>
+                <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0" style={{
+                  background: selfCorrect ? '#16a34a' : '#dc2626',
+                  color: '#fff',
+                }}>
+                  {selfCorrect ? '👍' : '👎'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-bold text-sm truncate">{s.item_text}</p>
+                  <p className="text-white/50 text-xs">
+                    {isPending ? '⏳ Teacher review pending' :
+                     isTeacherCorrect ? '✅ Teacher: Correct' : '❌ Teacher: Keep practicing'}
+                  </p>
+                </div>
+                {s.recording_url && (
+                  <button onClick={() => playRecording(s.recording_url)}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0"
+                    style={{ background: '#4338ca', color: '#fff' }}
+                    title="Play recording">
+                    ▶
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+
+        <button onClick={onContinue}
+          className="mt-3 py-3 rounded-xl font-black text-white text-sm shadow-lg"
+          style={{ background: '#4338ca' }}>
+          Continue Reading →
+        </button>
       </div>
     </div>
   );
@@ -112,10 +157,12 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const [selectedModule, setSelectedModule] = useState(null);
   const [items, setItems] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'reading'
+  const [viewMode, setViewMode] = useState('reading'); // 'reading' | 'overview'
   const [phase, setPhase] = useState('reading'); // 'reading' | 'selfgrade'
   const [recordingBlob, setRecordingBlob] = useState(null);
   const [completedTexts, setCompletedTexts] = useState(new Set());
+  const [todaySessions, setTodaySessions] = useState([]);
+  const [loadingModule, setLoadingModule] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Load lists from Supabase
@@ -135,7 +182,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const sectionConfig = SECTIONS.find(s => s.key === selectedSection);
   const itemType = sectionConfig?.type || 'word';
 
-  // Fetch today's completed items for this student
+  // Fetch today's sessions (for overview + completed tracking)
   const fetchCompleted = async () => {
     if (!studentNumber || !className) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -146,6 +193,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
         attempt_date: today,
       });
       setCompletedTexts(new Set(sessions.map(s => s.item_text)));
+      setTodaySessions([...sessions].sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     } catch {}
   };
 
@@ -153,15 +201,39 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     if (selectedSection) fetchCompleted();
   }, [refreshKey, selectedSection]);
 
-  const loadModule = (sectionKey, moduleNum) => {
+  // Load module with mastery-based sorting: items the teacher marked correct
+  // are deprioritized (placed last) so students focus on what they need to learn
+  const loadModule = async (sectionKey, moduleNum) => {
+    setLoadingModule(true);
     const section = listsData?.[sectionKey] || {};
     const moduleData = section[`M${moduleNum}`]?.new || [];
-    const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
-    setItems(shuffled);
+    const listName = `${sectionKey} M${moduleNum}`;
+
+    // Fetch mastery history — items teacher marked correct appear less frequently
+    let mastered = new Set();
+    try {
+      const allSessions = await base44.entities.SpanishReadingSession.filter({
+        student_number: studentNumber,
+        class_name: className,
+        list_name: listName,
+      });
+      mastered = new Set(
+        allSessions.filter(s => s.teacher_grade === 'correct').map(s => s.item_text)
+      );
+    } catch {}
+
+    // Non-mastered first (what they need to practice), mastered last (easy points deprioritized)
+    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+    const nonMastered = moduleData.filter(it => !mastered.has(getItemText(it)));
+    const masteredItems = moduleData.filter(it => mastered.has(getItemText(it)));
+    const sorted = [...shuffle(nonMastered), ...shuffle(masteredItems)];
+
+    setItems(sorted);
     setCurrentIdx(0);
-    setViewMode('list');
+    setViewMode('reading');
     setPhase('reading');
     setRecordingBlob(null);
+    setLoadingModule(false);
     fetchCompleted();
   };
 
@@ -181,13 +253,6 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const handleModuleSelect = (moduleNum) => {
     setSelectedModule(moduleNum);
     loadModule(selectedSection, moduleNum);
-  };
-
-  const handleItemClick = (idx) => {
-    setCurrentIdx(idx);
-    setPhase('reading');
-    setViewMode('reading');
-    setRecordingBlob(null);
   };
 
   const handleRecordingComplete = (blob) => {
@@ -210,7 +275,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    await base44.entities.SpanishReadingSession.create({
+    const newSession = await base44.entities.SpanishReadingSession.create({
       student_number: studentNumber,
       class_name: className,
       list_name: `${selectedSection} M${selectedModule}`,
@@ -224,11 +289,23 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       attempt_date: today,
     });
 
-    setCompletedTexts(prev => new Set(prev).add(itemText));
+    const newCompleted = new Set(completedTexts);
+    newCompleted.add(itemText);
+    setCompletedTexts(newCompleted);
+    setTodaySessions(prev => [newSession, ...prev]);
     setRefreshKey(k => k + 1);
-    setViewMode('list');
-    setPhase('reading');
     setRecordingBlob(null);
+
+    // Auto-advance to next unread item
+    const nextUnreadIdx = items.findIndex(it => !newCompleted.has(getItemText(it)));
+    if (nextUnreadIdx !== -1) {
+      setCurrentIdx(nextUnreadIdx);
+      setPhase('reading');
+    } else {
+      // All items done — show session overview for reflection
+      setViewMode('overview');
+      setPhase('reading');
+    }
   };
 
   // ── Loading ──
@@ -240,7 +317,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     );
   }
 
-  // ── Section selector (responsive) ──
+  // ── Section selector ──
   if (!selectedSection) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
@@ -276,7 +353,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     );
   }
 
-  // ── Module + list/reading view ──
+  // ── Module + reading/overview view ──
   const section = listsData[selectedSection] || {};
   const moduleNums = Object.keys(section)
     .map(k => parseInt(k.replace(/\D/g, '')))
@@ -290,19 +367,19 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '1px solid #4338ca' }}>
-        <button onClick={() => { setSelectedSection(null); setSelectedModule(null); setViewMode('list'); }}
+        <button onClick={() => { setSelectedSection(null); setSelectedModule(null); setViewMode('reading'); }}
           className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">← Lists</button>
         <span className="text-white font-black text-xs sm:text-sm flex-1 text-center truncate min-w-0 px-1">
           {sectionConfig?.icon} {selectedSection} · M{selectedModule}
         </span>
-        {viewMode === 'reading' ? (
-          <button onClick={() => setViewMode('list')}
-            className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">📋 List</button>
-        ) : (
-          <div className="w-20 sm:w-32 shrink-0">
-            <RecordingsProgressBar studentNumber={studentNumber} className={className} refreshKey={refreshKey} />
-          </div>
-        )}
+        <button onClick={() => setViewMode('overview')}
+          className={`text-xs sm:text-sm font-bold shrink-0 px-2 py-1 rounded-lg transition ${viewMode === 'overview' ? 'bg-indigo-600 text-white' : 'text-indigo-300 hover:text-white'}`}
+          title="Session overview">
+          📊
+        </button>
+        <div className="w-20 sm:w-32 shrink-0">
+          <RecordingsProgressBar studentNumber={studentNumber} className={className} refreshKey={refreshKey} />
+        </div>
       </div>
 
       {/* Module pills */}
@@ -318,11 +395,14 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       </div>
 
       {/* Content */}
-      {viewMode === 'list' ? (
-        <ItemListView
-          items={items}
-          completedTexts={completedTexts}
-          onItemClick={handleItemClick}
+      {loadingModule ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : viewMode === 'overview' ? (
+        <SessionOverview
+          sessions={todaySessions}
+          onContinue={() => setViewMode('reading')}
         />
       ) : currentItem ? (
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -332,7 +412,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
               text={itemText}
               itemId={getItemId(currentItem)}
               onRecordingComplete={handleRecordingComplete}
-              onBack={() => setViewMode('list')}
+              onBack={() => setViewMode('overview')}
             />
           )}
           {phase === 'selfgrade' && (
@@ -341,7 +421,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
                 blob={recordingBlob}
                 itemText={itemText}
                 onGrade={handleSelfGrade}
-                onBack={() => setViewMode('list')}
+                onBack={() => { setPhase('reading'); setRecordingBlob(null); }}
               />
             </div>
           )}
