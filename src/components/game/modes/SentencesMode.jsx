@@ -182,16 +182,23 @@ function parseSentenceToTiles(sentence) {
 
 // ── Writing canvas ─────────────────────────────────────────────────────────────
 function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData }) {
+  const PEN_W = 2.5;
+  const PIXEL_ERASER_W = 16;
+  const OBJ_ERASER_R = 20;
+
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const lastPos = useRef(null);
   const allStrokes = useRef([]); // {points, eraser: false|'pixel'}
   const currentStroke = useRef([]);
+  const undoStack = useRef([]);
+  const redoStack = useRef([]);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' | 'pixel-eraser' | 'object-eraser'
   const [keyboardMode, setKeyboardMode] = useState(false);
   const [typedSentence, setTypedSentence] = useState('');
+  const [eraserCursorPos, setEraserCursorPos] = useState(null);
   const textareaRef = useRef(null);
   const typingStartRef = useRef(null);
   const keystrokeLog = useRef([]);
@@ -210,6 +217,13 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     return rect.width > 0 ? c.width / rect.width : (window.devicePixelRatio || 1);
   };
 
+  const cloneStrokes = (arr) => arr.map(s => ({ ...s, points: s.points.map(p => ({ ...p })) }));
+
+  const pushUndo = () => {
+    undoStack.current.push(cloneStrokes(allStrokes.current));
+    redoStack.current = [];
+  };
+
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -221,10 +235,10 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
       ctx.save();
       if (stroke.eraser === 'pixel') {
         ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = 36 * dpr;
+        ctx.lineWidth = PIXEL_ERASER_W * dpr;
       } else {
         ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = 4 * dpr;
+        ctx.lineWidth = PEN_W * dpr;
         ctx.strokeStyle = '#1e40af';
       }
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -239,7 +253,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
 
   const objectErase = useCallback((pos) => {
     const dpr = getDpr();
-    const threshold = 30 * dpr;
+    const threshold = OBJ_ERASER_R * dpr;
     allStrokes.current = allStrokes.current.filter(stroke => {
       if (stroke.eraser) return true;
       return !stroke.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < threshold);
@@ -251,6 +265,12 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   const onDown = useCallback((e) => {
     e.preventDefault();
     const pos = getPos(e);
+    pushUndo();
+    if (tool === 'pixel-eraser' || tool === 'object-eraser') {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      setEraserCursorPos({ x: src.clientX - rect.left, y: src.clientY - rect.top });
+    }
     if (tool === 'object-eraser') {
       objectErase(pos); drawing.current = true; lastPos.current = pos; currentStroke.current = []; return;
     }
@@ -262,6 +282,13 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
 
   const onMove = useCallback((e) => {
     e.preventDefault();
+    if (tool === 'pixel-eraser' || tool === 'object-eraser') {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      setEraserCursorPos({ x: src.clientX - rect.left, y: src.clientY - rect.top });
+    } else {
+      setEraserCursorPos(null);
+    }
     if (!drawing.current) return;
     const pos = getPos(e);
     if (tool === 'object-eraser') { objectErase(pos); lastPos.current = pos; return; }
@@ -271,11 +298,11 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     if (tool === 'pixel-eraser') {
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = 36 * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.lineWidth = PIXEL_ERASER_W * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pos.x, pos.y);
       ctx.stroke(); ctx.restore();
     } else {
-      ctx.lineWidth = 4 * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
+      ctx.lineWidth = PEN_W * dpr; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#1e40af';
       ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
       ctx.stroke(); ctx.beginPath(); ctx.moveTo((prev.x + pos.x) / 2, (prev.y + pos.y) / 2);
     }
@@ -292,17 +319,32 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
     }
   }, [tool]);
 
+  const onLeave = useCallback((e) => {
+    setEraserCursorPos(null);
+    onUp(e);
+  }, [onUp]);
+
   const clear = () => {
+    pushUndo();
     const c = canvasRef.current;
     c.getContext('2d').clearRect(0, 0, c.width, c.height);
     allStrokes.current = []; setHasDrawn(false);
   };
 
   const undo = () => {
-    if (allStrokes.current.length === 0) return;
-    allStrokes.current = allStrokes.current.slice(0, -1);
+    if (undoStack.current.length === 0) return;
+    redoStack.current.push(cloneStrokes(allStrokes.current));
+    allStrokes.current = undoStack.current.pop();
     redraw();
-    if (allStrokes.current.length === 0) setHasDrawn(false);
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
+  };
+
+  const redo = () => {
+    if (redoStack.current.length === 0) return;
+    undoStack.current.push(cloneStrokes(allStrokes.current));
+    allStrokes.current = redoStack.current.pop();
+    redraw();
+    setHasDrawn(allStrokes.current.some(s => !s.eraser));
   };
 
   const handlePlay = () => {
@@ -323,7 +365,8 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
   };
 
   const displayH = 200;
-  const cursorStyle = tool === 'object-eraser' ? 'pointer' : tool === 'pixel-eraser' ? 'cell' : 'crosshair';
+  const cursorStyle = tool === 'object-eraser' || tool === 'pixel-eraser' ? 'none' : 'crosshair';
+  const eraserPreviewR = tool === 'pixel-eraser' ? PIXEL_ERASER_W / 2 : OBJ_ERASER_R;
 
   // Sync canvas internal resolution to display size × DPR for crisp strokes
   useEffect(() => {
@@ -410,14 +453,29 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
             <canvas ref={canvasRef}
               className="absolute inset-0 touch-none w-full h-full"
               style={{ background: 'transparent', cursor: cursorStyle }}
-              onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-              onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp} />
+              onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onLeave}
+              onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onLeave} />
+            {eraserCursorPos && (tool === 'pixel-eraser' || tool === 'object-eraser') && (
+              <div style={{
+                position: 'absolute',
+                left: eraserCursorPos.x - eraserPreviewR,
+                top: eraserCursorPos.y - eraserPreviewR,
+                width: eraserPreviewR * 2,
+                height: eraserPreviewR * 2,
+                borderRadius: '50%',
+                background: tool === 'object-eraser' ? 'rgba(220,38,38,0.15)' : 'rgba(120,120,120,0.3)',
+                border: tool === 'object-eraser' ? '2px solid rgba(220,38,38,0.6)' : '2px solid rgba(100,100,100,0.5)',
+                pointerEvents: 'none',
+                zIndex: 20,
+              }} />
+            )}
           </div>
           <div className="flex gap-1.5 items-center">
             <button onClick={() => setTool('pen')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='pen'?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>✏️</button>
             <button onClick={() => setTool('pixel-eraser')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='pixel-eraser'?'bg-orange-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🩹</button>
             <button onClick={() => setTool('object-eraser')} className={`px-2.5 py-1.5 rounded-lg font-bold text-xs transition-all ${tool==='object-eraser'?'bg-red-500 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>🧹</button>
-            <button onClick={undo} disabled={allStrokes.current.length === 0} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs disabled:opacity-40">↩</button>
+            <button onClick={undo} disabled={undoStack.current.length === 0} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs disabled:opacity-40">↩</button>
+            <button onClick={redo} disabled={redoStack.current.length === 0} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs disabled:opacity-40">↪</button>
             <button onClick={clear} className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-xs">🗑</button>
             <button onClick={() => onDone(allStrokes.current.filter(s => !s.eraser).map(s => s.points))} disabled={!hasDrawn}
               className="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white font-bold shadow-lg disabled:opacity-40 hover:bg-indigo-700 text-xs">
