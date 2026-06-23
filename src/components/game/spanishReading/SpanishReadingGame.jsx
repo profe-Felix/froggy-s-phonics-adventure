@@ -98,7 +98,8 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const loadModule = (sectionKey, moduleNum) => {
     const section = listsData?.[sectionKey] || {};
     const moduleData = section[`M${moduleNum}`]?.new || [];
-    setItems(moduleData);
+    const shuffled = [...moduleData].sort(() => Math.random() - 0.5);
+    setItems(shuffled);
     setCurrentIdx(0);
     setPhase('reading');
     setRecordingBlob(null);
