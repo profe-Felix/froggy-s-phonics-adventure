@@ -38,11 +38,11 @@ export function tokenizeWord(word) {
  * Classify each character in a token with a phonetic color.
  * Returns array of { char, color } where color is 'green' | 'red' | 'grey'.
  *
- * Rules (combined from user's three options):
- * - Grey (silent): h always; u in qu/gu before e/i
- * - Red (stop/plosive): p, b, t, d, k, q; hard c (before a/o/u); hard g (before a/o/u)
+ * Rules:
+ * - Grey (silent): h always
+ * - Red (stop/plosive): p, b, t, d, k, q; hard c (before a/o/u); hard g (before a/o/u); qu (both letters)
  * - Green (continuous/voiced/soft): vowels; m, n, ñ, l, r, s, f, j, y;
- *   soft c (before e/i); soft g (before e/i); ch, ll, rr
+ *   soft c (before e/i); soft g (before e/i); ch, ll, rr; gue/gui (all letters)
  */
 export function classifyToken(token, nextToken) {
   const lower = token.toLowerCase();
@@ -59,14 +59,14 @@ export function classifyToken(token, nextToken) {
     return [{ char: token[0], color: 'green' }, { char: token[1], color: 'green' }];
   }
   if (lower === 'qu') {
-    // q sounds like /k/ (stop) → red; u is silent → grey
-    return [{ char: token[0], color: 'red' }, { char: token[1], color: 'grey' }];
+    // qu makes one /k/ sound (stop) → both red
+    return [{ char: token[0], color: 'red' }, { char: token[1], color: 'red' }];
   }
   if (lower === 'gu') {
-    // Before e/i: g is soft (green), u is silent (grey)
+    // Before e/i: g is soft (green), u is part of the soft sound (green)
     // Before a/o/u: g is hard (red), u is a vowel (green)
     if ('eéií'.includes(nextLower)) {
-      return [{ char: token[0], color: 'green' }, { char: token[1], color: 'grey' }];
+      return [{ char: token[0], color: 'green' }, { char: token[1], color: 'green' }];
     }
     return [{ char: token[0], color: 'red' }, { char: token[1], color: 'green' }];
   }
@@ -75,10 +75,10 @@ export function classifyToken(token, nextToken) {
     return [{ char: token[0], color: 'red' }, { char: token[1], color: 'green' }];
   }
   if (lower === 'gue' || lower === 'gui') {
-    // g soft (green), u silent (grey), e/i vowel (green)
+    // gue/gui make one soft g sound (continuous) → all green
     return [
       { char: token[0], color: 'green' },
-      { char: token[1], color: 'grey' },
+      { char: token[1], color: 'green' },
       { char: token[2], color: 'green' },
     ];
   }
