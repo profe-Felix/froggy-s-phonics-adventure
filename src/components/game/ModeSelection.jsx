@@ -8,9 +8,10 @@ import PetAvatar from './avatar/PetAvatar';
 import PetCollection from './avatar/PetCollection';
 import MysteryBoxReveal from './avatar/MysteryBoxReveal';
 import { ALL_PETS } from './avatar/PETS_DATA';
-import FruitCollection, { FruitBadge } from './FruitCollection';
+import FruitCollection from './FruitCollection';
 import EmojiCollection from './EmojiCollection';
 import { getEmojiForIndex, POINTS_PER_EMOJI } from './EmojiPrizeCelebration';
+import RewardBar from './RewardBar';
 
 const PTS_PER_STICKER = 100;
 
@@ -231,30 +232,19 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
       )}
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-4 sm:mb-6">
-          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-5 mb-2 sm:mb-3">
-            <div className="flex flex-col items-center gap-2">
-              <PetAvatar petId={activePetId} size="lg" showName />
-              <button
-                onClick={() => setCollectionOpen(true)}
-                className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition"
-              >
-                🐾 My Pets ({unlockedPets.length}/{ALL_PETS.length})
-              </button>
-            </div>
-            <FruitBadge
-              unlockedFruits={studentData?.unlocked_fruits || []}
-              spellingTotalPoints={studentData?.spelling_total_points || 0}
-              onClick={() => setFruitOpen(true)}
-            />
-            <SentenceProgressBadge
-              totalPts={studentData?.sentences_total_points || 0}
-              onClick={() => onSelectMode('sentences')}
-            />
-            <EmojiBadge
-              spellingTotalPoints={studentData?.spelling_total_points || 0}
-              onClick={() => setEmojiOpen(true)}
-            />
-          </div>
+          <RewardBar
+            activePetId={activePetId}
+            unlockedPets={unlockedPets}
+            pendingUnlocks={pendingUnlocks}
+            unlockedFruits={studentData?.unlocked_fruits || []}
+            spellingTotalPoints={studentData?.spelling_total_points || 0}
+            sentencesTotalPoints={studentData?.sentences_total_points || 0}
+            activeEmojiIdx={activeEmojiIdx}
+            onOpenPets={() => setCollectionOpen(true)}
+            onOpenFruits={() => setFruitOpen(true)}
+            onOpenSentences={() => onSelectMode('sentences')}
+            onOpenEmojis={() => setEmojiOpen(true)}
+          />
           <h1 className="text-xl sm:text-3xl font-bold text-green-700 mb-1">Choose Your Game Mode</h1>
           <p className="text-sm sm:text-lg text-gray-600">Student #{studentData?.student_number}</p>
         </div>
