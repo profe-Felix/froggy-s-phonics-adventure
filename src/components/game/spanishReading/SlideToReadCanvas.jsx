@@ -57,13 +57,16 @@ function wrapLines(ctx, units, maxWidth, fontSize) {
   for (const word of words) {
     const wordW = word.units.reduce((s, u) => s + ctx.measureText(u.text).width, 0);
     const spaceW = word.space ? ctx.measureText(word.space.text).width : 0;
-    const gapW = line.length > 0 ? spaceW : 0;
-    if (lineW + gapW + wordW <= maxWidth || line.length === 0) {
-      if (gapW > 0 && word.space) line.push(word.space);
+    const totalW = wordW + spaceW;
+    if (line.length === 0 || lineW + totalW <= maxWidth) {
       line.push(...word.units);
-      lineW += gapW + wordW;
+      if (word.space) line.push(word.space);
+      lineW += totalW;
     } else {
-      lines.push(line); line = [...word.units]; lineW = wordW;
+      lines.push(line);
+      line = [...word.units];
+      if (word.space) line.push(word.space);
+      lineW = totalW;
     }
   }
   if (line.length > 0) lines.push(line);
