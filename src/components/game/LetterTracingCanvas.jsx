@@ -1,12 +1,37 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 10; // pixels to count as hitting a waypoint
-const STRAY_RADIUS = 55; // pixels — restart stroke if user strays this far from path
+const WOBBLE_RADIUS = 20; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
+}
+
+function dist(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+// Densely sample the ideal path for a stroke by interpolating between its
+// waypoints at a fixed pixel step. Used for wobble detection (distance from
+// each drawn point to the nearest ideal point) and for the replay hint.
+function buildDensePath(waypoints, step = 3) {
+  const pts = waypoints.map(scale);
+  if (pts.length === 1) return [pts[0]];
+  const dense = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const segLen = dist(a, b);
+    const n = Math.max(1, Math.round(segLen / step));
+    for (let j = 0; j < n; j++) {
+      const t = j / n;
+      dense.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  dense.push(pts[pts.length - 1]);
+  return dense;
 }
 
 export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset }) {
@@ -21,6 +46,19 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
+  const [replaying, setReplaying] = useState(false);
+  const [replayPts, setReplayPts] = useState([]);
+  const replayRafRef = useRef(null);
+
+  const densePath = useMemo(() => {
+    const wp = strokes[strokeIndex];
+    return wp && wp.length ? buildDensePath(wp) : [];
+  }, [strokes, strokeIndex]);
+
+  // Cancel any in-flight replay animation when the component unmounts.
+  useEffect(() => () => {
+    if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
+  }, []);
 
   // Reset when letter changes
   useEffect(() => {
@@ -33,6 +71,9 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setErrorFlash(false);
     setAwaitingLift(false);
     pendingCompleteRef.current = false;
+    if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
+    setReplaying(false);
+    setReplayPts([]);
   }, [letter]);
 
   const getPos = (e) => {
@@ -48,8 +89,6 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     };
   };
 
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-
   const handlePointerDown = useCallback((e) => {
     e.preventDefault();
     if (status === 'success') return;
@@ -62,6 +101,9 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       flashError();
       return;
     }
+    if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
+    setReplaying(false);
+    setReplayPts([]);
     setDrawing(true);
     setStatus('tracing');
     currentPathRef.current = [pos];
@@ -84,16 +126,24 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
 
-    // Check if user has strayed too far from the nearest waypoint on the whole stroke
-    const minDist = Math.min(...currentStrokes.map(wp => dist(pos, scale(wp))));
-    if (minDist > STRAY_RADIUS) {
-      flashError();
-      currentPathRef.current = [];
-      setCurrentPath([]);
-      setWaypointIndex(0);
-      setDrawing(false);
-      setStatus('idle');
-      return;
+    // Wobble detection: measure distance from this point to the nearest point
+    // on the densely-sampled ideal path. Beyond WOBBLE_RADIUS the stroke is
+    // wandering off the letter — restart it.
+    if (densePath.length) {
+      let minD = Infinity;
+      for (let i = 0; i < densePath.length; i++) {
+        const d = dist(pos, densePath[i]);
+        if (d < minD) minD = d;
+      }
+      if (minD > WOBBLE_RADIUS) {
+        flashError();
+        currentPathRef.current = [];
+        setCurrentPath([]);
+        setWaypointIndex(0);
+        setDrawing(false);
+        setStatus('idle');
+        return;
+      }
     }
 
     const nextWp = scale(currentStrokes[waypointIndex]);
@@ -109,12 +159,15 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         setWaypointIndex(newWpIdx);
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, currentPath, onComplete]);
+  }, [drawing, status, strokeIndex, waypointIndex, strokes, currentPath, onComplete, densePath]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
     if (!drawing) return;
     setDrawing(false);
+    if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
+    setReplaying(false);
+    setReplayPts([]);
 
     if (pendingCompleteRef.current) {
       pendingCompleteRef.current = false;
@@ -168,7 +221,38 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     }
   }, [drawing, status, waypointIndex, strokeIndex, strokes]);
 
+  const stopReplay = () => {
+    if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
+    setReplaying(false);
+    setReplayPts([]);
+  };
+
+  const startReplay = () => {
+    if (drawing || status === 'success') return;
+    const wp = strokes[strokeIndex];
+    if (!wp || wp.length < 2) return;
+    const refPath = buildDensePath(wp);
+    if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
+    setReplaying(true);
+    setReplayPts([]);
+    const duration = 700 + refPath.length * 5; // ms — longer paths take a touch longer
+    const startTs = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - startTs) / duration);
+      const count = Math.max(1, Math.ceil(t * refPath.length));
+      setReplayPts(refPath.slice(0, count));
+      if (t < 1) {
+        replayRafRef.current = requestAnimationFrame(tick);
+      } else {
+        replayRafRef.current = null;
+        setReplaying(false);
+      }
+    };
+    replayRafRef.current = requestAnimationFrame(tick);
+  };
+
   const reset = () => {
+    stopReplay();
     setStrokeIndex(0);
     setWaypointIndex(0);
     setDrawing(false);
@@ -271,6 +355,16 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
+        {/* Replay hint — animated demo of the current stroke's ideal path */}
+        {replayPts.length > 1 && (
+          <>
+            <path d={pathD(replayPts)} fill="none" stroke="#f59e0b" strokeWidth="10"
+              strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+            <circle cx={replayPts[replayPts.length - 1].x}
+              cy={replayPts[replayPts.length - 1].y} r="7" fill="#f59e0b" />
+          </>
+        )}
+
         {/* Start dot — show only when waiting to begin a stroke */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           <>
@@ -285,13 +379,23 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         )}
       </svg>
 
-      {/* Reset button */}
-      <button
-        onClick={reset}
-        className="text-white/60 hover:text-white text-sm underline"
-      >
-        Start over
-      </button>
+      <div className="flex items-center gap-4">
+        {!isSuccess && (
+          <button
+            onClick={startReplay}
+            disabled={drawing || replaying || !strokes[strokeIndex]}
+            className="text-amber-200 hover:text-amber-100 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ▶ Show me
+          </button>
+        )}
+        <button
+          onClick={reset}
+          className="text-white/60 hover:text-white text-sm underline"
+        >
+          Start over
+        </button>
+      </div>
     </div>
   );
 }
