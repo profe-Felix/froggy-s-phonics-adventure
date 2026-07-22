@@ -213,18 +213,11 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || [];
     if (!moduleWords.length) return;
 
-    // Try a limited number of words so missing audio can never freeze the app
-    for (let attempt = 0; attempt < Math.min(moduleWords.length, 20); attempt++) {
-      const word = pickWord(modeData, lastWordRef.current, moduleWords);
-      if (!word) break;
-
-      const audioUrl = await findAudioUrl(word);
-
-      if (!audioUrl) {
-        lastWordRef.current = word;
-        continue;
-      }
-
+    // Pick a word and show it regardless of audio availability — audio plays
+    // best-effort (missing files are logged via AudioFeedback). Keeps the mode
+    // usable while the audio bucket is still being populated.
+    const word = pickWord(modeData, lastWordRef.current, moduleWords);
+    if (word) {
       lastWordRef.current = word;
       setCurrentWord(word);
       setOptions(buildOptions(word));
@@ -237,12 +230,10 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
       setWrittenStrokes(null);
       setIsRetry(false);
       submittingRef.current = false;
-
       playSound(word);
-      return;
+    } else {
+      setCurrentWord(null);
     }
-
-    setCurrentWord(null);
   };
 
   useEffect(() => {

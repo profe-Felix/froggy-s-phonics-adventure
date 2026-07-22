@@ -620,21 +620,18 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
     setIsCorrect(null);
     setLocked(false);
 
+    // Pick a word and show it regardless of audio availability — audio plays
+    // best-effort. Keeps the mode usable while the audio bucket is populated.
     const shuffled = [...wordList].sort(() => Math.random() - 0.5);
-    for (const word of shuffled.slice(0, 20)) {
+    for (const word of shuffled) {
       if (word === lastWordRef.current) continue;
       // For syllable mode, require 2+ syllables
       if (mode === 'syllable' && syllabify(word).length < 2) continue;
-      const url = await findAudioUrl(word);
-      if (!url) continue;
       lastWordRef.current = word;
       setCurrentWord(word);
       const c = mode === 'syllable' ? (buildSyllableCloze(word) || buildLetterCloze(word)) : buildLetterCloze(word);
       setCloze(c);
-      if (audioRef.current) audioRef.current.pause();
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.play().catch(() => {});
+      playWord(word); // best-effort; no audio gating
       return;
     }
   };
