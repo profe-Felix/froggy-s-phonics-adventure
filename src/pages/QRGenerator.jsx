@@ -150,7 +150,7 @@ export default function QRGenerator() {
           <div ref={printRef} className="grid grid-cols-4 sm:grid-cols-5 gap-4">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = studentMap[num];
-              const url = s ? `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}` : null;
+              const url = s ? `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}` : null;
               return (
                 <div key={num} className={`bg-white border rounded-xl p-3 text-center shadow-sm ${!s ? 'opacity-30' : 'border-gray-200'}`}>
                   {url

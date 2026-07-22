@@ -29,6 +29,7 @@ export default function LetterGame() {
   const classMap = { 'felix': 'Felix', 'f': 'Felix', 'valero': 'Valero', 'v': 'Valero', 'campos': 'Campos', 'c': 'Campos' };
   const urlClass = rawClass ? classMap[rawClass.toLowerCase()] || null : null;
   const urlNumber = parseInt(urlParams.get('number'));
+  const urlYear = urlParams.get('year') || null;
   const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
 
   const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
@@ -87,8 +88,9 @@ export default function LetterGame() {
     if (!selectedStudent || selectedStudent === 'loading_by_id' || !students) return;
     if (directStudentId) return; // already handled above
     if (selectedStudent && students) {
+      const effectiveYear = urlYear || ACTIVE_SCHOOL_YEAR;
       const existing = students.find(
-        s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name && s.school_year === ACTIVE_SCHOOL_YEAR
+        s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name && s.school_year === effectiveYear
       );
       if (existing) {
         if (!existing.unlocked_pets?.length) {
@@ -105,7 +107,7 @@ export default function LetterGame() {
         } else {
           setStudentData(existing);
         }
-      } else {
+      } else if (!urlYear || urlYear === ACTIVE_SCHOOL_YEAR) {
         createStudentMutation.mutate({
           student_number: selectedStudent.number,
           class_name: selectedStudent.class_name,
