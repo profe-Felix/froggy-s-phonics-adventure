@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
-import { LETTER_SOUNDS } from '../../data/letterSounds';
-
-const ALL_LETTERS = LETTER_SOUNDS;
+import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
+import { getLanguage } from '@/lib/language';
 
 export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -16,9 +15,13 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const preloadedAudio = useRef({});
   const audioTimeoutRef = useRef(null);
 
+  const language = getLanguage(studentData);
+  const ALL_LETTERS = language === 'en' ? LETTER_SOUNDS_EN : LETTER_SOUNDS;
+  const FALLBACK_LEARNING = language === 'en' ? ['s', 'a', 't'] : ['o', 'i', 'a'];
+
   const modeData = studentData?.mode_progress?.letter_sounds || {
     mastered_items: [],
-    learning_items: ['o', 'i', 'a'],
+    learning_items: FALLBACK_LEARNING,
     item_attempts: {},
     total_correct: 0,
     total_attempts: 0
@@ -29,8 +32,10 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
 
-    const fallbackLearning = ['o', 'i', 'a'];
-    const hasLearning = learning.length > 0;
+    const fallbackLearning = FALLBACK_LEARNING;
+    // Drop letters that don't belong to the active language's set (e.g. ñ/ll/ch when English)
+    const learningSet = learning.filter(l => ALL_LETTERS.includes(l));
+    const hasLearning = learningSet.length > 0;
     const hasMastered = mastered.length > 0;
 
     // 80% learning letters, 20% mastered review.
@@ -39,9 +44,9 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     let targetPool;
 
     if (hasLearning && hasMastered) {
-      targetPool = Math.random() < 0.8 ? learning : mastered;
+      targetPool = Math.random() < 0.8 ? learningSet : mastered;
     } else if (hasLearning) {
-      targetPool = learning;
+      targetPool = learningSet;
     } else if (hasMastered) {
       targetPool = mastered;
     } else {
@@ -51,7 +56,9 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     const targetLetter = targetPool[Math.floor(Math.random() * targetPool.length)];
 
     // Confusing pairs to avoid
-    const confusingPairs = { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] };
+    const confusingPairs = language === 'en'
+      ? { 'b': ['d'], 'd': ['b'], 'p': ['b', 'q'], 'q': ['p'], 'm': ['n'], 'n': ['m'], 'v': ['w'], 'w': ['v'], 'g': ['j'], 'j': ['g'], 'c': ['k'], 'k': ['c'], 's': ['c'], 'u': ['v'], 'i': ['l'] }
+      : { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] };
     const avoidLetters = confusingPairs[targetLetter] || [];
 
     const wrongOptions = ALL_LETTERS
@@ -72,29 +79,41 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const playSound = (letter) => {
     setCanAnswer(false);
     if (audioRef.current) {
-      audioRef.current.pause();
+      audioRef.current.pause?.();
       audioRef.current.onended = null;
     }
     if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
-    
+
+    const enable = () => {
+      if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+      setCanAnswer(true);
+    };
+
+    if (language === 'en') {
+      // English: use browser speech synthesis (no recorded files yet)
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(letter);
+        u.lang = 'en-US';
+        u.rate = 0.75;
+        u.onend = enable;
+        u.onerror = enable;
+        audioRef.current = { pause: () => window.speechSynthesis.cancel() };
+        window.speechSynthesis.speak(u);
+      } catch { enable(); }
+      audioTimeoutRef.current = setTimeout(enable, 2500);
+      return;
+    }
+
     if (!preloadedAudio.current[letter]) {
       preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
       preloadedAudio.current[letter].preload = 'auto';
     }
-    
     audioRef.current = preloadedAudio.current[letter];
     audioRef.current.currentTime = 0;
-    audioRef.current.onended = () => {
-      if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
-      setCanAnswer(true);
-    };
-    // Safety fallback: always enable answering after 3 seconds
-    audioTimeoutRef.current = setTimeout(() => setCanAnswer(true), 3000);
-    audioRef.current.play()
-      .catch(() => {
-        if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
-        setCanAnswer(true);
-      });
+    audioRef.current.onended = enable;
+    audioTimeoutRef.current = setTimeout(enable, 3000);
+    audioRef.current.play().catch(enable);
   };
 
   const handleAnswer = async (selectedLetter) => {
@@ -154,14 +173,17 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   useEffect(() => {
     if (!currentLetter) generateRound();
     
-    // Preload common letters
-    const commonLetters = ['a', 'e', 'i', 'o', 'u', 'b', 'c', 'd', 'f', 'g'];
-    commonLetters.forEach(letter => {
-      if (!preloadedAudio.current[letter]) {
-        preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
-        preloadedAudio.current[letter].preload = 'auto';
-      }
-    });
+    // Preload common letters (Spanish only — English uses speech synthesis)
+    if (language !== 'en') {
+      const commonLetters = ['a', 'e', 'i', 'o', 'u', 'b', 'c', 'd', 'f', 'g'];
+      commonLetters.forEach(letter => {
+        if (!preloadedAudio.current[letter]) {
+          preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
+          preloadedAudio.current[letter].preload = 'auto';
+        }
+      });
+    }
+    return () => { try { window.speechSynthesis?.cancel(); } catch {} };
   }, []);
 
   if (!currentLetter) return null;

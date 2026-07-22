@@ -12,6 +12,7 @@ import FruitCollection from './FruitCollection';
 import EmojiCollection from './EmojiCollection';
 import { getEmojiForIndex, POINTS_PER_EMOJI } from './EmojiPrizeCelebration';
 import RewardBar from './RewardBar';
+import { getLanguage, isLanguageLocked, LANGUAGES } from '@/lib/language';
 
 const PTS_PER_STICKER = 100;
 
@@ -141,8 +142,10 @@ function EmojiBadge({ spellingTotalPoints, onClick }) {
   );
 }
 
-export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet, onOpenSentences }) {
+export default function ModeSelection({ studentData, onSelectMode, onLogout, onPetUnlock, onSelectPet, onOpenSentences, onSetLanguage }) {
   const modeProgress = studentData?.mode_progress || {};
+  const currentLang = getLanguage(studentData);
+  const langLocked = isLanguageLocked(studentData);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [fruitOpen, setFruitOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -247,6 +250,21 @@ export default function ModeSelection({ studentData, onSelectMode, onLogout, onP
           />
           <h1 className="text-xl sm:text-3xl font-bold text-green-700 mb-1">Choose Your Game Mode</h1>
           <p className="text-sm sm:text-lg text-gray-600">Student #{studentData?.student_number}</p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {LANGUAGES.map(lang => {
+              const active = currentLang === lang.code;
+              const canToggle = !langLocked;
+              return (
+                <button key={lang.code}
+                  disabled={!canToggle || active}
+                  onClick={() => canToggle && onSetLanguage?.(lang.code)}
+                  className={`px-3 py-1 rounded-full text-xs sm:text-sm font-bold border-2 transition ${active ? 'bg-indigo-600 text-white border-indigo-600' : canToggle ? 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
+                  {lang.flag} {lang.label}
+                </button>
+              );
+            })}
+            {langLocked && <span className="text-[10px] text-gray-400 ml-1" title="Locked by teacher">🔒</span>}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">

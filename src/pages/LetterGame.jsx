@@ -239,6 +239,13 @@ export default function LetterGame() {
     setStudentData({ ...freshStudent, ...combined });
   };
 
+  const handleSetLanguage = async (language) => {
+    if (!studentData?.id) return;
+    await base44.entities.Student.update(studentData.id, { language });
+    setStudentData(prev => prev ? { ...prev, language } : prev);
+    queryClient.invalidateQueries({ queryKey: ['students'] });
+  };
+
   const handleModeSelect = (mode) => {
     setCurrentMode(mode);
   };
@@ -317,6 +324,7 @@ export default function LetterGame() {
         onLogout={handleLogout}
         onPetUnlock={handlePetUnlock}
         onSelectPet={handleSelectPet}
+        onSetLanguage={handleSetLanguage}
       />
     );
   }

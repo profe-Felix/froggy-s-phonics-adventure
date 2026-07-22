@@ -8,3 +8,12 @@ export const LETTER_SOUNDS = [
   'g', 'j', 'y', 'z', 'ñ',
   'ch', 'k', 'x'
 ];
+
+// English letter sounds — phonics progression (a–z, no Spanish digraphs).
+// Audio for English uses the browser SpeechSynthesis API (no recorded files yet).
+export const LETTER_SOUNDS_EN = [
+  's', 'a', 't', 'i', 'p', 'n',
+  'c', 'k', 'e', 'h', 'r', 'm', 'd',
+  'g', 'o', 'u', 'l', 'f', 'b',
+  'j', 'q', 'v', 'w', 'x', 'y', 'z'
+];

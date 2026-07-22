@@ -124,8 +124,21 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
   const [className, setClassName] = useState(student.class_name || '');
   const [customClass, setCustomClass] = useState('');
   const [saving, setSaving] = useState(false);
+  const [langSel, setLangSel] = useState(student.language || 'es');
+  const [lockSel, setLockSel] = useState(student.language_locked !== false);
 
   const mp = student.mode_progress || {};
+
+  const handleSaveLanguage = async (newLang) => {
+    setLangSel(newLang);
+    await base44.entities.Student.update(student.id, { language: newLang });
+    onUpdate({ ...student, language: newLang });
+  };
+  const handleSaveLock = async (val) => {
+    setLockSel(val);
+    await base44.entities.Student.update(student.id, { language_locked: val });
+    onUpdate({ ...student, language_locked: val });
+  };
 
   const handleSaveClass = async () => {
     setSaving(true);
@@ -207,6 +220,23 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Language control (teacher only) */}
+          <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+            <span className="text-sm font-semibold text-indigo-700">🌐 Language</span>
+            <select
+              value={langSel}
+              onChange={e => handleSaveLanguage(e.target.value)}
+              className="border rounded-lg px-2 py-1 text-sm"
+            >
+              <option value="es">Español</option>
+              <option value="en">English</option>
+            </select>
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 ml-auto cursor-pointer">
+              <input type="checkbox" checked={lockSel} onChange={e => handleSaveLock(e.target.checked)} />
+              Lock — students can't change
+            </label>
+          </div>
+
           {/* Letter Sounds interactive editor */}
           <LetterSoundsEditor student={student} onUpdate={onUpdate} />
 

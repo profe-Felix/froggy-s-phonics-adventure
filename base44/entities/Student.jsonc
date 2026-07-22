@@ -19,6 +19,20 @@
       "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
       "default": ""
     },
+    "language": {
+      "type": "string",
+      "enum": [
+        "es",
+        "en"
+      ],
+      "description": "Interface/content language for this student. Teachers set this; students see it on the game landing page.",
+      "default": "es"
+    },
+    "language_locked": {
+      "type": "boolean",
+      "description": "If true, only teachers can change the student's language on the landing page.",
+      "default": true
+    },
     "tags": {
       "type": "array",
       "items": {
