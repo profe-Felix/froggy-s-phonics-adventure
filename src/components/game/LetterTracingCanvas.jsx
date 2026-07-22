@@ -4,6 +4,9 @@ const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 10; // pixels to count as hitting a waypoint
 const WOBBLE_RADIUS = 20; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
+const MIN_MOVE = 4; // px — ignore direction checks for sub-noise movements
+const DIR_REJECT_DOT = -0.35; // drawn-vs-ideal direction dot below this = reverse direction → restart
+const COMPLETE_FRAC = 0.92; // fraction of ideal path length the student must cover to complete a stroke
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
@@ -59,6 +62,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [currentPath, setCurrentPath] = useState([]);
   const currentPathRef = useRef([]); // always-current ref to avoid stale closure
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
+  const pathProgressRef = useRef(0); // furthest dense-path index reached this stroke
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
@@ -90,6 +94,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setErrorFlash(false);
     setAwaitingLift(false);
     pendingCompleteRef.current = false;
+    pathProgressRef.current = 0;
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
@@ -125,6 +130,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
+    pathProgressRef.current = 0;
+    pendingCompleteRef.current = false;
     setDrawing(true);
     setStatus('tracing');
     currentPathRef.current = [pos];
@@ -136,51 +143,118 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setTimeout(() => setErrorFlash(false), 600);
   };
 
+  // Reset the current (in-progress) stroke without touching completed ones.
+  const restartStroke = () => {
+    currentPathRef.current = [];
+    setCurrentPath([]);
+    setWaypointIndex(0);
+    setDrawing(false);
+    setStatus('idle');
+    setAwaitingLift(false);
+    pendingCompleteRef.current = false;
+    pathProgressRef.current = 0;
+  };
+
+  // Finalise the current stroke as completed and advance to the next one.
+  const commitStroke = () => {
+    const completedPath = [...currentPathRef.current];
+    currentPathRef.current = [];
+    setDrawnPaths(prev => [...prev, completedPath]);
+    setCurrentPath([]);
+    strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
+    pathProgressRef.current = 0;
+    pendingCompleteRef.current = false;
+    setAwaitingLift(false);
+    const newStrokeIdx = strokeIndex + 1;
+    if (newStrokeIdx >= strokes.length) {
+      setStatus('success');
+      const accs = strokeAccuraciesRef.current;
+      const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
+      setAccuracy(avg);
+      onAccuracy?.(avg);
+    } else {
+      setStatus('idle');
+      setStrokeIndex(newStrokeIdx);
+      setWaypointIndex(0);
+    }
+  };
+
   const handlePointerMove = useCallback((e) => {
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
-    if (pendingCompleteRef.current) return; // waiting for pointer-up, ignore moves
     const pos = getPos(e);
-    currentPathRef.current = [...currentPathRef.current, pos];
-    setCurrentPath(currentPathRef.current);
-
+    // Once the end of the ideal path is reached, just track the finger until
+    // lift — don't penalise the natural loop-back/overshoot at a stroke's end.
+    if (pendingCompleteRef.current) {
+      currentPathRef.current = [...currentPathRef.current, pos];
+      setCurrentPath(currentPathRef.current);
+      return;
+    }
+    const prev = currentPathRef.current[currentPathRef.current.length - 1];
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
 
-    // Wobble detection: measure distance from this point to the nearest point
-    // on the densely-sampled ideal path. Beyond WOBBLE_RADIUS the stroke is
-    // wandering off the letter — restart it.
     if (densePath.length) {
+      // Nearest point on the densely-sampled ideal path.
       let minD = Infinity;
+      let nearestIdx = 0;
       for (let i = 0; i < densePath.length; i++) {
         const d = dist(pos, densePath[i]);
-        if (d < minD) minD = d;
+        if (d < minD) { minD = d; nearestIdx = i; }
       }
+
+      // Wobble: wandering too far from the ideal path restarts the stroke.
       if (minD > WOBBLE_RADIUS) {
         flashError();
-        currentPathRef.current = [];
-        setCurrentPath([]);
-        setWaypointIndex(0);
-        setDrawing(false);
-        setStatus('idle');
+        restartStroke();
         return;
       }
-    }
 
-    const nextWp = scale(currentStrokes[waypointIndex]);
+      // Direction: the drawn movement must align with the ideal path's local
+      // direction. Reverse-direction scribbling or "coloring in" the letter
+      // without following the stroke order is rejected and restarts the stroke.
+      if (prev) {
+        const moveDist = dist(pos, prev);
+        if (moveDist >= MIN_MOVE) {
+          const dx = (pos.x - prev.x) / moveDist;
+          const dy = (pos.y - prev.y) / moveDist;
+          const a = Math.min(nearestIdx, densePath.length - 1);
+          const b = Math.min(nearestIdx + 2, densePath.length - 1);
+          const iLen = Math.hypot(densePath[b].x - densePath[a].x, densePath[b].y - densePath[a].y) || 1;
+          const ix = (densePath[b].x - densePath[a].x) / iLen;
+          const iy = (densePath[b].y - densePath[a].y) / iLen;
+          if (dx * ix + dy * iy < DIR_REJECT_DOT) {
+            flashError();
+            restartStroke();
+            return;
+          }
+        }
+      }
 
-    if (dist(pos, nextWp) < HIT_RADIUS) {
-      const newWpIdx = waypointIndex + 1;
-      if (newWpIdx >= currentStrokes.length) {
-        // Last waypoint hit — wait for pointerUp before finalising
+      // Progress: how far along the ideal path the student has drawn. Only
+      // moves forward — never decreases — so backtracking cannot fake progress.
+      pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
+
+      // Reached the end of the ideal path → prompt to lift to finalise.
+      if (pathProgressRef.current >= COMPLETE_FRAC * (densePath.length - 1)) {
         pendingCompleteRef.current = true;
         setAwaitingLift(true);
-        setWaypointIndex(newWpIdx); // advance so dot disappears
-      } else {
-        setWaypointIndex(newWpIdx);
+        setWaypointIndex(currentStrokes.length);
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, currentPath, onComplete, densePath]);
+
+    currentPathRef.current = [...currentPathRef.current, pos];
+    setCurrentPath(currentPathRef.current);
+
+    // Visual waypoint advancement (start/progress dots) — completion is
+    // governed by pathProgress above, not by these dots.
+    if (!pendingCompleteRef.current) {
+      const nextWp = scale(currentStrokes[waypointIndex]);
+      if (dist(pos, nextWp) < HIT_RADIUS) {
+        setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
+      }
+    }
+  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
@@ -190,67 +264,20 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setReplaying(false);
     setReplayPts([]);
 
-    if (pendingCompleteRef.current) {
-      pendingCompleteRef.current = false;
-      setAwaitingLift(false);
-      const completedPath = [...currentPathRef.current];
-      currentPathRef.current = [];
-      setDrawnPaths(prev => [...prev, completedPath]);
-      setCurrentPath([]);
-      strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
-      const newStrokeIdx = strokeIndex + 1;
-      if (newStrokeIdx >= strokes.length) {
-        setStatus('success');
-        const accs = strokeAccuraciesRef.current;
-        const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
-        setAccuracy(avg);
-        onAccuracy?.(avg);
-      } else {
-        setStatus('idle');
-        setStrokeIndex(newStrokeIdx);
-        setWaypointIndex(0);
-      }
-      return;
-    }
-
-    const currentStrokes = strokes[strokeIndex];
-    if (status === 'tracing' && currentStrokes && waypointIndex > 0 && waypointIndex < currentStrokes.length) {
-      // Forgiving finish: accept the stroke if the student lifted near the
-      // final waypoint, or has already reached the last couple of waypoints —
-      // a freehand lift naturally lands a bit before the exact end point.
-      const pos = getPos(e);
-      const lastWp = scale(currentStrokes[currentStrokes.length - 1]);
-      const nearEnd = dist(pos, lastWp) < HIT_RADIUS * 3.5;
-      const reachedMost = waypointIndex >= Math.max(1, currentStrokes.length - 2);
-      if (nearEnd || reachedMost) {
-        setAwaitingLift(false);
-        const completedPath = [...currentPathRef.current];
-        currentPathRef.current = [];
-        setDrawnPaths(prev => [...prev, completedPath]);
-        setCurrentPath([]);
-        strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
-        const newStrokeIdx = strokeIndex + 1;
-        if (newStrokeIdx >= strokes.length) {
-          setStatus('success');
-          const accs = strokeAccuraciesRef.current;
-          const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
-          setAccuracy(avg);
-          onAccuracy?.(avg);
-        } else {
-          setStatus('idle');
-          setStrokeIndex(newStrokeIdx);
-          setWaypointIndex(0);
-        }
-        return;
-      }
-      // Genuinely lifted too early
+    // A stroke is valid only if the student drew far enough along the ideal
+    // path (in the correct direction — enforced in handlePointerMove). Lifting
+    // early is rejected and the stroke restarts. There is no "almost done"
+    // forgiveness: students must actually complete each stroke.
+    const reachedEnd = densePath.length > 1
+      ? pathProgressRef.current >= COMPLETE_FRAC * (densePath.length - 1)
+      : true;
+    if (reachedEnd) {
+      commitStroke();
+    } else {
       flashError();
-      currentPathRef.current = [];
-      setCurrentPath([]);
-      setWaypointIndex(0);
-      setStatus('idle');
+      restartStroke();
     }
-  }, [drawing, status, waypointIndex, strokeIndex, strokes, densePath, onAccuracy]);
+  }, [drawing, densePath, strokeIndex, strokes, onComplete, onAccuracy]);
 
   const stopReplay = () => {
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
@@ -296,6 +323,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setErrorFlash(false);
     setAccuracy(null);
     strokeAccuraciesRef.current = [];
+    pathProgressRef.current = 0;
     onReset?.();
   };
 
