@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { ArrowLeft, Printer, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -23,7 +24,7 @@ export default function QRGenerator() {
   const baseUrl = `${window.location.origin}/LetterGame`;
 
   useEffect(() => {
-    base44.entities.Student.list('-updated_date', 200).then(all => {
+    base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(all => {
       const unique = [...new Set(all.map(s => s.class_name).filter(Boolean))].sort();
       setClasses(unique);
       if (unique.length > 0) setSelectedClass(unique[0]);
@@ -37,20 +38,21 @@ export default function QRGenerator() {
   }, [selectedClass]);
 
   const loadStudentsForClass = async (cls) => {
-    const all = await base44.entities.Student.filter({ class_name: cls });
+    const all = await base44.entities.Student.filter({ class_name: cls, school_year: ACTIVE_SCHOOL_YEAR });
     setStudents(all);
   };
 
   // Ensure all 30 students exist for this class, create missing ones
   const ensureStudents = async () => {
     setGenerating(true);
-    const existing = await base44.entities.Student.filter({ class_name: selectedClass });
+    const existing = await base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR });
     const existingNums = new Set(existing.map(s => s.student_number));
     const missing = Array.from({ length: 30 }, (_, i) => i + 1).filter(n => !existingNums.has(n));
     if (missing.length > 0) {
       await base44.entities.Student.bulkCreate(missing.map(n => ({
         student_number: n,
         class_name: selectedClass,
+        school_year: ACTIVE_SCHOOL_YEAR,
         mode_progress: DEFAULT_PROGRESS,
         current_mode: 'letter_sounds'
       })));
@@ -148,7 +150,7 @@ export default function QRGenerator() {
           <div ref={printRef} className="grid grid-cols-4 sm:grid-cols-5 gap-4">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = studentMap[num];
-              const url = s ? `${baseUrl}?studentId=${s.id}` : null;
+              const url = s ? `${baseUrl}?studentId=${s.id}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}` : null;
               return (
                 <div key={num} className={`bg-white border rounded-xl p-3 text-center shadow-sm ${!s ? 'opacity-30' : 'border-gray-200'}`}>
                   {url

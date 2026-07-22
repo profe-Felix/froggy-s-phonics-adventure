@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import StudentLogin from '../components/game/StudentLogin';
 import ModeSelection from '../components/game/ModeSelection';
@@ -87,7 +88,7 @@ export default function LetterGame() {
     if (directStudentId) return; // already handled above
     if (selectedStudent && students) {
       const existing = students.find(
-        s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name
+        s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name && s.school_year === ACTIVE_SCHOOL_YEAR
       );
       if (existing) {
         if (!existing.unlocked_pets?.length) {
@@ -108,6 +109,7 @@ export default function LetterGame() {
         createStudentMutation.mutate({
           student_number: selectedStudent.number,
           class_name: selectedStudent.class_name,
+          school_year: ACTIVE_SCHOOL_YEAR,
           mode_progress: {
             letter_sounds: {
               mastered_items: [],

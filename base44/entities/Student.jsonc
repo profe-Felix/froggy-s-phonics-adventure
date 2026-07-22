@@ -14,6 +14,11 @@
       "type": "string",
       "description": "Class identifier, e.g. F, V, C"
     },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
+      "default": ""
+    },
     "tags": {
       "type": "array",
       "items": {

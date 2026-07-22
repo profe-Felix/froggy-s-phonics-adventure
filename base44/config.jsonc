@@ -1,5 +1,5 @@
 {
-  "name": "Froggy's Phonics Adventure",
+  "name": "Phonics Adventure",
   "site": {
     "installCommand": "npm install",
     "buildCommand": "npm run build",

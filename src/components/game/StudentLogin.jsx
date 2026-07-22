@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,7 +14,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
   const navigate = useNavigate();
 
   useEffect(() => {
-    base44.entities.Student.list('-updated_date', 200).then(students => {
+    base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(students => {
       const unique = [...new Set(students.map(s => s.class_name).filter(Boolean))].sort();
       setClasses(unique);
       setLoadingClasses(false);
