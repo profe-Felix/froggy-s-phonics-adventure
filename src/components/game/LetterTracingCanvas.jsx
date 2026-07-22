@@ -19,6 +19,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
+  const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
 
   // Reset when letter changes
@@ -30,6 +31,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setCurrentPath([]);
     setStatus('idle');
     setErrorFlash(false);
+    setAwaitingLift(false);
+    pendingCompleteRef.current = false;
   }, [letter]);
 
   const getPos = (e) => {
@@ -49,7 +52,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
   const handlePointerDown = useCallback((e) => {
     e.preventDefault();
-    if (status === 'success' || status === 'lift') return;
+    if (status === 'success') return;
     const pos = getPos(e);
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
@@ -100,6 +103,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       if (newWpIdx >= currentStrokes.length) {
         // Last waypoint hit — wait for pointerUp before finalising
         pendingCompleteRef.current = true;
+        setAwaitingLift(true);
         setWaypointIndex(newWpIdx); // advance so dot disappears
       } else {
         setWaypointIndex(newWpIdx);
@@ -114,6 +118,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
     if (pendingCompleteRef.current) {
       pendingCompleteRef.current = false;
+      setAwaitingLift(false);
       const completedPath = [...currentPathRef.current];
       currentPathRef.current = [];
       setDrawnPaths(prev => [...prev, completedPath]);
@@ -122,7 +127,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       if (newStrokeIdx >= strokes.length) {
         setStatus('success');
       } else {
-        setStatus('lift');
+        setStatus('idle');
         setStrokeIndex(newStrokeIdx);
         setWaypointIndex(0);
       }
@@ -139,6 +144,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       const nearEnd = dist(pos, lastWp) < HIT_RADIUS * 3.5;
       const reachedMost = waypointIndex >= Math.max(1, currentStrokes.length - 2);
       if (nearEnd || reachedMost) {
+        setAwaitingLift(false);
         const completedPath = [...currentPathRef.current];
         currentPathRef.current = [];
         setDrawnPaths(prev => [...prev, completedPath]);
@@ -147,7 +153,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         if (newStrokeIdx >= strokes.length) {
           setStatus('success');
         } else {
-          setStatus('lift');
+          setStatus('idle');
           setStrokeIndex(newStrokeIdx);
           setWaypointIndex(0);
         }
@@ -160,14 +166,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       setWaypointIndex(0);
       setStatus('idle');
     }
-    if (status === 'lift') {
-      setStatus('idle');
-    }
   }, [drawing, status, waypointIndex, strokeIndex, strokes]);
-
-  const handleLiftDone = () => {
-    if (status === 'lift') setStatus('idle');
-  };
 
   const reset = () => {
     setStrokeIndex(0);
@@ -176,6 +175,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setDrawnPaths([]);
     currentPathRef.current = [];
     pendingCompleteRef.current = false;
+    setAwaitingLift(false);
     setCurrentPath([]);
     setStatus('idle');
     setErrorFlash(false);
@@ -195,7 +195,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     <div className="flex flex-col items-center gap-3 select-none">
       {/* Status prompt */}
       <div className="h-8 flex items-center justify-center">
-        {status === 'lift' && (
+        {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
           </div>
@@ -232,7 +232,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         onMouseUp={handlePointerUp}
         onTouchStart={handlePointerDown}
         onTouchMove={handlePointerMove}
-        onTouchEnd={status === 'lift' ? handleLiftDone : handlePointerUp}
+        onTouchEnd={handlePointerUp}
       >
         {/* Guide letter removed until suitable font is found */}
 
