@@ -183,6 +183,21 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       .map((letter, idx) => ({ letter, id: `opt-${idx}-${Math.random().toString(36).slice(2)}` }));
   };
 
+  const findAudioUrl = async (word) => {
+    const audioName = toAudioName(word);
+    const candidates = [
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.mp3`,
+      `${SUPABASE_AUDIO_BASE}/${encodeURIComponent(audioName)}.wav`,
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) return url;
+      } catch { /* try next */ }
+    }
+    return null;
+  };
+
   const startRound = async (nextRoundCount, mod = selectedModule) => {
     if (!wordsLoaded) return;
     const moduleWords = SIGHT_WORDS_BY_MODULE[mod] || [];
@@ -191,10 +206,16 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     const rc = nextRoundCount ?? roundCount;
     setRoundLoading(true);
 
-    // Pick a word and show it regardless of audio availability — audio plays
-    // best-effort (missing files are logged via AudioFeedback). This keeps the
-    // mode usable when the audio bucket is empty or still being populated.
-    const word = pickWord(modeData, lastWordRef.current, moduleWords);
+    // Prefer a word that has audio so the student hears it. Scan a few
+    // candidates; if none have audio yet, fall back to a silent word.
+    const pool = [...moduleWords].sort(() => Math.random() - 0.5);
+    let word = null;
+    for (const w of pool.slice(0, 10)) {
+      if (w === lastWordRef.current) continue;
+      if (await findAudioUrl(w)) { word = w; break; }
+    }
+    if (!word) word = pickWord(modeData, lastWordRef.current, moduleWords);
+
     if (word) {
       lastWordRef.current = word;
       const type = CHALLENGE_TYPES[rc % CHALLENGE_TYPES.length];

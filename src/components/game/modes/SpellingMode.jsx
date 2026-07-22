@@ -213,10 +213,17 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
     const moduleWords = SPELLING_WORDS_BY_MODULE[mod] || [];
     if (!moduleWords.length) return;
 
-    // Pick a word and show it regardless of audio availability — audio plays
-    // best-effort (missing files are logged via AudioFeedback). Keeps the mode
-    // usable while the audio bucket is still being populated.
-    const word = pickWord(modeData, lastWordRef.current, moduleWords);
+    // Prefer a word that has audio so the student hears it. Scan a few
+    // candidates; if none have audio yet, fall back to a silent word so the
+    // mode never dead-ends while the bucket is being populated.
+    const pool = [...moduleWords].sort(() => Math.random() - 0.5);
+    let word = null;
+    for (const w of pool.slice(0, 10)) {
+      if (w === lastWordRef.current) continue;
+      if (await findAudioUrl(w)) { word = w; break; }
+    }
+    if (!word) word = pickWord(modeData, lastWordRef.current, moduleWords);
+
     if (word) {
       lastWordRef.current = word;
       setCurrentWord(word);
