@@ -32,6 +32,11 @@
       "type": "string",
       "description": "Class name (if available)"
     },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
+      "default": ""
+    },
     "reported_date": {
       "type": "string",
       "description": "ISO timestamp"

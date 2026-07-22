@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
@@ -255,7 +256,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   }
 
   if (role === 'student' && studentInfo && selectedBook) {
-    const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}`;
+    const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}&year=${ACTIVE_SCHOOL_YEAR}`;
     return (
       <>
         <StudentBookReader

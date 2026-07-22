@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SUPABASE_PRESETS_URL =
@@ -633,6 +634,7 @@ export default function WordSentenceBuilder() {
           student_number: parseInt(config.studentNumber),
           class_name: config.className,
           preset_id: config.presetId,
+          school_year: ACTIVE_SCHOOL_YEAR,
         });
         if (existing.length > 0) {
           const sess = existing.sort((a,b) => new Date(b.updated_date||0) - new Date(a.updated_date||0))[0];
@@ -660,6 +662,7 @@ export default function WordSentenceBuilder() {
           const sess = await base44.entities.WordBuilderSession.create({
             student_number: parseInt(config.studentNumber),
             class_name: config.className,
+            school_year: ACTIVE_SCHOOL_YEAR,
             preset_id: config.presetId,
             num_problems: np,
             problems_data: JSON.stringify(fresh),
@@ -1133,6 +1136,7 @@ export default function WordSentenceBuilder() {
       base44.entities.WordBuilderAttempt.create({
         student_number: parseInt(config.studentNumber),
         class_name: config.className,
+        school_year: ACTIVE_SCHOOL_YEAR,
         preset_id: config.presetId||'custom',
         preset_label: config.presetLabel||config.presetId||'Custom',
         num_problems: problems.length,
@@ -1157,7 +1161,7 @@ export default function WordSentenceBuilder() {
     try {
       const preset = config?.presetId;
       const classPart = qrTeacherClass ? `class=${qrTeacherClass}&` : '';
-      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1`;
+      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1&year=${ACTIVE_SCHOOL_YEAR}`;
     } catch { return window.location.href; }
   })();
 

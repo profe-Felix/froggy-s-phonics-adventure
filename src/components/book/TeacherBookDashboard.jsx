@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
@@ -351,7 +352,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       {/* Book QR Modal */}
       {qrBook && (() => {
-        const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(qrBook.title)}&class=${qrBookClass}`;
+        const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(qrBook.title)}&class=${qrBookClass}&year=${ACTIVE_SCHOOL_YEAR}`;
         return (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setQrBook(null)}>
             <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>

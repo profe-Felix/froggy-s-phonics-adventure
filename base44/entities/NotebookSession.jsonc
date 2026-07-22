@@ -11,6 +11,11 @@
     "student_number": {
       "type": "integer"
     },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
+      "default": ""
+    },
     "current_page": {
       "type": "integer",
       "default": 1

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import AnnotationToolbar from '@/components/notebook/AnnotationToolbar';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import StoryPageBackground from '@/components/story/StoryPageBackground';
@@ -511,7 +512,7 @@ useEffect(() => {
 
   const { refetch } = useQuery({
     queryKey: ['story', story?.id],
-    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: className, student_number: studentNumber }),
+    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: className, student_number: studentNumber, school_year: ACTIVE_SCHOOL_YEAR }),
     enabled: false,
   });
 
@@ -717,7 +718,7 @@ export default function StoryBuilder(props = {}) {
 
   const { data: stories = [], refetch } = useQuery({
     queryKey: ['stories', studentInfo?.className, studentInfo?.number],
-    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: studentInfo.className, student_number: studentInfo.number }),
+    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: studentInfo.className, student_number: studentInfo.number, school_year: ACTIVE_SCHOOL_YEAR }),
     enabled: !!studentInfo,
   });
 
@@ -727,6 +728,7 @@ export default function StoryBuilder(props = {}) {
       title: newTitle.trim(),
       class_name: studentInfo.className,
       student_number: studentInfo.number,
+      school_year: ACTIVE_SCHOOL_YEAR,
       pages: [{ id: 'p1', template: 'blank', strokes_data: null, mics: null }],
       strokes_by_page: {},
       voice_notes_by_page: {},

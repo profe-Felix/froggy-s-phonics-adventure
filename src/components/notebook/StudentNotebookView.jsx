@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import AnnotationToolbar from './AnnotationToolbar';
 import VoiceNoteRecorder from './VoiceNoteRecorder';
 import LaserRecordView from './LaserRecordView';
@@ -194,6 +195,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         assignment_id: selectedAssignment.id,
         student_number: studentNumber,
         class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
       });
 
       const limitActive = selectedAssignment.page_mode === 'locked' || selectedAssignment.limit_pages;
@@ -221,6 +223,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
           assignment_id: selectedAssignment.id,
           class_name: className,
           student_number: studentNumber,
+          school_year: ACTIVE_SCHOOL_YEAR,
           current_page: directPage || 1,
           strokes_by_page: {},
         });

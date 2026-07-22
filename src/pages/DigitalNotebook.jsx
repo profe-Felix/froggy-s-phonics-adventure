@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import TeacherNotebookDashboard from '../components/notebook/TeacherNotebookDashboard';
 import StudentNotebookView from '../components/notebook/StudentNotebookView';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
@@ -141,7 +142,7 @@ export default function DigitalNotebook() {
   }
 
   if (role === 'student' && studentInfo) {
-    const qrUrl = `${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(urlAssignment || studentInfo.directAssignment || '')}&class=${qrClass || studentInfo.className}&page=${urlPage || 1}`;
+    const qrUrl = `${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(urlAssignment || studentInfo.directAssignment || '')}&class=${qrClass || studentInfo.className}&page=${urlPage || 1}&year=${ACTIVE_SCHOOL_YEAR}`;
     return (
       <>
         <StudentNotebookView

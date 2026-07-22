@@ -7,6 +7,7 @@ import ReplayModal from './ReplayModal';
 import StudentThumbnail from './StudentThumbnail';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 
@@ -74,7 +75,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['notebook-sessions', selectedAssignment?.id],
-    queryFn: () => base44.entities.NotebookSession.filter({ assignment_id: selectedAssignment.id }),
+    queryFn: () => base44.entities.NotebookSession.filter({ assignment_id: selectedAssignment.id, school_year: ACTIVE_SCHOOL_YEAR }),
     enabled: !!selectedAssignment,
     refetchInterval: 5000,
   });

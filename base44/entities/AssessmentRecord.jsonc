@@ -12,6 +12,11 @@
     "class_name": {
       "type": "string"
     },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
+      "default": ""
+    },
     "session_label": {
       "type": "string",
       "description": "Label for this session e.g. 'Session 1' or a date"

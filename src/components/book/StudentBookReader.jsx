@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
@@ -82,6 +83,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       book_id: book.id,
       class_name: className,
       student_number: studentNumber,
+      school_year: ACTIVE_SCHOOL_YEAR,
       session_date: today,
     }),
   });
@@ -200,6 +202,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         book_id: book.id,
         class_name: className,
         student_number: studentNumber,
+        school_year: ACTIVE_SCHOOL_YEAR,
         session_date: today,
         recordings: [newRec],
         pages_completed: updatedPages,

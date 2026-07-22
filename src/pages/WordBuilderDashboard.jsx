@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 
@@ -169,13 +170,13 @@ export default function WordBuilderDashboard() {
 
   const { data: attempts = [], isLoading } = useQuery({
     queryKey: ['wb-attempts', selectedClass],
-    queryFn: () => base44.entities.WordBuilderAttempt.filter({ class_name: selectedClass }, '-submitted_at', 200),
+    queryFn: () => base44.entities.WordBuilderAttempt.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }, '-submitted_at', 200),
     refetchInterval: 15000,
   });
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['wb-sessions', selectedClass],
-    queryFn: () => base44.entities.WordBuilderSession.filter({ class_name: selectedClass }),
+    queryFn: () => base44.entities.WordBuilderSession.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }),
     refetchInterval: 15000,
   });
 
