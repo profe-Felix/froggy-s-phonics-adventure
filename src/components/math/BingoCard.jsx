@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import TenFrame from './TenFrame';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 export default function BingoCard({ studentNumber, className, minNumber, maxNumber, calledNumbers, currentNumber, freeSpace, gameId, tenFrameSeed }) {
   const [covered, setCovered] = useState(new Set());
@@ -60,6 +61,7 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
       game_id: gameId,
       class_name: className,
       student_number: studentNumber,
+      school_year: ACTIVE_SCHOOL_YEAR,
       called_number: currentNumber,
       clicked_number: null,
       is_correct: false,
@@ -89,6 +91,7 @@ export default function BingoCard({ studentNumber, className, minNumber, maxNumb
       game_id: gameId,
       class_name: className,
       student_number: studentNumber,
+      school_year: ACTIVE_SCHOOL_YEAR,
       called_number: currentNumber,
       clicked_number: isFree ? null : num,
       is_correct: isFree ? null : isCorrect,

@@ -1161,7 +1161,7 @@ export default function WordSentenceBuilder() {
     try {
       const preset = config?.presetId;
       const classPart = qrTeacherClass ? `class=${qrTeacherClass}&` : '';
-      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1&year=${ACTIVE_SCHOOL_YEAR}`;
+      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1&SY=${ACTIVE_SCHOOL_YEAR}`;
     } catch { return window.location.href; }
   })();
 

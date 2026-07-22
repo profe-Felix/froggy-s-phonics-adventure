@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import TenFrame from './TenFrame';
 import { Button } from '@/components/ui/button';
 import { getPointsForAttempt } from '@/components/game/literacyBingoUtils';
@@ -158,6 +159,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
         setRespondedNumber(game.current_number);
         await base44.entities.MathBingoResponse.create({
           game_id: game.id, class_name: className, student_number: playerNumber,
+          school_year: ACTIVE_SCHOOL_YEAR,
           called_number: game.current_number, clicked_number: null,
           is_correct: false, response_time_ms: calledAtRef.current ? Date.now() - calledAtRef.current : null,
           not_on_card: true, free_space_click: false,
@@ -175,6 +177,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
     setFeedback('correct');
     await base44.entities.MathBingoResponse.create({
       game_id: game.id, class_name: className, student_number: playerNumber,
+      school_year: ACTIVE_SCHOOL_YEAR,
       called_number: game.current_number, clicked_number: null,
       is_correct: true, response_time_ms: calledAtRef.current ? Date.now() - calledAtRef.current : null,
       not_on_card: true, free_space_click: false,
@@ -192,6 +195,7 @@ export default function BingoPeerCard({ initialGame, playerNumber, className, on
 
     await base44.entities.MathBingoResponse.create({
       game_id: game.id, class_name: className, student_number: playerNumber,
+      school_year: ACTIVE_SCHOOL_YEAR,
       called_number: game.current_number, clicked_number: num,
       is_correct: isCorrect, response_time_ms: responseTimeMs,
       not_on_card: false, free_space_click: false,

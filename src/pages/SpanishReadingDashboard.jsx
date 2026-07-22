@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 
@@ -108,7 +109,7 @@ export default function SpanishReadingDashboard() {
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['spanish-sessions', selectedClass],
-    queryFn: () => base44.entities.SpanishReadingSession.filter({ class_name: selectedClass }),
+    queryFn: () => base44.entities.SpanishReadingSession.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }),
     enabled: !!selectedClass,
     refetchInterval: 10000,
   });

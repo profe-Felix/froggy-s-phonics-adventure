@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import OneLessMoreSpinner from './OneLessMoreSpinner';
 import SimpleWritingCanvas from './SimpleWritingCanvas';
 
@@ -175,6 +176,7 @@ export default function OneLessMoreMode({ studentNumber, className: classProp, o
     try {
       await base44.entities.OneLessMoreAttempt.create({
         student_number: studentNumber, class_name: classProp,
+        school_year: ACTIVE_SCHOOL_YEAR,
         starting_number: startNumber, spinner_result: spinResult, target_number: targetNumber,
         student_wrote_start: startWritten, student_wrote_result: resultWritten,
         is_correct_start: startWritten === startNumber, is_correct_result: resultWritten === targetNumber,

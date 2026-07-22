@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import StoryStudentThumbnail from './StoryStudentThumbnail';
 import StoryReplayModal from './StoryReplayModal';
 
@@ -13,7 +14,7 @@ export default function TeacherStoryDashboard({ onBack }) {
 
   const { data: stories = [], isLoading } = useQuery({
     queryKey: ['teacher-stories', className],
-    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: className }),
+    queryFn: () => base44.entities.StoryAssignment.filter({ class_name: className, school_year: ACTIVE_SCHOOL_YEAR }),
     refetchInterval: 15000,
   });
 

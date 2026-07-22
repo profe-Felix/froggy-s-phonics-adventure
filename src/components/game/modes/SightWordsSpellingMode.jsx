@@ -6,6 +6,7 @@ import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 let SIGHT_WORDS_BY_MODULE = {};
@@ -111,6 +112,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
           feedback_type: 'missing_audio',
           student_number: studentData?.student_number || null,
           class_name: studentData?.class_name || null,
+          school_year: ACTIVE_SCHOOL_YEAR,
           reported_date: new Date().toISOString(),
         }).catch(() => {});
         return;
@@ -132,6 +134,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       feedback_type: 'unclear_audio',
       student_number: studentData?.student_number || null,
       class_name: studentData?.class_name || null,
+      school_year: ACTIVE_SCHOOL_YEAR,
       reported_date: new Date().toISOString(),
     }).catch(() => {});
   };
@@ -281,6 +284,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
         mode: 'sight_words_spelling',
         word: currentWord,
         strokes_data: isKeyboard

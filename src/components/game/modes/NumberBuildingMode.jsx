@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import NumberWritingCanvas from './NumberWritingCanvas';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -108,6 +109,7 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
       base44.entities.NumberAttempt.create({
         student_number: studentNumber,
         class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
         number: currentNumber,
         correct,
       }).catch(() => {});

@@ -7,6 +7,7 @@ import BingoStruggleGroups from '../components/math/BingoStruggleGroups';
 import OneLessMoreDashboard from '../components/math/OneLessMoreDashboard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { motion } from 'framer-motion';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
@@ -20,25 +21,25 @@ export default function MathDashboard() {
 
   const { data: samples = [], isLoading } = useQuery({
     queryKey: ['writing-samples', selectedClass],
-    queryFn: () => base44.entities.NumberWritingSample.filter({ class_name: selectedClass }, '-created_date', 300),
+    queryFn: () => base44.entities.NumberWritingSample.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 300),
     refetchInterval: 10000,
   });
 
   const { data: attempts = [] } = useQuery({
     queryKey: ['number-attempts', selectedClass],
-    queryFn: () => base44.entities.NumberAttempt.filter({ class_name: selectedClass }, '-created_date', 1000),
+    queryFn: () => base44.entities.NumberAttempt.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 1000),
     refetchInterval: 10000,
   });
 
   const { data: bingoResponses = [] } = useQuery({
     queryKey: ['bingo-responses', selectedClass],
-    queryFn: () => base44.entities.MathBingoResponse.filter({ class_name: selectedClass }, '-created_date', 2000),
+    queryFn: () => base44.entities.MathBingoResponse.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 2000),
     refetchInterval: 10000,
   });
 
   const { data: oneLessMoreAttempts = [] } = useQuery({
     queryKey: ['one-less-more', selectedClass],
-    queryFn: () => base44.entities.OneLessMoreAttempt.filter({ class_name: selectedClass }, '-created_date', 500),
+    queryFn: () => base44.entities.OneLessMoreAttempt.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 500),
     refetchInterval: 10000,
   });
 

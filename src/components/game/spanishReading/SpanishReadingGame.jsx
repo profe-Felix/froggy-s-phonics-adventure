@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import SlideToReadCanvas from './SlideToReadCanvas';
 import RecordingsProgressBar from './RecordingsProgressBar';
 
@@ -190,6 +191,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       const sessions = await base44.entities.SpanishReadingSession.filter({
         student_number: studentNumber,
         class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
         attempt_date: today,
       });
       setCompletedTexts(new Set(sessions.map(s => s.item_text)));
@@ -215,6 +217,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       const allSessions = await base44.entities.SpanishReadingSession.filter({
         student_number: studentNumber,
         class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
         list_name: listName,
       });
       mastered = new Set(
@@ -278,6 +281,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     const newSession = await base44.entities.SpanishReadingSession.create({
       student_number: studentNumber,
       class_name: className,
+      school_year: ACTIVE_SCHOOL_YEAR,
       list_name: `${selectedSection} M${selectedModule}`,
       item_text: itemText,
       item_type: itemType,

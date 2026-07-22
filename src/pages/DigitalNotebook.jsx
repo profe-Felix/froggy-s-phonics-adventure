@@ -142,7 +142,7 @@ export default function DigitalNotebook() {
   }
 
   if (role === 'student' && studentInfo) {
-    const qrUrl = `${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(urlAssignment || studentInfo.directAssignment || '')}&class=${qrClass || studentInfo.className}&page=${urlPage || 1}&year=${ACTIVE_SCHOOL_YEAR}`;
+    const qrUrl = `${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(urlAssignment || studentInfo.directAssignment || '')}&class=${qrClass || studentInfo.className}&page=${urlPage || 1}&SY=${ACTIVE_SCHOOL_YEAR}`;
     return (
       <>
         <StudentNotebookView

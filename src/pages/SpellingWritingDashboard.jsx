@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
@@ -120,7 +121,7 @@ export default function SpellingWritingDashboard() {
 
   const { data: samples = [], isLoading } = useQuery({
     queryKey: ['spelling-writing-samples', mode],
-    queryFn: () => base44.entities.SpellingWritingSample.filter({ mode }),
+    queryFn: () => base44.entities.SpellingWritingSample.filter({ mode, school_year: ACTIVE_SCHOOL_YEAR }),
     refetchInterval: 15000,
   });
 

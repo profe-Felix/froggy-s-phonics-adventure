@@ -256,7 +256,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   }
 
   if (role === 'student' && studentInfo && selectedBook) {
-    const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}&year=${ACTIVE_SCHOOL_YEAR}`;
+    const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}&SY=${ACTIVE_SCHOOL_YEAR}`;
     return (
       <>
         <StudentBookReader

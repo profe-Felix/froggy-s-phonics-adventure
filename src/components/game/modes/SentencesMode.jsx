@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import PrizeWheel from '@/components/game/PrizeWheel';
 
 const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
@@ -360,6 +361,7 @@ function SentenceWriteCanvas({ onDone, onPlayAudio, currentSentence, studentData
       feedback_type: 'unclear_audio',
       student_number: studentData?.student_number || null,
       class_name: studentData?.class_name || null,
+      school_year: ACTIVE_SCHOOL_YEAR,
       reported_date: new Date().toISOString(),
     }).catch(() => {});
   };
@@ -1241,6 +1243,7 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
         mode: 'sentences',
         word: currentSentence,
         strokes_data: isKeyboard

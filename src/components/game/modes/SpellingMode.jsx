@@ -4,6 +4,7 @@ import GameCanvas from '../GameCanvas';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import EmojiPrizeCelebration, { countNewEmojis, getEmojiForIndex, POINTS_PER_EMOJI } from '../EmojiPrizeCelebration';
 import EmojiCollection from '../EmojiCollection';
 
@@ -173,6 +174,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
             feedback_type: 'missing_audio',
             student_number: studentData?.student_number || null,
             class_name: studentData?.class_name || null,
+            school_year: ACTIVE_SCHOOL_YEAR,
             reported_date: new Date().toISOString(),
           }).catch(() => {});
           return;
@@ -199,6 +201,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
       feedback_type: 'unclear_audio',
       student_number: studentData?.student_number || null,
       class_name: studentData?.class_name || null,
+      school_year: ACTIVE_SCHOOL_YEAR,
       reported_date: new Date().toISOString(),
     }).catch(() => {});
   };
@@ -290,6 +293,7 @@ export default function SpellingMode({ studentData, onUpdateProgress, onBack }) 
       base44.entities.SpellingWritingSample.create({
         student_number: studentData.student_number,
         class_name: studentData.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
         mode: 'spelling',
         word: currentWord,
         strokes_data: isKeyboard

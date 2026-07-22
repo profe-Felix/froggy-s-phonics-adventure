@@ -1,5 +1,6 @@
 import React, { useRef, useState, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 
 export default function NumberWritingCanvas({ number, studentNumber, className, onDone }) {
   const canvasRef = useRef(null);
@@ -91,6 +92,7 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
     await base44.entities.NumberWritingSample.create({
       student_number: studentNumber,
       class_name: className,
+      school_year: ACTIVE_SCHOOL_YEAR,
       number,
       image_url: file_url,
       stroke_count: allStrokes.current.length,

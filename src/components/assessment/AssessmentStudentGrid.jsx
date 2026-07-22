@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery } from '@tanstack/react-query';
 import { exportAssessmentClassPdf } from './exportAssessmentPdf';
 
@@ -15,7 +16,7 @@ export default function AssessmentStudentGrid({ template, className, students, o
   // Fetch all records for this template
   const { data: records = [] } = useQuery({
     queryKey: ['assessment-records', template.id],
-    queryFn: () => base44.entities.AssessmentRecord.filter({ template_id: template.id, class_name: className }),
+    queryFn: () => base44.entities.AssessmentRecord.filter({ template_id: template.id, class_name: className, school_year: ACTIVE_SCHOOL_YEAR }),
     refetchInterval: 10000,
   });
 
@@ -37,6 +38,7 @@ export default function AssessmentStudentGrid({ template, className, students, o
       template_id: template.id,
       student_number: studentNumber,
       class_name: className,
+      school_year: ACTIVE_SCHOOL_YEAR,
       strokes_by_page: {},
       session_number: 1,
     });
