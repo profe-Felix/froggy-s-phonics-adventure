@@ -96,7 +96,7 @@ export default function QRGenerator() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">🔲 QR Code Generator</h1>
-              <p className="text-sm text-gray-500">Stable QR codes — safe to rename classes anytime</p>
+              <p className="text-sm text-gray-500">Compact codes — re-generate if you rename a class</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -150,7 +150,7 @@ export default function QRGenerator() {
           <div ref={printRef} className="grid grid-cols-4 sm:grid-cols-5 gap-4">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = studentMap[num];
-              const url = s ? `${baseUrl}?studentId=${s.id}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}` : null;
+              const url = s ? `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}` : null;
               return (
                 <div key={num} className={`bg-white border rounded-xl p-3 text-center shadow-sm ${!s ? 'opacity-30' : 'border-gray-200'}`}>
                   {url
