@@ -1,4 +1,3 @@
-
 // Spelling words for the Spelling mode
 // Audio files should be placed in: public/spelling-audio/{word}.mp3
 
@@ -17,4 +16,14 @@ export const SPELLING_WORDS = [
   'su', 'sube', 'suda', 'sudo', 'suma', 'sumo', 'supo', 'tapa', 'tapo', 'te',
   'tela', 'tema', 'ti', 'tina', 'toda', 'todo', 'toma', 'tomo', 'tu', 'tubo',
   'tuna', 'una', 'une', 'uno', 'usa', 'uso', 'va', 've', 'vi', 'ya', 'yo'
+];
+
+// English spelling words — simple CVC (consonant-vowel-consonant) words.
+// Audio for English uses the browser SpeechSynthesis API (no recorded files yet).
+export const SPELLING_WORDS_EN = [
+  'cat', 'dog', 'sun', 'hat', 'bed', 'big', 'red', 'run', 'sit', 'top',
+  'mom', 'dad', 'box', 'pig', 'cup', 'leg', 'ten', 'jet', 'web', 'fan',
+  'bun', 'hen', 'log', 'pen', 'six', 'cub', 'mud', 'pot', 'bug', 'jam',
+  'fox', 'rip', 'vet', 'zip', 'gas', 'lip', 'dot', 'fin', 'peg', 'rod',
+  'map', 'tap', 'lap', 'nap', 'bat', 'rat', 'can', 'man', 'pan', 'van'
 ];

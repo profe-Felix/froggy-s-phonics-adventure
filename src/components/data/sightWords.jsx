@@ -25,3 +25,20 @@ export const SIGHT_WORDS_SPELLING = [
   'todo', 'crecer', 'material', 'tierra', 'cosa', 'grupo', 'tarea', 'clase', 'escribir', 'pronto', 'desde', 
   'ejemplo', 'hablar', 'completa', 'importante', 'observa', 'árboles', 'buscan', 'guarda'
 ];
+
+// English sight words — high-frequency word list (Dolch/Fry based).
+// Audio for English uses the browser SpeechSynthesis API (no recorded files yet).
+export const SIGHT_WORDS_EASY_EN = [
+  'the', 'a', 'I', 'to', 'and', 'is', 'it', 'in', 'you', 'that',
+  'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'at',
+  'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'but', 'not',
+  'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 'there', 'use',
+  'an', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'will', 'up'
+];
+export const SIGHT_WORDS_SPELLING_EN = [
+  'the', 'a', 'I', 'to', 'and', 'is', 'it', 'in', 'you', 'that',
+  'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'at',
+  'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'but', 'not',
+  'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 'there', 'use',
+  'an', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'will', 'up'
+];

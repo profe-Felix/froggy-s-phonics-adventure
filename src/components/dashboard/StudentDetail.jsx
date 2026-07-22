@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { LETTER_SOUNDS } from '../data/letterSounds';
+import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../data/letterSounds';
+import { SIGHT_WORDS_EASY_EN, SIGHT_WORDS_SPELLING_EN } from '../data/sightWords';
+import { SPELLING_WORDS_EN } from '../data/spellingWords';
 
 const MODE_LABELS = {
   letter_sounds: 'Letter Sounds',
@@ -12,6 +14,23 @@ const MODE_LABELS = {
 };
 
 const CLASSES = ['F', 'V', 'C', 'S', 'B', 'M', 'R', 'T', 'G', 'L'];
+
+const LANG_DEFAULTS = {
+  es: {
+    letter_sounds: ['o', 'i', 'a'],
+    sight_words_easy: ['el', 'la', 'un'],
+    sight_words_spelling: ['el', 'la', 'un'],
+    spelling: ['ala', 'ama', 'amo'],
+    case_matching: ['a', 'e', 'i'],
+  },
+  en: {
+    letter_sounds: ['s', 'a', 't'],
+    sight_words_easy: SIGHT_WORDS_EASY_EN.slice(0, 3),
+    sight_words_spelling: SIGHT_WORDS_SPELLING_EN.slice(0, 3),
+    spelling: SPELLING_WORDS_EN.slice(0, 3),
+    case_matching: ['a', 'b', 'c'],
+  },
+};
 
 function ItemBadge({ item, attempts }) {
   const stats = attempts?.[item] || { correct: 0, total: 0 };
@@ -47,6 +66,7 @@ function LetterSoundsEditor({ student, onUpdate }) {
   const mastered = new Set(ls.mastered_items || []);
   const learning = new Set(ls.learning_items || []);
   const [saving, setSaving] = useState(false);
+  const letters = (student.language === 'en') ? LETTER_SOUNDS_EN : LETTER_SOUNDS;
 
   const getStatus = (letter) => {
     if (mastered.has(letter)) return 'mastered';
@@ -94,7 +114,7 @@ function LetterSoundsEditor({ student, onUpdate }) {
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block border border-gray-300"></span> Not started</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {LETTER_SOUNDS.map(letter => {
+        {letters.map(letter => {
           const status = getStatus(letter);
           const stats = ls.item_attempts?.[letter] || { correct: 0, total: 0 };
           const pct = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : null;
@@ -131,8 +151,21 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
 
   const handleSaveLanguage = async (newLang) => {
     setLangSel(newLang);
-    await base44.entities.Student.update(student.id, { language: newLang });
-    onUpdate({ ...student, language: newLang });
+    const d = LANG_DEFAULTS[newLang] || LANG_DEFAULTS.es;
+    const freshProgress = {};
+    Object.keys(MODE_LABELS).forEach(k => {
+      freshProgress[k] = {
+        mastered_items: [],
+        learning_items: d[k] || [],
+        item_attempts: {},
+        total_correct: 0,
+        total_attempts: 0,
+        unlocked: k === 'letter_sounds',
+      };
+    });
+    const updated = { ...student, language: newLang, mode_progress: freshProgress };
+    await base44.entities.Student.update(student.id, { language: newLang, mode_progress: freshProgress });
+    onUpdate(updated);
   };
   const handleSaveLock = async (val) => {
     setLockSel(val);
