@@ -3,7 +3,7 @@ import GameCanvas from '../GameCanvas';
 import { SIGHT_WORDS_EASY, SIGHT_WORDS_EASY_EN } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
-import { AUDIO_BASE } from '@/lib/audio';
+import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 
 export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   const [currentWord, setCurrentWord] = useState(null);
@@ -105,7 +105,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     }
     
     if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`${AUDIO_BASE}/${language}/sight-words/${encodeURIComponent(word)}.mp3`);
+      preloadedAudio.current[word] = new Audio(`${AUDIO_BASE}/${language}/words/${encodeURIComponent(toAudioName(word))}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
       preloadedAudio.current[word].onerror = () => {
         base44.entities.AudioFeedback.create({

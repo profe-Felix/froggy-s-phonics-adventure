@@ -11,11 +11,13 @@ const PILL_COLORS = { green: '#008000', red: '#ff0000', grey: '#999999' };
 const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
 const THUMB_COLOR = '#007bff';
-const SUPABASE_AUDIO_BASE = `${AUDIO_BASE}/es/reading`; // spanish reading items (by id)
-
-function playAudioById(id) {
+// Spanish reading items live under the matching category by item id:
+// sentence items → es/sentences, word/syllable items → es/words.
+function playAudioById(id, itemType) {
   if (!id) return;
-  const candidates = [`${SUPABASE_AUDIO_BASE}/${id}.mp3`, `${SUPABASE_AUDIO_BASE}/${id}.wav`];
+  const category = itemType === 'sentence' ? 'sentences' : 'words';
+  const base = `${AUDIO_BASE}/es/${category}`;
+  const candidates = [`${base}/${id}.mp3`, `${base}/${id}.wav`];
   let i = 0;
   const tryNext = () => {
     if (i >= candidates.length) return;
@@ -297,7 +299,7 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, onRecordingComplete, onBack }) {
+export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingComplete, onBack }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -368,7 +370,7 @@ export default function SlideToReadCanvas({ text, itemId, onRecordingComplete, o
 
   const handlePlayAudio = () => {
     setPlaying(true);
-    playAudioById(itemId);
+    playAudioById(itemId, itemType);
     setTimeout(() => setPlaying(false), 2000);
   };
 

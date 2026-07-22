@@ -415,6 +415,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
               key={`${selectedSection}-${selectedModule}-${currentIdx}`}
               text={itemText}
               itemId={getItemId(currentItem)}
+              itemType={itemType}
               onRecordingComplete={handleRecordingComplete}
               onBack={() => setViewMode('overview')}
             />

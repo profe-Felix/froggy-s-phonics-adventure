@@ -14,3 +14,15 @@
 
 export const AUDIO_BASE =
   'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/audio';
+
+// Escape accented characters to ASCII-safe filenames — used by the `words`
+// category (spelling, sight-words, phonics): papá → papa.. , ñ → n.. , ü → u,,.
+export function toAudioName(word) {
+  return word
+    .replace(/á/g, 'a..').replace(/é/g, 'e..').replace(/í/g, 'i..')
+    .replace(/ó/g, 'o..').replace(/ú/g, 'u..')
+    .replace(/Á/g, 'A..').replace(/É/g, 'E..').replace(/Í/g, 'I..')
+    .replace(/Ó/g, 'O..').replace(/Ú/g, 'U..')
+    .replace(/ü/g, 'u,,').replace(/Ü/g, 'U,,')
+    .replace(/ñ/g, 'n..').replace(/Ñ/g, 'N..');
+}
