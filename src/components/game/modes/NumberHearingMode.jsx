@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
+import { getLanguage } from '@/lib/language';
+import { AUDIO_BASE } from '@/lib/audio';
 
 const ALL_NUMBERS = Array.from({ length: 21 }, (_, i) => i); // 0–20
 
@@ -51,7 +53,8 @@ export default function NumberHearingMode({ studentData, onUpdateProgress }) {
   const audioCache = useRef({});
 
   const playSound = (num) => {
-    const path = `/numbers-audio/${num}.mp3`;
+    const lang = getLanguage(studentData);
+    const path = `${AUDIO_BASE}/${lang}/numbers/${num}.mp3`;
     if (!audioCache.current[path]) {
       audioCache.current[path] = new Audio(path);
       audioCache.current[path].preload = 'auto';

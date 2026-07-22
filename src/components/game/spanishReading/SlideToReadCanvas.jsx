@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { parseText } from './phonetics';
+import { AUDIO_BASE } from '@/lib/audio';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
 const BG_COLOR = '#ffffff';
@@ -10,7 +11,7 @@ const PILL_COLORS = { green: '#008000', red: '#ff0000', grey: '#999999' };
 const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
 const THUMB_COLOR = '#007bff';
-const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+const SUPABASE_AUDIO_BASE = `${AUDIO_BASE}/es/reading`; // spanish reading items (by id)
 
 function playAudioById(id) {
   if (!id) return;

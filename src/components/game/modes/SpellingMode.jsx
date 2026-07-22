@@ -5,13 +5,14 @@ import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { AUDIO_BASE } from '@/lib/audio';
 import EmojiPrizeCelebration, { countNewEmojis, getEmojiForIndex, POINTS_PER_EMOJI } from '../EmojiPrizeCelebration';
 import EmojiCollection from '../EmojiCollection';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 let SPELLING_WORDS_BY_MODULE = {};
 
-const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+const SUPABASE_AUDIO_BASE = `${AUDIO_BASE}/es/words`; // spelling words (Spanish content)
 
 function toAudioName(word) {
   return word

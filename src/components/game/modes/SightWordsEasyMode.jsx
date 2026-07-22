@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
-import { SIGHT_WORDS_EASY } from '../../data/sightWords';
+import { SIGHT_WORDS_EASY, SIGHT_WORDS_EASY_EN } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
-
-const SIGHT_WORDS = SIGHT_WORDS_EASY;
+import { getLanguage } from '@/lib/language';
+import { AUDIO_BASE } from '@/lib/audio';
 
 export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   const [currentWord, setCurrentWord] = useState(null);
@@ -14,6 +14,9 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
   const [isCorrect, setIsCorrect] = useState(false);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
+
+  const language = getLanguage(studentData);
+  const SIGHT_WORDS = language === 'en' ? SIGHT_WORDS_EASY_EN : SIGHT_WORDS_EASY;
 
   const modeData = studentData?.mode_progress?.sight_words_easy || {
     mastered_items: [],
@@ -102,7 +105,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     }
     
     if (!preloadedAudio.current[word]) {
-      preloadedAudio.current[word] = new Audio(`/sight-word-audio/${encodeURIComponent(word)}.mp3`);
+      preloadedAudio.current[word] = new Audio(`${AUDIO_BASE}/${language}/sight-words/${encodeURIComponent(word)}.mp3`);
       preloadedAudio.current[word].preload = 'auto';
       preloadedAudio.current[word].onerror = () => {
         base44.entities.AudioFeedback.create({

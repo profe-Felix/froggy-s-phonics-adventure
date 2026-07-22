@@ -7,6 +7,7 @@ import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
 import SpellingWriteStep from '../SpellingWriteStep';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { AUDIO_BASE } from '@/lib/audio';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 let SIGHT_WORDS_BY_MODULE = {};
@@ -76,7 +77,7 @@ export default function SightWordsSpellingMode({ studentData, onUpdateProgress, 
     item_attempts: {}, total_correct: 0, total_attempts: 0
   };
 
-  const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+  const SUPABASE_AUDIO_BASE = `${AUDIO_BASE}/es/words`; // sight-words-spelling (Spanish)
 
   function toAudioName(word) {
     return word

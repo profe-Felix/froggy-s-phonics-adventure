@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import PrizeWheel from '@/components/game/PrizeWheel';
+import { AUDIO_BASE } from '@/lib/audio';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
-const SUPABASE_AUDIO_BASE = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/lettersort-audio';
+const SUPABASE_AUDIO_BASE = `${AUDIO_BASE}/es/words`; // phonics words (Spanish)
 
 // ── Spanish homophones to exclude from phonics cloze ──────────────
 // These words sound identical to another word, so hearing alone can't

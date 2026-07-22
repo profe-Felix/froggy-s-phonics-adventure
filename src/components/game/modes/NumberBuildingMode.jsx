@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { AUDIO_BASE } from '@/lib/audio';
 import NumberWritingCanvas from './NumberWritingCanvas';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -28,7 +29,7 @@ export default function NumberBuildingMode({ onBack, studentNumber, className })
   const attemptsRef = useRef({});
 
   const playSound = (num) => {
-    const path = `/numbers-audio/${num}.mp3`;
+    const path = `${AUDIO_BASE}/es/numbers/${num}.mp3`;
     if (!audioCache.current[path]) {
       audioCache.current[path] = new Audio(path);
     }

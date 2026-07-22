@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
+import { AUDIO_BASE } from '@/lib/audio';
 
 export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -90,23 +91,34 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     };
 
     if (language === 'en') {
-      // English: use browser speech synthesis (no recorded files yet)
-      try {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(letter);
-        u.lang = 'en-US';
-        u.rate = 0.75;
-        u.onend = enable;
-        u.onerror = enable;
-        audioRef.current = { pause: () => window.speechSynthesis.cancel() };
-        window.speechSynthesis.speak(u);
-      } catch { enable(); }
-      audioTimeoutRef.current = setTimeout(enable, 2500);
+      // English: prefer a recorded file in Supabase, fall back to browser TTS.
+      const url = `${AUDIO_BASE}/en/letters/${encodeURIComponent(letter)}.mp3`;
+      const audio = new Audio(url);
+      audio.preload = 'auto';
+      let settled = false;
+      const useTTS = () => {
+        if (settled) return; settled = true;
+        try {
+          window.speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(letter);
+          u.lang = 'en-US';
+          u.rate = 0.75;
+          u.onend = enable;
+          u.onerror = enable;
+          audioRef.current = { pause: () => window.speechSynthesis.cancel() };
+          window.speechSynthesis.speak(u);
+        } catch { enable(); }
+      };
+      audio.onended = enable;
+      audio.onerror = useTTS;
+      audioRef.current = audio;
+      audioTimeoutRef.current = setTimeout(enable, 3000);
+      audio.play().catch(useTTS);
       return;
     }
 
     if (!preloadedAudio.current[letter]) {
-      preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
+      preloadedAudio.current[letter] = new Audio(`${AUDIO_BASE}/${language}/letters/${encodeURIComponent(letter)}.mp3`);
       preloadedAudio.current[letter].preload = 'auto';
     }
     audioRef.current = preloadedAudio.current[letter];
