@@ -34,7 +34,24 @@ function buildDensePath(waypoints, step = 3) {
   return dense;
 }
 
-export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset }) {
+// Score a finished stroke 0–100: each drawn point's closeness to the nearest
+// ideal point is averaged. A point on the ideal path scores 100; one `penalty`
+// px away scores 0.
+function strokeAccuracy(drawnPts, idealDense, penalty = 30) {
+  if (!drawnPts.length || !idealDense.length) return 100;
+  let sum = 0;
+  for (const p of drawnPts) {
+    let minD = Infinity;
+    for (const q of idealDense) {
+      const d = dist(p, q);
+      if (d < minD) minD = d;
+    }
+    sum += Math.max(0, 100 * (1 - minD / penalty));
+  }
+  return Math.round(sum / drawnPts.length);
+}
+
+export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy }) {
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
@@ -46,6 +63,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
+  const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
+  const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
   const [replaying, setReplaying] = useState(false);
   const [replayPts, setReplayPts] = useState([]);
   const replayRafRef = useRef(null);
@@ -74,6 +93,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
+    setAccuracy(null);
+    strokeAccuraciesRef.current = [];
   }, [letter]);
 
   const getPos = (e) => {
@@ -176,9 +197,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       currentPathRef.current = [];
       setDrawnPaths(prev => [...prev, completedPath]);
       setCurrentPath([]);
+      strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
       const newStrokeIdx = strokeIndex + 1;
       if (newStrokeIdx >= strokes.length) {
         setStatus('success');
+        const accs = strokeAccuraciesRef.current;
+        const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
+        setAccuracy(avg);
+        onAccuracy?.(avg);
       } else {
         setStatus('idle');
         setStrokeIndex(newStrokeIdx);
@@ -202,9 +228,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         currentPathRef.current = [];
         setDrawnPaths(prev => [...prev, completedPath]);
         setCurrentPath([]);
+        strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
         const newStrokeIdx = strokeIndex + 1;
         if (newStrokeIdx >= strokes.length) {
           setStatus('success');
+          const accs = strokeAccuraciesRef.current;
+          const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
+          setAccuracy(avg);
+          onAccuracy?.(avg);
         } else {
           setStatus('idle');
           setStrokeIndex(newStrokeIdx);
@@ -219,7 +250,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       setWaypointIndex(0);
       setStatus('idle');
     }
-  }, [drawing, status, waypointIndex, strokeIndex, strokes]);
+  }, [drawing, status, waypointIndex, strokeIndex, strokes, densePath, onAccuracy]);
 
   const stopReplay = () => {
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
@@ -263,6 +294,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setCurrentPath([]);
     setStatus('idle');
     setErrorFlash(false);
+    setAccuracy(null);
+    strokeAccuraciesRef.current = [];
     onReset?.();
   };
 
@@ -289,6 +322,11 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
             <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">
               🎉 Great job!
             </div>
+            {accuracy != null && (
+              <div className="bg-indigo-100 border border-indigo-300 rounded-full px-4 py-1 text-indigo-800 font-bold text-sm">
+                🎯 {accuracy}%
+              </div>
+            )}
             <button
               onClick={() => onComplete?.()}
               className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm px-4 py-1 rounded-full"
