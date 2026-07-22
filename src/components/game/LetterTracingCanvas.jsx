@@ -129,8 +129,31 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       return;
     }
 
-    if (status === 'tracing' && waypointIndex > 0 && waypointIndex < (strokes[strokeIndex]?.length ?? 0)) {
-      // Lifted too early
+    const currentStrokes = strokes[strokeIndex];
+    if (status === 'tracing' && currentStrokes && waypointIndex > 0 && waypointIndex < currentStrokes.length) {
+      // Forgiving finish: accept the stroke if the student lifted near the
+      // final waypoint, or has already reached the last couple of waypoints —
+      // a freehand lift naturally lands a bit before the exact end point.
+      const pos = getPos(e);
+      const lastWp = scale(currentStrokes[currentStrokes.length - 1]);
+      const nearEnd = dist(pos, lastWp) < HIT_RADIUS * 3.5;
+      const reachedMost = waypointIndex >= Math.max(1, currentStrokes.length - 2);
+      if (nearEnd || reachedMost) {
+        const completedPath = [...currentPathRef.current];
+        currentPathRef.current = [];
+        setDrawnPaths(prev => [...prev, completedPath]);
+        setCurrentPath([]);
+        const newStrokeIdx = strokeIndex + 1;
+        if (newStrokeIdx >= strokes.length) {
+          setStatus('success');
+        } else {
+          setStatus('lift');
+          setStrokeIndex(newStrokeIdx);
+          setWaypointIndex(0);
+        }
+        return;
+      }
+      // Genuinely lifted too early
       flashError();
       currentPathRef.current = [];
       setCurrentPath([]);
