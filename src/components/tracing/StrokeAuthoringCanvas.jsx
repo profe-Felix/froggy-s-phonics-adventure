@@ -18,31 +18,44 @@ const pathD = (pts) =>
 
 export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [current, setCurrent] = useState([]);
-  const [drawing, setDrawing] = useState(false);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
+  const drawingRef = useRef(false);
 
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return {
-      x: ((clientX - rect.left) * CANVAS_W) / rect.width,
-      y: ((clientY - rect.top) * CANVAS_H) / rect.height,
+      x: ((e.clientX - rect.left) * CANVAS_W) / rect.width,
+      y: ((e.clientY - rect.top) * CANVAS_H) / rect.height,
     };
   };
 
+  const finishStroke = () => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    if (currentRef.current.length > 1) {
+      const stroke = currentRef.current;
+      setRawStrokes((prev) => [...prev, stroke]);
+    }
+    currentRef.current = [];
+    setCurrent([]);
+  };
+
+  // Pointer Events unify mouse, touch, and pen. setPointerCapture keeps events
+  // flowing to the canvas even if the finger/cursor leaves it mid-stroke.
   const down = (e) => {
     e.preventDefault();
+    if (e.button != null && e.button !== 0) return; // left mouse / touch / pen only
+    try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
     const pos = getPos(e);
     currentRef.current = [pos];
     setCurrent([pos]);
-    setDrawing(true);
+    drawingRef.current = true;
   };
 
   const move = (e) => {
-    if (!drawing) return;
+    if (!drawingRef.current) return;
     e.preventDefault();
     const pos = getPos(e);
     const last = currentRef.current[currentRef.current.length - 1];
@@ -51,14 +64,10 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     setCurrent(currentRef.current);
   };
 
-  const up = () => {
-    if (!drawing) return;
-    setDrawing(false);
-    if (currentRef.current.length > 1) {
-      setRawStrokes((prev) => [...prev, currentRef.current]);
-    }
-    currentRef.current = [];
-    setCurrent([]);
+  const up = (e) => {
+    e.preventDefault();
+    try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
+    finishStroke();
   };
 
   const undo = () => setRawStrokes((prev) => prev.slice(0, -1));
@@ -70,14 +79,12 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         ref={svgRef}
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
         className="w-72 max-w-full rounded-2xl border-4 border-indigo-300 bg-white touch-none aspect-[4/5] shadow-sm"
-        style={{ cursor: 'crosshair' }}
-        onMouseDown={down}
-        onMouseMove={move}
-        onMouseUp={up}
-        onMouseLeave={up}
-        onTouchStart={down}
-        onTouchMove={move}
-        onTouchEnd={up}
+        style={{ cursor: 'crosshair', touchAction: 'none' }}
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+        onPointerLeave={up}
       >
         {/* Writing lines: T=0.10, M=0.42, B=0.72, D=0.92 */}
         <line x1="0" y1={0.1 * CANVAS_H} x2={CANVAS_W} y2={0.1 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
