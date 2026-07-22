@@ -1,0 +1,23 @@
+{
+  "name": "LetterWaypoint",
+  "type": "object",
+  "properties": {
+    "letter": {
+      "type": "string",
+      "description": "The character key this waypoint set belongs to (e.g. 'a', 'A'). Unique per case."
+    },
+    "strokes_data": {
+      "type": "string",
+      "description": "JSON-encoded array of strokes; each stroke is an array of {x,y} normalized 0-1 points."
+    },
+    "hint": {
+      "type": "string",
+      "description": "Spoken hint shown to the student while tracing this letter.",
+      "default": ""
+    }
+  },
+  "required": [
+    "letter",
+    "strokes_data"
+  ]
+}

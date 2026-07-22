@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Copy, Check, Play, RotateCcw } from 'lucide-react';
+import { Copy, Check, Play, RotateCcw, Save } from 'lucide-react';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import { smoothAndNormalize } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
+import { base44 } from '@/api/base44Client';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
@@ -14,6 +15,9 @@ export default function LetterTracingAuthoring() {
   const [rawStrokes, setRawStrokes] = useState([]);
   const [copied, setCopied] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
@@ -35,6 +39,31 @@ export default function LetterTracingAuthoring() {
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* clipboard unavailable */
+    }
+  };
+
+  const save = async () => {
+    if (!normalized.length) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const existing = await base44.entities.LetterWaypoint.filter({ letter: target });
+      const payload = {
+        letter: target,
+        strokes_data: JSON.stringify(normalized),
+        hint: hint || '',
+      };
+      if (existing.length) {
+        await base44.entities.LetterWaypoint.update(existing[0].id, payload);
+      } else {
+        await base44.entities.LetterWaypoint.create(payload);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (e) {
+      setSaveError('Could not save — try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -134,10 +163,20 @@ export default function LetterTracingAuthoring() {
               <pre className="text-xs font-mono bg-slate-900 text-slate-100 rounded-lg p-3 overflow-auto max-h-72 whitespace-pre">
                 {snippet}
               </pre>
-              <p className="text-xs text-slate-500 mt-2">
-                Paste this into <code className="bg-slate-100 px-1 rounded">letterWaypoints.jsx</code> under{' '}
-                <code className="bg-slate-100 px-1 rounded">LETTER_WAYPOINTS</code> to use it in the tracing game.
-              </p>
+              <div className="flex items-center justify-between mt-3 gap-2 flex-wrap">
+                <p className="text-xs text-slate-500">
+                  Saving stores these strokes for the letter so the tracing game uses them — no copy-paste needed.
+                </p>
+                <button
+                  onClick={save}
+                  disabled={!normalized.length || saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+                </button>
+              </div>
+              {saveError && <p className="text-xs text-red-600 mt-1">{saveError}</p>}
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">

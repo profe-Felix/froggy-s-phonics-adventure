@@ -1,13 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import LetterTracingCanvas from '../LetterTracingCanvas';
+import { base44 } from '@/api/base44Client';
 
-const LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('').filter(l => LETTER_WAYPOINTS[l]);
+const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('').filter(l => LETTER_WAYPOINTS[l]);
 
 export default function LetterTracingMode({ studentData, onUpdateProgress }) {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [completedLetters, setCompletedLetters] = useState(new Set());
   const [streak, setStreak] = useState(0);
+  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.LetterWaypoint.list()
+      .then((records) => {
+        if (cancelled || !Array.isArray(records) || records.length === 0) return;
+        setWaypoints((prev) => {
+          const merged = { ...prev };
+          for (const r of records) {
+            if (!r.letter || !r.strokes_data) continue;
+            try {
+              const strokes = JSON.parse(r.strokes_data);
+              if (Array.isArray(strokes) && strokes.length) {
+                merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
+              }
+            } catch { /* ignore malformed */ }
+          }
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const LETTERS = BASE_LETTERS.filter(l => waypoints[l]);
 
   const handleComplete = (letter) => {
     setCompletedLetters(prev => new Set([...prev, letter]));
@@ -51,7 +78,7 @@ export default function LetterTracingMode({ studentData, onUpdateProgress }) {
     );
   }
 
-  const letterData = LETTER_WAYPOINTS[currentLetter];
+  const letterData = waypoints[currentLetter];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-400 to-indigo-600 flex flex-col items-center py-8 px-4 gap-4">
