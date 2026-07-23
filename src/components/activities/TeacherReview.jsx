@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { RefreshCw, CheckCircle2, Circle } from 'lucide-react';
+import ActivityReplay from '@/components/activities/ActivityReplay';
 
 // Teacher review: lists ActivityResponse records for the current activity mode,
 // plays each student's voice recording, shows their Elkonin placement, and lets
@@ -72,8 +73,6 @@ export default function TeacherReview({ mode }) {
 
 function ResponseCard({ rec, onReviewed, onNote }) {
   const ok = rec.is_correct;
-  const placed = Math.max(0, rec.placed_count || 0);
-  const missing = Math.max(0, (rec.correct_count || 0) - placed);
   return (
     <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
       <div className="flex items-center gap-2 flex-wrap">
@@ -83,7 +82,7 @@ function ResponseCard({ rec, onReviewed, onNote }) {
             ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
           }`}
         >
-          {placed} / {rec.correct_count}
+          {rec.placed_count} / {rec.correct_count}
         </span>
         <span className="text-xs text-slate-400 ml-auto">
           {rec.submitted_at ? new Date(rec.submitted_at).toLocaleString() : ''}
@@ -92,22 +91,7 @@ function ResponseCard({ rec, onReviewed, onNote }) {
 
       <div className="mt-2 text-lg font-bold text-slate-700">{rec.item_text}</div>
 
-      {/* mini Elkonin view: filled boxes (placed) + dashed boxes (missing) */}
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {Array.from({ length: placed }, (_, i) => (
-          <div
-            key={`p${i}`}
-            className="w-8 h-8 rounded-md border-2 border-indigo-400 bg-indigo-500 flex items-center justify-center text-white text-xs"
-          >
-            ●
-          </div>
-        ))}
-        {Array.from({ length: missing }, (_, i) => (
-          <div key={`m${i}`} className="w-8 h-8 rounded-md border-2 border-dashed border-slate-300" />
-        ))}
-      </div>
-
-      {rec.audio_url && <audio controls src={rec.audio_url} className="mt-3 w-full" />}
+      <ActivityReplay rec={rec} />
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         <button

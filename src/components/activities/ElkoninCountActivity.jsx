@@ -128,6 +128,7 @@ export default function ElkoninCountActivity({ config, studentName }) {
         class_name: '',
         item_text: current.text,
         item_index: order[pos],
+        tile_count: activity.choices,
         placed_count: row.length,
         correct_count: correct,
         is_correct: row.length === correct,

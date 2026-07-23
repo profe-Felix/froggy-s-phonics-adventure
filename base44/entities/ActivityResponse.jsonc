@@ -27,6 +27,11 @@
       "type": "integer",
       "default": 0
     },
+    "tile_count": {
+      "type": "integer",
+      "default": 0,
+      "description": "Total number of tiles available in the tray for the item"
+    },
     "placed_count": {
       "type": "integer",
       "description": "Number of tiles the student placed (their answer)",
