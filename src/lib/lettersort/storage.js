@@ -6,7 +6,13 @@
 // Candidates tried per word: <base>_pic.jpg, <base>_pic.png, <base>.jpg, <base>.png
 // across [markerForm, prettyForm, plainForm] bases.
 
-import { listAll, publicUrl } from '@/lib/supabaseStorage';
+import { listAll, publicUrl, SB_URL } from '@/lib/supabaseStorage';
+
+// Direct URL for a pre-rendered header image (rowsyllcols "rowsyll" form).
+// Filenames may contain commas/dots (marker forms); do not encode them.
+export function headerImageUrl(filename, bucket = 'lettersort-images') {
+  return `${SB_URL}/storage/v1/object/public/${bucket}/${filename}`;
+}
 import {
   markersToPretty, stripDiacritics, normalizeMarkers, displayToMarker,
   initialFromStem, imagePriority,

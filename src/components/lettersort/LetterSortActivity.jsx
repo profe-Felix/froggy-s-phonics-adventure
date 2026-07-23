@@ -4,6 +4,7 @@ import RowView from './RowView';
 import ContinuumView from './ContinuumView';
 import GenerateView from './GenerateView';
 import StressRevealView from './StressRevealView';
+import RowsyllRowsView from './RowsyllRowsView';
 import { buildRound, cardWordsForConfig } from '@/lib/lettersort/rounds';
 import { listAllImagesJpg, resolveImageForWord } from '@/lib/lettersort/storage';
 
@@ -26,6 +27,12 @@ export default function LetterSortActivity({ config }) {
   useEffect(() => {
     let cancelled = false;
     if (config.mode === 'generate') {
+      setImageFiles([]);
+      return;
+    }
+    // rowsyllcols "rowsyll" form uses pre-rendered header images; the cards are
+    // word tiles, so no image resolution is needed.
+    if (config.mode === 'rowsyllcols' && config.rowsyll) {
       setImageFiles([]);
       return;
     }
@@ -82,6 +89,7 @@ export default function LetterSortActivity({ config }) {
       case 'continuum': return <ContinuumView round={round} config={config} />;
       case 'generate': return <GenerateView round={round} config={config} />;
       case 'stressreveal': return <StressRevealView round={round} config={config} />;
+      case 'rowsyllrows': return <RowsyllRowsView round={round} config={config} />;
       default: return <div className="p-6 text-slate-500">Modo no soportado.</div>;
     }
   })();

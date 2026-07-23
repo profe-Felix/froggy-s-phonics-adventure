@@ -19,6 +19,7 @@ import {
   parseRowsyllCols, parseSyllGroups, expandSyllGroupToken, parseAlliGroups,
   parseGenerateRiddle, parseManualSortAnswers,
 } from './parsers';
+import { headerImageUrl } from './storage';
 
 export function parseList(raw) {
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -67,6 +68,9 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     rowsGen: v.rows || '',
     slots: parseInt(v.slots, 10) || 1,
     bg: v.bg || '',
+    headerimages: Array.isArray(v.headerimages)
+      ? v.headerimages.map((s) => String(s).trim()).filter(Boolean)
+      : (v.headerimages ? String(v.headerimages).split('|').map((s) => s.trim()).filter(Boolean) : []),
     per: Math.max(1, Math.min(8, parseInt(v.per, 10) || 4)),
     syllmatch: v.syllmatch || 'initial',
     syllcmp: v.syllcmp || 'equals',
@@ -236,13 +240,27 @@ function columnsForRowsyllCols(colsStr, matchMode, titles) {
   return applyTitleOverrides(cols, titles);
 }
 
+// Match predicate for a rowsyll-form row (a group of target syllables).
+function rowsyllRowMatch(sylls, matchMode) {
+  const targets = sylls.map(normalizeMarkers);
+  return (coreRaw) => {
+    const syls = syllablesNormalized(coreRaw);
+    const pretty = markersToPretty(coreRaw).toLowerCase();
+    return targets.some((t) => {
+      if (matchMode === 'contains') return syls.some((s) => s.includes(t));
+      if (matchMode === 'word-contains') return pretty.includes(t);
+      return syls[0] === t; // syllable-start (default)
+    });
+  };
+}
+
 // ---- main builder ----
 export function buildRound(config, imageFiles = []) {
   const {
     mode, letters, syllables, counts, phonemes, stress, pool, words, per,
     splitCards, titles, labelStyle, syllmatch, syllcmp,
     groups, rows, rowsyll, headers, answers, headertype, cardtype, match,
-    direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots,
+    direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots, headerimages,
   } = config;
   const files = imageFiles || [];
   const hasWords = words && words.length > 0;
@@ -353,9 +371,32 @@ export function buildRound(config, imageFiles = []) {
   }
 
   if (mode === 'rowsyllcols') {
-    const columns = columnsForRowsyllCols(rowsyll, match, titles);
+    // rowsyll form: groups of syllables rendered as ROWS (header image + drop zone)
+    if (rowsyll) {
+      const groups = String(rowsyll).split('|').map((g) => parseList(g));
+      const rowsData = groups.map((sylls, i) => ({
+        key: `rsrow:${i}`,
+        syllables: sylls,
+        headerImg: headerimages[i] ? headerImageUrl(headerimages[i]) : '',
+        match: rowsyllRowMatch(sylls, match),
+      }));
+      const cards = buildWordCards(words, files, { ...config, cardtype: 'word' });
+      if (distractors > 0 && files.length) {
+        const extra = [];
+        const usedCores = new Set(cards.map((c) => normalizeMarkers(c.coreRaw)));
+        const pool = shuffle(files.filter((f) => !usedCores.has(normalizeMarkers(f.rawCore))));
+        for (const f of pool) {
+          if (extra.length >= distractors) break;
+          if (rowsData.some((r) => r.match(f.rawCore))) continue;
+          extra.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore });
+        }
+        cards.push(...extra);
+      }
+      return { view: 'rowsyllrows', rows: rowsData, cards };
+    }
+    // groups form: column view
+    const columns = columnsForRowsyllCols(groups, match, titles);
     const cards = buildWordCards(words, files, config);
-    // add distractor cards from the bucket that don't match any column
     if (distractors > 0 && files.length) {
       const extra = [];
       const usedCores = new Set(cards.map((c) => normalizeMarkers(c.coreRaw)));
@@ -363,7 +404,7 @@ export function buildRound(config, imageFiles = []) {
       for (const f of pool) {
         if (extra.length >= distractors) break;
         const core = f.rawCore;
-        if (columns.some((col) => col.match(core))) continue; // only true distractors
+        if (columns.some((col) => col.match(core))) continue;
         extra.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore });
       }
       cards.push(...extra);
