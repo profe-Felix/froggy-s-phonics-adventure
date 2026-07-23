@@ -138,17 +138,17 @@ export default function ColumnsView({ config, round }) {
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
               <ColumnHeader col={col} config={config} />
-              <Droppable droppableId={col.key}>
+              <Droppable droppableId={col.key} direction="horizontal">
                 {(prov) => (
                   <div
                     ref={prov.innerRef}
                     {...prov.droppableProps}
-                    className="flex flex-col gap-2 p-2 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[160px] flex-1"
+                    className="flex flex-wrap gap-2 content-start p-2 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[160px] flex-1"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                         {(p) => (
-                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-full">
+                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-28 shrink-0">
                             <SortCard
                               card={card}
                               tilesOnly={config.tilesOnly}
@@ -210,8 +210,7 @@ export default function ColumnsView({ config, round }) {
 }
 
 function ColumnHeader({ col, config }) {
-  if (config.hideTitle) return <div className="h-10" />;
-  // image header (manualsort with headertype=image)
+  // image header (manualsort with headertype=image) — always shown, even with hideTitle
   if (col.headerImg) {
     return (
       <div className="flex items-center justify-center mb-1 h-24">
@@ -219,6 +218,7 @@ function ColumnHeader({ col, config }) {
       </div>
     );
   }
+  if (config.hideTitle) return <div className="h-10" />;
   if (col.key.startsWith('stress:')) {
     const pos = parseInt(col.display || col.key.slice(7), 10);
     const total = 3;

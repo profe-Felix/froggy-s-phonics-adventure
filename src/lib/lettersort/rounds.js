@@ -521,7 +521,11 @@ export function classifyCard(card, col) {
 // can resolve just those instead of listing the whole bucket). Empty -> bucket.
 export function cardWordsForConfig(config) {
   const m = config.mode;
-  if (m === 'manualsort') return parseManualSortAnswers(config.answers).flatMap((g) => g.words);
+  if (m === 'manualsort') {
+    const parsed = parseManualSortAnswers(config.answers);
+    const words = parsed.flatMap((g) => g.words);
+    return config.headertype === 'image' ? [...words, ...parsed.map((g) => g.header)] : words;
+  }
   if (m === 'syllgroups') return config.words;
   if (m === 'rowalli' || m === 'allisyll') return parseAlliGroups(config.rows).flat();
   if (m === 'rowsyllcols') return config.words;
