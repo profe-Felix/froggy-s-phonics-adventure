@@ -39,6 +39,14 @@ const WORKSTATIONS = [
     color: '#2563eb',
   },
   {
+    id: 'lettersort',
+    name: 'Letter Sort',
+    desc: 'Clasificador de letras — ordena por letra inicial, sílaba, conteo, sonidos, acento y más. 16 modos.',
+    emoji: '🔤',
+    path: '/LetterSort?role=teacher',
+    color: '#0891b2',
+  },
+  {
     id: 'liveworkstations',
     name: 'Live Workstations',
     desc: 'One join code for the whole group. Switch activities & presets live — kids follow along, no re-scanning.',
