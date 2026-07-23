@@ -90,25 +90,25 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       setCanAnswer(true);
     };
 
+    // Shared TTS fallback so a missing recorded file never blocks the round.
+    const ttsLang = language === 'en' ? 'en-US' : 'es-ES';
+    const useTTS = () => {
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(letter);
+        u.lang = ttsLang;
+        u.rate = 0.75;
+        u.onend = enable;
+        u.onerror = enable;
+        audioRef.current = { pause: () => window.speechSynthesis.cancel() };
+        window.speechSynthesis.speak(u);
+      } catch { enable(); }
+    };
+
     if (language === 'en') {
-      // English: prefer a recorded file in Supabase, fall back to browser TTS.
       const url = `${AUDIO_BASE}/en/letters/${encodeURIComponent(letter)}.mp3`;
       const audio = new Audio(url);
       audio.preload = 'auto';
-      let settled = false;
-      const useTTS = () => {
-        if (settled) return; settled = true;
-        try {
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(letter);
-          u.lang = 'en-US';
-          u.rate = 0.75;
-          u.onend = enable;
-          u.onerror = enable;
-          audioRef.current = { pause: () => window.speechSynthesis.cancel() };
-          window.speechSynthesis.speak(u);
-        } catch { enable(); }
-      };
       audio.onended = enable;
       audio.onerror = useTTS;
       audioRef.current = audio;
@@ -124,8 +124,9 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     audioRef.current = preloadedAudio.current[letter];
     audioRef.current.currentTime = 0;
     audioRef.current.onended = enable;
+    audioRef.current.onerror = useTTS;
     audioTimeoutRef.current = setTimeout(enable, 3000);
-    audioRef.current.play().catch(enable);
+    audioRef.current.play().catch(useTTS);
   };
 
   const handleAnswer = async (selectedLetter) => {

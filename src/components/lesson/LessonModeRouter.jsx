@@ -70,6 +70,15 @@ export default function LessonModeRouter({
   const studentNumber = selectedStudent?.number;
   const className = selectedStudent?.class_name;
 
+  // Build a goal/progress label so the student knows what "done" means.
+  const isMastery = comp.type === 'mastery';
+  const modeProgress = studentData?.mode_progress?.[step.mode];
+  const masteredCount = modeProgress?.mastered_items?.length || 0;
+  const goalText = isMastery
+    ? `🎯 Master ${comp.target} — ${Math.min(masteredCount, comp.target)}/${comp.target}`
+    : '★ Play once to finish';
+  const goalDone = isMastery ? masteredCount >= comp.target : false;
+
   function renderMode() {
     switch (step.mode) {
       case 'letter_sounds':
@@ -113,6 +122,13 @@ export default function LessonModeRouter({
         <ArrowLeft className="w-5 h-5 mr-2" />
         Back to Lesson
       </Button>
+
+      {/* Goal / progress chip */}
+      <div className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
+        goalDone ? 'bg-green-100 text-green-700' : 'bg-white/90 text-gray-700'
+      }`}>
+        {goalText}
+      </div>
 
       {/* Completion overlay */}
       {done && (
