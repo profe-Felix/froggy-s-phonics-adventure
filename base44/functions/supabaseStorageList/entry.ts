@@ -10,10 +10,22 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Allowlist of public buckets the app legitimately lists. Prevents a caller
+    // from enumerating arbitrary buckets via a modified request body.
+    const ALLOWED_BUCKETS = new Set([
+      'lettersort-images',
+      'lettersort-audio',
+      'syllable-audio',
+      'audio',
+    ]);
+
     const body = await req.json().catch(() => ({}));
     const bucket = String(body.bucket || '');
     const prefix = String(body.prefix || '');
     if (!bucket) return Response.json({ error: 'bucket required' }, { status: 400 });
+    if (!ALLOWED_BUCKETS.has(bucket)) {
+      return Response.json({ error: 'bucket not allowed' }, { status: 403 });
+    }
 
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     if (!anonKey) return Response.json({ error: 'SUPABASE_ANON_KEY not set' }, { status: 500 });

@@ -19,9 +19,15 @@ import BackButton from '@/components/ui/BackButton';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
+  // Only return a sanitized https YouTube embed URL. Never fall back to the
+  // raw user-provided value — a 'javascript:'/'data:' URL would execute in the
+  // iframe src on every student's device.
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return null;
+  } catch { return null; }
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
-  if (m) return `https://www.youtube.com/embed/${m[1]}?autoplay=1`;
-  return url;
+  return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1` : null;
 }
 
 function AssignmentPicker({ assignments, onSelect }) {
