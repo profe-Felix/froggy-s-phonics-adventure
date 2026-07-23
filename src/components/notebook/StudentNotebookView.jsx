@@ -658,6 +658,12 @@ localDirtyRef.current = false;
               background: '#e8e8e8',
               position: 'relative',
               cursor: addingMic ? 'copy' : 'default',
+              // Reserve the scrollbar gutter so a vertical scrollbar appearing
+              // or disappearing can't change the measured container width. Without
+              // this, width-fit modes oscillate (scrollbar shrinks width → page
+              // re-fits narrower → gets shorter → scrollbar vanishes → width grows
+              // → repeat) which shows as continuous "shaking".
+              scrollbarGutter: 'stable',
             }}
             onClick={handlePageClickForMic}
             onTouchEnd={addingMic ? handlePageClickForMic : undefined}
