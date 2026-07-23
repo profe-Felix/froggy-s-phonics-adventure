@@ -30,6 +30,14 @@ const WORKSTATIONS = [
     path: '/FluencyTable?role=teacher',
     color: '#10b981',
   },
+  {
+    id: 'syllableblender',
+    name: 'Syllable Blender',
+    desc: 'Elkonin boxes — tap to hear each syllable, then reveal the picture & word.',
+    emoji: '📦',
+    path: '/SyllableBlender?role=teacher',
+    color: '#2563eb',
+  },
 ];
 
 export default function Workstations() {

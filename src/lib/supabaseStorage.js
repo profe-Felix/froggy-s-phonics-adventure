@@ -1,0 +1,112 @@
+// Supabase Storage public-bucket helpers for the literacy workstations.
+// Images / audio live in public buckets and use the accent-marker filename
+// convention (see markers.js). These resolve a word to its image / audio URL
+// by probing candidate paths with HEAD requests.
+import { markersToPretty, prettyToMarkers, normalizeName } from '@/lib/markers';
+
+export const SB_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbHNpeXlxcGN1cGJpenB4d2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDI1NjUsImV4cCI6MjA3Mzk3ODU2NX0.mkgeUtjC8ulLyHHVVOic4LmhhQP_JJtMi2JQztdzjsg';
+
+export function publicUrl(bucket, path) {
+  const enc = path.split('/').map(encodeURIComponent).join('/');
+  return `${SB_URL}/storage/v1/object/public/${bucket}/${enc}`;
+}
+
+// HEAD-check a public object; return its public URL if it exists, else null.
+export async function headExists(bucket, path) {
+  try {
+    const r = await fetch(publicUrl(bucket, path), { method: 'HEAD' });
+    return r.ok ? publicUrl(bucket, path) : null;
+  } catch { return null; }
+}
+
+// Recursively list a bucket (used when a preset has no explicit word list).
+export async function listAll(bucket, prefix = '') {
+  const out = [];
+  async function walk(dir) {
+    let offset = 0; const limit = 100;
+    while (true) {
+      const r = await fetch(`${SB_URL}/storage/v1/object/list/${bucket}`, {
+        method: 'POST',
+        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefix: dir, limit, offset, sortBy: { column: 'name', order: 'asc' } }),
+      });
+      if (!r.ok) throw new Error('list ' + r.status);
+      const items = await r.json();
+      for (const it of items) {
+        const full = dir ? `${dir.replace(/\/$/, '')}/${it.name}` : it.name;
+        if (it.metadata) out.push(full);
+        else await walk(full);
+      }
+      if (items.length < limit) break;
+      offset += limit;
+    }
+  }
+  await walk(prefix || '');
+  return out;
+}
+
+function stripImageSuffix(t) { return t.replace(/_(pic|img|image|foto)$/i, ''); }
+
+const IMG_EXTS = ['jpg', 'png'];
+
+// Resolve a word to its image URL. Tries the marker form first (e.g. "a..guila"),
+// then the pretty form; for each, "<stem>_pic.<ext>" then "<stem>.<ext>".
+export async function resolveImageForWord(wordRaw, { bucket, prefix } = {}) {
+  const prettyLower = markersToPretty(wordRaw || '').toLowerCase();
+  const markerLower = prettyToMarkers(wordRaw || '').toLowerCase();
+  const stems = [...new Set([markerLower, prettyLower])];
+  const pfx = prefix ? prefix.replace(/\/$/, '') + '/' : '';
+  for (const stem of stems) {
+    for (const ext of IMG_EXTS) {
+      for (const name of [`${stem}_pic.${ext}`, `${stem}.${ext}`]) {
+        const url = await headExists(bucket, pfx + name);
+        if (url) return url;
+      }
+    }
+  }
+  return null;
+}
+
+const SYLLABLE_EXTS = ['webm'];
+function isSoftRContext(syll, idx) {
+  return idx > 0 && /^r/i.test(syll) && !/^rr/i.test(syll);
+}
+
+// Resolve the audio for a single syllable. Honors the soft-r convention
+// (a syllable starting with a single "r" after another syllable is the soft r
+// and is stored with a leading dash, e.g. "-ra").
+export async function resolveSyllableAudio(wordPretty, syll, idx, { bucket, prefix } = {}) {
+  const wPlain = normalizeName(wordPretty);
+  const sPlain = normalizeName(syll);
+  const sMarker = prettyToMarkers(syll).toLowerCase();
+  const pfx = prefix ? prefix.replace(/\/$/, '') + '/' : '';
+  const bases = [];
+  if (isSoftRContext(syll, idx)) {
+    bases.push(`${pfx}-${sMarker}`, `${pfx}${wPlain}/-${sMarker}`, `${pfx}${wPlain}__-${sPlain}`, `${pfx}-${sPlain}`);
+  }
+  bases.push(
+    `${pfx}${sMarker}`, `${pfx}${wPlain}/${sMarker}`, `${pfx}${wPlain}_${idx + 1}`,
+    `${pfx}${wPlain}/${idx + 1}`, `${pfx}${wPlain}__${sPlain}`, `${pfx}${sPlain}`,
+  );
+  for (const b of bases) for (const ext of SYLLABLE_EXTS) {
+    const url = await headExists(bucket, b + '.' + ext);
+    if (url) return url;
+  }
+  return null;
+}
+
+const WORD_EXTS = ['mp3'];
+
+// Resolve the audio for a whole word.
+export async function resolveWordAudio(wordPretty, { bucket, prefix } = {}) {
+  const wPlain = normalizeName(wordPretty);
+  const wMarker = prettyToMarkers(wordPretty).toLowerCase();
+  const pfx = prefix ? prefix.replace(/\/$/, '') + '/' : '';
+  const bases = [`${pfx}${wMarker}`, `${pfx}${wPlain}`, `${pfx}${wPlain}/word`, `${pfx}${wPlain}/${wPlain}`];
+  for (const b of bases) for (const ext of WORD_EXTS) {
+    const url = await headExists(bucket, b + '.' + ext);
+    if (url) return url;
+  }
+  return null;
+}
