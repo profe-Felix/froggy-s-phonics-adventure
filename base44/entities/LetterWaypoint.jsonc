@@ -19,5 +19,23 @@
   "required": [
     "letter",
     "strokes_data"
-  ]
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "teacher"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "teacher"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "teacher"
+      }
+    }
+  }
 }
