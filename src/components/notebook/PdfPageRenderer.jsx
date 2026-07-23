@@ -15,6 +15,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
   const renderTask = useRef(null);
+  const renderedKey = useRef('');
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -32,9 +33,14 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   useEffect(() => {
     if (!pdfUrl || containerSize.w < 10) return;
     let cancelled = false;
+    const key = `${pdfUrl}:${pageNumber}`;
+    const isNewPage = renderedKey.current !== key;
 
     setError(null);
-    setLoading(true);
+    // Only show the loading overlay for a brand-new page. Re-scaling the same
+    // page (fit-mode / container-size change) keeps the current render visible
+    // until the new one is ready, so there's no loading blink.
+    if (isNewPage) setLoading(true);
     (async () => {
       try {
         if (!pdfCache[pdfUrl]) {
@@ -82,26 +88,34 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
-        canvas.width = Math.floor(scaled.width * dpr);
-        canvas.height = Math.floor(scaled.height * dpr);
-        canvas.style.width = scaled.width + 'px';
-        canvas.style.height = scaled.height + 'px';
-
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Render to an offscreen canvas so the visible page stays on screen
+        // (no blank/loading flash) until the new render is ready to swap in.
+        const off = document.createElement('canvas');
+        off.width = Math.floor(scaled.width * dpr);
+        off.height = Math.floor(scaled.height * dpr);
+        const offCtx = off.getContext('2d');
+        offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         if (renderTask.current) renderTask.current.cancel();
 
         renderTask.current = page.render({
-          canvasContext: ctx,
+          canvasContext: offCtx,
           viewport: scaled,
         });
 
         await renderTask.current.promise;
-        if (!cancelled) {
-          setLoading(false);
-          if (onRendered) onRendered(scaled.width, scaled.height);
-        }
+        if (cancelled) return;
+
+        canvas.width = off.width;
+        canvas.height = off.height;
+        canvas.style.width = scaled.width + 'px';
+        canvas.style.height = scaled.height + 'px';
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(off, 0, 0);
+
+        renderedKey.current = key;
+        setLoading(false);
+        if (onRendered) onRendered(scaled.width, scaled.height);
       } catch (e) {
         if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
       }
