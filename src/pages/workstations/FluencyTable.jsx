@@ -1,7 +1,12 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FLUENCY_PRESETS } from '@/components/workstations/fluencyPresets';
 import BackButton from '@/components/ui/BackButton';
+
+// Real curriculum presets live in Supabase Storage (public bucket). Fetched at
+// load; the local FLUENCY_PRESETS is the fallback if the fetch fails.
+const SUPABASE_PRESETS_URL =
+  'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/fluency/presets.json';
 
 // Fluency Table — a grid of words a teacher uses for guided reading.
 // A "sweep" highlight wipes left→right across one row at a time so students
@@ -23,6 +28,7 @@ function seededShuffle(arr, seed) {
 export default function FluencyTable() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
+  const [presets, setPresets] = useState(FLUENCY_PRESETS);
   const [presetId, setPresetId] = useState(params.get('preset') || FLUENCY_PRESETS[0].id);
   const [seed, setSeed] = useState(Number(params.get('seed')) || Date.now());
   const [currentRow, setCurrentRow] = useState(0);
@@ -30,9 +36,21 @@ export default function FluencyTable() {
   const [sweeping, setSweeping] = useState(false);
   const [showQr, setShowQr] = useState(false);
 
+  // Pull the real curriculum from Supabase Storage; fall back to local presets.
+  useEffect(() => {
+    fetch(SUPABASE_PRESETS_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((obj) => {
+        if (!obj) return;
+        const arr = Object.entries(obj).map(([id, p]) => ({ id, ...p }));
+        if (arr.length) setPresets(arr);
+      })
+      .catch(() => {});
+  }, []);
+
   const preset = useMemo(
-    () => FLUENCY_PRESETS.find((p) => p.id === presetId) || FLUENCY_PRESETS[0],
-    [presetId]
+    () => presets.find((p) => p.id === presetId) || presets[0],
+    [presetId, presets]
   );
 
   const grid = useMemo(() => {
@@ -72,7 +90,7 @@ export default function FluencyTable() {
             onChange={(e) => { setPresetId(e.target.value); setCurrentRow(0); setSweepIdx(-1); }}
             className="px-3 py-2 rounded-lg border font-bold"
           >
-            {FLUENCY_PRESETS.map((p) => (
+            {presets.map((p) => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
           </select>
