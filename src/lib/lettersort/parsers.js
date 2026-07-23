@@ -69,7 +69,9 @@ export function parseRowsyllCols(str) {
 
 // syllgroups: "n | ch | br" (pipe = col) or "n,ch,br" (comma = col)
 export function parseSyllGroups(str) {
-  const raw = (str || '').trim();
+  // Remote presets may store `groups` as an array (e.g. ["k","x","w"]).
+  // Coerce to a pipe-joined string so each element becomes its own group.
+  const raw = (Array.isArray(str) ? str.join('|') : (str == null ? '' : String(str))).trim();
   if (!raw) return [];
   const cols = raw.includes('|') ? raw.split('|') : raw.split(',');
   return cols.map((col) => col.trim()).filter(Boolean);
