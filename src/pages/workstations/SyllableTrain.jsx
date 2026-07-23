@@ -130,7 +130,7 @@ export default function SyllableTrain() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 gap-8" style={{ touchAction: 'none' }}>
         <div ref={railRef} className="flex items-end justify-center" style={{ touchAction: 'none' }}>
           {/* Engine */}
-          <div className="shrink-0 mr-[-40px]">
+          <div className="shrink-0 mr-2">
             <TrainEngine />
           </div>
           {/* Slots */}
