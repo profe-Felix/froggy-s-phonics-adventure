@@ -118,7 +118,7 @@ export default function RowsyllRowsView({ config, round }) {
                   ? <img src={row.headerImg} alt={row.syllables.join(' ')} className="rounded-xl object-contain h-40 w-auto bg-white border border-slate-200" draggable={false} />
                   : <div className="grid grid-cols-2 gap-1 text-center font-bold text-slate-700 w-full">{row.syllables.map((s) => <span key={s} className="px-2 py-1 bg-slate-50 rounded">{s}</span>)}</div>}
               </div>
-              <Droppable droppableId={row.key}>
+              <Droppable droppableId={row.key} direction="horizontal">
                 {(prov) => (
                   <div ref={prov.innerRef} {...prov.droppableProps} className="flex flex-wrap gap-2 p-2 rounded-xl bg-blue-50/70 border-2 border-blue-300 border-dashed min-h-[140px] flex-1 content-start">
                     {(rowCards[row.key] || []).map((card, i) => (
