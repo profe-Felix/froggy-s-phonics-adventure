@@ -11,23 +11,24 @@ import { SB_URL } from '@/lib/supabaseStorage';
 const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/lettersort/presets.json`;
 
 // mode.mode === null  -> classic columns (no ?mode= param), uses field params
+// `desc` is the short helper shown under the selector (and lives in the guide).
 const MODES = [
-  { key: 'letters', label: 'Letras iniciales', mode: null, fields: ['letters', 'per'] },
-  { key: 'randinit', label: 'Sonido inicial aleatorio', mode: 'randinit', fields: ['pool', 'per'] },
-  { key: 'syllables', label: 'Sílabas objetivo', mode: null, fields: ['syllables', 'syllmatch', 'syllcmp', 'per'] },
-  { key: 'syllcount', label: 'Conteo de sílabas', mode: null, fields: ['counts', 'per'] },
-  { key: 'phonemes', label: 'Conteo de sonidos', mode: null, fields: ['phonemes', 'per'] },
-  { key: 'stress', label: 'Sílaba tónica', mode: null, fields: ['stress', 'per'] },
-  { key: 'stressreveal', label: 'Sílaba tónica (revelar)', mode: 'stressreveal', fields: ['stress', 'words', 'bg'] },
-  { key: 'sort', label: 'Ordenar palabras', mode: 'sort', fields: ['words', 'layout', 'direction', 'bottom', 'top', 'left', 'right'] },
-  { key: 'manualsort', label: 'Clasificación manual', mode: 'manualsort', fields: ['headers', 'answers', 'headertype', 'cardtype', 'layout'] },
-  { key: 'row', label: 'Modo filas', mode: 'row', fields: ['rows', 'rowtitle'] },
-  { key: 'rowalli', label: 'Aliteración por filas', mode: 'rowalli', fields: ['rows', 'rowtitle'] },
-  { key: 'allisyll', label: 'Sílabas iniciales por filas', mode: 'allisyll', fields: ['rows', 'rowtitle'] },
-  { key: 'rowsyll', label: 'Sílabas (inicio/final) por filas', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'] },
-  { key: 'rowsyllcols', label: 'Columnas de sílabas', mode: 'rowsyllcols', fields: ['rowsyll', 'words', 'headertype', 'cardtype', 'match', 'layout', 'distractors'] },
-  { key: 'syllgroups', label: 'Grupos de sílabas', mode: 'syllgroups', fields: ['groups', 'words', 'titles'] },
-  { key: 'generate', label: 'Generar palabras', mode: 'generate', fields: ['riddle', 'columns', 'rowsGen', 'slots'] },
+  { key: 'letters', label: 'Letras iniciales', mode: null, fields: ['letters', 'per'], desc: 'Ordena tarjetas por la letra inicial. Útil para correspondencia letra-sonido.' },
+  { key: 'randinit', label: 'Sonido inicial aleatorio', mode: 'randinit', fields: ['pool', 'per'], desc: 'Como "letras iniciales", pero el maestro define un pool de sonidos y la app elige al azar.' },
+  { key: 'syllables', label: 'Sílabas objetivo', mode: null, fields: ['syllables', 'syllmatch', 'syllcmp', 'per'], desc: 'Ordena por una sílaba objetivo (al inicio o en cualquier posición).' },
+  { key: 'syllcount', label: 'Conteo de sílabas', mode: null, fields: ['counts', 'per'], desc: 'Ordena palabras según cuántas sílabas tienen.' },
+  { key: 'phonemes', label: 'Conteo de sonidos', mode: null, fields: ['phonemes', 'per'], desc: 'Ordena palabras según cuántos sonidos (fonemas) tienen.' },
+  { key: 'stress', label: 'Sílaba tónica', mode: null, fields: ['stress', 'per'], desc: 'Ordena por la sílaba tónica: aguda (1), grave (2), esdrújula (3).' },
+  { key: 'stressreveal', label: 'Sílaba tónica (revelar)', mode: 'stressreveal', fields: ['stress', 'words', 'bg'], desc: 'Muestra una escena; el alumno revela la sílaba tónica de cada palabra.' },
+  { key: 'sort', label: 'Ordenar palabras', mode: 'sort', fields: ['words', 'layout', 'direction', 'bottom', 'top', 'left', 'right'], desc: 'Ordena una lista en un continuo (ej. menos → más) con etiquetas de dirección.' },
+  { key: 'manualsort', label: 'Clasificación manual', mode: 'manualsort', fields: ['headers', 'answers', 'headertype', 'cardtype', 'layout'], desc: 'Clasificación totalmente personalizada: defines encabezados y respuestas.' },
+  { key: 'row', label: 'Modo filas', mode: 'row', fields: ['rows', 'rowtitle'], desc: 'Organiza tarjetas en filas con un título por fila.' },
+  { key: 'rowalli', label: 'Aliteración por filas', mode: 'rowalli', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras que empiezan con el mismo sonido.' },
+  { key: 'allisyll', label: 'Sílabas iniciales por filas', mode: 'allisyll', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras con la misma sílaba inicial.' },
+  { key: 'rowsyll', label: 'Sílabas (inicio/final) por filas', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'], desc: 'Filas que ordenan por una sílaba al inicio o al final de la palabra.' },
+  { key: 'rowsyllcols', label: 'Columnas de sílabas', mode: 'rowsyllcols', fields: ['rowsyll', 'words', 'headertype', 'cardtype', 'match', 'layout', 'distractors'], desc: 'Cuadrícula filas×columnas de sílabas, con distractores.' },
+  { key: 'syllgroups', label: 'Grupos de sílabas', mode: 'syllgroups', fields: ['groups', 'words', 'titles'], desc: 'Agrupa palabras por familias de sílabas con títulos personalizados.' },
+  { key: 'generate', label: 'Generar palabras', mode: 'generate', fields: ['riddle', 'columns', 'rowsGen', 'slots'], desc: 'Genera palabras a partir de adivinanzas/definiciones en espacios por columna.' },
 ];
 
 const FIELDS = {
@@ -41,7 +42,7 @@ const FIELDS = {
   pool: { label: 'Pool de letras', type: 'text', ph: 'b, m, s, ch, ll, rr' },
   per: { label: 'Cartas por columna', type: 'number', ph: '4' },
   words: { label: 'Palabras', type: 'textarea', ph: 'lista separada por comas' },
-  rows: { label: 'Filas', type: 'textarea', ph: 'gato~perro,gato; ...  (o  ma:init;pa:final)' },
+  rows: { label: 'Filas', type: 'textarea', ph: 'título~palabra1,palabra2; título2~p3,p4' },
   rowsyll: { label: 'Columnas (rowsyll)', type: 'text', ph: 'ma,pa | sa,ta' },
   groups: { label: 'Grupos', type: 'text', ph: 'n | ch | br' },
   headers: { label: 'Encabezados', type: 'text', ph: 'perro,gato' },
@@ -73,10 +74,25 @@ const TOGGLES = [
   { key: 'emoji', label: 'Etiquetas con emoji' },
 ];
 
+// Local example presets for modes that have no curated preset in the remote
+// presets.json. Selecting one fills the fields (editable) and uses the raw-params
+// path, so it works exactly like a teacher-typed config. Marked with `builtin`.
+const LOCAL_EXAMPLES = {
+  _ex_letters_vocales: { label: 'Ejemplo · vocales y comunes', letters: 'a,e,i,o,u,m,p,s,t', per: 4, builtin: true },
+  _ex_randinit_bms: { label: 'Ejemplo · sonidos b, m, s', mode: 'randinit', pool: 'b,m,s,ch', per: 4, builtin: true },
+  _ex_stress_all: { label: 'Ejemplo · aguda, grave, esdrújula', stress: '1,2,3', per: 4, builtin: true },
+  _ex_stressreveal_12: { label: 'Ejemplo · revelar tónica (1-2)', mode: 'stressreveal', stress: '1,2', words: 'gato,casa,perro,sopa', builtin: true },
+  _ex_row_animalcosas: { label: 'Ejemplo · filas: animales / cosas', mode: 'row', rows: 'animales~perro,gato,pez; cosas~mesa,silla,vaso', rowtitle: true, builtin: true },
+  _ex_rowalli_mp: { label: 'Ejemplo · aliteración M / P', mode: 'rowalli', rows: 'M~manzana,mayo,mano; P~pana,pato,piso', rowtitle: true, builtin: true },
+  _ex_allisyll_masa: { label: 'Ejemplo · sílabas ma / sa', mode: 'allisyll', rows: 'ma~mama,mapa,mano; sa~salsa,sapo,sano', rowtitle: true, builtin: true },
+};
+
 function paramOf(fieldKey) { return FIELDS[fieldKey]?.param || fieldKey; }
 
-function buildQuery(modeKey, vals, preset) {
-  if (preset) return `preset=${encodeURIComponent(preset)}`;
+function buildQuery(modeKey, vals, remotePreset) {
+  // Only remote presets go through ?preset=KEY. Builtins and manual config use
+  // the raw-params path so the iframe never needs to look them up remotely.
+  if (remotePreset) return `preset=${encodeURIComponent(remotePreset)}`;
   const mode = MODES.find((m) => m.key === modeKey);
   const parts = [];
   if (mode?.mode) parts.push(`mode=${encodeURIComponent(mode.mode)}`);
@@ -114,7 +130,6 @@ function readInitialState() {
   if (qs.get('labelstyle') === 'emoji') vals.emoji = true;
   if (qs.get('advanced')) vals.advanced = qs.get('advanced');
   const preset = qs.get('preset') || '';
-  // infer mode key from ?mode= or from present params
   const modeParam = (qs.get('mode') || '').toLowerCase();
   let modeKey = MODES[0].key;
   if (modeParam) {
@@ -148,6 +163,10 @@ function presetModeKey(obj) {
   return null;
 }
 
+function presetLabel(obj, key) {
+  return (obj && (obj.label || obj.name)) || key;
+}
+
 export default function LetterSort() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
@@ -157,6 +176,7 @@ export default function LetterSort() {
   const [preset, setPreset] = useState(initial.preset);
   const [presets, setPresets] = useState({});
   const [showQr, setShowQr] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
   useEffect(() => {
     fetch(PRESETS_URL)
@@ -165,8 +185,11 @@ export default function LetterSort() {
       .catch(() => {});
   }, []);
 
-  // When presets arrive and a preset was loaded from the URL, sync the sort
-  // selector to that preset's type so the filtered dropdown shows its group.
+  // Merge remote presets with local examples (builtins) for modes without any.
+  const allPresets = useMemo(() => ({ ...LOCAL_EXAMPLES, ...presets }), [presets]);
+
+  // When presets arrive and a remote preset was loaded from the URL, sync the
+  // sort selector to that preset's type so the filtered dropdown shows its group.
   useEffect(() => {
     if (presets && preset && presets[preset]) {
       const mk = presetModeKey(presets[preset]);
@@ -175,13 +198,18 @@ export default function LetterSort() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presets]);
 
-  // Only show presets that match the currently selected sort type.
+  // Only show presets that match the currently selected sort type, alphabetized.
   const filteredPresetKeys = useMemo(
-    () => Object.keys(presets).filter((k) => presetModeKey(presets[k]) === modeKey),
-    [presets, modeKey]
+    () => Object.keys(allPresets)
+      .filter((k) => presetModeKey(allPresets[k]) === modeKey)
+      .sort((a, b) => presetLabel(allPresets[a], a).localeCompare(presetLabel(allPresets[b], b), 'es')),
+    [allPresets, modeKey]
   );
 
-  const query = useMemo(() => buildQuery(modeKey, vals, preset), [modeKey, vals, preset]);
+  const isBuiltin = !!preset && !!allPresets[preset]?.builtin;
+  // Remote presets go through ?preset=; builtins & manual config use raw params.
+  const remotePreset = preset && !isBuiltin ? preset : '';
+  const query = useMemo(() => buildQuery(modeKey, vals, remotePreset), [modeKey, vals, remotePreset]);
   const frameSrc = `/lettersort/index.html?${query}`;
 
   // keep the page URL in sync so refresh / share preserves the current config
@@ -193,6 +221,24 @@ export default function LetterSort() {
 
   const setField = (k, v) => setVals((p) => ({ ...p, [k]: v }));
   const mode = MODES.find((m) => m.key === modeKey);
+  // Show the editable fields for manual config AND for builtins (pre-filled).
+  const showFields = !preset || isBuiltin;
+
+  const onPresetChange = (k) => {
+    setPreset(k);
+    if (!k) return;
+    const obj = allPresets[k];
+    const mk = presetModeKey(obj);
+    if (mk && mk !== modeKey) setModeKey(mk);
+    if (obj?.builtin && mk) {
+      // Pre-fill the fields for this mode so the teacher can tweak them.
+      const m = MODES.find((mm) => mm.key === mk);
+      const mv = { ...vals };
+      for (const f of (m?.fields || [])) if (obj[f] !== undefined) mv[f] = obj[f];
+      for (const t of TOGGLES) if (obj[t.key] !== undefined) mv[t.key] = obj[t.key];
+      setVals(mv);
+    }
+  };
 
   const shareUrl = `${window.location.origin}/LetterSort?role=student&${query}`;
 
@@ -217,30 +263,24 @@ export default function LetterSort() {
             >
               {MODES.map((m) => (<option key={m.key} value={m.key}>{m.label}</option>))}
             </select>
+            <span className="text-xs text-gray-500 mt-1 max-w-[220px]">{mode?.desc}</span>
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs font-bold text-gray-600">Preset</label>
             <select
               value={preset}
-              onChange={(e) => {
-                const k = e.target.value;
-                setPreset(k);
-                if (k && presets[k]) {
-                  const mk = presetModeKey(presets[k]);
-                  if (mk) setModeKey(mk);
-                }
-              }}
+              onChange={(e) => onPresetChange(e.target.value)}
               className="px-3 py-2 rounded-lg border font-bold bg-white min-w-[180px]"
             >
               <option value="">— ninguno —</option>
               {filteredPresetKeys.map((k) => (
-                <option key={k} value={k}>{presets[k].label || k}</option>
+                <option key={k} value={k}>{presetLabel(allPresets[k], k)}</option>
               ))}
             </select>
           </div>
 
-          {!preset && mode.fields.map((f) => {
+          {showFields && mode.fields.map((f) => {
             const cfg = FIELDS[f];
             if (!cfg) return null;
             return (
@@ -258,25 +298,36 @@ export default function LetterSort() {
                 ) : cfg.type === 'textarea' ? (
                   <textarea value={vals[f] || ''} onChange={(e) => setField(f, e.target.value)} placeholder={cfg.ph} rows={2} className="px-2 py-2 rounded-lg border bg-white min-w-[220px]" />
                 ) : (
-                  <input type={cfg.type} value={vals[f] || ''} onChange={(e) => setField(f, e.target.value)} placeholder={cfg.ph} className="px-2 py-2 rounded-lg border bg-white min-w-[140px]" />
+                  <input type={cfg.type} value={vals[f] ?? ''} onChange={(e) => setField(f, e.target.value)} placeholder={cfg.ph} className="px-2 py-2 rounded-lg border bg-white min-w-[140px]" />
                 )}
               </div>
             );
           })}
         </div>
 
-        {!preset && (
-          <div className="max-w-4xl mx-auto mt-3 flex flex-wrap gap-3 items-center">
-            {TOGGLES.map((t) => (
-              <label key={t.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={!!vals[t.key]} onChange={(e) => setField(t.key, e.target.checked)} />
-                {t.label}
-              </label>
-            ))}
-            <div className="flex flex-col flex-1 min-w-[220px]">
-              <label className="text-xs font-bold text-gray-600">Parámetros avanzados (query extra)</label>
-              <input value={vals.advanced || ''} onChange={(e) => setField('advanced', e.target.value)} placeholder="ej. syllmatch=any&titles=sí,no" className="px-2 py-2 rounded-lg border bg-white" />
-            </div>
+        {showFields && (
+          <div className="max-w-4xl mx-auto mt-2">
+            <button
+              type="button"
+              onClick={() => setShowOptions((s) => !s)}
+              className="text-xs font-bold text-indigo-700 flex items-center gap-1"
+            >
+              {showOptions ? '▾' : '▸'} Opciones avanzadas
+            </button>
+            {showOptions && (
+              <div className="mt-2 flex flex-wrap gap-3 items-center">
+                {TOGGLES.map((t) => (
+                  <label key={t.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={!!vals[t.key]} onChange={(e) => setField(t.key, e.target.checked)} />
+                    {t.label}
+                  </label>
+                ))}
+                <div className="flex flex-col flex-1 min-w-[220px]">
+                  <label className="text-xs font-bold text-gray-600">Parámetros avanzados (query extra)</label>
+                  <input value={vals.advanced || ''} onChange={(e) => setField('advanced', e.target.value)} placeholder="ej. syllmatch=any&titles=sí,no" className="px-2 py-2 rounded-lg border bg-white" />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
