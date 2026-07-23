@@ -25,6 +25,10 @@ export default function LetterSortActivity({ config }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (config.mode === 'generate') {
+      setImageFiles([]);
+      return;
+    }
     (async () => {
       try {
         if (needsFullList(config)) {
@@ -62,7 +66,7 @@ export default function LetterSortActivity({ config }) {
   const round = useMemo(() => buildRound(config, imageFiles || []), [config, imageFiles]);
 
   if (err) return <div className="p-6 text-amber-700 bg-amber-50 rounded-lg mx-3 mt-3 text-sm">{err}</div>;
-  if (!imageFiles) {
+  if (!imageFiles && config.mode !== 'generate') {
     return (
       <div className="flex items-center justify-center p-10">
         <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
