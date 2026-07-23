@@ -4,6 +4,7 @@ import { RefreshCw, CheckCircle2, Circle } from 'lucide-react';
 import ActivityReplay from '@/components/activities/ActivityReplay';
 import ManipulationReplay from '@/components/activities/ManipulationReplay';
 import HuntReplay from '@/components/activities/HuntReplay';
+import RhymeReplay from '@/components/activities/RhymeReplay';
 
 // Teacher review: lists ActivityResponse records for the current activity mode,
 // plays each student's voice recording, shows their Elkonin placement, and lets
@@ -97,6 +98,8 @@ function ResponseCard({ rec, onReviewed, onNote }) {
         ? <ManipulationReplay rec={rec} />
         : rec.activity_mode === 'text_hunt'
         ? <HuntReplay rec={rec} />
+        : rec.activity_mode === 'rhyme_identification'
+        ? <RhymeReplay rec={rec} />
         : <ActivityReplay rec={rec} />}
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">

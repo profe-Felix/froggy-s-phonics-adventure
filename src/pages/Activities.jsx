@@ -5,6 +5,7 @@ import TeacherReview from '@/components/activities/TeacherReview';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import PaletteEditor from '@/components/activities/PaletteEditor';
 import HuntActivity from '@/components/activities/HuntActivity';
+import RhymeActivity from '@/components/activities/RhymeActivity';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { PRESETS } from '@/lib/activities/presets';
@@ -20,6 +21,7 @@ const DEFAULT_ITEMS = {
   counting_phonemes: 'gato\nsol\nflor\npan\nluna',
   phoneme_manipulation: 'gato\nsol\nflor\npan\nluna',
   text_hunt: 'El gato come pescado.\n¡Hola! ¿Cómo estás?',
+  rhyme_identification: 'gracioso, hermoso, sí\nentrenamiento, descubrimiento, sí\nportón, cartón, sí\nnota, noche, no\npalabra, palo, no\npincel, prenda, no\nfelicidad, ciudad, sí\ncamisa, repisa, sí',
 };
 
 function parseItems(text) {
@@ -28,6 +30,26 @@ function parseItems(text) {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((t) => ({ text: t }));
+}
+
+function parseRhymeItems(text) {
+  return String(text || '')
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const parts = l.split(',').map((x) => x.trim());
+      if (parts.length < 2) return null;
+      return { word1: parts[0], word2: parts[1], answer: /sí|si|true/i.test(parts[2] || '') };
+    })
+    .filter(Boolean);
+}
+
+function serializeItems(mode, items) {
+  if (mode === 'rhyme_identification') {
+    return (items || []).map((it) => `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`).join('\n');
+  }
+  return (items || []).map((it) => (typeof it === 'string' ? it : it.text || it.word || '')).join('\n');
 }
 
 function readRole() {
@@ -54,7 +76,7 @@ export default function Activities() {
   );
 
   const config = useMemo(() => {
-    const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: parseItems(itemsText) };
+    const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: modeKey === 'rhyme_identification' ? parseRhymeItems(itemsText) : parseItems(itemsText) };
     let out = modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
     if (modeKey === 'text_hunt') out = { ...out, huntType, target: huntTarget };
     return out;
@@ -80,9 +102,7 @@ export default function Activities() {
     if (!k) return;
     const p = PRESETS[k];
     if (p?.items) {
-      setItemsText(
-        p.items.map((it) => (typeof it === 'string' ? it : it.text || it.word || '')).join('\n')
-      );
+      setItemsText(serializeItems(p.mode, p.items));
     }
     if (Array.isArray(p?.palette)) setPalette(p.palette);
     if (p?.huntType) setHuntType(p.huntType);
@@ -202,6 +222,8 @@ export default function Activities() {
             ? <PhonemeManipulationActivity config={config} studentName={studentName} />
             : modeKey === 'text_hunt'
             ? <HuntActivity config={config} studentName={studentName} />
+            : modeKey === 'rhyme_identification'
+            ? <RhymeActivity config={config} studentName={studentName} />
             : <ElkoninCountActivity config={config} studentName={studentName} />)
         : <TeacherReview mode={modeKey} />}
     </div>

@@ -200,7 +200,7 @@ export default function HuntActivity({ config, studentName }) {
                 <span
                   key={i}
                   onClick={() => tap(seg)}
-                  className={`inline-block min-w-[0.6em] cursor-pointer rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300 hover:bg-slate-100'}`}
+                  className={`inline-block min-w-[0.6em] cursor-pointer rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300 hover:bg-slate-200 active:bg-slate-300'}`}
                 >&nbsp;</span>
               );
             }
@@ -208,7 +208,7 @@ export default function HuntActivity({ config, studentName }) {
               <span
                 key={i}
                 onClick={() => tap(seg)}
-                className={`cursor-pointer rounded px-0.5 leading-relaxed border-b border-dotted border-slate-300 ${st ? statusClass(st) : ''}`}
+                className={`cursor-pointer rounded px-0.5 leading-relaxed border-b border-dotted border-slate-300 ${st ? statusClass(st) : 'hover:bg-slate-200 active:bg-slate-300'}`}
               >{seg.text}</span>
             );
           })}

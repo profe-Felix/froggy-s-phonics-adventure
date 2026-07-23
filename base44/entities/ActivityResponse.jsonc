@@ -8,9 +8,10 @@
         "counting_words",
         "counting_phonemes",
         "phoneme_manipulation",
-        "text_hunt"
+        "text_hunt",
+        "rhyme_identification"
       ],
-      "description": "Which activity the response belongs to: counting words, counting phonemes, phoneme manipulation (clone colored counters), or text hunt (find targets in connected text)"
+      "description": "Which activity the response belongs to: counting words, counting phonemes, phoneme manipulation (clone colored counters), text hunt (find targets in connected text), or rhyme identification"
     },
     "student_name": {
       "type": "string",
@@ -50,7 +51,7 @@
     },
     "placements_data": {
       "type": "string",
-      "description": "JSON timeline of placement events. Counting modes: array of {t, type:'place'|'remove', tile, boxIndex}. Manipulation mode: object {palette, gestures, boxCount, finalPlaced}. Text hunt: object {huntType, target, segments, taps:[{index,t,correct}], missed, correctCount, foundCount}."
+      "description": "JSON timeline of placement events. Counting modes: array of {t, type:'place'|'remove', tile, boxIndex}. Manipulation mode: object {palette, gestures, boxCount, finalPlaced}. Text hunt: object {huntType, target, segments, taps:[{index,t,correct}], missed, correctCount, foundCount}. Rhyme: object {word1, word2, answer, choice, correct, decideT}."
     },
     "audio_url": {
       "type": "string",

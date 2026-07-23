@@ -67,4 +67,18 @@ export const PRESETS = {
     huntType: 'syllable',
     items: ['gato', 'pelota', 'campana'],
   },
+  rhyme_teks: {
+    label: 'TEKS K.2A(i) · Jurados de rimas',
+    mode: 'rhyme_identification',
+    items: [
+      { word1: 'gracioso', word2: 'hermoso', answer: true },
+      { word1: 'entrenamiento', word2: 'descubrimiento', answer: true },
+      { word1: 'portón', word2: 'cartón', answer: true },
+      { word1: 'nota', word2: 'noche', answer: false },
+      { word1: 'palabra', word2: 'palo', answer: false },
+      { word1: 'pincel', word2: 'prenda', answer: false },
+      { word1: 'felicidad', word2: 'ciudad', answer: true },
+      { word1: 'camisa', word2: 'repisa', answer: true },
+    ],
+  },
 };

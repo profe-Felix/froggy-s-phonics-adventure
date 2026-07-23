@@ -58,6 +58,14 @@ export const ACTIVITY_MODES = [
     count: () => 0,
     desc: 'El alumno caza letras, dígrafos, palabras, puntuación, espacios o la sílaba tónica en un texto. Feedback inmediato y muestra los perdidos.',
   },
+  {
+    key: 'rhyme_identification',
+    label: 'Identificar rimas',
+    what: 'rimas',
+    in: 'pares',
+    count: () => 0,
+    desc: 'El alumno escucha dos palabras, repite cada una con un deslizador por sílaba y decide si riman (terminan igual).',
+  },
 ];
 
 // Normalize a preset/config object into a ready-to-render activity:
