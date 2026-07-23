@@ -8,7 +8,17 @@ const pdfCache = {};
 /**
  * PdfPageRenderer
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
+ *          'height' — scale to container height
  *          'contain' — scale to fit both width AND height (for book reader, no scroll)
+ *
+ * Resize / fit-mode changes are smooth and blink-free:
+ *  - The displayed (CSS) size is updated instantly from the cached page aspect
+ *    ratio, so the canvas never gets squished by maxWidth/maxHeight and the ink
+ *    layer (which tracks the rendered size) stays aligned.
+ *  - The crisp backing store is re-rendered to an offscreen canvas and swapped
+ *    in only when ready, so there is never a blank frame.
+ *  - The "Loading page…" overlay only appears for a brand-new page, not for a
+ *    resize of the current one.
  */
 export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight }) {
   const canvasRef = useRef(null);
@@ -18,6 +28,9 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   const renderedKey = useRef('');
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [loading, setLoading] = useState(true);
+  // Natural page size at scale 1. Cached after first load so we can compute the
+  // display size synchronously on every resize (before any await).
+  const naturalSizeRef = useRef(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -30,6 +43,42 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     return () => obs.disconnect();
   }, []);
 
+  // Figure out the target display size (px) for the current container + fit mode,
+  // using the cached page aspect ratio. Returns null until the page is known.
+  const computeDisplaySize = () => {
+    const vp = naturalSizeRef.current;
+    if (!vp || containerSize.w < 10) return null;
+    const availableW = targetWidth || containerSize.w;
+    const availableH = targetHeight || containerSize.h;
+    let scale;
+    if (fitMode === 'height' && availableH > 10) {
+      scale = availableH / vp.height;
+    } else if (fillHeight && availableH > 10) {
+      scale = Math.min(availableH / vp.height, availableW / vp.width);
+    } else if (fitMode === 'contain' && availableH > 10) {
+      scale = Math.min(availableW / vp.width, availableH / vp.height);
+    } else {
+      scale = containerSize.w / vp.width;
+    }
+    return { w: vp.width * scale, h: vp.height * scale };
+  };
+
+  // Instantly apply the display size (CSS only — no re-render) so the canvas is
+  // never squished/blanked during a resize and the ink layer stays aligned. This
+  // runs on every container/fit change, even while a backing re-render is pending.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const dims = computeDisplaySize();
+    if (!dims || !canvas) return;
+    canvas.style.width = dims.w + 'px';
+    canvas.style.height = dims.h + 'px';
+    if (onRendered) onRendered(dims.w, dims.h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight]);
+
+  // Load the page and render the crisp backing store. Re-runs on page / url /
+  // size / fit changes; the visible canvas keeps its current pixels (CSS-scaled)
+  // until the offscreen render is ready to swap in.
   useEffect(() => {
     if (!pdfUrl || containerSize.w < 10) return;
     let cancelled = false;
@@ -37,9 +86,6 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     const isNewPage = renderedKey.current !== key;
 
     setError(null);
-    // Only show the loading overlay for a brand-new page. Re-scaling the same
-    // page (fit-mode / container-size change) keeps the current render visible
-    // until the new one is ready, so there's no loading blink.
     if (isNewPage) setLoading(true);
     (async () => {
       try {
@@ -65,31 +111,22 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         if (!canvas) return;
 
         const viewport = page.getViewport({ scale: 1 });
+        naturalSizeRef.current = { width: viewport.width, height: viewport.height };
 
-        let scale;
-        const availableW = targetWidth || containerSize.w;
-        const availableH = targetHeight || containerSize.h;
+        const dims = computeDisplaySize();
+        if (!dims) return;
 
-        if (fitMode === 'height' && availableH > 10) {
-          scale = availableH / viewport.height;
-        } else if (fillHeight && availableH > 10) {
-          const scaleByH = availableH / viewport.height;
-          const scaleByW = availableW / viewport.width;
-          scale = Math.min(scaleByH, scaleByW);
-        } else if (fitMode === 'contain' && availableH > 10) {
-          const scaleW = availableW / viewport.width;
-          const scaleH = availableH / viewport.height;
-          scale = Math.min(scaleW, scaleH);
-        } else {
-          scale = containerSize.w / viewport.width;
-        }
+        // Keep the displayed size correct while we re-render the backing store.
+        canvas.style.width = dims.w + 'px';
+        canvas.style.height = dims.h + 'px';
 
+        const scale = dims.w / viewport.width;
         const scaled = page.getViewport({ scale });
 
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
 
-        // Render to an offscreen canvas so the visible page stays on screen
-        // (no blank/loading flash) until the new render is ready to swap in.
+        // Render offscreen so the visible canvas keeps its current pixels until
+        // the new render is ready to swap in (no blank flash).
         const off = document.createElement('canvas');
         off.width = Math.floor(scaled.width * dpr);
         off.height = Math.floor(scaled.height * dpr);
@@ -108,14 +145,14 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         canvas.width = off.width;
         canvas.height = off.height;
-        canvas.style.width = scaled.width + 'px';
-        canvas.style.height = scaled.height + 'px';
         const ctx = canvas.getContext('2d');
         ctx.drawImage(off, 0, 0);
 
         renderedKey.current = key;
         setLoading(false);
-        if (onRendered) onRendered(scaled.width, scaled.height);
+        // Re-sync the ink layer now that the freshly-rendered page is in place
+        // (same display size; this just ensures the parent has the final dims).
+        if (onRendered) onRendered(dims.w, dims.h);
       } catch (e) {
         if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
       }
@@ -126,6 +163,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
+  const isFullHeight = fitMode === 'height' || fitMode === 'contain' || fillHeight;
   const justifyContent = alignSelf === 'flex-start' ? 'flex-start' : alignSelf === 'flex-end' ? 'flex-end' : 'center';
 
   return (
@@ -133,13 +171,13 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
       ref={containerRef}
       style={{
         width: '100%',
-        height: fitMode === 'height' || fitMode === 'contain' || fillHeight ? '100%' : 'auto',
+        height: isFullHeight ? '100%' : 'auto',
         position: 'relative',
         display: 'flex',
-        alignItems: fitMode === 'height' || fitMode === 'contain' || fillHeight ? 'center' : 'flex-start',
+        alignItems: isFullHeight ? 'center' : 'flex-start',
         justifyContent,
         overflow: 'hidden',
-        background: fitMode === 'height' || fitMode === 'contain' || fillHeight ? '#fff' : undefined,
+        background: isFullHeight ? '#fff' : undefined,
       }}
     >
       {loading && (
@@ -150,7 +188,10 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           </div>
         </div>
       )}
-      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1, maxWidth: '100%', maxHeight: '100%' }} />
+      {/* Explicit CSS dimensions are set in code; no maxWidth/maxHeight so a
+          height-fit page can overflow (clipped by the container) without being
+          squished/distorted during re-renders. */}
+      <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1 }} />
     </div>
   );
 }
