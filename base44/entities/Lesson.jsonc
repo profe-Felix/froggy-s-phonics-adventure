@@ -1,0 +1,182 @@
+{
+  "name": "Lesson",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Lesson name shown to students and teachers"
+    },
+    "lesson_number": {
+      "type": "integer",
+      "default": 1,
+      "description": "Order number for display (Lesson 1, 2, ...)"
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this lesson is assigned to. Empty string = available to all classes."
+    },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Empty = current/any.",
+      "default": ""
+    },
+    "subtitle": {
+      "type": "string",
+      "default": "",
+      "description": "One-line description shown under the lesson title e.g. 'Learn the letter M and practice saying words and sounds!'"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "letter_sounds",
+              "sight_words_easy",
+              "sight_words_spelling",
+              "spelling",
+              "case_matching",
+              "letter_tracing",
+              "phonics",
+              "sentences",
+              "spanish_reading",
+              "storybuilder",
+              "book_reading",
+              "number_hearing"
+            ],
+            "description": "Which existing activity this step launches"
+          },
+          "title": {
+            "type": "string",
+            "description": "Step label shown on the card"
+          },
+          "emoji": {
+            "type": "string",
+            "default": "",
+            "description": "Emoji shown on the card"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "sky",
+              "pink",
+              "yellow",
+              "green",
+              "orange",
+              "purple",
+              "blue",
+              "teal",
+              "rose",
+              "indigo"
+            ],
+            "default": "sky"
+          },
+          "completion": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "view",
+                  "mastery"
+                ],
+                "default": "view",
+                "description": "view = done after one round of participation. mastery = need N items mastered."
+              },
+              "target": {
+                "type": "integer",
+                "default": 1,
+                "description": "For mastery: number of mastered items required. For view: unused."
+              }
+            }
+          },
+          "config": {
+            "type": "object",
+            "description": "Mode-specific settings (e.g. target letters) for future per-step overrides.",
+            "default": {}
+          }
+        },
+        "required": [
+          "mode",
+          "title"
+        ]
+      },
+      "default": [],
+      "description": "Ordered list of activity steps. Students must complete step N before step N+1 unlocks."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive lessons are hidden from students."
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

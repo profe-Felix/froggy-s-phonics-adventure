@@ -1,0 +1,287 @@
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { useAuth } from '@/lib/AuthContext';
+import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save } from 'lucide-react';
+
+const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
+
+function blankStep(mode = 'letter_sounds') {
+  const m = MODE_BY_VALUE[mode];
+  return {
+    mode,
+    title: m?.label || 'New Step',
+    emoji: m?.emoji || '',
+    color: 'sky',
+    completion: { type: m?.defaultCompletion || 'view', target: m?.defaultTarget || 1 },
+    config: {},
+  };
+}
+
+function blankLesson() {
+  return {
+    title: '',
+    lesson_number: 1,
+    class_name: '',
+    school_year: ACTIVE_SCHOOL_YEAR,
+    subtitle: '',
+    steps: [blankStep('letter_sounds')],
+    active: true,
+  };
+}
+
+function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
+  const update = (patch) => onChange({ ...step, ...patch });
+  const updateCompletion = (patch) => onChange({ ...step, completion: { ...step.completion, ...patch } });
+
+  const onModeChange = (mode) => {
+    const m = MODE_BY_VALUE[mode];
+    update({
+      mode,
+      title: step.title === MODE_BY_VALUE[step.mode]?.label ? m.label : step.title,
+      emoji: step.emoji || m.emoji,
+      completion: { type: m.defaultCompletion, target: m.defaultTarget },
+    });
+  };
+
+  const c = colorOf(step.color);
+
+  return (
+    <div className={`rounded-2xl border-2 ${c.bg} border-white shadow-sm p-3 flex flex-col gap-2`}>
+      <div className="flex items-center gap-2">
+        <span className="w-7 h-7 rounded-full bg-white/80 flex items-center justify-center font-black text-gray-700 text-sm">{index + 1}</span>
+        <span className="text-xl">{step.emoji || MODE_BY_VALUE[step.mode]?.emoji}</span>
+        <span className="font-bold text-gray-800 text-sm flex-1 truncate">{step.title}</span>
+        <div className="flex gap-1">
+          <button onClick={() => onMove(-1)} disabled={index === 0} className="w-7 h-7 rounded-lg bg-white/80 hover:bg-white disabled:opacity-40 flex items-center justify-center"><ChevronUp className="w-4 h-4" /></button>
+          <button onClick={() => onMove(1)} disabled={index === total - 1} className="w-7 h-7 rounded-lg bg-white/80 hover:bg-white disabled:opacity-40 flex items-center justify-center"><ChevronDown className="w-4 h-4" /></button>
+          <button onClick={onRemove} className="w-7 h-7 rounded-lg bg-white/80 hover:bg-red-100 flex items-center justify-center"><Trash2 className="w-4 h-4 text-red-500" /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-xs text-gray-600 font-bold">Activity
+          <select value={step.mode} onChange={e => onModeChange(e.target.value)}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+            {MODE_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-gray-600 font-bold">Card label
+          <input value={step.title} onChange={e => update({ title: e.target.value })}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <label className="text-xs text-gray-600 font-bold col-span-1">Emoji
+          <input value={step.emoji} onChange={e => update({ emoji: e.target.value })} maxLength={4}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+        </label>
+        <label className="text-xs text-gray-600 font-bold col-span-1">Card color
+          <select value={step.color} onChange={e => update({ color: e.target.value })}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+            {COLOR_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-gray-600 font-bold col-span-1">Completion
+          <select value={step.completion.type} onChange={e => updateCompletion({ type: e.target.value })}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+            <option value="view">View / play once</option>
+            <option value="mastery">Mastery (N items)</option>
+          </select>
+        </label>
+      </div>
+
+      {step.completion.type === 'mastery' && (
+        <label className="text-xs text-gray-600 font-bold">Items to master
+          <input type="number" min={1} value={step.completion.target}
+            onChange={e => updateCompletion({ target: parseInt(e.target.value) || 1 })}
+            className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+        </label>
+      )}
+
+      <label className="text-xs text-gray-600 font-bold">Target letters (optional, future)
+        <input value={(step.config?.targetLetters || '').toString()}
+          onChange={e => update({ config: { ...step.config, targetLetters: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })}
+          placeholder="e.g. m, a, s"
+          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+      </label>
+    </div>
+  );
+}
+
+export default function LessonEditor() {
+  const { user } = useAuth();
+  const canManage = user && (user.role === 'admin' || user.role === 'teacher');
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(null); // lesson object being edited (new or existing)
+
+  const { data: lessons = [] } = useQuery({
+    queryKey: ['all-lessons'],
+    queryFn: () => base44.entities.Lesson.list(),
+  });
+  const sorted = [...lessons].sort((a, b) => (a.lesson_number || 0) - (b.lesson_number || 0));
+
+  const save = async () => {
+    if (!editing.title?.trim()) return alert('Please give the lesson a title.');
+    const payload = {
+      title: editing.title.trim(),
+      lesson_number: editing.lesson_number || 1,
+      class_name: editing.class_name || '',
+      school_year: editing.school_year || ACTIVE_SCHOOL_YEAR,
+      subtitle: editing.subtitle || '',
+      steps: (editing.steps || []).map(({ __new, ...s }) => s),
+      active: editing.active !== false,
+    };
+    if (editing.id) {
+      await base44.entities.Lesson.update(editing.id, payload);
+    } else {
+      await base44.entities.Lesson.create(payload);
+    }
+    qc.invalidateQueries({ queryKey: ['all-lessons'] });
+    qc.invalidateQueries({ queryKey: ['lessons'] });
+    setEditing(null);
+  };
+
+  const remove = async (id) => {
+    if (!confirm('Delete this lesson?')) return;
+    await base44.entities.Lesson.delete(id);
+    qc.invalidateQueries({ queryKey: ['all-lessons'] });
+    qc.invalidateQueries({ queryKey: ['lessons'] });
+  };
+
+  if (!canManage) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-400">Teachers only.</div>;
+  }
+
+  if (editing) {
+    const steps = editing.steps || [];
+    const setSteps = (next) => setEditing({ ...editing, steps: next });
+    const moveStep = (i, dir) => {
+      const j = i + dir;
+      if (j < 0 || j >= steps.length) return;
+      const next = [...steps];
+      [next[i], next[j]] = [next[j], next[i]];
+      setSteps(next);
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+        <div className="max-w-2xl mx-auto p-4">
+          <button onClick={() => setEditing(null)} className="text-indigo-600 hover:underline font-bold text-sm mb-3 inline-flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" /> All lessons
+          </button>
+          <h1 className="text-2xl font-black text-gray-800 mb-4">{editing.id ? 'Edit Lesson' : 'New Lesson'}</h1>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs text-gray-600 font-bold">Title
+                <input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })}
+                  placeholder="e.g. Letter M"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+              </label>
+              <label className="text-xs text-gray-600 font-bold">Lesson number
+                <input type="number" min={1} value={editing.lesson_number}
+                  onChange={e => setEditing({ ...editing, lesson_number: parseInt(e.target.value) || 1 })}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+              </label>
+            </div>
+            <label className="text-xs text-gray-600 font-bold">Subtitle (shown to students)
+              <input value={editing.subtitle} onChange={e => setEditing({ ...editing, subtitle: e.target.value })}
+                placeholder="e.g. Learn the letter M and practice saying words and sounds!"
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs text-gray-600 font-bold">Class
+                <select value={editing.class_name} onChange={e => setEditing({ ...editing, class_name: e.target.value })}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                  {CLASSES.map(c => <option key={c} value={c}>{c || 'All classes'}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-gray-600 font-bold flex items-center gap-2 mt-4">
+                <input type="checkbox" checked={editing.active !== false}
+                  onChange={e => setEditing({ ...editing, active: e.target.checked })} />
+                Active (visible to students)
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-black text-gray-700">Steps ({steps.length})</h2>
+            <button onClick={() => setSteps([...steps, blankStep('letter_sounds')])}
+              className="text-sm font-bold text-indigo-600 inline-flex items-center gap-1 hover:underline">
+              <Plus className="w-4 h-4" /> Add step
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-2 mb-6">
+            {steps.map((s, i) => (
+              <StepEditor key={i} step={s} index={i} total={steps.length}
+                onChange={(next) => setSteps(steps.map((x, j) => j === i ? next : x))}
+                onRemove={() => setSteps(steps.filter((_, j) => j !== i))}
+                onMove={(dir) => moveStep(i, dir)}
+              />
+            ))}
+            {steps.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No steps yet — add one above.</p>}
+          </div>
+
+          <button onClick={save}
+            className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center justify-center gap-2">
+            <Save className="w-5 h-5" /> Save Lesson
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white p-4">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-black text-gray-800">📚 Lessons</h1>
+          <button onClick={() => setEditing(blankLesson())}
+            className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow hover:bg-indigo-700 inline-flex items-center gap-1">
+            <Plus className="w-4 h-4" /> New Lesson
+          </button>
+        </div>
+
+        {sorted.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
+            No lessons yet. Create your first lesson!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {sorted.map(l => {
+              const done = (l.steps || []).length;
+              return (
+                <div key={l.id} className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold text-indigo-500">Lesson {l.lesson_number}</p>
+                      <h3 className="text-lg font-black text-gray-800">{l.title}</h3>
+                      <p className="text-xs text-gray-500">{l.subtitle}</p>
+                    </div>
+                    {!l.active && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">hidden</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>{done} steps</span>
+                    <span>•</span>
+                    <span>{l.class_name || 'All classes'}</span>
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => setEditing({ ...l, steps: (l.steps || []).map(s => ({ ...s })) })}
+                      className="flex-1 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200">Edit</button>
+                    <button onClick={() => remove(l.id)}
+                      className="px-3 py-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

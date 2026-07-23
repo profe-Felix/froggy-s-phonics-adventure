@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
 import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
+import LessonMap from '../components/lesson/LessonMap';
+import LessonModeRouter from '../components/lesson/LessonModeRouter';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -36,7 +38,20 @@ export default function LetterGame() {
   const [directStudentId] = useState(urlStudentId);
   const [studentData, setStudentData] = useState(null);
   const [currentMode, setCurrentMode] = useState(null);
+  const [activeLessonStep, setActiveLessonStep] = useState(null);
+  const [activeLesson, setActiveLesson] = useState(null);
+  const [activeStepIndex, setActiveStepIndex] = useState(null);
   const queryClient = useQueryClient();
+
+  // Active lessons for this student's class (class-specific or all-classes).
+  const { data: lessonsForClass = [] } = useQuery({
+    queryKey: ['lessons', selectedStudent?.class_name],
+    queryFn: () => base44.entities.Lesson.filter({ active: true }),
+    enabled: !!selectedStudent && selectedStudent !== 'loading_by_id',
+  });
+  const hasAssignedLesson = lessonsForClass.some(
+    l => !l.class_name || l.class_name === selectedStudent?.class_name
+  );
 
   // Direct load by student ID (from QR code)
   const { data: directStudent } = useQuery({
@@ -318,7 +333,25 @@ export default function LetterGame() {
     );
   }
 
-  if (!currentMode) {
+  if (!currentMode && !activeLessonStep) {
+    if (hasAssignedLesson) {
+      return (
+        <LessonMap
+          studentData={studentData}
+          selectedStudent={selectedStudent}
+          onStartStep={(step, index, lesson) => {
+            setActiveLessonStep(step);
+            setActiveLesson(lesson);
+            setActiveStepIndex(index);
+          }}
+          onLogout={handleLogout}
+          onFreePlay={() => {
+            // No lesson assigned fallback — show the classic mode grid.
+            setCurrentMode(null);
+          }}
+        />
+      );
+    }
     return (
       <ModeSelection
         studentData={studentData}
@@ -327,6 +360,26 @@ export default function LetterGame() {
         onPetUnlock={handlePetUnlock}
         onSelectPet={handleSelectPet}
         onSetLanguage={handleSetLanguage}
+      />
+    );
+  }
+
+  if (activeLessonStep && activeLesson) {
+    return (
+      <LessonModeRouter
+        step={activeLessonStep}
+        stepIndex={activeStepIndex}
+        lessonId={activeLesson.id}
+        totalSteps={(activeLesson.steps || []).length}
+        studentData={studentData}
+        selectedStudent={selectedStudent}
+        onUpdateProgress={handleUpdateProgress}
+        onStudentPatch={handleStudentPatch}
+        onBack={() => {
+          setActiveLessonStep(null);
+          setActiveLesson(null);
+          setActiveStepIndex(null);
+        }}
       />
     );
   }

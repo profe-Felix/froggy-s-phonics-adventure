@@ -1,0 +1,107 @@
+{
+  "name": "LessonProgress",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions.",
+      "default": ""
+    },
+    "lesson_id": {
+      "type": "string",
+      "description": "ID of the Lesson this progress record tracks"
+    },
+    "completed_steps": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": [],
+      "description": "Step indices (0-based) the student has completed"
+    },
+    "current_step": {
+      "type": "integer",
+      "default": 0,
+      "description": "Index of the step the student is currently on"
+    },
+    "completed": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once every step in the lesson is completed"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "lesson_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
