@@ -1,0 +1,124 @@
+{
+  "name": "ActivityResponse",
+  "type": "object",
+  "properties": {
+    "activity_mode": {
+      "type": "string",
+      "enum": [
+        "counting_words",
+        "counting_phonemes"
+      ],
+      "description": "Which counting activity the response belongs to"
+    },
+    "student_name": {
+      "type": "string",
+      "default": "Estudiante",
+      "description": "Free-text name the student entered (the Activities test tool has no student-login integration)"
+    },
+    "class_name": {
+      "type": "string",
+      "default": ""
+    },
+    "item_text": {
+      "type": "string",
+      "description": "The sentence or word the student counted"
+    },
+    "item_index": {
+      "type": "integer",
+      "default": 0
+    },
+    "placed_count": {
+      "type": "integer",
+      "description": "Number of tiles the student placed (their answer)",
+      "default": 0
+    },
+    "correct_count": {
+      "type": "integer",
+      "description": "Auto-computed correct count for the item",
+      "default": 0
+    },
+    "is_correct": {
+      "type": "boolean",
+      "default": false
+    },
+    "placements_data": {
+      "type": "string",
+      "description": "JSON timeline of placement events [{t, type:'place'|'remove', tile, boxIndex}] relative to recording start"
+    },
+    "audio_url": {
+      "type": "string",
+      "description": "Uploaded voice recording URL"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "default": 0
+    },
+    "submitted_at": {
+      "type": "string",
+      "description": "ISO timestamp"
+    },
+    "reviewed": {
+      "type": "boolean",
+      "default": false
+    },
+    "teacher_note": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "required": [
+    "activity_mode",
+    "item_text"
+  ],
+  "rls": {
+    "create": null,
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

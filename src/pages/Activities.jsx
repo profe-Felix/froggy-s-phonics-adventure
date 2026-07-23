@@ -1,13 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import BackButton from '@/components/ui/BackButton';
-import CountingActivity from '@/components/activities/CountingActivity';
+import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
+import TeacherReview from '@/components/activities/TeacherReview';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { PRESETS } from '@/lib/activities/presets';
 
-// "Contar __ en __" page. Hosts counting activities; starts with two modes:
-//   - counting_words    (count words in a sentence)
-//   - counting_phonemes (count phonemes in a word)
-// Driven by a mode selector, an optional preset, and an editable items list.
+// "Contar __ en __" page. Two roles via a top-bar toggle:
+//   - Estudiante: recordable Elkonin counting (voice + tile placement)
+//   - Profesor: review submitted responses (audio + placement)
+// Config (mode / preset / items) is shared; the items list + student name only
+// show in student mode. The number-tile counting version (CountingActivity) is
+// kept for later.
 const DEFAULT_ITEMS = {
   counting_words: 'El gato come\nYo soy grande\nLa luna brilla en la noche',
   counting_phonemes: 'gato\nsol\nflor\npan\nluna',
@@ -21,10 +24,18 @@ function parseItems(text) {
     .map((t) => ({ text: t }));
 }
 
+function readRole() {
+  return new URLSearchParams(window.location.search).get('role') === 'teacher'
+    ? 'teacher'
+    : 'student';
+}
+
 export default function Activities() {
+  const [role, setRole] = useState(readRole());
   const [modeKey, setModeKey] = useState(ACTIVITY_MODES[0].key);
   const [presetKey, setPresetKey] = useState('');
   const [itemsText, setItemsText] = useState(DEFAULT_ITEMS[ACTIVITY_MODES[0].key]);
+  const [studentName, setStudentName] = useState('Estudiante');
 
   const mode = ACTIVITY_MODES.find((m) => m.key === modeKey);
 
@@ -37,6 +48,13 @@ export default function Activities() {
     if (presetKey && PRESETS[presetKey]) return PRESETS[presetKey];
     return { mode: modeKey, items: parseItems(itemsText) };
   }, [modeKey, presetKey, itemsText]);
+
+  // keep role in the URL so a refresh preserves the view
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    qs.set('role', role);
+    window.history.replaceState(null, '', `${window.location.pathname}?${qs.toString()}`);
+  }, [role]);
 
   function onModeChange(k) {
     setModeKey(k);
@@ -60,6 +78,20 @@ export default function Activities() {
       <div className="flex items-center gap-3 p-3 bg-white border-b sticky top-0 z-20">
         <BackButton onClick={() => window.history.back()} />
         <h1 className="font-bold text-lg flex-1">Actividades · Contar __ en __</h1>
+        <div className="flex rounded-lg border overflow-hidden">
+          <button
+            onClick={() => setRole('student')}
+            className={`px-3 py-1.5 text-sm font-bold ${role === 'student' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+          >
+            Estudiante
+          </button>
+          <button
+            onClick={() => setRole('teacher')}
+            className={`px-3 py-1.5 text-sm font-bold ${role === 'teacher' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'}`}
+          >
+            Profesor
+          </button>
+        </div>
       </div>
 
       <div className="p-3 bg-white border-b">
@@ -92,20 +124,34 @@ export default function Activities() {
             </select>
           </div>
 
-          <div className="flex flex-col flex-1 min-w-[260px]">
-            <label className="text-xs font-bold text-gray-600">Elementos (uno por línea)</label>
-            <textarea
-              value={itemsText}
-              onChange={(e) => { setItemsText(e.target.value); setPresetKey(''); }}
-              rows={3}
-              className="px-2 py-2 rounded-lg border bg-white"
-              placeholder={modeKey === 'counting_phonemes' ? 'gato\nsol\nflor' : 'El gato come\nYo soy grande'}
-            />
-          </div>
+          {role === 'student' && (
+            <>
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-gray-600">Nombre del estudiante</label>
+                <input
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  className="px-2 py-2 rounded-lg border bg-white min-w-[160px]"
+                />
+              </div>
+              <div className="flex flex-col flex-1 min-w-[260px]">
+                <label className="text-xs font-bold text-gray-600">Elementos (uno por línea)</label>
+                <textarea
+                  value={itemsText}
+                  onChange={(e) => { setItemsText(e.target.value); setPresetKey(''); }}
+                  rows={3}
+                  className="px-2 py-2 rounded-lg border bg-white"
+                  placeholder={modeKey === 'counting_phonemes' ? 'gato\nsol\nflor' : 'El gato come\nYo soy grande'}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      <CountingActivity config={config} />
+      {role === 'student'
+        ? <ElkoninCountActivity config={config} studentName={studentName} />
+        : <TeacherReview mode={modeKey} />}
     </div>
   );
 }
