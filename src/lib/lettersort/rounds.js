@@ -11,7 +11,7 @@
 // column views share one `classifyCard(card, col)` call.
 
 import {
-  markersToPretty, normalizeMarkers, initialFromStem,
+  markersToPretty, normalizeMarkers, initialFromStem, stripDiacritics,
   phonemeCount, syllablesNormalized, syllableCount, stressedSyllIndex, cmpSyll,
 } from './phonics';
 import {
@@ -410,11 +410,64 @@ export function buildRound(config, imageFiles = []) {
     return { view: 'continuum', direction, bottom, top, left, right, cards };
   }
 
-  // ----- generate (riddle) -----
+  // ----- generate -----
+  // Two forms: a riddle ("text |hidden| ...") with blanks, or a column grid
+  // ("columns" + per-column "rows" counts) where words are grouped by the
+  // column's initial letter/syllable.
   if (mode === 'generate') {
-    const { parts, answers } = parseGenerateRiddle(riddle);
-    const cards = buildWordCards(answers, files, { ...config, cardtype: config.cardtype || 'word' });
-    return { view: 'generate', parts, answers, cards, colLabels, slots };
+    if (riddle && String(riddle).trim()) {
+      const { parts, answers } = parseGenerateRiddle(riddle);
+      const cards = buildWordCards(answers, files, { ...config, cardtype: config.cardtype || 'word' });
+      return { view: 'generate', parts, answers, cards, colLabels, slots };
+    }
+    const colDefs = (colLabels && colLabels.length) ? colLabels : [];
+    const rowsArr = Array.isArray(config.rows)
+      ? config.rows.map((n) => parseInt(n, 10)).filter((n) => Number.isFinite(n) && n > 0)
+      : String(config.rows || '').split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0);
+    // column kinds: 1 char = letter (initialFromStem); 2-3 chars = onset cluster
+    // (prefix match, e.g. "gra" matches "granjeros"); >=4 chars = word whose
+    // first syllable matches the column word's first syllable.
+    const colKind = (c) => {
+      const t = c.trim();
+      if (t.length === 1) return 'letter';
+      if (t.length <= 3) return 'onset';
+      return 'word';
+    };
+    const targetFor = (c) => {
+      const k = colKind(c);
+      if (k === 'letter') return normalizeMarkers(c).toLowerCase();
+      if (k === 'onset') return stripDiacritics(normalizeMarkers(c)).toLowerCase();
+      return initialSyll(c);
+    };
+    const colTargets = colDefs.map(targetFor);
+    const columns = colDefs.map((c, i) => {
+      const k = colKind(c);
+      const target = colTargets[i];
+      const match = k === 'letter'
+        ? (card) => initialFromStem(card) === target
+        : k === 'onset'
+          ? (card) => stripDiacritics(normalizeMarkers(card.coreRaw)).toLowerCase().startsWith(target)
+          : (card) => initialSyll(card) === target;
+      return { key: `gen:${i}`, label: markersToPretty(c) || c, display: c, match };
+    });
+    let cards = [];
+    if (hasWords) {
+      cards = buildWordCards(words, files, { ...config, cardtype: config.cardtype || 'word' });
+    } else {
+      const used = new Set();
+      columns.forEach((col, i) => {
+        const need = rowsArr[i] ?? rowsArr[0] ?? config.per;
+        const k = colKind(colDefs[i]);
+        const target = colTargets[i];
+        const list = k === 'letter'
+          ? files.filter((f) => f.initial === target)
+          : k === 'onset'
+            ? files.filter((f) => stripDiacritics(normalizeMarkers(f.rawCore)).toLowerCase().startsWith(target))
+            : files.filter((f) => initialSyll(f.rawCore) === target);
+        pickNoRepeat(list, need, used).forEach((f) => { used.add(f.path); cards.push(...makeCardsFromFile(f, splitCards)); });
+      });
+    }
+    return { view: 'columns', columns, cards };
   }
 
   // ----- stressreveal -----
@@ -441,6 +494,6 @@ export function cardWordsForConfig(config) {
   if (m === 'row') return parseRows(config.rows).flatMap((r) => [r.prompt, ...r.choices]);
   if (m === 'rowsyll') return [...parseRowSyllDefs(config.rows).map((d) => d.prompt), ...config.words];
   if (m === 'sort' || m === 'stressreveal') return config.words;
-  if (m === 'generate') return parseGenerateRiddle(config.riddle).answers;
+  if (m === 'generate') return config.riddle ? parseGenerateRiddle(config.riddle).answers : (config.words || []);
   return config.words || [];
 }
