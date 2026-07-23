@@ -11,14 +11,19 @@ export default function PowerfulWord() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
   const [presetId, setPresetId] = useState(params.get('preset') || POWERFUL_WORD_PRESETS[0].id);
-  const [showQr, setShowQr] = useState(false);
-
   const preset = useMemo(
     () => POWERFUL_WORD_PRESETS.find((p) => p.id === presetId) || POWERFUL_WORD_PRESETS[0],
     [presetId]
   );
+  // Original honors preset.defaultCount, overridable by the `n` URL param.
+  const [count, setCount] = useState(() => {
+    const n = parseInt(params.get('n'), 10);
+    return (!isNaN(n) && n > 0) ? Math.min(n, preset.pairs.length) : (preset.defaultCount || preset.pairs.length);
+  });
+  const [showQr, setShowQr] = useState(false);
 
-  const studentUrl = `${window.location.origin}${window.location.pathname}?role=student&preset=${encodeURIComponent(presetId)}`;
+  const pairs = preset.pairs.slice(0, count);
+  const studentUrl = `${window.location.origin}${window.location.pathname}?role=student&preset=${encodeURIComponent(presetId)}&n=${count}`;
 
   return (
     <div className="min-h-screen" style={{ background: '#fafbff', fontFamily: "'Andika', system-ui, sans-serif" }}>
@@ -28,13 +33,28 @@ export default function PowerfulWord() {
           <h1 className="font-bold text-lg mr-2">Powerful Word · Teacher</h1>
           <select
             value={presetId}
-            onChange={(e) => setPresetId(e.target.value)}
+            onChange={(e) => {
+              setPresetId(e.target.value);
+              const p = POWERFUL_WORD_PRESETS.find((x) => x.id === e.target.value);
+              setCount(p?.defaultCount || p?.pairs.length || 3);
+            }}
             className="px-3 py-2 rounded-lg border font-bold"
           >
             {POWERFUL_WORD_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>{p.title}</option>
             ))}
           </select>
+          <label className="flex items-center gap-1 text-sm font-bold text-slate-600">
+            Cards
+            <input
+              type="number"
+              min={1}
+              max={preset.pairs.length}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(preset.pairs.length, Number(e.target.value) || 1)))}
+              className="w-16 px-2 py-1 rounded-lg border font-bold"
+            />
+          </label>
           <button
             onClick={() => setShowQr(true)}
             className="px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold"
@@ -48,7 +68,7 @@ export default function PowerfulWord() {
         className="max-w-5xl mx-auto p-6 grid gap-6"
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}
       >
-        {preset.pairs.map((pair, i) => (
+        {pairs.map((pair, i) => (
           <FlashCard key={`${preset.id}-${i}`} pair={pair} />
         ))}
       </div>
