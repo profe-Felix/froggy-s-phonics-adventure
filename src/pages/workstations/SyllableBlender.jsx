@@ -4,7 +4,7 @@ import SyllableBlenderLobby from '@/components/workstations/SyllableBlenderLobby
 import ElkoninActivity from '@/components/workstations/ElkoninActivity';
 import { markersToPretty } from '@/lib/markers';
 import { shuffleInPlace } from '@/lib/seededShuffle';
-import { SB_URL } from '@/lib/supabaseStorage';
+import { SB_URL, wordsFromImageBucket } from '@/lib/supabaseStorage';
 
 const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/syllableblender/presets.json`;
 const DEFAULT_MEDIA = {
@@ -19,6 +19,7 @@ export default function SyllableBlender() {
   const isTeacher = params.get('role') === 'teacher';
   const presetId = params.get('preset');
   const [presets, setPresets] = useState({});
+  const [bucketWords, setBucketWords] = useState(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,17 +39,33 @@ export default function SyllableBlender() {
     };
   }, [presets, presetId]);
 
+  const usingPreset = !!presets[presetId]?.content?.words?.length;
+
+  // When no preset word list is selected, fall back to listing every image in
+  // the image bucket (matching the reference app behaviour).
+  useEffect(() => {
+    if (loading || usingPreset) return;
+    let cancelled = false;
+    setBucketWords(undefined);
+    wordsFromImageBucket(media.images)
+      .then((list) => { if (!cancelled) setBucketWords(list && list.length ? list : null); })
+      .catch(() => { if (!cancelled) setBucketWords(null); });
+    return () => { cancelled = true; };
+  }, [loading, usingPreset, media.images]);
+
+  const bucketLoading = !usingPreset && bucketWords === undefined;
+
   const words = useMemo(() => {
     const preset = presets[presetId];
     let list = preset?.content?.words?.length
       ? preset.content.words.map((w) => markersToPretty(w))
-      : DEFAULT_WORDS.slice();
+      : (bucketWords && bucketWords.length ? bucketWords.slice() : DEFAULT_WORDS.slice());
     const b = preset?.behavior || {};
     if (b.shuffle && list.length > 1) shuffleInPlace(list, b.seed || '');
     return list;
-  }, [presets, presetId]);
+  }, [presets, presetId, bucketWords]);
 
-  if (loading) {
+  if (loading || bucketLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />

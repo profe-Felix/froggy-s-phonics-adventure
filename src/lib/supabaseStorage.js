@@ -49,6 +49,24 @@ export async function listAll(bucket, prefix = '') {
 function stripImageSuffix(t) { return t.replace(/_(pic|img|image|foto)$/i, ''); }
 
 const IMG_EXTS = ['jpg', 'png'];
+function stemOf(name) { return name.replace(/\.(jpg|png)$/i, ''); }
+function extOf(name) { const m = name.match(/\.([a-z0-9]+)$/i); return m ? m[1].toLowerCase() : ''; }
+
+// List the image bucket and build the word list from filenames, exactly like
+// the reference app: basename → strip extension → strip _pic/_img suffix →
+// marker form → pretty lowercase. Deduped and sorted (es locale).
+export async function wordsFromImageBucket({ bucket, prefix } = {}) {
+  const files = await listAll(bucket, prefix);
+  const seen = new Set();
+  for (const f of files) {
+    const base = f.split('/').pop() || f;
+    if (!IMG_EXTS.includes(extOf(base))) continue;
+    const stem = stripImageSuffix(stemOf(base));
+    const pretty = markersToPretty(stem).toLowerCase();
+    if (pretty) seen.add(pretty);
+  }
+  return Array.from(seen).sort((a, b) => a.localeCompare(b, 'es'));
+}
 
 // Resolve a word to its image URL. Tries the marker form first (e.g. "a..guila"),
 // then the pretty form; for each, "<stem>_pic.<ext>" then "<stem>.<ext>".
