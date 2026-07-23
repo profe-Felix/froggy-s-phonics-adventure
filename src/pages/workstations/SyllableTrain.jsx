@@ -14,8 +14,8 @@ const MAX = 12;
 export default function SyllableTrain() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
-  const [slotCount, setSlotCount] = useState(4);
   const [slots, setSlots] = useState(() => Array.from({ length: 4 }, () => null));
+  const slotCount = slots.length;
   const [dragging, setDragging] = useState(null); // { color, from }  from: -1 = source
   const [ghost, setGhost] = useState({ x: 0, y: 0, visible: false });
   const railRef = useRef(null);
@@ -23,7 +23,6 @@ export default function SyllableTrain() {
 
   const changeCount = (delta) => {
     const n = Math.max(MIN, Math.min(MAX, slotCount + delta));
-    setSlotCount(n);
     setSlots((prev) => {
       const next = [...prev];
       if (n > next.length) while (next.length < n) next.push(null);
@@ -57,40 +56,44 @@ export default function SyllableTrain() {
       const rail = railRef.current;
       let best = -1;
       let dist = Infinity;
+      let dx = 0;
+      let slotW = 110;
+      let inRail = false;
       if (rail) {
         const slotEls = rail.querySelectorAll('[data-slot]');
+        const railRect = rail.getBoundingClientRect();
+        const vCenter = railRect.top + railRect.height / 2;
+        const inV = Math.abs(e.clientY - vCenter) < 90;
         slotEls.forEach((el, i) => {
           const r = el.getBoundingClientRect();
           const cx = r.left + r.width / 2;
           const d = Math.abs(e.clientX - cx);
-          if (d < dist) { dist = d; best = i; }
+          if (d < dist) { dist = d; best = i; dx = e.clientX - cx; slotW = r.width; }
         });
+        inRail = inV && best >= 0 && dist < slotW;
       }
-      const NEAR = 90; // px tolerance to count as "on the rail"
+      // Drop near a slot center → REPLACE (old car discarded).
+      // Drop toward a slot edge / between two cars → INSERT (shift the rail).
+      const onSlot = Math.abs(dx) < slotW * 0.35;
       setSlots((prev) => {
+        if (!inRail) return prev; // dropped away → discard (move leaves source empty)
         const next = [...prev];
-        if (dragging.from === -1) {
-          // from source
-          if (best >= 0 && dist < NEAR) {
-            if (next[best] === null) {
-              next[best] = dragging.color;
-            } else if (next.length < MAX) {
-              next.splice(best, 0, dragging.color);
-            }
+        if (onSlot) {
+          if (dragging.from >= 0) {
+            next[best] = dragging.color;
+            if (best !== dragging.from) next[dragging.from] = null;
+          } else {
+            next[best] = dragging.color; // replace (old discarded)
           }
-          // else: dropped away → discard
         } else {
-          // from an existing slot (already nulled on pickup)
-          if (best >= 0 && dist < NEAR) {
-            if (next[best] === null) {
-              next[best] = dragging.color;
-            } else {
-              const tmp = next[best];
-              next[best] = dragging.color;
-              next[dragging.from] = tmp;
-            }
+          let insertPos = dx < 0 ? best : best + 1;
+          if (dragging.from >= 0) {
+            next.splice(dragging.from, 1); // close the hole, then reinsert
+            if (dragging.from < insertPos) insertPos -= 1;
+            next.splice(insertPos, 0, dragging.color);
+          } else if (next.length < MAX) {
+            next.splice(insertPos, 0, dragging.color);
           }
-          // dropped away → car removed (stays null)
         }
         return next;
       });
