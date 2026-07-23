@@ -18,7 +18,7 @@ export default function BackButton({ onClick, tone = 'indigo', className = '', .
       className={`flex items-center justify-center w-10 h-10 rounded-full border bg-white/5 active:scale-90 transition shrink-0 touch-manipulation select-none ${TONES[tone] || TONES.indigo} ${className}`}
       {...rest}
     >
-      <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
+      <ChevronLeft className="w-6 h-6 pointer-events-none" strokeWidth={2.5} />
     </button>
   );
 }
