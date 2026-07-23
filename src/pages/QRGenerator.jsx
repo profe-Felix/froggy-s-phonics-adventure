@@ -63,9 +63,10 @@ export default function QRGenerator() {
 
   const handlePrint = () => {
     const printContents = printRef.current.innerHTML;
+    const safeClass = String(selectedClass || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const win = window.open('', '_blank');
     win.document.write(`
-      <html><head><title>QR Codes - Class ${selectedClass}</title>
+      <html><head><title>QR Codes - Class ${safeClass}</title>
       <style>
         body { font-family: sans-serif; margin: 0; padding: 16px; }
         .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }

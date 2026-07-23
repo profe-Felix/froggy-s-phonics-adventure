@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { useAuth } from '@/lib/AuthContext';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 
@@ -12,7 +13,7 @@ function formatDate(dateStr) {
     d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function SessionCard({ session, onGrade, onDelete }) {
+function SessionCard({ session, onGrade, onDelete, canManage }) {
   const [note, setNote] = useState(session.teacher_note || '');
   const [saving, setSaving] = useState(false);
   const isSentence = session.item_type === 'sentence';
@@ -46,7 +47,9 @@ function SessionCard({ session, onGrade, onDelete }) {
           <p className="text-xs text-gray-400">{formatDate(session.created_date)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <button onClick={onDelete} className="text-gray-300 hover:text-red-400 text-lg leading-none">✕</button>
+          {canManage && (
+            <button onClick={onDelete} className="text-gray-300 hover:text-red-400 text-lg leading-none">✕</button>
+          )}
           {teacherGrade !== 'pending' && (
             <span className={`text-xs font-black px-2 py-0.5 rounded-full ${teacherGrade === 'correct' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {teacherGrade === 'correct' ? `✓ +${session.points_awarded ?? points}pts` : '✗ 0pts'}
@@ -106,6 +109,8 @@ export default function SpanishReadingDashboard() {
   const [filterGrade, setFilterGrade] = useState('all');
   const [filterList, setFilterList] = useState('all');
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canManage = user && (user.role === 'admin' || user.role === 'teacher');
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['spanish-sessions', selectedClass],
@@ -115,6 +120,7 @@ export default function SpanishReadingDashboard() {
   });
 
   const handleGrade = async (id, teacherGrade, note, points) => {
+    if (!canManage) throw new Error('Not authorized');
     await base44.entities.SpanishReadingSession.update(id, {
       teacher_grade: teacherGrade,
       teacher_note: note,
@@ -125,6 +131,7 @@ export default function SpanishReadingDashboard() {
   };
 
   const handleDelete = async (id) => {
+    if (!canManage) throw new Error('Not authorized');
     await base44.entities.SpanishReadingSession.delete(id);
     queryClient.invalidateQueries({ queryKey: ['spanish-sessions', selectedClass] });
   };
@@ -226,6 +233,7 @@ export default function SpanishReadingDashboard() {
             <SessionCard key={session.id} session={session}
               onGrade={handleGrade}
               onDelete={() => handleDelete(session.id)}
+              canManage={canManage}
             />
           ))
         )}
