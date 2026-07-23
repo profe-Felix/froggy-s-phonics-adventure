@@ -21,7 +21,8 @@ import {
 } from './parsers';
 
 export function parseList(raw) {
-  return (raw || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
+  return String(raw || '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 const LABELS = {
