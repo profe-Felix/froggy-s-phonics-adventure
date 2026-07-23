@@ -3,9 +3,9 @@
 // convention (see markers.js). These resolve a word to its image / audio URL
 // by probing candidate paths with HEAD requests.
 import { markersToPretty, prettyToMarkers, normalizeName } from '@/lib/markers';
+import { base44 } from '@/api/base44Client';
 
 export const SB_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtbHNpeXlxcGN1cGJpenB4d2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDI1NjUsImV4cCI6MjA3Mzk3ODU2NX0.mkgeUtjC8ulLyHHVVOic4LmhhQP_JJtMi2JQztdzjsg';
 
 export function publicUrl(bucket, path) {
   const enc = path.split('/').map(encodeURIComponent).join('/');
@@ -20,30 +20,11 @@ export async function headExists(bucket, path) {
   } catch { return null; }
 }
 
-// Recursively list a bucket (used when a preset has no explicit word list).
+// Recursively list a bucket via a backend function so the anon key stays
+// server-side. (Used when a preset has no explicit word list.)
 export async function listAll(bucket, prefix = '') {
-  const out = [];
-  async function walk(dir) {
-    let offset = 0; const limit = 100;
-    while (true) {
-      const r = await fetch(`${SB_URL}/storage/v1/object/list/${bucket}`, {
-        method: 'POST',
-        headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prefix: dir, limit, offset, sortBy: { column: 'name', order: 'asc' } }),
-      });
-      if (!r.ok) throw new Error('list ' + r.status);
-      const items = await r.json();
-      for (const it of items) {
-        const full = dir ? `${dir.replace(/\/$/, '')}/${it.name}` : it.name;
-        if (it.metadata) out.push(full);
-        else await walk(full);
-      }
-      if (items.length < limit) break;
-      offset += limit;
-    }
-  }
-  await walk(prefix || '');
-  return out;
+  const res = await base44.functions.invoke('supabaseStorageList', { bucket, prefix });
+  return res.data?.files || [];
 }
 
 function stripImageSuffix(t) { return t.replace(/_(pic|img|image|foto)$/i, ''); }
