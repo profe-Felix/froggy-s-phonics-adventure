@@ -6,25 +6,30 @@ function drawStroke(ctx, s, w, h) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
+  // Line width scales with the canvas so ink keeps the same relative thickness
+  // across device sizes / fit modes. Each stroke stores the canvas width at
+  // draw time; legacy strokes without it fall back to the absolute size.
+  const lw = s.canvasWidth ? (s.size * w / s.canvasWidth) : s.size;
+
   if (s.tool === 'highlighter') {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = Math.max(1, s.size * 2.5);
+    ctx.lineWidth = Math.max(1, lw * 2.5);
     ctx.globalAlpha = 0.35;
   } else if (s.tool === 'eraser_object') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = Math.max(1, s.size * 6);
+    ctx.lineWidth = Math.max(1, lw * 6);
     ctx.globalAlpha = 1;
   } else if (s.tool === 'eraser_pixel') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = Math.max(1, s.size * 1.5);
+    ctx.lineWidth = Math.max(1, lw * 1.5);
     ctx.globalAlpha = 1;
   } else {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = Math.max(1, s.size);
+    ctx.lineWidth = Math.max(1, lw);
     ctx.globalAlpha = 1;
   }
 
@@ -229,7 +234,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const beginStrokeAt = (p) => {
-    current.current = { color, size, tool: makeToolName(), pts: [p] };
+    current.current = { color, size, tool: makeToolName(), pts: [p], canvasWidth: width, canvasHeight: height };
     drawing.current = true;
     onStrokeStart?.();
     redraw();
