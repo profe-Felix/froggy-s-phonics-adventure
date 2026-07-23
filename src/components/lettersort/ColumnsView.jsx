@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, RefreshCw, Volume2 } from 'lucide-react';
+import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
-import { buildRound, classifyCard } from '@/lib/lettersort/rounds';
+import { classifyCard } from '@/lib/lettersort/rounds';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
-import { markersToPretty } from '@/lib/lettersort/phonics';
 
 const AUDIO_OPTS = { bucket: 'lettersort-audio', prefix: '' };
 
@@ -14,10 +13,9 @@ function shuffle(arr) {
   return a;
 }
 
-// Classic column view: a rack of cards + N drop columns. Drag a card into a
+// Column-group view: a rack of cards + N drop columns. Drag a card into a
 // column, hit "Verificar" to check; correct cards lock, wrong ones bounce back.
-export default function ColumnsView({ config, imageFiles }) {
-  const round = useMemo(() => buildRound(config, imageFiles), [config, imageFiles]);
+export default function ColumnsView({ config, round }) {
   const [rack, setRack] = useState([]);
   const [colCards, setColCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -75,7 +73,7 @@ export default function ColumnsView({ config, imageFiles }) {
     for (const col of round.columns) {
       for (const card of colCards[col.key] || []) {
         if (newLocked.has(card.id)) { correct++; continue; }
-        if (classifyCard(card, col, config)) {
+        if (classifyCard(card, col)) {
           newLocked.add(card.id); correct++;
         } else {
           wrong++; toEject.push({ colKey: col.key, card });
@@ -209,16 +207,16 @@ export default function ColumnsView({ config, imageFiles }) {
 }
 
 function ColumnHeader({ col, config }) {
-  if (col.key.startsWith('syll:')) {
-    if (config.hideTitle) return <div className="h-10" />;
-    return <div className="text-center font-bold text-lg text-indigo-800 mb-1">{col.label}</div>;
-  }
-  if (col.key.startsWith('count:')) {
-    if (config.hideTitle) return <div className="h-10" />;
-    return <div className="text-center font-bold text-lg text-indigo-800 mb-1">{col.label}</div>;
+  if (config.hideTitle) return <div className="h-10" />;
+  // image header (manualsort with headertype=image)
+  if (col.headerImg) {
+    return (
+      <div className="flex items-center justify-center mb-1 h-24">
+        <img src={col.headerImg} alt={col.label} className="rounded-lg object-contain max-h-24 bg-slate-50" draggable={false} />
+      </div>
+    );
   }
   if (col.key.startsWith('stress:')) {
-    if (config.hideTitle) return <div className="h-10" />;
     const pos = parseInt(col.display || col.key.slice(7), 10);
     const total = 3;
     const targetIdx = Math.min(total - 1, Math.max(0, total - pos));
@@ -230,7 +228,7 @@ function ColumnHeader({ col, config }) {
       </div>
     );
   }
-  return <h2 className="text-center font-bold text-base text-indigo-800 mb-1">{col.label}</h2>;
+  return <h2 className="text-center font-bold text-base text-indigo-800 mb-1 px-1">{col.label}</h2>;
 }
 
 // lightweight confetti burst

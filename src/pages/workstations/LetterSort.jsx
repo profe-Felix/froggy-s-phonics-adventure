@@ -15,22 +15,22 @@ const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/lettersort/p
 // mode.mode === null  -> classic columns (no ?mode= param), uses field params
 // `desc` is the short helper shown under the selector (and lives in the guide).
 const MODES = [
-  { key: 'letters', label: 'Letras iniciales', mode: null, fields: ['letters', 'per'], desc: 'Ordena tarjetas por la letra inicial. Útil para correspondencia letra-sonido.' },
-  { key: 'randinit', label: 'Sonido inicial aleatorio', mode: 'randinit', fields: ['pool', 'per'], desc: 'Como "letras iniciales", pero el maestro define un pool de sonidos y la app elige al azar.' },
-  { key: 'syllables', label: 'Sílabas objetivo', mode: null, fields: ['syllables', 'syllmatch', 'syllcmp', 'per'], desc: 'Ordena por una sílaba objetivo (al inicio o en cualquier posición).' },
-  { key: 'syllcount', label: 'Conteo de sílabas', mode: null, fields: ['counts', 'per'], desc: 'Ordena palabras según cuántas sílabas tienen.' },
-  { key: 'phonemes', label: 'Conteo de sonidos', mode: null, fields: ['phonemes', 'per'], desc: 'Ordena palabras según cuántos sonidos (fonemas) tienen.' },
-  { key: 'stress', label: 'Sílaba tónica', mode: null, fields: ['stress', 'per'], desc: 'Ordena por la sílaba tónica: aguda (1), grave (2), esdrújula (3).' },
-  { key: 'stressreveal', label: 'Sílaba tónica (revelar)', mode: 'stressreveal', fields: ['stress', 'words', 'bg'], desc: 'Muestra una escena; el alumno revela la sílaba tónica de cada palabra.' },
-  { key: 'sort', label: 'Ordenar palabras', mode: 'sort', fields: ['words', 'layout', 'direction', 'bottom', 'top', 'left', 'right'], desc: 'Ordena una lista en un continuo (ej. menos → más) con etiquetas de dirección.' },
-  { key: 'manualsort', label: 'Clasificación manual', mode: 'manualsort', fields: ['headers', 'answers', 'headertype', 'cardtype', 'layout'], desc: 'Clasificación totalmente personalizada: defines encabezados y respuestas.' },
-  { key: 'row', label: 'Modo filas', mode: 'row', fields: ['rows', 'rowtitle'], desc: 'Cada fila muestra una palabra-prompt; el alumno arrastra la opción que empieza con el mismo sonido inicial (una tarjeta por fila).' },
-  { key: 'rowalli', label: 'Aliteración por filas', mode: 'rowalli', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras que empiezan con el mismo sonido.' },
-  { key: 'allisyll', label: 'Sílabas iniciales por filas', mode: 'allisyll', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras con la misma sílaba inicial.' },
-  { key: 'rowsyll', label: 'Sílabas (inicio/final) por filas', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'], desc: 'Filas que ordenan por una sílaba al inicio o al final de la palabra.' },
-  { key: 'rowsyllcols', label: 'Columnas de sílabas', mode: 'rowsyllcols', fields: ['rowsyll', 'words', 'headertype', 'cardtype', 'match', 'layout', 'distractors'], desc: 'Cuadrícula filas×columnas de sílabas, con distractores.' },
-  { key: 'syllgroups', label: 'Grupos de sílabas', mode: 'syllgroups', fields: ['groups', 'words', 'titles'], desc: 'Agrupa palabras por familias de sílabas con títulos personalizados.' },
-  { key: 'generate', label: 'Generar palabras', mode: 'generate', fields: ['riddle', 'columns', 'rowsGen', 'slots'], desc: 'Genera palabras a partir de adivinanzas/definiciones en espacios por columna.' },
+  { key: 'letters', label: 'Por letra inicial (¿con qué empieza?)', mode: null, fields: ['letters', 'per'], desc: 'Ordena tarjetas por la letra inicial. Útil para correspondencia letra-sonido.' },
+  { key: 'randinit', label: 'Por letra inicial al azar', mode: 'randinit', fields: ['pool', 'per'], desc: 'Como "letras iniciales", pero el maestro define un pool de sonidos y la app elige al azar.' },
+  { key: 'syllables', label: 'Por sílaba (al inicio o en cualquier posición)', mode: null, fields: ['syllables', 'syllmatch', 'syllcmp', 'per'], desc: 'Ordena por una sílaba objetivo (al inicio o en cualquier posición).' },
+  { key: 'syllcount', label: 'Por número de sílabas', mode: null, fields: ['counts', 'per'], desc: 'Ordena palabras según cuántas sílabas tienen.' },
+  { key: 'phonemes', label: 'Por número de sonidos (fonemas)', mode: null, fields: ['phonemes', 'per'], desc: 'Ordena palabras según cuántos sonidos (fonemas) tienen.' },
+  { key: 'stress', label: 'Por sílaba tónica (aguda/grave/esdrújula)', mode: null, fields: ['stress', 'per'], desc: 'Ordena por la sílaba tónica: aguda (1), grave (2), esdrújula (3).' },
+  { key: 'stressreveal', label: 'Tocar la sílaba tónica', mode: 'stressreveal', fields: ['stress', 'words', 'bg'], desc: 'Muestra una escena; el alumno toca la sílaba tónica de cada palabra.' },
+  { key: 'sort', label: 'Ordenar en un continuo (de menos a más)', mode: 'sort', fields: ['words', 'layout', 'direction', 'bottom', 'top', 'left', 'right'], desc: 'Ordena una lista en un continuo (ej. menos → más) con etiquetas de dirección.' },
+  { key: 'manualsort', label: 'Clasificación libre (tú defines categorías)', mode: 'manualsort', fields: ['headers', 'answers', 'headertype', 'cardtype', 'layout'], desc: 'Clasificación totalmente personalizada: defines encabezados y respuestas.' },
+  { key: 'row', label: 'Filas: arrastra la que empieza igual', mode: 'row', fields: ['rows', 'rowtitle'], desc: 'Cada fila muestra una palabra-prompt; el alumno arrastra la opción que empieza con el mismo sonido inicial (una tarjeta por fila).' },
+  { key: 'rowalli', label: 'Filas: agrupar por aliteración (mismo sonido)', mode: 'rowalli', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras que empiezan con el mismo sonido.' },
+  { key: 'allisyll', label: 'Filas: agrupar por sílaba inicial', mode: 'allisyll', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras con la misma sílaba inicial.' },
+  { key: 'rowsyll', label: 'Filas: sílaba al inicio o al final', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'], desc: 'Filas que ordenan por una sílaba al inicio o al final de la palabra.' },
+  { key: 'rowsyllcols', label: 'Cuadrícula: filas × columnas de sílabas', mode: 'rowsyllcols', fields: ['rowsyll', 'words', 'headertype', 'cardtype', 'match', 'layout', 'distractors'], desc: 'Cuadrícula filas×columnas de sílabas, con distractores.' },
+  { key: 'syllgroups', label: 'Grupos: familias de sílabas', mode: 'syllgroups', fields: ['groups', 'words', 'titles'], desc: 'Agrupa palabras por familias de sílabas con títulos personalizados.' },
+  { key: 'generate', label: 'Completar adivinanza (arrastrar respuestas)', mode: 'generate', fields: ['riddle', 'columns', 'rowsGen', 'slots'], desc: 'Genera palabras a partir de adivinanzas/definiciones en espacios por columna.' },
 ];
 
 const FIELDS = {

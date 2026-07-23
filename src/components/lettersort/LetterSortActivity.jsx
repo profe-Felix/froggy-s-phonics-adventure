@@ -1,43 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ColumnsView from './ColumnsView';
-import { isClassic } from '@/lib/lettersort/rounds';
+import RowView from './RowView';
+import ContinuumView from './ContinuumView';
+import GenerateView from './GenerateView';
+import StressRevealView from './StressRevealView';
+import { buildRound, cardWordsForConfig } from '@/lib/lettersort/rounds';
 import { listAllImagesJpg, resolveImageForWord } from '@/lib/lettersort/storage';
 
 const IMG_BUCKET = 'lettersort-images';
 const IMG_PREFIX = '';
 
-// Decide which images to load for a given config (mirrors legacy ensureStorageLoaded
-// for the classic modes): if a word list is given, resolve each word; otherwise
-// list the whole bucket so columns can pick by initial/syllable/count/etc.
+// Resolve just the explicit words a mode needs; fall back to the whole bucket
+// for modes that pick freely (letters/randinit without a word list).
 function needsFullList(config) {
-  const m = config.mode;
-  if (m === 'randinit') return true; // picks a random initial, needs the bucket
-  if (config.words && config.words.length) return false; // resolve per word
-  return true;
+  if (config.mode === 'randinit') return true;
+  const w = cardWordsForConfig(config);
+  return !w || w.length === 0;
 }
 
-export default function LetterSortActivity({ config, query, isTeacher }) {
-  const classic = isClassic(config.mode);
+export default function LetterSortActivity({ config }) {
   const [imageFiles, setImageFiles] = useState(null);
   const [err, setErr] = useState('');
+  const [warn, setWarn] = useState('');
 
   useEffect(() => {
-    if (!classic) return;
     let cancelled = false;
     (async () => {
       try {
         if (needsFullList(config)) {
           const all = await listAllImagesJpg({ bucket: IMG_BUCKET, prefix: IMG_PREFIX });
-          if (!cancelled) { setImageFiles(all); if (!all.length) setErr('No se encontraron imágenes en el almacenamiento.'); }
+          if (!cancelled) {
+            setImageFiles(all);
+            if (!all.length) setErr('No se encontraron imágenes en el almacenamiento.');
+          }
         } else {
           const found = [];
-          for (const w of config.words) {
+          for (const w of cardWordsForConfig(config)) {
             const f = await resolveImageForWord(w, { bucket: IMG_BUCKET, prefix: IMG_PREFIX });
             if (f) found.push(f);
           }
           if (!cancelled) {
-            setImageFiles(found.length ? found : await listAllImagesJpg({ bucket: IMG_BUCKET, prefix: IMG_PREFIX }));
-            if (!found.length) setErr('No se encontraron imágenes para las palabras indicadas; usando todo el bucket.');
+            if (found.length) {
+              setImageFiles(found);
+              setWarn('');
+            } else {
+              // soft fallback: use the whole bucket so the activity still works
+              const all = await listAllImagesJpg({ bucket: IMG_BUCKET, prefix: IMG_PREFIX });
+              setImageFiles(all);
+              setWarn(all.length ? 'No se encontraron imágenes para las palabras indicadas; usando todo el bucket.' : '');
+              if (!all.length) setErr('No se encontraron imágenes en el almacenamiento.');
+            }
           }
         }
       } catch (e) {
@@ -45,17 +57,11 @@ export default function LetterSortActivity({ config, query, isTeacher }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [classic, config]);
+  }, [config]);
 
-  // Non-classic modes: keep the legacy iframe (ported later).
-  if (!classic) {
-    const src = `/lettersort/index.html?${query || ''}`;
-    return <iframe key={src} src={src} title="Clasificador de letras" className="flex-1 w-full border-0" style={{ minHeight: '70vh' }} />;
-  }
+  const round = useMemo(() => buildRound(config, imageFiles || []), [config, imageFiles]);
 
-  if (err) {
-    return <div className="p-6 text-amber-700 bg-amber-50 rounded-lg mx-3 mt-3 text-sm">{err}</div>;
-  }
+  if (err) return <div className="p-6 text-amber-700 bg-amber-50 rounded-lg mx-3 mt-3 text-sm">{err}</div>;
   if (!imageFiles) {
     return (
       <div className="flex items-center justify-center p-10">
@@ -63,6 +69,23 @@ export default function LetterSortActivity({ config, query, isTeacher }) {
       </div>
     );
   }
+  if (!round) return <div className="p-6 text-slate-500">Configuración no válida.</div>;
 
-  return <ColumnsView config={config} imageFiles={imageFiles} />;
+  const view = (() => {
+    switch (round.view) {
+      case 'columns': return <ColumnsView config={config} round={round} />;
+      case 'rows': return <RowView round={round} config={config} />;
+      case 'continuum': return <ContinuumView round={round} config={config} />;
+      case 'generate': return <GenerateView round={round} config={config} />;
+      case 'stressreveal': return <StressRevealView round={round} config={config} />;
+      default: return <div className="p-6 text-slate-500">Modo no soportado.</div>;
+    }
+  })();
+
+  return (
+    <div>
+      {warn && <div className="mx-3 mt-3 p-3 text-amber-700 bg-amber-50 rounded-lg text-sm">{warn}</div>}
+      {view}
+    </div>
+  );
 }

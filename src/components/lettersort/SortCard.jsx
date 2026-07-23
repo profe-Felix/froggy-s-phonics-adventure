@@ -40,6 +40,22 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
     );
   }
 
+  // No image resolved -> fall back to a word tile so we never render a broken img.
+  if (!card.imgUrl) {
+    return (
+      <div
+        className={base + 'px-3 py-4 min-h-[96px] w-full cursor-grab active:cursor-grabbing'}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+      >
+        <span className="font-bold text-2xl text-slate-800 text-center leading-tight">
+          {labelText || '\u00A0'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       className={base + 'p-1 w-full cursor-grab active:cursor-grabbing'}
@@ -47,7 +63,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
       role="button"
       tabIndex={0}
     >
-      <img src={card.imgUrl || ''} alt="" className="rounded-lg object-contain w-full max-h-28 bg-slate-50" draggable={false} />
+      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-28 bg-slate-50" draggable={false} />
       {showCaption && (
         <div className="mt-1 text-center text-sm font-semibold text-slate-700 truncate w-full px-1">
           {labelText || '\u00A0'}

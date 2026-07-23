@@ -1,23 +1,29 @@
-// Native Letter Sort engine — unified round builder + card classifier for the
-// classic column modes (letters, random-initial, syllables, syllable-count,
-// phonemes, stress). Faithful port of the legacy imperative logic, refactored
-// so the 4 duplicated word-list builders + 5 auto-pick builders collapse into
-// one dispatch driven by a `mode` string + a small set of helpers.
+// Native Letter Sort engine — unified round builder + card classifier for ALL
+// sort modes. Classic column modes (letters, random-initial, syllables,
+// syllable-count, phonemes, stress) plus the non-classic families:
+//   - column-group modes (manualsort, syllgroups, rowalli, allisyll, rowsyllcols)
+//   - row modes (row, rowsyll)
+//   - continuum (sort)
+//   - generate (riddle -> drag answers into blanks)
+//   - stressreveal (tap the stressed syllable)
 //
-// Non-classic modes (sort, manualsort, row*, generate, stressreveal) are NOT
-// built here yet — the activity falls back to the legacy iframe for those.
+// Every column carries its own `match(coreRaw) => boolean` predicate, so the
+// column views share one `classifyCard(card, col)` call.
 
 import {
   markersToPretty, normalizeMarkers, initialFromStem,
   phonemeCount, syllablesNormalized, syllableCount, stressedSyllIndex, cmpSyll,
 } from './phonics';
-import { parseWordsParam, parseCountsParam } from './parsers';
+import {
+  parseWordsParam, parseCountsParam, parseRows, parseRowSyllDefs,
+  parseRowsyllCols, parseSyllGroups, expandSyllGroupToken, parseAlliGroups,
+  parseGenerateRiddle, parseManualSortAnswers,
+} from './parsers';
 
 export function parseList(raw) {
   return (raw || '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
-// ---- i18n labels (Spanish, ported verbatim from legacy T.es.labels) ----
 const LABELS = {
   is: (L) => `Empieza con /${L}/`,
   not: (L) => `No empieza con /${L}/`,
@@ -29,7 +35,6 @@ const LABELS = {
   stressLabel: (base) => `sílaba tónica: ${base}`,
 };
 
-// ---- config normalization (page calls this; values come from vals or a preset) ----
 export function buildConfig(modeKey, internalMode, v = {}) {
   const mode = internalMode || 'letters';
   return {
@@ -73,11 +78,16 @@ export function buildConfig(modeKey, internalMode, v = {}) {
   };
 }
 
-export const CLASSIC_MODES = ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress'];
-export function isClassic(mode) { return CLASSIC_MODES.includes(mode); }
+// modes rendered by ColumnsView (rack -> N labeled groups)
+const COLUMN_MODES = ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress', 'manualsort', 'syllgroups', 'rowalli', 'allisyll', 'rowsyllcols'];
+export function isClassic(mode) { return ['letters', 'randinit', 'syllables', 'syllcount', 'phonemes', 'stress'].includes(mode); }
+export function isColumnMode(mode) { return COLUMN_MODES.includes(mode); }
 
 let idc = 0;
 function uid() { return `c${(idc++).toString(36)}${Date.now().toString(36).slice(-3)}`; }
+function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function initialSyll(coreRaw) { return syllablesNormalized(coreRaw)[0] || ''; }
 
 function applyTitleOverrides(cols, titles) {
   if (!titles || !titles.length) return cols;
@@ -89,49 +99,17 @@ function labelTextFor(letter, type, labelStyle) {
   return type === 'is' ? LABELS.is(letter) : LABELS.not(letter);
 }
 
-function buildColumnsForLetters(letters, labelStyle, titles) {
-  const cols = [];
-  if (letters.length === 1) {
-    const L = letters[0];
-    cols.push({ label: labelTextFor(L, 'is', labelStyle), key: `${L}` });
-    cols.push({ label: labelTextFor(L, 'not', labelStyle), key: `not-${L}` });
-  } else {
-    letters.forEach((L) => cols.push({ label: labelTextFor(L, 'is', labelStyle), key: `${L}` }));
-  }
-  return applyTitleOverrides(cols, titles);
-}
-function buildColumnsForSyllables(sylls, titles) {
-  const cols = sylls.map((s) => ({ label: s, key: `syll:${normalizeMarkers(s)}`, display: s }));
-  return applyTitleOverrides(cols, titles);
-}
-function buildColumnsForSyllCount(counts, titles) {
-  const cols = counts.map((n) => ({ label: n === 1 ? LABELS.syllOne(n) : LABELS.syllMany(n), key: `count:${n}`, display: `${n}` }));
-  return applyTitleOverrides(cols, titles);
-}
-function buildColumnsForPhonemeCount(counts, titles) {
-  const cols = counts.map((n) => ({ label: `${n} sonido${n === 1 ? '' : 's'}`, key: `phon:${n}`, display: `${n}` }));
-  return applyTitleOverrides(cols, titles);
-}
-function buildColumnsForStress(positions, titles) {
-  const cols = positions.map((p) => ({ label: LABELS.stressLabel(LABELS.stressBase(p)), key: `stress:${p}`, display: String(p) }));
-  return applyTitleOverrides(cols, titles);
-}
-
-// pick n unique files from list, avoiding already-used paths
 function pickNoRepeat(list, n, usedSet) {
   const pool = list.filter((f) => !usedSet.has(f.path));
-  // shuffle
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  const chosen = pool.slice(0, n);
+  const sh = shuffle(pool);
+  const chosen = sh.slice(0, n);
   if (chosen.length < n) {
-    const more = list.filter((f) => !chosen.includes(f));
-    for (let i = more.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [more[i], more[j]] = [more[j], more[i]]; }
+    const more = shuffle(list.filter((f) => !chosen.includes(f)));
     chosen.push(...more.slice(0, n - chosen.length));
   }
   return chosen;
 }
 
-// Produce card(s) from an image file, honoring splitCards (word+image halves).
 function makeCardsFromFile(f, splitCards) {
   if (splitCards) {
     return [
@@ -142,137 +120,326 @@ function makeCardsFromFile(f, splitCards) {
   return [{ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }];
 }
 
-// Build cards from an explicit word list, mapping each word to its image.
-function buildWordListCards(words, imageFiles, splitCards) {
-  const index = new Map();
-  for (const f of imageFiles) { const k = normalizeMarkers(f.rawCore); if (!index.has(k)) index.set(k, f); }
-  const cards = [];
-  for (const w of words) {
-    const f = index.get(normalizeMarkers(w));
-    if (!f) continue;
-    if (splitCards) {
-      cards.push({ id: uid(), imgUrl: '', word: markersToPretty(f.rawCore) || w, coreRaw: f.rawCore });
-      cards.push({ id: uid(), imgUrl: f.url, word: '', coreRaw: f.rawCore });
-    } else {
-      cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore });
-    }
-  }
-  return cards;
+// index imageFiles by normalized core for word -> image lookup
+function indexByCore(imageFiles) {
+  const m = new Map();
+  for (const f of imageFiles) { const k = normalizeMarkers(f.rawCore); if (!m.has(k)) m.set(k, f); }
+  return m;
 }
 
-// ---- main round builder for classic modes ----
-export function buildRound(config, imageFiles) {
-  const { mode, letters, syllables, counts, phonemes, stress, pool, words, per, splitCards, titles, labelStyle, syllmatch, syllcmp } = config;
-  const used = new Set();
+// Build cards from explicit words, honoring cardtype (word tile vs image tile)
+// and splitCards (word+image halves).
+function buildWordCards(words, imageFiles, { splitCards, cardtype }) {
+  const idx = indexByCore(imageFiles);
+  const out = [];
+  for (const w of words) {
+    const f = idx.get(normalizeMarkers(w));
+    if (splitCards) {
+      out.push({ id: uid(), imgUrl: '', word: markersToPretty(w), coreRaw: w });
+      if (f) out.push({ id: uid(), imgUrl: f.url, word: '', coreRaw: f.rawCore });
+    } else if (cardtype === 'word') {
+      out.push({ id: uid(), imgUrl: '', word: markersToPretty(w), coreRaw: w });
+    } else {
+      out.push({ id: uid(), imgUrl: f ? f.url : '', word: f ? f.stem : markersToPretty(w), coreRaw: f ? f.rawCore : w });
+    }
+  }
+  return out;
+}
+
+// ---- column builders ----
+function columnsForLetters(letters, labelStyle, titles) {
+  const cols = [];
+  if (letters.length === 1) {
+    const L = letters[0];
+    cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle), match: (c) => initialFromStem(c) === L });
+    cols.push({ key: `not-${L}`, label: labelTextFor(L, 'not', labelStyle), match: (c) => initialFromStem(c) !== L });
+  } else {
+    letters.forEach((L) => cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle), match: (c) => initialFromStem(c) === L }));
+  }
+  return applyTitleOverrides(cols, titles);
+}
+function columnsForSyllables(sylls, syllmatch, syllcmp, titles) {
+  const cols = sylls.map((s) => {
+    const target = normalizeMarkers(s);
+    const match = syllmatch === 'any'
+      ? (c) => syllablesNormalized(c).some((x) => cmpSyll(x, target, syllcmp))
+      : (c) => cmpSyll(syllablesNormalized(c)[0], target, syllcmp);
+    return { key: `syll:${target}`, label: s, display: s, match };
+  });
+  return applyTitleOverrides(cols, titles);
+}
+function columnsForSyllCount(counts, titles) {
+  const cols = counts.map((n) => ({ key: `count:${n}`, label: n === 1 ? LABELS.syllOne(n) : LABELS.syllMany(n), display: `${n}`, match: (c) => syllableCount(c) === n }));
+  return applyTitleOverrides(cols, titles);
+}
+function columnsForPhonemeCount(counts, titles) {
+  const cols = counts.map((n) => ({ key: `phon:${n}`, label: `${n} sonido${n === 1 ? '' : 's'}`, display: `${n}`, match: (c) => phonemeCount(c) === n }));
+  return applyTitleOverrides(cols, titles);
+}
+function columnsForStress(positions, titles) {
+  const cols = positions.map((p) => ({ key: `stress:${p}`, label: LABELS.stressLabel(LABELS.stressBase(p)), display: String(p), match: (c) => stressedSyllIndex(c) === p }));
+  return applyTitleOverrides(cols, titles);
+}
+
+function columnsForManualSort(headers, answers, headertype, imageFiles, titles) {
+  const idx = indexByCore(imageFiles);
+  const parsed = parseManualSortAnswers(answers);
+  // answers string drives grouping; headers param is a fallback when answers omitted
+  const groups = parsed.length
+    ? parsed
+    : headers.map((h) => ({ header: h, words: [] }));
+  const cols = groups.map((g, i) => {
+    const headerImg = headertype === 'image' ? (idx.get(normalizeMarkers(g.header))?.url || '') : '';
+    const wordSet = new Set(g.words.map((w) => normalizeMarkers(w)));
+    return { key: `manual:${i}`, label: markersToPretty(g.header) || g.header, headerImg, match: (c) => wordSet.has(normalizeMarkers(c)) };
+  });
+  return applyTitleOverrides(cols, titles);
+}
+
+function columnsForSyllGroups(groupsStr, titles) {
+  const tokens = parseSyllGroups(groupsStr);
+  const cols = tokens.map((tok, i) => {
+    const targets = new Set(expandSyllGroupToken(tok).map(normalizeMarkers));
+    return { key: `group:${i}`, label: tok, match: (c) => targets.has(initialSyll(c)) };
+  });
+  return applyTitleOverrides(cols, titles);
+}
+
+function columnsForAlli(groupsStr, bySyllable, titles) {
+  const groups = parseAlliGroups(groupsStr);
+  const cols = groups.map((items, i) => {
+    const head = items[0];
+    const headVal = bySyllable ? initialSyll(head) : initialFromStem(head);
+    const label = bySyllable ? headVal : headVal.toUpperCase();
+    return { key: `alli:${i}`, label, match: (c) => (bySyllable ? initialSyll(c) : initialFromStem(c)) === headVal };
+  });
+  return applyTitleOverrides(cols, titles);
+}
+
+function columnsForRowsyllCols(colsStr, matchMode, titles) {
+  const colTargets = parseRowsyllCols(colsStr);
+  const cols = colTargets.map((targetList, i) => {
+    // a column matches if the card satisfies ANY of the column's target syllables
+    const targets = targetList.map(normalizeMarkers);
+    const match = (c) => {
+      const syls = syllablesNormalized(c);
+      const pretty = markersToPretty(c);
+      return targets.some((t) => {
+        if (matchMode === 'contains') return syls.some((s) => s.includes(t));
+        if (matchMode === 'word-contains') return pretty.toLowerCase().includes(t);
+        return syls[0] === t; // syllable-start
+      });
+    };
+    return { key: `rscol:${i}`, label: targetList.join(' / '), match };
+  });
+  return applyTitleOverrides(cols, titles);
+}
+
+// ---- main builder ----
+export function buildRound(config, imageFiles = []) {
+  const {
+    mode, letters, syllables, counts, phonemes, stress, pool, words, per,
+    splitCards, titles, labelStyle, syllmatch, syllcmp,
+    groups, rows, rowsyll, headers, answers, headertype, cardtype, match,
+    direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots,
+  } = config;
+  const files = imageFiles || [];
   const hasWords = words && words.length > 0;
 
-  let columns = [];
-  let cards = [];
-
+  // ----- column-group modes (ColumnsView) -----
   if (mode === 'letters') {
-    columns = buildColumnsForLetters(letters, labelStyle, titles);
-    if (hasWords) { cards = buildWordListCards(words, imageFiles, splitCards); return { columns, cards }; }
+    const columns = columnsForLetters(letters, labelStyle, titles);
+    let cards;
+    if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
+    cards = [];
     const byInitial = new Map();
-    for (const f of imageFiles) { const k = f.initial; if (!byInitial.has(k)) byInitial.set(k, []); byInitial.get(k).push(f); }
-    const everything = [...imageFiles];
+    for (const f of files) { const k = f.initial; if (!byInitial.has(k)) byInitial.set(k, []); byInitial.get(k).push(f); }
+    const used = new Set();
     for (const col of columns) {
-      let picks = [];
-      if (col.key.startsWith('not-')) {
-        const L = col.key.slice(4);
-        picks = pickNoRepeat(everything.filter((f) => f.initial !== L), per, used);
-      } else {
-        picks = pickNoRepeat(byInitial.get(col.key) || [], per, used);
-      }
+      const picks = col.key.startsWith('not-')
+        ? pickNoRepeat(files.filter((f) => f.initial !== col.key.slice(4)), per, used)
+        : pickNoRepeat(byInitial.get(col.key) || [], per, used);
       picks.forEach((f) => used.add(f.path));
       picks.forEach((f) => cards.push(...makeCardsFromFile(f, splitCards)));
     }
-    return { columns, cards };
+    return { view: 'columns', columns, cards };
   }
 
   if (mode === 'randinit') {
     const clean = (pool || []).map((s) => String(s).trim().toLowerCase()).filter(Boolean);
-    const fallback = letters.length ? letters : ['a'];
-    const poolArr = clean.length ? clean : fallback;
+    const poolArr = clean.length ? clean : (letters.length ? letters : ['a']);
     const picked = poolArr[Math.floor(Math.random() * poolArr.length)];
-    return buildRound({ ...config, mode: 'letters', letters: [picked], words: [] }, imageFiles);
+    return buildRound({ ...config, mode: 'letters', letters: [picked], words: [], pool: [] }, files);
   }
 
   if (mode === 'syllables') {
-    columns = buildColumnsForSyllables(syllables, titles);
-    if (hasWords) { cards = buildWordListCards(words, imageFiles, splitCards); return { columns, cards }; }
+    const columns = columnsForSyllables(syllables, syllmatch, syllcmp, titles);
+    let cards;
+    if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
+    cards = [];
+    const used = new Set();
     for (const col of columns) {
-      const targetSyl = col.key.slice(5);
-      const list = imageFiles.filter((f) => {
-        const syls = syllablesNormalized(f.rawCore);
-        return syllmatch === 'any' ? syls.some((s) => cmpSyll(s, targetSyl, syllcmp)) : cmpSyll(syls[0], targetSyl, syllcmp);
-      });
-      const picks = pickNoRepeat(list, per, used);
-      picks.forEach((f) => used.add(f.path));
-      picks.forEach((f) => cards.push(...makeCardsFromFile(f, splitCards)));
+      const target = col.key.slice(5);
+      const list = files.filter((f) => syllmatch === 'any'
+        ? syllablesNormalized(f.rawCore).some((s) => cmpSyll(s, target, syllcmp))
+        : cmpSyll(syllablesNormalized(f.rawCore)[0], target, syllcmp));
+      pickNoRepeat(list, per, used).forEach((f) => { used.add(f.path); cards.push(...makeCardsFromFile(f, splitCards)); });
     }
-    return { columns, cards };
+    return { view: 'columns', columns, cards };
   }
 
   if (mode === 'syllcount') {
-    columns = buildColumnsForSyllCount(counts, titles);
-    if (hasWords) { cards = buildWordListCards(words, imageFiles, splitCards); return { columns, cards }; }
+    const columns = columnsForSyllCount(counts, titles);
+    let cards;
+    if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
+    cards = [];
+    const used = new Set();
     for (const col of columns) {
       const need = parseInt(col.key.slice(6), 10);
-      const picks = pickNoRepeat(imageFiles.filter((f) => syllableCount(f.rawCore) === need), per, used);
-      picks.forEach((f) => used.add(f.path));
-      picks.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+      pickNoRepeat(files.filter((f) => syllableCount(f.rawCore) === need), per, used)
+        .forEach((f) => { used.add(f.path); cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }); });
     }
-    return { columns, cards };
+    return { view: 'columns', columns, cards };
   }
 
   if (mode === 'phonemes') {
-    columns = buildColumnsForPhonemeCount(phonemes, titles);
-    if (hasWords) { cards = buildWordListCards(words, imageFiles, splitCards); return { columns, cards }; }
+    const columns = columnsForPhonemeCount(phonemes, titles);
+    let cards;
+    if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
+    cards = [];
+    const used = new Set();
     for (const col of columns) {
       const need = parseInt(col.key.slice(5), 10);
-      const picks = pickNoRepeat(imageFiles.filter((f) => phonemeCount(f.rawCore) === need), per, used);
-      picks.forEach((f) => used.add(f.path));
-      picks.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+      pickNoRepeat(files.filter((f) => phonemeCount(f.rawCore) === need), per, used)
+        .forEach((f) => { used.add(f.path); cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }); });
     }
-    return { columns, cards };
+    return { view: 'columns', columns, cards };
   }
 
   if (mode === 'stress') {
-    columns = buildColumnsForStress(stress, titles);
-    if (hasWords) { cards = buildWordListCards(words, imageFiles, splitCards); return { columns, cards }; }
+    const columns = columnsForStress(stress, titles);
+    let cards;
+    if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
+    cards = [];
+    const used = new Set();
     for (const col of columns) {
       const pos = parseInt(col.key.slice(7), 10);
-      const picks = pickNoRepeat(imageFiles.filter((f) => stressedSyllIndex(f.rawCore) === pos), per, used);
-      picks.forEach((f) => used.add(f.path));
-      picks.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+      pickNoRepeat(files.filter((f) => stressedSyllIndex(f.rawCore) === pos), per, used)
+        .forEach((f) => { used.add(f.path); cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }); });
     }
-    return { columns, cards };
+    return { view: 'columns', columns, cards };
+  }
+
+  if (mode === 'manualsort') {
+    const columns = columnsForManualSort(headers, answers, headertype, files, titles);
+    const parsed = parseManualSortAnswers(answers);
+    const allWords = parsed.length ? parsed.flatMap((g) => g.words) : [];
+    const cards = buildWordCards(allWords, files, config);
+    return { view: 'columns', columns, cards };
+  }
+
+  if (mode === 'syllgroups') {
+    const columns = columnsForSyllGroups(groups, titles);
+    const cards = buildWordCards(words, files, config);
+    return { view: 'columns', columns, cards };
+  }
+
+  if (mode === 'rowalli' || mode === 'allisyll') {
+    const columns = columnsForAlli(rows, mode === 'allisyll', titles);
+    const items = parseAlliGroups(rows).flat();
+    const cards = buildWordCards(items, files, config);
+    return { view: 'columns', columns, cards };
+  }
+
+  if (mode === 'rowsyllcols') {
+    const columns = columnsForRowsyllCols(rowsyll, match, titles);
+    const cards = buildWordCards(words, files, config);
+    // add distractor cards from the bucket that don't match any column
+    if (distractors > 0 && files.length) {
+      const extra = [];
+      const usedCores = new Set(cards.map((c) => normalizeMarkers(c.coreRaw)));
+      const pool = shuffle(files.filter((f) => !usedCores.has(normalizeMarkers(f.rawCore))));
+      for (const f of pool) {
+        if (extra.length >= distractors) break;
+        const core = f.rawCore;
+        if (columns.some((col) => col.match(core))) continue; // only true distractors
+        extra.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore });
+      }
+      cards.push(...extra);
+    }
+    return { view: 'columns', columns, cards };
+  }
+
+  // ----- row modes (RowView) -----
+  if (mode === 'row') {
+    const parsed = parseRows(rows);
+    const idx = indexByCore(files);
+    const rowsData = parsed.map((r) => ({
+      prompt: r.prompt,
+      promptImg: idx.get(normalizeMarkers(r.prompt))?.url || '',
+      maxPerSlot: 1,
+      match: (coreRaw) => initialFromStem(coreRaw) === initialFromStem(r.prompt),
+    }));
+    const choices = parsed.flatMap((r) => r.choices);
+    const cards = buildWordCards(choices, files, { ...config, cardtype: config.cardtype || 'image' });
+    return { view: 'rows', rows: rowsData, cards };
+  }
+
+  if (mode === 'rowsyll') {
+    const defs = parseRowSyllDefs(rows);
+    const idx = indexByCore(files);
+    const rowsData = defs.map((d) => {
+      const syls = syllablesNormalized(d.prompt);
+      const pos = d.how === 'final' ? syls.length - 1 : d.how === 'second' ? 1 : 0;
+      const target = syls[pos] || '';
+      const match = (coreRaw) => {
+        const s = syllablesNormalized(coreRaw);
+        const p = d.how === 'final' ? s.length - 1 : d.how === 'second' ? 1 : 0;
+        return (s[p] || '') === target;
+      };
+      return { prompt: d.prompt, promptImg: idx.get(normalizeMarkers(d.prompt))?.url || '', maxPerSlot: 99, match };
+    });
+    const cards = buildWordCards(words, files, { ...config, cardtype: config.cardtype || 'image' });
+    return { view: 'rows', rows: rowsData, cards };
+  }
+
+  // ----- continuum (sort) -----
+  if (mode === 'sort') {
+    const cards = buildWordCards(words, files, { ...config, cardtype: config.cardtype || 'word' });
+    return { view: 'continuum', direction, bottom, top, left, right, cards };
+  }
+
+  // ----- generate (riddle) -----
+  if (mode === 'generate') {
+    const { parts, answers } = parseGenerateRiddle(riddle);
+    const cards = buildWordCards(answers, files, { ...config, cardtype: config.cardtype || 'word' });
+    return { view: 'generate', parts, answers, cards, colLabels, slots };
+  }
+
+  // ----- stressreveal -----
+  if (mode === 'stressreveal') {
+    const cards = buildWordCards(words, files, { ...config, cardtype: config.cardtype || 'image' });
+    return { view: 'stressreveal', cards };
   }
 
   return null;
 }
 
-// ---- card classifier (replaces the verifyNow switch for classic modes) ----
-export function classifyCard(card, col, config) {
-  const key = col.key;
-  let target;
-  if (key.startsWith('not-')) target = { type: 'not', letter: key.slice(4) };
-  else if (key.startsWith('syll:')) target = { type: 'syll', syll: key.slice(5) };
-  else if (key.startsWith('count:')) target = { type: 'count', n: parseInt(key.slice(6), 10) };
-  else if (key.startsWith('phon:')) target = { type: 'phon', n: parseInt(key.slice(5), 10) };
-  else if (key.startsWith('stress:')) target = { type: 'stress', pos: parseInt(key.slice(7), 10) };
-  else target = { type: 'is', letter: key };
+export function classifyCard(card, col) {
+  return col && col.match ? !!col.match(card.coreRaw) : false;
+}
 
-  const coreRaw = card.coreRaw;
-  if (target.type === 'syll') {
-    const syls = syllablesNormalized(coreRaw);
-    return config.syllmatch === 'any'
-      ? syls.some((s) => cmpSyll(s, target.syll, config.syllcmp))
-      : cmpSyll(syls[0], target.syll, config.syllcmp);
-  }
-  if (target.type === 'count') return syllableCount(coreRaw) === target.n;
-  if (target.type === 'phon') return phonemeCount(coreRaw) === target.n;
-  if (target.type === 'stress') return stressedSyllIndex(coreRaw) === target.pos;
-  const initial = initialFromStem(coreRaw);
-  return target.type === 'is' ? initial === target.letter : initial !== target.letter;
+// Flat list of words that need an image resolved for a config (so the activity
+// can resolve just those instead of listing the whole bucket). Empty -> bucket.
+export function cardWordsForConfig(config) {
+  const m = config.mode;
+  if (m === 'manualsort') return parseManualSortAnswers(config.answers).flatMap((g) => g.words);
+  if (m === 'syllgroups') return config.words;
+  if (m === 'rowalli' || m === 'allisyll') return parseAlliGroups(config.rows).flat();
+  if (m === 'rowsyllcols') return config.words;
+  if (m === 'row') return parseRows(config.rows).flatMap((r) => [r.prompt, ...r.choices]);
+  if (m === 'rowsyll') return [...parseRowSyllDefs(config.rows).map((d) => d.prompt), ...config.words];
+  if (m === 'sort' || m === 'stressreveal') return config.words;
+  if (m === 'generate') return parseGenerateRiddle(config.riddle).answers;
+  return config.words || [];
 }
