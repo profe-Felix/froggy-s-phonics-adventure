@@ -16,7 +16,7 @@ URL; esta página los construye a partir de los campos que ves en pantalla.
 | Formato | Significado | Ejemplo |
 |---|---|---|
 | Lista separada por comas | Varios valores en un campo de texto | `a, b, ch` |
-| `título~palabra1,palabra2; título2~p3,p4` | Filas: cada segmento `;` es una fila, `~` separa el título de sus tarjetas | `animales~perro,gato; cosas~mesa,silla` |
+| `prompt~opción; prompt2~opción2` | Filas (modo `row`): cada segmento `;` es una fila, `~` separa el prompt de su única opción | `gato~gusano; perro~pez` |
 | `palabra:init; palabra:final` | Definición de filas por sílaba (inicio/final) | `cebra:init; bici:final` |
 | `col1,col2 \| col3,col4` | Columnas separadas por `|`, sílabas por `,` | `ya,ye,yi \| za,ze,zi` |
 
@@ -162,15 +162,19 @@ propios encabezados y qué tarjetas van en cada uno.
 
 ## 10. Modo filas  ·  `mode=row`
 
-**Cuándo usarlo:** Agrupar tarjetas en filas, cada una con su título. Útil para
-categorías que se prestan a disposición horizontal.
+**Cuándo usarlo:** Cada fila muestra una **palabra-prompt** (con imagen). De
+las opciones, el alumno arrastra la que **empieza con el mismo sonido inicial**
+que el prompt. Solo se coloca **una tarjeta por fila** (la correcta).
+
+> Nota: el prompt y las opciones deben tener imagen en el bucket; las filas sin
+> imagen se omiten automáticamente.
 
 | Parámetro | Tipo | Ejemplo | Descripción |
 |---|---|---|---|
-| `rows` | texto | `animales~perro,gato; cosas~mesa,silla` | `título~tarjetas` por cada fila `;` |
-| `rowtitle` | toggle | `true` | Mostrar el título de cada fila |
+| `rows` | texto | `gato~gusano; perro~pez` | `prompt~opción` por cada fila `;` (una opción por fila) |
+| `rowtitle` | toggle | `true` | Mostrar el título de cada tarjeta |
 
-**Ejemplo:** `mode=row&rows=animales~perro,gato,pez; cosas~mesa,silla,vaso&rowtitle=true`
+**Ejemplo:** `mode=row&rows=gato~gusano; perro~pez&rowtitle=true`
 
 ---
 
@@ -181,10 +185,10 @@ empiezan con el mismo sonido.
 
 | Parámetro | Tipo | Ejemplo | Descripción |
 |---|---|---|---|
-| `rows` | texto | `M~manzana,mayo; P~pana,pato` | `sonido~palabras` por fila |
-| `rowtitle` | toggle | `true` | Mostrar el título de cada fila |
+| `rows` | texto | `manzana,mayo,mano; pana,pato,piso` | `palabra,palabra,palabra` por grupo `;` (todas empiezan igual) |
+| `rowtitle` | toggle | `true` | Mostrar el título de cada tarjeta |
 
-**Ejemplo:** `mode=rowalli&rows=M~manzana,mayo,mano; P~pana,pato,piso&rowtitle=true`
+**Ejemplo:** `mode=rowalli&rows=manzana,mayo,mano; pana,pato,piso&rowtitle=true`
 
 ---
 
@@ -194,10 +198,10 @@ empiezan con el mismo sonido.
 
 | Parámetro | Tipo | Ejemplo | Descripción |
 |---|---|---|---|
-| `rows` | texto | `ma~mama,mapa; sa~salsa,sapo` | `sílaba~palabras` por fila |
-| `rowtitle` | toggle | `true` | Mostrar el título de cada fila |
+| `rows` | texto | `mama,mapa,mano; salsa,sapo,sano` | `palabra,palabra,palabra` por grupo `;` (misma sílaba inicial) |
+| `rowtitle` | toggle | `true` | Mostrar el título de cada tarjeta |
 
-**Ejemplo:** `mode=allisyll&rows=ma~mama,mapa,mano; sa~salsa,sapo,sano&rowtitle=true`
+**Ejemplo:** `mode=allisyll&rows=mama,mapa,mano; salsa,sapo,sano&rowtitle=true`
 
 ---
 

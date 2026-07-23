@@ -22,7 +22,7 @@ const MODES = [
   { key: 'stressreveal', label: 'Sílaba tónica (revelar)', mode: 'stressreveal', fields: ['stress', 'words', 'bg'], desc: 'Muestra una escena; el alumno revela la sílaba tónica de cada palabra.' },
   { key: 'sort', label: 'Ordenar palabras', mode: 'sort', fields: ['words', 'layout', 'direction', 'bottom', 'top', 'left', 'right'], desc: 'Ordena una lista en un continuo (ej. menos → más) con etiquetas de dirección.' },
   { key: 'manualsort', label: 'Clasificación manual', mode: 'manualsort', fields: ['headers', 'answers', 'headertype', 'cardtype', 'layout'], desc: 'Clasificación totalmente personalizada: defines encabezados y respuestas.' },
-  { key: 'row', label: 'Modo filas', mode: 'row', fields: ['rows', 'rowtitle'], desc: 'Organiza tarjetas en filas con un título por fila.' },
+  { key: 'row', label: 'Modo filas', mode: 'row', fields: ['rows', 'rowtitle'], desc: 'Cada fila muestra una palabra-prompt; el alumno arrastra la opción que empieza con el mismo sonido inicial (una tarjeta por fila).' },
   { key: 'rowalli', label: 'Aliteración por filas', mode: 'rowalli', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras que empiezan con el mismo sonido.' },
   { key: 'allisyll', label: 'Sílabas iniciales por filas', mode: 'allisyll', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras con la misma sílaba inicial.' },
   { key: 'rowsyll', label: 'Sílabas (inicio/final) por filas', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'], desc: 'Filas que ordenan por una sílaba al inicio o al final de la palabra.' },
@@ -42,7 +42,7 @@ const FIELDS = {
   pool: { label: 'Pool de letras', type: 'text', ph: 'b, m, s, ch, ll, rr' },
   per: { label: 'Cartas por columna', type: 'number', ph: '4' },
   words: { label: 'Palabras', type: 'textarea', ph: 'lista separada por comas' },
-  rows: { label: 'Filas', type: 'textarea', ph: 'título~palabra1,palabra2; título2~p3,p4' },
+  rows: { label: 'Filas', type: 'textarea', ph: 'row: prompt~opción; ...  ·  rowsyll: palabra:init;palabra:final' },
   rowsyll: { label: 'Columnas (rowsyll)', type: 'text', ph: 'ma,pa | sa,ta' },
   groups: { label: 'Grupos', type: 'text', ph: 'n | ch | br' },
   headers: { label: 'Encabezados', type: 'text', ph: 'perro,gato' },
@@ -82,9 +82,9 @@ const LOCAL_EXAMPLES = {
   _ex_randinit_bms: { label: 'Ejemplo · sonidos b, m, s', mode: 'randinit', pool: 'b,m,s,ch', per: 4, builtin: true },
   _ex_stress_all: { label: 'Ejemplo · aguda, grave, esdrújula', stress: '1,2,3', per: 4, builtin: true },
   _ex_stressreveal_12: { label: 'Ejemplo · revelar tónica (1-2)', mode: 'stressreveal', stress: '1,2', words: 'gato,casa,perro,sopa', builtin: true },
-  _ex_row_animalcosas: { label: 'Ejemplo · filas: animales / cosas', mode: 'row', rows: 'animales~perro,gato,pez; cosas~mesa,silla,vaso', rowtitle: true, builtin: true },
-  _ex_rowalli_mp: { label: 'Ejemplo · aliteración M / P', mode: 'rowalli', rows: 'M~manzana,mayo,mano; P~pana,pato,piso', rowtitle: true, builtin: true },
-  _ex_allisyll_masa: { label: 'Ejemplo · sílabas ma / sa', mode: 'allisyll', rows: 'ma~mama,mapa,mano; sa~salsa,sapo,sano', rowtitle: true, builtin: true },
+  _ex_row_onset: { label: 'Ejemplo · filas: igual sonido inicial', mode: 'row', rows: 'gato~gusano; perro~pez', rowtitle: true, builtin: true },
+  _ex_rowalli_mp: { label: 'Ejemplo · aliteración M / P', mode: 'rowalli', rows: 'manzana,mayo,mano; pana,pato,piso', rowtitle: true, builtin: true },
+  _ex_allisyll_masa: { label: 'Ejemplo · sílabas ma / sa', mode: 'allisyll', rows: 'mama,mapa,mano; salsa,sapo,sano', rowtitle: true, builtin: true },
 };
 
 function paramOf(fieldKey) { return FIELDS[fieldKey]?.param || fieldKey; }
