@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { POWERFUL_WORD_PRESETS } from '@/components/workstations/powerfulWordPresets';
 import BackButton from '@/components/ui/BackButton';
@@ -24,6 +24,16 @@ export default function PowerfulWord() {
 
   const pairs = preset.pairs.slice(0, count);
   const studentUrl = `${window.location.origin}${window.location.pathname}?role=student&preset=${encodeURIComponent(presetId)}&n=${count}`;
+
+  // Keep the address bar in sync with the chosen lesson + count (teacher view),
+  // so the URL stays copy/shareable — same behavior as the original app.
+  useEffect(() => {
+    if (!isTeacher) return;
+    const u = new URL(window.location);
+    u.searchParams.set('preset', presetId);
+    u.searchParams.set('n', String(count));
+    window.history.replaceState({}, '', u);
+  }, [isTeacher, presetId, count]);
 
   return (
     <div className="min-h-screen" style={{ background: '#fafbff', fontFamily: "'Andika', system-ui, sans-serif" }}>
