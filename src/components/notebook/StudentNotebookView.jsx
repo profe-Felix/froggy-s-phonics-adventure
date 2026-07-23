@@ -15,6 +15,7 @@ import LassoLayer from './LassoLayer';
 import CutPiecesLayer from './CutPiecesLayer';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import useCutPaste from '@/hooks/useCutPaste';
+import BackButton from '@/components/ui/BackButton';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -524,18 +525,16 @@ localDirtyRef.current = false;
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0f0f1a' }}>
       <div
         className="flex items-center gap-2 px-3 py-2 shrink-0"
-        style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}
+        style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca', paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <button
+        <BackButton
+          tone="indigo"
           onClick={async () => {
             await saveStrokes();
             loadedKeyRef.current = null;
             setSelectedAssignment(null);
           }}
-          className="text-indigo-300 hover:text-white font-bold text-sm"
-        >
-          ← Back
-        </button>
+        />
         <p className="flex-1 text-white font-black text-sm truncate">{selectedAssignment.title}</p>
         <span
           className="text-indigo-400 text-xs font-bold px-2 py-1 rounded-lg"

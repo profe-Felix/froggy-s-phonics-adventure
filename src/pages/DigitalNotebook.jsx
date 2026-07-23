@@ -5,6 +5,7 @@ import StudentNotebookView from '../components/notebook/StudentNotebookView';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
+import BackButton from '@/components/ui/BackButton';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -126,7 +127,7 @@ export default function DigitalNotebook() {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-          <button onClick={() => setPickedClass(null)} className="text-indigo-300 hover:text-white font-bold">← Back</button>
+          <BackButton tone="indigo" onClick={() => setPickedClass(null)} />
           <h1 className="text-lg font-black text-white">📓 {urlAssignment}</h1>
         </div>
         <StudentLogin
@@ -190,7 +191,7 @@ export default function DigitalNotebook() {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-          <button onClick={() => setRole(null)} className="text-indigo-300 hover:text-white font-bold">← Back</button>
+          <BackButton tone="indigo" onClick={() => setRole(null)} />
           <h1 className="text-lg font-black text-white">📓 Digital Notebook</h1>
         </div>
         <StudentLogin

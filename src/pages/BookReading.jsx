@@ -7,6 +7,7 @@ import TeacherBookDashboard from '@/components/book/TeacherBookDashboard';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
 import { QRCodeSVG } from 'qrcode.react';
+import BackButton from '@/components/ui/BackButton';
 
 const MODULES = ['All', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
@@ -244,7 +245,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => setPickedClass(null)} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <BackButton tone="teal" onClick={() => setPickedClass(null)} />
           <h1 className="text-lg font-black text-white">📚 {urlBook}</h1>
         </div>
         <StudentLogin
@@ -297,7 +298,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => { onBack ? onBack() : (isBookLink ? setPickedClass(null) : setStudentInfo(null)); }} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <BackButton tone="teal" onClick={() => { onBack ? onBack() : (isBookLink ? setPickedClass(null) : setStudentInfo(null)); }} />
           <h1 className="text-lg font-black text-white">📚 Book Reading</h1>
         </div>
         <BookShelfWithAutoSelect
@@ -314,7 +315,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#042f2e' }}>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-          <button onClick={() => onBack ? onBack() : setRole(null)} className="text-teal-300 hover:text-white font-bold">← Back</button>
+          <BackButton tone="teal" onClick={() => onBack ? onBack() : setRole(null)} />
           <h1 className="text-lg font-black text-white">📚 Book Reading</h1>
         </div>
         <StudentLogin

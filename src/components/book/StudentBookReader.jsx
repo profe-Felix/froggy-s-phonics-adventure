@@ -8,6 +8,7 @@ import LaserOverlay from '@/components/notebook/LaserOverlay';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
+import BackButton from '@/components/ui/BackButton';
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
@@ -345,8 +346,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488' }}>
-        <button onClick={onBack} className="text-teal-300 hover:text-white font-bold text-sm shrink-0">← Back</button>
+      <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488', paddingTop: 'env(safe-area-inset-top)' }}>
+        <BackButton tone="teal" onClick={onBack} />
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold shrink-0">#{studentNumber}</span>
         <button onClick={handleToggle2Up}

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import StoryStudentThumbnail from './StoryStudentThumbnail';
 import StoryReplayModal from './StoryReplayModal';
+import BackButton from '@/components/ui/BackButton';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 
@@ -24,7 +25,7 @@ export default function TeacherStoryDashboard({ onBack }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0d0d1a' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b shrink-0" style={{ borderColor: '#7c3aed', background: '#1a1a2e' }}>
-        <button onClick={onBack} className="text-violet-300 hover:text-white font-bold">← Back</button>
+        <BackButton tone="violet" onClick={onBack} />
         <h1 className="text-lg font-black text-white flex-1">📖 Stories — Teacher View</h1>
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="px-3 py-1.5 rounded-xl font-bold text-white border border-violet-500"

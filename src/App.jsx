@@ -20,6 +20,7 @@ import PrizeDashboard from './pages/PrizeDashboard';
 import BookReading from './pages/BookReading';
 import StoryBuilder from './pages/StoryBuilder';
 import LetterTracingAuthoring from './pages/LetterTracingAuthoring';
+import TeacherHub from './pages/TeacherHub';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -88,6 +89,7 @@ const AuthenticatedApp = () => {
       <Route path="/BookReading" element={<BookReading />} />
       <Route path="/StoryBuilder" element={<StoryBuilder />} />
       <Route path="/LetterTracingAuthoring" element={<LetterTracingAuthoring />} />
+      <Route path="/TeacherHub" element={<TeacherHub />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

@@ -8,6 +8,7 @@ import StudentThumbnail from './StudentThumbnail';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import BackButton from '@/components/ui/BackButton';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 
@@ -203,7 +204,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a', color: 'white' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-        <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold">← Back</button>
+        <BackButton tone="indigo" onClick={onBack} />
         <h1 className="text-lg font-black text-white flex-1">📓 Digital Notebook</h1>
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="px-3 py-1.5 rounded-xl font-bold text-white border border-indigo-500"

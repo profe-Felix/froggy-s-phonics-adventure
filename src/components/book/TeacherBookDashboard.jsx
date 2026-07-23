@@ -8,6 +8,7 @@ import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import BookStudentGrid from './BookStudentGrid';
 import TeacherBookAnnotator from './TeacherBookAnnotator';
+import BackButton from '@/components/ui/BackButton';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
@@ -93,7 +94,7 @@ export default function TeacherBookDashboard({ onBack }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#042f2e', color: 'white' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#0d9488', background: '#0f3d3a' }}>
-        <button onClick={onBack} className="text-teal-300 hover:text-white font-bold">← Back</button>
+        <BackButton tone="teal" onClick={onBack} />
         <h1 className="text-lg font-black text-white flex-1">📚 Book Reading</h1>
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="px-3 py-1.5 rounded-xl font-bold text-white border border-teal-600"

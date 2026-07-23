@@ -10,6 +10,7 @@ import TeacherStoryDashboard from '@/components/story/TeacherStoryDashboard';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
+import BackButton from '@/components/ui/BackButton';
 
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -519,8 +520,8 @@ useEffect(() => {
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: '#0d0d1a' }}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #7c3aed' }}>
-        <button onClick={async () => { await saveStrokes(); onBack(); }} className="text-violet-300 hover:text-white font-bold text-sm">← Back</button>
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #7c3aed', paddingTop: 'env(safe-area-inset-top)' }}>
+        <BackButton tone="violet" onClick={async () => { await saveStrokes(); onBack(); }} />
         <p className="flex-1 text-white font-black text-sm truncate">{story.title}</p>
         <span className="text-violet-400 text-xs">#{studentNumber}</span>
         {saving && <span className="text-xs text-violet-400 animate-pulse">Saving…</span>}
@@ -799,7 +800,7 @@ export default function StoryBuilder(props = {}) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0d0d1a' }}>
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#7c3aed', background: '#1a1a2e' }}>
-        <button onClick={() => propOnBack ? onBackDefault() : setStudentInfo(null)} className="text-violet-300 hover:text-white font-bold">← Back</button>
+        <BackButton tone="violet" onClick={() => propOnBack ? onBackDefault() : setStudentInfo(null)} />
         <h1 className="text-lg font-black text-white flex-1">📖 My Stories</h1>
         <span className="text-violet-400 text-xs font-bold">Class {studentInfo.className} · #{studentInfo.number}</span>
       </div>
