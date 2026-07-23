@@ -111,6 +111,20 @@ function applyTitleOverrides(cols, titles) {
   return cols.map((c, i) => ({ ...c, label: titles[i] || c.label }));
 }
 
+// Attach pre-rendered header pictures (headerimages param) to non-special
+// columns by index. Syllable/count/stress/phoneme columns keep their tile
+// headers; everything else (letters, manualsort, syllgroups, alli, rowsyllcols)
+// shows the picture label instead of text when one is provided.
+function withHeaderImages(columns, headerimages) {
+  if (!headerimages || !headerimages.length) return columns;
+  return columns.map((c, i) => {
+    if (c.headerImg) return c;
+    if (/^(syll:|count:|stress:|phon:)/.test(c.key)) return c;
+    const img = headerimages[i];
+    return img ? { ...c, headerImg: headerImageUrl(img) } : c;
+  });
+}
+
 function labelTextFor(letter, type, labelStyle) {
   if (labelStyle === 'emoji') return type === 'is' ? LABELS.emojiIs(letter) : LABELS.emojiNot(letter);
   return type === 'is' ? LABELS.is(letter) : LABELS.not(letter);
@@ -279,7 +293,7 @@ export function buildRound(config, imageFiles = []) {
 
   // ----- column-group modes (ColumnsView) -----
   if (mode === 'letters') {
-    const columns = columnsForLetters(letters, labelStyle, titles);
+    const columns = withHeaderImages(columnsForLetters(letters, labelStyle, titles), headerimages);
     let cards;
     if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
     cards = [];
@@ -362,7 +376,7 @@ export function buildRound(config, imageFiles = []) {
   }
 
   if (mode === 'manualsort') {
-    const columns = columnsForManualSort(headers, answers, headertype, files, titles);
+    const columns = withHeaderImages(columnsForManualSort(headers, answers, headertype, files, titles), headerimages);
     const parsed = parseManualSortAnswers(answers);
     const allWords = parsed.length ? parsed.flatMap((g) => g.words) : [];
     const cards = buildWordCards(allWords, files, config);
@@ -370,13 +384,13 @@ export function buildRound(config, imageFiles = []) {
   }
 
   if (mode === 'syllgroups') {
-    const columns = columnsForSyllGroups(groups, titles);
+    const columns = withHeaderImages(columnsForSyllGroups(groups, titles), headerimages);
     const cards = buildWordCards(words, files, config);
     return { view: 'columns', columns, cards };
   }
 
   if (mode === 'rowalli' || mode === 'allisyll') {
-    const columns = columnsForAlli(rows, mode === 'allisyll', titles);
+    const columns = withHeaderImages(columnsForAlli(rows, mode === 'allisyll', titles), headerimages);
     const items = parseAlliGroups(rows).flat();
     const cards = buildWordCards(items, files, config);
     return { view: 'columns', columns, cards };
@@ -407,7 +421,7 @@ export function buildRound(config, imageFiles = []) {
       return { view: 'rowsyllrows', rows: rowsData, cards };
     }
     // groups form: column view
-    const columns = columnsForRowsyllCols(groups, match, titles);
+    const columns = withHeaderImages(columnsForRowsyllCols(groups, match, titles), headerimages);
     const cards = buildWordCards(words, files, config);
     if (distractors > 0 && files.length) {
       const extra = [];
