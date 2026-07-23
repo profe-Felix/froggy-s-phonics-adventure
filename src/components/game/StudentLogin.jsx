@@ -60,7 +60,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
       >
         <div className="bg-white/90 backdrop-blur rounded-[2.5rem] shadow-2xl ring-1 ring-white/60 px-6 py-8 sm:px-12 sm:py-12">
           {/* Hero */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-5 sm:mb-6">
             <motion.div
               animate={{ y: [0, -12, 0], rotate: [0, -3, 3, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -68,12 +68,12 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
             >
               🐸
             </motion.div>
-            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-none">
+            <h1 className="text-xl sm:text-4xl font-extrabold tracking-tight leading-none whitespace-nowrap">
               <span className="bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">
                 Froggy's Letter Sounds
               </span>
             </h1>
-            <p className="mt-3 text-base sm:text-xl text-slate-500 font-medium">
+            <p className="mt-1.5 sm:mt-2 text-base sm:text-xl text-slate-500 font-medium">
               {!selectedClass ? (
                 'Choose your class!'
               ) : (
