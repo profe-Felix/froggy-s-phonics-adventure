@@ -216,7 +216,7 @@ export default function LetterSort() {
 
   // Normalized config consumed by the native activity. Remote presets use the
   // preset object; builtins & manual config use the (possibly pre-filled) vals.
-  const internalMode = (MODES.find((m) => m.key === modeKey)?.mode) || 'letters';
+  const internalMode = MODES.find((m) => m.key === modeKey)?.mode || null;
   const config = useMemo(() => {
     const src = (preset && !isBuiltin && presets[preset]) ? presets[preset] : vals;
     return buildConfig(modeKey, internalMode, src);

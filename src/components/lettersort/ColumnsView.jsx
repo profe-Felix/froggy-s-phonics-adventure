@@ -133,39 +133,8 @@ export default function ColumnsView({ config, round }) {
           </span>
         </div>
 
-        {/* rack */}
-        <Droppable droppableId="rack" direction="horizontal">
-          {(prov) => (
-            <div
-              ref={prov.innerRef}
-              {...prov.droppableProps}
-              className="flex flex-wrap gap-2 p-3 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 min-h-[120px]"
-            >
-              {rack.map((card, i) => (
-                <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
-                  {(p) => (
-                    <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-28 shrink-0">
-                      <SortCard
-                        card={card}
-                        tilesOnly={config.tilesOnly}
-                        splitCards={config.splitCards}
-                        hideWords={config.hideWords}
-                        showCaption={config.rowtitle}
-                        locked={locked.has(card.id)}
-                        bad={bad.has(card.id)}
-                        onClick={() => playWordAudio(card.coreRaw, AUDIO_OPTS)}
-                      />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {prov.placeholder}
-            </div>
-          )}
-        </Droppable>
-
         {/* columns */}
-        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(140px, 1fr))` }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(140px, 1fr))` }}>
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
               <ColumnHeader col={col} config={config} />
@@ -201,6 +170,40 @@ export default function ColumnsView({ config, round }) {
             </div>
           ))}
         </div>
+
+        {/* Cartas rack */}
+        <div>
+          <div className="font-bold text-slate-800 text-sm mb-1">Cartas</div>
+          <Droppable droppableId="rack" direction="horizontal">
+            {(prov) => (
+              <div
+                ref={prov.innerRef}
+                {...prov.droppableProps}
+                className="flex flex-wrap gap-2 p-3 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[120px]"
+              >
+                {rack.map((card, i) => (
+                  <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
+                    {(p) => (
+                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-28 shrink-0">
+                        <SortCard
+                          card={card}
+                          tilesOnly={config.tilesOnly}
+                          splitCards={config.splitCards}
+                          hideWords={config.hideWords}
+                          showCaption={config.rowtitle}
+                          locked={locked.has(card.id)}
+                          bad={bad.has(card.id)}
+                          onClick={() => playWordAudio(card.coreRaw, AUDIO_OPTS)}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {prov.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </div>
       </div>
     </DragDropContext>
   );
@@ -228,7 +231,13 @@ function ColumnHeader({ col, config }) {
       </div>
     );
   }
-  return <h2 className="text-center font-bold text-base text-indigo-800 mb-1 px-1">{col.label}</h2>;
+  return (
+    <div className="flex justify-center mb-2">
+      <div className="px-5 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-lg text-center min-w-[3rem]">
+        {col.display || col.label}
+      </div>
+    </div>
+  );
 }
 
 // lightweight confetti burst

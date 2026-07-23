@@ -26,6 +26,18 @@ export function parseList(raw) {
   return String(raw || '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+// Classic column modes (letters/syllables/syllcount/phonemes/stress) carry no
+// explicit `mode` param — the mode is inferred from which field is present.
+// NOTE: syllcount presets use the `syllcount` field (not `counts`).
+function inferClassicMode(v) {
+  if (parseList(v.syllables).length) return 'syllables';
+  if (parseCountsParam(v.counts ?? v.syllcount).length) return 'syllcount';
+  if (parseCountsParam(v.phonemes).length) return 'phonemes';
+  if (parseCountsParam(v.stress).length) return 'stress';
+  if (parseList(v.letters).length) return 'letters';
+  return 'letters';
+}
+
 const LABELS = {
   is: (L) => `Empieza con /${L}/`,
   not: (L) => `No empieza con /${L}/`,
@@ -38,13 +50,13 @@ const LABELS = {
 };
 
 export function buildConfig(modeKey, internalMode, v = {}) {
-  const mode = internalMode || 'letters';
+  const mode = internalMode || inferClassicMode(v);
   return {
     modeKey,
     mode,
     letters: parseList(v.letters),
     syllables: parseList(v.syllables),
-    counts: parseCountsParam(v.counts),
+    counts: parseCountsParam(v.counts ?? v.syllcount),
     phonemes: parseCountsParam(v.phonemes),
     stress: parseCountsParam(v.stress),
     pool: parseList(v.pool),
@@ -55,7 +67,7 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     headers: parseList(v.headers),
     answers: v.answers || '',
     headertype: v.headertype || 'text',
-    cardtype: v.cardtype || 'word',
+    cardtype: v.cardtype || (isClassic(mode) ? 'image' : 'word'),
     match: v.match || 'syllable-start',
     layout: v.layout || 'side',
     direction: v.direction || 'bottom-up',
