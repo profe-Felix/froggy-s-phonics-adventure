@@ -131,6 +131,23 @@ function readInitialState() {
   return { modeKey, vals, preset };
 }
 
+// Map a preset object to one of the MODES keys so the dropdown can be filtered
+// by the currently selected sort type. Mirrors readInitialState inference.
+function presetModeKey(obj) {
+  if (!obj) return null;
+  const m = (obj.mode || '').toString().toLowerCase();
+  if (m) {
+    const found = MODES.find((x) => x.mode === m);
+    if (found) return found.key;
+  }
+  if (obj.letters) return 'letters';
+  if (obj.syllables) return 'syllables';
+  if (obj.syllcount || obj.counts) return 'syllcount';
+  if (obj.phonemes || obj.phoneme) return 'phonemes';
+  if (obj.stress || obj.stresspos) return 'stress';
+  return null;
+}
+
 export default function LetterSort() {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
@@ -147,6 +164,22 @@ export default function LetterSort() {
       .then((obj) => { if (obj) setPresets(obj); })
       .catch(() => {});
   }, []);
+
+  // When presets arrive and a preset was loaded from the URL, sync the sort
+  // selector to that preset's type so the filtered dropdown shows its group.
+  useEffect(() => {
+    if (presets && preset && presets[preset]) {
+      const mk = presetModeKey(presets[preset]);
+      if (mk && mk !== modeKey) setModeKey(mk);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presets]);
+
+  // Only show presets that match the currently selected sort type.
+  const filteredPresetKeys = useMemo(
+    () => Object.keys(presets).filter((k) => presetModeKey(presets[k]) === modeKey),
+    [presets, modeKey]
+  );
 
   const query = useMemo(() => buildQuery(modeKey, vals, preset), [modeKey, vals, preset]);
   const frameSrc = `/lettersort/index.html?${query}`;
@@ -190,11 +223,18 @@ export default function LetterSort() {
             <label className="text-xs font-bold text-gray-600">Preset</label>
             <select
               value={preset}
-              onChange={(e) => setPreset(e.target.value)}
+              onChange={(e) => {
+                const k = e.target.value;
+                setPreset(k);
+                if (k && presets[k]) {
+                  const mk = presetModeKey(presets[k]);
+                  if (mk) setModeKey(mk);
+                }
+              }}
               className="px-3 py-2 rounded-lg border font-bold bg-white min-w-[180px]"
             >
               <option value="">— ninguno —</option>
-              {Object.keys(presets).map((k) => (
+              {filteredPresetKeys.map((k) => (
                 <option key={k} value={k}>{presets[k].label || k}</option>
               ))}
             </select>
