@@ -121,11 +121,6 @@
           "user_condition": {
             "role": "teacher"
           }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
         }
       ]
     },
