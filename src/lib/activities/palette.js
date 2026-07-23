@@ -1,12 +1,5 @@
-// Shared counter palette for the phoneme-manipulation activity. The first color
-// is the "default" a placed counter falls back to. Dragging a source chip clones
-// it (the source stays), so a student can drop a DIFFERENT color onto a box to
-// represent a sound substitution.
-export const PALETTE = [
-  { key: 'blue', fill: '#4DA6FF' },
-  { key: 'red', fill: '#F87171' },
-  { key: 'green', fill: '#34D399' },
-  { key: 'amber', fill: '#FBBF24' },
-];
-
-export const paletteFill = (key) => (PALETTE.find((p) => p.key === key) || PALETTE[0]).fill;
+// Shared counter palette defaults for the phoneme-manipulation activity.
+// The teacher can customize colors and how many (default 2). Colors are plain
+// hex strings so the chosen palette travels with each saved response for replay.
+export const DEFAULT_PALETTE = ['#4DA6FF', '#F87171'];
+export const SWATCHES = ['#4DA6FF', '#F87171', '#34D399', '#FBBF24', '#A78BFA', '#FB923C'];

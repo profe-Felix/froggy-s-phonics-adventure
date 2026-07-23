@@ -3,6 +3,7 @@ import BackButton from '@/components/ui/BackButton';
 import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import TeacherReview from '@/components/activities/TeacherReview';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
+import PaletteEditor from '@/components/activities/PaletteEditor';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { PRESETS } from '@/lib/activities/presets';
 
@@ -38,6 +39,7 @@ export default function Activities() {
   const [presetKey, setPresetKey] = useState('');
   const [itemsText, setItemsText] = useState(DEFAULT_ITEMS[ACTIVITY_MODES[0].key]);
   const [studentName, setStudentName] = useState('Estudiante');
+  const [palette, setPalette] = useState(['#4DA6FF', '#F87171']);
 
   const mode = ACTIVITY_MODES.find((m) => m.key === modeKey);
 
@@ -47,9 +49,9 @@ export default function Activities() {
   );
 
   const config = useMemo(() => {
-    if (presetKey && PRESETS[presetKey]) return PRESETS[presetKey];
-    return { mode: modeKey, items: parseItems(itemsText) };
-  }, [modeKey, presetKey, itemsText]);
+    const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: parseItems(itemsText) };
+    return modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
+  }, [modeKey, presetKey, itemsText, palette]);
 
   // keep role in the URL so a refresh preserves the view
   useEffect(() => {
@@ -62,6 +64,7 @@ export default function Activities() {
     setModeKey(k);
     setPresetKey('');
     setItemsText(DEFAULT_ITEMS[k] || '');
+    if (k === 'phoneme_manipulation') setPalette(['#4DA6FF', '#F87171']);
   }
 
   function onPresetChange(k) {
@@ -73,6 +76,7 @@ export default function Activities() {
         p.items.map((it) => (typeof it === 'string' ? it : it.text || it.word || '')).join('\n')
       );
     }
+    if (Array.isArray(p?.palette)) setPalette(p.palette);
   }
 
   return (
@@ -125,6 +129,10 @@ export default function Activities() {
               ))}
             </select>
           </div>
+
+          {modeKey === 'phoneme_manipulation' && (
+            <PaletteEditor palette={palette} onChange={setPalette} />
+          )}
 
           {role === 'student' && (
             <>

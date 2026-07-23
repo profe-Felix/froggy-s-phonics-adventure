@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildActivity } from '@/lib/activities/engine';
-import { PALETTE, paletteFill } from '@/lib/activities/palette';
+import { DEFAULT_PALETTE } from '@/lib/activities/palette';
 import { RefreshCw, Volume2, Mic, Send } from 'lucide-react';
 
 // Phoneme manipulation ("count + change"). One square box per sound in the
@@ -57,6 +57,8 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const layoutRef = useRef(null);
   const NRef = useRef(MIN_BOXES);
+  const paletteRef = useRef(DEFAULT_PALETTE);
+  paletteRef.current = Array.isArray(config?.palette) && config.palette.length ? config.palette : DEFAULT_PALETTE;
   const drawRafRef = useRef(0);
   const pendingSubmitRef = useRef(false);
   const phaseRef = useRef('ready');
@@ -139,18 +141,19 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
       const lx = i * L.s;
       ctx.beginPath(); ctx.moveTo(lx, L.boxY0); ctx.lineTo(lx, L.boxY1); ctx.stroke();
     }
+    const pal = paletteRef.current;
     // tray palette (cloning sources)
-    for (let c = 0; c < PALETTE.length; c++) {
-      drawChip(ctx, trayXNorm(c, PALETTE.length) * w, L.trayY, L.chipR, PALETTE[c].fill);
+    for (let c = 0; c < pal.length; c++) {
+      drawChip(ctx, trayXNorm(c, pal.length) * w, L.trayY, L.chipR, pal[c]);
     }
     // placed counters
     const p = placedRef.current;
     for (let i = 0; i < n; i++) {
-      if (p[i]) drawChip(ctx, colX(i, n) * w, L.boxCenterY, L.chipR, paletteFill(p[i]));
+      if (p[i] != null) drawChip(ctx, colX(i, n) * w, L.boxCenterY, L.chipR, pal[p[i]]);
     }
     // moving counter on top
     if (dragRef.current) {
-      drawChip(ctx, dragRef.current.x * w, dragRef.current.y * h, L.chipR, paletteFill(dragRef.current.color));
+      drawChip(ctx, dragRef.current.x * w, dragRef.current.y * h, L.chipR, pal[dragRef.current.color]);
     }
   }
 
@@ -169,20 +172,21 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
     const L = layoutRef.current; if (!L) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const pal = paletteRef.current;
     // tray hit -> clone drag (source stays)
-    for (let c = 0; c < PALETTE.length; c++) {
-      const tx = trayXNorm(c, PALETTE.length) * w;
+    for (let c = 0; c < pal.length; c++) {
+      const tx = trayXNorm(c, pal.length) * w;
       if (Math.hypot(px - tx, py - L.trayY) < L.chipR * 1.5) {
         canvasRef.current.setPointerCapture(e.pointerId);
         const t = recT();
-        dragRef.current = { type: 'clone', color: PALETTE[c].key, x: px / w, y: py / h, path: [{ t, x: px / w, y: py / h }] };
+        dragRef.current = { type: 'clone', color: c, x: px / w, y: py / h, path: [{ t, x: px / w, y: py / h }] };
         return;
       }
     }
     // placed hit -> move/remove drag (lift it out of the box)
     const p = placedRef.current;
     for (let i = 0; i < L.n; i++) {
-      if (!p[i]) continue;
+      if (p[i] == null) continue;
       const bx = colX(i, L.n) * w;
       if (Math.hypot(px - bx, py - L.boxCenterY) < L.chipR * 1.5) {
         canvasRef.current.setPointerCapture(e.pointerId);
@@ -258,7 +262,7 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
         const up = await base44.integrations.Core.UploadFile({ file: f });
         audioUrl = up?.file_url || '';
       }
-      const placedCount = placedRef.current.filter(Boolean).length;
+      const placedCount = placedRef.current.filter((v) => v != null).length;
       await base44.entities.ActivityResponse.create({
         activity_mode: 'phoneme_manipulation',
         student_name: studentName || 'Estudiante',
@@ -270,7 +274,7 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
         correct_count: current.answer,
         is_correct: false,
         placements_data: JSON.stringify({
-          palette: PALETTE.map((p) => p.key),
+          palette: paletteRef.current,
           gestures: gesturesRef.current,
           boxCount: NRef.current,
           finalPlaced: placedRef.current,
@@ -303,7 +307,7 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
     } catch { /* best-effort */ }
   }
 
-  const placedCount = placed.filter(Boolean).length;
+  const placedCount = placed.filter((v) => v != null).length;
 
   if (!hasItems) {
     return <div className="p-6 text-slate-500 text-center">Añade elementos para empezar.</div>;

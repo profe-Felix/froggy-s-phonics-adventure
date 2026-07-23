@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Pause } from 'lucide-react';
-import { PALETTE, paletteFill } from '@/lib/activities/palette';
+import { DEFAULT_PALETTE } from '@/lib/activities/palette';
 
 // Canvas replay for the phoneme-manipulation activity. Reads the recorded
 // gesture timeline (placements_data object: {palette, gestures, boxCount,
@@ -55,6 +55,7 @@ export default function ManipulationReplay({ rec }) {
   const gestures = data.gestures || [];
   const boxCount = clamp(data.boxCount || rec.tile_count || DEFAULT_BOXES, MIN_BOXES, MAX_BOXES);
   const finalPlaced = Array.isArray(data.finalPlaced) ? data.finalPlaced : [];
+  const palette = Array.isArray(data.palette) && data.palette.length ? data.palette : DEFAULT_PALETTE;
   const hasTimeline = gestures.length > 0;
   const maxT = hasTimeline ? Math.max(...gestures.map((g) => g.t1 || 0)) : 0;
 
@@ -114,19 +115,19 @@ export default function ManipulationReplay({ rec }) {
       const lx = i * L.s;
       ctx.beginPath(); ctx.moveTo(lx, L.boxY0); ctx.lineTo(lx, L.boxY1); ctx.stroke();
     }
-    for (let c = 0; c < PALETTE.length; c++) {
-      drawChip(ctx, trayXNorm(c, PALETTE.length) * w, L.trayY, L.chipR, PALETTE[c].fill);
+    for (let c = 0; c < palette.length; c++) {
+      drawChip(ctx, trayXNorm(c, palette.length) * w, L.trayY, L.chipR, palette[c]);
     }
     let state;
     if (hasTimeline) {
       state = chipStateAt(tRef.current);
     } else {
-      state = { placed: Array.from({ length: boxCount }, (_, i) => finalPlaced[i] || null), moving: null };
+      state = { placed: Array.from({ length: boxCount }, (_, i) => (finalPlaced[i] == null ? null : finalPlaced[i])), moving: null };
     }
     for (let i = 0; i < boxCount; i++) {
-      if (state.placed[i]) drawChip(ctx, colX(i, boxCount) * w, L.boxCenterY, L.chipR, paletteFill(state.placed[i]));
+      if (state.placed[i] != null) drawChip(ctx, colX(i, boxCount) * w, L.boxCenterY, L.chipR, palette[state.placed[i]]);
     }
-    if (state.moving) drawChip(ctx, state.moving.x * w, state.moving.y * h, L.chipR, paletteFill(state.moving.color));
+    if (state.moving) drawChip(ctx, state.moving.x * w, state.moving.y * h, L.chipR, palette[state.moving.color]);
   }
 
   useEffect(() => {
