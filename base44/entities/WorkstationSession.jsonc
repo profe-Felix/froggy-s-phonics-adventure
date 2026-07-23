@@ -1,0 +1,38 @@
+{
+  "name": "WorkstationSession",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Short join code students enter to join the live workstation session"
+    },
+    "activity": {
+      "type": "string",
+      "enum": [
+        "syllable_blender",
+        "fluency_table"
+      ],
+      "default": "syllable_blender",
+      "description": "Which workstation activity is currently live for the group"
+    },
+    "preset_id": {
+      "type": "string",
+      "description": "Active preset id for the current activity (fluency preset id or syllable-blender preset key)"
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Shared shuffle seed so every participant sees the same order"
+    },
+    "settings": {
+      "type": "object",
+      "description": "Activity-specific live state. syllable_blender: { current_word }. fluency_table: { active_row, sweep_start_at }.",
+      "default": {}
+    }
+  },
+  "required": [
+    "code",
+    "activity",
+    "preset_id",
+    "seed"
+  ]
+}

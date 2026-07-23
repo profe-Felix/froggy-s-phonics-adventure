@@ -38,6 +38,14 @@ const WORKSTATIONS = [
     path: '/SyllableBlender?role=teacher',
     color: '#2563eb',
   },
+  {
+    id: 'liveworkstations',
+    name: 'Live Workstations',
+    desc: 'One join code for the whole group. Switch activities & presets live — kids follow along, no re-scanning.',
+    emoji: '🔴',
+    path: '/LiveWorkstations?role=teacher',
+    color: '#dc2626',
+  },
 ];
 
 export default function Workstations() {

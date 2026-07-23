@@ -6,9 +6,15 @@ import { resolveImageForWord, resolveSyllableAudio, resolveWordAudio } from '@/l
 // Student activity: Elkonin boxes. Each syllable has a counter; tap to hear it.
 // When every counter has been heard (or marked missing), the reveal button
 // uncovers the picture and plays the whole word.
-export default function ElkoninActivity({ words, behavior, media }) {
-  const [index, setIndex] = useState(0);
+export default function ElkoninActivity({ words, behavior, media, index: controlledIndex, onIndexChange }) {
+  const controlled = controlledIndex !== undefined;
+  const [localIndex, setLocalIndex] = useState(0);
   const [rebuildKey, setRebuildKey] = useState(0);
+  const index = controlled ? (controlledIndex || 0) : localIndex;
+  const setIdx = (i) => {
+    if (controlled) { onIndexChange && onIndexChange(i); }
+    else setLocalIndex(i);
+  };
   const [syllables, setSyllables] = useState([]);
   const [heard, setHeard] = useState([]);
   const [hasAudio, setHasAudio] = useState([]);
@@ -70,23 +76,24 @@ export default function ElkoninActivity({ words, behavior, media }) {
     if (a) { try { a.currentTime = 0; } catch {}; a.play().catch(() => {}); }
   };
 
-  const go = (d) => setIndex((i) => (i + d + words.length) % words.length);
+  const go = (d) => setIdx((index + d + words.length) % words.length);
+  const showNav = !controlled || !!onIndexChange;
 
   return (
     <div className="flex-1 flex flex-col items-center p-4 gap-4">
       <div className="w-full max-w-2xl flex items-center gap-2 flex-wrap justify-center">
-        {!hideWordUI && (
+        {showNav && !hideWordUI && (
           <select
             value={index}
-            onChange={(e) => setIndex(+e.target.value)}
+            onChange={(e) => setIdx(+e.target.value)}
             className="px-3 py-2 rounded-lg border font-bold bg-white"
           >
             {words.map((w, i) => (<option key={i} value={i}>{w}</option>))}
           </select>
         )}
-        <button onClick={() => go(-1)} disabled={words.length <= 1} className="px-3 py-2 rounded-lg border font-bold bg-white disabled:opacity-50">◀</button>
-        <button onClick={() => go(1)} disabled={words.length <= 1} className="px-3 py-2 rounded-lg border font-bold bg-white disabled:opacity-50">▶</button>
-        <button onClick={() => setRebuildKey((k) => k + 1)} className="px-3 py-2 rounded-lg border font-bold bg-white">Reiniciar</button>
+        {showNav && <button onClick={() => go(-1)} disabled={words.length <= 1} className="px-3 py-2 rounded-lg border font-bold bg-white disabled:opacity-50">◀</button>}
+        {showNav && <button onClick={() => go(1)} disabled={words.length <= 1} className="px-3 py-2 rounded-lg border font-bold bg-white disabled:opacity-50">▶</button>}
+        {showNav && <button onClick={() => { setRebuildKey((k) => k + 1); if (controlled) { onIndexChange && onIndexChange(0); } }} className="px-3 py-2 rounded-lg border font-bold bg-white">Reiniciar</button>}
         <button
           onClick={onReveal}
           disabled={!allHeard}

@@ -26,6 +26,7 @@ import PowerfulWord from './pages/workstations/PowerfulWord';
 import SyllableTrain from './pages/workstations/SyllableTrain';
 import FluencyTable from './pages/workstations/FluencyTable';
 import SyllableBlender from './pages/workstations/SyllableBlender';
+import LiveWorkstations from './pages/workstations/LiveWorkstations';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -100,6 +101,7 @@ const AuthenticatedApp = () => {
       <Route path="/SyllableTrain" element={<SyllableTrain />} />
       <Route path="/FluencyTable" element={<FluencyTable />} />
       <Route path="/SyllableBlender" element={<SyllableBlender />} />
+      <Route path="/LiveWorkstations" element={<LiveWorkstations />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
