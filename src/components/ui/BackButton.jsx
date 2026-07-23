@@ -1,23 +1,24 @@
 import { ChevronLeft } from 'lucide-react';
 
-// A back button with a real touch target (44px) so it's easy to tap on phones,
-// including under a notch. `tone` matches the page's header color theme.
+// Compact, clearly-pressable icon back button (no text). 40px circle with a
+// border + tint so it reads as a real button, not dead space. tone matches the
+// header it sits in.
 const TONES = {
-  indigo: 'text-indigo-300 hover:text-white',
-  teal: 'text-teal-300 hover:text-white',
-  violet: 'text-violet-300 hover:text-white',
+  indigo: 'text-indigo-200 hover:bg-indigo-500/25 border-indigo-400/40',
+  teal: 'text-teal-200 hover:bg-teal-500/25 border-teal-400/40',
+  violet: 'text-violet-200 hover:bg-violet-500/25 border-violet-400/40',
 };
 
-export default function BackButton({ onClick, label = 'Back', tone = 'indigo', className = '', ...rest }) {
+export default function BackButton({ onClick, tone = 'indigo', className = '', ...rest }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-xl font-bold text-sm shrink-0 touch-manipulation select-none active:scale-95 transition ${TONES[tone] || TONES.indigo} ${className}`}
+      aria-label="Back"
+      className={`flex items-center justify-center w-10 h-10 rounded-full border bg-white/5 active:scale-90 transition shrink-0 touch-manipulation select-none ${TONES[tone] || TONES.indigo} ${className}`}
       {...rest}
     >
-      <ChevronLeft className="w-6 h-6 shrink-0" strokeWidth={2.5} />
-      {label && <span>{label}</span>}
+      <ChevronLeft className="w-6 h-6" strokeWidth={2.5} />
     </button>
   );
 }
