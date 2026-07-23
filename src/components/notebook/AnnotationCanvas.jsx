@@ -1,15 +1,19 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 const MAX_UNDO_ACTIONS = 50;
+// Pen/eraser sizes are authored for a ~1200px-wide notebook page. We scale the
+// effective line width by the current canvas width / this reference, so the same
+// tool setting draws proportionally thinner ink on a phone/tablet and thicker on
+// a large desktop — and saved strokes render consistently regardless of which
+// device originally drew them.
+const REFERENCE_WIDTH = 1200;
+
 function drawStroke(ctx, s, w, h) {
   if (!s.pts || s.pts.length === 0) return;
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // Line width scales with the canvas so ink keeps the same relative thickness
-  // across device sizes / fit modes. Each stroke stores the canvas width at
-  // draw time; legacy strokes without it fall back to the absolute size.
-  const lw = s.canvasWidth ? (s.size * w / s.canvasWidth) : s.size;
+  const lw = s.size * w / REFERENCE_WIDTH;
 
   if (s.tool === 'highlighter') {
     ctx.globalCompositeOperation = 'source-over';
@@ -234,7 +238,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const beginStrokeAt = (p) => {
-    current.current = { color, size, tool: makeToolName(), pts: [p], canvasWidth: width, canvasHeight: height };
+    current.current = { color, size, tool: makeToolName(), pts: [p] };
     drawing.current = true;
     onStrokeStart?.();
     redraw();
@@ -271,7 +275,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const eraseStrokeAt = (p) => {
       const px = p.x * width;
       const py = p.y * height;
-      const hitDist = Math.max(8, size * 1.5);
+      const hitDist = Math.max(8, (size * width / REFERENCE_WIDTH) * 1.5);
       const removed = [];
 
       strokes.current = strokes.current.filter(s => {
@@ -309,7 +313,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     const pixelEraseAt = (p) => {
       const px = p.x * width;
       const py = p.y * height;
-      const eraserRadius = Math.max(4, size * 0.75);
+      const eraserRadius = Math.max(4, (size * width / REFERENCE_WIDTH) * 0.75);
 
       let changed = false;
       const next = [];
@@ -821,8 +825,9 @@ const onTouchStart = (e) => {
     },
   }));
 
-  const pixelEraserRadius = Math.max(4, size * 0.75);
-  const objectEraserRadius = Math.max(8, size * 1.5);
+  const effSize = size * width / REFERENCE_WIDTH;
+  const pixelEraserRadius = Math.max(4, effSize * 0.75);
+  const objectEraserRadius = Math.max(8, effSize * 1.5);
   const eraserRadius = tool === 'eraser_pixel' ? pixelEraserRadius : objectEraserRadius;
 
   return (
