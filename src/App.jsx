@@ -29,6 +29,7 @@ import FluencyTable from './pages/workstations/FluencyTable';
 import SyllableBlender from './pages/workstations/SyllableBlender';
 import LiveWorkstations from './pages/workstations/LiveWorkstations';
 import LetterSort from './pages/workstations/LetterSort';
+import Activities from './pages/Activities';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -106,6 +107,7 @@ const AuthenticatedApp = () => {
       <Route path="/SyllableBlender" element={<SyllableBlender />} />
       <Route path="/LiveWorkstations" element={<LiveWorkstations />} />
       <Route path="/LetterSort" element={<LetterSort />} />
+      <Route path="/Activities" element={<Activities />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
