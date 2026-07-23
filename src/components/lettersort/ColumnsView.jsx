@@ -227,13 +227,25 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
       </div>
     );
   }
-  // is/not letter pair: green badge = contains the target sound, red = does not.
+  // is/not letter pair shown as Elkonin boxes: the target sound's box is filled
+  // (green = the sound is at the start, red = the sound is NOT at the start),
+  // with empty boxes for the other sounds in the word.
   if (isNotPair && targetLetter) {
     const isNot = col.key.startsWith('not-');
+    const soundIdx = isNot ? 1 : 0; // is -> first box; not -> a later box
+    const filled = isNot ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-100 text-green-700 border-green-300';
+    const empty = 'border-slate-300 bg-slate-50';
     return (
       <div className="flex justify-center mb-2">
-        <div className={`px-5 py-1.5 rounded-lg font-bold text-lg text-center min-w-[3rem] ${isNot ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-          /{targetLetter}/
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={`h-9 min-w-[2.25rem] px-1 rounded-md border-2 flex items-center justify-center font-bold text-lg ${i === soundIdx ? filled : empty}`}
+            >
+              {i === soundIdx ? `/${targetLetter}/` : ''}
+            </div>
+          ))}
         </div>
       </div>
     );

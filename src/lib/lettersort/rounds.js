@@ -135,7 +135,10 @@ function pickNoRepeat(list, n, usedSet) {
   const sh = shuffle(pool);
   const chosen = sh.slice(0, n);
   if (chosen.length < n) {
-    const more = shuffle(list.filter((f) => !chosen.includes(f)));
+    // Fallback when a column's own pool is exhausted: reuse this column's
+    // files, but never ones already claimed by another column (prevents the
+    // same image appearing in two columns when pools overlap, e.g. syllables 'any').
+    const more = shuffle(list.filter((f) => !chosen.includes(f) && !usedSet.has(f.path)));
     chosen.push(...more.slice(0, n - chosen.length));
   }
   return chosen;
@@ -288,7 +291,17 @@ export function buildRound(config, imageFiles = []) {
     groups, rows, rowsyll, headers, answers, headertype, cardtype, match,
     direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots, headerimages,
   } = config;
-  const files = imageFiles || [];
+  // Dedupe by normalized word so the same picture (e.g. a word stored as both
+  // <base>.jpg and <base>_pic.png) never produces two cards in one round.
+  const rawFiles = imageFiles || [];
+  const seenCore = new Set();
+  const files = rawFiles.filter((f) => {
+    const k = f.core || normalizeMarkers(f.rawCore);
+    if (!k) return true;
+    if (seenCore.has(k)) return false;
+    seenCore.add(k);
+    return true;
+  });
   const hasWords = words && words.length > 0;
 
   // ----- column-group modes (ColumnsView) -----
