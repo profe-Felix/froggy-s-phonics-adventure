@@ -10,7 +10,7 @@ const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/syllableblen
 const DEFAULT_MEDIA = {
   images: { bucket: 'lettersort-images', prefix: '' },
   syllableAudio: { bucket: 'syllable-audio', prefix: '' },
-  wordAudio: { bucket: 'lettersort-audio', prefix: '' },
+  wordAudio: { bucket: 'audio', prefix: 'es/words' },
 };
 const DEFAULT_WORDS = ['manzana', 'guitarra', 'camión', 'helado', 'caracol'];
 
