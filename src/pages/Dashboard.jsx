@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import StudentCard from '../components/dashboard/StudentCard';
 import StudentDetail from '../components/dashboard/StudentDetail';
+import ClassColorPicker from '../components/dashboard/ClassColorPicker';
 
 export default function Dashboard() {
   const [students, setStudents] = useState([]);
@@ -204,7 +205,8 @@ export default function Dashboard() {
                     <button onClick={() => setRenamingClass(null)} className="text-red-400">✕</button>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5">
+                    <ClassColorPicker className={cls} />
                     Class {cls}
                     <span
                       onClick={e => { e.stopPropagation(); setRenamingClass(cls); setRenameValue(cls); }}

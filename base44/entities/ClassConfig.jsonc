@@ -1,0 +1,36 @@
+{
+  "name": "ClassConfig",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class name this config belongs to (e.g. Felix, Valero, Campos)"
+    },
+    "color": {
+      "type": "string",
+      "enum": [
+        "red",
+        "orange",
+        "amber",
+        "yellow",
+        "green",
+        "emerald",
+        "teal",
+        "cyan",
+        "sky",
+        "blue",
+        "indigo",
+        "violet",
+        "purple",
+        "fuchsia",
+        "pink",
+        "rose"
+      ],
+      "default": "emerald",
+      "description": "Tailwind color family used for this class's login tiles and accents."
+    }
+  },
+  "required": [
+    "class_name"
+  ]
+}

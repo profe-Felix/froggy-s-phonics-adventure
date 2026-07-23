@@ -25,6 +25,9 @@ import GraphingGame from '../components/math/GraphingGame';
 import VotingGraphGame from '../components/math/VotingGraphGame';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import StudentLoginShell from '../components/game/StudentLoginShell';
+import { useClassColors } from '@/hooks/useClassColors';
+import { ArrowLeft } from 'lucide-react';
 
 const CLASSES = ['Felix', 'Valero', 'Campos'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
@@ -40,6 +43,7 @@ export default function MathGames() {
   const [selfPlay, setSelfPlay] = useState(null); // null=not chosen, true=peer, false=teacher
 
   const queryClient = useQueryClient();
+  const { colorFor } = useClassColors();
 
   const { data: games } = useQuery({
     queryKey: ['math-bingo', selectedClass],
@@ -149,54 +153,84 @@ export default function MathGames() {
   // ── STUDENT VIEW — Step 1: Pick class ──
   if (!selectedClass) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-6 p-6">
-        {/* Toggle to Letter Games */}
-        <div className="fixed top-4 right-4 z-50">
-          <a href="/LetterGame"
-            className="bg-white/90 hover:bg-white text-green-700 font-bold text-sm px-4 py-2 rounded-full shadow-lg border border-green-200 transition-all hover:scale-105 inline-block">
-            🐸 Letter Games →
-          </a>
+      <StudentLoginShell
+        icon="🧮"
+        title="Math Games"
+        titleFrom="#0ea5e9"
+        titleTo="#2563eb"
+        subtitle="Choose your class!"
+        toggleTo="/LetterGame"
+        toggleLabel="Letter Games"
+        toggleEmoji="🐸"
+        toggleTextClass="text-green-700"
+        toggleBorderClass="border-green-200"
+      >
+        <div className="grid grid-cols-3 gap-3 sm:gap-5">
+          {CLASSES.map((cls, i) => {
+            const c = colorFor(cls);
+            return (
+              <motion.button
+                key={cls}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.06 }}
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setSelectedClass(cls)}
+                className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-xl sm:text-3xl shadow-xl ring-2 ring-white/40 transition"
+                style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+              >
+                <span className="absolute top-2 left-3 text-xl sm:text-2xl opacity-70 group-hover:opacity-100 transition">🔢</span>
+                <span className="relative z-10">{cls}</span>
+              </motion.button>
+            );
+          })}
         </div>
-        <div className="text-5xl">🧮</div>
-        <h1 className="text-3xl font-bold text-white">Math Games</h1>
-        <p className="text-white/80 text-lg">Which class are you in?</p>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          {CLASSES.map(cls => (
-            <motion.button
-              key={cls}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setSelectedClass(cls)}
-              className="bg-white text-indigo-700 font-bold text-2xl py-5 rounded-2xl shadow-lg"
-            >
-              {cls}
-            </motion.button>
-          ))}
-        </div>
-      </div>
+      </StudentLoginShell>
     );
   }
 
   // ── STUDENT VIEW — Step 2: Pick number ──
   if (!studentNumber) {
+    const c = colorFor(selectedClass);
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-400 to-indigo-500 flex flex-col items-center justify-center gap-4 p-6">
-        <button onClick={() => setSelectedClass(null)} className="text-white/80 self-start hover:text-white">← Back</button>
-        <h2 className="text-2xl font-bold text-white">{selectedClass} — What's your number?</h2>
-        <div className="grid grid-cols-6 gap-2">
-          {STUDENT_NUMBERS.map(num => (
+      <StudentLoginShell
+        icon="🧮"
+        title="Math Games"
+        titleFrom="#0ea5e9"
+        titleTo="#2563eb"
+        subtitle={
+          <span className="inline-flex items-center gap-2">
+            <button onClick={() => setSelectedClass(null)} className="text-slate-400 hover:text-slate-600 transition" aria-label="back">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            Class <strong className="text-slate-700">{selectedClass}</strong> — pick your number!
+          </span>
+        }
+        toggleTo="/LetterGame"
+        toggleLabel="Letter Games"
+        toggleEmoji="🐸"
+        toggleTextClass="text-green-700"
+        toggleBorderClass="border-green-200"
+      >
+        <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2.5 sm:gap-3">
+          {STUDENT_NUMBERS.map((num, i) => (
             <motion.button
               key={num}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: Math.min(i * 0.015, 0.4) }}
+              whileHover={{ scale: 1.12, y: -2 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setStudentNumber(num)}
-              className="w-14 h-14 bg-white text-indigo-700 font-bold text-xl rounded-xl shadow-md"
+              className="aspect-square rounded-2xl text-white font-extrabold text-xl sm:text-2xl shadow-lg ring-1 ring-white/30"
+              style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
             >
               {num}
             </motion.button>
           ))}
         </div>
-      </div>
+      </StudentLoginShell>
     );
   }
 
