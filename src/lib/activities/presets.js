@@ -55,4 +55,16 @@ export const PRESETS = {
     mode: 'phoneme_manipulation',
     items: ['gato', 'sol', 'flor', 'pan', 'luna'],
   },
+  text_hunt_punct: {
+    label: 'Ejemplo · caza puntuación',
+    mode: 'text_hunt',
+    huntType: 'punctuation',
+    items: ['El gato come pescado.', '¡Hola! ¿Cómo estás?'],
+  },
+  text_hunt_syllable: {
+    label: 'Ejemplo · caza sílaba tónica',
+    mode: 'text_hunt',
+    huntType: 'syllable',
+    items: ['gato', 'pelota', 'campana'],
+  },
 };

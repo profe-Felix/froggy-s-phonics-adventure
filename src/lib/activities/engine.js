@@ -50,6 +50,14 @@ export const ACTIVITY_MODES = [
     count: phonemeCountInWord,
     desc: 'El alumno coloca una ficha por cada sonido y puede cambiar un sonido por otro color (sustitución). Las fichas se clonan al arrastrar.',
   },
+  {
+    key: 'text_hunt',
+    label: 'Caza en el texto',
+    what: 'objetivos',
+    in: 'texto',
+    count: () => 0,
+    desc: 'El alumno caza letras, dígrafos, palabras, puntuación, espacios o la sílaba tónica en un texto. Feedback inmediato y muestra los perdidos.',
+  },
 ];
 
 // Normalize a preset/config object into a ready-to-render activity:

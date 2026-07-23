@@ -7,9 +7,10 @@
       "enum": [
         "counting_words",
         "counting_phonemes",
-        "phoneme_manipulation"
+        "phoneme_manipulation",
+        "text_hunt"
       ],
-      "description": "Which activity the response belongs to: counting words, counting phonemes, or phoneme manipulation (clone colored counters)"
+      "description": "Which activity the response belongs to: counting words, counting phonemes, phoneme manipulation (clone colored counters), or text hunt (find targets in connected text)"
     },
     "student_name": {
       "type": "string",
@@ -31,11 +32,11 @@
     "tile_count": {
       "type": "integer",
       "default": 0,
-      "description": "Total number of boxes/tiles available for the item"
+      "description": "Total number of boxes/tiles/targets available for the item"
     },
     "placed_count": {
       "type": "integer",
-      "description": "Number of tiles the student placed (their answer)",
+      "description": "Number of targets the student found (their answer)",
       "default": 0
     },
     "correct_count": {
@@ -49,7 +50,7 @@
     },
     "placements_data": {
       "type": "string",
-      "description": "JSON timeline of placement events. Counting modes: array of {t, type:'place'|'remove', tile, boxIndex}. Manipulation mode: object {palette, gestures:[{type:'place'|'move'|'remove', color, fromBox?, toBox?, t0, t1, path}], boxCount, finalPlaced}."
+      "description": "JSON timeline of placement events. Counting modes: array of {t, type:'place'|'remove', tile, boxIndex}. Manipulation mode: object {palette, gestures, boxCount, finalPlaced}. Text hunt: object {huntType, target, segments, taps:[{index,t,correct}], missed, correctCount, foundCount}."
     },
     "audio_url": {
       "type": "string",

@@ -4,6 +4,8 @@ import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import TeacherReview from '@/components/activities/TeacherReview';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import PaletteEditor from '@/components/activities/PaletteEditor';
+import HuntActivity from '@/components/activities/HuntActivity';
+import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { PRESETS } from '@/lib/activities/presets';
 
@@ -17,6 +19,7 @@ const DEFAULT_ITEMS = {
   counting_words: 'El gato come\nYo soy grande\nLa luna brilla en la noche',
   counting_phonemes: 'gato\nsol\nflor\npan\nluna',
   phoneme_manipulation: 'gato\nsol\nflor\npan\nluna',
+  text_hunt: 'El gato come pescado.\n¡Hola! ¿Cómo estás?',
 };
 
 function parseItems(text) {
@@ -40,6 +43,8 @@ export default function Activities() {
   const [itemsText, setItemsText] = useState(DEFAULT_ITEMS[ACTIVITY_MODES[0].key]);
   const [studentName, setStudentName] = useState('Estudiante');
   const [palette, setPalette] = useState(['#4DA6FF', '#F87171']);
+  const [huntType, setHuntType] = useState('phoneme');
+  const [huntTarget, setHuntTarget] = useState('');
 
   const mode = ACTIVITY_MODES.find((m) => m.key === modeKey);
 
@@ -50,8 +55,10 @@ export default function Activities() {
 
   const config = useMemo(() => {
     const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: parseItems(itemsText) };
-    return modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
-  }, [modeKey, presetKey, itemsText, palette]);
+    let out = modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
+    if (modeKey === 'text_hunt') out = { ...out, huntType, target: huntTarget };
+    return out;
+  }, [modeKey, presetKey, itemsText, palette, huntType, huntTarget]);
 
   // keep role in the URL so a refresh preserves the view
   useEffect(() => {
@@ -65,6 +72,7 @@ export default function Activities() {
     setPresetKey('');
     setItemsText(DEFAULT_ITEMS[k] || '');
     if (k === 'phoneme_manipulation') setPalette(['#4DA6FF', '#F87171']);
+    if (k === 'text_hunt') { setHuntType('phoneme'); setHuntTarget(''); }
   }
 
   function onPresetChange(k) {
@@ -77,6 +85,8 @@ export default function Activities() {
       );
     }
     if (Array.isArray(p?.palette)) setPalette(p.palette);
+    if (p?.huntType) setHuntType(p.huntType);
+    if (p?.target != null) setHuntTarget(p.target);
   }
 
   return (
@@ -134,6 +144,34 @@ export default function Activities() {
             <PaletteEditor palette={palette} onChange={setPalette} />
           )}
 
+          {modeKey === 'text_hunt' && (
+            <>
+              <div className="flex flex-col w-full sm:w-auto">
+                <label className="text-xs font-bold text-gray-600">Tipo de caza</label>
+                <select
+                  value={huntType}
+                  onChange={(e) => setHuntType(e.target.value)}
+                  className="px-3 py-2 rounded-lg border font-bold bg-white w-full sm:w-auto sm:min-w-[200px]"
+                >
+                  {HUNT_TYPES.map((h) => (
+                    <option key={h.key} value={h.key}>{h.label}</option>
+                  ))}
+                </select>
+              </div>
+              {HUNT_TYPES.find((h) => h.key === huntType)?.needsTarget && (
+                <div className="flex flex-col w-full sm:w-auto">
+                  <label className="text-xs font-bold text-gray-600">Objetivo</label>
+                  <input
+                    value={huntTarget}
+                    onChange={(e) => setHuntTarget(e.target.value)}
+                    className="px-2 py-2 rounded-lg border bg-white w-full sm:w-auto sm:min-w-[120px]"
+                    placeholder={HUNT_TYPES.find((h) => h.key === huntType)?.targetPh || ''}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           {role === 'student' && (
             <>
               <div className="flex flex-col w-full sm:w-auto">
@@ -162,6 +200,8 @@ export default function Activities() {
       {role === 'student'
         ? (modeKey === 'phoneme_manipulation'
             ? <PhonemeManipulationActivity config={config} studentName={studentName} />
+            : modeKey === 'text_hunt'
+            ? <HuntActivity config={config} studentName={studentName} />
             : <ElkoninCountActivity config={config} studentName={studentName} />)
         : <TeacherReview mode={modeKey} />}
     </div>
