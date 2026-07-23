@@ -3,7 +3,7 @@ import { Check, RefreshCw } from 'lucide-react';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 import { syllabifyEs, markersToPretty, stressedSyllIndex } from '@/lib/lettersort/phonics';
 
-const AUDIO_OPTS = { bucket: 'lettersort-audio', prefix: '' };
+const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
 
 // Stress-reveal mode: for each word, tap the syllable you think is stressed.
 // Verify highlights the correct (green) and wrong (red) picks.

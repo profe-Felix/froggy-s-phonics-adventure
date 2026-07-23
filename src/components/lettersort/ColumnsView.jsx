@@ -5,7 +5,7 @@ import SortCard from './SortCard';
 import { classifyCard } from '@/lib/lettersort/rounds';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 
-const AUDIO_OPTS = { bucket: 'lettersort-audio', prefix: '' };
+const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
 
 function shuffle(arr) {
   const a = [...arr];
