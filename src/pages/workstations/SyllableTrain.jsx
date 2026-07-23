@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
+import { TrainEngine, TrainCar } from '@/components/workstations/TrainArt';
 
 const MIN = 1;
 const MAX = 12;
@@ -126,11 +127,8 @@ export default function SyllableTrain() {
       <div className="flex-1 flex flex-col items-center justify-center p-6 gap-8" style={{ touchAction: 'none' }}>
         <div ref={railRef} className="flex items-end justify-center" style={{ touchAction: 'none' }}>
           {/* Engine */}
-          <div
-            className="flex items-center justify-center text-3xl shrink-0 mr-[-40px]"
-            style={{ width: 120, height: 90, background: '#334155', borderRadius: 12, color: '#fff' }}
-          >
-            🚂
+          <div className="shrink-0 mr-[-40px]">
+            <TrainEngine />
           </div>
           {/* Slots */}
           <div className="flex">
@@ -144,13 +142,10 @@ export default function SyllableTrain() {
                 {color && (
                   <div
                     onPointerDown={(e) => beginDrag(color, i, e)}
-                    className="absolute inset-0 rounded-xl flex items-center justify-center text-white font-bold text-lg cursor-grab active:cursor-grabbing"
-                    style={{
-                      background: color === 'red' ? '#ef4444' : '#3b82f6',
-                      boxShadow: '0 3px 0 rgba(0,0,0,.15)',
-                    }}
+                    className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                    style={{ boxShadow: '0 3px 0 rgba(0,0,0,.15)', borderRadius: 12 }}
                   >
-                    🚃
+                    <TrainCar color={color} />
                   </div>
                 )}
               </div>
@@ -164,14 +159,10 @@ export default function SyllableTrain() {
             <div
               key={c}
               onPointerDown={(e) => beginDrag(c, -1, e)}
-              className="rounded-xl flex items-center justify-center text-white font-bold text-lg cursor-grab active:cursor-grabbing"
-              style={{
-                width: 110, height: 60,
-                background: c === 'red' ? '#ef4444' : '#3b82f6',
-                boxShadow: '0 3px 0 rgba(0,0,0,.15)',
-              }}
+              className="cursor-grab active:cursor-grabbing"
+              style={{ width: 110, height: 60, boxShadow: '0 3px 0 rgba(0,0,0,.15)', borderRadius: 12 }}
             >
-              🚃
+              <TrainCar color={c} />
             </div>
           ))}
         </div>
@@ -183,15 +174,13 @@ export default function SyllableTrain() {
       {/* Drag ghost */}
       {ghost.visible && dragging && (
         <div
-          className="fixed pointer-events-none rounded-xl flex items-center justify-center text-white font-bold text-lg z-50"
+          className="fixed pointer-events-none flex items-center justify-center z-50"
           style={{
             left: ghost.x, top: ghost.y, transform: 'translate(-50%,-50%)',
-            width: 110, height: 60,
-            background: dragging.color === 'red' ? '#ef4444' : '#3b82f6',
-            opacity: 0.85,
+            width: 110, height: 60, opacity: 0.9,
           }}
         >
-          🚃
+          <TrainCar color={dragging.color} />
         </div>
       )}
 
