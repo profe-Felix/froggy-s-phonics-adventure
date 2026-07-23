@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Pause } from 'lucide-react';
 
 // Canvas replay of a student's Elkonin drag. Reads the recorded gesture
-// timeline (placements_data) and redraws the 8 boxes + chips over time so the
-// teacher sees each chip actually RISE from its home slot into its box at the
-// pace the student dragged, synced to the voice recording.
+// timeline (placements_data) and redraws the 8 square touching boxes + chips
+// over time so the teacher sees each chip actually RISE from its home slot into
+// its box at the pace the student dragged, synced to the voice recording.
 const BOX_COUNT_DEFAULT = 8;
-const BOX_TOP = 0.12, BOX_BOTTOM = 0.46, BOX_CENTER_Y = (BOX_TOP + BOX_BOTTOM) / 2, HOME_Y = 0.80;
 const colX = (i, n) => (i + 0.5) / n;
+const ASPECT = '3.5 / 1';
 
 function interpPath(path, time) {
   if (!path || !path.length) return { x: 0, y: 0 };
@@ -30,6 +30,22 @@ function drawChip(ctx, x, y, r) {
   ctx.lineWidth = Math.max(2, r * 0.14); ctx.strokeStyle = '#000'; ctx.stroke();
 }
 
+// px geometry from a canvas width (mirrors the student activity exactly).
+function layoutFor(w, h) {
+  const s = w / BOX_COUNT_DEFAULT;
+  const pad = s * 0.10;
+  const boxY0 = pad;
+  const boxY1 = boxY0 + s;
+  const boxCenterY = boxY0 + s / 2;
+  const chipR = s * 0.34;
+  const homeY = boxY1 + s * 0.30 + chipR;
+  return {
+    s, boxY0, boxY1, boxCenterY, chipR, homeY,
+    boxCenterYNorm: boxCenterY / h,
+    homeYNorm: homeY / h,
+  };
+}
+
 export default function ActivityReplay({ rec }) {
   const boxCount = rec.tile_count || BOX_COUNT_DEFAULT;
   const gestures = useMemo(() => {
@@ -43,6 +59,7 @@ export default function ActivityReplay({ rec }) {
   const [duration, setDuration] = useState(maxT + 600);
   const canvasRef = useRef(null);
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
+  const layoutRef = useRef(null);
   const tickRafRef = useRef(0);
   const tRef = useRef(0);
   const startWallRef = useRef(0);
@@ -56,17 +73,21 @@ export default function ActivityReplay({ rec }) {
     sizeRef.current = { w, h, dpr };
     canvas.width = w * dpr; canvas.height = h * dpr;
     canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    layoutRef.current = layoutFor(w, h);
     draw();
   }
 
   function chipStateAt(time) {
+    const L = layoutRef.current;
     const placed = Array(boxCount).fill(false);
-    const pos = Array.from({ length: boxCount }, (_, i) => ({ x: colX(i, boxCount), y: HOME_Y, moving: false }));
+    const boxCY = L ? L.boxCenterYNorm : 0.2625;
+    const homeYn = L ? L.homeYNorm : 0.761;
+    const pos = Array.from({ length: boxCount }, (_, i) => ({ x: colX(i, boxCount), y: homeYn, moving: false }));
     for (const g of gestures) {
       if (time < g.t0) break;
       if (time >= g.t1) {
         placed[g.chip] = !!g.placedAfter;
-        pos[g.chip] = { x: colX(g.chip, boxCount), y: g.placedAfter ? BOX_CENTER_Y : HOME_Y, moving: false };
+        pos[g.chip] = { x: colX(g.chip, boxCount), y: g.placedAfter ? boxCY : homeYn, moving: false };
       } else {
         const pt = interpPath(g.path, time);
         pos[g.chip] = { x: pt.x, y: pt.y, moving: true };
@@ -79,16 +100,17 @@ export default function ActivityReplay({ rec }) {
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const { w, h, dpr } = sizeRef.current;
-    if (!w || !h) return;
+    const L = layoutRef.current;
+    if (!w || !h || !L) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const bw = w / boxCount;
-    ctx.lineWidth = Math.max(3, w * 0.006);
+    ctx.lineWidth = Math.max(2, L.s * 0.05);
     ctx.strokeStyle = '#000';
-    for (let i = 0; i < boxCount; i++) {
-      ctx.strokeRect(i * bw + 2, BOX_TOP * h, bw - 4, (BOX_BOTTOM - BOX_TOP) * h);
+    ctx.strokeRect(0, L.boxY0, L.s * boxCount, L.s);
+    for (let i = 1; i < boxCount; i++) {
+      const lx = i * L.s;
+      ctx.beginPath(); ctx.moveTo(lx, L.boxY0); ctx.lineTo(lx, L.boxY1); ctx.stroke();
     }
-    const chipR = bw * 0.34;
     let state;
     if (hasTimeline) {
       state = chipStateAt(tRef.current);
@@ -96,12 +118,12 @@ export default function ActivityReplay({ rec }) {
       const pc = rec.placed_count || 0;
       state = {
         placed: Array.from({ length: boxCount }, (_, i) => i < pc),
-        pos: Array.from({ length: boxCount }, (_, i) => ({ x: colX(i, boxCount), y: i < pc ? BOX_CENTER_Y : HOME_Y, moving: false })),
+        pos: Array.from({ length: boxCount }, (_, i) => ({ x: colX(i, boxCount), y: i < pc ? L.boxCenterY : L.homeY, moving: false })),
       };
     }
     for (let i = 0; i < boxCount; i++) {
       const s = state.pos[i];
-      drawChip(ctx, s.x * w, s.y * h, chipR);
+      drawChip(ctx, s.x * w, s.y * h, L.chipR);
     }
   }
 
@@ -167,7 +189,7 @@ export default function ActivityReplay({ rec }) {
       {rec.audio_url && (
         <audio ref={audioRef} src={rec.audio_url} onLoadedMetadata={onLoadedMeta} onEnded={() => setPlaying(false)} className="hidden" />
       )}
-      <div className="w-full" style={{ height: 200 }}>
+      <div className="w-full" style={{ aspectRatio: ASPECT }}>
         <canvas ref={canvasRef} className="w-full h-full" style={{ touchAction: 'none' }} />
       </div>
       {hasTimeline ? (

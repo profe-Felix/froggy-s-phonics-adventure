@@ -74,10 +74,10 @@ export default function Activities() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#f7f8fc' }}>
+    <div className="min-h-screen flex flex-col overflow-x-hidden" style={{ background: '#f7f8fc' }}>
       <div className="flex items-center gap-3 p-3 bg-white border-b sticky top-0 z-20">
         <BackButton onClick={() => window.history.back()} />
-        <h1 className="font-bold text-lg flex-1">Actividades · Contar __ en __</h1>
+        <h1 className="font-bold text-lg flex-1 min-w-0">Actividades · Contar __ en __</h1>
         <div className="flex rounded-lg border overflow-hidden">
           <button
             onClick={() => setRole('student')}
@@ -96,12 +96,12 @@ export default function Activities() {
 
       <div className="p-3 bg-white border-b">
         <div className="max-w-4xl mx-auto flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full sm:w-auto">
             <label className="text-xs font-bold text-gray-600">Actividad</label>
             <select
               value={modeKey}
               onChange={(e) => onModeChange(e.target.value)}
-              className="px-3 py-2 rounded-lg border font-bold bg-white min-w-[260px]"
+              className="px-3 py-2 rounded-lg border font-bold bg-white w-full sm:w-auto sm:min-w-[260px]"
             >
               {ACTIVITY_MODES.map((m) => (
                 <option key={m.key} value={m.key}>{m.label}</option>
@@ -110,12 +110,12 @@ export default function Activities() {
             <span className="text-xs text-gray-500 mt-1 max-w-[260px]">{mode?.desc}</span>
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full sm:w-auto">
             <label className="text-xs font-bold text-gray-600">Preset</label>
             <select
               value={presetKey}
               onChange={(e) => onPresetChange(e.target.value)}
-              className="px-3 py-2 rounded-lg border font-bold bg-white min-w-[180px]"
+              className="px-3 py-2 rounded-lg border font-bold bg-white w-full sm:w-auto sm:min-w-[180px]"
             >
               <option value="">— ninguno —</option>
               {presetKeys.map((k) => (
@@ -126,21 +126,21 @@ export default function Activities() {
 
           {role === 'student' && (
             <>
-              <div className="flex flex-col">
+              <div className="flex flex-col w-full sm:w-auto">
                 <label className="text-xs font-bold text-gray-600">Nombre del estudiante</label>
                 <input
                   value={studentName}
                   onChange={(e) => setStudentName(e.target.value)}
-                  className="px-2 py-2 rounded-lg border bg-white min-w-[160px]"
+                  className="px-2 py-2 rounded-lg border bg-white w-full sm:w-auto sm:min-w-[160px]"
                 />
               </div>
-              <div className="flex flex-col flex-1 min-w-[260px]">
+              <div className="flex flex-col flex-1 w-full sm:w-auto sm:min-w-[260px]">
                 <label className="text-xs font-bold text-gray-600">Elementos (uno por línea)</label>
                 <textarea
                   value={itemsText}
                   onChange={(e) => { setItemsText(e.target.value); setPresetKey(''); }}
                   rows={3}
-                  className="px-2 py-2 rounded-lg border bg-white"
+                  className="px-2 py-2 rounded-lg border bg-white w-full"
                   placeholder={modeKey === 'counting_phonemes' ? 'gato\nsol\nflor' : 'El gato come\nYo soy grande'}
                 />
               </div>
