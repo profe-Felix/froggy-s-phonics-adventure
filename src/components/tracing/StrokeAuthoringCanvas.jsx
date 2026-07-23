@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Undo2, Trash2 } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Undo2, Trash2, Image as ImageIcon, Move, X } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
@@ -21,6 +21,22 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const svgRef = useRef(null);
   const currentRef = useRef([]);
   const drawingRef = useRef(false);
+
+  // Traceable background image — a temporary tracing aid, never saved with strokes.
+  const [bg, setBg] = useState(null); // { url, aspect }
+  const [bgScale, setBgScale] = useState(1);
+  const [bgX, setBgX] = useState(0);
+  const [bgY, setBgY] = useState(0);
+  const [bgOpacity, setBgOpacity] = useState(0.4);
+  const [moveMode, setMoveMode] = useState(false);
+  const moveStartRef = useRef(null);
+  const fileRef = useRef(null);
+
+  // Revoke object URLs when the image is replaced/removed/unmounted.
+  useEffect(() => {
+    if (!bg) return;
+    return () => URL.revokeObjectURL(bg.url);
+  }, [bg]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -49,12 +65,24 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (e.button != null && e.button !== 0) return; // left mouse / touch / pen only
     try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
     const pos = getPos(e);
+    if (moveMode && bg) {
+      moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
+      return;
+    }
     currentRef.current = [pos];
     setCurrent([pos]);
     drawingRef.current = true;
   };
 
   const move = (e) => {
+    if (moveMode && moveStartRef.current) {
+      e.preventDefault();
+      const pos = getPos(e);
+      const s = moveStartRef.current;
+      setBgX(s.bgX + (pos.x - s.x));
+      setBgY(s.bgY + (pos.y - s.y));
+      return;
+    }
     if (!drawingRef.current) return;
     e.preventDefault();
     const pos = getPos(e);
@@ -67,11 +95,38 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const up = (e) => {
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
-    finishStroke();
+    moveStartRef.current = null;
+    if (drawingRef.current) finishStroke();
+  };
+
+  const loadImage = (file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      setBg({ url, aspect: img.naturalWidth / img.naturalHeight || 1 });
+      setBgScale(1);
+      setBgX(0);
+      setBgY(0);
+    };
+    img.src = url;
+  };
+
+  const onPickImage = (e) => {
+    loadImage(e.target.files?.[0]);
+    e.target.value = ''; // allow re-picking the same file
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    loadImage(e.dataTransfer.files?.[0]);
   };
 
   const undo = () => setRawStrokes((prev) => prev.slice(0, -1));
   const clear = () => setRawStrokes([]);
+
+  const dispH = CANVAS_H * bgScale;
+  const dispW = dispH * (bg?.aspect || 1);
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -79,13 +134,20 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         ref={svgRef}
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
         className="w-72 max-w-full rounded-2xl border-4 border-indigo-300 bg-white touch-none aspect-[4/5] shadow-sm"
-        style={{ cursor: 'crosshair', touchAction: 'none' }}
+        style={{ cursor: moveMode && bg ? 'move' : 'crosshair', touchAction: 'none' }}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
         onPointerLeave={up}
+        onDrop={onDrop}
+        onDragOver={(e) => e.preventDefault()}
       >
+        {/* Traceable background image */}
+        {bg && (
+          <image href={bg.url} x={bgX} y={bgY} width={dispW} height={dispH} opacity={bgOpacity} />
+        )}
+
         {/* Writing lines: T=0.10, M=0.42, B=0.72, D=0.92 */}
         <line x1="0" y1={0.1 * CANVAS_H} x2={CANVAS_W} y2={0.1 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={0.42 * CANVAS_H} x2={CANVAS_W} y2={0.42 * CANVAS_H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
@@ -115,6 +177,60 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         )}
       </svg>
 
+      {/* Background image toolbar */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+      <div className="flex flex-wrap items-center gap-2 justify-center">
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100"
+        >
+          <ImageIcon className="w-4 h-4" /> {bg ? 'Change image' : 'Add trace image'}
+        </button>
+        {bg && (
+          <>
+            <button
+              onClick={() => setMoveMode((m) => !m)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                moveMode
+                  ? 'bg-violet-600 text-white border-violet-600'
+                  : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'
+              }`}
+            >
+              <Move className="w-4 h-4" /> {moveMode ? 'Dragging image' : 'Move image'}
+            </button>
+            <button
+              onClick={() => { setBg(null); setMoveMode(false); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+            >
+              <X className="w-4 h-4" /> Remove
+            </button>
+          </>
+        )}
+      </div>
+
+      {bg && (
+        <div className="flex flex-col gap-2 w-full max-w-xs px-2">
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="w-14 shrink-0">Scale</span>
+            <input
+              type="range" min="0.2" max="3" step="0.05" value={bgScale}
+              onChange={(e) => setBgScale(parseFloat(e.target.value))}
+              className="flex-1"
+            />
+            <span className="w-8 text-right tabular-nums">{bgScale.toFixed(2)}×</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="w-14 shrink-0">Opacity</span>
+            <input
+              type="range" min="0.1" max="1" step="0.05" value={bgOpacity}
+              onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
+              className="flex-1"
+            />
+            <span className="w-8 text-right tabular-nums">{Math.round(bgOpacity * 100)}%</span>
+          </label>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
           onClick={undo}
@@ -134,6 +250,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
 
       <p className="text-xs text-gray-500 text-center max-w-xs">
         Draw each stroke in order, in the correct direction. Lift between strokes — the number shows the stroke order.
+        {bg && ' Toggle "Move image" to reposition the trace image.'}
       </p>
     </div>
   );
