@@ -210,7 +210,7 @@ export default function ColumnsView({ config, round }) {
 }
 
 function ColumnHeader({ col, config }) {
-  // image header (manualsort with headertype=image) — always shown, even with hideTitle
+  // image header (manualsort image / syllgroups headerimages) — always shown
   if (col.headerImg) {
     return (
       <div className="flex items-center justify-center mb-1 h-24">
@@ -218,8 +218,9 @@ function ColumnHeader({ col, config }) {
       </div>
     );
   }
-  if (config.hideTitle) return <div className="h-10" />;
+  // stress dots respect hideTitle
   if (col.key.startsWith('stress:')) {
+    if (config.hideTitle) return <div className="h-10" />;
     const pos = parseInt(col.display || col.key.slice(7), 10);
     const total = 3;
     const targetIdx = Math.min(total - 1, Math.max(0, total - pos));
@@ -230,6 +231,11 @@ function ColumnHeader({ col, config }) {
         ))}
       </div>
     );
+  }
+  // syllable & count tiles respect hideTitle; everything else (letters,
+  // manualsort text, syllgroups, rowsyllcols groups, phonemes) always shows
+  if (config.hideTitle && (col.key.startsWith('syll:') || col.key.startsWith('count:'))) {
+    return <div className="h-10" />;
   }
   return (
     <div className="flex justify-center mb-2">
