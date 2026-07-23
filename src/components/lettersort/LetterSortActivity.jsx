@@ -70,7 +70,10 @@ export default function LetterSortActivity({ config }) {
     return () => { cancelled = true; };
   }, [config]);
 
-  const round = useMemo(() => buildRound(config, imageFiles || []), [config, imageFiles]);
+  // roundNonce lets "Nuevo" force a fresh round (used by randinit to re-pick a
+  // new random initial-letter category instead of merely reshuffling cards).
+  const [roundNonce, setRoundNonce] = useState(0);
+  const round = useMemo(() => buildRound(config, imageFiles || []), [config, imageFiles, roundNonce]);
 
   if (err) return <div className="p-6 text-amber-700 bg-amber-50 rounded-lg mx-3 mt-3 text-sm">{err}</div>;
   if (!imageFiles && config.mode !== 'generate') {
@@ -84,7 +87,7 @@ export default function LetterSortActivity({ config }) {
 
   const view = (() => {
     switch (round.view) {
-      case 'columns': return <ColumnsView config={config} round={round} />;
+      case 'columns': return <ColumnsView config={config} round={round} onNewRound={() => setRoundNonce((n) => n + 1)} />;
       case 'rows': return <RowView round={round} config={config} />;
       case 'continuum': return <ContinuumView round={round} config={config} />;
       case 'generate': return <GenerateView round={round} config={config} />;

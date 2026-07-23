@@ -15,7 +15,7 @@ function shuffle(arr) {
 
 // Column-group view: a rack of cards + N drop columns. Drag a card into a
 // column, hit "Verificar" to check; correct cards lock, wrong ones bounce back.
-export default function ColumnsView({ config, round }) {
+export default function ColumnsView({ config, round, onNewRound }) {
   const [rack, setRack] = useState([]);
   const [colCards, setColCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -101,6 +101,11 @@ export default function ColumnsView({ config, round }) {
   }
 
   function newRound() {
+    // For "letra inicial al azar" (randinit), Nuevo rebuilds the round so a new
+    // random initial-letter category is chosen. The parent swaps in a new
+    // `round`, which the effect below re-initializes from. Other modes keep the
+    // existing behavior (reshuffle the current cards).
+    if (config.mode === 'randinit' && onNewRound) { onNewRound(); return; }
     setRack(shuffle(round.cards));
     const fresh = {};
     round.columns.forEach((c) => { fresh[c.key] = []; });
