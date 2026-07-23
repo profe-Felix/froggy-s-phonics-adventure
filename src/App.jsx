@@ -21,6 +21,10 @@ import BookReading from './pages/BookReading';
 import StoryBuilder from './pages/StoryBuilder';
 import LetterTracingAuthoring from './pages/LetterTracingAuthoring';
 import TeacherHub from './pages/TeacherHub';
+import Workstations from './pages/Workstations';
+import PowerfulWord from './pages/workstations/PowerfulWord';
+import SyllableTrain from './pages/workstations/SyllableTrain';
+import FluencyTable from './pages/workstations/FluencyTable';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -90,6 +94,10 @@ const AuthenticatedApp = () => {
       <Route path="/StoryBuilder" element={<StoryBuilder />} />
       <Route path="/LetterTracingAuthoring" element={<LetterTracingAuthoring />} />
       <Route path="/TeacherHub" element={<TeacherHub />} />
+      <Route path="/Workstations" element={<Workstations />} />
+      <Route path="/PowerfulWord" element={<PowerfulWord />} />
+      <Route path="/SyllableTrain" element={<SyllableTrain />} />
+      <Route path="/FluencyTable" element={<FluencyTable />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

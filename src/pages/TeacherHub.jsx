@@ -32,6 +32,12 @@ export default function TeacherHub() {
             </h1>
             <div className="flex-1" />
             <Link
+              to="/Workstations"
+              className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-800 font-bold shrink-0 px-2 py-1 rounded-lg hover:bg-indigo-50"
+            >
+              🧪 Workstations
+            </Link>
+            <Link
               to="/"
               className="text-xs sm:text-sm text-slate-500 hover:text-slate-800 font-bold shrink-0 px-2 py-1 rounded-lg hover:bg-slate-100"
             >
