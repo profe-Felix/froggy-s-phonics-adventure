@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
 import { SB_URL } from '@/lib/supabaseStorage';
+import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
+import { buildConfig } from '@/lib/lettersort/rounds';
 
 // Letter Sort ("Clasificador de letras") — a faithful wrapper around the
 // original self-contained reference tool (hosted at /lettersort/index.html).
@@ -212,6 +214,14 @@ export default function LetterSort() {
   const query = useMemo(() => buildQuery(modeKey, vals, remotePreset), [modeKey, vals, remotePreset]);
   const frameSrc = `/lettersort/index.html?${query}`;
 
+  // Normalized config consumed by the native activity. Remote presets use the
+  // preset object; builtins & manual config use the (possibly pre-filled) vals.
+  const internalMode = (MODES.find((m) => m.key === modeKey)?.mode) || 'letters';
+  const config = useMemo(() => {
+    const src = (preset && !isBuiltin && presets[preset]) ? presets[preset] : vals;
+    return buildConfig(modeKey, internalMode, src);
+  }, [modeKey, internalMode, preset, isBuiltin, presets, vals]);
+
   // keep the page URL in sync so refresh / share preserves the current config
   useEffect(() => {
     const role = isTeacher ? 'teacher' : 'student';
@@ -332,7 +342,7 @@ export default function LetterSort() {
         )}
       </div>
 
-      <iframe key={frameSrc} src={frameSrc} title="Clasificador de letras" className="flex-1 w-full border-0" style={{ minHeight: '70vh' }} />
+      <LetterSortActivity config={config} query={query} isTeacher={isTeacher} />
 
       {showQr && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowQr(false)}>
