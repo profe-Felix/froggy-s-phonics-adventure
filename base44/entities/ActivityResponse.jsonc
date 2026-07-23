@@ -6,9 +6,10 @@
       "type": "string",
       "enum": [
         "counting_words",
-        "counting_phonemes"
+        "counting_phonemes",
+        "phoneme_manipulation"
       ],
-      "description": "Which counting activity the response belongs to"
+      "description": "Which activity the response belongs to: counting words, counting phonemes, or phoneme manipulation (clone colored counters)"
     },
     "student_name": {
       "type": "string",
@@ -21,7 +22,7 @@
     },
     "item_text": {
       "type": "string",
-      "description": "The sentence or word the student counted"
+      "description": "The sentence or word the student worked on"
     },
     "item_index": {
       "type": "integer",
@@ -30,7 +31,7 @@
     "tile_count": {
       "type": "integer",
       "default": 0,
-      "description": "Total number of tiles available in the tray for the item"
+      "description": "Total number of boxes/tiles available for the item"
     },
     "placed_count": {
       "type": "integer",
@@ -48,7 +49,7 @@
     },
     "placements_data": {
       "type": "string",
-      "description": "JSON timeline of placement events [{t, type:'place'|'remove', tile, boxIndex}] relative to recording start"
+      "description": "JSON timeline of placement events. Counting modes: array of {t, type:'place'|'remove', tile, boxIndex}. Manipulation mode: object {palette, gestures:[{type:'place'|'move'|'remove', color, fromBox?, toBox?, t0, t1, path}], boxCount, finalPlaced}."
     },
     "audio_url": {
       "type": "string",

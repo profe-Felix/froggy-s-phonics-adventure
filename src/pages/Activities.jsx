@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import BackButton from '@/components/ui/BackButton';
 import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import TeacherReview from '@/components/activities/TeacherReview';
+import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { PRESETS } from '@/lib/activities/presets';
 
@@ -14,6 +15,7 @@ import { PRESETS } from '@/lib/activities/presets';
 const DEFAULT_ITEMS = {
   counting_words: 'El gato come\nYo soy grande\nLa luna brilla en la noche',
   counting_phonemes: 'gato\nsol\nflor\npan\nluna',
+  phoneme_manipulation: 'gato\nsol\nflor\npan\nluna',
 };
 
 function parseItems(text) {
@@ -150,7 +152,9 @@ export default function Activities() {
       </div>
 
       {role === 'student'
-        ? <ElkoninCountActivity config={config} studentName={studentName} />
+        ? (modeKey === 'phoneme_manipulation'
+            ? <PhonemeManipulationActivity config={config} studentName={studentName} />
+            : <ElkoninCountActivity config={config} studentName={studentName} />)
         : <TeacherReview mode={modeKey} />}
     </div>
   );

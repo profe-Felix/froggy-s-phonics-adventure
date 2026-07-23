@@ -50,4 +50,9 @@ export const PRESETS = {
     mode: 'counting_phonemes',
     items: ['chico', 'llave', 'perro', 'guitarra', 'lápiz'],
   },
+  phoneme_manipulation_basic: {
+    label: 'Ejemplo · manipular fonemas (colores)',
+    mode: 'phoneme_manipulation',
+    items: ['gato', 'sol', 'flor', 'pan', 'luna'],
+  },
 };

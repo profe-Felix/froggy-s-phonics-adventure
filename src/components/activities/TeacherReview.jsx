@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { RefreshCw, CheckCircle2, Circle } from 'lucide-react';
 import ActivityReplay from '@/components/activities/ActivityReplay';
+import ManipulationReplay from '@/components/activities/ManipulationReplay';
 
 // Teacher review: lists ActivityResponse records for the current activity mode,
 // plays each student's voice recording, shows their Elkonin placement, and lets
@@ -91,7 +92,9 @@ function ResponseCard({ rec, onReviewed, onNote }) {
 
       <div className="mt-2 text-lg font-bold text-slate-700">{rec.item_text}</div>
 
-      <ActivityReplay rec={rec} />
+      {rec.activity_mode === 'phoneme_manipulation'
+        ? <ManipulationReplay rec={rec} />
+        : <ActivityReplay rec={rec} />}
 
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         <button

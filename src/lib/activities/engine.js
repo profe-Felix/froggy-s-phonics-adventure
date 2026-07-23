@@ -42,6 +42,14 @@ export const ACTIVITY_MODES = [
     count: phonemeCountInWord,
     desc: 'El alumno cuenta cuántos sonidos (fonemas) tiene cada palabra.',
   },
+  {
+    key: 'phoneme_manipulation',
+    label: 'Manipular sonidos (fonemas) — contar y cambiar',
+    what: 'sonidos',
+    in: 'palabra',
+    count: phonemeCountInWord,
+    desc: 'El alumno coloca una ficha por cada sonido y puede cambiar un sonido por otro color (sustitución). Las fichas se clonan al arrastrar.',
+  },
 ];
 
 // Normalize a preset/config object into a ready-to-render activity:
