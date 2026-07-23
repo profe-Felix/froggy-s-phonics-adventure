@@ -5,7 +5,7 @@ import { normalizeMarkers } from './phonics';
 
 // Special parser for ?words= that keeps "u,," together (ü marker)
 export function parseWordsParam(raw) {
-  const s = (raw || '').trim();
+  const s = (Array.isArray(raw) ? raw.join(',') : (raw == null ? '' : String(raw))).trim();
   if (!s) return [];
   const out = [];
   let cur = '';
@@ -27,7 +27,7 @@ export function parseWordsParam(raw) {
 
 // "1-3" or "1,2,3" -> [1,2,3]
 export function parseCountsParam(v) {
-  const raw = (v || '').trim();
+  const raw = (Array.isArray(v) ? v.join(',') : (v == null ? '' : String(v))).trim();
   if (!raw) return [];
   if (/^\d+\s*-\s*\d+$/.test(raw)) {
     const [a, b] = raw.split('-').map((x) => parseInt(x.trim(), 10));
