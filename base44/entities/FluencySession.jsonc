@@ -1,0 +1,33 @@
+{
+  "name": "FluencySession",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Short join code students enter to join the live table"
+    },
+    "preset_id": {
+      "type": "string",
+      "description": "Active preset lesson id (matches a key in the Supabase presets file)"
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Shuffle seed shared by all participants so the table is identical"
+    },
+    "active_row": {
+      "type": "integer",
+      "default": 0,
+      "description": "Row currently being swept"
+    },
+    "sweep_start_at": {
+      "type": "string",
+      "default": "",
+      "description": "ISO timestamp when the current row sweep started; empty when idle. Clients animate locally from this shared time."
+    }
+  },
+  "required": [
+    "code",
+    "preset_id",
+    "seed"
+  ]
+}
