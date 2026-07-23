@@ -117,6 +117,10 @@ export default function ColumnsView({ config, round, onNewRound }) {
 
   const allPlaced = Object.values(colCards).flat().length + rack.length === round.cards.length;
   const nothingPlaced = Object.values(colCards).every((arr) => arr.length === 0);
+  // is/not pair (randinit or single-letter mode): one "contains /L/" column +
+  // one "does not contain /L/" column. Detected by a `not-` sibling key.
+  const isNotPair = round.columns.length === 2 && round.columns.some((c) => c.key.startsWith('not-'));
+  const targetLetter = isNotPair ? (round.columns.find((c) => !c.key.startsWith('not-'))?.key || '') : '';
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -142,7 +146,7 @@ export default function ColumnsView({ config, round, onNewRound }) {
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(140px, 1fr))` }}>
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
-              <ColumnHeader col={col} config={config} />
+              <ColumnHeader col={col} config={config} isNotPair={isNotPair} targetLetter={targetLetter} />
               <Droppable droppableId={col.key} direction="horizontal">
                 {(prov) => (
                   <div
@@ -214,12 +218,23 @@ export default function ColumnsView({ config, round, onNewRound }) {
   );
 }
 
-function ColumnHeader({ col, config }) {
+function ColumnHeader({ col, config, isNotPair, targetLetter }) {
   // image header (manualsort image / syllgroups headerimages) — always shown
   if (col.headerImg) {
     return (
       <div className="flex items-center justify-center mb-1 h-24">
         <img src={col.headerImg} alt={col.label} className="rounded-lg object-contain max-h-24 bg-slate-50" draggable={false} />
+      </div>
+    );
+  }
+  // is/not letter pair: green badge = contains the target sound, red = does not.
+  if (isNotPair && targetLetter) {
+    const isNot = col.key.startsWith('not-');
+    return (
+      <div className="flex justify-center mb-2">
+        <div className={`px-5 py-1.5 rounded-lg font-bold text-lg text-center min-w-[3rem] ${isNot ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+          /{targetLetter}/
+        </div>
       </div>
     );
   }
