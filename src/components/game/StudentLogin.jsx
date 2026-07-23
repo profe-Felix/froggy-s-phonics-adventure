@@ -16,7 +16,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
   useEffect(() => {
     const CANONICAL_CLASSES = ['Felix', 'Valero', 'Campos'];
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(students => {
-      const unique = [...new Set([...CANONICAL_CLASSES, ...students.map(s => s.class_name).filter(Boolean)])].sort();
+      const unique = [...new Set([...CANONICAL_CLASSES, ...students.map(s => s.class_name).filter(Boolean)])];
       setClasses(unique);
       setLoadingClasses(false);
     });
