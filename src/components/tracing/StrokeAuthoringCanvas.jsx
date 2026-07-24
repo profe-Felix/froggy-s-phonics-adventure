@@ -40,6 +40,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   useEffect(() => { bgYRef.current = bgY; }, [bgY]);
 
   const [snapStrength, setSnapStrength] = useState(0.6);
+  const [snapHistory, setSnapHistory] = useState([]);
 
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
@@ -140,7 +141,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   // junction. All moves are purely perpendicular, so nothing shrinks (the stem
   // still reaches the top line) and re-snapping is stable. Strength scales the
   // move; click repeatedly to converge.
-  const snapToLetter = () => {
+  const applySnap = (mode) => {
     if (!bg?.img || !rawStrokes.length) return;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
     const dh = CANVAS_H * bgScale;
@@ -212,7 +213,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         }
         return { x: tx / tl, y: ty / tl };
       });
-      // grow straight runs: consecutive points whose tangent stays within THETA
+      // grow straight runs (constant tangent) and fit each to one centered line
       const segId = new Array(n).fill(-1);
       const segs = [];
       let i = 0;
@@ -224,44 +225,98 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           const a = stroke[i], b = stroke[j - 1];
           const dl = Math.hypot(b.x - a.x, b.y - a.y);
           if (dl >= 1e-6) {
+            const lnx = -(b.y - a.y) / dl, lny = (b.x - a.x) / dl;
+            const perp = (q) => q.x * lnx + q.y * lny;
+            const centers = [];
+            for (let k = i + 1; k < j - 1; k++) centers.push(perp(stroke[k]) + centerOffset(stroke[k], lnx, lny));
+            if (!centers.length) centers.push(perp(a) + centerOffset(a, lnx, lny));
+            centers.sort((u, v) => u - v);
+            const S = centers[Math.floor(centers.length / 2)];
             const id = segs.length;
-            segs.push({
-              start: i, end: j - 1,
-              lnx: -(b.y - a.y) / dl, lny: (b.x - a.x) / dl,
-            });
+            segs.push({ start: i, end: j - 1, lnx, lny, S });
             for (let k = i; k < j; k++) segId[k] = id;
           }
         }
         i = j;
       }
-      return stroke.map((p, idx) => {
+      // per-point targets computed on the ORIGINAL stroke (pre-snap)
+      const curveTarget = stroke.map((p, idx) => {
         const t = tan[idx];
         if (!t) return p;
         const nx = -t.y, ny = t.x;
-        if (segId[idx] < 0) {
-          // curve: center each point on its local ink (perpendicular only)
-          const off = centerOffset(p, nx, ny);
-          const dx = off * nx * snapStrength, dy = off * ny * snapStrength;
-          return { x: cl(p.x + dx, CANVAS_W), y: cl(p.y + dy, CANVAS_H) };
-        }
-        // straight run: fit one line at the centered offset so it can't bow
-        const seg = segs[segId[idx]];
-        const { lnx, lny } = seg;
-        const perp = (q) => q.x * lnx + q.y * lny;
-        // stem center = median ink-center coordinate over the run's middle
-        // (skip the ends, which sit closest to junctions and would bias it)
-        const centers = [];
-        for (let k = seg.start + 1; k < seg.end; k++) {
-          centers.push(perp(stroke[k]) + centerOffset(stroke[k], lnx, lny));
-        }
-        if (!centers.length) centers.push(perp(p) + centerOffset(p, lnx, lny));
-        centers.sort((a, b) => a - b);
-        const S = centers[Math.floor(centers.length / 2)];
-        const shift = (S - perp(p)) * snapStrength;
-        return { x: cl(p.x + shift * lnx, CANVAS_W), y: cl(p.y + shift * lny, CANVAS_H) };
+        const off = centerOffset(p, nx, ny);
+        return { x: cl(p.x + off * nx * snapStrength, CANVAS_W), y: cl(p.y + off * ny * snapStrength, CANVAS_H) };
       });
+      const lineTarget = stroke.map((p, idx) => {
+        if (segId[idx] < 0) return null;
+        const seg = segs[segId[idx]];
+        const perp = (q) => q.x * seg.lnx + q.y * seg.lny;
+        const shift = (seg.S - perp(p)) * snapStrength;
+        return { x: cl(p.x + shift * seg.lnx, CANVAS_W), y: cl(p.y + shift * seg.lny, CANVAS_H) };
+      });
+      const base = stroke.map((p, idx) => (segId[idx] >= 0 && lineTarget[idx]) ? lineTarget[idx] : curveTarget[idx]);
+
+      if (mode === 'ease') {
+        // glide from the curve onto the line over the run's first/last ~2 points,
+        // so the corner where stem meets bowl isn't a hard kink
+        return stroke.map((p, idx) => {
+          if (segId[idx] < 0) return curveTarget[idx];
+          const seg = segs[segId[idx]];
+          const edge = Math.min(idx - seg.start, seg.end - idx);
+          const w = Math.min(1, edge / 2);
+          const lt = lineTarget[idx], ct = curveTarget[idx];
+          return { x: cl(ct.x + (lt.x - ct.x) * w, CANVAS_W), y: cl(ct.y + (lt.y - ct.y) * w, CANVAS_H) };
+        });
+      }
+      if (mode === 'pin') {
+        // move the single curve point next to each run onto the run's line end,
+        // closing the gap where the bowl meets the stem (move capped to avoid jumps)
+        const out = base.slice();
+        const maxMove = 18;
+        const clampMove = (from, to) => {
+          const dx = to.x - from.x, dy = to.y - from.y;
+          const d = Math.hypot(dx, dy);
+          if (d <= maxMove) return to;
+          const f = maxMove / d;
+          return { x: cl(from.x + dx * f, CANVAS_W), y: cl(from.y + dy * f, CANVAS_H) };
+        };
+        for (const seg of segs) {
+          if (seg.start - 1 >= 0 && segId[seg.start - 1] < 0)
+            out[seg.start - 1] = clampMove(stroke[seg.start - 1], lineTarget[seg.start]);
+          if (seg.end + 1 < n && segId[seg.end + 1] < 0)
+            out[seg.end + 1] = clampMove(stroke[seg.end + 1], lineTarget[seg.end]);
+        }
+        return out;
+      }
+      if (mode === 'round') {
+        // lightly average the 2 points on each side of every line/curve boundary
+        const out = base.slice();
+        const smooth = (idx) => {
+          if (idx <= 0 || idx >= n - 1) return;
+          const a = out[idx - 1], b = out[idx], c = out[idx + 1];
+          if (!a || !b || !c) return;
+          out[idx] = { x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3 };
+        };
+        for (const seg of segs) {
+          for (let k = 1; k <= 2; k++) {
+            smooth(seg.start - k); smooth(seg.start + k);
+            smooth(seg.end - k); smooth(seg.end + k);
+          }
+        }
+        return out;
+      }
+      return base;
     });
+    setSnapHistory((h) => [...h, rawStrokes]);
     setRawStrokes(newStrokes);
+  };
+
+  const undoSnap = () => {
+    setSnapHistory((h) => {
+      if (!h.length) return h;
+      setRawStrokes(h[h.length - 1]);
+      return h.slice(0, -1);
+    });
   };
 
   const undo = () => setRawStrokes((prev) => prev.slice(0, -1));
@@ -347,11 +402,32 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
               <X className="w-4 h-4" /> Remove
             </button>
             <button
-              onClick={snapToLetter}
+              onClick={() => applySnap('ease')}
               disabled={!rawStrokes.length}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Wand2 className="w-4 h-4" /> Snap to letter
+              <Wand2 className="w-4 h-4" /> Ease
+            </button>
+            <button
+              onClick={() => applySnap('pin')}
+              disabled={!rawStrokes.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Wand2 className="w-4 h-4" /> Pin
+            </button>
+            <button
+              onClick={() => applySnap('round')}
+              disabled={!rawStrokes.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Wand2 className="w-4 h-4" /> Round
+            </button>
+            <button
+              onClick={undoSnap}
+              disabled={!snapHistory.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Undo2 className="w-4 h-4" /> Undo snap
             </button>
           </>
         )}
@@ -362,7 +438,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           <label className="flex items-center gap-2 text-xs text-slate-600">
             <span className="w-14 shrink-0">Scale</span>
             <input
-              type="range" min="0.2" max="3" step="0.01" value={bgScale}
+              type="range" min="0.2" max="12" step="0.05" value={bgScale}
               onChange={(e) => {
                 const ns = parseFloat(e.target.value);
                 // grow from the bottom-left: keep the bottom edge pinned
