@@ -42,13 +42,12 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [snapStrength, setSnapStrength] = useState(0.6);
   const [snapHistory, setSnapHistory] = useState([]);
 
-  // Writing guide lines — adjustable. Equal-zone spacing (three equal zones
-  // between top and descender, with matching top/bottom margins) so the
-  // descender gets the same room as the x-height.
-  const [lineTop, setLineTop] = useState(0.10);
-  const [lineMid, setLineMid] = useState(0.367);
-  const [lineBase, setLineBase] = useState(0.633);
-  const [lineDesc, setLineDesc] = useState(0.90);
+  // Writing guide lines — fixed at the confirmed positions (10/37/63/90).
+  // Locked so they can't drift; align the trace image to them via Move/Scale.
+  const lineTop = 0.10;
+  const lineMid = 0.367;
+  const lineBase = 0.633;
+  const lineDesc = 0.90;
 
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
@@ -483,26 +482,6 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           </label>
         </div>
       )}
-
-      <div className="flex flex-col gap-2 w-full max-w-xs px-2">
-        <span className="text-xs font-semibold text-slate-600">Guide lines (drag to match your image)</span>
-        {[
-          { label: 'Top', val: lineTop, set: setLineTop },
-          { label: 'Midline', val: lineMid, set: setLineMid },
-          { label: 'Baseline', val: lineBase, set: setLineBase },
-          { label: 'Descender', val: lineDesc, set: setLineDesc },
-        ].map((g) => (
-          <label key={g.label} className="flex items-center gap-2 text-xs text-slate-600">
-            <span className="w-16 shrink-0">{g.label}</span>
-            <input
-              type="range" min="0.02" max="0.98" step="0.01" value={g.val}
-              onChange={(e) => g.set(parseFloat(e.target.value))}
-              className="flex-1"
-            />
-            <span className="w-10 text-right tabular-nums">{Math.round(g.val * 100)}%</span>
-          </label>
-        ))}
-      </div>
 
       <div className="flex gap-2">
         <button
