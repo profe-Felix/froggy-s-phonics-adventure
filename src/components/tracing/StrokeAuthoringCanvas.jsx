@@ -152,24 +152,69 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     };
   };
 
-  // Snap a canvas point to the weighted centroid of ink within a small radius —
-  // the stroke's center on the black line. No ink nearby → leave the point as-is.
-  const snapToInk = (pos) => {
+  // Live auto-center: snap a point onto the CENTER LINE (medial axis) of the
+  // black stroke under it. We center along a slice taken PERPENDICULAR to the
+  // direction of travel, so the point lands on the middle of whichever segment
+  // we're currently on — the arc's center on a curve, the stem's center on a
+  // straight part. A local window stops a crossing stroke (bowl meeting the
+  // stem of an 'a') from dragging the center sideways. With no travel
+  // direction yet (first point of a stroke) we fall back to a radial centroid
+  // just to get onto the ink.
+  const snapToInk = (pos, prev) => {
     const m = inkMapRef.current;
     if (!m) return pos;
-    const R = 22;
-    const xi = Math.round(pos.x), yi = Math.round(pos.y);
-    const x0 = Math.max(0, xi - R), x1 = Math.min(m.W - 1, xi + R);
-    const y0 = Math.max(0, yi - R), y1 = Math.min(m.H - 1, yi + R);
-    let sw = 0, sx = 0, sy = 0;
-    for (let y = y0; y <= y1; y++) {
-      const row = y * m.W;
-      for (let x = x0; x <= x1; x++) {
-        const w = m.data[row + x];
+    const inkW = (x, y) => {
+      const xi = Math.round(x), yi = Math.round(y);
+      if (xi < 0 || yi < 0 || xi >= m.W || yi >= m.H) return 0;
+      return m.data[yi * m.W + xi];
+    };
+    // tangent from recent movement (last point → cursor), zero-vector → none yet
+    let nx, ny;
+    if (prev) {
+      const dx = pos.x - prev.x, dy = pos.y - prev.y;
+      const dl = Math.hypot(dx, dy);
+      if (dl > 1e-3) { nx = -dy / dl; ny = dx / dl; } // perpendicular to travel
+    }
+    if (nx === undefined) {
+      // no direction yet → radial centroid just to get onto the line
+      const R = 22, xi = Math.round(pos.x), yi = Math.round(pos.y);
+      const x0 = Math.max(0, xi - R), x1 = Math.min(m.W - 1, xi + R);
+      const y0 = Math.max(0, yi - R), y1 = Math.min(m.H - 1, yi + R);
+      let sw = 0, sx = 0, sy = 0;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const w = m.data[y * m.W + x];
         if (w > 0) { sw += w; sx += x * w; sy += y * w; }
       }
+      return sw === 0 ? pos : { x: sx / sw, y: sy / sw };
     }
-    return sw === 0 ? pos : { x: sx / sw, y: sy / sw };
+    // scan perpendicular to travel, collect contiguous ink runs
+    const L = 26, LOCAL = 12, MAX_PULL = 20;
+    const runs = [];
+    let cur = null;
+    for (let t = -L; t <= L; t++) {
+      const w = inkW(pos.x + t * nx, pos.y + t * ny);
+      if (w > 0) {
+        if (!cur) cur = { start: t, end: t, sw: 0, st: 0 };
+        cur.end = t; cur.sw += w; cur.st += t * w;
+      } else if (cur) { runs.push(cur); cur = null; }
+    }
+    if (cur) runs.push(cur);
+    if (!runs.length) return pos;
+    // choose the run closest to the point (the one containing it is best)
+    let chosen = runs[0], bestD = Infinity;
+    for (const r of runs) {
+      const d = r.start <= 0 && r.end >= 0 ? 0 : (r.end < 0 ? -r.end : r.start);
+      if (d < bestD) { bestD = d; chosen = r; }
+    }
+    // re-center within a local window so a joined stroke can't pull sideways
+    const lo = Math.max(chosen.start, -LOCAL), hi = Math.min(chosen.end, LOCAL);
+    let sw = 0, st = 0;
+    for (let t = lo; t <= hi; t++) {
+      const w = inkW(pos.x + t * nx, pos.y + t * ny);
+      if (w > 0) { sw += w; st += t * w; }
+    }
+    const off = Math.max(-MAX_PULL, Math.min(MAX_PULL, sw > 0 ? st / sw : chosen.st / chosen.sw));
+    return { x: pos.x + off * nx, y: pos.y + off * ny };
   };
 
   const finishStroke = () => {
@@ -252,8 +297,8 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       setCurrent(currentRef.current);
       return;
     }
-    const p = autoCenter ? snapToInk(pos) : pos;
     const last = currentRef.current[currentRef.current.length - 1];
+    const p = autoCenter ? snapToInk(pos, last) : pos;
     if (last && Math.hypot(p.x - last.x, p.y - last.y) < 2) return;
     currentRef.current = [...currentRef.current, p];
     setCurrent(currentRef.current);
