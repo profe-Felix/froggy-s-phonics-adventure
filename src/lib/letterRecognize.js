@@ -261,7 +261,7 @@ function classMismatch(a, b) {
 const FAMILIES = {
   a: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, b: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: true, hz: false },
   c: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: false }, d: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false },
-  e: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: false }, f: { v: true, xs: true, lc: false, h: 0, th: true, d: false, cl: false, hz: false },
+  e: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: true }, f: { v: true, xs: true, lc: false, h: 0, th: true, d: false, cl: false, hz: false },
   g: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, h: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
   i: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false }, j: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
   k: { v: true, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false }, l: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
@@ -271,7 +271,7 @@ const FAMILIES = {
   s: { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false }, t: { v: true, xs: true, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
   u: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false }, v: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false },
   w: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false }, x: { v: false, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false },
-  y: { v: false, xs: false, lc: false, h: -1, th: false, d: false, cl: false, hz: false }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true, cl: false, hz: true },
+  y: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true, cl: false, hz: true },
 };
 const CROSSING_PENALTY = 1.5;
 const VERTICAL_PENALTY = 1.0;
@@ -477,19 +477,25 @@ function countHumps(strokes, letterH, letterW) {
   const sign = endMean >= meanAll ? +1 : -1;
   return Math.max(-4, Math.min(sign * runs, 4));
 }
-// Diagonal detector (segment-run based, STRAIGHTNESS-gated): a run of
-// consecutive ~45° segments totaling >= 0.22·letterH AND low cumulative turn
-// (< 0.6 rad). The straightness gate is the key: a CIRCLE's tangent passes
-// through 45° (so the old run detector fired on o/c/e — a curved a then matched
-// z's diagonal), but a curve TURNS through that zone (~1 rad of sweep), while a
-// TRUE diagonal (z's middle bar, k's arm/leg, v/x's strokes) is straight (~0
-// turn). This is what separates a real diagonal from a curved tangent, so a
-// looped 'a' (no straight diagonal) no longer matches 'z' (straight diagonal).
+// Diagonal detector (segment-run based, NET-turn gated): a run of consecutive
+// ~45° segments totaling >= 0.22·letterH whose NET direction change is small
+// (|endAngle − startAngle| < 0.6 rad). The gate is the key: a CIRCLE's tangent
+// sweeps monotonically through 45° (~1 rad of NET turn), but a TRUE diagonal —
+// even a jittery hand-drawn one (x, z, k, v) — keeps a roughly constant direction
+// (~0 net turn; the jitter cancels out). Using CUMULATIVE |turn| wrongly rejected
+// real jittery diagonals (x read turn≈1.0) while still letting smooth curves
+// through; NET turn accepts jittery straights and rejects smooth curves, so a
+// looped 'a' (no straight diagonal) no longer matches a jittery 'z'/'x'.
 function hasDiagonal(strokes, letterH) {
   const minRun = 0.22 * (letterH || 1);
+  const wrap = (a) => {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+  };
   for (const s of strokes) {
     if (!s || s.length < 2) continue;
-    let runLen = 0, runTurn = 0, prevAng = null;
+    let runLen = 0, startAng = null, endAng = null;
     for (let i = 1; i < s.length; i++) {
       const dx = s[i].x - s[i - 1].x, dy = s[i].y - s[i - 1].y;
       const adx = Math.abs(dx), ady = Math.abs(dy);
@@ -498,14 +504,14 @@ function hasDiagonal(strokes, letterH) {
       if (diag) {
         runLen += seg;
         const ang = Math.atan2(dy, dx);
-        if (prevAng !== null) runTurn += Math.abs(ang - prevAng);
-        prevAng = ang;
+        if (startAng === null) startAng = ang;
+        endAng = ang;
       } else {
-        if (runLen >= minRun && runTurn < 0.6) return true;
-        runLen = 0; runTurn = 0; prevAng = null;
+        if (runLen >= minRun && startAng !== null && Math.abs(wrap(endAng - startAng)) < 0.6) return true;
+        runLen = 0; startAng = null; endAng = null;
       }
     }
-    if (runLen >= minRun && runTurn < 0.6) return true;
+    if (runLen >= minRun && startAng !== null && Math.abs(wrap(endAng - startAng)) < 0.6) return true;
   }
   return false;
 }
