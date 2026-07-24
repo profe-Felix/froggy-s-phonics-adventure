@@ -182,7 +182,7 @@ export function recognize(drawnStrokes, templates) {
   const TALL = 0.7;
   const CLASS_PENALTY = 0.8;
   const results = tdata.map(({ letter, cloud, aspect }) => {
-    if (!cloud.length) return { letter, dist: Infinity, confidence: 0 };
+    if (!cloud.length) return { letter, dist: Infinity, confidence: 0, mismatch: 1 };
     const crossClass = (drawn.aspect < TALL) !== (aspect < TALL);
     const inkMismatch = coverageMismatch(drawn.cloud, cloud);
     const d =
@@ -190,22 +190,19 @@ export function recognize(drawnStrokes, templates) {
       W_ASP * Math.abs(drawn.aspect - aspect) +
       (crossClass ? CLASS_PENALTY : 0) +
       UNCOVERED_WEIGHT * inkMismatch;
-    return { letter, dist: d, confidence: 0 };
+    return { letter, dist: d, confidence: 0, mismatch: inkMismatch };
   });
   results.sort((a, b) => a.dist - b.dist);
-  // Certainty is highest for the best match and falls off for worse ones. We
-  // normalize distance across the field: the winner (lowest dist) is 100%, the
-  // worst is 0%, and the rest scale linearly between. This is scale-invariant, so
-  // the coverage penalty's inflated absolute distance can't make a correct letter
-  // read as 0% — and a poor match can never read as 100%.
-  const finite = results.filter((r) => isFinite(r.dist));
-  const bestD = finite.length ? finite[0].dist : 0;
-  let worstD = bestD;
-  for (const r of finite) if (r.dist > worstD) worstD = r.dist;
-  const span = worstD - bestD || 1;
+  // Certainty reflects how cleanly a template accounts for the drawn ink — its
+  // coverage mismatch (0 = no extra/missing ink). This is scale-invariant (coverage
+  // is already normalized 0–1), so the coverage penalty's inflated absolute distance
+  // can't zero out a correct match, and a winner that only wins because the right
+  // template is missing reads as low certainty instead of a false 100%. Each letter's
+  // bar is its own coverage quality, so wrong-but-won guesses no longer all show 100%.
+  const MISMATCH_BAD = 0.35; // coverage mismatch at/above this => 0% certainty
   for (const r of results) {
     if (!isFinite(r.dist)) { r.confidence = 0; continue; }
-    r.confidence = Math.max(0, Math.min(100, Math.round(100 * (1 - (r.dist - bestD) / span))));
+    r.confidence = Math.max(0, Math.min(100, Math.round(100 * (1 - r.mismatch / MISMATCH_BAD))));
   }
   return results;
 }
