@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2 } from 'lucide-react';
-import { CANVAS_W, CANVAS_H, smoothPoints, smoothAndNormalize, pointAtLength } from './strokeMath';
+import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
@@ -69,12 +69,10 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     if (currentRef.current.length > 1) {
-      // Normalize at commit time so the stored (and displayed) stroke IS the
-      // saved form — reload then shows the exact same pixels, no re-smoothing.
-      const px = smoothAndNormalize(currentRef.current).map((p) => ({
-        x: p.x * CANVAS_W,
-        y: p.y * CANVAS_H,
-      }));
+      // Gentle de-jitter at commit (2 passes, no resampling). The in-progress
+      // trail is rendered with this same smoothing, so lift has no visible
+      // snap, and — since saving is a pure scale — reload shows identical pixels.
+      const px = smoothPoints(currentRef.current, 2);
       setRawStrokes((prev) => [...prev, px]);
     }
     currentRef.current = [];
@@ -368,7 +366,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
 
         {/* Smoothed strokes with direction arrows */}
         {rawStrokes.map((s, i) => {
-          const sm = smoothPoints(s, 3);
+          const sm = s; // committed strokes are already smoothed at commit — render as-is
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           return (
             <g key={i}>
@@ -383,9 +381,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           );
         })}
 
-        {/* Current in-progress stroke (raw) */}
+        {/* Current in-progress stroke — shown with the same smoothing used at commit, so lift has no snap */}
         {current.length > 1 && (
-          <path d={pathD(current)} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD(smoothPoints(current, 2))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         )}
       </svg>
 
