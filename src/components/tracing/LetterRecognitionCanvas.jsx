@@ -151,10 +151,10 @@ export default function LetterRecognitionCanvas({ templates }) {
       const segments = groups.map((g) => {
         const ranked = recognize(g, templates);
         const letter = ranked[0] ? ranked[0].letter : '?';
-        const tmpl = letter !== '?' ? templates.find((t) => t.letter === letter) : null;
-        // green only when the drawn strokes follow the saved template's correct
-        // stroke pathway; amber when the shape is recognized but the pathway is wrong
-        const pathway = tmpl ? pathwayMatch(g, tmpl) : false;
+        // A letter may have several saved templates (different writing styles).
+        // The pathway is correct if the drawn strokes match ANY of them.
+        const sameLetter = letter !== '?' ? templates.filter((t) => t.letter === letter) : [];
+        const pathway = sameLetter.some((t) => pathwayMatch(g, t));
         return {
           letter,
           confidence: ranked[0] ? ranked[0].confidence : 0,
