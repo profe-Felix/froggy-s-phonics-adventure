@@ -47,25 +47,28 @@ function clusterByTouch(strokes, touchPx) {
   };
   const xOverlap = (i, j) => Math.min(bb[i].maxX, bb[j].maxX) - Math.max(bb[i].minX, bb[j].minX);
   const cxOf = (i) => (bb[i].minX + bb[i].maxX) / 2;
+  const cyOf = (i) => (bb[i].minY + bb[i].maxY) / 2;
   const wOf = (i) => bb[i].maxX - bb[i].minX;
   const hOf = (i) => bb[i].maxY - bb[i].minY;
-  // A detached mark — the dot of i/j, the tilde of ñ — sits ABOVE the letter it
-  // belongs to and should join it, not stand alone as its own letter. The mark
-  // is the upper stroke and must be small (so a tall 'f' never swallows the 'i'
-  // beside/below it); it joins the stroke directly beneath it when they share a
-  // column (x-overlap, or centers within ~half a letter width — a dot drawn a
-  // bit off-center still merges). Side-by-side letters never qualify because
-  // their y-ranges overlap the same midline, so one is never "above" the other.
+  const isMark = (i) => wOf(i) <= 60 && hOf(i) <= 34; // a dot (i/j) or a tilde (ñ)
+  // A detached mark belongs to the stem in whose column it sits, even when the
+  // stem reaches UP to the mark (a tall 'j' whose top meets its dot) — so the
+  // rule is "mark above the stem's MIDDLE", not "mark above the stem's TOP".
+  // The stem must be clearly taller than the mark (it's a stem, not another
+  // small letter), and they must share a column (x-overlap, or centers within
+  // ~half a letter width — a dot drawn a bit off-center still merges). Side-by-
+  // side letters share a baseline, so neither sits above the other's middle.
+  const markOver = (m, o) =>
+    isMark(m) &&
+    hOf(o) > hOf(m) * 1.5 &&
+    cyOf(m) < cyOf(o) &&
+    (xOverlap(m, o) > 2 || Math.abs(cxOf(m) - cxOf(o)) < 16);
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const iAboveJ = bb[i].maxY <= bb[j].minY + 4; // i sits above j (allow a hair of overlap)
-      const jAboveI = bb[j].maxY <= bb[i].minY + 4;
-      const aligned = xOverlap(i, j) > 2 || Math.abs(cxOf(i) - cxOf(j)) < 16;
-      const upperSmall = iAboveJ ? (wOf(i) <= 60 && hOf(i) <= 34) : jAboveI ? (wOf(j) <= 60 && hOf(j) <= 34) : false;
-      const dotAbove = (iAboveJ || jAboveI) && aligned && upperSmall;
+      const dotAbove = markOver(i, j) || markOver(j, i);
       if (ptDist(i, j) <= touchPx + INK_W || dotAbove) union(i, j);
     }
   }
