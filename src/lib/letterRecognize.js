@@ -312,18 +312,27 @@ function shapeDistance(drawn, dBox, tmpl) {
   const aligned = alignTo(drawn, dBox, tBox);
   const dCloud = cloudOf(aligned);
   const tCloud = cloudOf(tmpl);
-  // The shape test is ORDER- and STROKE-COUNT-AGNOSTIC by design: it answers
-  // "which letter does this LOOK like?" A letter drawn the wrong way — wrong
-  // stroke order, or the WRONG NUMBER OF STROKES (a 'p' drawn as two strokes
-  // against a one-stroke 'p' template, a 't' whose crossbar was drawn first, a
-  // letter whose two taught strokes were merged into one) — still LOOKS like
-  // the right letter, and the shape test must be free to say so. So the
-  // stroke-count penalty is NOT applied here; only the geometric height guard
-  // (ascender/descender) stays, because a short outline genuinely is not a tall
-  // letter. The directional DTW path keeps the stroke-count penalty — that path
-  // rewards the TAUGHT pathway, where stroke count is a real cue; the shape path
-  // is the "looks the same but written incorrectly" rescue, where it is not.
+  // The shape test is ORDER-agnostic and answers "which letter does this LOOK
+  // like?" — so a letter drawn in the wrong order, or split into the wrong
+  // NUMBER of pieces, still matches. But "wrong number of pieces" is not the
+  // same both ways:
+  //   - EXTRA strokes (drawing has MORE strokes than the template) do NOT change
+  //     the outline — a 'p' drawn as two strokes is the same silhouette as the
+  //     one-stroke 'p' template, just drawn in two pieces. Not penalized.
+  //   - MISSING strokes (drawing has FEWER strokes than the template) DO mean a
+  //     feature is absent — a 1-stroke vertical 'l' is missing the 't' crossbar,
+  //     so it must not shape-match 't'. The crossbar sits ON the stem, so pure
+  //     Chamfer barely notices it is gone; without this guard a plain vertical
+  //     reads as 't'. Penalized.
+  // So the stroke-count penalty here is ASYMMETRIC: only when the drawing is
+  // missing strokes the template has. The directional DTW path keeps the
+  // symmetric penalty — it rewards the taught pathway, where any count
+  // difference is a different pathway; the shape path is the "looks the same
+  // but written incorrectly" rescue, lenient about extra pieces, strict about
+  // missing features.
   let dist = chamfer(dCloud, tCloud);
+  const missing = Math.max(0, tmpl.length - drawn.length);
+  dist += STROKE_COUNT_PENALTY * missing;
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   return dist;
 }
