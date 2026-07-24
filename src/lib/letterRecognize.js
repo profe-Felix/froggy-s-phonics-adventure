@@ -136,6 +136,16 @@ function uncoveredFraction(drawnCloud, tmplCloud) {
   return uncovered / drawnCloud.length;
 }
 
+// Mutual coverage mismatch: the worse of "drawn ink the template lacks" (extraInk)
+// and "template ink the drawing lacks" (missingInk). A closed-bowl 'a' template has a
+// vertical stem an open 'e' never draws → missingInk is high → 'a' is rejected for an
+// 'e'. Symmetric so it also catches the reverse (a template simpler than the drawn
+// shape). Using the max (not the average) keeps a single small gap in an otherwise
+// good match from double-counting.
+function coverageMismatch(drawnCloud, tmplCloud) {
+  return Math.max(uncoveredFraction(drawnCloud, tmplCloud), uncoveredFraction(tmplCloud, drawnCloud));
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
@@ -166,12 +176,12 @@ export function recognize(drawnStrokes, templates) {
   const results = tdata.map(({ letter, cloud, aspect }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0 };
     const crossClass = (drawn.aspect < TALL) !== (aspect < TALL);
-    const extraInk = uncoveredFraction(drawn.cloud, cloud);
+    const inkMismatch = coverageMismatch(drawn.cloud, cloud);
     const d =
       chamfer(drawn.cloud, cloud) +
       W_ASP * Math.abs(drawn.aspect - aspect) +
       (crossClass ? CLASS_PENALTY : 0) +
-      UNCOVERED_WEIGHT * extraInk;
+      UNCOVERED_WEIGHT * inkMismatch;
     return { letter, dist: d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 110))) };
   });
   results.sort((a, b) => a.dist - b.dist);
