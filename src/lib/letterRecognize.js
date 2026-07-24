@@ -1,16 +1,18 @@
 import { resample, CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 
-const R = 40; // resampled points per stroke — finer sampling sharpens b/d-style distinctions
+const R = 60; // resampled points per stroke
+const W_ASP = 0.35; // weight for the aspect-ratio penalty
 
-// Turn a letter (array of strokes) into one centered, unit-scaled point cloud:
-// each stroke is resampled to R points, then all are flattened. Centering on the
+// Turn a letter (array of strokes) into one centered, unit-scaled point cloud.
+// Each stroke is resampled to R points, then all are flattened. Centering on the
 // centroid + scaling to the max dimension removes position and size, so we compare
-// pure shape. Order/direction within a stroke don't matter — this is a point set.
+// pure shape while preserving aspect ratio (no stretching). Stroke order, stroke
+// direction, and stroke count are all irrelevant — this is a point set.
 function letterToCloud(strokes) {
-  if (!strokes || !strokes.length) return [];
+  if (!strokes || !strokes.length) return { cloud: [], aspect: 1 };
   const per = strokes.map((s) => resample(s, R)).filter((s) => s && s.length);
   const all = per.flat();
-  if (!all.length) return [];
+  if (!all.length) return { cloud: [], aspect: 1 };
   let cx = 0, cy = 0;
   for (const p of all) { cx += p.x; cy += p.y; }
   cx /= all.length; cy /= all.length;
@@ -22,17 +24,15 @@ function letterToCloud(strokes) {
     return { x, y };
   });
   const span = Math.max(maxX - minX, maxY - minY) || 1;
-  return tr.map((p) => ({ x: p.x / span, y: p.y / span }));
+  return {
+    cloud: tr.map((p) => ({ x: p.x / span, y: p.y / span })),
+    aspect: (maxX - minX) / (maxY - minY || 1),
+  };
 }
 
 // Bidirectional Chamfer distance: the average nearest-neighbor distance from each
-// drawn point to the template, AND from each template point back to the drawn
-// shape. The back-direction term is what catches a short 'a' drawn against a tall
-// 'b' template — the 'b' ascender points have nothing nearby in the 'a', so the
-// distance stays high. This is the "it would have hit most of the points" metric:
-// a drawn letter wins when its points actually cover the template's points.
-// Stroke order, stroke direction, and stroke count are all irrelevant here, so a
-// clockwise circle or a bottom-first 'e' matches just as well as the "correct" way.
+// drawn point to the template AND from each template point back to the drawn shape.
+// Pure shape coverage — stroke order/direction/count irrelevant.
 function chamfer(A, B) {
   let sumA = 0;
   for (const a of A) {
@@ -47,7 +47,7 @@ function chamfer(A, B) {
   for (const b of B) {
     let mn = Infinity;
     for (const a of A) {
-      const d = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+      const d = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y);
       if (d < mn) mn = d;
     }
     sumB += mn;
@@ -57,19 +57,26 @@ function chamfer(A, B) {
 
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
+//
+// The score is Chamfer (fine shape coverage) plus an aspect-ratio penalty, so a
+// round-bowl 'a' no longer drifts to a tall 'd'/'b' (and vice-versa). Recognition is
+// only as good as the templates, though: if a saved letter is drawn in a different
+// style from how the student writes it, a neighbor letter can still win — author a
+// template that matches the student's handwriting (a second template per letter is
+// fine; the best match across all saved templates wins).
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawnNorm = drawnStrokes.map((s) =>
     s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))
   );
-  const drawnCloud = letterToCloud(drawnNorm);
-  if (!drawnCloud.length) return [];
-  const tclouds = templates.map((t) => ({ letter: t.letter, cloud: letterToCloud(t.strokes) }));
-  const results = tclouds.map(({ letter, cloud }) => {
+  const drawn = letterToCloud(drawnNorm);
+  if (!drawn.cloud.length) return [];
+  const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes) }));
+  const results = tdata.map(({ letter, cloud, aspect }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0 };
-    const d = chamfer(drawnCloud, cloud);
-    return { letter, d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 180))) };
+    const d = chamfer(drawn.cloud, cloud) + W_ASP * Math.abs(drawn.aspect - aspect);
+    return { letter, dist: d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 110))) };
   });
-  results.sort((a, b) => a.d - b.d);
+  results.sort((a, b) => a.dist - b.dist);
   return results;
 }
