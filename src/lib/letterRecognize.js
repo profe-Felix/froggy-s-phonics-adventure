@@ -217,17 +217,42 @@ function letterDistance(drawn, dBox, tmpl) {
 
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }].
 // Returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
+//
+// RECOGNITION = min(DIRECTIONAL DTW, ORDER-AGNOSTIC SHAPE). A letter drawn the
+// taught way wins on the directional DTW (its cost is ~0.02, so shape never
+// matters). A letter drawn REVERSED or in a weird stroke order fails the
+// directional DTW — but its point cloud is identical to the forward letter's
+// cloud, so the Chamfer shape distance still matches it. One uniform measure
+// thus handles every kind of reversal (point-reversed, order-reversed, partial
+// scramble) without generating reversed template copies. Direction is kept
+// only as a TIEBREAK: when the cloud shape is torn between two candidates, a
+// genuine directional match wins out (the m/u, e/z, t/l pairs differ enough in
+// cloud that this rarely fires, but it's the safety net).
+const SHAPE_TIE_RATIO = 1.5; // a directional match within this multiple of the best shape score overrides a shape-only winner
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawn = normalize(drawnStrokes);
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
-  const results = templates.map((t) => ({
-    letter: t.letter,
-    dist: letterDistance(drawn, dBox, t.strokes),
-    confidence: 0,
-  }));
+  const results = templates.map((t) => {
+    const dir = letterDistance(drawn, dBox, t.strokes);
+    const shape = shapeDistance(drawn, dBox, t.strokes);
+    return { letter: t.letter, dist: Math.min(dir, shape), dir, shape, confidence: 0 };
+  });
   results.sort((a, b) => a.dist - b.dist);
+  // Tiebreak: if the cloud-shape winner (best combined score, won on shape) is
+  // not also the directional winner, and some other template's DIRECTIONAL
+  // distance is within 1.5× of the winner's combined score, that directional
+  // match is the real letter — shape was just torn. Move it to the front.
+  if (results.length > 1 && isFinite(results[0].dist)) {
+    let dirBest = null;
+    for (const r of results) if (isFinite(r.dir) && (!dirBest || r.dir < dirBest.dir)) dirBest = r;
+    if (dirBest && dirBest !== results[0] && dirBest.dir <= SHAPE_TIE_RATIO * (results[0].dist || 1e-4)) {
+      const idx = results.indexOf(dirBest);
+      results.splice(idx, 1);
+      results.unshift(dirBest);
+    }
+  }
   const finite = results.filter((r) => isFinite(r.dist));
   const best = finite.length ? finite[0].dist : 0;
   const second = finite.length > 1 ? finite[1].dist : null;
