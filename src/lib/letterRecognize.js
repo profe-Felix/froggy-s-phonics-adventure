@@ -212,22 +212,54 @@ function classMismatch(a, b) {
   return a.ascender !== b.ascender || a.descender !== b.descender;
 }
 
-// The "family" of a letter = the ENTRY and EXIT directions of its dominant
-// (longest) stroke. The point-cloud shape match alone can't tell confusable
-// descenders/ascenders apart: 'q' vs 'g' are both one-stroke left-up-starting
-// loops with a tail, so their CLOUDS are nearly identical and their ENTRY
-// direction is the same. But 'q's tail ENDS pointing right while 'g's tail
-// ends pointing left (the hook curls back) — the EXIT direction is opposite,
-// and that is what separates them. 'j' vs 'g' is the reverse case: their
-// EXITs may both end leftward, but 'j' ENTERS going down (the stem) while 'g'
-// enters going left (the bowl), so ENTRY separates them. Using BOTH entry and
-// exit families lets direction disambiguate the cases shape cannot, whichever
-// end the distinguishing motion lives at. Strokes shorter than the dot
-// threshold are skipped so an i/j DOT never sets the family — the STEM does.
-// Order-independent: the longest stroke is the family regardless of whether
-// the student drew it first or last.
-const ENTRY_PENALTY = 0.6;
-const EXIT_PENALTY = 0.8; // heavier — it carries the q/g distinction
+// The "family" of a letter = its ORDER-INDEPENDENT structural primitives,
+// defined as a HAND-AUTHORED property of each letter (not measured from the
+// template). This is the user's mental model verbatim: "these should have a
+// vertical line, these should have a curve that goes this way."
+//   hasVertical — the letter HAS a straight vertical stem/stroke: a,b,d,f,h,i,
+//                 j,k,l,p,q,t. 'o'/'c'/'e' (curves, no stem) do NOT. This is what
+//                 separates an 'a' (curve + a straight line down) from an 'o'
+//                 (curve only): the drawn 'a' HAS a vertical line, 'o' does not.
+//   hasCrossing — the letter HAS two strokes that cross: f,k,t,x. 'm' (humps,
+//                 no crossing) does NOT — so a drawn 'm' (no crossing) is
+//                 penalized away from 'x' (crossing).
+// A feature is "active" for a candidate letter ONLY when that letter's saved
+// TEMPLATE actually exhibits the table's value (template-detected == table).
+// If a template is drawn in a style that does NOT show the table's feature
+// (e.g. a closed-loop 'a' template with no straight vertical stem), the feature
+// is NULL for that letter — it neither self-penalizes NOR penalizes others via
+// that feature. This is the fix for the order/decomposition backfire: a student
+// who draws 'a' as open-c + a separate straight stem HAS a vertical line, so
+// 'o' (active vertical=false) is penalized, while 'a' (vertical=NULL, because
+// its template lacks the stem) is NOT penalized — 'a' wins without the template
+// having to be drawn the same way.
+// EXIT direction of the dominant stroke is kept as a light order-tolerant
+// tiebreaker — it is what separates 'q' (tail exits right) from 'g' (tail exits
+// left), which pure structure cannot.
+// leftCurve: the letter HAS a bowl/curve that bulges LEFT (opens right): the
+// round letters a,c,d,e,g,o,q. 'b','p' bulge RIGHT (open left) → false. Stems/
+// arches/diagonals (l,i,t,h,k,m,n,r,s,u,v,w,x,y,z,f,j) → false. This separates
+// 'a' (curve + vertical line) from 'i' (vertical line only) — both have a
+// vertical line, so vertical alone can't split them; the curve is the tell.
+const FAMILIES = {
+  a: { v: true, xs: false, lc: true }, b: { v: true, xs: false, lc: false },
+  c: { v: false, xs: false, lc: true }, d: { v: true, xs: false, lc: true },
+  e: { v: false, xs: false, lc: true }, f: { v: true, xs: true, lc: false },
+  g: { v: false, xs: false, lc: true }, h: { v: true, xs: false, lc: false },
+  i: { v: true, xs: false, lc: false }, j: { v: true, xs: false, lc: false },
+  k: { v: true, xs: true, lc: false }, l: { v: true, xs: false, lc: false },
+  m: { v: false, xs: false, lc: false }, n: { v: false, xs: false, lc: false },
+  o: { v: false, xs: false, lc: true }, p: { v: true, xs: false, lc: false },
+  q: { v: true, xs: false, lc: true }, r: { v: false, xs: false, lc: false },
+  s: { v: false, xs: false, lc: false }, t: { v: true, xs: true, lc: false },
+  u: { v: false, xs: false, lc: false }, v: { v: false, xs: false, lc: false },
+  w: { v: false, xs: false, lc: false }, x: { v: false, xs: true, lc: false },
+  y: { v: false, xs: false, lc: false }, z: { v: false, xs: false, lc: false },
+};
+const CROSSING_PENALTY = 1.5;
+const VERTICAL_PENALTY = 1.0;
+const CURVE_PENALTY = 1.0;
+const EXIT_PENALTY = 0.8;
 const DOT_MIN_LEN = 0.03;
 function strokeArcLen(s) {
   if (!s || s.length < 2) return 0;
@@ -239,22 +271,169 @@ function unit(x, y) {
   const len = Math.hypot(x, y) || 1;
   return { x: x / len, y: y / len };
 }
-function dominantVectors(strokes) {
+function letterBounds(strokes) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, any = false;
+  for (const s of strokes) {
+    if (!s) continue;
+    for (const p of s) {
+      any = true;
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+  }
+  if (!any) return { w: 1, h: 1 };
+  return { w: (maxX - minX) || 1, h: (maxY - minY) || 1 };
+}
+// Interior segment-segment intersection (parametric t,u both strictly in
+// (0.1,0.9)). Counts a TRUE crossing only, not a shared endpoint or a loop
+// closing back on its start.
+function segCross(p1, p2, p3, p4) {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-9) return false;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  const u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / denom;
+  return t > 0.1 && t < 0.9 && u > 0.1 && u < 0.9;
+}
+// A crossing between TWO DIFFERENT strokes (inter-stroke only). This cleanly
+// catches 'x' (two diagonals), 't'/'f' (crossbar vs stem), 'k' (arm vs stem) —
+// all drawn as separate crossing strokes — and never fires on a single closed
+// loop ('a','o','d','g','p','q') whose self-overlap would otherwise read as a
+// crossing.
+function hasCrossing(strokes) {
+  const byStroke = [];
+  for (const s of strokes) {
+    if (!s || s.length < 2) continue;
+    const segs = [];
+    for (let i = 0; i < s.length - 1; i++) segs.push([s[i], s[i + 1]]);
+    byStroke.push(segs);
+  }
+  for (let a = 0; a < byStroke.length; a++) {
+    for (let b = a + 1; b < byStroke.length; b++) {
+      for (const sa of byStroke[a]) {
+        for (const sb of byStroke[b]) {
+          if (segCross(sa[0], sa[1], sb[0], sb[1])) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+// A STRAIGHT vertical stem. Two ways a stem appears:
+//  (A) a standalone stroke that IS a vertical line — chord near-vertical,
+//      tall (>= 0.4·letterH), narrow (x-span <= 0.3·letterW), and straight
+//      (total turning < 0.7 rad). Catches 'l','i','t'-stem, the separate stem
+//      of a 2-stroke 'a', 'p'/'q' stems.
+//  (B) a vertical run at the START or END of a stroke (an embedded stem that
+//      leads into or out of a bowl/arch) — tall (>= 0.6·letterH, taller than
+//      an arch's x-height rise so 'm'/'n' arches don't qualify), narrow,
+//      straight. Catches 'h' (stem then arch), 'd' (bowl then stem), 'b' stem.
+// 'm'/'n' arches rise only ~x-height (< 0.6·letterH) so they do NOT qualify;
+// 'o'/'c'/'e' have no straight vertical run. This is decomposition-independent:
+// whether the 'a' stem is a separate stroke (A) or the tail of one stroke (B),
+// the vertical line is detected.
+function strokeIsVertical(s, letterW, letterH, minRunY) {
+  if (!s || s.length < 2) return false;
+  let turn = 0, prevAng = null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of s) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  for (let i = 0; i < s.length - 1; i++) {
+    const ang = Math.atan2(s[i + 1].y - s[i].y, s[i + 1].x - s[i].x);
+    if (prevAng !== null) turn += Math.abs(ang - prevAng);
+    prevAng = ang;
+  }
+  const ySpan = maxY - minY, xSpan = maxX - minX;
+  const chordDx = Math.abs(s[s.length - 1].x - s[0].x);
+  const chordDy = Math.abs(s[s.length - 1].y - s[0].y);
+  const chordVertical = chordDy > chordDx * 2.5 && chordDy > 0.01;
+  return ySpan >= minRunY && xSpan <= 0.3 * letterW && turn < 0.7 && chordVertical;
+}
+function runIsVertical(s, start, letterW, letterH, minRunY) {
+  // walk a maximal run of near-vertical segments from `start` (forward if
+  // start>=0, backward if start<0), return {ok, ySpan, xSpan, turn}.
+  const fwd = start >= 0;
+  let i = fwd ? start : s.length - 1 + start; // start index
+  if (i < 0 || i >= s.length - 1) return { ok: false };
+  let yMin = s[i].y, yMax = s[i].y, xMin = s[i].x, xMax = s[i].x, turn = 0, prevAng = null, j = i, steps = 0;
+  while (fwd ? (j < s.length - 1) : (j > 0)) {
+    const a = fwd ? s[j] : s[j], b = fwd ? s[j + 1] : s[j - 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (Math.abs(dy) > Math.abs(dx) * 2 && Math.abs(dy) > 0.005) {
+      yMin = Math.min(yMin, b.y); yMax = Math.max(yMax, b.y);
+      xMin = Math.min(xMin, b.x); xMax = Math.max(xMax, b.x);
+      const ang = Math.atan2(dy, dx);
+      if (prevAng !== null) turn += Math.abs(ang - prevAng);
+      prevAng = ang;
+      j = fwd ? j + 1 : j - 1;
+      steps++;
+    } else break;
+  }
+  if (!steps) return { ok: false };
+  return {
+    ok: (yMax - yMin) >= minRunY && (xMax - xMin) <= 0.35 * letterW && turn < 0.6,
+  };
+}
+function hasVertical(strokes, letterW, letterH) {
+  const minRunStandalone = 0.4 * letterH;
+  const minRunEmbedded = 0.6 * letterH;
+  for (const s of strokes) {
+    if (!s || s.length < 2) continue;
+    // (A) standalone vertical stroke
+    if (strokeIsVertical(s, letterW, letterH, minRunStandalone)) return true;
+    // (B) embedded stem at the start or end of the stroke
+    if (runIsVertical(s, 0, letterW, letterH, minRunEmbedded).ok) return true;
+    if (runIsVertical(s, -1, letterW, letterH, minRunEmbedded).ok) return true;
+  }
+  return false;
+}
+// A stroke that BULGES LEFT beyond both its endpoints: its leftmost point is
+// left of BOTH the start and end x by a margin. A bowl/hook opening to the
+// right. Order-independent (start/end symmetric). A straight '\' diagonal is
+// excluded (its leftmost point IS its end); an 'm' arch is excluded (it bulges
+// UP, its leftmost is its start); a closed loop ('o','a','d','p','q') qualifies
+// (its leftmost is well left of where it starts/ends).
+function hasLeftCurve(strokes, letterW) {
+  const margin = 0.1 * letterW;
+  for (const s of strokes) {
+    if (!s || s.length < 3) continue;
+    let minX = Infinity, startX = s[0].x, endX = s[s.length - 1].x;
+    for (const p of s) if (p.x < minX) minX = p.x;
+    if (minX < startX - margin && minX < endX - margin) return true;
+  }
+  return false;
+}
+function familySignature(strokes) {
+  const b = letterBounds(strokes);
+  return { xs: hasCrossing(strokes), v: hasVertical(strokes, b.w, b.h), lc: hasLeftCurve(strokes, b.w) };
+}
+// Active family: for each feature, the value the candidate letter "should"
+// have — but only if its template actually exhibits it. NULL = the template
+// disagrees with the table (non-standard style) → neutralize the feature for
+// this letter (no penalty, no bonus).
+function activeFamily(letter, detected) {
+  const t = FAMILIES[letter] || { v: false, xs: false, lc: false };
+  return {
+    v: detected.v === t.v ? t.v : null,
+    xs: detected.xs === t.xs ? t.xs : null,
+    lc: detected.lc === t.lc ? t.lc : null,
+  };
+}
+function dominantExit(strokes) {
   let best = null, bestLen = 0;
   for (const s of strokes) {
     const len = strokeArcLen(s);
-    if (len < DOT_MIN_LEN) continue; // skip dots
+    if (len < DOT_MIN_LEN) continue;
     if (len > bestLen) { bestLen = len; best = s; }
   }
   if (!best) return null;
   const rs = resample(best, R);
   const k = Math.max(2, Math.round(rs.length * 0.15));
-  const e0 = rs[0], e1 = rs[Math.min(k, rs.length - 1)];
   const x0 = rs[rs.length - 1], x1 = rs[Math.max(0, rs.length - 1 - k)];
-  return {
-    entry: unit(e1.x - e0.x, e1.y - e0.y),
-    exit: unit(x0.x - x1.x, x0.y - x1.y),
-  };
+  return unit(x0.x - x1.x, x0.y - x1.y);
 }
 function dirAgree(a, b) {
   return !a || !b ? null : a.x * b.x + a.y * b.y;
@@ -279,29 +458,42 @@ export function recognize(drawnStrokes, templates) {
   const drawn = letterToCloud(drawnNorm);
   if (!drawn.cloud.length) return [];
   const drawnH = heightClass(drawn.minY, drawn.maxY);
-  const drawnVec = dominantVectors(drawnNorm);
-  const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes), vec: dominantVectors(t.strokes) }));
+  const drawnSig = familySignature(drawnNorm);
+  const drawnExit = dominantExit(drawnNorm);
+  const tdata = templates.map((t) => ({
+    letter: t.letter,
+    ...letterToCloud(t.strokes),
+    sig: familySignature(t.strokes),
+    exit: dominantExit(t.strokes),
+  }));
   // A letter drawn without its ascender/descender must NOT match a template that has
   // one — this penalty dominates shape similarity so a short e never reads as a d.
   const CLASS_PENALTY = 1.5;
-  const results = tdata.map(({ letter, cloud, aspect, minY, maxY, vec }) => {
+  const results = tdata.map(({ letter, cloud, aspect, minY, maxY, sig, exit }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0, mismatch: 1 };
     const crossClass = classMismatch(drawnH, heightClass(minY, maxY));
     const inkMismatch = coverageMismatch(drawn.cloud, cloud);
-    // Family (direction) penalties: entry and exit of the dominant stroke each
-    // contribute when both sides have one AND they point more than ~60° apart
-    // (dot < DIR_THRESH). A letter with no dominant stroke (only dots, or a
-    // degenerate drawing) is skipped so the penalty never fires on noise.
-    const entryAgree = dirAgree(drawnVec && drawnVec.entry, vec && vec.entry);
-    const exitAgree = dirAgree(drawnVec && drawnVec.exit, vec && vec.exit);
-    const dirPenalty =
-      (entryAgree !== null && entryAgree < DIR_THRESH ? ENTRY_PENALTY : 0) +
-      (exitAgree !== null && exitAgree < DIR_THRESH ? EXIT_PENALTY : 0);
+    // Active family for this candidate: each feature is the letter's table value
+    // IF the template exhibits it, else NULL (neutralized). Penalty fires when the
+    // drawing's detected feature disagrees with the active value. So a 2-stroke
+    // 'a' (has a vertical line) beats 'o' (active vertical=false → penalized),
+    // while 'a' itself (vertical=NULL because its closed-loop template lacks the
+    // stem) is never penalized.
+    const active = activeFamily(letter, sig);
+    const structPenalty =
+      (active.v !== null && drawnSig.v !== active.v ? VERTICAL_PENALTY : 0) +
+      (active.xs !== null && drawnSig.xs !== active.xs ? CROSSING_PENALTY : 0) +
+      (active.lc !== null && drawnSig.lc !== active.lc ? CURVE_PENALTY : 0);
+    // Exit (tail) direction: order-tolerant tiebreaker — separates q (tail right)
+    // from g (tail left), which pure structure cannot.
+    const exitAgree = dirAgree(drawnExit, exit);
+    const dirPenalty = exitAgree !== null && exitAgree < DIR_THRESH ? EXIT_PENALTY : 0;
     const d =
       chamfer(drawn.cloud, cloud) +
       W_ASP * Math.abs(drawn.aspect - aspect) +
       (crossClass ? CLASS_PENALTY : 0) +
       UNCOVERED_WEIGHT * inkMismatch +
+      structPenalty +
       dirPenalty;
     return { letter, dist: d, confidence: 0, mismatch: inkMismatch };
   });
