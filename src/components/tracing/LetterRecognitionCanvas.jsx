@@ -128,7 +128,9 @@ export default function LetterRecognitionCanvas({ templates }) {
   const up = (e) => {
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
-    if (drawingRef.current && currentRef.current.length > 1) {
+    if (drawingRef.current && currentRef.current.length >= 1) {
+      // A tap (no movement) is a dot — the dot of i/j. Commit it as a single-
+      // point stroke so the dot-above merge can attach it to the stem below.
       const finished = currentRef.current.slice();
       setStrokes((prev) => [...prev, finished]);
       setPauses((prev) => [...prev, pendingPauseRef.current]);
@@ -199,10 +201,17 @@ export default function LetterRecognitionCanvas({ templates }) {
         <line x1="0" y1={0.90 * CANVAS_H} x2={CANVAS_W} y2={0.90 * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
         {strokes.map((s, i) => (
-          <path key={i} d={pathD(s)} fill="none" stroke="#4f46e5" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+          s.length === 1 ? (
+            <circle key={i} cx={s[0].x} cy={s[0].y} r="4" fill="#4f46e5" />
+          ) : (
+            <path key={i} d={pathD(s)} fill="none" stroke="#4f46e5" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+          )
         ))}
         {current.length > 1 && (
           <path d={pathD(current)} fill="none" stroke="#6366f1" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+        )}
+        {current.length === 1 && (
+          <circle cx={current[0].x} cy={current[0].y} r="4" fill="#6366f1" />
         )}
       </svg>
 
