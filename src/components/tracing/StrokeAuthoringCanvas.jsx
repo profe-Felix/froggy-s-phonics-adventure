@@ -69,11 +69,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     if (currentRef.current.length > 1) {
-      // Gentle de-jitter at commit (2 passes, no resampling). The in-progress
-      // trail is rendered with this same smoothing, so lift has no visible
-      // snap, and — since saving is a pure scale — reload shows identical pixels.
-      const px = smoothPoints(currentRef.current, 2);
-      setRawStrokes((prev) => [...prev, px]);
+      // Store the stroke RAW as drawn. The ink-snap tools (Ease/Pin/Round) work
+      // on these raw points — that's what centers them cleanly on the trace
+      // image. The display smooths for preview only; saving is a pure scale of
+      // these raw points, so reload shows identical pixels.
+      setRawStrokes((prev) => [...prev, currentRef.current.slice()]);
     }
     currentRef.current = [];
     setCurrent([]);
@@ -366,7 +366,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
 
         {/* Smoothed strokes with direction arrows */}
         {rawStrokes.map((s, i) => {
-          const sm = s; // committed strokes are already smoothed at commit — render as-is
+          const sm = smoothPoints(s, 3);
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           return (
             <g key={i}>
@@ -381,9 +381,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           );
         })}
 
-        {/* Current in-progress stroke — shown with the same smoothing used at commit, so lift has no snap */}
+        {/* Current in-progress stroke — shown with the same smoothing as committed strokes, so lift has no snap */}
         {current.length > 1 && (
-          <path d={pathD(smoothPoints(current, 2))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD(smoothPoints(current, 3))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         )}
       </svg>
 
