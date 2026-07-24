@@ -438,7 +438,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           <label className="flex items-center gap-2 text-xs text-slate-600">
             <span className="w-14 shrink-0">Scale</span>
             <input
-              type="range" min="0.2" max="12" step="0.05" value={bgScale}
+              type="range" min="0.2" max="40" step="0.1" value={bgScale}
               onChange={(e) => {
                 const ns = parseFloat(e.target.value);
                 // grow from the bottom-left: keep the bottom edge pinned
