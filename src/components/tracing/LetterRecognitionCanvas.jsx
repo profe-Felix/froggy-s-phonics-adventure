@@ -22,13 +22,15 @@ function clusterByTouch(strokes, touchPx) {
     for (const p of s) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     return { minX, maxX, minY, maxY };
   });
-  // nearest point-to-point distance (sampled every 3rd point for speed)
+  // nearest point-to-point distance — check EVERY point so a genuine touch
+  // is never missed between samples (strokes are filtered to ≥2px spacing,
+  // so sampling every 3rd can skip the exact contact point at low thresholds)
   const ptDist = (i, j) => {
     const a = strokes[i], b = strokes[j];
     let mn = Infinity;
-    for (let pi = 0; pi < a.length; pi += 3) {
+    for (let pi = 0; pi < a.length; pi++) {
       const p = a[pi];
-      for (let qi = 0; qi < b.length; qi += 3) {
+      for (let qi = 0; qi < b.length; qi++) {
         const q = b[qi];
         const d = (p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y);
         if (d < mn) mn = d;
