@@ -49,7 +49,8 @@ export default function LetterRecognitionCanvas({ templates }) {
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     if (drawingRef.current && currentRef.current.length > 1) {
-      setStrokes((prev) => [...prev, currentRef.current.slice()]);
+      const finished = currentRef.current.slice();
+      setStrokes((prev) => [...prev, finished]);
     }
     currentRef.current = [];
     setCurrent([]);
