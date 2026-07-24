@@ -212,18 +212,29 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         }
         return { x: tx / tl, y: ty / tl };
       });
-      // grow straight runs: consecutive points whose tangent stays within THETA
+      // grow straight runs (constant tangent), then extend each onto its line so
+      // the junction points (stem meeting bowl) join the line instead of the curve
       const segId = new Array(n).fill(-1);
       const segs = [];
+      const EXT_TOL = 9; // px: extend while a point still lies near the stem line
       let i = 0;
       while (i < n) {
         if (!tan[i]) { i++; continue; }
         let j = i + 1;
         while (j < n && tan[j] && turn(tan[i], tan[j]) < THETA) j++;
         if (j - i >= MIN_LINE) {
-          const id = segs.length;
-          segs.push({ start: i, end: j - 1 });
-          for (let k = i; k < j; k++) segId[k] = id;
+          const a = stroke[i], b = stroke[j - 1];
+          const dl = Math.hypot(b.x - a.x, b.y - a.y);
+          if (dl >= 1e-6) {
+            const lnx = -(b.y - a.y) / dl, lny = (b.x - a.x) / dl;
+            const pd = (q) => Math.abs((q.x - a.x) * lnx + (q.y - a.y) * lny);
+            let start = i, end = j - 1;
+            while (start - 1 >= 0 && pd(stroke[start - 1]) < EXT_TOL) start--;
+            while (end + 1 < n && pd(stroke[end + 1]) < EXT_TOL) end++;
+            const id = segs.length;
+            segs.push({ start, end, lnx, lny });
+            for (let k = start; k <= end; k++) segId[k] = id;
+          }
         }
         i = j;
       }
@@ -239,13 +250,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         }
         // straight run: fit one line at the centered offset so it can't bow
         const seg = segs[segId[idx]];
-        const sa = stroke[seg.start], sb = stroke[seg.end];
-        const ll = Math.hypot(sb.x - sa.x, sb.y - sa.y);
-        if (ll < 1e-6) {
-          const off = centerOffset(p, nx, ny);
-          return { x: cl(p.x + off * nx * snapStrength, CANVAS_W), y: cl(p.y + off * ny * snapStrength, CANVAS_H) };
-        }
-        const lnx = -(sb.y - sa.y) / ll, lny = (sb.x - sa.x) / ll; // line normal
+        const { lnx, lny } = seg;
         const perp = (q) => q.x * lnx + q.y * lny;
         // stem center = median ink-center coordinate over the run's middle
         // (skip the ends, which sit closest to junctions and would bias it)
