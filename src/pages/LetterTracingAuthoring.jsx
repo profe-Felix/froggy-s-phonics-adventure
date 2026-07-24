@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Copy, Check, Play, RotateCcw, Save } from 'lucide-react';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
-import { smoothAndNormalize } from '@/components/tracing/strokeMath';
+import { smoothAndNormalize, CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 
@@ -23,6 +23,28 @@ export default function LetterTracingAuthoring() {
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
 
   const normalized = useMemo(() => rawStrokes.map((s) => smoothAndNormalize(s)), [rawStrokes]);
+
+  // Load saved waypoints for the selected letter so the preview works without
+  // redrawing. The student tracing game reads from the same LetterWaypoint
+  // entity, so this keeps authoring and student play in sync.
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.LetterWaypoint.filter({ letter: target })
+      .then((records) => {
+        if (cancelled || !records || !records.length) return;
+        const rec = records[0];
+        try {
+          const strokes = JSON.parse(rec.strokes_data);
+          if (Array.isArray(strokes) && strokes.length) {
+            const px = strokes.map((s) => s.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })));
+            setRawStrokes(px);
+            setHint(rec.hint || '');
+          }
+        } catch { /* ignore malformed */ }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [target]);
 
   const snippet = useMemo(() => {
     if (!normalized.length) return '// Draw strokes to generate waypoints';
