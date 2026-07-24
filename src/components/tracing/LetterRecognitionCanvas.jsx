@@ -8,12 +8,17 @@ const pathD = (pts) =>
 
 export default function LetterRecognitionCanvas({ templates }) {
   const [strokes, setStrokes] = useState([]);
+  const [pauses, setPauses] = useState([]); // pause (ms) before each stroke; 0 for the first
   const [current, setCurrent] = useState([]);
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
+  const [pauseMs, setPauseMs] = useState(500);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
   const drawingRef = useRef(false);
+  const pendingPauseRef = useRef(0);
+  const lastUpTimeRef = useRef(0);
+  const committedCountRef = useRef(0);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -28,6 +33,9 @@ export default function LetterRecognitionCanvas({ templates }) {
     e.preventDefault();
     if (e.button != null && e.button !== 0) return;
     try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
+    const now = performance.now();
+    // pause before this stroke = time since the last lift (0 for the very first stroke)
+    pendingPauseRef.current = committedCountRef.current === 0 ? 0 : now - lastUpTimeRef.current;
     const pos = getPos(e);
     currentRef.current = [pos];
     setCurrent([pos]);
@@ -50,25 +58,49 @@ export default function LetterRecognitionCanvas({ templates }) {
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     if (drawingRef.current && currentRef.current.length > 1) {
       const finished = currentRef.current.slice();
+      const pause = pendingPauseRef.current;
       setStrokes((prev) => [...prev, finished]);
+      setPauses((prev) => [...prev, pause]);
+      committedCountRef.current += 1;
     }
     currentRef.current = [];
     setCurrent([]);
     drawingRef.current = false;
+    lastUpTimeRef.current = performance.now();
   };
 
-  const clear = () => { setStrokes([]); setCurrent([]); setResult(null); };
+  const clear = () => {
+    setStrokes([]); setPauses([]); setCurrent([]); setResult(null);
+    committedCountRef.current = 0;
+    lastUpTimeRef.current = 0;
+  };
 
   const guess = () => {
     if (!strokes.length) return;
     setGuessing(true);
     setTimeout(() => {
-      setResult(recognize(strokes, templates));
+      // Segment strokes into letters by the pause before each stroke.
+      // Strokes drawn in quick succession belong to one letter; a pause longer
+      // than the threshold starts a new letter.
+      const groups = [];
+      strokes.forEach((s, i) => {
+        if (i === 0 || pauses[i] > pauseMs) groups.push([s]);
+        else groups[groups.length - 1].push(s);
+      });
+      const segments = groups.map((g) => {
+        const ranked = recognize(g, templates);
+        return {
+          letter: ranked[0] ? ranked[0].letter : '?',
+          confidence: ranked[0] ? ranked[0].confidence : 0,
+          ranked,
+        };
+      });
+      setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
     }, 60);
   };
 
-  const top = result && result.length ? result[0] : null;
+  const single = result && result.segments.length === 1;
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -95,13 +127,24 @@ export default function LetterRecognitionCanvas({ templates }) {
         )}
       </svg>
 
+      {/* Pause threshold for separating letters */}
+      <label className="flex items-center gap-2 text-xs text-slate-600 w-full max-w-xs px-2">
+        <span className="w-28 shrink-0">Pause between letters</span>
+        <input
+          type="range" min="200" max="1500" step="50" value={pauseMs}
+          onChange={(e) => setPauseMs(parseInt(e.target.value, 10))}
+          className="flex-1"
+        />
+        <span className="w-12 text-right tabular-nums">{pauseMs}ms</span>
+      </label>
+
       <div className="flex gap-2">
         <button
           onClick={guess}
           disabled={!strokes.length || guessing}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : 'Guess my letter'}
+          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : 'Guess my letters'}
         </button>
         <button
           onClick={clear}
@@ -112,26 +155,48 @@ export default function LetterRecognitionCanvas({ templates }) {
         </button>
       </div>
 
-      {top && (
+      {result && (
         <div className="w-full max-w-xs text-center">
-          <div className="text-lg font-bold text-slate-700">
-            I think you wrote: <span className="text-2xl text-indigo-600">{top.letter}</span>{' '}
-            <span className="text-sm font-normal text-slate-500">({top.confidence}% sure)</span>
-          </div>
-          <div className="mt-3 space-y-1.5">
-            {result.map((r) => (
-              <div key={r.letter} className="flex items-center gap-2">
-                <span className="w-5 text-sm font-bold text-slate-600">{r.letter}</span>
-                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${r === top ? 'bg-indigo-500' : 'bg-slate-300'}`}
-                    style={{ width: `${r.confidence}%` }}
-                  />
-                </div>
-                <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{r.confidence}%</span>
+          {single ? (
+            <>
+              <div className="text-lg font-bold text-slate-700">
+                I think you wrote: <span className="text-2xl text-indigo-600">{result.segments[0].letter}</span>{' '}
+                <span className="text-sm font-normal text-slate-500">({result.segments[0].confidence}% sure)</span>
               </div>
-            ))}
-          </div>
+              <div className="mt-3 space-y-1.5">
+                {result.segments[0].ranked.map((r) => (
+                  <div key={r.letter} className="flex items-center gap-2">
+                    <span className="w-5 text-sm font-bold text-slate-600">{r.letter}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${r === result.segments[0].ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                        style={{ width: `${r.confidence}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{r.confidence}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-bold text-slate-700">
+                I think you wrote: <span className="text-2xl tracking-wider text-indigo-600">{result.word}</span>
+              </div>
+              <div className="mt-3 space-y-2 text-left">
+                {result.segments.map((seg, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
+                    <span className="w-5 text-lg font-bold text-indigo-600">{seg.letter}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
+                    </div>
+                    <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

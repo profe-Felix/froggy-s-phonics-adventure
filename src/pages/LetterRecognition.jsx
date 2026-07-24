@@ -62,6 +62,7 @@ export default function LetterRecognition() {
             <LetterRecognitionCanvas templates={templates} />
             <p className="text-xs text-slate-400 text-center mt-3">
               Draw with the same number of strokes and direction you used when authoring for the best match.
+              Write a few letters with a brief pause between each and I'll guess the whole word.
             </p>
           </div>
         )}
