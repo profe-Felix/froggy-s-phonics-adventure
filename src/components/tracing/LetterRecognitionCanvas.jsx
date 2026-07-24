@@ -46,14 +46,26 @@ function clusterByTouch(strokes, touchPx) {
     return Math.sqrt(mn);
   };
   const xOverlap = (i, j) => Math.min(bb[i].maxX, bb[j].maxX) - Math.max(bb[i].minX, bb[j].minX);
+  const cxOf = (i) => (bb[i].minX + bb[i].maxX) / 2;
+  const wOf = (i) => bb[i].maxX - bb[i].minX;
+  const hOf = (i) => bb[i].maxY - bb[i].minY;
+  // A detached mark — the dot of i/j, the tilde of ñ — sits ABOVE the letter it
+  // belongs to and should join it, not stand alone as its own letter. The mark
+  // is the upper stroke and must be small (so a tall 'f' never swallows the 'i'
+  // beside/below it); it joins the stroke directly beneath it when they share a
+  // column (x-overlap, or centers within ~half a letter width — a dot drawn a
+  // bit off-center still merges). Side-by-side letters never qualify because
+  // their y-ranges overlap the same midline, so one is never "above" the other.
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      // join when the strokes touch, OR when one is a dot floating directly
-      // above the other (i / j) — same column, separated only vertically
-      const dotAbove = xOverlap(i, j) > 4 && (bb[i].maxY < bb[j].minY || bb[j].maxY < bb[i].minY);
+      const iAboveJ = bb[i].maxY <= bb[j].minY + 4; // i sits above j (allow a hair of overlap)
+      const jAboveI = bb[j].maxY <= bb[i].minY + 4;
+      const aligned = xOverlap(i, j) > 2 || Math.abs(cxOf(i) - cxOf(j)) < 16;
+      const upperSmall = iAboveJ ? (wOf(i) <= 60 && hOf(i) <= 34) : jAboveI ? (wOf(j) <= 60 && hOf(j) <= 34) : false;
+      const dotAbove = (iAboveJ || jAboveI) && aligned && upperSmall;
       if (ptDist(i, j) <= touchPx + INK_W || dotAbove) union(i, j);
     }
   }
