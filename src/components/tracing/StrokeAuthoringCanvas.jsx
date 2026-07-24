@@ -164,7 +164,8 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       return l < 120 ? (120 - l) / 120 : 0;
     };
     const L = 30; // half-width of the perpendicular cross-section sample
-    const LOCAL = 12; // local half-width: ignore joined strokes beyond this
+    const LOCAL = 10; // local half-width: ignore joined strokes beyond this
+    const MAX_PULL = 16; // cap on perpendicular move so a point can't jump to a neighboring stroke
     const cl = (v, hi) => Math.max(0, Math.min(hi, v));
     // offset from p to the ink center along (nx,ny), using the nearest ink run
     // and a local window so an overlapping stroke can't pull the center over
@@ -191,7 +192,8 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         const w = inkW(p.x + t * nx, p.y + t * ny);
         if (w > 0) { sw += w; st += t * w; }
       }
-      return sw > 0 ? st / sw : chosen.st / chosen.sw;
+      const raw = sw > 0 ? st / sw : chosen.st / chosen.sw;
+      return Math.max(-MAX_PULL, Math.min(MAX_PULL, raw));
     };
     const THETA = 10 * Math.PI / 180; // tangent drift allowed inside a straight run
     const MIN_LINE = 5; // points needed to treat a run as a straight line
