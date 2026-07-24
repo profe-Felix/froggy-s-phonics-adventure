@@ -70,17 +70,25 @@ function classMismatch(a, b) {
   return a.ascender !== b.ascender || a.descender !== b.descender;
 }
 
-// Anisotropically map the drawing's bounding box onto the template's bounding
-// box. x and y are scaled independently, so a skinny letter widens to the
-// template's width and a squashed letter stretches to its height. Degenerate
-// (zero-width or zero-height) drawing boxes pass through unsealed so a dot
-// doesn't explode.
+// Anisotropically map the drawing onto the template, scaled around their
+// CENTERS. x and y scale independently so a skinny letter widens and a squashed
+// letter stretches to the template's proportions. BUT the aspect distortion is
+// CAPPED: without a cap, a thin fragment (a 't' crossbar — wide, nearly zero
+// height) gets stretched ~100× in y to fill a tall 'l' template and reads as a
+// confident 'l', which makes the splitter tear 't' into "l + l". Capping at
+// ASP_CAP lets a genuinely squashed/skinny letter (≈1.5× distortion) match while
+// stopping a degenerate line from flipping orientation into a different letter.
+const ASP_CAP = 2.5;
 function alignTo(drawn, dBox, tBox) {
-  const sx = dBox.w > 1e-4 ? tBox.w / dBox.w : 1;
-  const sy = dBox.h > 1e-4 ? tBox.h / dBox.h : 1;
+  let sx = dBox.w > 1e-4 ? tBox.w / dBox.w : 1;
+  let sy = dBox.h > 1e-4 ? tBox.h / dBox.h : 1;
+  if (sy > sx * ASP_CAP) sy = sx * ASP_CAP;
+  else if (sx > sy * ASP_CAP) sx = sy * ASP_CAP;
+  const dcx = dBox.minX + dBox.w / 2, dcy = dBox.minY + dBox.h / 2;
+  const tcx = tBox.minX + tBox.w / 2, tcy = tBox.minY + tBox.h / 2;
   return drawn.map((s) => s.map((p) => ({
-    x: tBox.minX + (p.x - dBox.minX) * sx,
-    y: tBox.minY + (p.y - dBox.minY) * sy,
+    x: tcx + (p.x - dcx) * sx,
+    y: tcy + (p.y - dcy) * sy,
   })));
 }
 
@@ -174,6 +182,60 @@ export function recognize(drawnStrokes, templates) {
     r.confidence = Math.max(0, Math.min(100, Math.round(ratio * 220)));
   }
   return results;
+}
+
+// ORDER-AGNOSTIC SHAPE DISTANCE — the "second test". Merge every stroke into one
+// point cloud, align the whole cloud to the template's cloud (same capped
+// anisotropic fit), and take the bidirectional nearest-neighbour (Chamfer)
+// distance. Stroke order and direction are irrelevant, so this catches a letter
+// that LOOKS right even when it was drawn in a weird order or direction — the
+// case the directional DTW misses. Used by segmentation to decide whether a
+// multi-stroke group is one letter (e.g. 't', 'f', 'k') or two letters that
+// happen to touch (e.g. 'c' + 'l'): the group is one letter if its overall
+// shape confidently matches a template WITH THE SAME STROKE COUNT.
+function cloudOf(strokes) {
+  const all = [];
+  for (const s of strokes) { if (!s || !s.length) continue; const rs = resample(s, R); for (const p of rs) all.push(p); }
+  return all;
+}
+function chamfer(A, B) {
+  if (!A.length || !B.length) return 1;
+  let sa = 0;
+  for (const a of A) { let mn = Infinity; for (const b of B) { const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2; if (d < mn) mn = d; } sa += Math.sqrt(mn); }
+  let sb = 0;
+  for (const b of B) { let mn = Infinity; for (const a of A) { const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2; if (d < mn) mn = d; } sb += Math.sqrt(mn); }
+  return (sa / A.length + sb / B.length) / 2;
+}
+function shapeDistance(drawn, dBox, tmpl) {
+  const tBox = bbox(tmpl);
+  const aligned = alignTo(drawn, dBox, tBox);
+  const dCloud = cloudOf(aligned);
+  const tCloud = cloudOf(tmpl);
+  return chamfer(dCloud, tCloud);
+}
+
+// Does a multi-stroke group clearly form ONE known letter? True when some
+// template with the SAME stroke count matches the group — either directionally
+// (drawn the taught way) OR by overall shape (drawn a weird way but looks
+// right). Same-stroke-count is what keeps 'c'+'l' (2 strokes, but their combined
+// shape is not any 2-stroke letter) splitting while 't' (2 strokes, matches the
+// 2-stroke 't' template) stays together.
+const GROUP_DIR_CONF = 0.20;   // directional DTW below this = clearly this letter
+const GROUP_SHAPE_CONF = 0.13; // shape Chamfer below this = clearly this letter's outline
+export function groupFormsLetter(strokesPx, templates) {
+  const drawn = normalize(strokesPx);
+  if (!drawn.length) return null;
+  const dBox = bbox(drawn);
+  if (dBox.w === 0 && dBox.h === 0) return null;
+  let best = null, bestScore = Infinity;
+  for (const t of templates) {
+    if (!t.strokes || drawn.length !== t.strokes.length) continue;
+    const dd = letterDistance(drawn, dBox, t.strokes);
+    const sd = shapeDistance(drawn, dBox, t.strokes);
+    const score = Math.min(dd, sd);
+    if (score < bestScore) { bestScore = score; best = t.letter; }
+  }
+  return bestScore < Math.max(GROUP_DIR_CONF, GROUP_SHAPE_CONF) ? best : null;
 }
 
 // "Correct pathway" = the drawn strokes follow the template's stroke structure:

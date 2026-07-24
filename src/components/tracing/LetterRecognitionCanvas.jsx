@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize, pathwayMatch } from '@/lib/letterRecognize';
+import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
 
 // Contact grouping is only a HINT. After clustering touching strokes, re-examine
 // every multi-stroke group against recognition: if EACH stroke already reads as
@@ -13,7 +13,6 @@ import { recognize, pathwayMatch } from '@/lib/letterRecognize';
 // confident letters (a "t" crossbar, an "i" dot, an "a" bowl), or the merged
 // letter reads clearly better than any fragment.
 const STANDALONE_DIST = 0.22; // a stroke reading this close (DTW avg per-stroke cost) is a confident standalone letter — DTW scale, not the old Chamfer+feature scale
-const MERGE_FACTOR = 0.85;     // merge unless splitting is clearly better (merged read within 85% of best standalone)
 function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];
@@ -26,8 +25,6 @@ function segmentByRecognition(strokes, touchPx, templates) {
   for (const g of groups) {
     if (g.length < 2 || !templates.length) { out.push(g); continue; }
     if (hasDot(g)) { out.push(g); continue; }
-    const merged = recognize(g, templates);
-    const mergedDist = merged[0] ? merged[0].dist : Infinity;
     let bestIndiv = Infinity, allConfident = true;
     for (const s of g) {
       const r = recognize([s], templates);
@@ -35,9 +32,13 @@ function segmentByRecognition(strokes, touchPx, templates) {
       if (d < bestIndiv) bestIndiv = d;
       if (d >= STANDALONE_DIST) allConfident = false;
     }
-    // Split when every stroke is a confident letter on its own AND merging did
-    // not clearly improve on the best standalone read.
-    if (allConfident && isFinite(bestIndiv) && mergedDist > bestIndiv * MERGE_FACTOR) {
+    // Split only when every stroke is a confident standalone letter on its own
+    // AND the group does NOT clearly form one known multi-stroke letter. The
+    // shape guard (groupFormsLetter) is what keeps a 2-stroke 't'/'f'/'k'
+    // together even when a fragment (crossbar, arm) happens to read as a
+    // confident short letter on its own — the group's overall shape still
+    // matches the 2-stroke template, so it is one letter, not two.
+    if (allConfident && isFinite(bestIndiv) && !groupFormsLetter(g, templates)) {
       for (const s of g) out.push([s]);
     } else {
       out.push(g);
