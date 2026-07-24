@@ -61,8 +61,8 @@ export default function LetterRecognition() {
             </div>
             <LetterRecognitionCanvas templates={templates} />
             <p className="text-xs text-slate-400 text-center mt-3">
-              Draw with the same number of strokes and direction you used when authoring for the best match.
-              Write a few letters with a brief pause between each and I'll guess the whole word.
+              Stroke order within a letter doesn't matter — circle-then-line still matches line-then-circle.
+              Use "Group by spacing" to split letters by horizontal gap (works even without pausing), or "Group by pause" to split by timing.
             </p>
           </div>
         )}

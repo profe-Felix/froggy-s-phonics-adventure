@@ -5,7 +5,7 @@ const R = 24; // resampled points per stroke
 // Turn a letter (array of strokes) into one centered, unit-scaled sequence:
 // each stroke is resampled to R points, then all are concatenated in stroke
 // order. Centering on the centroid + scaling to the max dimension removes
-// position and size, so we compare pure shape (and stroke order).
+// position and size, so we compare pure shape.
 function letterToSequence(strokes) {
   if (!strokes || !strokes.length) return [];
   const per = strokes.map((s) => resample(s, R)).filter((s) => s && s.length);
@@ -48,6 +48,29 @@ function dtw(s, t) {
   return Math.sqrt(prev[m] / Math.max(n, m));
 }
 
+// All orderings of the strokes. Recognition is order-invariant: a student who
+// draws the circle of a 'b' before the line still matches a line-first template,
+// because we take the best DTW over every permutation. Capped at 5 strokes
+// (120 permutations) — beyond that the letter was likely over-merged, so we
+// fall back to the drawn order.
+function permutations(arr) {
+  const n = arr.length;
+  if (n <= 1) return [arr.slice()];
+  if (n > 5) return [arr.slice()];
+  const out = [];
+  const idx = arr.map((_, i) => i);
+  const perm = (k) => {
+    if (k === n) { out.push(idx.map((i) => arr[i])); return; }
+    for (let i = k; i < n; i++) {
+      [idx[k], idx[i]] = [idx[i], idx[k]];
+      perm(k + 1);
+      [idx[k], idx[i]] = [idx[i], idx[k]];
+    }
+  };
+  perm(0);
+  return out;
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 export function recognize(drawnStrokes, templates) {
@@ -55,12 +78,19 @@ export function recognize(drawnStrokes, templates) {
   const drawnNorm = drawnStrokes.map((s) =>
     s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))
   );
-  const drawnSeq = letterToSequence(drawnNorm);
-  if (!drawnSeq.length) return [];
-  const results = templates.map((t) => {
-    const dist = dtw(drawnSeq, letterToSequence(t.strokes));
-    const confidence = Math.max(0, Math.min(100, Math.round(100 - dist * 180)));
-    return { letter: t.letter, dist, confidence };
+  const drawnSeqs = permutations(drawnNorm)
+    .map((p) => letterToSequence(p))
+    .filter((s) => s.length);
+  if (!drawnSeqs.length) return [];
+  const tseqs = templates.map((t) => ({ letter: t.letter, seq: letterToSequence(t.strokes) }));
+  const results = tseqs.map(({ letter, seq }) => {
+    if (!seq.length) return { letter, dist: Infinity, confidence: 0 };
+    let best = Infinity;
+    for (const dseq of drawnSeqs) {
+      const d = dtw(dseq, seq);
+      if (d < best) best = d;
+    }
+    return { letter, dist: best, confidence: Math.max(0, Math.min(100, Math.round(100 - best * 180))) };
   });
   results.sort((a, b) => a.dist - b.dist);
   return results;

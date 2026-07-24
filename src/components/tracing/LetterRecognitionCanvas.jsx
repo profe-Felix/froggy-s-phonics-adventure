@@ -6,12 +6,44 @@ import { recognize } from '@/lib/letterRecognize';
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+// Group strokes into letters by horizontal proximity (single-linkage by x-gap).
+// Strokes whose x-ranges are within `gapPx` of each other belong to one letter;
+// a horizontal gap larger than that starts a new letter. This is order- and
+// timing-independent, so a student who draws the circle of a 'b' before the
+// line — or pauses mid-letter — still gets one letter, while separate letters
+// stay separate. A dot drawn above a stem (i / j) merges with it because their
+// x-ranges overlap even though the dot floats above the baseline.
+function clusterBySpace(strokes, gapPx) {
+  const n = strokes.length;
+  if (!n) return [];
+  const xs = strokes.map((s) => {
+    let minX = Infinity, maxX = -Infinity;
+    for (const p of s) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
+    return { minX, maxX };
+  });
+  const xGap = (i, j) => Math.max(0, Math.max(xs[i].minX, xs[j].minX) - Math.min(xs[i].maxX, xs[j].maxX));
+  const parent = strokes.map((_, i) => i);
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { parent[find(a)] = find(b); };
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++)
+      if (xGap(i, j) <= gapPx) union(i, j);
+  const groups = {};
+  for (let i = 0; i < n; i++) { const r = find(i); (groups[r] = groups[r] || []).push(i); }
+  return Object.values(groups)
+    .map((idx) => ({ idx, cx: idx.reduce((s, i) => s + (xs[i].minX + xs[i].maxX) / 2, 0) / idx.length }))
+    .sort((a, b) => a.cx - b.cx)
+    .map((g) => g.idx.map((i) => strokes[i]));
+}
+
 export default function LetterRecognitionCanvas({ templates }) {
   const [strokes, setStrokes] = useState([]);
-  const [pauses, setPauses] = useState([]); // pause (ms) before each stroke; 0 for the first
+  const [pauses, setPauses] = useState([]);
   const [current, setCurrent] = useState([]);
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
+  const [segMode, setSegMode] = useState('space'); // 'space' | 'pause'
+  const [spaceGap, setSpaceGap] = useState(35); // canvas px
   const [pauseMs, setPauseMs] = useState(500);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
@@ -34,7 +66,6 @@ export default function LetterRecognitionCanvas({ templates }) {
     if (e.button != null && e.button !== 0) return;
     try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
     const now = performance.now();
-    // pause before this stroke = time since the last lift (0 for the very first stroke)
     pendingPauseRef.current = committedCountRef.current === 0 ? 0 : now - lastUpTimeRef.current;
     const pos = getPos(e);
     currentRef.current = [pos];
@@ -58,9 +89,8 @@ export default function LetterRecognitionCanvas({ templates }) {
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     if (drawingRef.current && currentRef.current.length > 1) {
       const finished = currentRef.current.slice();
-      const pause = pendingPauseRef.current;
       setStrokes((prev) => [...prev, finished]);
-      setPauses((prev) => [...prev, pause]);
+      setPauses((prev) => [...prev, pendingPauseRef.current]);
       committedCountRef.current += 1;
     }
     currentRef.current = [];
@@ -79,14 +109,16 @@ export default function LetterRecognitionCanvas({ templates }) {
     if (!strokes.length) return;
     setGuessing(true);
     setTimeout(() => {
-      // Segment strokes into letters by the pause before each stroke.
-      // Strokes drawn in quick succession belong to one letter; a pause longer
-      // than the threshold starts a new letter.
-      const groups = [];
-      strokes.forEach((s, i) => {
-        if (i === 0 || pauses[i] > pauseMs) groups.push([s]);
-        else groups[groups.length - 1].push(s);
-      });
+      let groups;
+      if (segMode === 'space') {
+        groups = clusterBySpace(strokes, spaceGap);
+      } else {
+        groups = [];
+        strokes.forEach((s, i) => {
+          if (i === 0 || pauses[i] > pauseMs) groups.push([s]);
+          else groups[groups.length - 1].push(s);
+        });
+      }
       const segments = groups.map((g) => {
         const ranked = recognize(g, templates);
         return {
@@ -127,15 +159,35 @@ export default function LetterRecognitionCanvas({ templates }) {
         )}
       </svg>
 
-      {/* Pause threshold for separating letters */}
+      {/* Segmentation mode toggle */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
+        <button
+          onClick={() => setSegMode('space')}
+          className={`px-3 py-1 rounded-md transition ${segMode === 'space' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+        >
+          Group by spacing
+        </button>
+        <button
+          onClick={() => setSegMode('pause')}
+          className={`px-3 py-1 rounded-md transition ${segMode === 'pause' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+        >
+          Group by pause
+        </button>
+      </div>
+
+      {/* Mode-specific threshold */}
       <label className="flex items-center gap-2 text-xs text-slate-600 w-full max-w-xs px-2">
-        <span className="w-28 shrink-0">Pause between letters</span>
+        <span className="w-28 shrink-0">{segMode === 'space' ? 'Letter spacing gap' : 'Pause between letters'}</span>
         <input
-          type="range" min="200" max="1500" step="50" value={pauseMs}
-          onChange={(e) => setPauseMs(parseInt(e.target.value, 10))}
+          type="range"
+          min={segMode === 'space' ? 5 : 200}
+          max={segMode === 'space' ? 120 : 1500}
+          step={segMode === 'space' ? 5 : 50}
+          value={segMode === 'space' ? spaceGap : pauseMs}
+          onChange={(e) => (segMode === 'space' ? setSpaceGap(parseInt(e.target.value, 10)) : setPauseMs(parseInt(e.target.value, 10)))}
           className="flex-1"
         />
-        <span className="w-12 text-right tabular-nums">{pauseMs}ms</span>
+        <span className="w-14 text-right tabular-nums">{segMode === 'space' ? `${spaceGap}px` : `${pauseMs}ms`}</span>
       </label>
 
       <div className="flex gap-2">
