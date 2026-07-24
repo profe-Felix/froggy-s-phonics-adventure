@@ -212,16 +212,64 @@ function classMismatch(a, b) {
   return a.ascender !== b.ascender || a.descender !== b.descender;
 }
 
+// The "family" of a letter = the ENTRY and EXIT directions of its dominant
+// (longest) stroke. The point-cloud shape match alone can't tell confusable
+// descenders/ascenders apart: 'q' vs 'g' are both one-stroke left-up-starting
+// loops with a tail, so their CLOUDS are nearly identical and their ENTRY
+// direction is the same. But 'q's tail ENDS pointing right while 'g's tail
+// ends pointing left (the hook curls back) — the EXIT direction is opposite,
+// and that is what separates them. 'j' vs 'g' is the reverse case: their
+// EXITs may both end leftward, but 'j' ENTERS going down (the stem) while 'g'
+// enters going left (the bowl), so ENTRY separates them. Using BOTH entry and
+// exit families lets direction disambiguate the cases shape cannot, whichever
+// end the distinguishing motion lives at. Strokes shorter than the dot
+// threshold are skipped so an i/j DOT never sets the family — the STEM does.
+// Order-independent: the longest stroke is the family regardless of whether
+// the student drew it first or last.
+const ENTRY_PENALTY = 0.6;
+const EXIT_PENALTY = 0.8; // heavier — it carries the q/g distinction
+const DOT_MIN_LEN = 0.03;
+function strokeArcLen(s) {
+  if (!s || s.length < 2) return 0;
+  let len = 0;
+  for (let i = 1; i < s.length; i++) len += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y);
+  return len;
+}
+function unit(x, y) {
+  const len = Math.hypot(x, y) || 1;
+  return { x: x / len, y: y / len };
+}
+function dominantVectors(strokes) {
+  let best = null, bestLen = 0;
+  for (const s of strokes) {
+    const len = strokeArcLen(s);
+    if (len < DOT_MIN_LEN) continue; // skip dots
+    if (len > bestLen) { bestLen = len; best = s; }
+  }
+  if (!best) return null;
+  const rs = resample(best, R);
+  const k = Math.max(2, Math.round(rs.length * 0.15));
+  const e0 = rs[0], e1 = rs[Math.min(k, rs.length - 1)];
+  const x0 = rs[rs.length - 1], x1 = rs[Math.max(0, rs.length - 1 - k)];
+  return {
+    entry: unit(e1.x - e0.x, e1.y - e0.y),
+    exit: unit(x0.x - x1.x, x0.y - x1.y),
+  };
+}
+function dirAgree(a, b) {
+  return !a || !b ? null : a.x * b.x + a.y * b.y;
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
 // The score is dominated by the height-class guard (a tall/descender template is
 // barred from matching a short drawing) and coverage mismatch (extra/missing ink);
-// Chamfer (fine shape) and an aspect-ratio term break near-ties. So a short 'e' (no
-// ascender) can't read as 'd' (d's stem reaches the top line the e lacks), and a 'c'
-// (arc only) can't win against a drawn 'e' that has a crossbar it lacks.
-// Recognition is only as good as the templates: if a saved letter is drawn in a
-// different style from how the student writes it, a neighbor in the SAME height
+// Chamfer (fine shape) and an aspect-ratio term break near-ties; the direction
+// "family" penalty flips same-height-class confusions (q/g, j/g). So a short 'e' (no
+// ascender) can't read as 'd', and a downward 'j' won't read as the leftward bowl
+// of a 'g'. Recognition is only as good as the templates: if a saved letter is drawn
+// in a different style from how the student writes it, a neighbor in the SAME height
 // class can still win — author a template that matches the student's handwriting.
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
@@ -231,19 +279,30 @@ export function recognize(drawnStrokes, templates) {
   const drawn = letterToCloud(drawnNorm);
   if (!drawn.cloud.length) return [];
   const drawnH = heightClass(drawn.minY, drawn.maxY);
-  const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes) }));
+  const drawnVec = dominantVectors(drawnNorm);
+  const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes), vec: dominantVectors(t.strokes) }));
   // A letter drawn without its ascender/descender must NOT match a template that has
   // one — this penalty dominates shape similarity so a short e never reads as a d.
   const CLASS_PENALTY = 1.5;
-  const results = tdata.map(({ letter, cloud, aspect, minY, maxY }) => {
+  const results = tdata.map(({ letter, cloud, aspect, minY, maxY, vec }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0, mismatch: 1 };
     const crossClass = classMismatch(drawnH, heightClass(minY, maxY));
     const inkMismatch = coverageMismatch(drawn.cloud, cloud);
+    // Family (direction) penalties: entry and exit of the dominant stroke each
+    // contribute when both sides have one AND they point more than ~60° apart
+    // (dot < DIR_THRESH). A letter with no dominant stroke (only dots, or a
+    // degenerate drawing) is skipped so the penalty never fires on noise.
+    const entryAgree = dirAgree(drawnVec && drawnVec.entry, vec && vec.entry);
+    const exitAgree = dirAgree(drawnVec && drawnVec.exit, vec && vec.exit);
+    const dirPenalty =
+      (entryAgree !== null && entryAgree < DIR_THRESH ? ENTRY_PENALTY : 0) +
+      (exitAgree !== null && exitAgree < DIR_THRESH ? EXIT_PENALTY : 0);
     const d =
       chamfer(drawn.cloud, cloud) +
       W_ASP * Math.abs(drawn.aspect - aspect) +
       (crossClass ? CLASS_PENALTY : 0) +
-      UNCOVERED_WEIGHT * inkMismatch;
+      UNCOVERED_WEIGHT * inkMismatch +
+      dirPenalty;
     return { letter, dist: d, confidence: 0, mismatch: inkMismatch };
   });
   results.sort((a, b) => a.dist - b.dist);
