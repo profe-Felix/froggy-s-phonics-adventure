@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize } from '@/lib/letterRecognize';
+import { recognize, pathwayMatch } from '@/lib/letterRecognize';
 
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -150,10 +150,16 @@ export default function LetterRecognitionCanvas({ templates }) {
       }
       const segments = groups.map((g) => {
         const ranked = recognize(g, templates);
+        const letter = ranked[0] ? ranked[0].letter : '?';
+        const tmpl = letter !== '?' ? templates.find((t) => t.letter === letter) : null;
+        // green only when the drawn strokes follow the saved template's correct
+        // stroke pathway; amber when the shape is recognized but the pathway is wrong
+        const pathway = tmpl ? pathwayMatch(g, tmpl) : false;
         return {
-          letter: ranked[0] ? ranked[0].letter : '?',
+          letter,
           confidence: ranked[0] ? ranked[0].confidence : 0,
           ranked,
+          pathway,
         };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
@@ -241,8 +247,14 @@ export default function LetterRecognitionCanvas({ templates }) {
           {single ? (
             <>
               <div className="text-lg font-bold text-slate-700">
-                I think you wrote: <span className="text-2xl text-indigo-600">{result.segments[0].letter}</span>{' '}
-                <span className="text-sm font-normal text-slate-500">({result.segments[0].confidence}% sure)</span>
+                I think you wrote:{' '}
+                <span className={`text-2xl ${result.segments[0].pathway ? 'text-green-600' : 'text-amber-500'}`}>
+                  {result.segments[0].letter}
+                </span>{' '}
+                <span className="text-sm font-normal text-slate-500">({result.segments[0].confidence}% sure)</span>{' '}
+                <span className={`text-xs font-bold ${result.segments[0].pathway ? 'text-green-600' : 'text-amber-500'}`}>
+                  {result.segments[0].pathway ? '✓ correct pathway' : '↻ shape only — no full credit'}
+                </span>
               </div>
               <div className="mt-3 space-y-1.5">
                 {result.segments[0].ranked.map((r) => (
@@ -268,7 +280,7 @@ export default function LetterRecognitionCanvas({ templates }) {
                 {result.segments.map((seg, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
-                    <span className="w-5 text-lg font-bold text-indigo-600">{seg.letter}</span>
+                    <span className={`w-5 text-lg font-bold ${seg.pathway ? 'text-green-600' : 'text-amber-500'}`}>{seg.letter}</span>
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
                     </div>

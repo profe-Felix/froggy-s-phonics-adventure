@@ -55,6 +55,62 @@ function chamfer(A, B) {
   return Math.sqrt((sumA / A.length + sumB / B.length) / 2);
 }
 
+// --- Pathway matching (green vs amber) ---
+// "Correct pathway" = the drawn strokes follow the saved template's stroke
+// structure: same number of strokes, each drawn stroke matching the
+// corresponding template stroke in shape and (for open strokes) direction.
+// Stricter than the point-cloud shape match: a 'b' drawn as a circle + a
+// separate vertical line (2 strokes) does NOT match a single-stroke 'b'
+// template even though the point cloud is recognizable → amber, not green.
+
+const SHAPE_THRESH = 0.42; // per-stroke normalized Chamfer above this = different stroke
+const DIR_THRESH = 0.5;     // open-stroke start→end direction dot below this = reversed
+
+function strokeCloud(pts) {
+  if (!pts || pts.length < 2) return { cloud: [], dir: { x: 0, y: 0 }, closed: true };
+  const rs = resample(pts, R);
+  let cx = 0, cy = 0;
+  for (const p of rs) { cx += p.x; cy += p.y; }
+  cx /= rs.length; cy /= rs.length;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const tr = rs.map((p) => {
+    const x = p.x - cx, y = p.y - cy;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+    return { x, y };
+  });
+  const span = Math.max(maxX - minX, maxY - minY) || 1;
+  const start = rs[0], end = rs[rs.length - 1];
+  const dvec = { x: end.x - start.x, y: end.y - start.y };
+  const closed = Math.hypot(dvec.x, dvec.y) < span * 0.25; // start≈end → closed loop
+  const dlen = Math.hypot(dvec.x, dvec.y) || 1;
+  return {
+    cloud: tr.map((p) => ({ x: p.x / span, y: p.y / span })),
+    dir: { x: dvec.x / dlen, y: dvec.y / dlen },
+    closed,
+  };
+}
+
+function strokeMatches(d, t) {
+  const D = strokeCloud(d), T = strokeCloud(t);
+  if (!D.cloud.length || !T.cloud.length) return false;
+  if (chamfer(D.cloud, T.cloud) > SHAPE_THRESH) return false;
+  if (D.closed || T.closed) return true; // closed loop: direction is ambiguous → accept
+  return D.dir.x * T.dir.x + D.dir.y * T.dir.y > DIR_THRESH;
+}
+
+// drawnStrokes: array of strokes in canvas px. template: { letter, strokes(0-1) }.
+// Returns true if the drawn strokes follow the template's correct pathway.
+export function pathwayMatch(drawnStrokes, template) {
+  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
+  const drawn = drawnStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H })));
+  if (drawn.length !== template.strokes.length) return false;
+  for (let i = 0; i < drawn.length; i++) {
+    if (!strokeMatches(drawn[i], template.strokes[i])) return false;
+  }
+  return true;
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //

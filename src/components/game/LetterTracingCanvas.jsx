@@ -335,6 +335,10 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
   const isSuccess = status === 'success';
+  // green = clean correct pathway; amber = completed but rough/weirdly formed
+  // (partial credit) — the game already enforces the correct pathway, so every
+  // completion followed it; accuracy measures how cleanly.
+  const isAmber = isSuccess && accuracy != null && accuracy < 80;
 
   return (
     <div className="flex flex-col items-center gap-3 select-none">
@@ -347,11 +351,19 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         )}
         {status === 'success' && (
           <div className="flex items-center gap-3">
-            <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">
-              🎉 Great job!
+            <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
+              isAmber
+                ? 'bg-amber-100 border-amber-400 text-amber-800'
+                : 'bg-green-100 border-green-400 text-green-800'
+            }`}>
+              {isAmber ? '✏️ Good try!' : '🎉 Great job!'}
             </div>
             {accuracy != null && (
-              <div className="bg-indigo-100 border border-indigo-300 rounded-full px-4 py-1 text-indigo-800 font-bold text-sm">
+              <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
+                isAmber
+                  ? 'bg-amber-100 border-amber-300 text-amber-800'
+                  : 'bg-indigo-100 border-indigo-300 text-indigo-800'
+              }`}>
                 🎯 {accuracy}%
               </div>
             )}
@@ -373,7 +385,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
         className={`w-64 rounded-2xl border-4 touch-none aspect-[4/5] ${
           errorFlash ? 'border-red-400 bg-red-50' :
-          isSuccess ? 'border-green-400 bg-green-50' :
+          isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-white/40 bg-white/10'
         }`}
         style={{ cursor: 'crosshair' }}
