@@ -12,8 +12,8 @@ import { recognize, pathwayMatch } from '@/lib/letterRecognize';
 // "a". A genuine multi-stroke letter still merges: its parts alone are NOT
 // confident letters (a "t" crossbar, an "i" dot, an "a" bowl), or the merged
 // letter reads clearly better than any fragment.
-const STANDALONE_DIST = 0.55; // a stroke reading this close to a template is a confident standalone letter
-const MERGE_FACTOR = 0.75;     // merge only if the merged read is at least this good vs the best standalone
+const STANDALONE_DIST = 0.22; // a stroke reading this close (DTW avg per-stroke cost) is a confident standalone letter — DTW scale, not the old Chamfer+feature scale
+const MERGE_FACTOR = 0.85;     // merge unless splitting is clearly better (merged read within 85% of best standalone)
 function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];

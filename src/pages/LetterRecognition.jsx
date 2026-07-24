@@ -61,7 +61,7 @@ export default function LetterRecognition() {
             </div>
             <LetterRecognitionCanvas templates={templates} />
             <p className="text-xs text-slate-400 text-center mt-3">
-              Stroke order within a letter doesn't matter — circle-then-line still matches line-then-circle.
+              Matching follows stroke directionality: draw each stroke the taught way (same order, same direction). The guess is the saved template your letter distorts the least into — so squashed, skinny, or slightly shifted start/end points still match.
               "Group by touching" joins strokes into a letter only when they actually touch, so a tail that flows from one stroke stays with it even near another letter. "Group by pause" splits by timing instead.
             </p>
           </div>
