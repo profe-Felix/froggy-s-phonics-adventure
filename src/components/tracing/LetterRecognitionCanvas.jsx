@@ -29,6 +29,18 @@ function clusterByTouch(strokes, touchPx) {
     for (const p of s) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     return { minX, maxX, minY, maxY };
   });
+  // x-range of a stroke's UPPER portion only (top 35%). A 'j' stem's full bbox
+  // reaches left across its bottom hook, pulling the bbox center away from the
+  // shaft the dot sits over; aligning to the shaft (the top of the stroke) keeps
+  // the dot with its stem even when the hook is wide, and keeps a neighbor's dot
+  // from joining (a side-by-side dot is never above the shaft's column).
+  const topX = strokes.map((s, i) => {
+    const minY = bb[i].minY, h = (bb[i].maxY - bb[i].minY) || 1;
+    const cutoff = minY + 0.35 * h;
+    let xmin = Infinity, xmax = -Infinity, any = false;
+    for (const p of s) { if (p.y <= cutoff) { any = true; if (p.x < xmin) xmin = p.x; if (p.x > xmax) xmax = p.x; } }
+    return any ? { xmin, xmax, cx: (xmin + xmax) / 2 } : { xmin: bb[i].minX, xmax: bb[i].maxX, cx: (bb[i].minX + bb[i].maxX) / 2 };
+  });
   // nearest point-to-point distance — check EVERY point so a genuine touch
   // is never missed between samples (strokes are filtered to ≥2px spacing,
   // so sampling every 3rd can skip the exact contact point at low thresholds)
@@ -45,7 +57,6 @@ function clusterByTouch(strokes, touchPx) {
     }
     return Math.sqrt(mn);
   };
-  const xOverlap = (i, j) => Math.min(bb[i].maxX, bb[j].maxX) - Math.max(bb[i].minX, bb[j].minX);
   const cxOf = (i) => (bb[i].minX + bb[i].maxX) / 2;
   const cyOf = (i) => (bb[i].minY + bb[i].maxY) / 2;
   const wOf = (i) => bb[i].maxX - bb[i].minX;
@@ -55,14 +66,16 @@ function clusterByTouch(strokes, touchPx) {
   // stem reaches UP to the mark (a tall 'j' whose top meets its dot) — so the
   // rule is "mark above the stem's MIDDLE", not "mark above the stem's TOP".
   // The stem must be clearly taller than the mark (it's a stem, not another
-  // small letter), and they must share a column (x-overlap, or centers within
-  // ~half a letter width — a dot drawn a bit off-center still merges). Side-by-
-  // side letters share a baseline, so neither sits above the other's middle.
-  const markOver = (m, o) =>
-    isMark(m) &&
-    hOf(o) > hOf(m) * 1.5 &&
-    cyOf(m) < cyOf(o) &&
-    (xOverlap(m, o) > 2 || Math.abs(cxOf(m) - cxOf(o)) < 16);
+  // small letter). The mark's center must sit over the stem's SHAFT (the top
+  // portion's x-range, so a wide bottom hook doesn't drag the match away) or
+  // within ~half a letter width of it. Side-by-side letters share a baseline,
+  // so neither sits above the other's middle.
+  const markOver = (m, o) => {
+    if (!isMark(m) || hOf(o) <= hOf(m) * 1.5 || cyOf(m) >= cyOf(o)) return false;
+    const t = topX[o];
+    const mcx = (bb[m].minX + bb[m].maxX) / 2;
+    return (mcx >= t.xmin - 10 && mcx <= t.xmax + 10) || Math.abs(mcx - t.cx) < 16;
+  };
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
