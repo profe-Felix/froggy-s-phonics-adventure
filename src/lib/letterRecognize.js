@@ -241,24 +241,34 @@ function classMismatch(a, b) {
 // arches/diagonals (l,i,t,h,k,m,n,r,s,u,v,w,x,y,z,f,j) → false. This separates
 // 'a' (curve + vertical line) from 'i' (vertical line only) — both have a
 // vertical line, so vertical alone can't split them; the curve is the tell.
+// Families now carry five order-independent primitives:
+//   v  — has a (near-)vertical stem/stroke
+//   xs — has two strokes that cross
+//   lc — has a bowl/curve bulging LEFT (opens right)
+//   h  — number of arches/humps (m=3, n=2, r=1, h=1); 0 otherwise. The cleanest
+//        separator for the arch letters AND for m-vs-x (x has 0 humps), more
+//        reliable than crossing for cursive m whose strokes may touch.
+//   th — has a top hook (the 'f' entry curves left at the top; 't' is straight)
 const FAMILIES = {
-  a: { v: true, xs: false, lc: true }, b: { v: true, xs: false, lc: false },
-  c: { v: false, xs: false, lc: true }, d: { v: true, xs: false, lc: true },
-  e: { v: false, xs: false, lc: true }, f: { v: true, xs: true, lc: false },
-  g: { v: false, xs: false, lc: true }, h: { v: true, xs: false, lc: false },
-  i: { v: true, xs: false, lc: false }, j: { v: true, xs: false, lc: false },
-  k: { v: true, xs: true, lc: false }, l: { v: true, xs: false, lc: false },
-  m: { v: false, xs: false, lc: false }, n: { v: false, xs: false, lc: false },
-  o: { v: false, xs: false, lc: true }, p: { v: true, xs: false, lc: false },
-  q: { v: true, xs: false, lc: true }, r: { v: false, xs: false, lc: false },
-  s: { v: false, xs: false, lc: false }, t: { v: true, xs: true, lc: false },
-  u: { v: false, xs: false, lc: false }, v: { v: false, xs: false, lc: false },
-  w: { v: false, xs: false, lc: false }, x: { v: false, xs: true, lc: false },
-  y: { v: false, xs: false, lc: false }, z: { v: false, xs: false, lc: false },
+  a: { v: true, xs: false, lc: true, h: 0, th: false }, b: { v: true, xs: false, lc: false, h: 0, th: false },
+  c: { v: false, xs: false, lc: true, h: 0, th: false }, d: { v: true, xs: false, lc: true, h: 0, th: false },
+  e: { v: false, xs: false, lc: true, h: 0, th: false }, f: { v: true, xs: true, lc: false, h: 0, th: true },
+  g: { v: false, xs: false, lc: true, h: 0, th: false }, h: { v: true, xs: false, lc: false, h: 1, th: false },
+  i: { v: true, xs: false, lc: false, h: 0, th: false }, j: { v: true, xs: false, lc: false, h: 0, th: false },
+  k: { v: true, xs: true, lc: false, h: 0, th: false }, l: { v: true, xs: false, lc: false, h: 0, th: false },
+  m: { v: false, xs: false, lc: false, h: 3, th: false }, n: { v: false, xs: false, lc: false, h: 2, th: false },
+  o: { v: false, xs: false, lc: true, h: 0, th: false }, p: { v: true, xs: false, lc: false, h: 0, th: false },
+  q: { v: true, xs: false, lc: true, h: 0, th: false }, r: { v: false, xs: false, lc: false, h: 1, th: false },
+  s: { v: false, xs: false, lc: false, h: 0, th: false }, t: { v: true, xs: true, lc: false, h: 0, th: false },
+  u: { v: false, xs: false, lc: false, h: 0, th: false }, v: { v: false, xs: false, lc: false, h: 0, th: false },
+  w: { v: false, xs: false, lc: false, h: 0, th: false }, x: { v: false, xs: true, lc: false, h: 0, th: false },
+  y: { v: false, xs: false, lc: false, h: 0, th: false }, z: { v: false, xs: false, lc: false, h: 0, th: false },
 };
 const CROSSING_PENALTY = 1.5;
 const VERTICAL_PENALTY = 1.0;
 const CURVE_PENALTY = 1.0;
+const HUMPS_UNIT = 1.2;   // penalty per hump of difference — strong enough that n(2) beats m(3) and m beats x(0)
+const TOPHOOK_PENALTY = 1.0;
 const EXIT_PENALTY = 0.8;
 const DOT_MIN_LEN = 0.03;
 function strokeArcLen(s) {
@@ -374,19 +384,27 @@ function runIsVertical(s, start, letterW, letterH, minRunY) {
   }
   if (!steps) return { ok: false };
   return {
-    ok: (yMax - yMin) >= minRunY && (xMax - xMin) <= 0.35 * letterW && turn < 0.6,
+    // Strict straightness (turn < 0.35) + narrow (<= 0.28·letterW): a TRUE straight
+    // stem has near-zero turning, while a curved wall (c/o/e/s) over the same
+    // height subtends ~1 rad → rejected. This is what keeps the vertical family
+    // from false-firing on curves while still catching a's straight right wall.
+    ok: (yMax - yMin) >= minRunY && (xMax - xMin) <= 0.28 * letterW && turn < 0.35,
   };
 }
 function hasVertical(strokes, letterW, letterH) {
   const minRunStandalone = 0.4 * letterH;
-  const minRunEmbedded = 0.6 * letterH;
+  const minRunEmbedded = 0.55 * letterH;
   for (const s of strokes) {
     if (!s || s.length < 2) continue;
     // (A) standalone vertical stroke
     if (strokeIsVertical(s, letterW, letterH, minRunStandalone)) return true;
-    // (B) embedded stem at the start or end of the stroke
-    if (runIsVertical(s, 0, letterW, letterH, minRunEmbedded).ok) return true;
-    if (runIsVertical(s, -1, letterW, letterH, minRunEmbedded).ok) return true;
+    // (B) embedded stem ANYWHERE in the stroke — not just at the start/end. A
+    // closed-loop 'a' drawn as one stroke has its straight right wall in the
+    // MIDDLE of the stroke; only a mid-stroke scan catches it (and separates
+    // a from o, whose round right wall curves too much to qualify).
+    for (let start = 0; start < s.length - 1; start++) {
+      if (runIsVertical(s, start, letterW, letterH, minRunEmbedded).ok) return true;
+    }
   }
   return false;
 }
@@ -406,28 +424,97 @@ function hasLeftCurve(strokes, letterW) {
   }
   return false;
 }
+// Count arches/humps on the longest stroke: local minima of y (peaks going up)
+// with enough prominence that jitter and entrance wiggles don't count. m=3,
+// n=2, r=1; loops/diagonals/stems read 0. Order-tolerant.
+function countHumps(strokes, letterH) {
+  let best = null, bestLen = 0;
+  for (const s of strokes) {
+    const l = strokeArcLen(s);
+    if (l < DOT_MIN_LEN) continue;
+    if (l > bestLen) { bestLen = l; best = s; }
+  }
+  if (!best || best.length < 4) return 0;
+  const rs = resample(best, Math.max(14, Math.min(60, best.length)));
+  const ys = rs.map((p) => p.y);
+  for (let pass = 0; pass < 2; pass++) {
+    const o = ys.slice();
+    for (let i = 1; i < ys.length - 1; i++) ys[i] = (o[i - 1] + o[i] + o[i + 1]) / 3;
+  }
+  const prom = 0.12 * (letterH || 1);
+  let humps = 0, i = 1;
+  while (i < ys.length - 1) {
+    if (ys[i] < ys[i - 1] && ys[i] <= ys[i + 1]) {
+      let leftRise = 0, j = i;
+      while (j > 0 && ys[j - 1] >= ys[j]) { leftRise = Math.max(leftRise, ys[j - 1] - ys[i]); j--; }
+      let rightRise = 0, k = i;
+      while (k < ys.length - 1 && ys[k + 1] >= ys[k]) { rightRise = Math.max(rightRise, ys[k + 1] - ys[i]); k++; }
+      if (Math.min(leftRise, rightRise) >= prom) humps++;
+      i = k;
+    } else i++;
+  }
+  return Math.min(humps, 4);
+}
+// Top hook: among the highest 25% of the longest stroke, the leftmost point is
+// left of the stroke's median x by a margin — i.e. the entry curves left at
+// the top (f's hook). A straight-down t top stays at the stem x → false.
+function hasTopHook(strokes, letterW) {
+  let best = null, bestLen = 0;
+  for (const s of strokes) {
+    const l = strokeArcLen(s);
+    if (l < DOT_MIN_LEN) continue;
+    if (l > bestLen) { bestLen = l; best = s; }
+  }
+  if (!best || best.length < 4) return false;
+  let minY = Infinity, maxY = -Infinity, medianX = 0;
+  for (const p of best) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; medianX += p.x; }
+  medianX /= best.length;
+  const topThresh = minY + 0.25 * (maxY - minY);
+  let topMinX = Infinity;
+  for (const p of best) if (p.y <= topThresh && p.x < topMinX) topMinX = p.x;
+  return topMinX < medianX - 0.1 * (letterW || 1);
+}
 function familySignature(strokes) {
   const b = letterBounds(strokes);
-  return { xs: hasCrossing(strokes), v: hasVertical(strokes, b.w, b.h), lc: hasLeftCurve(strokes, b.w) };
+  return {
+    xs: hasCrossing(strokes),
+    v: hasVertical(strokes, b.w, b.h),
+    lc: hasLeftCurve(strokes, b.w),
+    h: countHumps(strokes, b.h),
+    th: hasTopHook(strokes, b.w),
+  };
 }
 // Active family: for each feature, the value the candidate letter "should"
 // have — but only if its template actually exhibits it. NULL = the template
 // disagrees with the table (non-standard style) → neutralize the feature for
 // this letter (no penalty, no bonus).
 function activeFamily(letter, detected) {
-  const t = FAMILIES[letter] || { v: false, xs: false, lc: false };
+  const t = FAMILIES[letter] || { v: false, xs: false, lc: false, h: 0, th: false };
   return {
     v: detected.v === t.v ? t.v : null,
     xs: detected.xs === t.xs ? t.xs : null,
     lc: detected.lc === t.lc ? t.lc : null,
+    h: detected.h === t.h ? t.h : null,
+    th: detected.th === t.th ? t.th : null,
   };
 }
+// Exit direction. For descender letters (g, j, q, p, y) the TAIL is the tell
+// (q exits right, g exits left), but the tail is usually SHORTER than the loop,
+// so "longest stroke" picks the loop and the tail never registers. When the
+// letter has a descender, prefer the stroke that extends LOWEST (the tail) and
+// take its end tangent; otherwise use the longest stroke as before.
 function dominantExit(strokes) {
-  let best = null, bestLen = 0;
+  let maxYall = -Infinity;
+  for (const s of strokes) if (s) for (const p of s) if (p.y > maxYall) maxYall = p.y;
+  const hasDesc = maxYall > DESC_BOT;
+  let best = null, bestKey = -Infinity;
   for (const s of strokes) {
     const len = strokeArcLen(s);
     if (len < DOT_MIN_LEN) continue;
-    if (len > bestLen) { bestLen = len; best = s; }
+    let key;
+    if (hasDesc) { let my = -Infinity; for (const p of s) if (p.y > my) my = p.y; key = my; }
+    else key = len;
+    if (key > bestKey) { bestKey = key; best = s; }
   }
   if (!best) return null;
   const rs = resample(best, R);
@@ -483,7 +570,9 @@ export function recognize(drawnStrokes, templates) {
     const structPenalty =
       (active.v !== null && drawnSig.v !== active.v ? VERTICAL_PENALTY : 0) +
       (active.xs !== null && drawnSig.xs !== active.xs ? CROSSING_PENALTY : 0) +
-      (active.lc !== null && drawnSig.lc !== active.lc ? CURVE_PENALTY : 0);
+      (active.lc !== null && drawnSig.lc !== active.lc ? CURVE_PENALTY : 0) +
+      (active.h !== null ? Math.abs(drawnSig.h - active.h) * HUMPS_UNIT : 0) +
+      (active.th !== null && drawnSig.th !== active.th ? TOPHOOK_PENALTY : 0);
     // Exit (tail) direction: order-tolerant tiebreaker — separates q (tail right)
     // from g (tail left), which pure structure cannot.
     const exitAgree = dirAgree(drawnExit, exit);
