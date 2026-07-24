@@ -72,7 +72,7 @@ export default function LetterRecognitionCanvas({ templates }) {
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
   const [segMode, setSegMode] = useState('space'); // 'space' | 'pause'
-  const [spaceGap, setSpaceGap] = useState(8); // canvas px — strokes join only when they touch
+  const [spaceGap, setSpaceGap] = useState(14); // canvas px — strokes join when ink is within this far (ink width already included); tuned for kids' multi-stroke letters whose parts don't quite touch
   const [pauseMs, setPauseMs] = useState(500);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
