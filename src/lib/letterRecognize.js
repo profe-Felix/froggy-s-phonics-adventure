@@ -121,33 +121,92 @@ function dtw(A, B) {
 
 // One drawn stroke vs one template stroke, both resampled to R points. The
 // strokes are already in the aligned (template-bbox) frame.
+function pathLen(pts) { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return l; }
+const DOT_LEN = 0.01; // a resampled stroke shorter than this (normalized) is a dot — a point, not a path
+function centroid(pts) { let x = 0, y = 0; for (const p of pts) { x += p.x; y += p.y; } return { x: x / pts.length, y: y / pts.length }; }
+function nearestDist(pt, stroke) { let mn = Infinity; for (const p of stroke) { const d = (p.x - pt.x) ** 2 + (p.y - pt.y) ** 2; if (d < mn) mn = d; } return Math.sqrt(mn); }
 function strokeDtw(dStroke, tStroke) {
   const a = resample(dStroke, R);
   const b = resample(tStroke, R);
-  if (a.length < 2 || b.length < 2) {
-    // a dot vs anything: cost is how far the dot sits from the template stroke's
-    // nearest point (a dot can't "warp" — it's a point).
-    if (a.length && b.length) {
-      let mn = Infinity;
-      for (const p of a) for (const q of b) { const d = (p.x - q.x) ** 2 + (p.y - q.y) ** 2; if (d < mn) mn = d; }
-      return Math.sqrt(mn);
-    }
-    return 1;
+  const aDot = a.length < 2 || pathLen(a) < DOT_LEN;
+  const bDot = b.length < 2 || pathLen(b) < DOT_LEN;
+  // A dot is a single point, not a path — it cannot "warp" monotonically onto a
+  // real stroke. Critically, a tap dot resamples to 2 coincident points, which
+  // is far too few to span banded DTW against a 36-point template stroke (the
+  // Sakoe-Chiba band can't reach the final cell, so DTW returns Infinity and the
+  // dot matches nothing). So a dot is matched purely by position: point-to-
+  // point if both are dots, otherwise the distance from the dot to the nearest
+  // point of the real stroke.
+  if (aDot || bDot) {
+    if (!a.length || !b.length) return 1;
+    if (aDot && bDot) { const ca = centroid(a), cb = centroid(b); return Math.hypot(ca.x - cb.x, ca.y - cb.y); }
+    const pt = aDot ? centroid(a) : centroid(b);
+    const stroke = aDot ? b : a;
+    return nearestDist(pt, stroke);
   }
   return dtw(a, b);
 }
 
+// A dot (the i/j dot, or a tilde mark) is a small isolated MARK, not a path —
+// it has no direction or order. Whether the student dotted before or after the
+// stem, and whether the dot is a tap (a point) or a tiny vertical, it should
+// match the template's dot purely by WHERE it sits. So a dot is detected by
+// bounding-box SIZE (a mark well under a letter's smallest real stroke — a
+// crossbar is ~0.06 wide, a dot is < ~0.04), and dots are paired POSITIONALLY
+// (nearest centroid) rather than by stroke order. This is the user's rule: "it
+// shouldn't matter where to begin — the point is to get the known pathway to
+// coincide with the ink." For a dot, the "pathway" is just its position.
+const DOT_SIZE = 0.04;
+function bboxMaxDim(s) {
+  let mnX = Infinity, mxX = -Infinity, mnY = Infinity, mxY = -Infinity;
+  for (const p of s) { if (p.x < mnX) mnX = p.x; if (p.x > mxX) mxX = p.x; if (p.y < mnY) mnY = p.y; if (p.y > mxY) mxY = p.y; }
+  return Math.max(mxX - mnX, mxY - mnY);
+}
+function isDotStroke(s) { return !s || s.length <= 2 || bboxMaxDim(s) < DOT_SIZE; }
+
 // Total distance from a drawing to one template: align the whole drawing to the
-// template's bbox, DTW each stroke pair in order, average, then add the stroke-
-// count penalty and the height-class guard.
+// template's bbox, then match strokes. Dots are paired positionally (a dot is a
+// mark, not an ordered path); the remaining real strokes are DTW'd in order.
+// Average the per-pair cost, then add the stroke-count penalty and height-class
+// guard.
 function letterDistance(drawn, dBox, tmpl) {
   if (!drawn.length || !tmpl.length) return Infinity;
   const tBox = bbox(tmpl);
   const aligned = alignTo(drawn, dBox, tBox);
   const n = aligned.length, m = tmpl.length;
-  const pairs = Math.min(n, m);
-  let sum = 0;
-  for (let i = 0; i < pairs; i++) sum += strokeDtw(aligned[i], tmpl[i]);
+
+  const dDotIdx = []; for (let i = 0; i < n; i++) if (isDotStroke(drawn[i])) dDotIdx.push(i);
+  const tDotIdx = []; for (let i = 0; i < m; i++) if (isDotStroke(tmpl[i])) tDotIdx.push(i);
+
+  let sum = 0, pairs = 0;
+  if (dDotIdx.length > 0 && dDotIdx.length === tDotIdx.length) {
+    // Match dots positionally (nearest centroid in the aligned frame), and the
+    // real strokes in order. A crossbar (wide, not a dot) is never pulled into
+    // this path, so a 't' (stem + crossbar, zero dots) still uses ordered DTW.
+    const used = new Array(tDotIdx.length).fill(false);
+    for (const i of dDotIdx) {
+      const dc = centroid(resample(aligned[i], R));
+      let best = Infinity, bi = -1;
+      for (let k = 0; k < tDotIdx.length; k++) {
+        if (used[k]) continue;
+        const tc = centroid(resample(tmpl[tDotIdx[k]], R));
+        const dd = Math.hypot(dc.x - tc.x, dc.y - tc.y);
+        if (dd < best) { best = dd; bi = k; }
+      }
+      if (bi >= 0) { used[bi] = true; sum += best; pairs++; }
+    }
+    const dReal = []; for (let i = 0; i < n; i++) if (!dDotIdx.includes(i)) dReal.push(aligned[i]);
+    const tReal = []; for (let i = 0; i < m; i++) if (!tDotIdx.includes(i)) tReal.push(tmpl[i]);
+    const rp = Math.min(dReal.length, tReal.length);
+    for (let i = 0; i < rp; i++) { sum += strokeDtw(dReal[i], tReal[i]); pairs++; }
+  } else {
+    // No dots, or a mismatched dot count (a dot drawn where the template has
+    // none, or vice versa) — fall back to ordered DTW, which correctly penalizes
+    // a dot-vs-crossbar mismatch (a dot can't warp onto a wide crossbar).
+    const p = Math.min(n, m);
+    for (let i = 0; i < p; i++) { sum += strokeDtw(aligned[i], tmpl[i]); pairs++; }
+  }
+
   let dist = pairs ? sum / pairs : 1;
   // unmatched strokes (extra or missing) cost a flat penalty each — this is what
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
