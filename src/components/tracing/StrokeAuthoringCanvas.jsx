@@ -133,11 +133,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
 
   // "Snap to letter": center each stroke point laterally on the ink. For every
   // point we take the local stroke direction, slice the image perpendicular to
-  // it through that point, and move the point to the weighted center of the ink
-  // on that slice. Because the move is purely perpendicular, the point keeps its
-  // position along the stroke (no shrinking or stretching — the stem still
-  // reaches the top line) and stays smooth (a centroid, not a pixel jump).
-  // Strength controls how far each point moves; click repeatedly to converge.
+  // it, split that slice into ink runs separated by white gaps, and move the
+  // point to the center of the run it sits on (within a local half-width). The
+  // move is purely perpendicular, so the point keeps its position along the
+  // stroke (no shrinking — the stem still reaches the top line) and stays
+  // smooth (a centroid, not a pixel jump). Splitting runs and using only the
+  // local window keeps an overlapping stroke (the bowl of an 'a' meeting its
+  // stem) from bowing a straight stroke toward the junction.
   const snapToLetter = () => {
     if (!bg?.img || !rawStrokes.length) return;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -161,6 +163,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       return l < 120 ? (120 - l) / 120 : 0;
     };
     const L = 30; // half-width of the perpendicular cross-section sample
+    const LOCAL = 12; // local half-width: ignore joined strokes beyond this
     const newStrokes = rawStrokes.map((stroke) => {
       if (stroke.length < 2) return stroke;
       return stroke.map((p, i) => {
@@ -172,14 +175,35 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         if (tl < 1e-6) return p;
         tx /= tl; ty /= tl;
         const nx = -ty, ny = tx; // perpendicular to the stroke
-        // weighted center of the ink along the perpendicular slice through p
-        let sw = 0, st = 0;
+        // sample ink along the slice and split into runs separated by white gaps,
+        // so overlapping strokes don't pull a straight one toward the junction
+        const runs = [];
+        let cur = null;
         for (let t = -L; t <= L; t++) {
+          const w = inkW(p.x + t * nx, p.y + t * ny);
+          if (w > 0) {
+            if (!cur) cur = { start: t, end: t, sw: 0, st: 0 };
+            cur.end = t; cur.sw += w; cur.st += t * w;
+          } else if (cur) { runs.push(cur); cur = null; }
+        }
+        if (cur) runs.push(cur);
+        if (!runs.length) return p; // no ink on this slice — leave as drawn
+        // pick the run nearest to the point (the one it sits on)
+        let chosen = runs[0], bestD = Infinity;
+        for (const r of runs) {
+          const d = r.start <= 0 && r.end >= 0 ? 0 : (r.end < 0 ? -r.end : r.start);
+          if (d < bestD) { bestD = d; chosen = r; }
+        }
+        // center locally (±LOCAL) so a joined blob can't drag the stroke sideways
+        const lo = Math.max(chosen.start, -LOCAL), hi = Math.min(chosen.end, LOCAL);
+        let sw = 0, st = 0;
+        for (let t = lo; t <= hi; t++) {
           const w = inkW(p.x + t * nx, p.y + t * ny);
           if (w > 0) { sw += w; st += t * w; }
         }
-        if (sw <= 0) return p; // no ink on this slice — leave the point as drawn
-        const avgT = st / sw; // offset from p to the ink center, perpendicular only
+        // offset from p to the ink center, perpendicular only; fall back to the
+        // full run if the point sits outside the local window (large offset)
+        const avgT = sw > 0 ? st / sw : chosen.st / chosen.sw;
         const dx = avgT * nx * snapStrength;
         const dy = avgT * ny * snapStrength;
         return {
