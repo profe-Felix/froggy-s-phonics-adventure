@@ -312,13 +312,18 @@ function shapeDistance(drawn, dBox, tmpl) {
   const aligned = alignTo(drawn, dBox, tBox);
   const dCloud = cloudOf(aligned);
   const tCloud = cloudOf(tmpl);
-  // The shape rescue must respect the SAME structural guards as the directional
-  // path — otherwise a 1-stroke 'l' cloud rescues onto a 2-stroke 'i' (stem+dot),
-  // or a descendered 'p' cloud rescues onto a non-descendered 'r'. Stroke-count
-  // and the asymmetric height guard are added here too, so shape only wins when
-  // the overall outline genuinely matches a template of the SAME structure.
+  // The shape test is ORDER- and STROKE-COUNT-AGNOSTIC by design: it answers
+  // "which letter does this LOOK like?" A letter drawn the wrong way — wrong
+  // stroke order, or the WRONG NUMBER OF STROKES (a 'p' drawn as two strokes
+  // against a one-stroke 'p' template, a 't' whose crossbar was drawn first, a
+  // letter whose two taught strokes were merged into one) — still LOOKS like
+  // the right letter, and the shape test must be free to say so. So the
+  // stroke-count penalty is NOT applied here; only the geometric height guard
+  // (ascender/descender) stays, because a short outline genuinely is not a tall
+  // letter. The directional DTW path keeps the stroke-count penalty — that path
+  // rewards the TAUGHT pathway, where stroke count is a real cue; the shape path
+  // is the "looks the same but written incorrectly" rescue, where it is not.
   let dist = chamfer(dCloud, tCloud);
-  dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   return dist;
 }
