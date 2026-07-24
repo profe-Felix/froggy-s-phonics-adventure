@@ -6,6 +6,13 @@ import { recognize } from '@/lib/letterRecognize';
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+// Ink is drawn 8px wide, so two strokes whose INK visually touches/overlaps still
+// have centerlines up to 8px apart. "Touching" must mean ink-touching, not
+// centerline-touching — otherwise an 'e' crossbar sitting on its loop, or an 'a'
+// stem beside its bowl, never merges at a low slider value. The slider adds
+// tolerance ON TOP of the ink width.
+const INK_W = 8;
+
 // Group strokes into letters by ACTUAL CONTACT. Two strokes join one letter
 // only when some point of one is within `touchPx` of some point of the other —
 // they touch or nearly touch. A single continuous stroke (an 'a' drawn as a
@@ -47,7 +54,7 @@ function clusterByTouch(strokes, touchPx) {
       // join when the strokes touch, OR when one is a dot floating directly
       // above the other (i / j) — same column, separated only vertically
       const dotAbove = xOverlap(i, j) > 4 && (bb[i].maxY < bb[j].minY || bb[j].maxY < bb[i].minY);
-      if (ptDist(i, j) <= touchPx || dotAbove) union(i, j);
+      if (ptDist(i, j) <= touchPx + INK_W || dotAbove) union(i, j);
     }
   }
   const groups = {};
