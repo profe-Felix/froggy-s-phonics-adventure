@@ -17,8 +17,15 @@ const MERGE_FACTOR = 0.75;     // merge only if the merged read is at least this
 function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];
+  const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };
+  // A dot (the i/j dot, a tap) is a MARK — never a standalone letter. If a group
+  // contains one, keep it merged with its stem: don't let the split rule tear the
+  // dot off just because both the dot and the stem happen to read as confident
+  // 'i's on their own (the ill→iill bug — dot became its own 'i', stem another).
+  const hasDot = (g) => g.some((s) => s.length <= 2 || arcLenPx(s) < 6);
   for (const g of groups) {
     if (g.length < 2 || !templates.length) { out.push(g); continue; }
+    if (hasDot(g)) { out.push(g); continue; }
     const merged = recognize(g, templates);
     const mergedDist = merged[0] ? merged[0].dist : Infinity;
     let bestIndiv = Infinity, allConfident = true;

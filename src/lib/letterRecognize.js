@@ -259,30 +259,32 @@ function classMismatch(a, b) {
 //        short crossbar (t/f) is below the length gate so t stays false. The
 //        second 'a'≠'z' tell: a has no horizontal, z does.
 const FAMILIES = {
-  a: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, b: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: true, hz: false },
-  c: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: false }, d: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false },
-  e: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: true }, f: { v: true, xs: true, lc: false, h: 0, th: true, d: false, cl: false, hz: false },
-  g: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, h: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
-  i: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false }, j: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
-  k: { v: true, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false }, l: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
-  m: { v: false, xs: false, lc: false, h: 3, th: false, d: false, cl: false, hz: false }, n: { v: false, xs: false, lc: false, h: 2, th: false, d: false, cl: false, hz: false },
-  o: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, p: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: true, hz: false },
-  q: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false }, r: { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
-  s: { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false }, t: { v: true, xs: true, lc: false, h: 0, th: false, d: false, cl: false, hz: false },
-  u: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false }, v: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false },
-  w: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false }, x: { v: false, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false },
-  y: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true, cl: false, hz: true },
+  a: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false, tc: false, vc: 0 }, b: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: true, hz: false, tc: false, vc: 0 },
+  c: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, d: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false, tc: false, vc: 0 },
+  e: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, f: { v: true, xs: true, lc: false, h: 0, th: true, d: false, cl: false, hz: false, tc: false, vc: 0 },
+  g: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false, tc: true, vc: 0 }, h: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 1 },
+  i: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, j: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: true, vc: 0 },
+  k: { v: true, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false, tc: false, vc: 0 }, l: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 },
+  m: { v: false, xs: false, lc: false, h: 3, th: false, d: false, cl: false, hz: false, tc: false, vc: 3 }, n: { v: false, xs: false, lc: false, h: 2, th: false, d: false, cl: false, hz: false, tc: false, vc: 2 },
+  o: { v: false, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false, tc: false, vc: 0 }, p: { v: true, xs: false, lc: false, h: 0, th: false, d: false, cl: true, hz: false, tc: false, vc: 0 },
+  q: { v: true, xs: false, lc: true, h: 0, th: false, d: false, cl: true, hz: false, tc: true, vc: 0 }, r: { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 1 },
+  s: { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, t: { v: true, xs: true, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 },
+  u: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, v: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false, tc: false, vc: 0 },
+  w: { v: false, xs: false, lc: false, h: -2, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 }, x: { v: false, xs: true, lc: false, h: 0, th: false, d: true, cl: false, hz: false, tc: false, vc: 0 },
+  y: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false, tc: true, vc: 0 }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true, cl: false, hz: true, tc: false, vc: 0 },
 };
 const CROSSING_PENALTY = 1.5;
 const CROSSING_IMPOSSIBLE_PENALTY = 3.5; // a <2-stroke drawing cannot be a crossing letter (x) — structural, not shape
 const VERTICAL_PENALTY = 1.0;
 const CURVE_PENALTY = 1.0;
-const HUMPS_UNIT = 1.5;   // penalty per hump of difference — n(+2) vs m(+3)=1.5, n(+2) vs u(-2)=6 (the n/u split)
+const HUMPS_UNIT = 0.8;   // light — vc now carries the arch count robustly across single/multi-stroke
 const DIAGONAL_PENALTY = 1.5;  // k has diagonals, t does not — separates t from k/x/v/z
 const TOPHOOK_PENALTY = 1.0;
-const EXIT_PENALTY = 0.8;
+const EXIT_PENALTY = 1.5;  // tail exit direction — the q (right) vs g (left) tell, strengthened
 const CLOSED_PENALTY = 1.3;     // o/a (closed) vs s/c (open) — the endpoint tell
 const HORIZONTAL_PENALTY = 1.3; // z has a full-width bar, a/s/o do not — second a≠z tell
+const TAILCURL_PENALTY = 1.5; // p (straight descender) vs g/j/q/y (curled tail) — "no curve at the bottom"
+const VC_UNIT = 2.0;       // distinct tall vertical-stem count — m(3) vs n(2) vs h/r(1); robust to multi-stroke arch letters
 const DOT_MIN_LEN = 0.03;
 function strokeArcLen(s) {
   if (!s || s.length < 2) return 0;
@@ -426,14 +428,30 @@ function hasVertical(strokes, letterW, letterH) {
 // right. Order-independent (start/end symmetric). A straight '\' diagonal is
 // excluded (its leftmost point IS its end); an 'm' arch is excluded (it bulges
 // UP, its leftmost is its start); a closed loop ('o','a','d','p','q') qualifies
-// (its leftmost is well left of where it starts/ends).
+// (its leftmost is well left of where it starts/ends). An 's' (S-curve) is
+// excluded by a SIGNED-TURN gate: a true left-bulging bowl turns consistently
+// one way (|signed turn| large ≈ π), while an 's' waves left then right so its
+// signed turn cancels to ≈ 0. Without this gate 's' reads lc=true (its middle
+// swings left of its endpoints) and matches 'e'/'c' (lc=true) — the s→e bug.
 function hasLeftCurve(strokes, letterW) {
   const margin = 0.1 * letterW;
   for (const s of strokes) {
     if (!s || s.length < 3) continue;
     let minX = Infinity, startX = s[0].x, endX = s[s.length - 1].x;
     for (const p of s) if (p.x < minX) minX = p.x;
-    if (minX < startX - margin && minX < endX - margin) return true;
+    if (!(minX < startX - margin && minX < endX - margin)) continue;
+    let signedTurn = 0, prevAng = null;
+    for (let i = 0; i < s.length - 1; i++) {
+      const ang = Math.atan2(s[i + 1].y - s[i].y, s[i + 1].x - s[i].x);
+      if (prevAng !== null) {
+        let dt = ang - prevAng;
+        while (dt > Math.PI) dt -= 2 * Math.PI;
+        while (dt < -Math.PI) dt += 2 * Math.PI;
+        signedTurn += dt;
+      }
+      prevAng = ang;
+    }
+    if (Math.abs(signedTurn) > 1.0) return true;
   }
   return false;
 }
@@ -576,6 +594,75 @@ function hasTopHook(strokes, letterW) {
   for (const p of best) if (p.y <= topThresh && p.x < topMinX) topMinX = p.x;
   return topMinX < medianX - 0.1 * (letterW || 1);
 }
+// Tail curl (the p-vs-g tell): a descender letter whose lowest stroke EXITS with
+// a significant horizontal component has a curled tail (g,j,q,y). 'p' (and a
+// straight 'q' stem) descends straight down and stops → exit tangent points DOWN
+// (|x|≈0) → no curl. This encodes "p has no curve at the bottom of the straight
+// segment": p's straight descender vs g's curl. Non-descender drawings read false.
+function hasTailCurl(strokes, letterW, letterH) {
+  let maxYall = -Infinity;
+  for (const s of strokes) if (s) for (const p of s) if (p.y > maxYall) maxYall = p.y;
+  if (maxYall <= DESC_BOT) return false; // no descender → no tail
+  let best = null, bestLow = -Infinity;
+  for (const s of strokes) {
+    if (!s || s.length < 2 || strokeArcLen(s) < DOT_MIN_LEN) continue;
+    let my = -Infinity;
+    for (const p of s) if (p.y > my) my = p.y;
+    if (my > bestLow) { bestLow = my; best = s; }
+  }
+  if (!best) return false;
+  const rs = resample(best, R);
+  const k = Math.max(2, Math.round(rs.length * 0.15));
+  const x0 = rs[rs.length - 1], x1 = rs[Math.max(0, rs.length - 1 - k)];
+  const dx = x0.x - x1.x, dy = x0.y - x1.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return Math.abs(dx) / len > 0.45;
+}
+// Vertical-stem COUNT (the m-vs-r tell): the number of DISTINCT x-columns that
+// contain a tall near-vertical DOWN-run (>= 0.55·letterH). m has 3 verticals,
+// n has 2, h/r have 1, valleys/curves have 0. This is robust to multi-stroke
+// arch letters: countHumps looks at the single longest stroke and reads 1 for a
+// 5-stroke m (one arch), losing to r — but vc counts the 3 distinct stem columns
+// across ALL strokes. The tall threshold (0.55·letterH) excludes h's short arch
+// down-leg (x-height of a tall h ≈ 0.49·letterH) while keeping m's full-height
+// stems; arch down-legs in m/n fall on the SAME x as a stem so they cluster, not
+// inflate the count. Loop walls (o/a/d/p/q) land at non-stem x's but those letters
+// are neutralized by cl/lc/height-class, so vc=1-2 for them is harmless (NULL).
+function countVerticals(strokes, letterH, letterW) {
+  const minRun = 0.55 * (letterH || 1);
+  const xcols = [];
+  for (const s of strokes) {
+    if (!s || s.length < 2 || strokeArcLen(s) < DOT_MIN_LEN) continue;
+    let i = 0;
+    while (i < s.length - 1) {
+      const dx = s[i + 1].x - s[i].x, dy = s[i + 1].y - s[i].y;
+      if (!(dy > 0.003 && Math.abs(dx) < Math.abs(dy) * 0.6)) { i++; continue; }
+      let runTopY = s[i].y, runBotY = s[i + 1].y;
+      let runMinX = Math.min(s[i].x, s[i + 1].x), runMaxX = Math.max(s[i].x, s[i + 1].x);
+      let j = i + 1;
+      while (j < s.length - 1) {
+        const dx2 = s[j + 1].x - s[j].x, dy2 = s[j + 1].y - s[j].y;
+        if (dy2 > 0.003 && Math.abs(dx2) < Math.abs(dy2) * 0.6) {
+          runBotY = s[j + 1].y;
+          runMinX = Math.min(runMinX, s[j].x, s[j + 1].x);
+          runMaxX = Math.max(runMaxX, s[j].x, s[j + 1].x);
+          j++;
+        } else break;
+      }
+      if (runBotY - runTopY >= minRun) xcols.push((runMinX + runMaxX) / 2);
+      i = j + 1;
+    }
+  }
+  if (!xcols.length) return 0;
+  const tol = 0.15 * (letterW || 1);
+  xcols.sort((a, b) => a - b);
+  let clusters = 0, prev = null;
+  for (const x of xcols) {
+    if (prev === null || x - prev > tol) clusters++;
+    prev = x;
+  }
+  return Math.min(clusters, 4);
+}
 function familySignature(strokes) {
   const b = letterBounds(strokes);
   return {
@@ -587,6 +674,8 @@ function familySignature(strokes) {
     d: hasDiagonal(strokes, b.h),
     cl: hasClosedLoop(strokes, b.w, b.h),
     hz: hasHorizontal(strokes, b.w),
+    tc: hasTailCurl(strokes, b.w, b.h),
+    vc: countVerticals(strokes, b.h, b.w),
   };
 }
 // Active family: for each feature, the value the candidate letter "should"
@@ -594,7 +683,7 @@ function familySignature(strokes) {
 // disagrees with the table (non-standard style) → neutralize the feature for
 // this letter (no penalty, no bonus).
 function activeFamily(letter, detected) {
-  const t = FAMILIES[letter] || { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false };
+  const t = FAMILIES[letter] || { v: false, xs: false, lc: false, h: 0, th: false, d: false, cl: false, hz: false, tc: false, vc: 0 };
   return {
     v: detected.v === t.v ? t.v : null,
     xs: detected.xs === t.xs ? t.xs : null,
@@ -604,6 +693,8 @@ function activeFamily(letter, detected) {
     d: detected.d === t.d ? t.d : null,
     cl: detected.cl === t.cl ? t.cl : null,
     hz: detected.hz === t.hz ? t.hz : null,
+    tc: detected.tc === t.tc ? t.tc : null,
+    vc: detected.vc === t.vc ? t.vc : null,
   };
 }
 // Exit direction. For descender letters (g, j, q, p, y) the TAIL is the tell
@@ -691,7 +782,9 @@ export function recognize(drawnStrokes, templates) {
       (active.th !== null && drawnSig.th !== active.th ? TOPHOOK_PENALTY : 0) +
       (active.d !== null && drawnSig.d !== active.d ? DIAGONAL_PENALTY : 0) +
       (active.cl !== null && drawnSig.cl !== active.cl ? CLOSED_PENALTY : 0) +
-      (active.hz !== null && drawnSig.hz !== active.hz ? HORIZONTAL_PENALTY : 0);
+      (active.hz !== null && drawnSig.hz !== active.hz ? HORIZONTAL_PENALTY : 0) +
+      (active.tc !== null && drawnSig.tc !== active.tc ? TAILCURL_PENALTY : 0) +
+      (active.vc !== null ? Math.abs(drawnSig.vc - active.vc) * VC_UNIT : 0);
     // Exit (tail) direction: order-tolerant tiebreaker — separates q (tail right)
     // from g (tail left), which pure structure cannot.
     const exitAgree = dirAgree(drawnExit, exit);
