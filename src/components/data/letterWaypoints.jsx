@@ -247,6 +247,20 @@ export const LETTER_WAYPOINTS = {
     ]],
     hint: 'Slide right, slant left, slide right'
   },
+  // ñ — Spanish-only letter. The n body shares the 'n' waypoints (same shape);
+  // the tilde is a second stroke waved above the humps. Shown only to Spanish
+  // students (gated in LetterTracingMode); English students never see it.
+  ñ: {
+    strokes: [
+      [{ x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72 },
+       { x: 0.33, y: 0.52 },
+       ...arc(0.50, 0.52, 0.17, 0.12, 180, 360, 10),
+       { x: 0.67, y: 0.72 }],
+      [...arc(0.41, 0.35, 0.07, 0.05, 180, 360, 6),
+       ...arc(0.55, 0.35, 0.07, 0.05, 180, 0, 6)],
+    ],
+    hint: 'Pull down, push up, curve forward, pull down. Lift. Wave the tilde on top'
+  },
 };
 
 export const TRACING_LETTERS = 'abcdefghijklmnopqrstuvwxyz'

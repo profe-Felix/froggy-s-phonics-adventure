@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import LetterTracingCanvas from '../LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
+import { getLanguage } from '@/lib/language';
 
 const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('').filter(l => LETTER_WAYPOINTS[l]);
+// ñ is a Spanish-only letter; English students never see it. The other letters
+// share the same waypoints across both languages (same shapes, different phonemes).
+const SPANISH_EXTRA = ['ñ'];
 
 export default function LetterTracingMode({ studentData, onUpdateProgress }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -34,7 +38,8 @@ export default function LetterTracingMode({ studentData, onUpdateProgress }) {
     return () => { cancelled = true; };
   }, []);
 
-  const LETTERS = BASE_LETTERS.filter(l => waypoints[l]);
+  const lang = getLanguage(studentData);
+  const LETTERS = [...BASE_LETTERS, ...(lang === 'es' ? SPANISH_EXTRA : [])].filter(l => waypoints[l]);
 
   const handleComplete = (letter) => {
     setCompletedLetters(prev => new Set([...prev, letter]));
