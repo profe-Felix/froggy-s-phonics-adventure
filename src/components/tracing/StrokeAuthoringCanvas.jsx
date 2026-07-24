@@ -45,10 +45,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   // Writing guide lines — adjustable so they can be matched to the trace
   // image's actual Zaner-Bloser lines (the image's line positions shift as
   // it's scaled/positioned, so fixed fractions can't stay aligned).
+  // Equal spacing (Zaner-Bloser standard): three equal zones between top and
+  // descender, with matching top/bottom margins. Descender gets the same room
+  // as the x-height — no more cramped tails.
   const [lineTop, setLineTop] = useState(0.10);
-  const [lineMid, setLineMid] = useState(0.42);
-  const [lineBase, setLineBase] = useState(0.72);
-  const [lineDesc, setLineDesc] = useState(0.92);
+  const [lineMid, setLineMid] = useState(0.367);
+  const [lineBase, setLineBase] = useState(0.633);
+  const [lineDesc, setLineDesc] = useState(0.90);
 
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
@@ -359,7 +362,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         <line x1="0" y1={lineTop * CANVAS_H} x2={CANVAS_W} y2={lineTop * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineMid * CANVAS_H} x2={CANVAS_W} y2={lineMid * CANVAS_H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
+        <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
         {/* Smoothed strokes with direction arrows */}
         {rawStrokes.map((s, i) => {
