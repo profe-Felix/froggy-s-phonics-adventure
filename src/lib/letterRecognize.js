@@ -72,9 +72,21 @@ export function recognize(drawnStrokes, templates) {
   const drawn = letterToCloud(drawnNorm);
   if (!drawn.cloud.length) return [];
   const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes) }));
+  // Height-class guard: a short letter (no tall ascender/descender — aspect w/h
+  // > 0.7) must not match a tall template (b/d/h/l/k/f/t/p/q/g/j, aspect < 0.7), no
+  // matter how well the normalized point clouds overlap. Normalizing to unit size
+  // erases absolute height, so a short 'e' blown up can cover a 'b' bowl; this flat
+  // cross-class penalty dominates that shape similarity and keeps a letter with
+  // "no big line going up and down" from ever reading as a tall letter.
+  const TALL = 0.7;
+  const CLASS_PENALTY = 0.8;
   const results = tdata.map(({ letter, cloud, aspect }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0 };
-    const d = chamfer(drawn.cloud, cloud) + W_ASP * Math.abs(drawn.aspect - aspect);
+    const crossClass = (drawn.aspect < TALL) !== (aspect < TALL);
+    const d =
+      chamfer(drawn.cloud, cloud) +
+      W_ASP * Math.abs(drawn.aspect - aspect) +
+      (crossClass ? CLASS_PENALTY : 0);
     return { letter, dist: d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 110))) };
   });
   results.sort((a, b) => a.dist - b.dist);

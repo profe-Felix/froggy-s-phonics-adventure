@@ -264,43 +264,17 @@ export default function LetterRecognitionCanvas({ templates }) {
               <div className="text-lg font-bold text-slate-700">
                 I think you wrote: <span className="text-2xl tracking-wider text-indigo-600">{result.word}</span>
               </div>
-              <div className="mt-3 space-y-2.5 text-left">
-                {result.segments.map((seg, i) => {
-                  const top3 = seg.ranked.slice(0, 3);
-                  // a runner-up that's still reasonably confident is a plausible
-                  // alternative reading of a weirdly-formed letter — surface it so
-                  // the student can get partial credit even when the top guess is wrong.
-                  const partial = top3[1] && top3[1].confidence >= 50 ? top3[1] : null;
-                  return (
-                    <div key={i} className="rounded-lg bg-slate-50 p-2">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
-                        <span className="w-5 text-lg font-bold text-indigo-600">{seg.letter}</span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
-                        </div>
-                        <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
-                      </div>
-                      {top3.length > 1 && (
-                        <div className="flex flex-wrap gap-1.5 pl-16">
-                          {top3.slice(1).map((r) => (
-                            <span
-                              key={r.letter}
-                              className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                r === partial ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'
-                              }`}
-                            >
-                              {r.letter} {r.confidence}%
-                            </span>
-                          ))}
-                          {partial && (
-                            <span className="text-xs font-semibold text-amber-600">← partial credit?</span>
-                          )}
-                        </div>
-                      )}
+              <div className="mt-3 space-y-2 text-left">
+                {result.segments.map((seg, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
+                    <span className="w-5 text-lg font-bold text-indigo-600">{seg.letter}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
                     </div>
-                  );
-                })}
+                    <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
+                  </div>
+                ))}
               </div>
             </>
           )}
