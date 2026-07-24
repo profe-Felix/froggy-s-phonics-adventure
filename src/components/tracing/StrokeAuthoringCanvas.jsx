@@ -131,15 +131,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     loadImage(e.dataTransfer.files?.[0]);
   };
 
-  // "Snap to letter": center each stroke point laterally on the ink. For every
-  // point we take the local stroke direction, slice the image perpendicular to
-  // it, split that slice into ink runs separated by white gaps, and move the
-  // point to the center of the run it sits on (within a local half-width). The
-  // move is purely perpendicular, so the point keeps its position along the
-  // stroke (no shrinking — the stem still reaches the top line) and stays
-  // smooth (a centroid, not a pixel jump). Splitting runs and using only the
-  // local window keeps an overlapping stroke (the bowl of an 'a' meeting its
-  // stem) from bowing a straight stroke toward the junction.
+  // "Snap to letter": center each stroke point laterally on the ink. Curved
+  // parts are centered per-point on the nearest ink run along a perpendicular
+  // slice (a local window keeps an overlapping stroke from pulling it
+  // sideways). Straight parts are detected by constant tangent direction and
+  // fit to a single line at the run's centered offset — so the stem of an 'a'
+  // stays straight even where the bowl meets it, instead of bowing toward the
+  // junction. All moves are purely perpendicular, so nothing shrinks (the stem
+  // still reaches the top line) and re-snapping is stable. Strength scales the
+  // move; click repeatedly to converge.
   const snapToLetter = () => {
     if (!bg?.img || !rawStrokes.length) return;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -164,52 +164,100 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     };
     const L = 30; // half-width of the perpendicular cross-section sample
     const LOCAL = 12; // local half-width: ignore joined strokes beyond this
+    const cl = (v, hi) => Math.max(0, Math.min(hi, v));
+    // offset from p to the ink center along (nx,ny), using the nearest ink run
+    // and a local window so an overlapping stroke can't pull the center over
+    const centerOffset = (p, nx, ny) => {
+      const runs = [];
+      let cur = null;
+      for (let t = -L; t <= L; t++) {
+        const w = inkW(p.x + t * nx, p.y + t * ny);
+        if (w > 0) {
+          if (!cur) cur = { start: t, end: t, sw: 0, st: 0 };
+          cur.end = t; cur.sw += w; cur.st += t * w;
+        } else if (cur) { runs.push(cur); cur = null; }
+      }
+      if (cur) runs.push(cur);
+      if (!runs.length) return 0;
+      let chosen = runs[0], bestD = Infinity;
+      for (const r of runs) {
+        const d = r.start <= 0 && r.end >= 0 ? 0 : (r.end < 0 ? -r.end : r.start);
+        if (d < bestD) { bestD = d; chosen = r; }
+      }
+      const lo = Math.max(chosen.start, -LOCAL), hi = Math.min(chosen.end, LOCAL);
+      let sw = 0, st = 0;
+      for (let t = lo; t <= hi; t++) {
+        const w = inkW(p.x + t * nx, p.y + t * ny);
+        if (w > 0) { sw += w; st += t * w; }
+      }
+      return sw > 0 ? st / sw : chosen.st / chosen.sw;
+    };
+    const THETA = 10 * Math.PI / 180; // tangent drift allowed inside a straight run
+    const MIN_LINE = 5; // points needed to treat a run as a straight line
+    const turn = (a, b) => Math.abs(Math.atan2(a.x * b.y - a.y * b.x, a.x * b.x + a.y * b.y));
     const newStrokes = rawStrokes.map((stroke) => {
-      if (stroke.length < 2) return stroke;
-      return stroke.map((p, i) => {
-        // local tangent from neighbors (endpoints use the nearest inward point)
-        const a = stroke[Math.max(0, i - 1)];
-        const b = stroke[Math.min(stroke.length - 1, i + 1)];
+      const n = stroke.length;
+      if (n < 2) return stroke;
+      // windowed tangents (fallback to immediate neighbors at the ends)
+      const tan = stroke.map((_, i) => {
+        const a = stroke[Math.max(0, i - 2)], b = stroke[Math.min(n - 1, i + 2)];
         let tx = b.x - a.x, ty = b.y - a.y;
         const tl = Math.hypot(tx, ty);
-        if (tl < 1e-6) return p;
-        tx /= tl; ty /= tl;
-        const nx = -ty, ny = tx; // perpendicular to the stroke
-        // sample ink along the slice and split into runs separated by white gaps,
-        // so overlapping strokes don't pull a straight one toward the junction
-        const runs = [];
-        let cur = null;
-        for (let t = -L; t <= L; t++) {
-          const w = inkW(p.x + t * nx, p.y + t * ny);
-          if (w > 0) {
-            if (!cur) cur = { start: t, end: t, sw: 0, st: 0 };
-            cur.end = t; cur.sw += w; cur.st += t * w;
-          } else if (cur) { runs.push(cur); cur = null; }
+        if (tl < 1e-6) {
+          const a2 = stroke[Math.max(0, i - 1)], b2 = stroke[Math.min(n - 1, i + 1)];
+          tx = b2.x - a2.x; ty = b2.y - a2.y;
+          const tl2 = Math.hypot(tx, ty);
+          if (tl2 < 1e-6) return null;
+          return { x: tx / tl2, y: ty / tl2 };
         }
-        if (cur) runs.push(cur);
-        if (!runs.length) return p; // no ink on this slice — leave as drawn
-        // pick the run nearest to the point (the one it sits on)
-        let chosen = runs[0], bestD = Infinity;
-        for (const r of runs) {
-          const d = r.start <= 0 && r.end >= 0 ? 0 : (r.end < 0 ? -r.end : r.start);
-          if (d < bestD) { bestD = d; chosen = r; }
+        return { x: tx / tl, y: ty / tl };
+      });
+      // grow straight runs: consecutive points whose tangent stays within THETA
+      const segId = new Array(n).fill(-1);
+      const segs = [];
+      let i = 0;
+      while (i < n) {
+        if (!tan[i]) { i++; continue; }
+        let j = i + 1;
+        while (j < n && tan[j] && turn(tan[i], tan[j]) < THETA) j++;
+        if (j - i >= MIN_LINE) {
+          const id = segs.length;
+          segs.push({ start: i, end: j - 1 });
+          for (let k = i; k < j; k++) segId[k] = id;
         }
-        // center locally (±LOCAL) so a joined blob can't drag the stroke sideways
-        const lo = Math.max(chosen.start, -LOCAL), hi = Math.min(chosen.end, LOCAL);
-        let sw = 0, st = 0;
-        for (let t = lo; t <= hi; t++) {
-          const w = inkW(p.x + t * nx, p.y + t * ny);
-          if (w > 0) { sw += w; st += t * w; }
+        i = j;
+      }
+      return stroke.map((p, idx) => {
+        const t = tan[idx];
+        if (!t) return p;
+        const nx = -t.y, ny = t.x;
+        if (segId[idx] < 0) {
+          // curve: center each point on its local ink (perpendicular only)
+          const off = centerOffset(p, nx, ny);
+          const dx = off * nx * snapStrength, dy = off * ny * snapStrength;
+          return { x: cl(p.x + dx, CANVAS_W), y: cl(p.y + dy, CANVAS_H) };
         }
-        // offset from p to the ink center, perpendicular only; fall back to the
-        // full run if the point sits outside the local window (large offset)
-        const avgT = sw > 0 ? st / sw : chosen.st / chosen.sw;
-        const dx = avgT * nx * snapStrength;
-        const dy = avgT * ny * snapStrength;
-        return {
-          x: Math.max(0, Math.min(CANVAS_W, p.x + dx)),
-          y: Math.max(0, Math.min(CANVAS_H, p.y + dy)),
-        };
+        // straight run: fit one line at the centered offset so it can't bow
+        const seg = segs[segId[idx]];
+        const sa = stroke[seg.start], sb = stroke[seg.end];
+        const ll = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+        if (ll < 1e-6) {
+          const off = centerOffset(p, nx, ny);
+          return { x: cl(p.x + off * nx * snapStrength, CANVAS_W), y: cl(p.y + off * ny * snapStrength, CANVAS_H) };
+        }
+        const lnx = -(sb.y - sa.y) / ll, lny = (sb.x - sa.x) / ll; // line normal
+        const perp = (q) => q.x * lnx + q.y * lny;
+        // stem center = median ink-center coordinate over the run's middle
+        // (skip the ends, which sit closest to junctions and would bias it)
+        const centers = [];
+        for (let k = seg.start + 1; k < seg.end; k++) {
+          centers.push(perp(stroke[k]) + centerOffset(stroke[k], lnx, lny));
+        }
+        if (!centers.length) centers.push(perp(p) + centerOffset(p, lnx, lny));
+        centers.sort((a, b) => a - b);
+        const S = centers[Math.floor(centers.length / 2)];
+        const shift = (S - perp(p)) * snapStrength;
+        return { x: cl(p.x + shift * lnx, CANVAS_W), y: cl(p.y + shift * lny, CANVAS_H) };
       });
     });
     setRawStrokes(newStrokes);
