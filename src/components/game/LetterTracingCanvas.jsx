@@ -386,15 +386,15 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       >
         {/* Guide letter removed until suitable font is found */}
 
-        {/* Primary writing lines */}
+        {/* Primary writing lines — equal Zaner-Bloser spacing (matches authoring) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.42 * CANVAS_H} x2={CANVAS_W} y2={0.42 * CANVAS_H}
+        <line x1="0" y1={0.367 * CANVAS_H} x2={CANVAS_W} y2={0.367 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
-        <line x1="0" y1={0.72 * CANVAS_H} x2={CANVAS_W} y2={0.72 * CANVAS_H}
+        <line x1="0" y1={0.633 * CANVAS_H} x2={CANVAS_W} y2={0.633 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.92 * CANVAS_H} x2={CANVAS_W} y2={0.92 * CANVAS_H}
-          stroke="#fca5a5" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
+        <line x1="0" y1={0.90 * CANVAS_H} x2={CANVAS_W} y2={0.90 * CANVAS_H}
+          stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
         {/* Faint waypoint guide path (all future waypoints) */}
         {strokes.map((stroke, si) => (
@@ -411,13 +411,13 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
-          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="22"
+          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="12"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         ))}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="22"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
