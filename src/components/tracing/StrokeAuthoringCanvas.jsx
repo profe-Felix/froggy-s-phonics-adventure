@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2 } from 'lucide-react';
-import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
+import { CANVAS_W, CANVAS_H, smoothPoints, smoothAndNormalize, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
@@ -69,8 +69,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     if (currentRef.current.length > 1) {
-      const stroke = currentRef.current;
-      setRawStrokes((prev) => [...prev, stroke]);
+      // Normalize at commit time so the stored (and displayed) stroke IS the
+      // saved form — reload then shows the exact same pixels, no re-smoothing.
+      const px = smoothAndNormalize(currentRef.current).map((p) => ({
+        x: p.x * CANVAS_W,
+        y: p.y * CANVAS_H,
+      }));
+      setRawStrokes((prev) => [...prev, px]);
     }
     currentRef.current = [];
     setCurrent([]);

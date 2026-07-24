@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Copy, Check, Play, RotateCcw, Save } from 'lucide-react';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
-import { smoothAndNormalize, CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
+import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 
@@ -22,7 +22,13 @@ export default function LetterTracingAuthoring() {
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
 
-  const normalized = useMemo(() => rawStrokes.map((s) => smoothAndNormalize(s)), [rawStrokes]);
+  // rawStrokes is already the normalized (saved) form — committed strokes are
+  // normalized in the canvas on lift. So the save/preview data is a pure
+  // scale to 0-1, never re-smoothed, which keeps reload pixel-identical.
+  const normalized = useMemo(
+    () => rawStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))),
+    [rawStrokes]
+  );
 
   // Load saved waypoints for the selected letter so the preview works without
   // redrawing. The student tracing game reads from the same LetterWaypoint
