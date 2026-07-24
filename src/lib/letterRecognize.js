@@ -67,7 +67,15 @@ function heightClass(b) {
   return { ascender: b.minY < ASC_TOP, descender: b.maxY > DESC_BOT };
 }
 function classMismatch(a, b) {
-  return a.ascender !== b.ascender || a.descender !== b.descender;
+  // Asymmetric: only penalize when the DRAWING has a height feature the template
+  // LACKS. A tall drawing reaching the top line is not a short letter (a/c/e/o…);
+  // a drawing dropping below the baseline is not a non-descender (r/n/m…). The
+  // reverse is NOT penalized: a kid's short 'l' (ink never reaches the top) is
+  // still an 'l', and must not be pushed toward 'i' just because the 'l' template
+  // is tall. The DTW/stroke-count already keep a short vertical off tall letters
+  // with bowls/humps (b, d, h, k); the guard's job is only the tall/short and
+  // descender/non-descender boundary, one-way.
+  return (a.ascender && !b.ascender) || (a.descender && !b.descender);
 }
 
 // Anisotropically map the drawing onto the template, scaled around their
@@ -144,7 +152,14 @@ function strokeDtw(dStroke, tStroke) {
     const stroke = aDot ? b : a;
     return nearestDist(pt, stroke);
   }
-  return dtw(a, b);
+  // Emphasize the START point: a stroke that begins somewhere different costs a
+  // little more. 'f' begins with a small top hook (up, then over and down) while
+  // 't' begins straight down at the top — same stroke count, both ascenders, so
+  // the hook's start position is what keeps 'f' off 't'. The weight is small so a
+  // slightly-off start still matches; reversed strokes (which start at the wrong
+  // end entirely) already fail DTW on direction and fall to the shape rescue.
+  const startCost = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
+  return dtw(a, b) + 0.10 * startCost;
 }
 
 // A dot (the i/j dot, or a tilde mark) is a small isolated MARK, not a path —
@@ -295,7 +310,15 @@ function shapeDistance(drawn, dBox, tmpl) {
   const aligned = alignTo(drawn, dBox, tBox);
   const dCloud = cloudOf(aligned);
   const tCloud = cloudOf(tmpl);
-  return chamfer(dCloud, tCloud);
+  // The shape rescue must respect the SAME structural guards as the directional
+  // path — otherwise a 1-stroke 'l' cloud rescues onto a 2-stroke 'i' (stem+dot),
+  // or a descendered 'p' cloud rescues onto a non-descendered 'r'. Stroke-count
+  // and the asymmetric height guard are added here too, so shape only wins when
+  // the overall outline genuinely matches a template of the SAME structure.
+  let dist = chamfer(dCloud, tCloud);
+  dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
+  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
+  return dist;
 }
 
 // Does a multi-stroke group clearly form ONE known letter? True when some
