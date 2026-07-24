@@ -12,37 +12,52 @@ import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize
 // "a". A genuine multi-stroke letter still merges: its parts alone are NOT
 // confident letters (a "t" crossbar, an "i" dot, an "a" bowl), or the merged
 // letter reads clearly better than any fragment.
-const STANDALONE_DIST = 0.22; // a stroke reading this close (DTW avg per-stroke cost) is a confident standalone letter — DTW scale, not the old Chamfer+feature scale
+const STANDALONE_DIST = 0.22; // a stroke reading this close is a confident standalone letter
+// Decide how to break a clustered stroke group into letters. A group that forms
+// one known multi-stroke letter (groupFormsLetter) stays whole. Otherwise we try
+// to PEEL one confident stroke off whose REMAINDER still forms a letter — this is
+// what saves a 't'+'e' that touched: peel the 'e' off, the remaining stem+crossbar
+// is still 't' (not the 'l'+'z' you get by shattering every stroke apart). Only if
+// no peel works AND every stroke is a confident letter on its own (and none is a
+// dot) do we split into singletons — the original "c + l that touch → c, l" rule.
+function splitGroup(g, templates) {
+  if (g.length < 2) return [g];
+  if (groupFormsLetter(g, templates)) return [g];
+  const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };
+  const isDotPx = (s) => s.length <= 2 || arcLenPx(s) < 6;
+  // Peel: a confident standalone stroke whose remainder still forms a letter.
+  for (let i = 0; i < g.length; i++) {
+    const rest = g.filter((_, k) => k !== i);
+    if (!rest.length) continue;
+    const indiv = recognize([g[i]], templates);
+    const indivD = indiv[0] ? indiv[0].dist : Infinity;
+    if (indivD < STANDALONE_DIST && groupFormsLetter(rest, templates)) {
+      return [g[i], ...splitGroup(rest, templates)];
+    }
+  }
+  // No clean peel: split into singletons only if every stroke is a confident
+  // standalone letter AND none is a dot (a dot is a mark — never its own letter;
+  // tearing it off is the ill→iill bug). Otherwise keep the group together.
+  let allConfident = true, hasDot = false;
+  for (const s of g) {
+    if (isDotPx(s)) hasDot = true;
+    const r = recognize([s], templates);
+    if ((r[0] ? r[0].dist : Infinity) >= STANDALONE_DIST) allConfident = false;
+  }
+  if (allConfident && !hasDot) return g.map((s) => [s]);
+  return [g];
+}
 function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];
   const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };
-  // A dot (the i/j dot, a tap) is a MARK — never a standalone letter. If a group
-  // contains one, keep it merged with its stem: don't let the split rule tear the
-  // dot off just because both the dot and the stem happen to read as confident
-  // 'i's on their own (the ill→iill bug — dot became its own 'i', stem another).
-  const hasDot = (g) => g.some((s) => s.length <= 2 || arcLenPx(s) < 6);
+  const isDotPx = (s) => s.length <= 2 || arcLenPx(s) < 6;
   for (const g of groups) {
     if (g.length < 2 || !templates.length) { out.push(g); continue; }
-    if (hasDot(g)) { out.push(g); continue; }
-    let bestIndiv = Infinity, allConfident = true;
-    for (const s of g) {
-      const r = recognize([s], templates);
-      const d = r[0] ? r[0].dist : Infinity;
-      if (d < bestIndiv) bestIndiv = d;
-      if (d >= STANDALONE_DIST) allConfident = false;
-    }
-    // Split only when every stroke is a confident standalone letter on its own
-    // AND the group does NOT clearly form one known multi-stroke letter. The
-    // shape guard (groupFormsLetter) is what keeps a 2-stroke 't'/'f'/'k'
-    // together even when a fragment (crossbar, arm) happens to read as a
-    // confident short letter on its own — the group's overall shape still
-    // matches the 2-stroke template, so it is one letter, not two.
-    if (allConfident && isFinite(bestIndiv) && !groupFormsLetter(g, templates)) {
-      for (const s of g) out.push([s]);
-    } else {
-      out.push(g);
-    }
+    // A simple dot+stem (i/j) stays together — never tear the dot off, even if
+    // both dot and stem happen to read as confident letters on their own.
+    if (g.length === 2 && g.some(isDotPx)) { out.push(g); continue; }
+    for (const s of splitGroup(g, templates)) out.push(s);
   }
   const cxOf = (g) => { const f = g.flat(); return f.reduce((s, p) => s + p.x, 0) / f.length; };
   return out.sort((a, b) => cxOf(a) - cxOf(b));
@@ -107,26 +122,39 @@ function clusterByTouch(strokes, touchPx) {
   const wOf = (i) => bb[i].maxX - bb[i].minX;
   const hOf = (i) => bb[i].maxY - bb[i].minY;
   const isMark = (i) => wOf(i) <= 60 && hOf(i) <= 34; // a dot (i/j) or a tilde (ñ)
-  // A detached mark belongs to the stem in whose column it sits, even when the
-  // stem reaches UP to the mark (a tall 'j' whose top meets its dot) — so the
-  // rule is "mark above the stem's MIDDLE", not "mark above the stem's TOP".
-  // The stem must be clearly taller than the mark (it's a stem, not another
-  // small letter). The mark's center must sit over the stem's SHAFT (the top
-  // portion's x-range, so a wide bottom hook doesn't drag the match away) or
-  // within ~half a letter width of it. Side-by-side letters share a baseline,
-  // so neither sits above the other's middle.
-  const markOver = (m, o) => {
-    if (!isMark(m) || hOf(o) <= hOf(m) * 1.5 || cyOf(m) >= cyOf(o)) return false;
+  // A detached mark belongs to the stem whose SHAFT it sits over — and when two
+  // letters are written close together, that means the CLOSEST shaft, not any
+  // shaft within a loose window. Otherwise an 'i' dot just to the right of a tall
+  // 'l' grabs the 'l' (forming an 'l'+dot group that reads as the wrong letter)
+  // instead of its own 'i' stem. So for each mark we precompute the single nearest
+  // stem (by horizontal distance from the mark's center to the stem's shaft), and
+  // the mark joins only that one. The mark must still sit above that stem's middle
+  // and the stem must be clearly taller (it's a stem, not another small letter).
+  const markStem = (m, o) => {
+    if (!isMark(m) || hOf(o) <= hOf(m) * 1.5 || cyOf(m) >= cyOf(o)) return Infinity;
     const t = topX[o];
     const mcx = (bb[m].minX + bb[m].maxX) / 2;
-    return (mcx >= t.xmin - 10 && mcx <= t.xmax + 10) || Math.abs(mcx - t.cx) < 16;
+    if (mcx < t.xmin - 10 || mcx > t.xmax + 10) return Infinity; // not over this shaft
+    return Math.abs(mcx - t.cx);
   };
+  const closestStemFor = new Array(n).fill(-1);
+  for (let m = 0; m < n; m++) {
+    if (!isMark(m)) continue;
+    let best = -1, bestDx = Infinity;
+    for (let o = 0; o < n; o++) {
+      if (o === m || isMark(o)) continue;
+      const dx = markStem(m, o);
+      if (dx < bestDx) { bestDx = dx; best = o; }
+    }
+    closestStemFor[m] = best;
+  }
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const dotAbove = markOver(i, j) || markOver(j, i);
+      // a mark joins ONLY its closest stem (not any stem it happens to sit over)
+      const dotAbove = (isMark(i) && closestStemFor[i] === j) || (isMark(j) && closestStemFor[j] === i);
       if (ptDist(i, j) <= touchPx + INK_W || dotAbove) union(i, j);
     }
   }

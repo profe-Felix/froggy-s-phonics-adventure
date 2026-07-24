@@ -179,13 +179,15 @@ function bboxMaxDim(s) {
 }
 function isDotStroke(s) { return !s || s.length <= 2 || bboxMaxDim(s) < DOT_SIZE; }
 
-// Total distance from a drawing to one template: align the whole drawing to the
-// template's bbox, then match strokes. Dots are paired positionally (a dot is a
-// mark, not an ordered path); the remaining real strokes are DTW'd in order.
-// Average the per-pair cost, then add the stroke-count penalty and height-class
-// guard.
-function letterDistance(drawn, dBox, tmpl) {
-  if (!drawn.length || !tmpl.length) return Infinity;
+// Per-pair stroke-match costs between a drawing and one template (aligned to the
+// template's bbox). Dots are paired positionally (a dot is a mark, not a path);
+// real strokes are DTW'd in order. Returns the array of per-pair costs so callers
+// can take the AVERAGE (a letter whose strokes match on average — recognition) or
+// the MAX (a letter whose EVERY stroke matches — segmentation: keeps a 2-stroke
+// 't' together while splitting a touching 'c'+'l' whose second stroke matches
+// nothing).
+function pairCosts(drawn, dBox, tmpl) {
+  if (!drawn.length || !tmpl.length) return [];
   const tBox = bbox(tmpl);
   const aligned = alignTo(drawn, dBox, tBox);
   const n = aligned.length, m = tmpl.length;
@@ -193,7 +195,7 @@ function letterDistance(drawn, dBox, tmpl) {
   const dDotIdx = []; for (let i = 0; i < n; i++) if (isDotStroke(drawn[i])) dDotIdx.push(i);
   const tDotIdx = []; for (let i = 0; i < m; i++) if (isDotStroke(tmpl[i])) tDotIdx.push(i);
 
-  let sum = 0, pairs = 0;
+  const costs = [];
   if (dDotIdx.length > 0 && dDotIdx.length === tDotIdx.length) {
     // Match dots positionally (nearest centroid in the aligned frame), and the
     // real strokes in order. A crossbar (wide, not a dot) is never pulled into
@@ -208,42 +210,61 @@ function letterDistance(drawn, dBox, tmpl) {
         const dd = Math.hypot(dc.x - tc.x, dc.y - tc.y);
         if (dd < best) { best = dd; bi = k; }
       }
-      if (bi >= 0) { used[bi] = true; sum += best; pairs++; }
+      if (bi >= 0) { used[bi] = true; costs.push(best); }
     }
     const dReal = []; for (let i = 0; i < n; i++) if (!dDotIdx.includes(i)) dReal.push(aligned[i]);
     const tReal = []; for (let i = 0; i < m; i++) if (!tDotIdx.includes(i)) tReal.push(tmpl[i]);
     const rp = Math.min(dReal.length, tReal.length);
-    for (let i = 0; i < rp; i++) { sum += strokeDtw(dReal[i], tReal[i]); pairs++; }
+    for (let i = 0; i < rp; i++) costs.push(strokeDtw(dReal[i], tReal[i]));
   } else {
-    // No dots, or a mismatched dot count (a dot drawn where the template has
-    // none, or vice versa) — fall back to ordered DTW, which correctly penalizes
-    // a dot-vs-crossbar mismatch (a dot can't warp onto a wide crossbar).
+    // No dots, or a mismatched dot count — fall back to ordered DTW, which
+    // correctly penalizes a dot-vs-crossbar mismatch (a dot can't warp onto a
+    // wide crossbar).
     const p = Math.min(n, m);
-    for (let i = 0; i < p; i++) { sum += strokeDtw(aligned[i], tmpl[i]); pairs++; }
+    for (let i = 0; i < p; i++) costs.push(strokeDtw(aligned[i], tmpl[i]));
   }
+  return costs;
+}
 
-  let dist = pairs ? sum / pairs : 1;
+// Total distance from a drawing to one template: average per-pair cost, then add
+// the stroke-count penalty and height-class guard.
+function letterDistance(drawn, dBox, tmpl) {
+  const costs = pairCosts(drawn, dBox, tmpl);
+  if (!costs.length) return Infinity;
+  const tBox = bbox(tmpl);
+  let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
   // unmatched strokes (extra or missing) cost a flat penalty each — this is what
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
-  dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
+  dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   return dist;
 }
 
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }].
-// Returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
+// Returns [{ letter, dist, dir, shape, confidence }] sorted best (lowest dist) first.
 //
-// RECOGNITION = min(DIRECTIONAL DTW, ORDER-AGNOSTIC SHAPE). A letter drawn the
-// taught way wins on the directional DTW (its cost is ~0.02, so shape never
-// matters). A letter drawn REVERSED or in a weird stroke order fails the
-// directional DTW — but its point cloud is identical to the forward letter's
-// cloud, so the Chamfer shape distance still matches it. One uniform measure
-// thus handles every kind of reversal (point-reversed, order-reversed, partial
-// scramble) without generating reversed template copies. Direction is kept
-// only as a TIEBREAK: when the cloud shape is torn between two candidates, a
-// genuine directional match wins out (the m/u, e/z, t/l pairs differ enough in
-// cloud that this rarely fires, but it's the safety net).
-const SHAPE_TIE_RATIO = 1.5; // a directional match within this multiple of the best shape score overrides a shape-only winner
+// PATHWAY-FIRST SCORING. The directional DTW (the taught pathway) is the PRIMARY
+// signal: a letter drawn the taught way has a good directional match and wins on
+// it alone — a mediocre SHAPE match from a DIFFERENT letter can no longer override
+// it (a weird 'm' no longer collapses onto 'k', a plain 'l' no longer pulls onto
+// 'h'). The order-agnostic shape Chamfer is a RESCUE only: it overrides the
+// directional score when the directional match is poor (drawn reversed / in a
+// weird order) AND the shape match is confident (the outline genuinely looks like
+// the template) — so reversed and oddly-drawn letters whose outline is still
+// right are still recognised.
+//
+// CONFIDENCE is a softmax over the final scores, so EVERY letter gets a real
+// probability (not just the winner). A clean letter reads ~98%; a torn call
+// reads ~55/45 and shows the runner-up was close — the "it just said k and gave
+// 0% for everything else" view is gone.
+const DIR_GOOD = 0.18;    // directional DTW at/below this = a confident taught-pathway match — trust it, shape cannot override
+const SHAPE_GOOD = 0.12;  // shape Chamfer at/below this = a confident outline match — may rescue a poor pathway
+const SOFTMAX_T = 0.025;  // softmax temperature: sharp enough that a clean letter reads high, soft enough that a close call shows both
+function combinedScore(dir, shape) {
+  if (dir <= DIR_GOOD) return dir;
+  if (shape <= SHAPE_GOOD) return shape;
+  return dir; // neither is confident — prefer the closest PATHWAY (the user's rule), not a mediocre shape
+}
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawn = normalize(drawnStrokes);
@@ -252,33 +273,14 @@ export function recognize(drawnStrokes, templates) {
   const results = templates.map((t) => {
     const dir = letterDistance(drawn, dBox, t.strokes);
     const shape = shapeDistance(drawn, dBox, t.strokes);
-    return { letter: t.letter, dist: Math.min(dir, shape), dir, shape, confidence: 0 };
+    return { letter: t.letter, dist: combinedScore(dir, shape), dir, shape, confidence: 0 };
   });
-  results.sort((a, b) => a.dist - b.dist);
-  // Tiebreak: if the cloud-shape winner (best combined score, won on shape) is
-  // not also the directional winner, and some other template's DIRECTIONAL
-  // distance is within 1.5× of the winner's combined score, that directional
-  // match is the real letter — shape was just torn. Move it to the front.
-  if (results.length > 1 && isFinite(results[0].dist)) {
-    let dirBest = null;
-    for (const r of results) if (isFinite(r.dir) && (!dirBest || r.dir < dirBest.dir)) dirBest = r;
-    if (dirBest && dirBest !== results[0] && dirBest.dir <= SHAPE_TIE_RATIO * (results[0].dist || 1e-4)) {
-      const idx = results.indexOf(dirBest);
-      results.splice(idx, 1);
-      results.unshift(dirBest);
-    }
-  }
+  results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
-  const best = finite.length ? finite[0].dist : 0;
-  const second = finite.length > 1 ? finite[1].dist : null;
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    if (!isFinite(r.dist) || i > 0) { r.confidence = 0; continue; }
-    // certainty = how much the winner dominated the runner-up, relative to the
-    // winner's own cost. A clean win (runner-up much worse) reads high; a
-    // near-tie reads low. Independent of the absolute scale.
-    const ratio = second !== null ? (second - best) / (second || 1e-4) : 1;
-    r.confidence = Math.max(0, Math.min(100, Math.round(ratio * 220)));
+  if (finite.length) {
+    let sum = 0;
+    for (const r of finite) sum += Math.exp(-r.dist / SOFTMAX_T);
+    for (const r of results) r.confidence = isFinite(r.dist) ? Math.round((Math.exp(-r.dist / SOFTMAX_T) / sum) * 100) : 0;
   }
   return results;
 }
@@ -321,14 +323,17 @@ function shapeDistance(drawn, dBox, tmpl) {
   return dist;
 }
 
-// Does a multi-stroke group clearly form ONE known letter? True when some
-// template with the SAME stroke count matches the group — either directionally
-// (drawn the taught way) OR by overall shape (drawn a weird way but looks
-// right). Same-stroke-count is what keeps 'c'+'l' (2 strokes, but their combined
-// shape is not any 2-stroke letter) splitting while 't' (2 strokes, matches the
-// 2-stroke 't' template) stays together.
-const GROUP_DIR_CONF = 0.20;   // directional DTW below this = clearly this letter
-const GROUP_SHAPE_CONF = 0.13; // shape Chamfer below this = clearly this letter's outline
+// Does a multi-stroke group clearly form ONE known letter? Same stroke count is
+// required, AND every stroke pair must match the template (directional) OR the
+// overall outline must be a confident shape match. The EVERY-pair rule (MAX, not
+// average) is what tells a 2-stroke 't' (stem→stem AND crossbar→crossbar both
+// good) from a touching 'c'+'l' forced onto a 2-stroke template (l→stem good, but
+// c→arm/crossbar/dot bad — the MAX stays high, so it is NOT one letter). The
+// shape rescue keeps a hand-drawn 't' whose crossbar is a bit off: its outline
+// still confidently matches 't', so it stays together instead of splitting into
+// 'l' + 'z'.
+const GROUP_PAIR_DIR = 0.26;    // every stroke pair's DTW at/below this = the group is this letter, directionally
+const GROUP_SHAPE_RESCUE = 0.10; // ...or the shape Chamfer at/below this = the outline is confidently this letter
 export function groupFormsLetter(strokesPx, templates) {
   const drawn = normalize(strokesPx);
   if (!drawn.length) return null;
@@ -337,12 +342,17 @@ export function groupFormsLetter(strokesPx, templates) {
   let best = null, bestScore = Infinity;
   for (const t of templates) {
     if (!t.strokes || drawn.length !== t.strokes.length) continue;
-    const dd = letterDistance(drawn, dBox, t.strokes);
+    const costs = pairCosts(drawn, dBox, t.strokes);
+    if (!costs.length) continue;
+    const maxPair = Math.max(...costs);
     const sd = shapeDistance(drawn, dBox, t.strokes);
-    const score = Math.min(dd, sd);
-    if (score < bestScore) { bestScore = score; best = t.letter; }
+    const forms = maxPair <= GROUP_PAIR_DIR || sd <= GROUP_SHAPE_RESCUE;
+    if (forms) {
+      const score = Math.min(maxPair, sd);
+      if (score < bestScore) { bestScore = score; best = t.letter; }
+    }
   }
-  return bestScore < Math.max(GROUP_DIR_CONF, GROUP_SHAPE_CONF) ? best : null;
+  return best;
 }
 
 // "Correct pathway" = the drawn strokes follow the template's stroke structure:
