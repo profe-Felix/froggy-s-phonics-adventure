@@ -212,11 +212,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         }
         return { x: tx / tl, y: ty / tl };
       });
-      // grow straight runs (constant tangent), then extend each onto its line so
-      // the junction points (stem meeting bowl) join the line instead of the curve
+      // grow straight runs: consecutive points whose tangent stays within THETA
       const segId = new Array(n).fill(-1);
       const segs = [];
-      const EXT_TOL = 9; // px: extend while a point still lies near the stem line
       let i = 0;
       while (i < n) {
         if (!tan[i]) { i++; continue; }
@@ -226,14 +224,12 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           const a = stroke[i], b = stroke[j - 1];
           const dl = Math.hypot(b.x - a.x, b.y - a.y);
           if (dl >= 1e-6) {
-            const lnx = -(b.y - a.y) / dl, lny = (b.x - a.x) / dl;
-            const pd = (q) => Math.abs((q.x - a.x) * lnx + (q.y - a.y) * lny);
-            let start = i, end = j - 1;
-            while (start - 1 >= 0 && pd(stroke[start - 1]) < EXT_TOL) start--;
-            while (end + 1 < n && pd(stroke[end + 1]) < EXT_TOL) end++;
             const id = segs.length;
-            segs.push({ start, end, lnx, lny });
-            for (let k = start; k <= end; k++) segId[k] = id;
+            segs.push({
+              start: i, end: j - 1,
+              lnx: -(b.y - a.y) / dl, lny: (b.x - a.x) / dl,
+            });
+            for (let k = i; k < j; k++) segId[k] = id;
           }
         }
         i = j;
