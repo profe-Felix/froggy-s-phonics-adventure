@@ -6,32 +6,52 @@ import { recognize } from '@/lib/letterRecognize';
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-// Group strokes into letters by horizontal proximity (single-linkage by x-gap).
-// Strokes whose x-ranges are within `gapPx` of each other belong to one letter;
-// a horizontal gap larger than that starts a new letter. This is order- and
-// timing-independent, so a student who draws the circle of a 'b' before the
-// line — or pauses mid-letter — still gets one letter, while separate letters
-// stay separate. A dot drawn above a stem (i / j) merges with it because their
-// x-ranges overlap even though the dot floats above the baseline.
-function clusterBySpace(strokes, gapPx) {
+// Group strokes into letters by ACTUAL CONTACT. Two strokes join one letter
+// only when some point of one is within `touchPx` of some point of the other —
+// they touch or nearly touch. A single continuous stroke (an 'a' drawn as a
+// bowl that flows into a tail) is always one letter: the tail is part of that
+// stroke, so it won't pull in a nearby-but-separate 'b' unless the tail
+// genuinely touches the 'b'. This is the "connected to the a, less so to the b"
+// rule — stroke continuity is respected, mere closeness is not. A floating dot
+// above a stem (i / j) still merges when it sits directly over the stem.
+function clusterByTouch(strokes, touchPx) {
   const n = strokes.length;
   if (!n) return [];
-  const xs = strokes.map((s) => {
-    let minX = Infinity, maxX = -Infinity;
-    for (const p of s) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
-    return { minX, maxX };
+  const bb = strokes.map((s) => {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of s) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+    return { minX, maxX, minY, maxY };
   });
-  const xGap = (i, j) => Math.max(0, Math.max(xs[i].minX, xs[j].minX) - Math.min(xs[i].maxX, xs[j].maxX));
+  // nearest point-to-point distance (sampled every 3rd point for speed)
+  const ptDist = (i, j) => {
+    const a = strokes[i], b = strokes[j];
+    let mn = Infinity;
+    for (let pi = 0; pi < a.length; pi += 3) {
+      const p = a[pi];
+      for (let qi = 0; qi < b.length; qi += 3) {
+        const q = b[qi];
+        const d = (p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y);
+        if (d < mn) mn = d;
+      }
+    }
+    return Math.sqrt(mn);
+  };
+  const xOverlap = (i, j) => Math.min(bb[i].maxX, bb[j].maxX) - Math.max(bb[i].minX, bb[j].minX);
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
-  for (let i = 0; i < n; i++)
-    for (let j = i + 1; j < n; j++)
-      if (xGap(i, j) <= gapPx) union(i, j);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      // join when the strokes touch, OR when one is a dot floating directly
+      // above the other (i / j) — same column, separated only vertically
+      const dotAbove = xOverlap(i, j) > 4 && (bb[i].maxY < bb[j].minY || bb[j].maxY < bb[i].minY);
+      if (ptDist(i, j) <= touchPx || dotAbove) union(i, j);
+    }
+  }
   const groups = {};
   for (let i = 0; i < n; i++) { const r = find(i); (groups[r] = groups[r] || []).push(i); }
   return Object.values(groups)
-    .map((idx) => ({ idx, cx: idx.reduce((s, i) => s + (xs[i].minX + xs[i].maxX) / 2, 0) / idx.length }))
+    .map((idx) => ({ idx, cx: idx.reduce((s, i) => s + (bb[i].minX + bb[i].maxX) / 2, 0) / idx.length }))
     .sort((a, b) => a.cx - b.cx)
     .map((g) => g.idx.map((i) => strokes[i]));
 }
@@ -43,7 +63,7 @@ export default function LetterRecognitionCanvas({ templates }) {
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
   const [segMode, setSegMode] = useState('space'); // 'space' | 'pause'
-  const [spaceGap, setSpaceGap] = useState(35); // canvas px
+  const [spaceGap, setSpaceGap] = useState(8); // canvas px — strokes join only when they touch
   const [pauseMs, setPauseMs] = useState(500);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
@@ -111,7 +131,7 @@ export default function LetterRecognitionCanvas({ templates }) {
     setTimeout(() => {
       let groups;
       if (segMode === 'space') {
-        groups = clusterBySpace(strokes, spaceGap);
+        groups = clusterByTouch(strokes, spaceGap);
       } else {
         groups = [];
         strokes.forEach((s, i) => {
@@ -165,7 +185,7 @@ export default function LetterRecognitionCanvas({ templates }) {
           onClick={() => setSegMode('space')}
           className={`px-3 py-1 rounded-md transition ${segMode === 'space' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
         >
-          Group by spacing
+          Group by touching
         </button>
         <button
           onClick={() => setSegMode('pause')}
@@ -177,12 +197,12 @@ export default function LetterRecognitionCanvas({ templates }) {
 
       {/* Mode-specific threshold */}
       <label className="flex items-center gap-2 text-xs text-slate-600 w-full max-w-xs px-2">
-        <span className="w-28 shrink-0">{segMode === 'space' ? 'Letter spacing gap' : 'Pause between letters'}</span>
+        <span className="w-28 shrink-0">{segMode === 'space' ? 'Stroke join distance' : 'Pause between letters'}</span>
         <input
           type="range"
-          min={segMode === 'space' ? 5 : 200}
-          max={segMode === 'space' ? 120 : 1500}
-          step={segMode === 'space' ? 5 : 50}
+          min={segMode === 'space' ? 2 : 200}
+          max={segMode === 'space' ? 40 : 1500}
+          step={segMode === 'space' ? 1 : 50}
           value={segMode === 'space' ? spaceGap : pauseMs}
           onChange={(e) => (segMode === 'space' ? setSpaceGap(parseInt(e.target.value, 10)) : setPauseMs(parseInt(e.target.value, 10)))}
           className="flex-1"

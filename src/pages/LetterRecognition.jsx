@@ -62,7 +62,7 @@ export default function LetterRecognition() {
             <LetterRecognitionCanvas templates={templates} />
             <p className="text-xs text-slate-400 text-center mt-3">
               Stroke order within a letter doesn't matter — circle-then-line still matches line-then-circle.
-              Use "Group by spacing" to split letters by horizontal gap (works even without pausing), or "Group by pause" to split by timing.
+              "Group by touching" joins strokes into a letter only when they actually touch, so a tail that flows from one stroke stays with it even near another letter. "Group by pause" splits by timing instead.
             </p>
           </div>
         )}
