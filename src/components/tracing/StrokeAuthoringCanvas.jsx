@@ -131,10 +131,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     loadImage(e.dataTransfer.files?.[0]);
   };
 
-  // "Snap to letter": pull each stroke point toward the nearest dark pixel of
-  // the trace image, hugging the hand-drawn path onto the black letter. Strength
-  // controls how far each point moves (1 = jump fully onto the letter). Click
-  // repeatedly to converge.
+  // "Snap to letter": center each stroke point on the ink. A distance transform
+  // finds the letter's centerline (medial axis); each point moves toward the
+  // most-centered ink pixel nearby instead of the nearest edge, so the path runs
+  // down the middle of the black stroke. Strength controls how far each point
+  // moves (1 = jump fully onto the centerline). Click repeatedly to converge.
   const snapToLetter = () => {
     if (!bg?.img || !rawStrokes.length) return;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -146,21 +147,58 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     cx.fillStyle = '#ffffff';
     cx.fillRect(0, 0, W, H);
     cx.drawImage(bg.img, bgX, bgY, dw, dh);
-    let data;
-    try { data = cx.getImageData(0, 0, W, H).data; } catch { return; }
-    const R = 26;
+    let imgData;
+    try { imgData = cx.getImageData(0, 0, W, H); } catch { return; }
+    const data = imgData.data;
+    const N = W * H;
+    // ink mask: dark pixels are the letter
+    const ink = new Uint8Array(N);
+    for (let i = 0; i < N; i++) {
+      const o = i * 4;
+      const l = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+      ink[i] = l < 120 ? 1 : 0;
+    }
+    // Chamfer distance transform: distance from each pixel to nearest white pixel.
+    // The ridge (max values) inside the ink is the letter's centerline.
+    const INF = 1e9, SQ2 = Math.SQRT2;
+    const dist = new Float32Array(N);
+    for (let i = 0; i < N; i++) dist[i] = ink[i] ? INF : 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const idx = y * W + x;
+      if (!ink[idx]) continue;
+      let d = dist[idx];
+      if (y > 0) d = Math.min(d, dist[idx - W] + 1);
+      if (x > 0) d = Math.min(d, dist[idx - 1] + 1);
+      if (y > 0 && x > 0) d = Math.min(d, dist[idx - W - 1] + SQ2);
+      if (y > 0 && x < W - 1) d = Math.min(d, dist[idx - W + 1] + SQ2);
+      dist[idx] = d;
+    }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+      const idx = y * W + x;
+      if (!ink[idx]) continue;
+      let d = dist[idx];
+      if (y < H - 1) d = Math.min(d, dist[idx + W] + 1);
+      if (x < W - 1) d = Math.min(d, dist[idx + 1] + 1);
+      if (y < H - 1 && x < W - 1) d = Math.min(d, dist[idx + W + 1] + SQ2);
+      if (y < H - 1 && x > 0) d = Math.min(d, dist[idx + W - 1] + SQ2);
+      dist[idx] = d;
+    }
+    const R = 22;
+    // For each stroke point, move toward the most-centered ink pixel nearby
+    // (the medial-axis point nearest the stroke), tie-breaking by closeness.
     const newStrokes = rawStrokes.map((stroke) => stroke.map((p) => {
       const px = Math.round(p.x), py = Math.round(p.y);
-      let best = null, bestD = Infinity;
+      let best = null, bestC = -1, bestDp = Infinity;
       const x0 = Math.max(0, px - R), x1 = Math.min(W - 1, px + R);
       const y0 = Math.max(0, py - R), y1 = Math.min(H - 1, py + R);
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-          const i = (y * W + x) * 4;
-          const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-          if (l < 120) {
-            const d = (x - px) * (x - px) + (y - py) * (y - py);
-            if (d < bestD) { bestD = d; best = { x, y }; }
+          const idx = y * W + x;
+          if (!ink[idx]) continue;
+          const c = dist[idx];
+          const dp = (x - px) * (x - px) + (y - py) * (y - py);
+          if (c > bestC + 1e-6 || (Math.abs(c - bestC) <= 1e-6 && dp < bestDp)) {
+            bestC = c; best = { x, y }; bestDp = dp;
           }
         }
       }
