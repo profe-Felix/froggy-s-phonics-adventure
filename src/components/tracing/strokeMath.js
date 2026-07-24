@@ -59,7 +59,7 @@ export function resample(pts, n) {
 }
 
 // Turn a raw px stroke into clean, evenly-spaced normalized (0-1) waypoints.
-export function smoothAndNormalize(rawPx, maxPts = 30, density = 16) {
+export function smoothAndNormalize(rawPx, maxPts = 60, density = 8) {
   const smoothed = smoothPoints(rawPx, 3);
   const len = pathLength(smoothed);
   let n = Math.round(len / density);
