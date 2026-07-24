@@ -78,9 +78,19 @@ export function recognize(drawnStrokes, templates) {
   const drawnNorm = drawnStrokes.map((s) =>
     s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))
   );
-  const drawnSeqs = permutations(drawnNorm)
+  // Direction-invariant: a student may draw a stroke backwards (a clockwise
+  // circle vs a counter-clockwise template, or an 'e' from the bottom up).
+  // For every stroke-order permutation we also try the whole sequence reversed
+  // (which reverses each stroke's direction) and keep the best DTW. With the
+  // order permutations this stays bounded (≤ 240 sequences for 5 strokes).
+  const baseSeqs = permutations(drawnNorm)
     .map((p) => letterToSequence(p))
     .filter((s) => s.length);
+  const drawnSeqs = [];
+  for (const s of baseSeqs) {
+    drawnSeqs.push(s);
+    drawnSeqs.push(s.slice().reverse());
+  }
   if (!drawnSeqs.length) return [];
   const tseqs = templates.map((t) => ({ letter: t.letter, seq: letterToSequence(t.strokes) }));
   const results = tseqs.map(({ letter, seq }) => {
