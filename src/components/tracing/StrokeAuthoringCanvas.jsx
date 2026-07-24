@@ -3,6 +3,8 @@ import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2 } from 'lucide-react'
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
+// Auto-fit scale for a freshly loaded trace image (centered on the canvas).
+const DEFAULT_BG_SCALE = 16.3;
 
 function Arrow({ pos, color }) {
   const size = 7;
@@ -32,6 +34,17 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const moveStartRef = useRef(null);
   const fileRef = useRef(null);
 
+  // Hold-key straight-line helpers for cleaner template authoring:
+  //  Hold D while drawing  → the in-progress segment locks to a straight line
+  //                         (direction set by the first movement from the anchor).
+  //  Hold D+S              → retrace the last straight line back down it, so an
+  //                         up-then-down stem (m, n, g, a) overlaps exactly.
+  const dHeldRef = useRef(false);
+  const sHeldRef = useRef(false);
+  const straightAnchorRef = useRef(null);
+  const straightDirRef = useRef(null);
+  const lastStraightRef = useRef(null);
+
   // Latest bg scale/position in refs so the scale slider can anchor to the
   // bottom-left corner without going stale across rapid drag events.
   const bgScaleRef = useRef(bgScale);
@@ -55,6 +68,50 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     return () => URL.revokeObjectURL(bg.url);
   }, [bg]);
 
+  // Global hold-key listeners for the straight-line / retrace shortcuts. Only
+  // active when not typing in a text field, so the hint/letter inputs still work.
+  useEffect(() => {
+    const isInput = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    const onKeyDown = (e) => {
+      if (isInput(e.target)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'd' && !dHeldRef.current) {
+        dHeldRef.current = true;
+        if (drawingRef.current) {
+          const last = currentRef.current[currentRef.current.length - 1];
+          if (sHeldRef.current && lastStraightRef.current) {
+            straightAnchorRef.current = lastStraightRef.current.anchor;
+            straightDirRef.current = lastStraightRef.current.dir;
+          } else {
+            straightAnchorRef.current = last || { x: 0, y: 0 };
+            straightDirRef.current = null;
+          }
+        }
+      } else if (k === 's' && !sHeldRef.current) {
+        sHeldRef.current = true;
+      }
+    };
+    const onKeyUp = (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'd') {
+        if (straightDirRef.current) {
+          lastStraightRef.current = { anchor: straightAnchorRef.current, dir: straightDirRef.current };
+        }
+        straightAnchorRef.current = null;
+        straightDirRef.current = null;
+        dHeldRef.current = false;
+      } else if (k === 's') {
+        sHeldRef.current = false;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
@@ -74,6 +131,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       // these raw points, so reload shows identical pixels.
       setRawStrokes((prev) => [...prev, currentRef.current.slice()]);
     }
+    // Remember the just-finished straight segment so a later D+S can retrace it,
+    // then reset straight state (D may still be physically held).
+    if (straightDirRef.current) {
+      lastStraightRef.current = { anchor: straightAnchorRef.current, dir: straightDirRef.current };
+    }
+    straightAnchorRef.current = null;
+    straightDirRef.current = null;
     currentRef.current = [];
     setCurrent([]);
   };
@@ -92,6 +156,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     currentRef.current = [pos];
     setCurrent([pos]);
     drawingRef.current = true;
+    if (dHeldRef.current) {
+      if (sHeldRef.current && lastStraightRef.current) {
+        straightAnchorRef.current = lastStraightRef.current.anchor;
+        straightDirRef.current = lastStraightRef.current.dir;
+      } else {
+        straightAnchorRef.current = pos;
+        straightDirRef.current = null;
+      }
+    }
   };
 
   const move = (e) => {
@@ -106,6 +179,27 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (!drawingRef.current) return;
     e.preventDefault();
     const pos = getPos(e);
+    // Straight-line mode (hold D): project the cursor onto the locked line so
+    // the segment stays perfectly straight. Hold D+S to retrace the last
+    // straight line back down it (same anchor+dir), for up-then-down stems.
+    if (dHeldRef.current && straightAnchorRef.current) {
+      let dir = straightDirRef.current;
+      if (!dir) {
+        const dx = pos.x - straightAnchorRef.current.x;
+        const dy = pos.y - straightAnchorRef.current.y;
+        const dl = Math.hypot(dx, dy);
+        if (dl < 2) return; // wait for enough movement to lock the direction
+        dir = { x: dx / dl, y: dy / dl };
+        straightDirRef.current = dir;
+      }
+      const t = (pos.x - straightAnchorRef.current.x) * dir.x + (pos.y - straightAnchorRef.current.y) * dir.y;
+      const proj = { x: straightAnchorRef.current.x + dir.x * t, y: straightAnchorRef.current.y + dir.y * t };
+      const last = currentRef.current[currentRef.current.length - 1];
+      if (last && Math.hypot(proj.x - last.x, proj.y - last.y) < 2) return;
+      currentRef.current = [...currentRef.current, proj];
+      setCurrent(currentRef.current);
+      return;
+    }
     const last = currentRef.current[currentRef.current.length - 1];
     if (last && Math.hypot(pos.x - last.x, pos.y - last.y) < 2) return;
     currentRef.current = [...currentRef.current, pos];
@@ -124,10 +218,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      setBg({ url, aspect: img.naturalWidth / img.naturalHeight || 1, img });
-      setBgScale(1);
-      setBgX(0);
-      setBgY(0);
+      const aspect = img.naturalWidth / img.naturalHeight || 1;
+      setBg({ url, aspect, img });
+      // Auto-scale to the known-good size and center on the canvas (not grow to
+      // the upper-right from the top-left corner).
+      const dh = CANVAS_H * DEFAULT_BG_SCALE;
+      const dw = dh * aspect;
+      setBgScale(DEFAULT_BG_SCALE);
+      setBgX((CANVAS_W - dw) / 2);
+      setBgY((CANVAS_H - dh) / 2);
     };
     img.src = url;
   };
@@ -453,10 +552,12 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
               type="range" min="0.2" max="40" step="0.1" value={bgScale}
               onChange={(e) => {
                 const ns = parseFloat(e.target.value);
-                // grow from the bottom-left: keep the bottom edge pinned
-                const bottomY = bgYRef.current + CANVAS_H * bgScaleRef.current;
+                // re-center on the canvas as it scales (instead of growing to a corner)
+                const dh = CANVAS_H * ns;
+                const dw = dh * (bg?.aspect || 1);
                 setBgScale(ns);
-                setBgY(bottomY - CANVAS_H * ns);
+                setBgX((CANVAS_W - dw) / 2);
+                setBgY((CANVAS_H - dh) / 2);
               }}
               className="flex-1"
             />
@@ -503,6 +604,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       <p className="text-xs text-gray-500 text-center max-w-xs">
         Draw each stroke in order, in the correct direction. Lift between strokes — the number shows the stroke order.
         {bg && ' Toggle "Move image" to reposition the trace image.'}
+        <br />Hold <b>D</b> while drawing for a straight line; hold <b>D+S</b> to retrace the last straight line back down (for m, n, g, a stems).
       </p>
     </div>
   );
