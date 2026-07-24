@@ -190,8 +190,19 @@ export function recognize(drawnStrokes, templates) {
       W_ASP * Math.abs(drawn.aspect - aspect) +
       (crossClass ? CLASS_PENALTY : 0) +
       UNCOVERED_WEIGHT * inkMismatch;
-    return { letter, dist: d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 110))) };
+    return { letter, dist: d, confidence: 0 };
   });
   results.sort((a, b) => a.dist - b.dist);
+  // Certainty comes from how clearly the winner beats the runner-up, not from the
+  // raw score: the coverage penalty inflates absolute distance, so a correct
+  // letter with normal coverage slack would otherwise read as 0%. The margin
+  // between #1 and #2 is scale-invariant — a 'c' that beats a 'b' (penalized for
+  // its un-drawn stem) by a wide gap reads as high certainty.
+  for (let i = 0; i < results.length; i++) {
+    if (!isFinite(results[i].dist)) { results[i].confidence = 0; continue; }
+    const next = results[i + 1];
+    const margin = next && isFinite(next.dist) ? next.dist - results[i].dist : results[i].dist;
+    results[i].confidence = Math.max(0, Math.min(100, Math.round(margin * 200)));
+  }
   return results;
 }
