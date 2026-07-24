@@ -56,6 +56,7 @@ export function buildHunt(config, itemText) {
   } else if (type === 'digraph') {
     let i = 0, idx = 0;
     while (i < text.length) {
+      if (text[i] === ' ') { segments.push({ text: ' ', tap: false }); i++; continue; }
       const two = text.slice(i, i + 2).toLowerCase();
       if (['ch', 'll', 'rr'].includes(two)) {
         const seg = text.slice(i, i + 2);
@@ -68,10 +69,14 @@ export function buildHunt(config, itemText) {
     // char-level: phoneme, punctuation, space
     let idx = 0;
     for (const ch of text) {
+      if (ch === ' ') {
+        if (type === 'space') { segments.push({ text: ' ', tap: true, index: idx, correct: true }); idx++; }
+        else { segments.push({ text: ' ', tap: false }); }
+        continue;
+      }
       let correct = false;
       if (type === 'phoneme') correct = !!target && eq(ch, target);
       else if (type === 'punctuation') correct = PUNCT.has(ch);
-      else if (type === 'space') correct = ch === ' ';
       segments.push({ text: ch, tap: true, index: idx, correct }); idx++;
     }
   }

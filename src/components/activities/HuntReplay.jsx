@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import HuntSegments from '@/components/activities/HuntSegments';
 import { Play, Pause } from 'lucide-react';
 
 // Teacher replay for "Caza en el texto". Renders the saved passage ranges and
@@ -69,22 +70,11 @@ export default function HuntReplay({ rec }) {
     if (audioRef.current) { try { audioRef.current.currentTime = v / 1000; } catch { /* best-effort */ } }
   }
 
-  const statusClass = (st) => st === 'correct' ? 'bg-green-200 text-green-800'
-    : st === 'wrong' ? 'bg-red-200 text-red-700'
-    : st === 'missed' ? 'bg-amber-200 text-amber-800' : '';
-
   return (
     <div className="mt-2">
       {rec.audio_url && <audio ref={audioRef} src={rec.audio_url} onLoadedMetadata={onMeta} onEnded={() => setPlaying(false)} className="hidden" />}
-      <p className="text-xl sm:text-2xl font-bold text-slate-800 leading-relaxed flex flex-wrap">
-        {segments.map((seg, i) => {
-          if (!seg.tap) return <span key={i}>{seg.text}</span>;
-          const st = marks[seg.index];
-          if (seg.text === ' ') {
-            return <span key={i} className={`inline-block min-w-[0.6em] rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300'}`}>&nbsp;</span>;
-          }
-          return <span key={i} className={`rounded px-0.5 leading-relaxed border-b border-dotted border-slate-300 ${st ? statusClass(st) : ''}`}>{seg.text}</span>;
-        })}
+      <p className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
+        <HuntSegments segments={segments} marks={marks} isSpaceHunt={data.huntType === 'space'} />
       </p>
       {hasTimeline ? (
         <div className="flex items-center gap-2 mt-2">

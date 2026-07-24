@@ -1,60 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import { syllabifyEs } from '@/lib/lettersort/phonics';
-import { RefreshCw, Volume2, Mic, Send, Check, X } from 'lucide-react';
+import RhymeWordSlider from '@/components/activities/RhymeWordSlider';
+import { RefreshCw, Mic, Send, Check, X } from 'lucide-react';
 
-// "Identificar rimas" (student). Two words are shown; each has a speaker (TTS
-// the whole word) and a syllable slider — dragging it speaks that syllable and
-// highlights it, so the student can repeat each word and compare the endings.
-// The last syllable is highlighted by default to draw attention to the ending.
-// The student then taps ✓ (sí rima) or ✗ (no rima); we know the answer, so the
-// decision gets instant feedback. Voice + the choice are recorded for replay.
+// "Identificar rimas" (student). Flow: listen to each word (speaker) → slide and
+// say each word (the slider; the word itself is hidden) → decide ✓/✗ if they
+// rhyme. Voice is recorded for teacher replay.
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
-}
-function speak(text) {
-  try {
-    window.speechSynthesis?.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'es-ES'; u.rate = 0.8;
-    window.speechSynthesis?.speak(u);
-  } catch { /* best-effort */ }
-}
-
-function WordCard({ word }) {
-  const syls = useMemo(() => syllabifyEs(word), [word]);
-  const [focus, setFocus] = useState(0);
-  useEffect(() => { setFocus(Math.max(0, syls.length - 1)); }, [word, syls.length]);
-  return (
-    <div className="flex-1 min-w-[150px] rounded-2xl bg-white border-2 border-slate-200 p-4 shadow-sm">
-      <div className="flex items-center gap-2 mb-2">
-        <button
-          onClick={() => speak(word)}
-          className="shrink-0 p-2.5 rounded-xl bg-indigo-100 text-indigo-700 active:bg-indigo-200"
-          aria-label={`Escuchar ${word}`}
-        >
-          <Volume2 className="w-5 h-5" />
-        </button>
-        <span className="text-2xl sm:text-3xl font-bold text-slate-800 flex flex-wrap leading-snug">
-          {syls.map((s, i) => (
-            <span key={i} className={`px-1 rounded transition-colors ${i === focus ? 'bg-indigo-200 text-indigo-800' : ''}`}>{s}</span>
-          ))}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={Math.max(0, syls.length - 1)}
-        value={focus}
-        onChange={(e) => { const v = +e.target.value; setFocus(v); speak(syls[v]); }}
-        className="w-full touch-none"
-      />
-      <div className="text-center text-xs text-slate-400 mt-1">Desliza para escuchar cada sílaba</div>
-    </div>
-  );
 }
 
 export default function RhymeActivity({ config, studentName }) {
@@ -68,7 +24,7 @@ export default function RhymeActivity({ config, studentName }) {
   const [phase, setPhase] = useState('ready');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
-  const [choice, setChoice] = useState(null); // true / false
+  const [choice, setChoice] = useState(null);
 
   const recorder = useAudioRecorder();
   const choiceRef = useRef(null);
@@ -169,8 +125,12 @@ export default function RhymeActivity({ config, studentName }) {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <WordCard word={pair.word1} />
-        <WordCard word={pair.word2} />
+        <RhymeWordSlider word={pair.word1} label="Palabra 1" />
+        <RhymeWordSlider word={pair.word2} label="Palabra 2" />
+      </div>
+
+      <div className="text-center text-xs text-slate-500 leading-relaxed">
+        1) Escucha cada palabra &nbsp;·&nbsp; 2) Desliza y di cada palabra &nbsp;·&nbsp; 3) ¿Riman?
       </div>
 
       {phase === 'recording' && (

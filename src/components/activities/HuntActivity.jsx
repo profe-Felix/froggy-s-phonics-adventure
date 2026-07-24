@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildHunt } from '@/lib/activities/hunt';
+import HuntSegments from '@/components/activities/HuntSegments';
 import { RefreshCw, Volume2, Mic, Send, CheckCircle2 } from 'lucide-react';
 
 // "Caza en el texto" (student). Renders a passage as tappable ranges; each tap
@@ -173,10 +174,6 @@ export default function HuntActivity({ config, studentName }) {
 
   if (!hasItems) return <div className="p-6 text-slate-500 text-center">Añade un texto para cazar.</div>;
 
-  const statusClass = (st) => st === 'correct' ? 'bg-green-200 text-green-800'
-    : st === 'wrong' ? 'bg-red-200 text-red-700'
-    : st === 'missed' ? 'bg-amber-200 text-amber-800' : 'hover:bg-slate-100';
-
   return (
     <div className="flex flex-col gap-4 p-4 max-w-3xl mx-auto">
       <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -191,27 +188,14 @@ export default function HuntActivity({ config, studentName }) {
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className="text-xl sm:text-2xl font-bold text-slate-800 leading-relaxed flex flex-wrap">
-          {segments.map((seg, i) => {
-            if (!seg.tap) return <span key={i}>{seg.text}</span>;
-            const st = marks[seg.index];
-            if (seg.text === ' ') {
-              return (
-                <span
-                  key={i}
-                  onClick={() => tap(seg)}
-                  className={`inline-block min-w-[0.6em] cursor-pointer rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300 hover:bg-slate-200 active:bg-slate-300'}`}
-                >&nbsp;</span>
-              );
-            }
-            return (
-              <span
-                key={i}
-                onClick={() => tap(seg)}
-                className={`cursor-pointer rounded px-0.5 leading-relaxed border-b border-dotted border-slate-300 ${st ? statusClass(st) : 'hover:bg-slate-200 active:bg-slate-300'}`}
-              >{seg.text}</span>
-            );
-          })}
+        <p className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
+          <HuntSegments
+            segments={segments}
+            marks={marks}
+            onTap={tap}
+            interactive={phase === 'recording' && !checked}
+            isSpaceHunt={hunt.type === 'space'}
+          />
         </p>
         <button onClick={speak} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold">
           <Volume2 className="w-4 h-4" /> Escuchar
