@@ -193,16 +193,19 @@ export function recognize(drawnStrokes, templates) {
     return { letter, dist: d, confidence: 0 };
   });
   results.sort((a, b) => a.dist - b.dist);
-  // Certainty comes from how clearly the winner beats the runner-up, not from the
-  // raw score: the coverage penalty inflates absolute distance, so a correct
-  // letter with normal coverage slack would otherwise read as 0%. The margin
-  // between #1 and #2 is scale-invariant — a 'c' that beats a 'b' (penalized for
-  // its un-drawn stem) by a wide gap reads as high certainty.
-  for (let i = 0; i < results.length; i++) {
-    if (!isFinite(results[i].dist)) { results[i].confidence = 0; continue; }
-    const next = results[i + 1];
-    const margin = next && isFinite(next.dist) ? next.dist - results[i].dist : results[i].dist;
-    results[i].confidence = Math.max(0, Math.min(100, Math.round(margin * 200)));
+  // Certainty is highest for the best match and falls off for worse ones. We
+  // normalize distance across the field: the winner (lowest dist) is 100%, the
+  // worst is 0%, and the rest scale linearly between. This is scale-invariant, so
+  // the coverage penalty's inflated absolute distance can't make a correct letter
+  // read as 0% — and a poor match can never read as 100%.
+  const finite = results.filter((r) => isFinite(r.dist));
+  const bestD = finite.length ? finite[0].dist : 0;
+  let worstD = bestD;
+  for (const r of finite) if (r.dist > worstD) worstD = r.dist;
+  const span = worstD - bestD || 1;
+  for (const r of results) {
+    if (!isFinite(r.dist)) { r.confidence = 0; continue; }
+    r.confidence = Math.max(0, Math.min(100, Math.round(100 * (1 - (r.dist - bestD) / span))));
   }
   return results;
 }
