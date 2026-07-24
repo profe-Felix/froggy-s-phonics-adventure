@@ -386,14 +386,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       >
         {/* Guide letter removed until suitable font is found */}
 
-        {/* Primary writing lines — match canonical letter data (T=0.10, M=0.42, B=0.72, D=0.92) */}
+        {/* Primary writing lines — equal-zone spacing (matches authoring) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.42 * CANVAS_H} x2={CANVAS_W} y2={0.42 * CANVAS_H}
+        <line x1="0" y1={0.367 * CANVAS_H} x2={CANVAS_W} y2={0.367 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
-        <line x1="0" y1={0.72 * CANVAS_H} x2={CANVAS_W} y2={0.72 * CANVAS_H}
+        <line x1="0" y1={0.633 * CANVAS_H} x2={CANVAS_W} y2={0.633 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.92 * CANVAS_H} x2={CANVAS_W} y2={0.92 * CANVAS_H}
+        <line x1="0" y1={0.90 * CANVAS_H} x2={CANVAS_W} y2={0.90 * CANVAS_H}
           stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
         {/* Faint waypoint guide path (all future waypoints) */}

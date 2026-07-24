@@ -42,13 +42,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [snapStrength, setSnapStrength] = useState(0.6);
   const [snapHistory, setSnapHistory] = useState([]);
 
-  // Writing guide lines — adjustable so they can be matched to the trace
-  // image's actual Zaner-Bloser lines. Defaults match the canonical letter
-  // data (see data/letterWaypoints.jsx): T=0.10, M=0.42, B=0.72, D=0.92.
+  // Writing guide lines — adjustable. Equal-zone spacing (three equal zones
+  // between top and descender, with matching top/bottom margins) so the
+  // descender gets the same room as the x-height.
   const [lineTop, setLineTop] = useState(0.10);
-  const [lineMid, setLineMid] = useState(0.42);
-  const [lineBase, setLineBase] = useState(0.72);
-  const [lineDesc, setLineDesc] = useState(0.92);
+  const [lineMid, setLineMid] = useState(0.367);
+  const [lineBase, setLineBase] = useState(0.633);
+  const [lineDesc, setLineDesc] = useState(0.90);
 
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
