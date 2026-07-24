@@ -9,10 +9,32 @@ const W_ASP = 1.0; // weight for the aspect-ratio penalty — a short shape (no 
 // pure shape while preserving aspect ratio (no stretching). Stroke order, stroke
 // direction, and stroke count are all irrelevant — this is a point set.
 function letterToCloud(strokes) {
-  if (!strokes || !strokes.length) return { cloud: [], aspect: 1 };
+  if (!strokes || !strokes.length) return { cloud: [], aspect: 1, minY: 0.5, maxY: 0.5 };
   const per = strokes.map((s) => resample(s, R)).filter((s) => s && s.length);
   const all = per.flat();
-  if (!all.length) return { cloud: [], aspect: 1 };
+  if (!all.length) return { cloud: [], aspect: 1, minY: 0.5, maxY: 0.5 };
+  // Raw vertical extent in normalized 0-1 (guide-line) space, computed BEFORE
+  // centering so the letter's height class reflects where the ink actually sits on
+  // the guide lines. Dot strokes (i, j) are excluded — they're tiny and vary in
+  // height, so they must not set the letter's height class (a high dot shouldn't
+  // make an 'i' read as an ascender letter).
+  let rawMinY = Infinity, rawMaxY = -Infinity;
+  for (const s of strokes) {
+    if (!s || s.length < 2) continue;
+    let len = 0;
+    for (let i = 1; i < s.length; i++) len += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y);
+    if (len < 0.03) continue; // skip dots
+    for (const p of s) {
+      if (p.y < rawMinY) rawMinY = p.y;
+      if (p.y > rawMaxY) rawMaxY = p.y;
+    }
+  }
+  if (!isFinite(rawMinY)) { // only dots / no substantial ink → fall back to all points
+    for (const p of all) {
+      if (p.y < rawMinY) rawMinY = p.y;
+      if (p.y > rawMaxY) rawMaxY = p.y;
+    }
+  }
   let cx = 0, cy = 0;
   for (const p of all) { cx += p.x; cy += p.y; }
   cx /= all.length; cy /= all.length;
@@ -27,6 +49,8 @@ function letterToCloud(strokes) {
   return {
     cloud: tr.map((p) => ({ x: p.x / span, y: p.y / span })),
     aspect: (maxX - minX) / (maxY - minY || 1),
+    minY: rawMinY,
+    maxY: rawMaxY,
   };
 }
 
@@ -105,6 +129,13 @@ export function pathwayMatch(drawnStrokes, template) {
   if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
   const drawn = drawnStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H })));
   if (drawn.length !== template.strokes.length) return false;
+  // Height guard: the drawn ink must reach the same guide lines the template
+  // expects. A short 'e' (no ascender) cannot follow a tall 'd's pathway, because
+  // d's pathway includes the up-to-top stroke the e never drew — so a short letter
+  // is never marked as a tall letter's "correct pathway".
+  const dExt = letterToCloud(drawn);
+  const tExt = letterToCloud(template.strokes);
+  if (classMismatch(heightClass(dExt.minY, dExt.maxY), heightClass(tExt.minY, tExt.maxY))) return false;
   for (let i = 0; i < drawn.length; i++) {
     if (!strokeMatches(drawn[i], template.strokes[i])) return false;
   }
@@ -152,19 +183,34 @@ function coverageMismatch(drawnCloud, tmplCloud) {
   return Math.max(uncoveredFraction(drawnCloud, tmplCloud), uncoveredFraction(tmplCloud, drawnCloud));
 }
 
+// Guide-line positions (Zaner-Bloser, normalized 0-1, y down): T=0.10, M=0.42,
+// B=0.72, D=0.92. A letter's HEIGHT CLASS is set by whether its ink actually
+// reaches the top line (ascender: b,d,f,h,k,l,t) or below the baseline (descender:
+// g,j,p,q,y) — NOT by shape. Normalizing to unit size erases absolute height, so a
+// short 'e' blown up can overlap a 'd' bowl; this guard restores "the strokes must
+// touch the lines they should": a letter with no ascender can never match a tall
+// template, in both the recognition score and the pathway check.
+const ASC_TOP = 0.28;   // ink above this y → ascender (ascenders reach ~0.10-0.20; short letters top out ~0.38)
+const DESC_BOT = 0.80;  // ink below this y → descender (descenders reach ~0.88-0.95; short letters bottom out ~0.75)
+
+function heightClass(minY, maxY) {
+  return { ascender: minY < ASC_TOP, descender: maxY > DESC_BOT };
+}
+function classMismatch(a, b) {
+  return a.ascender !== b.ascender || a.descender !== b.descender;
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
-// The score is dominated by coverage mismatch (extra/missing ink): the template
-// that best accounts for the drawn shape with no unexplained ink wins. Chamfer
-// (fine shape distance) and an aspect-ratio penalty only break near-ties between
-// templates with equally good coverage, so a 'b' (stem + bowl) loses to a 'c'
-// (arc) for a drawn c — the stem is missing ink the drawing lacks — and a simple
-// 'c' can't win against a drawn 'e' that has a crossbar it lacks.
-// Recognition is only as good as the templates, though: if a saved letter is drawn
-// in a different style from how the student writes it, a neighbor letter can still
-// win — author a template that matches the student's handwriting (a second template
-// per letter is fine; the best match across all saved templates wins).
+// The score is dominated by the height-class guard (a tall/descender template is
+// barred from matching a short drawing) and coverage mismatch (extra/missing ink);
+// Chamfer (fine shape) and an aspect-ratio term break near-ties. So a short 'e' (no
+// ascender) can't read as 'd' (d's stem reaches the top line the e lacks), and a 'c'
+// (arc only) can't win against a drawn 'e' that has a crossbar it lacks.
+// Recognition is only as good as the templates: if a saved letter is drawn in a
+// different style from how the student writes it, a neighbor in the SAME height
+// class can still win — author a template that matches the student's handwriting.
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawnNorm = drawnStrokes.map((s) =>
@@ -172,18 +218,14 @@ export function recognize(drawnStrokes, templates) {
   );
   const drawn = letterToCloud(drawnNorm);
   if (!drawn.cloud.length) return [];
+  const drawnH = heightClass(drawn.minY, drawn.maxY);
   const tdata = templates.map((t) => ({ letter: t.letter, ...letterToCloud(t.strokes) }));
-  // Height-class guard: a short letter (no tall ascender/descender — aspect w/h
-  // > 0.7) must not match a tall template (b/d/h/l/k/f/t/p/q/g/j, aspect < 0.7), no
-  // matter how well the normalized point clouds overlap. Normalizing to unit size
-  // erases absolute height, so a short 'e' blown up can cover a 'b' bowl; this flat
-  // cross-class penalty dominates that shape similarity and keeps a letter with
-  // "no big line going up and down" from ever reading as a tall letter.
-  const TALL = 0.7;
-  const CLASS_PENALTY = 0.8;
-  const results = tdata.map(({ letter, cloud, aspect }) => {
+  // A letter drawn without its ascender/descender must NOT match a template that has
+  // one — this penalty dominates shape similarity so a short e never reads as a d.
+  const CLASS_PENALTY = 1.5;
+  const results = tdata.map(({ letter, cloud, aspect, minY, maxY }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0, mismatch: 1 };
-    const crossClass = (drawn.aspect < TALL) !== (aspect < TALL);
+    const crossClass = classMismatch(drawnH, heightClass(minY, maxY));
     const inkMismatch = coverageMismatch(drawn.cloud, cloud);
     const d =
       chamfer(drawn.cloud, cloud) +
