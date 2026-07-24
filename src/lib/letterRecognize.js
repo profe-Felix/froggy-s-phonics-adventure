@@ -119,7 +119,13 @@ export function pathwayMatch(drawnStrokes, template) {
 // template (no bar) is rejected when the student drew a bar, while the real 'e'
 // template (which has the bar) covers them and wins.
 const COVERAGE_THRESH = 0.07; // unit-scale distance beyond which a drawn point is "uncovered"
-const UNCOVERED_WEIGHT = 0.9; // penalty per unit of uncovered fraction
+// Coverage mismatch is the DECIDING factor: a template that has ink the drawing
+// lacks (e.g. b's stem vs a drawn c) or lacks ink the drawing has must lose to a
+// template that fully accounts for the drawn shape. Weighted high enough that any
+// meaningful extra/missing structure dominates the Chamfer shape-distance
+// difference, so Chamfer only breaks near-ties between templates with equally
+// good coverage. This is the "most overlap without extra or missing ink" rule.
+const UNCOVERED_WEIGHT = 3.0;
 
 function uncoveredFraction(drawnCloud, tmplCloud) {
   if (!drawnCloud.length) return 0;
@@ -149,10 +155,12 @@ function coverageMismatch(drawnCloud, tmplCloud) {
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
-// The score is Chamfer (fine shape coverage) plus an aspect-ratio penalty, so a
-// round-bowl 'a' no longer drifts to a tall 'd'/'b' (and vice-versa), plus an
-// "uncovered ink" penalty so a simpler template (e.g. 'c') can't win against a
-// drawn shape that has extra structure it lacks (e.g. an 'e' with a crossbar).
+// The score is dominated by coverage mismatch (extra/missing ink): the template
+// that best accounts for the drawn shape with no unexplained ink wins. Chamfer
+// (fine shape distance) and an aspect-ratio penalty only break near-ties between
+// templates with equally good coverage, so a 'b' (stem + bowl) loses to a 'c'
+// (arc) for a drawn c — the stem is missing ink the drawing lacks — and a simple
+// 'c' can't win against a drawn 'e' that has a crossbar it lacks.
 // Recognition is only as good as the templates, though: if a saved letter is drawn
 // in a different style from how the student writes it, a neighbor letter can still
 // win — author a template that matches the student's handwriting (a second template
