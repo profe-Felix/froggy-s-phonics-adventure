@@ -131,11 +131,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     loadImage(e.dataTransfer.files?.[0]);
   };
 
-  // "Snap to letter": center each stroke point on the ink. A distance transform
-  // finds the letter's centerline (medial axis); each point moves toward the
-  // most-centered ink pixel nearby instead of the nearest edge, so the path runs
-  // down the middle of the black stroke. Strength controls how far each point
-  // moves (1 = jump fully onto the centerline). Click repeatedly to converge.
+  // "Snap to letter": center each stroke point laterally on the ink. For every
+  // point we take the local stroke direction, slice the image perpendicular to
+  // it through that point, and move the point to the weighted center of the ink
+  // on that slice. Because the move is purely perpendicular, the point keeps its
+  // position along the stroke (no shrinking or stretching — the stem still
+  // reaches the top line) and stays smooth (a centroid, not a pixel jump).
+  // Strength controls how far each point moves; click repeatedly to converge.
   const snapToLetter = () => {
     if (!bg?.img || !rawStrokes.length) return;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -150,63 +152,42 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     let imgData;
     try { imgData = cx.getImageData(0, 0, W, H); } catch { return; }
     const data = imgData.data;
-    const N = W * H;
-    // ink mask: dark pixels are the letter
-    const ink = new Uint8Array(N);
-    for (let i = 0; i < N; i++) {
-      const o = i * 4;
+    // ink weight at a canvas point: 0 = white, 1 = solid black (soft for AA edges)
+    const inkW = (x, y) => {
+      const xi = Math.round(x), yi = Math.round(y);
+      if (xi < 0 || yi < 0 || xi >= W || yi >= H) return 0;
+      const o = (yi * W + xi) * 4;
       const l = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
-      ink[i] = l < 120 ? 1 : 0;
-    }
-    // Chamfer distance transform: distance from each pixel to nearest white pixel.
-    // The ridge (max values) inside the ink is the letter's centerline.
-    const INF = 1e9, SQ2 = Math.SQRT2;
-    const dist = new Float32Array(N);
-    for (let i = 0; i < N; i++) dist[i] = ink[i] ? INF : 0;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const idx = y * W + x;
-      if (!ink[idx]) continue;
-      let d = dist[idx];
-      if (y > 0) d = Math.min(d, dist[idx - W] + 1);
-      if (x > 0) d = Math.min(d, dist[idx - 1] + 1);
-      if (y > 0 && x > 0) d = Math.min(d, dist[idx - W - 1] + SQ2);
-      if (y > 0 && x < W - 1) d = Math.min(d, dist[idx - W + 1] + SQ2);
-      dist[idx] = d;
-    }
-    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
-      const idx = y * W + x;
-      if (!ink[idx]) continue;
-      let d = dist[idx];
-      if (y < H - 1) d = Math.min(d, dist[idx + W] + 1);
-      if (x < W - 1) d = Math.min(d, dist[idx + 1] + 1);
-      if (y < H - 1 && x < W - 1) d = Math.min(d, dist[idx + W + 1] + SQ2);
-      if (y < H - 1 && x > 0) d = Math.min(d, dist[idx + W - 1] + SQ2);
-      dist[idx] = d;
-    }
-    const R = 22;
-    // For each stroke point, move toward the most-centered ink pixel nearby
-    // (the medial-axis point nearest the stroke), tie-breaking by closeness.
-    const newStrokes = rawStrokes.map((stroke) => stroke.map((p) => {
-      const px = Math.round(p.x), py = Math.round(p.y);
-      let best = null, bestC = -1, bestDp = Infinity;
-      const x0 = Math.max(0, px - R), x1 = Math.min(W - 1, px + R);
-      const y0 = Math.max(0, py - R), y1 = Math.min(H - 1, py + R);
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          const idx = y * W + x;
-          if (!ink[idx]) continue;
-          const c = dist[idx];
-          const dp = (x - px) * (x - px) + (y - py) * (y - py);
-          if (c > bestC + 1e-6 || (Math.abs(c - bestC) <= 1e-6 && dp < bestDp)) {
-            bestC = c; best = { x, y }; bestDp = dp;
-          }
+      return l < 120 ? (120 - l) / 120 : 0;
+    };
+    const L = 30; // half-width of the perpendicular cross-section sample
+    const newStrokes = rawStrokes.map((stroke) => {
+      if (stroke.length < 2) return stroke;
+      return stroke.map((p, i) => {
+        // local tangent from neighbors (endpoints use the nearest inward point)
+        const a = stroke[Math.max(0, i - 1)];
+        const b = stroke[Math.min(stroke.length - 1, i + 1)];
+        let tx = b.x - a.x, ty = b.y - a.y;
+        const tl = Math.hypot(tx, ty);
+        if (tl < 1e-6) return p;
+        tx /= tl; ty /= tl;
+        const nx = -ty, ny = tx; // perpendicular to the stroke
+        // weighted center of the ink along the perpendicular slice through p
+        let sw = 0, st = 0;
+        for (let t = -L; t <= L; t++) {
+          const w = inkW(p.x + t * nx, p.y + t * ny);
+          if (w > 0) { sw += w; st += t * w; }
         }
-      }
-      if (!best) return p;
-      const nx = p.x + (best.x - p.x) * snapStrength;
-      const ny = p.y + (best.y - p.y) * snapStrength;
-      return { x: Math.max(0, Math.min(CANVAS_W, nx)), y: Math.max(0, Math.min(CANVAS_H, ny)) };
-    }));
+        if (sw <= 0) return p; // no ink on this slice — leave the point as drawn
+        const avgT = st / sw; // offset from p to the ink center, perpendicular only
+        const dx = avgT * nx * snapStrength;
+        const dy = avgT * ny * snapStrength;
+        return {
+          x: Math.max(0, Math.min(CANVAS_W, p.x + dx)),
+          y: Math.max(0, Math.min(CANVAS_H, p.y + dy)),
+        };
+      });
+    });
     setRawStrokes(newStrokes);
   };
 
