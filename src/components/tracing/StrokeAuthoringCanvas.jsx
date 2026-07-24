@@ -42,6 +42,14 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [snapStrength, setSnapStrength] = useState(0.6);
   const [snapHistory, setSnapHistory] = useState([]);
 
+  // Writing guide lines — adjustable so they can be matched to the trace
+  // image's actual Zaner-Bloser lines (the image's line positions shift as
+  // it's scaled/positioned, so fixed fractions can't stay aligned).
+  const [lineTop, setLineTop] = useState(0.10);
+  const [lineMid, setLineMid] = useState(0.42);
+  const [lineBase, setLineBase] = useState(0.72);
+  const [lineDesc, setLineDesc] = useState(0.92);
+
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
     if (!bg) return;
@@ -347,11 +355,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           <image href={bg.url} x={bgX} y={bgY} width={dispW} height={dispH} opacity={bgOpacity} />
         )}
 
-        {/* Writing lines: T=0.10, M=0.42, B=0.72, D=0.92 */}
-        <line x1="0" y1={0.1 * CANVAS_H} x2={CANVAS_W} y2={0.1 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.42 * CANVAS_H} x2={CANVAS_W} y2={0.42 * CANVAS_H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
-        <line x1="0" y1={0.72 * CANVAS_H} x2={CANVAS_W} y2={0.72 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.92 * CANVAS_H} x2={CANVAS_W} y2={0.92 * CANVAS_H} stroke="#fca5a5" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
+        {/* Writing guide lines (adjustable — match to your trace image) */}
+        <line x1="0" y1={lineTop * CANVAS_H} x2={CANVAS_W} y2={lineTop * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+        <line x1="0" y1={lineMid * CANVAS_H} x2={CANVAS_W} y2={lineMid * CANVAS_H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
+        <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+        <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1" strokeDasharray="4 6" opacity="0.6" />
 
         {/* Smoothed strokes with direction arrows */}
         {rawStrokes.map((s, i) => {
@@ -472,6 +480,26 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           </label>
         </div>
       )}
+
+      <div className="flex flex-col gap-2 w-full max-w-xs px-2">
+        <span className="text-xs font-semibold text-slate-600">Guide lines (drag to match your image)</span>
+        {[
+          { label: 'Top', val: lineTop, set: setLineTop },
+          { label: 'Midline', val: lineMid, set: setLineMid },
+          { label: 'Baseline', val: lineBase, set: setLineBase },
+          { label: 'Descender', val: lineDesc, set: setLineDesc },
+        ].map((g) => (
+          <label key={g.label} className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="w-16 shrink-0">{g.label}</span>
+            <input
+              type="range" min="0.02" max="0.98" step="0.01" value={g.val}
+              onChange={(e) => g.set(parseFloat(e.target.value))}
+              className="flex-1"
+            />
+            <span className="w-10 text-right tabular-nums">{Math.round(g.val * 100)}%</span>
+          </label>
+        ))}
+      </div>
 
       <div className="flex gap-2">
         <button
