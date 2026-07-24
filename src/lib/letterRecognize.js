@@ -274,6 +274,7 @@ const FAMILIES = {
   y: { v: false, xs: false, lc: false, h: -1, th: false, d: true, cl: false, hz: false }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true, cl: false, hz: true },
 };
 const CROSSING_PENALTY = 1.5;
+const CROSSING_IMPOSSIBLE_PENALTY = 3.5; // a <2-stroke drawing cannot be a crossing letter (x) — structural, not shape
 const VERTICAL_PENALTY = 1.0;
 const CURVE_PENALTY = 1.0;
 const HUMPS_UNIT = 1.5;   // penalty per hump of difference — n(+2) vs m(+3)=1.5, n(+2) vs u(-2)=6 (the n/u split)
@@ -674,7 +675,15 @@ export function recognize(drawnStrokes, templates) {
     // while 'a' itself (vertical=NULL because its closed-loop template lacks the
     // stem) is never penalized.
     const active = activeFamily(letter, sig);
+    // A crossing (x, and the crossbar/stem crosses of t/f/k) can ONLY come from
+    // TWO DIFFERENT strokes — the hasCrossing detector checks inter-stroke
+    // intersection, so a single-stroke drawing can never have one. If the
+    // drawing has fewer than 2 strokes it is STRUCTURALLY IMPOSSIBLE for it to
+    // be a letter that needs a crossing, so penalize hard: a single-stroke 'n'
+    // (an arch that happens to look x-ish) can never beat a real 2-stroke 'x'.
+    const crossingImpossible = active.xs === true && drawnNorm.length < 2;
     const structPenalty =
+      (crossingImpossible ? CROSSING_IMPOSSIBLE_PENALTY : 0) +
       (active.v !== null && drawnSig.v !== active.v ? VERTICAL_PENALTY : 0) +
       (active.xs !== null && drawnSig.xs !== active.xs ? CROSSING_PENALTY : 0) +
       (active.lc !== null && drawnSig.lc !== active.lc ? CURVE_PENALTY : 0) +

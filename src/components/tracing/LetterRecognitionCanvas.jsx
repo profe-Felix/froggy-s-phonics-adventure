@@ -3,6 +3,43 @@ import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { recognize, pathwayMatch } from '@/lib/letterRecognize';
 
+// Contact grouping is only a HINT. After clustering touching strokes, re-examine
+// every multi-stroke group against recognition: if EACH stroke already reads as
+// a confident standalone letter AND merging them is NOT clearly better than the
+// best standalone read, split them back apart. This is the "examine the strokes
+// first, not as a whole" rule — a "c" and an "l" that happen to touch stay two
+// letters (each is a confident c / l on its own), instead of collapsing into an
+// "a". A genuine multi-stroke letter still merges: its parts alone are NOT
+// confident letters (a "t" crossbar, an "i" dot, an "a" bowl), or the merged
+// letter reads clearly better than any fragment.
+const STANDALONE_DIST = 0.55; // a stroke reading this close to a template is a confident standalone letter
+const MERGE_FACTOR = 0.75;     // merge only if the merged read is at least this good vs the best standalone
+function segmentByRecognition(strokes, touchPx, templates) {
+  const groups = clusterByTouch(strokes, touchPx);
+  const out = [];
+  for (const g of groups) {
+    if (g.length < 2 || !templates.length) { out.push(g); continue; }
+    const merged = recognize(g, templates);
+    const mergedDist = merged[0] ? merged[0].dist : Infinity;
+    let bestIndiv = Infinity, allConfident = true;
+    for (const s of g) {
+      const r = recognize([s], templates);
+      const d = r[0] ? r[0].dist : Infinity;
+      if (d < bestIndiv) bestIndiv = d;
+      if (d >= STANDALONE_DIST) allConfident = false;
+    }
+    // Split when every stroke is a confident letter on its own AND merging did
+    // not clearly improve on the best standalone read.
+    if (allConfident && isFinite(bestIndiv) && mergedDist > bestIndiv * MERGE_FACTOR) {
+      for (const s of g) out.push([s]);
+    } else {
+      out.push(g);
+    }
+  }
+  const cxOf = (g) => { const f = g.flat(); return f.reduce((s, p) => s + p.x, 0) / f.length; };
+  return out.sort((a, b) => cxOf(a) - cxOf(b));
+}
+
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
@@ -170,7 +207,7 @@ export default function LetterRecognitionCanvas({ templates }) {
     setTimeout(() => {
       let groups;
       if (segMode === 'space') {
-        groups = clusterByTouch(strokes, spaceGap);
+        groups = segmentByRecognition(strokes, spaceGap, templates);
       } else {
         groups = [];
         strokes.forEach((s, i) => {
