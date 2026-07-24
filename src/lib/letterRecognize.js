@@ -111,15 +111,42 @@ export function pathwayMatch(drawnStrokes, template) {
   return true;
 }
 
+// Fraction of drawn points with NO template point within COVERAGE_THRESH — i.e. ink
+// the candidate template cannot account for. A bidirectional Chamfer averages over
+// all points, so a small extra feature (the crossbar of an 'e' vs a 'c') barely
+// moves the score: every bar point finds a nearby arc point and the average stays
+// low. Counting those uncovered points instead makes the extra ink matter, so a 'c'
+// template (no bar) is rejected when the student drew a bar, while the real 'e'
+// template (which has the bar) covers them and wins.
+const COVERAGE_THRESH = 0.07; // unit-scale distance beyond which a drawn point is "uncovered"
+const UNCOVERED_WEIGHT = 0.9; // penalty per unit of uncovered fraction
+
+function uncoveredFraction(drawnCloud, tmplCloud) {
+  if (!drawnCloud.length) return 0;
+  let uncovered = 0;
+  const t2 = COVERAGE_THRESH * COVERAGE_THRESH;
+  for (const a of drawnCloud) {
+    let mn = Infinity;
+    for (const b of tmplCloud) {
+      const d = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+      if (d < mn) mn = d;
+    }
+    if (mn > t2) uncovered++;
+  }
+  return uncovered / drawnCloud.length;
+}
+
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }]
 // returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
 // The score is Chamfer (fine shape coverage) plus an aspect-ratio penalty, so a
-// round-bowl 'a' no longer drifts to a tall 'd'/'b' (and vice-versa). Recognition is
-// only as good as the templates, though: if a saved letter is drawn in a different
-// style from how the student writes it, a neighbor letter can still win — author a
-// template that matches the student's handwriting (a second template per letter is
-// fine; the best match across all saved templates wins).
+// round-bowl 'a' no longer drifts to a tall 'd'/'b' (and vice-versa), plus an
+// "uncovered ink" penalty so a simpler template (e.g. 'c') can't win against a
+// drawn shape that has extra structure it lacks (e.g. an 'e' with a crossbar).
+// Recognition is only as good as the templates, though: if a saved letter is drawn
+// in a different style from how the student writes it, a neighbor letter can still
+// win — author a template that matches the student's handwriting (a second template
+// per letter is fine; the best match across all saved templates wins).
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawnNorm = drawnStrokes.map((s) =>
@@ -139,10 +166,12 @@ export function recognize(drawnStrokes, templates) {
   const results = tdata.map(({ letter, cloud, aspect }) => {
     if (!cloud.length) return { letter, dist: Infinity, confidence: 0 };
     const crossClass = (drawn.aspect < TALL) !== (aspect < TALL);
+    const extraInk = uncoveredFraction(drawn.cloud, cloud);
     const d =
       chamfer(drawn.cloud, cloud) +
       W_ASP * Math.abs(drawn.aspect - aspect) +
-      (crossClass ? CLASS_PENALTY : 0);
+      (crossClass ? CLASS_PENALTY : 0) +
+      UNCOVERED_WEIGHT * extraInk;
     return { letter, dist: d, confidence: Math.max(0, Math.min(100, Math.round(100 - d * 110))) };
   });
   results.sort((a, b) => a.dist - b.dist);
