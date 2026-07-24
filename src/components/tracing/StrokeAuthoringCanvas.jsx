@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2 } from 'lucide-react';
+import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
@@ -55,6 +55,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [snapStrength, setSnapStrength] = useState(0.6);
   const [snapHistory, setSnapHistory] = useState([]);
 
+  // Auto-center: while drawing, each point snaps to the centroid of nearby ink
+  // in the loaded trace image, so the stroke rides the black line live.
+  const [autoCenter, setAutoCenter] = useState(false);
+  const inkMapRef = useRef(null);
+
   // Writing guide lines — fixed at the confirmed positions (10/37/63/90).
   // Locked so they can't drift; align the trace image to them via Move/Scale.
   const lineTop = 0.10;
@@ -67,6 +72,32 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (!bg) return;
     return () => URL.revokeObjectURL(bg.url);
   }, [bg]);
+
+  // Build a per-pixel ink-weight map (0=white, 1=solid black) of the trace image
+  // in its current canvas transform — only while auto-center is on, so moving
+  // the image or sliding scale never pays for it when the magnet is off.
+  useEffect(() => {
+    if (!autoCenter || !bg?.img) { inkMapRef.current = null; return; }
+    const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
+    const dh = CANVAS_H * bgScale;
+    const dw = dh * (bg?.aspect || 1);
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#ffffff';
+    cx.fillRect(0, 0, W, H);
+    cx.drawImage(bg.img, bgX, bgY, dw, dh);
+    let imgData;
+    try { imgData = cx.getImageData(0, 0, W, H); } catch { inkMapRef.current = null; return; }
+    const src = imgData.data;
+    const data = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      const o = i * 4;
+      const l = 0.299 * src[o] + 0.587 * src[o + 1] + 0.114 * src[o + 2];
+      data[i] = l < 120 ? (120 - l) / 120 : 0;
+    }
+    inkMapRef.current = { data, W, H };
+  }, [autoCenter, bg, bgScale, bgX, bgY]);
 
   // Global hold-key listeners for the straight-line / retrace shortcuts. Only
   // active when not typing in a text field, so the hint/letter inputs still work.
@@ -121,6 +152,26 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     };
   };
 
+  // Snap a canvas point to the weighted centroid of ink within a small radius —
+  // the stroke's center on the black line. No ink nearby → leave the point as-is.
+  const snapToInk = (pos) => {
+    const m = inkMapRef.current;
+    if (!m) return pos;
+    const R = 22;
+    const xi = Math.round(pos.x), yi = Math.round(pos.y);
+    const x0 = Math.max(0, xi - R), x1 = Math.min(m.W - 1, xi + R);
+    const y0 = Math.max(0, yi - R), y1 = Math.min(m.H - 1, yi + R);
+    let sw = 0, sx = 0, sy = 0;
+    for (let y = y0; y <= y1; y++) {
+      const row = y * m.W;
+      for (let x = x0; x <= x1; x++) {
+        const w = m.data[row + x];
+        if (w > 0) { sw += w; sx += x * w; sy += y * w; }
+      }
+    }
+    return sw === 0 ? pos : { x: sx / sw, y: sy / sw };
+  };
+
   const finishStroke = () => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
@@ -153,8 +204,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
       return;
     }
-    currentRef.current = [pos];
-    setCurrent([pos]);
+    const start = autoCenter && !dHeldRef.current ? snapToInk(pos) : pos;
+    currentRef.current = [start];
+    setCurrent([start]);
     drawingRef.current = true;
     if (dHeldRef.current) {
       if (sHeldRef.current && lastStraightRef.current) {
@@ -200,9 +252,10 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       setCurrent(currentRef.current);
       return;
     }
+    const p = autoCenter ? snapToInk(pos) : pos;
     const last = currentRef.current[currentRef.current.length - 1];
-    if (last && Math.hypot(pos.x - last.x, pos.y - last.y) < 2) return;
-    currentRef.current = [...currentRef.current, pos];
+    if (last && Math.hypot(p.x - last.x, p.y - last.y) < 2) return;
+    currentRef.current = [...currentRef.current, p];
     setCurrent(currentRef.current);
   };
 
@@ -507,7 +560,17 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
               <Move className="w-4 h-4" /> {moveMode ? 'Dragging image' : 'Move image'}
             </button>
             <button
-              onClick={() => { setBg(null); setMoveMode(false); }}
+              onClick={() => setAutoCenter((a) => !a)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                autoCenter
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+              }`}
+            >
+              <Magnet className="w-4 h-4" /> {autoCenter ? 'Centering on ink' : 'Center on ink'}
+            </button>
+            <button
+              onClick={() => { setBg(null); setMoveMode(false); setAutoCenter(false); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
             >
               <X className="w-4 h-4" /> Remove
@@ -605,6 +668,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
         Draw each stroke in order, in the correct direction. Lift between strokes — the number shows the stroke order.
         {bg && ' Toggle "Move image" to reposition the trace image.'}
         <br />Hold <b>D</b> while drawing for a straight line; hold <b>D+S</b> to retrace the last straight line back down (for m, n, g, a stems).
+        <br />Toggle <b>Center on ink</b> to snap each point to the black line of your trace image as you draw.
       </p>
     </div>
   );
