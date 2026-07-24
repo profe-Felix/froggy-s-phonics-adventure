@@ -203,7 +203,7 @@ function coverageMismatch(drawnCloud, tmplCloud) {
 // touch the lines they should": a letter with no ascender can never match a tall
 // template, in both the recognition score and the pathway check.
 const ASC_TOP = 0.28;   // ink above this y → ascender (ascenders reach ~0.10-0.20; short letters top out ~0.38)
-const DESC_BOT = 0.80;  // ink below this y → descender (descenders reach ~0.88-0.95; short letters bottom out ~0.75)
+const DESC_BOT = 0.76;  // ink below this y → descender. Lowered from 0.80 so a student's g/q/j tail that doesn't go all the way down still registers as a descender (the g-vs-s tell); short letters bottom out ~0.62 so this stays clear of them.
 
 function heightClass(minY, maxY) {
   return { ascender: minY < ASC_TOP, descender: maxY > DESC_BOT };
@@ -249,25 +249,28 @@ function classMismatch(a, b) {
 //        separator for the arch letters AND for m-vs-x (x has 0 humps), more
 //        reliable than crossing for cursive m whose strokes may touch.
 //   th — has a top hook (the 'f' entry curves left at the top; 't' is straight)
+// h is now SIGNED: arches-up (m,n) positive, valley-down (u,v,w,y) negative.
+// d = hasDiagonal (k,x,v,z have diagonal strokes; t does not — the k-vs-t tell).
 const FAMILIES = {
-  a: { v: true, xs: false, lc: true, h: 0, th: false }, b: { v: true, xs: false, lc: false, h: 0, th: false },
-  c: { v: false, xs: false, lc: true, h: 0, th: false }, d: { v: true, xs: false, lc: true, h: 0, th: false },
-  e: { v: false, xs: false, lc: true, h: 0, th: false }, f: { v: true, xs: true, lc: false, h: 0, th: true },
-  g: { v: false, xs: false, lc: true, h: 0, th: false }, h: { v: true, xs: false, lc: false, h: 1, th: false },
-  i: { v: true, xs: false, lc: false, h: 0, th: false }, j: { v: true, xs: false, lc: false, h: 0, th: false },
-  k: { v: true, xs: true, lc: false, h: 0, th: false }, l: { v: true, xs: false, lc: false, h: 0, th: false },
-  m: { v: false, xs: false, lc: false, h: 3, th: false }, n: { v: false, xs: false, lc: false, h: 2, th: false },
-  o: { v: false, xs: false, lc: true, h: 0, th: false }, p: { v: true, xs: false, lc: false, h: 0, th: false },
-  q: { v: true, xs: false, lc: true, h: 0, th: false }, r: { v: false, xs: false, lc: false, h: 1, th: false },
-  s: { v: false, xs: false, lc: false, h: 0, th: false }, t: { v: true, xs: true, lc: false, h: 0, th: false },
-  u: { v: false, xs: false, lc: false, h: 0, th: false }, v: { v: false, xs: false, lc: false, h: 0, th: false },
-  w: { v: false, xs: false, lc: false, h: 0, th: false }, x: { v: false, xs: true, lc: false, h: 0, th: false },
-  y: { v: false, xs: false, lc: false, h: 0, th: false }, z: { v: false, xs: false, lc: false, h: 0, th: false },
+  a: { v: true, xs: false, lc: true, h: 0, th: false, d: false }, b: { v: true, xs: false, lc: false, h: 0, th: false, d: false },
+  c: { v: false, xs: false, lc: true, h: 0, th: false, d: false }, d: { v: true, xs: false, lc: true, h: 0, th: false, d: false },
+  e: { v: false, xs: false, lc: true, h: 0, th: false, d: false }, f: { v: true, xs: true, lc: false, h: 0, th: true, d: false },
+  g: { v: false, xs: false, lc: true, h: 0, th: false, d: false }, h: { v: true, xs: false, lc: false, h: 0, th: false, d: false },
+  i: { v: true, xs: false, lc: false, h: 0, th: false, d: false }, j: { v: true, xs: false, lc: false, h: 0, th: false, d: false },
+  k: { v: true, xs: true, lc: false, h: 0, th: false, d: true }, l: { v: true, xs: false, lc: false, h: 0, th: false, d: false },
+  m: { v: false, xs: false, lc: false, h: 3, th: false, d: false }, n: { v: false, xs: false, lc: false, h: 2, th: false, d: false },
+  o: { v: false, xs: false, lc: true, h: 0, th: false, d: false }, p: { v: true, xs: false, lc: false, h: 0, th: false, d: false },
+  q: { v: true, xs: false, lc: true, h: 0, th: false, d: false }, r: { v: false, xs: false, lc: false, h: 0, th: false, d: false },
+  s: { v: false, xs: false, lc: false, h: 0, th: false, d: false }, t: { v: true, xs: true, lc: false, h: 0, th: false, d: false },
+  u: { v: false, xs: false, lc: false, h: -2, th: false, d: false }, v: { v: false, xs: false, lc: false, h: -1, th: false, d: true },
+  w: { v: false, xs: false, lc: false, h: -2, th: false, d: false }, x: { v: false, xs: true, lc: false, h: 0, th: false, d: true },
+  y: { v: false, xs: false, lc: false, h: -1, th: false, d: false }, z: { v: false, xs: false, lc: false, h: 0, th: false, d: true },
 };
 const CROSSING_PENALTY = 1.5;
 const VERTICAL_PENALTY = 1.0;
 const CURVE_PENALTY = 1.0;
-const HUMPS_UNIT = 1.2;   // penalty per hump of difference — strong enough that n(2) beats m(3) and m beats x(0)
+const HUMPS_UNIT = 1.5;   // penalty per hump of difference — n(+2) vs m(+3)=1.5, n(+2) vs u(-2)=6 (the n/u split)
+const DIAGONAL_PENALTY = 1.5;  // k has diagonals, t does not — separates t from k/x/v/z
 const TOPHOOK_PENALTY = 1.0;
 const EXIT_PENALTY = 0.8;
 const DOT_MIN_LEN = 0.03;
@@ -424,10 +427,18 @@ function hasLeftCurve(strokes, letterW) {
   }
   return false;
 }
-// Count arches/humps on the longest stroke: local minima of y (peaks going up)
-// with enough prominence that jitter and entrance wiggles don't count. m=3,
-// n=2, r=1; loops/diagonals/stems read 0. Order-tolerant.
-function countHumps(strokes, letterH) {
+// SIGNED hump count: arches-up (m,n) POSITIVE, valley-down (u,v,w,y) NEGATIVE.
+// This is what separates n (+2, arches up) from u (-2, valley down) — they have
+// the same down-stroke COUNT but opposite direction, so the sign flips them
+// apart. Loops (left-curve letters a,d,o,g,c,e,q) read 0 (a loop is not an
+// arch). The COUNT is the number of distinct downward runs on the longest
+// stroke (m=3, n=2, u=2, v=1, w=2, y=1) — more reliable than peak-counting,
+// which cursive entrances contaminate with spurious peaks. The SIGN comes from
+// where the stroke endpoints sit: arch-up letters start AND end on the baseline
+// (endpoints low → +), valley letters start and end at the midline (endpoints
+// high → -).
+function countHumps(strokes, letterH, letterW) {
+  if (hasLeftCurve(strokes, letterW)) return 0;
   let best = null, bestLen = 0;
   for (const s of strokes) {
     const l = strokeArcLen(s);
@@ -436,24 +447,51 @@ function countHumps(strokes, letterH) {
   }
   if (!best || best.length < 4) return 0;
   const rs = resample(best, Math.max(14, Math.min(60, best.length)));
-  const ys = rs.map((p) => p.y);
-  for (let pass = 0; pass < 2; pass++) {
-    const o = ys.slice();
-    for (let i = 1; i < ys.length - 1; i++) ys[i] = (o[i - 1] + o[i] + o[i + 1]) / 3;
+  const minRun = 0.15 * (letterH || 1);
+  let runs = 0, runLen = 0;
+  for (let i = 1; i < rs.length; i++) {
+    const dy = rs[i].y - rs[i - 1].y;
+    const seg = Math.hypot(rs[i].x - rs[i - 1].x, dy);
+    if (dy > 0.002) runLen += seg;
+    else { if (runLen >= minRun) runs++; runLen = 0; }
   }
-  const prom = 0.12 * (letterH || 1);
-  let humps = 0, i = 1;
-  while (i < ys.length - 1) {
-    if (ys[i] < ys[i - 1] && ys[i] <= ys[i + 1]) {
-      let leftRise = 0, j = i;
-      while (j > 0 && ys[j - 1] >= ys[j]) { leftRise = Math.max(leftRise, ys[j - 1] - ys[i]); j--; }
-      let rightRise = 0, k = i;
-      while (k < ys.length - 1 && ys[k + 1] >= ys[k]) { rightRise = Math.max(rightRise, ys[k + 1] - ys[i]); k++; }
-      if (Math.min(leftRise, rightRise) >= prom) humps++;
-      i = k;
-    } else i++;
+  if (runLen >= minRun) runs++;
+  if (!runs) return 0;
+  let sumAll = 0;
+  for (const p of rs) sumAll += p.y;
+  const meanAll = sumAll / rs.length;
+  const k = Math.max(2, Math.round(rs.length * 0.12));
+  let se = 0;
+  for (let i = 0; i < k; i++) se += rs[i].y;
+  for (let i = rs.length - k; i < rs.length; i++) se += rs[i].y;
+  const endMean = se / (2 * k);
+  const sign = endMean >= meanAll ? +1 : -1;
+  return Math.max(-4, Math.min(sign * runs, 4));
+}
+// Diagonal detector (segment-run based): a run of consecutive segments each at
+// ~45° (neither vertical nor horizontal) totaling >= 0.22·letterH. Separates k
+// (arm + leg are diagonal runs) from t (stem vertical + crossbar horizontal —
+// NO diagonal run). The user's rule: "k has diagonals but t does not." A
+// chord-based check misses k because its arm+leg is one V-stroke whose chord
+// looks vertical; the run-based check sees each diagonal half. Fires on x, v,
+// z (true diagonals); NOT on arch letters (slopes curve → run breaks), stems,
+// crossbars, or loops.
+function hasDiagonal(strokes, letterH) {
+  const minRun = 0.22 * (letterH || 1);
+  for (const s of strokes) {
+    if (!s || s.length < 2) continue;
+    let runLen = 0;
+    for (let i = 1; i < s.length; i++) {
+      const dx = s[i].x - s[i - 1].x, dy = s[i].y - s[i - 1].y;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      const seg = Math.hypot(dx, dy);
+      const diag = adx > 0.004 && ady > 0.004 && ady / adx >= 0.3 && ady / adx <= 3.3;
+      if (diag) runLen += seg;
+      else { if (runLen >= minRun) return true; runLen = 0; }
+    }
+    if (runLen >= minRun) return true;
   }
-  return Math.min(humps, 4);
+  return false;
 }
 // Top hook: among the highest 25% of the longest stroke, the leftmost point is
 // left of the stroke's median x by a margin — i.e. the entry curves left at
@@ -480,8 +518,9 @@ function familySignature(strokes) {
     xs: hasCrossing(strokes),
     v: hasVertical(strokes, b.w, b.h),
     lc: hasLeftCurve(strokes, b.w),
-    h: countHumps(strokes, b.h),
+    h: countHumps(strokes, b.h, b.w),
     th: hasTopHook(strokes, b.w),
+    d: hasDiagonal(strokes, b.h),
   };
 }
 // Active family: for each feature, the value the candidate letter "should"
@@ -489,13 +528,14 @@ function familySignature(strokes) {
 // disagrees with the table (non-standard style) → neutralize the feature for
 // this letter (no penalty, no bonus).
 function activeFamily(letter, detected) {
-  const t = FAMILIES[letter] || { v: false, xs: false, lc: false, h: 0, th: false };
+  const t = FAMILIES[letter] || { v: false, xs: false, lc: false, h: 0, th: false, d: false };
   return {
     v: detected.v === t.v ? t.v : null,
     xs: detected.xs === t.xs ? t.xs : null,
     lc: detected.lc === t.lc ? t.lc : null,
     h: detected.h === t.h ? t.h : null,
     th: detected.th === t.th ? t.th : null,
+    d: detected.d === t.d ? t.d : null,
   };
 }
 // Exit direction. For descender letters (g, j, q, p, y) the TAIL is the tell
@@ -572,7 +612,8 @@ export function recognize(drawnStrokes, templates) {
       (active.xs !== null && drawnSig.xs !== active.xs ? CROSSING_PENALTY : 0) +
       (active.lc !== null && drawnSig.lc !== active.lc ? CURVE_PENALTY : 0) +
       (active.h !== null ? Math.abs(drawnSig.h - active.h) * HUMPS_UNIT : 0) +
-      (active.th !== null && drawnSig.th !== active.th ? TOPHOOK_PENALTY : 0);
+      (active.th !== null && drawnSig.th !== active.th ? TOPHOOK_PENALTY : 0) +
+      (active.d !== null && drawnSig.d !== active.d ? DIAGONAL_PENALTY : 0);
     // Exit (tail) direction: order-tolerant tiebreaker — separates q (tail right)
     // from g (tail left), which pure structure cannot.
     const exitAgree = dirAgree(drawnExit, exit);
