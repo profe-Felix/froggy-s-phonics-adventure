@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Undo2, Trash2, Image as ImageIcon, Move, X } from 'lucide-react';
+import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2 } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
@@ -31,6 +31,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const [moveMode, setMoveMode] = useState(false);
   const moveStartRef = useRef(null);
   const fileRef = useRef(null);
+
+  // Latest bg scale/position in refs so the scale slider can anchor to the
+  // bottom-left corner without going stale across rapid drag events.
+  const bgScaleRef = useRef(bgScale);
+  const bgYRef = useRef(bgY);
+  useEffect(() => { bgScaleRef.current = bgScale; }, [bgScale]);
+  useEffect(() => { bgYRef.current = bgY; }, [bgY]);
+
+  const [snapStrength, setSnapStrength] = useState(0.6);
 
   // Revoke object URLs when the image is replaced/removed/unmounted.
   useEffect(() => {
@@ -104,7 +113,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      setBg({ url, aspect: img.naturalWidth / img.naturalHeight || 1 });
+      setBg({ url, aspect: img.naturalWidth / img.naturalHeight || 1, img });
       setBgScale(1);
       setBgX(0);
       setBgY(0);
@@ -120,6 +129,47 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const onDrop = (e) => {
     e.preventDefault();
     loadImage(e.dataTransfer.files?.[0]);
+  };
+
+  // "Snap to letter": pull each stroke point toward the nearest dark pixel of
+  // the trace image, hugging the hand-drawn path onto the black letter. Strength
+  // controls how far each point moves (1 = jump fully onto the letter). Click
+  // repeatedly to converge.
+  const snapToLetter = () => {
+    if (!bg?.img || !rawStrokes.length) return;
+    const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
+    const dh = CANVAS_H * bgScale;
+    const dw = dh * (bg?.aspect || 1);
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#ffffff';
+    cx.fillRect(0, 0, W, H);
+    cx.drawImage(bg.img, bgX, bgY, dw, dh);
+    let data;
+    try { data = cx.getImageData(0, 0, W, H).data; } catch { return; }
+    const R = 26;
+    const newStrokes = rawStrokes.map((stroke) => stroke.map((p) => {
+      const px = Math.round(p.x), py = Math.round(p.y);
+      let best = null, bestD = Infinity;
+      const x0 = Math.max(0, px - R), x1 = Math.min(W - 1, px + R);
+      const y0 = Math.max(0, py - R), y1 = Math.min(H - 1, py + R);
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const i = (y * W + x) * 4;
+          const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          if (l < 120) {
+            const d = (x - px) * (x - px) + (y - py) * (y - py);
+            if (d < bestD) { bestD = d; best = { x, y }; }
+          }
+        }
+      }
+      if (!best) return p;
+      const nx = p.x + (best.x - p.x) * snapStrength;
+      const ny = p.y + (best.y - p.y) * snapStrength;
+      return { x: Math.max(0, Math.min(CANVAS_W, nx)), y: Math.max(0, Math.min(CANVAS_H, ny)) };
+    }));
+    setRawStrokes(newStrokes);
   };
 
   const undo = () => setRawStrokes((prev) => prev.slice(0, -1));
@@ -204,6 +254,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
             >
               <X className="w-4 h-4" /> Remove
             </button>
+            <button
+              onClick={snapToLetter}
+              disabled={!rawStrokes.length}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white border border-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Wand2 className="w-4 h-4" /> Snap to letter
+            </button>
           </>
         )}
       </div>
@@ -213,8 +270,14 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
           <label className="flex items-center gap-2 text-xs text-slate-600">
             <span className="w-14 shrink-0">Scale</span>
             <input
-              type="range" min="0.2" max="3" step="0.05" value={bgScale}
-              onChange={(e) => setBgScale(parseFloat(e.target.value))}
+              type="range" min="0.2" max="3" step="0.01" value={bgScale}
+              onChange={(e) => {
+                const ns = parseFloat(e.target.value);
+                // grow from the bottom-left: keep the bottom edge pinned
+                const bottomY = bgYRef.current + CANVAS_H * bgScaleRef.current;
+                setBgScale(ns);
+                setBgY(bottomY - CANVAS_H * ns);
+              }}
               className="flex-1"
             />
             <span className="w-8 text-right tabular-nums">{bgScale.toFixed(2)}×</span>
@@ -227,6 +290,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
               className="flex-1"
             />
             <span className="w-8 text-right tabular-nums">{Math.round(bgOpacity * 100)}%</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="w-14 shrink-0">Snap</span>
+            <input
+              type="range" min="0.2" max="1" step="0.05" value={snapStrength}
+              onChange={(e) => setSnapStrength(parseFloat(e.target.value))}
+              className="flex-1"
+            />
+            <span className="w-8 text-right tabular-nums">{Math.round(snapStrength * 100)}%</span>
           </label>
         </div>
       )}
