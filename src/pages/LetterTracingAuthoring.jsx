@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Copy, Check, Play, RotateCcw, Save } from 'lucide-react';
+import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
@@ -115,12 +116,20 @@ export default function LetterTracingAuthoring() {
             <h1 className="text-2xl font-bold text-slate-800">✏️ Letter Tracing Authoring</h1>
             <p className="text-sm text-slate-500">Draw each letter — strokes are smoothed and recorded with direction for the tracing game.</p>
           </div>
-          <button
-            onClick={reset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-          >
-            <RotateCcw className="w-4 h-4" /> Reset
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/LetterRecognition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              <Sparkles className="w-4 h-4" /> Guess a letter
+            </Link>
+            <button
+              onClick={reset}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+            >
+              <RotateCcw className="w-4 h-4" /> Reset
+            </button>
+          </div>
         </div>
 
         {/* Letter picker + case toggle + hint */}
