@@ -1,6 +1,6 @@
 import { resample, CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 
-const R = 24; // resampled points per stroke
+const R = 40; // resampled points per stroke — finer sampling sharpens b/d-style distinctions
 
 // Turn a letter (array of strokes) into one centered, unit-scaled sequence:
 // each stroke is resampled to R points, then all are concatenated in stroke
