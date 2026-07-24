@@ -118,14 +118,14 @@ export function pathwayMatch(drawnStrokes, template) {
 // low. Counting those uncovered points instead makes the extra ink matter, so a 'c'
 // template (no bar) is rejected when the student drew a bar, while the real 'e'
 // template (which has the bar) covers them and wins.
-const COVERAGE_THRESH = 0.07; // unit-scale distance beyond which a drawn point is "uncovered"
-// Coverage mismatch is the DECIDING factor: a template that has ink the drawing
-// lacks (e.g. b's stem vs a drawn c) or lacks ink the drawing has must lose to a
-// template that fully accounts for the drawn shape. Weighted high enough that any
-// meaningful extra/missing structure dominates the Chamfer shape-distance
-// difference, so Chamfer only breaks near-ties between templates with equally
-// good coverage. This is the "most overlap without extra or missing ink" rule.
-const UNCOVERED_WEIGHT = 3.0;
+const COVERAGE_THRESH = 0.10; // unit-scale distance beyond which a drawn point is "uncovered" — loose enough that a fast/slightly-offset stroke still counts as covered
+// Coverage mismatch is a tiebreaker, not the dominant term: a template with a
+// large chunk of un-drawn ink (b's whole stem vs a drawn c) loses, but a stemmed
+// letter drawn fast — whose stem is only slightly off — must NOT be rejected just
+// because a simpler arc (c) has less ink to be "missing". Weighted to flip the
+// clear cases (big absent structure) without overriding Chamfer for fast same-letter
+// matches. This is the "most overlap without extra or missing ink" rule.
+const UNCOVERED_WEIGHT = 1.6;
 
 function uncoveredFraction(drawnCloud, tmplCloud) {
   if (!drawnCloud.length) return 0;
@@ -193,16 +193,20 @@ export function recognize(drawnStrokes, templates) {
     return { letter, dist: d, confidence: 0, mismatch: inkMismatch };
   });
   results.sort((a, b) => a.dist - b.dist);
-  // Certainty reflects how cleanly a template accounts for the drawn ink — its
-  // coverage mismatch (0 = no extra/missing ink). This is scale-invariant (coverage
-  // is already normalized 0–1), so the coverage penalty's inflated absolute distance
-  // can't zero out a correct match, and a winner that only wins because the right
-  // template is missing reads as low certainty instead of a false 100%. Each letter's
-  // bar is its own coverage quality, so wrong-but-won guesses no longer all show 100%.
-  const MISMATCH_BAD = 0.35; // coverage mismatch at/above this => 0% certainty
-  for (const r of results) {
+  // Certainty = how clearly the winner beat the runner-up (scale-invariant). A clean,
+  // clear match reads high; a winner that barely edged out another letter reads low,
+  // signalling the guess is uncertain. Losers read 0 (they didn't win the cluster).
+  // Independent of the absolute score, so the coverage penalty's magnitude can't zero
+  // out a correct match or inflate a weak one to 100%.
+  const finite = results.filter((r) => isFinite(r.dist));
+  const best = finite.length ? finite[0].dist : 0;
+  const second = finite.length > 1 ? finite[1].dist : null;
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
     if (!isFinite(r.dist)) { r.confidence = 0; continue; }
-    r.confidence = Math.max(0, Math.min(100, Math.round(100 * (1 - r.mismatch / MISMATCH_BAD))));
+    if (i > 0) { r.confidence = 0; continue; }
+    const margin = second !== null ? second - best : Math.max(0, 1 - best);
+    r.confidence = Math.max(0, Math.min(100, Math.round(margin * 250)));
   }
   return results;
 }
