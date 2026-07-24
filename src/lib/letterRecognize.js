@@ -105,12 +105,20 @@ function strokeCloud(pts) {
   });
   const span = Math.max(maxX - minX, maxY - minY) || 1;
   const start = rs[0], end = rs[rs.length - 1];
-  const dvec = { x: end.x - start.x, y: end.y - start.y };
-  const closed = Math.hypot(dvec.x, dvec.y) < span * 0.25; // start≈end → closed loop
-  const dlen = Math.hypot(dvec.x, dvec.y) || 1;
+  const seDist = Math.hypot(end.x - start.x, end.y - start.y);
+  const closed = seDist < span * 0.25; // start≈end → closed loop
+  // Initial tangent: direction of the first ~15% of the stroke (where the pen
+  // started). More reliable than start→end for loops that return to near the
+  // start — an 'e' drawn as a loop has start≈end (looks closed) but it STARTS with
+  // a horizontal rightward flick, whereas an 'a' starts by curving left. Checking
+  // the initial tangent catches that even when the loop closes.
+  const k = Math.max(2, Math.round(rs.length * 0.15));
+  const i0 = rs[0], i1 = rs[Math.min(k, rs.length - 1)];
+  const tvec = { x: i1.x - i0.x, y: i1.y - i0.y };
+  const tlen = Math.hypot(tvec.x, tvec.y) || 1;
   return {
     cloud: tr.map((p) => ({ x: p.x / span, y: p.y / span })),
-    dir: { x: dvec.x / dlen, y: dvec.y / dlen },
+    dir: { x: tvec.x / tlen, y: tvec.y / tlen },
     closed,
   };
 }
@@ -119,7 +127,11 @@ function strokeMatches(d, t) {
   const D = strokeCloud(d), T = strokeCloud(t);
   if (!D.cloud.length || !T.cloud.length) return false;
   if (chamfer(D.cloud, T.cloud) > SHAPE_THRESH) return false;
-  if (D.closed || T.closed) return true; // closed loop: direction is ambiguous → accept
+  // Two true loops (both start≈end) have no meaningful start direction, so accept
+  // either rotation. But a loop vs an open stroke, or two open strokes, must START
+  // in the same direction — an 'e' (starts with a rightward horizontal flick) is
+  // not the correct pathway of an 'a' (starts by curving back left).
+  if (D.closed && T.closed) return true;
   return D.dir.x * T.dir.x + D.dir.y * T.dir.y > DIR_THRESH;
 }
 
