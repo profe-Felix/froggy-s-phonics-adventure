@@ -214,10 +214,11 @@ function detectBowl(pts) {
   return null;
 }
 
-// Detect the 'e' "eye" — a closed loop that contains a long HORIZONTAL run
-// (the crossbar across the middle of an 'e'). Round bowls (o, a, b, d, g, p, q)
-// curve continuously and never hold a long flat segment, so a horizontal run
-// spanning a good fraction of the loop's width is the 'e' signature.
+// Detect the 'e' "eye" — a long horizontal run inside the loop (the crossbar),
+// made of several colinear points (a real drawn line, not a single flat touch
+// on a curve). Only called on a mid-zone bowl; the caller already rejects
+// strokes reaching the ascender (h/b/d/l/t/k) or descender (g/p/q/y), whose
+// flat runs are stems, arch tops, or bowl bottoms — not a crossbar.
 function detectEye(pts, bi, j) {
   const loop = pts.slice(bi, j + 1);
   if (loop.length < 6) return false;
@@ -225,15 +226,15 @@ function detectEye(pts, bi, j) {
   for (const p of loop) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
   const w = maxX - minX;
   if (w < 0.05) return false;
-  let best = 0, run = 0;
+  let best = 0, bestN = 0, run = 0, runN = 0;
   for (let i = 1; i < loop.length; i++) {
     const dseg = Math.abs(loop[i].y - loop[i - 1].y);
     const xseg = Math.abs(loop[i].x - loop[i - 1].x);
-    if (dseg < 0.012 && xseg > 0.004) run += xseg;
-    else { if (run > best) best = run; run = 0; }
+    if (dseg < 0.012 && xseg > 0.004) { run += xseg; runN++; }
+    else { if (run > best) { best = run; bestN = runN; } run = 0; runN = 0; }
   }
-  if (run > best) best = run;
-  return best >= 0.30 * w;
+  if (run > best) { best = run; bestN = runN; }
+  return best >= 0.30 * w && bestN >= 2;   // ≥2 flat segments = ≥3 colinear points
 }
 
 // Detect a "hooked line" — a long, mostly-straight stem (vertical or diagonal)
@@ -507,9 +508,41 @@ function analyzeCurve(pts, start, end) {
   for (let i = 0; i < absD.length; i++) if (absD[i] > apexAbs) { apexAbs = absD[i]; apexI = i; }
   if (apexAbs < 1e-4) return { opens: '', humps: 0, closed: false };
   const apex = pts[apexI];
-  const humps = countHumps(absD, apexAbs);
-  const sCurve = humps >= 2 ? detectSCurve(pts, start, end, signed, clen) : null;
-  return { opens: dirLabel(cmx - apex.x, cmy - apex.y), humps, closed: false, sCurve };
+  let humps = countHumps(absD, apexAbs);
+  let sCurve = humps >= 2 ? detectSCurve(pts, start, end, signed, clen) : null;
+  // Cup ('u'): both ends in the upper band and the apex in the lower band = one
+  // downward bulge opening upward. A diagonal chord can split that single
+  // bulge into 2 |distance| peaks (countHumps then wrongly reports 2 humps);
+  // the endpoint-band test recovers the real single hump. If the trailing arc
+  // is a straight vertical on the right, flag it — the "straight line on the
+  // right" of a 'u'.
+  let cup = null;
+  let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity;
+  for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
+  const H = maxY - minY, Wt = maxX - minX;
+  if (H > 0.05 && Wt > 0.05 && !sCurve) {
+    const topBand = minY + 0.30 * H;
+    const endTop = start.y <= topBand && end.y <= topBand;
+    const apexLow = pts[apexI].y >= minY + 0.45 * H;
+    if (endTop && apexLow) {
+      humps = 1;
+      let tot = 0; const ca = [0];
+      for (let i = 1; i < pts.length; i++) { tot += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); ca.push(tot); }
+      let k = pts.length - 1; while (k > 0 && ca[k] >= 0.70 * tot) k--;
+      let straightRight = false, straightLeft = false;
+      if (k < pts.length - 1) {
+        const ts = halfStraightness(pts, k, pts.length - 1);
+        const tc = classifyChord(end.x - pts[k].x, end.y - pts[k].y);
+        const midX = (minX + maxX) / 2;
+        if (ts >= 0.93 && tc.kind === 'vertical') {
+          if ((pts[k].x + end.x) / 2 > midX) straightRight = true;
+          else straightLeft = true;
+        }
+      }
+      cup = { straightRight, straightLeft };
+    }
+  }
+  return { opens: dirLabel(cmx - apex.x, cmy - apex.y), humps, closed: false, sCurve, cup };
 }
 
 export function classifyStroke(strokePx) {
@@ -536,7 +569,14 @@ export function classifyStroke(strokePx) {
     const bd = !bw && !hk && !th && !sh ? detectBend(pts) : null;
     const zz = !bw && !hk && !th && !sh && !bd ? detectZigzag(pts) : null;
     if (bw) {
-      bw.eye = detectEye(pts, bw.loopStartIdx, bw.closureIdx);
+      // The 'e' eye only belongs to a pure mid-zone bowl. A stroke reaching the
+      // ascender (h/b/d/l/t/k) or descender (g/p/q/y) is a tall/descender
+      // letter, not an 'e' — its flat run is a stem, an arch top, or a bowl
+      // bottom, not a crossbar — so don't even test for the eye.
+      let sMinY = Infinity, sMaxY = -Infinity;
+      for (const p of pts) { if (p.y < sMinY) sMinY = p.y; if (p.y > sMaxY) sMaxY = p.y; }
+      const inZone = sMinY >= 0.25 && sMaxY <= 0.72;
+      bw.eye = inZone ? detectEye(pts, bw.loopStartIdx, bw.closureIdx) : false;
       kind = 'bowl'; direction = ''; bowl = bw;
     } else if (hk) {
       kind = 'hooked'; direction = ''; hook = hk;
@@ -632,6 +672,13 @@ export function describeStroke(strokePx) {
     const cv = c.curve || {};
     if (cv.closed) return `A closed loop (no opening). Spans ${c.span}.`;
     if (cv.sCurve) return `An S-curve — opens ${cv.sCurve.topOpens} on top, opens ${cv.sCurve.bottomOpens} on the bottom. Spans ${c.span}.`;
+    if (cv.cup) {
+      let s = `A 'u' — a curve (1 hump) opening upward`;
+      if (cv.cup.straightRight) s += ` with a straight line on the right`;
+      else if (cv.cup.straightLeft) s += ` with a straight line on the left`;
+      s += `. Spans ${c.span}.`;
+      return s;
+    }
     const humps = cv.humps > 1 ? ` with ${cv.humps} humps` : '';
     return `A curve${humps}, opening ${cv.opens}. Spans ${c.span}.`;
   }
