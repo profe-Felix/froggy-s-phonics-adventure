@@ -183,6 +183,9 @@ const GREEN_CONF = 65;
 const YELLOW_CONF = 40;
 const RED_DIST = 0.25;
 const tierOf = (seg) => {
+  // An inferred letter (right letter read from stroke interactions, not the
+  // taught path) is "fairly sure" — credited but not a clean pathway match.
+  if (seg.inferred) return 'yellow';
   const dist = seg.ranked && seg.ranked[0] && isFinite(seg.ranked[0].dist) ? seg.ranked[0].dist : Infinity;
   if (dist > RED_DIST) return 'red';
   if (seg.pathway && seg.confidence >= GREEN_CONF) return 'green';
@@ -298,11 +301,25 @@ export default function LetterRecognitionCanvas({ templates }) {
         // The pathway is correct if the drawn strokes match ANY of them.
         const sameLetter = letter !== '?' ? templates.filter((t) => t.letter === letter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(g, t));
+        // Feature-based fallback: if the taught pathway wasn't followed, the
+        // stroke INTERACTIONS (a bowl + a stem, two crossing diagonals) can
+        // still infer the intended letter from geometry alone — so a student
+        // who writes the right letter the wrong way gets CREDIT for the letter
+        // (pathway stays false, which is the formation deduction). This mirrors
+        // the y/x crossing rule: deduct for formation, credit the letter.
+        let inferred = null;
+        if (!pathway && g.length >= 2) {
+          const cls = g.map((s) => classifyStroke(s));
+          const interaction = analyzeStrokesInteraction(g, cls);
+          if (interaction && interaction.inferred) inferred = interaction.inferred;
+        }
+        const finalLetter = inferred ? inferred.letter : letter;
         return {
-          letter,
-          confidence: ranked[0] ? ranked[0].confidence : 0,
+          letter: finalLetter,
+          confidence: ranked[0] ? ranked[0].confidence : (inferred ? 65 : 0),
           ranked,
           pathway,
+          inferred,
         };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
@@ -459,6 +476,13 @@ export default function LetterRecognitionCanvas({ templates }) {
                   {TIER_BADGE[tierOf(result.segments[0])]}
                 </span>
               </div>
+              {result.segments[0].inferred && (
+                <div className="mt-1 text-xs text-amber-600 leading-snug">
+                  {result.segments[0].inferred.summary}
+                  {result.segments[0].inferred.note ? ` ${result.segments[0].inferred.note}` : ''}
+                  {' '}— correct letter, but the taught stroke path wasn't followed.
+                </div>
+              )}
               <div className="mt-3 space-y-1.5">
                 {result.segments[0].ranked.map((r) => (
                   <div key={r.letter} className="flex items-center gap-2">
@@ -481,13 +505,20 @@ export default function LetterRecognitionCanvas({ templates }) {
               </div>
               <div className="mt-3 space-y-2 text-left">
                 {result.segments.map((seg, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
-                    <span className={`w-5 text-lg font-bold ${TIER_TEXT[tierOf(seg)]}`}>{seg.letter}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${TIER_BAR[tierOf(seg)]}`} style={{ width: `${seg.confidence}%` }} />
+                  <div key={i}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
+                      <span className={`w-5 text-lg font-bold ${TIER_TEXT[tierOf(seg)]}`}>{seg.letter}</span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${TIER_BAR[tierOf(seg)]}`} style={{ width: `${seg.confidence}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
                     </div>
-                    <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
+                    {seg.inferred && (
+                      <div className="ml-14 text-[11px] text-amber-600 leading-snug">
+                        {seg.inferred.summary} — correct letter, wrong stroke path.
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -333,6 +333,45 @@ function humpsOnTail(pts, baseIdx) {
 // from the apex back toward the chord's midpoint. A 'c' (bulge left) opens
 // right; an 'n' arch (bulge up) opens down; a 'u' (bulge down) opens up. A
 // nearly-closed loop (start≈end) has no opening.
+// An 's' (or any S-curve / "spine") is one stroke whose two humps lie on
+// OPPOSITE sides of the start→end chord — the concavity flips halfway down. This
+// is the shape the user described: the top opens one way, the bottom opens the
+// other. A 'w' or 'm' keeps both humps on the SAME side, so it is not an S. We
+// split the stroke at its arc midpoint and compare the dominant bulge of each
+// half; opposite signs (and both substantial) = an S. Each half's opening is
+// read from that half's OWN chord, so the description is "opens right on top,
+// left on the bottom" instead of the meaningless single-opening read that an
+// S used to get ("opening up and to the left").
+function detectSCurve(pts, start, end, signed, clen) {
+  const N = pts.length;
+  if (N < 8 || clen < 1e-4) return null;
+  let total = 0; const cum = [0];
+  for (let i = 1; i < N; i++) { total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); cum.push(total); }
+  if (total < 1e-4) return null;
+  const midArc = total / 2;
+  let midI = 1; while (midI < N - 2 && cum[midI] < midArc) midI++;
+  let firstMax = 0, firstMin = 0, secondMax = 0, secondMin = 0;
+  for (let i = 0; i <= midI; i++) { if (signed[i] > firstMax) firstMax = signed[i]; if (signed[i] < firstMin) firstMin = signed[i]; }
+  for (let i = midI; i < N; i++) { if (signed[i] > secondMax) secondMax = signed[i]; if (signed[i] < secondMin) secondMin = signed[i]; }
+  const firstDom = Math.abs(firstMax) >= Math.abs(firstMin) ? firstMax : firstMin;
+  const secondDom = Math.abs(secondMax) >= Math.abs(secondMin) ? secondMax : secondMin;
+  const THRESH = 0.03;
+  if (Math.abs(firstDom) < THRESH || Math.abs(secondDom) < THRESH) return null;
+  if ((firstDom > 0) === (secondDom > 0)) return null;   // same side → m/w, not an S
+  // opening of each half = from its apex toward its chord midpoint
+  let fApexI = 0, fApexAbs = 0;
+  for (let i = 0; i <= midI; i++) { if (Math.abs(signed[i]) > fApexAbs) { fApexAbs = Math.abs(signed[i]); fApexI = i; } }
+  const fApex = pts[fApexI];
+  const fChordMid = { x: (start.x + pts[midI].x) / 2, y: (start.y + pts[midI].y) / 2 };
+  const topOpens = dirLabel(fChordMid.x - fApex.x, fChordMid.y - fApex.y);
+  let sApexI = midI, sApexAbs = 0;
+  for (let i = midI; i < N; i++) { if (Math.abs(signed[i]) > sApexAbs) { sApexAbs = Math.abs(signed[i]); sApexI = i; } }
+  const sApex = pts[sApexI];
+  const sChordMid = { x: (pts[midI].x + end.x) / 2, y: (pts[midI].y + end.y) / 2 };
+  const bottomOpens = dirLabel(sChordMid.x - sApex.x, sChordMid.y - sApex.y);
+  return { topOpens, bottomOpens };
+}
+
 function analyzeCurve(pts, start, end) {
   const cx = end.x - start.x, cy = end.y - start.y;
   const clen = Math.hypot(cx, cy);
@@ -342,12 +381,15 @@ function analyzeCurve(pts, start, end) {
   if (clen / arc < 0.18) return { opens: 'closed', humps: 0, closed: true };
   const cmx = (start.x + end.x) / 2, cmy = (start.y + end.y) / 2;
   const nx = -cy / clen, ny = cx / clen; // unit normal to the chord
-  const absD = pts.map((p) => Math.abs((p.x - start.x) * nx + (p.y - start.y) * ny));
+  const signed = pts.map((p) => (p.x - start.x) * nx + (p.y - start.y) * ny);
+  const absD = signed.map(Math.abs);
   let apexI = 0, apexAbs = 0;
   for (let i = 0; i < absD.length; i++) if (absD[i] > apexAbs) { apexAbs = absD[i]; apexI = i; }
   if (apexAbs < 1e-4) return { opens: '', humps: 0, closed: false };
   const apex = pts[apexI];
-  return { opens: dirLabel(cmx - apex.x, cmy - apex.y), humps: countHumps(absD, apexAbs), closed: false };
+  const humps = countHumps(absD, apexAbs);
+  const sCurve = humps >= 2 ? detectSCurve(pts, start, end, signed, clen) : null;
+  return { opens: dirLabel(cmx - apex.x, cmy - apex.y), humps, closed: false, sCurve };
 }
 
 export function classifyStroke(strokePx) {
@@ -449,6 +491,7 @@ export function describeStroke(strokePx) {
   if (c.kind === 'curve') {
     const cv = c.curve || {};
     if (cv.closed) return `A closed loop (no opening). Spans ${c.span}.`;
+    if (cv.sCurve) return `An S-curve — opens ${cv.sCurve.topOpens} on top, opens ${cv.sCurve.bottomOpens} on the bottom. Spans ${c.span}.`;
     const humps = cv.humps > 1 ? ` with ${cv.humps} humps` : '';
     return `A curve${humps}, opening ${cv.opens}. Spans ${c.span}.`;
   }
