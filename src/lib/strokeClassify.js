@@ -322,6 +322,49 @@ function detectTopHook(pts) {
   return { stemStart, stemFrac: stemArc / total, hookFrac: hookArc / total, turnDeg: turn, hookDir: hookDirLabel };
 }
 
+function angleFromHorizontal(dx, dy) { return Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI; }
+
+// Detect a "zigzag" — three straight segments joined by two sharp turns, like
+// a 'z' (top horizontal bar, diagonal, bottom horizontal bar). The two bars
+// sit on different guide rows and the middle is a real diagonal. This keeps
+// 'z' off both the S-curve and the generic "curve with humps": a 'z' has
+// straight bars and sharp corners, an 's' is one continuous curve.
+const ZIGZAG_SEG_STRAIGHT = 0.93;
+const ZIGZAG_TURN_DEG = 50;
+function detectZigzag(pts) {
+  const N = pts.length;
+  if (N < 8) return null;
+  const w = Math.max(2, Math.round(N * 0.08));
+  const raw = [];
+  for (let i = w; i < N - w; i++) {
+    const turn = angleBetween(chordAngle(pts, i - w, i), chordAngle(pts, i, i + w));
+    if (turn >= ZIGZAG_TURN_DEG) raw.push({ i, turn });
+  }
+  if (raw.length < 2) return null;
+  raw.sort((a, b) => b.turn - a.turn);
+  const chosen = [];
+  for (const c of raw) {
+    if (chosen.every(x => Math.abs(x.i - c.i) > w)) chosen.push(c);
+    if (chosen.length === 2) break;
+  }
+  if (chosen.length < 2) return null;
+  chosen.sort((a, b) => a.i - b.i);
+  const c1 = chosen[0].i, c2 = chosen[1].i;
+  if (c2 - c1 < w) return null;
+  if (halfStraightness(pts, 0, c1) < ZIGZAG_SEG_STRAIGHT) return null;
+  if (halfStraightness(pts, c1, c2) < ZIGZAG_SEG_STRAIGHT) return null;
+  if (halfStraightness(pts, c2, N - 1) < ZIGZAG_SEG_STRAIGHT) return null;
+  const a1 = angleFromHorizontal(pts[c1].x - pts[0].x, pts[c1].y - pts[0].y);
+  const a2 = angleFromHorizontal(pts[c2].x - pts[c1].x, pts[c2].y - pts[c1].y);
+  const a3 = angleFromHorizontal(pts[N - 1].x - pts[c2].x, pts[N - 1].y - pts[c2].y);
+  if (a1 >= 35 || a3 >= 35) return null;       // top & bottom bars near-horizontal
+  if (a2 < 25 || a2 > 75) return null;          // middle is a real diagonal
+  const y1 = (pts[0].y + pts[c1].y) / 2;
+  const y3 = (pts[c2].y + pts[N - 1].y) / 2;
+  if (Math.abs(y1 - y3) < 0.12) return null;    // bars on different rows
+  return { c1, c2 };
+}
+
 // Direction label for a vector in screen space (y grows downward). 0° = right,
 // 90° = up. Returns cardinal/ordinal phrases.
 function dirLabel(vx, vy) {
@@ -424,6 +467,17 @@ function detectSCurve(pts, start, end, signed, clen) {
   for (let i = 0; i < signed.length; i++) if (Math.abs(signed[i]) > globalMax) globalMax = Math.abs(signed[i]);
   if (Math.abs(firstDom) < 0.5 * globalMax || Math.abs(secondDom) < 0.5 * globalMax) return null;
   if ((firstDom > 0) === (secondDom > 0)) return null;   // same side → m/w, not an S
+  // An S is one continuous CURVE. Reject a half that's basically a straight
+  // line — that's a 'u' drawn as a curve + a straight down-tail, not a smooth S.
+  if (halfStraightness(pts, 0, midI) >= 0.95 || halfStraightness(pts, midI, N - 1) >= 0.95) return null;
+  // A 'u' (or a 'u' with a straight down-tail) reverses direction ~180° at the
+  // bottom (and again at the tail). An 's' curves smoothly — its tangent turns
+  // gradually, never near 180°. A near-180° local turn is a back-and-forth, not
+  // an S.
+  const revWin = Math.max(2, Math.round(N * 0.10));
+  for (let i = revWin; i < N - revWin; i++) {
+    if (angleBetween(chordAngle(pts, i - revWin, i), chordAngle(pts, i, i + revWin)) >= 150) return null;
+  }
   // opening of each half = from its apex toward its chord midpoint
   let fApexI = 0, fApexAbs = 0;
   for (let i = 0; i <= midI; i++) { if (Math.abs(signed[i]) > fApexAbs) { fApexAbs = Math.abs(signed[i]); fApexI = i; } }
@@ -472,7 +526,7 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null, hook = null, topHook = null;
+  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null, hook = null, topHook = null, zigzag = null;
   if (straightness < STRAIGHT_THRESHOLD) {
     // Try the specific shapes first; the first that fits wins.
     const bw = detectBowl(pts);
@@ -480,6 +534,7 @@ export function classifyStroke(strokePx) {
     const th = !bw && !hk ? detectTopHook(pts) : null;
     const sh = !bw && !hk && !th ? detectShoulder(pts) : null;
     const bd = !bw && !hk && !th && !sh ? detectBend(pts) : null;
+    const zz = !bw && !hk && !th && !sh && !bd ? detectZigzag(pts) : null;
     if (bw) {
       bw.eye = detectEye(pts, bw.loopStartIdx, bw.closureIdx);
       kind = 'bowl'; direction = ''; bowl = bw;
@@ -497,6 +552,8 @@ export function classifyStroke(strokePx) {
       const h1 = classifyChord(v.x - start.x, v.y - start.y);
       const h2 = classifyChord(end.x - v.x, end.y - v.y);
       bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: bd.turnDeg };
+    } else if (zz) {
+      kind = 'zigzag'; direction = ''; zigzag = zz;
     } else {
       kind = 'curve'; direction = '';
       curve = analyzeCurve(pts, start, end);
@@ -517,7 +574,7 @@ export function classifyStroke(strokePx) {
   if (kind === 'horizontal') {
     const mid = (start.y + end.y) / 2;
     span = `sitting on the ${nearestGuide(mid).label}`;
-  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl' || kind === 'hooked' || kind === 'topHook') {
+  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl' || kind === 'hooked' || kind === 'topHook' || kind === 'zigzag') {
     let minY = Infinity, maxY = -Infinity;
     for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const gTop = nearestGuide(minY), gBot = nearestGuide(maxY);
@@ -527,7 +584,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl, hook, topHook };
+  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl, hook, topHook, zigzag };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -567,6 +624,9 @@ export function describeStroke(strokePx) {
   if (c.kind === 'topHook') {
     const h = c.topHook || {};
     return `A curve at the top going ${h.hookDir} that straightens into a vertical stem. Spans ${c.span}.`;
+  }
+  if (c.kind === 'zigzag') {
+    return `A 'z' — a horizontal bar on top, a diagonal down, then a horizontal bar on the bottom. Spans ${c.span}.`;
   }
   if (c.kind === 'curve') {
     const cv = c.curve || {};
