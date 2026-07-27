@@ -115,6 +115,74 @@ function detectBend(pts) {
   return { vertexIdx: bestI, turnDeg: turn, sA, sB };
 }
 
+// Direction label for a vector in screen space (y grows downward). 0° = right,
+// 90° = up. Returns cardinal/ordinal phrases.
+function dirLabel(vx, vy) {
+  let a = Math.atan2(-vy, vx) * 180 / Math.PI;
+  if (a < 0) a += 360;
+  const S = 22.5;
+  if (a >= 360 - S || a < S) return 'to the right';
+  if (a < 90 - S) return 'up and to the right';
+  if (a < 90 + S) return 'upward';
+  if (a < 180 - S) return 'up and to the left';
+  if (a < 180 + S) return 'to the left';
+  if (a < 270 - S) return 'down and to the left';
+  if (a < 270 + S) return 'downward';
+  return 'down and to the right';
+}
+
+// Count prominent humps (local maxima of |perpendicular distance| from the
+// chord). 1 = a bowl (c) or single arch (n/h); 2 = 'm' or 'w'; an S-curve also
+// reads 2 (one bulge each side). Peaks must clear 40% of the tallest and be
+// separated, so a wobbly line isn't over-counted.
+function countHumps(absD, maxAbs) {
+  const n = absD.length;
+  if (n < 6) return 1;
+  // Smooth |dist| with a moving average so pixel jitter doesn't invent peaks.
+  const w = Math.max(1, Math.round(n * 0.06));
+  const sm = absD.map((_, i) => {
+    let s = 0, c = 0;
+    for (let k = -w; k <= w; k++) { const j = i + k; if (j >= 0 && j < n) { s += absD[j]; c++; } }
+    return s / c;
+  });
+  const thr = 0.35 * maxAbs;
+  const win = Math.max(2, Math.round(n * 0.12));
+  const sep = Math.max(win, Math.round(n * 0.25));   // humps must be well separated
+  let count = 0, lastPeak = -sep;
+  for (let i = win; i < n - win; i++) {
+    if (sm[i] < thr) continue;
+    let isPeak = true;
+    for (let k = 1; k <= win; k++) {
+      if (sm[i - k] > sm[i] || sm[i + k] > sm[i]) { isPeak = false; break; }
+    }
+    if (isPeak && i - lastPeak >= sep) { count++; lastPeak = i; }
+  }
+  return Math.max(count, 1);
+}
+
+// For a curve, work out which way it OPENS and how many HUMPS it has. The opening
+// is the concave side — opposite the bulge. Take the chord start→end, find the
+// apex (point farthest from the chord, on the bulge side); the opening faces
+// from the apex back toward the chord's midpoint. A 'c' (bulge left) opens
+// right; an 'n' arch (bulge up) opens down; a 'u' (bulge down) opens up. A
+// nearly-closed loop (start≈end) has no opening.
+function analyzeCurve(pts, start, end) {
+  const cx = end.x - start.x, cy = end.y - start.y;
+  const clen = Math.hypot(cx, cy);
+  let arc = 0;
+  for (let i = 1; i < pts.length; i++) arc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  if (arc < 1e-4) return { opens: '', humps: 0, closed: true };
+  if (clen / arc < 0.18) return { opens: 'closed', humps: 0, closed: true };
+  const cmx = (start.x + end.x) / 2, cmy = (start.y + end.y) / 2;
+  const nx = -cy / clen, ny = cx / clen; // unit normal to the chord
+  const absD = pts.map((p) => Math.abs((p.x - start.x) * nx + (p.y - start.y) * ny));
+  let apexI = 0, apexAbs = 0;
+  for (let i = 0; i < absD.length; i++) if (absD[i] > apexAbs) { apexAbs = absD[i]; apexI = i; }
+  if (apexAbs < 1e-4) return { opens: '', humps: 0, closed: false };
+  const apex = pts[apexI];
+  return { opens: dirLabel(cmx - apex.x, cmy - apex.y), humps: countHumps(absD, apexAbs), closed: false };
+}
+
 export function classifyStroke(strokePx) {
   if (!strokePx || strokePx.length < 2) return { kind: 'dot', direction: '', span: '', angleDeg: 0, straightness: 0 };
   const pts = strokePx.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }));
@@ -123,13 +191,13 @@ export function classifyStroke(strokePx) {
   const netLen = Math.hypot(dx, dy);
   let arc = 0;
   for (let i = 1; i < pts.length; i++) arc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-  if (arc < 1e-4 || netLen < 1e-4) return { kind: 'dot', direction: '', span: '', angleDeg: 0, straightness: 0 };
+  if (arc < 0.01) return { kind: 'dot', direction: '', span: '', angleDeg: 0, straightness: 0 };
 
   const straightness = netLen / arc;
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null;
+  let kind, direction, bend = null, curve = null;
   if (straightness < STRAIGHT_THRESHOLD) {
     const detected = detectBend(pts);
     if (detected) {
@@ -142,6 +210,7 @@ export function classifyStroke(strokePx) {
     } else {
       kind = 'curve';
       direction = '';
+      curve = analyzeCurve(pts, start, end);
     }
   } else {
     const c = classifyChord(dx, dy);
@@ -169,7 +238,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend };
+  return { kind, direction, span, angleDeg, straightness, bend, curve };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -181,7 +250,12 @@ export function describeStroke(strokePx) {
     const vGuide = nearestGuide(c.bend.vertexY).label;
     return `A bent stroke — first going ${c.bend.dir1}, then going ${c.bend.dir2}, with a sharp turn (≈${Math.round(c.bend.turnDeg)}°) near the ${vGuide}. Spans ${c.span}.`;
   }
-  if (c.kind === 'curve') return `A curve — not a straight line. Spans ${c.span}.`;
+  if (c.kind === 'curve') {
+    const cv = c.curve || {};
+    if (cv.closed) return `A closed loop (no opening). Spans ${c.span}.`;
+    const humps = cv.humps > 1 ? ` with ${cv.humps} humps` : '';
+    return `A curve${humps}, opening ${cv.opens}. Spans ${c.span}.`;
+  }
   const cap = c.kind[0].toUpperCase() + c.kind.slice(1);
   const dir = c.direction ? `, going ${c.direction}` : '';
   const ang = c.kind === 'diagonal' ? ` (≈${Math.round(c.angleDeg)}°)` : '';
