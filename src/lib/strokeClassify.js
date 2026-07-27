@@ -115,6 +115,60 @@ function detectBend(pts) {
   return { vertexIdx: bestI, turnDeg: turn, sA, sB };
 }
 
+// Detect a "shoulder" — the down-then-up RETRACE that begins h, r, m, n. The
+// pen drops in a straight vertical line, reaches a base, then reverses upward
+// (a near-180° reversal = a retrace, NOT the 40-90° corner of a 'v'/'k'). After
+// the base it may round right into one or more arches (r, n, m) or just stop
+// (a pure down-up practice stroke). Two gates keep bowls out: the downstroke
+// (start→base) must be a STRAIGHT, near-VERTICAL line. A bowl's "down" side is
+// a quarter-arc — low straightness (≈0.50 for a 'c') or a diagonal chord (a
+// 'u') — so bowls fail and stay curves, while a real shoulder's plumb
+// downstroke (straightness ≈0.98, vertical) passes.
+const SHOULDER_DOWN_STRAIGHT = 0.90;
+const SHOULDER_TURN_DEG = 130;
+function detectShoulder(pts) {
+  const N = pts.length;
+  if (N < 6) return null;
+  const win = Math.max(2, Math.round(N * 0.10));
+  // candidate bases = local y-maxima (the low points of the stroke), left to
+  // right — so an 'm' picks its FIRST downstroke, not the last.
+  const cands = [];
+  for (let i = win; i < N - win; i++) {
+    let isMax = true;
+    for (let k = 1; k <= win; k++) { if (pts[i - k].y > pts[i].y || pts[i + k].y > pts[i].y) { isMax = false; break; } }
+    if (isMax) cands.push(i);
+  }
+  if (!cands.length) {
+    let bi = 0, my = -Infinity;
+    for (let i = 0; i < N; i++) if (pts[i].y > my) { my = pts[i].y; bi = i; }
+    if (bi >= 2 && bi <= N - 3) cands.push(bi);
+  }
+  for (const baseI of cands) {
+    if (baseI < 2 || baseI > N - 3) continue;
+    // downstroke start→base must be a straight, near-vertical line
+    const downChord = classifyChord(pts[baseI].x - pts[0].x, pts[baseI].y - pts[0].y);
+    if (downChord.kind !== 'vertical') continue;
+    let arcDown = 0;
+    for (let i = 1; i <= baseI; i++) arcDown += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    if (arcDown < 1e-4) continue;
+    const downStraight = Math.hypot(pts[baseI].x - pts[0].x, pts[baseI].y - pts[0].y) / arcDown;
+    if (downStraight < SHOULDER_DOWN_STRAIGHT) continue;
+    // reversal at the base (down → up): near-180°, not a 40-90° corner
+    const w2 = Math.max(2, Math.round(N * 0.12));
+    const preDir = chordAngle(pts, Math.max(0, baseI - w2), baseI);
+    const postB = Math.min(N - 1, baseI + w2);
+    const postDir = chordAngle(pts, baseI, postB);
+    const turn = angleBetween(preDir, postDir);
+    if (turn < SHOULDER_TURN_DEG) continue;
+    if (pts[baseI].y - pts[postB].y < 0.01) continue;   // must rise out of the base
+    let arc = 0, arcAfter = 0;
+    for (let i = 1; i < N; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); arc += d; if (i > baseI) arcAfter += d; }
+    const archFrac = arc > 1e-4 ? arcAfter / arc : 0;
+    return { baseIdx: baseI, turnDeg: turn, baseY: pts[baseI].y, archFrac };
+  }
+  return null;
+}
+
 // Direction label for a vector in screen space (y grows downward). 0° = right,
 // 90° = up. Returns cardinal/ordinal phrases.
 function dirLabel(vx, vy) {
@@ -160,6 +214,26 @@ function countHumps(absD, maxAbs) {
   return Math.max(count, 1);
 }
 
+// Count humps on just the TAIL of the stroke (from a shoulder's base onward) —
+// the arch part after the retrace. This is what stops an 'm' from counting its
+// leading down-up retrace as a 3rd hump: the retrace is excluded, so only the
+// real arches (1 for r/n/h, 2 for m) are counted.
+function humpsOnTail(pts, baseIdx) {
+  const tail = pts.slice(baseIdx);
+  const n = tail.length;
+  if (n < 4) return 0;
+  const s = tail[0], e = tail[n - 1];
+  const cx = e.x - s.x, cy = e.y - s.y;
+  const clen = Math.hypot(cx, cy);
+  if (clen < 1e-4) return 0;
+  const nx = -cy / clen, ny = cx / clen;
+  const absD = tail.map((p) => Math.abs((p.x - s.x) * nx + (p.y - s.y) * ny));
+  let maxAbs = 0;
+  for (const d of absD) if (d > maxAbs) maxAbs = d;
+  if (maxAbs < 0.015) return 0;   // a straight retrace-back-up has no hump
+  return countHumps(absD, maxAbs);
+}
+
 // For a curve, work out which way it OPENS and how many HUMPS it has. The opening
 // is the concave side — opposite the bulge. Take the chord start→end, find the
 // apex (point farthest from the chord, on the bulge side); the opening faces
@@ -197,20 +271,28 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null, curve = null;
+  let kind, direction, bend = null, curve = null, shoulder = null;
   if (straightness < STRAIGHT_THRESHOLD) {
-    const detected = detectBend(pts);
-    if (detected) {
-      kind = 'bent';
+    const sh = detectShoulder(pts);
+    if (sh) {
+      kind = 'shoulder';
       direction = '';
-      const v = pts[detected.vertexIdx];
-      const h1 = classifyChord(v.x - start.x, v.y - start.y);
-      const h2 = classifyChord(end.x - v.x, end.y - v.y);
-      bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
+      sh.humps = humpsOnTail(pts, sh.baseIdx);
+      shoulder = sh;
     } else {
-      kind = 'curve';
-      direction = '';
-      curve = analyzeCurve(pts, start, end);
+      const detected = detectBend(pts);
+      if (detected) {
+        kind = 'bent';
+        direction = '';
+        const v = pts[detected.vertexIdx];
+        const h1 = classifyChord(v.x - start.x, v.y - start.y);
+        const h2 = classifyChord(end.x - v.x, end.y - v.y);
+        bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
+      } else {
+        kind = 'curve';
+        direction = '';
+        curve = analyzeCurve(pts, start, end);
+      }
     }
   } else {
     const c = classifyChord(dx, dy);
@@ -228,7 +310,7 @@ export function classifyStroke(strokePx) {
   if (kind === 'horizontal') {
     const mid = (start.y + end.y) / 2;
     span = `sitting on the ${nearestGuide(mid).label}`;
-  } else if (kind === 'curve') {
+  } else if (kind === 'curve' || kind === 'shoulder') {
     let minY = Infinity, maxY = -Infinity;
     for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const gTop = nearestGuide(minY), gBot = nearestGuide(maxY);
@@ -238,7 +320,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend, curve };
+  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -249,6 +331,13 @@ export function describeStroke(strokePx) {
   if (c.kind === 'bent') {
     const vGuide = nearestGuide(c.bend.vertexY).label;
     return `A bent stroke — first going ${c.bend.dir1}, then going ${c.bend.dir2}, with a sharp turn (≈${Math.round(c.bend.turnDeg)}°) near the ${vGuide}. Spans ${c.span}.`;
+  }
+  if (c.kind === 'shoulder') {
+    const sh = c.shoulder || {};
+    const h = sh.humps || 0;
+    if (!h) return `A shoulder retrace — a vertical down then back up (pen retraced). Spans ${c.span}.`;
+    const humpTxt = h > 1 ? `${h} humps` : 'a hump';
+    return `A shoulder — down, back up, then ${humpTxt} rounding to the right. Spans ${c.span}.`;
   }
   if (c.kind === 'curve') {
     const cv = c.curve || {};
