@@ -166,6 +166,31 @@ function clusterByTouch(strokes, touchPx) {
     .map((g) => g.idx.map((i) => strokes[i]));
 }
 
+// Confidence tiers for a recognised segment.
+//   green  — correct taught pathway AND high confidence = "pretty sure"
+//   yellow — a real best guess but not a confident/clean match = "fairly sure"
+//   red    — nothing matches well = "doesn't match anything"
+// Confidence (softmax over distances) is the honest "doesn't match" signal: a
+// scribble or a badly-formed letter is roughly equidistant from many templates,
+// so its winning probability stays LOW (e.g. 17–37%) however lenient the per-letter
+// match is — exactly the case where a wrong 'p' used to read confidently as 'y'.
+// A correct letter, by contrast, is clearly closer to its template than to any
+// other, so it scores HIGH (79–94%). The RED_DIST backstop forces red when even
+// the best template is far away, so a tiny template set can't fake confidence.
+const GREEN_CONF = 65;
+const YELLOW_CONF = 40;
+const RED_DIST = 0.25;
+const tierOf = (seg) => {
+  const dist = seg.ranked && seg.ranked[0] && isFinite(seg.ranked[0].dist) ? seg.ranked[0].dist : Infinity;
+  if (dist > RED_DIST) return 'red';
+  if (seg.pathway && seg.confidence >= GREEN_CONF) return 'green';
+  if (seg.confidence >= YELLOW_CONF) return 'yellow';
+  return 'red';
+};
+const TIER_TEXT = { green: 'text-green-600', yellow: 'text-amber-500', red: 'text-red-600' };
+const TIER_BAR = { green: 'bg-green-500', yellow: 'bg-amber-500', red: 'bg-red-500' };
+const TIER_BADGE = { green: '✓ correct pathway', yellow: '? fairly sure', red: '✗ no match' };
+
 export default function LetterRecognitionCanvas({ templates }) {
   const [strokes, setStrokes] = useState([]);
   const [pauses, setPauses] = useState([]);
@@ -358,21 +383,21 @@ export default function LetterRecognitionCanvas({ templates }) {
             <>
               <div className="text-lg font-bold text-slate-700">
                 I think you wrote:{' '}
-                <span className={`text-2xl ${result.segments[0].pathway ? 'text-green-600' : 'text-amber-500'}`}>
+                <span className={`text-2xl ${TIER_TEXT[tierOf(result.segments[0])]}`}>
                   {result.segments[0].letter}
                 </span>{' '}
                 <span className="text-sm font-normal text-slate-500">({result.segments[0].confidence}% sure)</span>{' '}
-                <span className={`text-xs font-bold ${result.segments[0].pathway ? 'text-green-600' : 'text-amber-500'}`}>
-                  {result.segments[0].pathway ? '✓ correct pathway' : '↻ shape only — no full credit'}
+                <span className={`text-xs font-bold ${TIER_TEXT[tierOf(result.segments[0])]}`}>
+                  {TIER_BADGE[tierOf(result.segments[0])]}
                 </span>
               </div>
               <div className="mt-3 space-y-1.5">
                 {result.segments[0].ranked.map((r) => (
                   <div key={r.letter} className="flex items-center gap-2">
-                    <span className="w-5 text-sm font-bold text-slate-600">{r.letter}</span>
+                    <span className={`w-5 text-sm font-bold ${r === result.segments[0].ranked[0] ? TIER_TEXT[tierOf(result.segments[0])] : 'text-slate-600'}`}>{r.letter}</span>
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${r === result.segments[0].ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                        className={`h-full rounded-full ${r === result.segments[0].ranked[0] ? TIER_BAR[tierOf(result.segments[0])] : 'bg-slate-300'}`}
                         style={{ width: `${r.confidence}%` }}
                       />
                     </div>
@@ -390,9 +415,9 @@ export default function LetterRecognitionCanvas({ templates }) {
                 {result.segments.map((seg, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
-                    <span className={`w-5 text-lg font-bold ${seg.pathway ? 'text-green-600' : 'text-amber-500'}`}>{seg.letter}</span>
+                    <span className={`w-5 text-lg font-bold ${TIER_TEXT[tierOf(seg)]}`}>{seg.letter}</span>
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
+                      <div className={`h-full rounded-full ${TIER_BAR[tierOf(seg)]}`} style={{ width: `${seg.confidence}%` }} />
                     </div>
                     <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{seg.confidence}%</span>
                   </div>
