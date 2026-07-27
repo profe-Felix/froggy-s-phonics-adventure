@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
+import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 
 // Contact grouping is only a HINT. After clustering touching strokes, re-examine
 // every multi-stroke group against recognition: if EACH stroke already reads as
@@ -197,6 +198,7 @@ export default function LetterRecognitionCanvas({ templates }) {
   const [current, setCurrent] = useState([]);
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
+  const [mode, setMode] = useState('letter'); // 'letter' | 'stroke'
   const [segMode, setSegMode] = useState('space'); // 'space' | 'pause'
   const [spaceGap, setSpaceGap] = useState(14); // canvas px — strokes join when ink is within this far (ink width already included); tuned for kids' multi-stroke letters whose parts don't quite touch
   const [pauseMs, setPauseMs] = useState(500);
@@ -266,6 +268,17 @@ export default function LetterRecognitionCanvas({ templates }) {
     if (!strokes.length) return;
     setGuessing(true);
     setTimeout(() => {
+      if (mode === 'stroke') {
+        const strokeResults = strokes.map((s, i) => ({
+          idx: i,
+          raw: s,
+          ...classifyStroke(s),
+          desc: describeStroke(s),
+        }));
+        setResult({ mode: 'stroke', strokeResults });
+        setGuessing(false);
+        return;
+      }
       let groups;
       if (segMode === 'space') {
         groups = segmentByRecognition(strokes, spaceGap, templates);
@@ -295,7 +308,7 @@ export default function LetterRecognitionCanvas({ templates }) {
     }, 60);
   };
 
-  const single = result && result.segments.length === 1;
+  const single = result && result.mode !== 'stroke' && result.segments.length === 1;
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -329,36 +342,56 @@ export default function LetterRecognitionCanvas({ templates }) {
         )}
       </svg>
 
-      {/* Segmentation mode toggle */}
+      {/* Recognize letter / Recognize stroke toggle */}
       <div className="flex gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
         <button
-          onClick={() => setSegMode('space')}
-          className={`px-3 py-1 rounded-md transition ${segMode === 'space' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+          onClick={() => { setMode('letter'); setResult(null); }}
+          className={`px-3 py-1 rounded-md transition ${mode === 'letter' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}
         >
-          Group by touching
+          Recognize letter
         </button>
         <button
-          onClick={() => setSegMode('pause')}
-          className={`px-3 py-1 rounded-md transition ${segMode === 'pause' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+          onClick={() => { setMode('stroke'); setResult(null); }}
+          className={`px-3 py-1 rounded-md transition ${mode === 'stroke' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}
         >
-          Group by pause
+          Recognize stroke
         </button>
       </div>
 
-      {/* Mode-specific threshold */}
-      <label className="flex items-center gap-2 text-xs text-slate-600 w-full max-w-xs px-2">
-        <span className="w-28 shrink-0">{segMode === 'space' ? 'Stroke join distance' : 'Pause between letters'}</span>
-        <input
-          type="range"
-          min={segMode === 'space' ? 2 : 200}
-          max={segMode === 'space' ? 40 : 1500}
-          step={segMode === 'space' ? 1 : 50}
-          value={segMode === 'space' ? spaceGap : pauseMs}
-          onChange={(e) => (segMode === 'space' ? setSpaceGap(parseInt(e.target.value, 10)) : setPauseMs(parseInt(e.target.value, 10)))}
-          className="flex-1"
-        />
-        <span className="w-14 text-right tabular-nums">{segMode === 'space' ? `${spaceGap}px` : `${pauseMs}ms`}</span>
-      </label>
+      {mode === 'letter' && (
+        <>
+          {/* Segmentation mode toggle */}
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
+            <button
+              onClick={() => setSegMode('space')}
+              className={`px-3 py-1 rounded-md transition ${segMode === 'space' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              Group by touching
+            </button>
+            <button
+              onClick={() => setSegMode('pause')}
+              className={`px-3 py-1 rounded-md transition ${segMode === 'pause' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
+            >
+              Group by pause
+            </button>
+          </div>
+
+          {/* Mode-specific threshold */}
+          <label className="flex items-center gap-2 text-xs text-slate-600 w-full max-w-xs px-2">
+            <span className="w-28 shrink-0">{segMode === 'space' ? 'Stroke join distance' : 'Pause between letters'}</span>
+            <input
+              type="range"
+              min={segMode === 'space' ? 2 : 200}
+              max={segMode === 'space' ? 40 : 1500}
+              step={segMode === 'space' ? 1 : 50}
+              value={segMode === 'space' ? spaceGap : pauseMs}
+              onChange={(e) => (segMode === 'space' ? setSpaceGap(parseInt(e.target.value, 10)) : setPauseMs(parseInt(e.target.value, 10)))}
+              className="flex-1"
+            />
+            <span className="w-14 text-right tabular-nums">{segMode === 'space' ? `${spaceGap}px` : `${pauseMs}ms`}</span>
+          </label>
+        </>
+      )}
 
       <div className="flex gap-2">
         <button
@@ -366,7 +399,7 @@ export default function LetterRecognitionCanvas({ templates }) {
           disabled={!strokes.length || guessing}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : 'Guess my letters'}
+          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : mode === 'stroke' ? 'Recognize strokes' : 'Guess my letters'}
         </button>
         <button
           onClick={clear}
@@ -377,7 +410,26 @@ export default function LetterRecognitionCanvas({ templates }) {
         </button>
       </div>
 
-      {result && (
+      {result && result.mode === 'stroke' && (
+        <div className="w-full max-w-sm text-left space-y-2">
+          <div className="text-sm font-bold text-slate-700 text-center">I see {result.strokeResults.length} stroke{result.strokeResults.length === 1 ? '' : 's'}:</div>
+          {result.strokeResults.map((s) => (
+            <div key={s.idx} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+              <span className="shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded-full bg-indigo-100 text-indigo-700">{s.idx + 1}</span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-800">{s.desc}</div>
+                <div className="text-[11px] text-slate-400">
+                  {s.kind !== 'dot' && s.kind !== 'curve' && <>straightness {Math.round(s.straightness * 100)}%</>}
+                  {s.kind === 'diagonal' && <> · {Math.round(s.angleDeg)}°</>}
+                  {s.kind === 'curve' && <>straightness {Math.round(s.straightness * 100)}%</>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && result.mode !== 'stroke' && (
         <div className="w-full max-w-xs text-center">
           {single ? (
             <>
