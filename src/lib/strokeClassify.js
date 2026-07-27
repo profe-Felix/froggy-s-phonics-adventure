@@ -37,6 +37,84 @@ function nearestGuide(yn) {
   return best;
 }
 
+// Classify a straight chord (dx, dy) as vertical / horizontal / diagonal with its
+// drawing direction. Shared by the whole-stroke and per-half classifiers.
+function classifyChord(dx, dy) {
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;
+  let kind, direction;
+  if (angleDeg > VERT_MIN) {
+    kind = 'vertical';
+    direction = dy > 0 ? 'top to bottom' : 'bottom to top';
+  } else if (angleDeg < HORIZ_MAX) {
+    kind = 'horizontal';
+    direction = dx > 0 ? 'left to right' : 'right to left';
+  } else {
+    kind = 'diagonal';
+    const down = dy > 0, right = dx > 0;
+    if (down && right) direction = 'top-left to bottom-right';
+    else if (down && !right) direction = 'top-right to bottom-left';
+    else if (!down && right) direction = 'bottom-left to top-right';
+    else direction = 'bottom-right to top-left';
+  }
+  return { kind, direction, angleDeg };
+}
+
+function halfStraightness(pts, a, b) {
+  let arc = 0;
+  for (let i = a + 1; i <= b; i++) arc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  const chord = Math.hypot(pts[b].x - pts[a].x, pts[b].y - pts[a].y);
+  return arc < 1e-4 ? 0 : chord / arc;
+}
+function chordAngle(pts, a, b) {
+  return Math.atan2(pts[b].y - pts[a].y, pts[b].x - pts[a].x) * 180 / Math.PI;
+}
+function angleBetween(aDeg, bDeg) {
+  let d = Math.abs(aDeg - bDeg) % 360;
+  if (d > 180) d = 360 - d;
+  return d;
+}
+
+// Detect a "bent" (chevron) stroke — two fairly-straight segments joined at a
+// sharp vertex, like the right stroke of a 'k' (diagonally down-left, then
+// diagonally down-right). The vertex is the point farthest from the start→end
+// chord; we split there and require BOTH halves to be straight and the turn at
+// the vertex to be a real bend. This is what keeps it off a SMOOTH BOWL: a bowl
+// is a continuous curve, so its halves (split at the apex) are quarter-arcs
+// (straightness ≈ 0.90), not straight lines — they fail the straightness gate,
+// while a real chevron's straight halves (≈ 0.97+) pass.
+const BEND_HALF_STRAIGHT = 0.93;   // each half must be this straight — rejects bowl quarter-arcs (≈0.90)
+const BEND_TURN_DEG = 35;          // minimum turn at the vertex to count as a bend, not a slight kink
+const BEND_HALF_FRAC = 0.20;       // each half must be at least this fraction of the stroke's arc
+function detectBend(pts) {
+  const N = pts.length;
+  if (N < 6) return null;
+  const start = pts[0], end = pts[N - 1];
+  const cx = end.x - start.x, cy = end.y - start.y;
+  const clen = Math.hypot(cx, cy);
+  if (clen < 1e-4) return null;
+  let arc = 0; const cum = [0];
+  for (let i = 1; i < N; i++) { arc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); cum.push(arc); }
+  if (arc < 1e-4) return null;
+  // vertex = point of max perpendicular distance from the start→end chord
+  let bestI = -1, bestD = 0;
+  for (let i = 1; i < N - 1; i++) {
+    const t = ((pts[i].x - start.x) * cx + (pts[i].y - start.y) * cy) / (clen * clen);
+    const px = start.x + t * cx, py = start.y + t * cy;
+    const d = Math.hypot(pts[i].x - px, pts[i].y - py);
+    if (d > bestD) { bestD = d; bestI = i; }
+  }
+  if (bestI < 0) return null;
+  const arcA = cum[bestI], arcB = arc - cum[bestI];
+  if (arcA / arc < BEND_HALF_FRAC || arcB / arc < BEND_HALF_FRAC) return null;
+  const sA = halfStraightness(pts, 0, bestI);
+  const sB = halfStraightness(pts, bestI, N - 1);
+  if (sA < BEND_HALF_STRAIGHT || sB < BEND_HALF_STRAIGHT) return null;
+  const turn = angleBetween(chordAngle(pts, 0, bestI), chordAngle(pts, bestI, N - 1));
+  if (turn < BEND_TURN_DEG) return null;
+  return { vertexIdx: bestI, turnDeg: turn, sA, sB };
+}
+
 export function classifyStroke(strokePx) {
   if (!strokePx || strokePx.length < 2) return { kind: 'dot', direction: '', span: '', angleDeg: 0, straightness: 0 };
   const pts = strokePx.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }));
@@ -51,23 +129,24 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction;
+  let kind, direction, bend = null;
   if (straightness < STRAIGHT_THRESHOLD) {
-    kind = 'curve';
-    direction = '';
-  } else if (angleDeg > VERT_MIN) {
-    kind = 'vertical';
-    direction = dy > 0 ? 'top to bottom' : 'bottom to top';
-  } else if (angleDeg < HORIZ_MAX) {
-    kind = 'horizontal';
-    direction = dx > 0 ? 'left to right' : 'right to left';
+    const detected = detectBend(pts);
+    if (detected) {
+      kind = 'bent';
+      direction = '';
+      const v = pts[detected.vertexIdx];
+      const h1 = classifyChord(v.x - start.x, v.y - start.y);
+      const h2 = classifyChord(end.x - v.x, end.y - v.y);
+      bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
+    } else {
+      kind = 'curve';
+      direction = '';
+    }
   } else {
-    kind = 'diagonal';
-    const down = dy > 0, right = dx > 0;
-    if (down && right) direction = 'top-left to bottom-right';
-    else if (down && !right) direction = 'top-right to bottom-left';
-    else if (!down && right) direction = 'bottom-left to top-right';
-    else direction = 'bottom-right to top-left';
+    const c = classifyChord(dx, dy);
+    kind = c.kind;
+    direction = c.direction;
   }
 
   // Guide-line span. For vertical/diagonal lines the span is which guide the
@@ -90,7 +169,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness };
+  return { kind, direction, span, angleDeg, straightness, bend };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -98,6 +177,10 @@ export function classifyStroke(strokePx) {
 export function describeStroke(strokePx) {
   const c = classifyStroke(strokePx);
   if (c.kind === 'dot') return 'A dot (a tap).';
+  if (c.kind === 'bent') {
+    const vGuide = nearestGuide(c.bend.vertexY).label;
+    return `A bent stroke — first going ${c.bend.dir1}, then going ${c.bend.dir2}, with a sharp turn (≈${Math.round(c.bend.turnDeg)}°) near the ${vGuide}. Spans ${c.span}.`;
+  }
   if (c.kind === 'curve') return `A curve — not a straight line. Spans ${c.span}.`;
   const cap = c.kind[0].toUpperCase() + c.kind.slice(1);
   const dir = c.direction ? `, going ${c.direction}` : '';
