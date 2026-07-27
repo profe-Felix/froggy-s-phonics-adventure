@@ -157,24 +157,27 @@ function inferBowlStem(cls, strokes, exts) {
   const stemRight = stem.cx > bowl.cx;
   const ascends = stem.topGuide.key === 'ascender';
   const descends = stem.botGuide.key === 'descender';
-  const hooked = stemCls.kind === 'hooked';
+  // A descender that finishes with a leftward hook is a TAIL (g/q), whether or
+  // not the stroke was curvy enough to classify as 'hooked' — a fairly-straight
+  // drop with a small left hook still reads as a 'g' tail, not a 'p' stem.
+  const hasTail = stemCls.kind === 'hooked' || stemHooksLeft(stemRaw);
 
   let letter = null, formation = 'approximate', note = '';
   if (stemRight) {
     if (ascends) letter = 'd';
-    else if (descends) letter = (hooked || stemHooksLeft(stemRaw)) ? 'g' : 'q';
+    else if (descends) letter = hasTail ? 'g' : 'q';
     else if (stem.topGuide.key === 'midline') letter = 'a';
   } else {
     if (ascends) letter = 'b';
-    else if (descends) letter = 'p';
+    else if (descends) letter = hasTail ? 'g' : 'p';
   }
   if (!letter) return null;
   if (letter === 'd' || letter === 'b') formation = ascends ? 'correct' : 'approximate';
   if (letter === 'p' || letter === 'q' || letter === 'g') formation = descends ? 'correct' : 'approximate';
   if (letter === 'a') formation = stem.topGuide.key === 'midline' && stem.botGuide.key === 'baseline' ? 'correct' : 'approximate';
-  if (letter === 'g' && !hooked) note = 'A straight down-stroke usually reads as "q"; calling it "g" because of the hook.';
+  if (letter === 'g' && stemCls.kind !== 'hooked') note = 'Calling it "g" because of the leftward hook at the end of the tail.';
 
-  const dirWord = ascends ? 'a tall stem up to the ascender' : descends ? 'a stem down to the descender' : 'a short stem at the midline';
+  const dirWord = ascends ? 'a tall stem up to the ascender' : descends ? (hasTail ? 'a tail down to the descender' : 'a stem down to the descender') : 'a short stem at the midline';
   const sideWord = stemRight ? 'right of the bowl' : 'left of the bowl';
   const article = 'aeiou'.includes(letter) ? 'an' : 'a';
   return {

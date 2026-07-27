@@ -214,6 +214,28 @@ function detectBowl(pts) {
   return null;
 }
 
+// Detect the 'e' "eye" — a closed loop that contains a long HORIZONTAL run
+// (the crossbar across the middle of an 'e'). Round bowls (o, a, b, d, g, p, q)
+// curve continuously and never hold a long flat segment, so a horizontal run
+// spanning a good fraction of the loop's width is the 'e' signature.
+function detectEye(pts, bi, j) {
+  const loop = pts.slice(bi, j + 1);
+  if (loop.length < 6) return false;
+  let minX = Infinity, maxX = -Infinity;
+  for (const p of loop) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
+  const w = maxX - minX;
+  if (w < 0.05) return false;
+  let best = 0, run = 0;
+  for (let i = 1; i < loop.length; i++) {
+    const dseg = Math.abs(loop[i].y - loop[i - 1].y);
+    const xseg = Math.abs(loop[i].x - loop[i - 1].x);
+    if (dseg < 0.012 && xseg > 0.004) run += xseg;
+    else { if (run > best) best = run; run = 0; }
+  }
+  if (run > best) best = run;
+  return best >= 0.30 * w;
+}
+
 // Detect a "hooked line" — a long, mostly-straight stem (vertical or diagonal)
 // that finishes with a curving hook at the end, like the single stroke of a 'j'
 // (straight drop, then a leftward hook) or a 'y' tail. The hook is what pulls the
@@ -260,6 +282,44 @@ function detectHookedLine(pts) {
   if (stemBottomY - pts[N - 1].y > HOOK_RISE_FRAC * stemHeight) return null;
   const hookDirLabel = dirLabel(pts[N - 1].x - pts[stemEnd].x, pts[N - 1].y - pts[stemEnd].y);
   return { stemEnd, stemKind: stemChord.kind, stemDir: stemChord.direction, stemFrac: stemArc / total, hookFrac: hookArc / total, turnDeg: turn, hookDir: hookDirLabel };
+}
+
+// Detect a "top hook that straightens into a stem" — the top stroke of an 'f'
+// (or 't'): the pen curves over at the top, then the curve straightens into a
+// near-vertical line for the rest of the stroke. This is the mirror of a 'j'
+// (straight stem, hook at the END): here the hook is at the START and the stem
+// is the straight suffix. A plain curve ('c') has no straight vertical suffix;
+// a plain vertical line has no curving top — so this isolates the f/t "curve
+// that straightens by the midpoint" the user described.
+const TOPHOOK_STEM_STRAIGHT = 0.93;
+const TOPHOOK_STEM_FRAC = 0.45;
+const TOPHOOK_HOOK_FRAC = 0.12;
+const TOPHOOK_TURN_DEG = 35;
+function detectTopHook(pts) {
+  const N = pts.length;
+  if (N < 8) return null;
+  let total = 0; const cum = [0];
+  for (let i = 1; i < N; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); total += d; cum.push(total); }
+  if (total < 1e-4) return null;
+  // Earliest start of a straight, vertical, DOWNWARD suffix = the stem.
+  let stemStart = -1;
+  for (let s = 2; s <= N - 6; s++) {
+    if (halfStraightness(pts, s, N - 1) < TOPHOOK_STEM_STRAIGHT) continue;
+    const chord = classifyChord(pts[N - 1].x - pts[s].x, pts[N - 1].y - pts[s].y);
+    if (chord.kind !== 'vertical' || pts[N - 1].y - pts[s].y <= 0) continue;
+    stemStart = s; break;
+  }
+  if (stemStart < 0) return null;
+  const stemArc = total - cum[stemStart];
+  if (stemArc / total < TOPHOOK_STEM_FRAC) return null;
+  const hookArc = cum[stemStart];
+  if (hookArc / total < TOPHOOK_HOOK_FRAC) return null;
+  const stemDir = chordAngle(pts, stemStart, N - 1);
+  const hookDir = chordAngle(pts, 0, stemStart);
+  const turn = angleBetween(hookDir, stemDir);
+  if (turn < TOPHOOK_TURN_DEG) return null;
+  const hookDirLabel = dirLabel(pts[stemStart].x - pts[0].x, pts[stemStart].y - pts[0].y);
+  return { stemStart, stemFrac: stemArc / total, hookFrac: hookArc / total, turnDeg: turn, hookDir: hookDirLabel };
 }
 
 // Direction label for a vector in screen space (y grows downward). 0° = right,
@@ -357,6 +417,12 @@ function detectSCurve(pts, start, end, signed, clen) {
   const secondDom = Math.abs(secondMax) >= Math.abs(secondMin) ? secondMax : secondMin;
   const THRESH = 0.03;
   if (Math.abs(firstDom) < THRESH || Math.abs(secondDom) < THRESH) return null;
+  // Each half's bulge must be a substantial fraction of the stroke's overall
+  // bulge. A single bowl like a 'u' (one big hump + a small secondary wobble)
+  // would otherwise sneak through as an S; a real S has two comparable humps.
+  let globalMax = 0;
+  for (let i = 0; i < signed.length; i++) if (Math.abs(signed[i]) > globalMax) globalMax = Math.abs(signed[i]);
+  if (Math.abs(firstDom) < 0.5 * globalMax || Math.abs(secondDom) < 0.5 * globalMax) return null;
   if ((firstDom > 0) === (secondDom > 0)) return null;   // same side → m/w, not an S
   // opening of each half = from its apex toward its chord midpoint
   let fApexI = 0, fApexAbs = 0;
@@ -406,17 +472,21 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null, hook = null;
+  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null, hook = null, topHook = null;
   if (straightness < STRAIGHT_THRESHOLD) {
     // Try the specific shapes first; the first that fits wins.
     const bw = detectBowl(pts);
     const hk = !bw ? detectHookedLine(pts) : null;
-    const sh = !bw && !hk ? detectShoulder(pts) : null;
-    const bd = !bw && !hk && !sh ? detectBend(pts) : null;
+    const th = !bw && !hk ? detectTopHook(pts) : null;
+    const sh = !bw && !hk && !th ? detectShoulder(pts) : null;
+    const bd = !bw && !hk && !th && !sh ? detectBend(pts) : null;
     if (bw) {
+      bw.eye = detectEye(pts, bw.loopStartIdx, bw.closureIdx);
       kind = 'bowl'; direction = ''; bowl = bw;
     } else if (hk) {
       kind = 'hooked'; direction = ''; hook = hk;
+    } else if (th) {
+      kind = 'topHook'; direction = ''; topHook = th;
     } else if (sh) {
       kind = 'shoulder'; direction = '';
       sh.humps = humpsOnTail(pts, sh.baseIdx);
@@ -447,7 +517,7 @@ export function classifyStroke(strokePx) {
   if (kind === 'horizontal') {
     const mid = (start.y + end.y) / 2;
     span = `sitting on the ${nearestGuide(mid).label}`;
-  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl' || kind === 'hooked') {
+  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl' || kind === 'hooked' || kind === 'topHook') {
     let minY = Infinity, maxY = -Infinity;
     for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const gTop = nearestGuide(minY), gBot = nearestGuide(maxY);
@@ -457,7 +527,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl, hook };
+  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl, hook, topHook };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -478,6 +548,12 @@ export function describeStroke(strokePx) {
   }
   if (c.kind === 'bowl') {
     const b = c.bowl || {};
+    if (b.eye) {
+      let s = "An 'e' — a closed loop with a horizontal crossbar across the middle (the eye)";
+      if (b.tailFrac > 0.12) s += ` and a tail going ${b.tailDir}`;
+      s += `. Spans ${c.span}.`;
+      return s;
+    }
     let s = 'A bowl — a closed rounded loop';
     if (b.leadFrac > 0.12) s = `A stem going ${b.leadDir}, then a bowl (closed loop)`;
     if (b.tailFrac > 0.12) s += ` with a tail going ${b.tailDir}`;
@@ -487,6 +563,10 @@ export function describeStroke(strokePx) {
   if (c.kind === 'hooked') {
     const h = c.hook || {};
     return `A ${h.stemKind} line going ${h.stemDir}, then a hook curving ${h.hookDir}. Spans ${c.span}.`;
+  }
+  if (c.kind === 'topHook') {
+    const h = c.topHook || {};
+    return `A curve at the top going ${h.hookDir} that straightens into a vertical stem. Spans ${c.span}.`;
   }
   if (c.kind === 'curve') {
     const cv = c.curve || {};
