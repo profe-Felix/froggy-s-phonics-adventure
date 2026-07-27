@@ -241,40 +241,37 @@ function letterDistance(drawn, dBox, tmpl) {
 }
 
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }].
-// Returns [{ letter, dist, dir, shape, confidence }] sorted best (lowest dist) first.
+// Returns [{ letter, dist, confidence }] sorted best (lowest dist) first.
 //
-// PATHWAY-FIRST SCORING. The directional DTW (the taught pathway) is the PRIMARY
-// signal: a letter drawn the taught way has a good directional match and wins on
-// it alone — a mediocre SHAPE match from a DIFFERENT letter can no longer override
-// it (a weird 'm' no longer collapses onto 'k', a plain 'l' no longer pulls onto
-// 'h'). The order-agnostic shape Chamfer is a RESCUE only: it overrides the
-// directional score when the directional match is poor (drawn reversed / in a
-// weird order) AND the shape match is confident (the outline genuinely looks like
-// the template) — so reversed and oddly-drawn letters whose outline is still
-// right are still recognised.
+// IDEAL-PATHWAY ONLY. The drawing is compared to each template's TAUGHT stroke
+// pathway: anisotropic alignment (lenient about SCALE — a skinny, wide, or
+// shorter-than-usual letter is stretched onto the template's proportions) plus
+// banded per-stroke DTW in stroke order (lenient about the START POINT and
+// drawing speed, strict about DIRECTION and ORDER). A stroke-count penalty and a
+// height-class guard keep letters with different STRUCTURE apart — this is what
+// separates 'i' (stem + a dot drawn above it = TWO strokes) from 'l' (one
+// vertical stroke = ONE stroke): the count penalty plus the dot's positional
+// match make 'i' read as 'i', not as 'l'. There is NO order-/direction-agnostic
+// shape fallback: that "second test" let a stem+dot outline read as a tall 'l',
+// which is exactly the i→l confusion being removed. A letter drawn the wrong
+// way (reversed, wrong order, merged/split strokes) simply scores worse against
+// its taught template — so a student who forms a letter incorrectly is, by
+// design, penalised or misunderstood, which is the teaching signal we want.
 //
-// CONFIDENCE is a softmax over the final scores, so EVERY letter gets a real
+// CONFIDENCE is a softmax over the distances, so EVERY letter gets a real
 // probability (not just the winner). A clean letter reads ~98%; a torn call
-// reads ~55/45 and shows the runner-up was close — the "it just said k and gave
-// 0% for everything else" view is gone.
-const DIR_GOOD = 0.18;    // directional DTW at/below this = a confident taught-pathway match — trust it, shape cannot override
-const SHAPE_GOOD = 0.12;  // shape Chamfer at/below this = a confident outline match — may rescue a poor pathway
+// reads ~55/45 and shows the runner-up was close.
 const SOFTMAX_T = 0.025;  // softmax temperature: sharp enough that a clean letter reads high, soft enough that a close call shows both
-function combinedScore(dir, shape) {
-  if (dir <= DIR_GOOD) return dir;
-  if (shape <= SHAPE_GOOD) return shape;
-  return dir; // neither is confident — prefer the closest PATHWAY (the user's rule), not a mediocre shape
-}
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawn = normalize(drawnStrokes);
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
-  const results = templates.map((t) => {
-    const dir = letterDistance(drawn, dBox, t.strokes);
-    const shape = shapeDistance(drawn, dBox, t.strokes);
-    return { letter: t.letter, dist: combinedScore(dir, shape), dir, shape, confidence: 0 };
-  });
+  const results = templates.map((t) => ({
+    letter: t.letter,
+    dist: letterDistance(drawn, dBox, t.strokes),
+    confidence: 0,
+  }));
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
   if (finite.length) {
@@ -285,69 +282,14 @@ export function recognize(drawnStrokes, templates) {
   return results;
 }
 
-// ORDER-AGNOSTIC SHAPE DISTANCE — the "second test". Merge every stroke into one
-// point cloud, align the whole cloud to the template's cloud (same capped
-// anisotropic fit), and take the bidirectional nearest-neighbour (Chamfer)
-// distance. Stroke order and direction are irrelevant, so this catches a letter
-// that LOOKS right even when it was drawn in a weird order or direction — the
-// case the directional DTW misses. Used by segmentation to decide whether a
-// multi-stroke group is one letter (e.g. 't', 'f', 'k') or two letters that
-// happen to touch (e.g. 'c' + 'l'): the group is one letter if its overall
-// shape confidently matches a template WITH THE SAME STROKE COUNT.
-function cloudOf(strokes) {
-  const all = [];
-  for (const s of strokes) { if (!s || !s.length) continue; const rs = resample(s, R); for (const p of rs) all.push(p); }
-  return all;
-}
-function chamfer(A, B) {
-  if (!A.length || !B.length) return 1;
-  let sa = 0;
-  for (const a of A) { let mn = Infinity; for (const b of B) { const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2; if (d < mn) mn = d; } sa += Math.sqrt(mn); }
-  let sb = 0;
-  for (const b of B) { let mn = Infinity; for (const a of A) { const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2; if (d < mn) mn = d; } sb += Math.sqrt(mn); }
-  return (sa / A.length + sb / B.length) / 2;
-}
-function shapeDistance(drawn, dBox, tmpl) {
-  const tBox = bbox(tmpl);
-  const aligned = alignTo(drawn, dBox, tBox);
-  const dCloud = cloudOf(aligned);
-  const tCloud = cloudOf(tmpl);
-  // The shape test is ORDER-agnostic and answers "which letter does this LOOK
-  // like?" — so a letter drawn in the wrong order, or split into the wrong
-  // NUMBER of pieces, still matches. But "wrong number of pieces" is not the
-  // same both ways:
-  //   - EXTRA strokes (drawing has MORE strokes than the template) do NOT change
-  //     the outline — a 'p' drawn as two strokes is the same silhouette as the
-  //     one-stroke 'p' template, just drawn in two pieces. Not penalized.
-  //   - MISSING strokes (drawing has FEWER strokes than the template) DO mean a
-  //     feature is absent — a 1-stroke vertical 'l' is missing the 't' crossbar,
-  //     so it must not shape-match 't'. The crossbar sits ON the stem, so pure
-  //     Chamfer barely notices it is gone; without this guard a plain vertical
-  //     reads as 't'. Penalized.
-  // So the stroke-count penalty here is ASYMMETRIC: only when the drawing is
-  // missing strokes the template has. The directional DTW path keeps the
-  // symmetric penalty — it rewards the taught pathway, where any count
-  // difference is a different pathway; the shape path is the "looks the same
-  // but written incorrectly" rescue, lenient about extra pieces, strict about
-  // missing features.
-  let dist = chamfer(dCloud, tCloud);
-  const missing = Math.max(0, tmpl.length - drawn.length);
-  dist += STROKE_COUNT_PENALTY * missing;
-  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
-  return dist;
-}
-
 // Does a multi-stroke group clearly form ONE known letter? Same stroke count is
-// required, AND every stroke pair must match the template (directional) OR the
-// overall outline must be a confident shape match. The EVERY-pair rule (MAX, not
-// average) is what tells a 2-stroke 't' (stem→stem AND crossbar→crossbar both
-// good) from a touching 'c'+'l' forced onto a 2-stroke template (l→stem good, but
-// c→arm/crossbar/dot bad — the MAX stays high, so it is NOT one letter). The
-// shape rescue keeps a hand-drawn 't' whose crossbar is a bit off: its outline
-// still confidently matches 't', so it stays together instead of splitting into
-// 'l' + 'z'.
+// required, AND every stroke pair must match the template along the taught
+// pathway. The EVERY-pair rule (MAX, not average) is what tells a 2-stroke 't'
+// (stem→stem AND crossbar→crossbar both good) from a touching 'c'+'l' forced onto
+// a 2-stroke template (l→stem good, but c→arm/crossbar/dot bad — the MAX stays
+// high, so it is NOT one letter). No shape fallback — the group is a letter only
+// if its strokes follow the taught pathway of some same-count template.
 const GROUP_PAIR_DIR = 0.26;    // every stroke pair's DTW at/below this = the group is this letter, directionally
-const GROUP_SHAPE_RESCUE = 0.10; // ...or the shape Chamfer at/below this = the outline is confidently this letter
 export function groupFormsLetter(strokesPx, templates) {
   const drawn = normalize(strokesPx);
   if (!drawn.length) return null;
@@ -359,12 +301,7 @@ export function groupFormsLetter(strokesPx, templates) {
     const costs = pairCosts(drawn, dBox, t.strokes);
     if (!costs.length) continue;
     const maxPair = Math.max(...costs);
-    const sd = shapeDistance(drawn, dBox, t.strokes);
-    const forms = maxPair <= GROUP_PAIR_DIR || sd <= GROUP_SHAPE_RESCUE;
-    if (forms) {
-      const score = Math.min(maxPair, sd);
-      if (score < bestScore) { bestScore = score; best = t.letter; }
-    }
+    if (maxPair <= GROUP_PAIR_DIR && maxPair < bestScore) { bestScore = maxPair; best = t.letter; }
   }
   return best;
 }
