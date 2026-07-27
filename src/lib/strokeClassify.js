@@ -214,6 +214,54 @@ function detectBowl(pts) {
   return null;
 }
 
+// Detect a "hooked line" — a long, mostly-straight stem (vertical or diagonal)
+// that finishes with a curving hook at the end, like the single stroke of a 'j'
+// (straight drop, then a leftward hook) or a 'y' tail. The hook is what pulls the
+// whole-stroke straightness below the line threshold even though the bulk of
+// the stroke is straight. We peel the straight leading stem off and confirm the
+// remainder is a genuine curving tail that turns away from the stem WITHOUT
+// rising back up into an arch — that rise is what makes it a shoulder (h/r/m/n),
+// not a hook. A hook stays low near the stem's bottom; a shoulder's tail climbs.
+const HOOK_STEM_STRAIGHT = 0.93;   // the stem prefix must stay this straight
+const HOOK_STEM_FRAC = 0.50;       // stem must be at least this fraction of total arc
+const HOOK_TURN_DEG = 35;          // hook must turn this far from the stem direction
+const HOOK_RISE_FRAC = 0.25;       // hook endpoint may rise at most this fraction of stem height
+function detectHookedLine(pts) {
+  const N = pts.length;
+  if (N < 8) return null;
+  let total = 0;
+  const cum = [0];
+  for (let i = 1; i < N; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); total += d; cum.push(total); }
+  if (total < 1e-4) return null;
+  // Walk forward; find how far the straight stem extends before the hook begins.
+  let stemEnd = -1;
+  for (let i = 6; i <= N - 3; i++) {
+    if (halfStraightness(pts, 0, i) >= HOOK_STEM_STRAIGHT) stemEnd = i;
+    else if (stemEnd > 0) break;
+  }
+  if (stemEnd < 6) return null;
+  const stemArc = cum[stemEnd];
+  if (stemArc / total < HOOK_STEM_FRAC) return null;
+  const stemChord = classifyChord(pts[stemEnd].x - pts[0].x, pts[stemEnd].y - pts[0].y);
+  if (stemChord.kind === 'horizontal') return null;   // a hook hangs off a real stem, not a horizontal flick
+  // Hook must turn away from the stem direction.
+  const stemDir = chordAngle(pts, 0, stemEnd);
+  const hookDir = chordAngle(pts, stemEnd, N - 1);
+  const turn = angleBetween(stemDir, hookDir);
+  if (turn < HOOK_TURN_DEG) return null;
+  const hookArc = total - stemArc;
+  if (hookArc / total < 0.06) return null;
+  // Reject a shoulder-style arch: if the tail climbs back up above the stem's
+  // lowest point by more than a quarter of the stem height, it's an arch (h/r/m),
+  // not a hook. A hook stays near the stem's bottom.
+  let stemBottomY = -Infinity;
+  for (let i = 0; i <= stemEnd; i++) if (pts[i].y > stemBottomY) stemBottomY = pts[i].y;
+  const stemHeight = (stemBottomY - pts[0].y) || 1e-4;
+  if (stemBottomY - pts[N - 1].y > HOOK_RISE_FRAC * stemHeight) return null;
+  const hookDirLabel = dirLabel(pts[N - 1].x - pts[stemEnd].x, pts[N - 1].y - pts[stemEnd].y);
+  return { stemEnd, stemKind: stemChord.kind, stemDir: stemChord.direction, stemFrac: stemArc / total, hookFrac: hookArc / total, turnDeg: turn, hookDir: hookDirLabel };
+}
+
 // Direction label for a vector in screen space (y grows downward). 0° = right,
 // 90° = up. Returns cardinal/ordinal phrases.
 function dirLabel(vx, vy) {
@@ -316,35 +364,30 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null;
+  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null, hook = null;
   if (straightness < STRAIGHT_THRESHOLD) {
+    // Try the specific shapes first; the first that fits wins.
     const bw = detectBowl(pts);
+    const hk = !bw ? detectHookedLine(pts) : null;
+    const sh = !bw && !hk ? detectShoulder(pts) : null;
+    const bd = !bw && !hk && !sh ? detectBend(pts) : null;
     if (bw) {
-      kind = 'bowl';
-      direction = '';
-      bowl = bw;
+      kind = 'bowl'; direction = ''; bowl = bw;
+    } else if (hk) {
+      kind = 'hooked'; direction = ''; hook = hk;
+    } else if (sh) {
+      kind = 'shoulder'; direction = '';
+      sh.humps = humpsOnTail(pts, sh.baseIdx);
+      shoulder = sh;
+    } else if (bd) {
+      kind = 'bent'; direction = '';
+      const v = pts[bd.vertexIdx];
+      const h1 = classifyChord(v.x - start.x, v.y - start.y);
+      const h2 = classifyChord(end.x - v.x, end.y - v.y);
+      bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: bd.turnDeg };
     } else {
-      const sh = detectShoulder(pts);
-      if (sh) {
-        kind = 'shoulder';
-        direction = '';
-        sh.humps = humpsOnTail(pts, sh.baseIdx);
-        shoulder = sh;
-      } else {
-        const detected = detectBend(pts);
-        if (detected) {
-          kind = 'bent';
-          direction = '';
-          const v = pts[detected.vertexIdx];
-          const h1 = classifyChord(v.x - start.x, v.y - start.y);
-          const h2 = classifyChord(end.x - v.x, end.y - v.y);
-          bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
-        } else {
-          kind = 'curve';
-          direction = '';
-          curve = analyzeCurve(pts, start, end);
-        }
-      }
+      kind = 'curve'; direction = '';
+      curve = analyzeCurve(pts, start, end);
     }
   } else {
     const c = classifyChord(dx, dy);
@@ -362,7 +405,7 @@ export function classifyStroke(strokePx) {
   if (kind === 'horizontal') {
     const mid = (start.y + end.y) / 2;
     span = `sitting on the ${nearestGuide(mid).label}`;
-  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl') {
+  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl' || kind === 'hooked') {
     let minY = Infinity, maxY = -Infinity;
     for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const gTop = nearestGuide(minY), gBot = nearestGuide(maxY);
@@ -372,7 +415,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl };
+  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl, hook };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -398,6 +441,10 @@ export function describeStroke(strokePx) {
     if (b.tailFrac > 0.12) s += ` with a tail going ${b.tailDir}`;
     s += `. Spans ${c.span}.`;
     return s;
+  }
+  if (c.kind === 'hooked') {
+    const h = c.hook || {};
+    return `A ${h.stemKind} line going ${h.stemDir}, then a hook curving ${h.hookDir}. Spans ${c.span}.`;
   }
   if (c.kind === 'curve') {
     const cv = c.curve || {};
