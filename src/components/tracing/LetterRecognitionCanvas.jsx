@@ -419,10 +419,11 @@ export default function LetterRecognitionCanvas({ templates }) {
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-slate-800">{s.desc}</div>
                 <div className="text-[11px] text-slate-400">
-                  {s.kind !== 'dot' && s.kind !== 'curve' && s.kind !== 'shoulder' && <>straightness {Math.round(s.straightness * 100)}%</>}
+                  {s.kind !== 'dot' && s.kind !== 'curve' && s.kind !== 'shoulder' && s.kind !== 'bowl' && <>straightness {Math.round(s.straightness * 100)}%</>}
                   {s.kind === 'diagonal' && <> · {Math.round(s.angleDeg)}°</>}
                   {s.kind === 'curve' && <>straightness {Math.round(s.straightness * 100)}%</>}
                   {s.kind === 'shoulder' && <>{s.shoulder.humps ? `${s.shoulder.humps} hump${s.shoulder.humps === 1 ? '' : 's'}` : 'retrace'} · turn ≈{Math.round(s.shoulder.turnDeg)}°</>}
+                  {s.kind === 'bowl' && <>{s.bowl.tailFrac > 0.12 ? `tail ${s.bowl.tailDir}` : 'closed loop'}{s.bowl.leadFrac > 0.12 ? ` · stem ${s.bowl.leadDir}` : ''}</>}
                 </div>
               </div>
             </div>

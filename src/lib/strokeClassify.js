@@ -169,6 +169,51 @@ function detectShoulder(pts) {
   return null;
 }
 
+// Detect a "bowl" — a closed rounded loop in the stroke, like the round part of
+// a, b, d, g, o, p, q. The pen leaves a point, curves around, and returns close to
+// where it started, enclosing real area. This is what separates a bowl from a
+// shoulder retrace: a retrace goes out and back along the SAME line, so it
+// encloses ~0 area; a bowl bulges away and encloses a real region. A bowl may
+// have a stem lead-in (b, p) or a tail (d, g), so we find the earliest closed
+// sub-loop anywhere in the stroke and report the lead/tail around it.
+const BOWL_AREA = 0.004;       // min enclosed area (normalized) for a real loop
+const BOWL_CLOSURE = 0.22;     // loop start/end within this fraction of stroke size
+function detectBowl(pts) {
+  const N = pts.length;
+  if (N < 8) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  const size = Math.max(maxX - minX, maxY - minY);
+  if (size < 0.06) return null;
+  const closure = BOWL_CLOSURE * size;
+  const minLoop = Math.max(6, Math.round(N * 0.18));
+  let total = 0;
+  const cum = [0];
+  for (let k = 1; k < N; k++) { const d = Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y); total += d; cum.push(total); }
+  if (total < 1e-4) return null;
+  // earliest closure (smallest j) whose loop encloses real area
+  for (let j = minLoop; j <= N - 1; j++) {
+    let bi = -1, bd = Infinity;
+    for (let i = 0; i <= j - minLoop; i++) {
+      const d = Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    if (bi < 0 || bd > closure) continue;
+    // shoelace area over i..j plus closing edge j->i
+    let area = 0;
+    for (let k = bi; k < j; k++) area += pts[k].x * pts[k + 1].y - pts[k + 1].x * pts[k].y;
+    area += pts[j].x * pts[bi].y - pts[bi].x * pts[j].y;
+    area = Math.abs(area) / 2;
+    if (area < BOWL_AREA) continue;
+    const leadFrac = cum[bi] / total;
+    const tailFrac = (total - cum[j]) / total;
+    const leadDir = leadFrac > 0.12 ? dirLabel(pts[bi].x - pts[0].x, pts[bi].y - pts[0].y) : '';
+    const tailDir = tailFrac > 0.12 ? dirLabel(pts[N - 1].x - pts[j].x, pts[N - 1].y - pts[j].y) : '';
+    return { loopStartIdx: bi, closureIdx: j, area, leadFrac, leadDir, tailFrac, tailDir };
+  }
+  return null;
+}
+
 // Direction label for a vector in screen space (y grows downward). 0° = right,
 // 90° = up. Returns cardinal/ordinal phrases.
 function dirLabel(vx, vy) {
@@ -271,27 +316,34 @@ export function classifyStroke(strokePx) {
   const ax = Math.abs(dx), ay = Math.abs(dy);
   const angleDeg = Math.atan2(ay, ax) * 180 / Math.PI;  // 0 = horizontal, 90 = vertical
 
-  let kind, direction, bend = null, curve = null, shoulder = null;
+  let kind, direction, bend = null, curve = null, shoulder = null, bowl = null;
   if (straightness < STRAIGHT_THRESHOLD) {
-    const sh = detectShoulder(pts);
-    if (sh) {
-      kind = 'shoulder';
+    const bw = detectBowl(pts);
+    if (bw) {
+      kind = 'bowl';
       direction = '';
-      sh.humps = humpsOnTail(pts, sh.baseIdx);
-      shoulder = sh;
+      bowl = bw;
     } else {
-      const detected = detectBend(pts);
-      if (detected) {
-        kind = 'bent';
+      const sh = detectShoulder(pts);
+      if (sh) {
+        kind = 'shoulder';
         direction = '';
-        const v = pts[detected.vertexIdx];
-        const h1 = classifyChord(v.x - start.x, v.y - start.y);
-        const h2 = classifyChord(end.x - v.x, end.y - v.y);
-        bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
+        sh.humps = humpsOnTail(pts, sh.baseIdx);
+        shoulder = sh;
       } else {
-        kind = 'curve';
-        direction = '';
-        curve = analyzeCurve(pts, start, end);
+        const detected = detectBend(pts);
+        if (detected) {
+          kind = 'bent';
+          direction = '';
+          const v = pts[detected.vertexIdx];
+          const h1 = classifyChord(v.x - start.x, v.y - start.y);
+          const h2 = classifyChord(end.x - v.x, end.y - v.y);
+          bend = { dir1: h1.direction, dir2: h2.direction, kind1: h1.kind, kind2: h2.kind, vertexY: v.y, turnDeg: detected.turnDeg };
+        } else {
+          kind = 'curve';
+          direction = '';
+          curve = analyzeCurve(pts, start, end);
+        }
       }
     }
   } else {
@@ -310,7 +362,7 @@ export function classifyStroke(strokePx) {
   if (kind === 'horizontal') {
     const mid = (start.y + end.y) / 2;
     span = `sitting on the ${nearestGuide(mid).label}`;
-  } else if (kind === 'curve' || kind === 'shoulder') {
+  } else if (kind === 'curve' || kind === 'shoulder' || kind === 'bowl') {
     let minY = Infinity, maxY = -Infinity;
     for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
     const gTop = nearestGuide(minY), gBot = nearestGuide(maxY);
@@ -320,7 +372,7 @@ export function classifyStroke(strokePx) {
     span = gStart.key === gEnd.key ? `on the ${gStart.label}` : `from ${gStart.label} to ${gEnd.label}`;
   }
 
-  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder };
+  return { kind, direction, span, angleDeg, straightness, bend, curve, shoulder, bowl };
 }
 
 // One human-readable sentence, e.g. "Vertical line, going top to bottom, from
@@ -338,6 +390,14 @@ export function describeStroke(strokePx) {
     if (!h) return `A shoulder retrace — a vertical down then back up (pen retraced). Spans ${c.span}.`;
     const humpTxt = h > 1 ? `${h} humps` : 'a hump';
     return `A shoulder — down, back up, then ${humpTxt} rounding to the right. Spans ${c.span}.`;
+  }
+  if (c.kind === 'bowl') {
+    const b = c.bowl || {};
+    let s = 'A bowl — a closed rounded loop';
+    if (b.leadFrac > 0.12) s = `A stem going ${b.leadDir}, then a bowl (closed loop)`;
+    if (b.tailFrac > 0.12) s += ` with a tail going ${b.tailDir}`;
+    s += `. Spans ${c.span}.`;
+    return s;
   }
   if (c.kind === 'curve') {
     const cv = c.curve || {};
