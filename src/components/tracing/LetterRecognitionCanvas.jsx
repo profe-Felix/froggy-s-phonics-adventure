@@ -3,6 +3,7 @@ import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
+import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
 
 // Contact grouping is only a HINT. After clustering touching strokes, re-examine
 // every multi-stroke group against recognition: if EACH stroke already reads as
@@ -275,7 +276,8 @@ export default function LetterRecognitionCanvas({ templates }) {
           ...classifyStroke(s),
           desc: describeStroke(s),
         }));
-        setResult({ mode: 'stroke', strokeResults });
+        const interaction = analyzeStrokesInteraction(strokes, strokeResults);
+        setResult({ mode: 'stroke', strokeResults, interaction });
         setGuessing(false);
         return;
       }
@@ -429,6 +431,17 @@ export default function LetterRecognitionCanvas({ templates }) {
               </div>
             </div>
           ))}
+          {result.interaction && result.interaction.inferred && (
+            <div className="mt-1 p-2.5 rounded-lg bg-indigo-50 border border-indigo-200">
+              <div className="text-sm font-semibold text-indigo-700">{result.interaction.inferred.summary}</div>
+              {result.interaction.inferred.note && (
+                <div className="text-[11px] text-indigo-500 mt-0.5">{result.interaction.inferred.note}</div>
+              )}
+              <div className="text-[10px] text-slate-400 mt-1">
+                {result.interaction.crossings.length} crossing{result.interaction.crossings.length === 1 ? '' : 's'} detected
+              </div>
+            </div>
+          )}
         </div>
       )}
 
