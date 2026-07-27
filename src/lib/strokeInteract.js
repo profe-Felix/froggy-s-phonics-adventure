@@ -126,7 +126,20 @@ function stemHooksLeft(rawPx) {
 
 function inferBowlStem(cls, strokes, exts) {
   if (cls.length !== 2) return null;
-  const bowlIdx = cls.findIndex((c) => c.kind === 'bowl');
+  // The "bowl" is a closed loop (kind 'bowl') OR a bowl-shaped curve: an open
+  // arc (the 'a' bowl drawn as a 'c'-like curve "opening to the right") or a
+  // loop that detectBowl missed but the curve analyzer still called "closed".
+  // A multi-hump arch (m/w, 2+ humps) or an S-curve is NOT a bowl.
+  const bowlIdx = cls.findIndex((c) => {
+    if (c.kind === 'bowl') return true;
+    if (c.kind === 'curve') {
+      const cv = c.curve;
+      if (!cv) return false;
+      if (cv.sCurve) return false;
+      return cv.closed || cv.humps <= 1;
+    }
+    return false;
+  });
   if (bowlIdx < 0) return null;
   const stemIdx = bowlIdx === 0 ? 1 : 0;
   const stemCls = cls[stemIdx];
