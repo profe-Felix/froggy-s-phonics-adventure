@@ -45,8 +45,13 @@ function strokesCrossing(A, B) {
 
 function strokeExtent(rawPx) {
   let minY = Infinity, maxY = -Infinity;
-  for (const p of rawPx) { const yn = p.y / CANVAS_H; if (yn < minY) minY = yn; if (yn > maxY) maxY = yn; }
-  return { minY, maxY, topGuide: nearestGuide(minY), botGuide: nearestGuide(maxY) };
+  let minX = Infinity, maxX = -Infinity;
+  for (const p of rawPx) {
+    const yn = p.y / CANVAS_H, xn = p.x / CANVAS_W;
+    if (yn < minY) minY = yn; if (yn > maxY) maxY = yn;
+    if (xn < minX) minX = xn; if (xn > maxX) maxX = xn;
+  }
+  return { minY, maxY, minX, maxX, cx: (minX + maxX) / 2, topGuide: nearestGuide(minY), botGuide: nearestGuide(maxY) };
 }
 
 // Visual lean of a straight stroke, from its actual drawn chord (not the
@@ -98,6 +103,75 @@ function inferFromDiagonals(cls, strokes, exts, crossings) {
   return null;
 }
 
+// A bowl + a vertical stem. Where the stem sits relative to the bowl and which
+// way it points tells the letter:
+//   stem on the RIGHT, short (midline→baseline)  → 'a'
+//   stem on the RIGHT, up to the ascender        → 'd'
+//   stem on the RIGHT, down to the descender      → 'q' (straight) or 'g' (hooked tail)
+//   stem on the LEFT,  up to the ascender         → 'b'
+//   stem on the LEFT,  down to the descender      → 'p'
+// The bowl always lives in the midline–baseline zone; the stem must touch its
+// edge so a floating circle + a stray line don't read as a letter.
+// Does a descending stem finish with a leftward hook (a 'g' tail)? The stem
+// may still classify as a plain "vertical line" because the hook is small, so we
+// look at the raw points: the tail end sits clearly left of the stem's column.
+function stemHooksLeft(rawPx) {
+  const N = rawPx.length;
+  if (N < 6) return false;
+  const head = rawPx.slice(0, Math.floor(N * 0.6));
+  const col = head.reduce((s, p) => s + p.x, 0) / head.length;
+  const tailEnd = rawPx[rawPx.length - 1];
+  return col - tailEnd.x > 12;
+}
+
+function inferBowlStem(cls, strokes, exts) {
+  if (cls.length !== 2) return null;
+  const bowlIdx = cls.findIndex((c) => c.kind === 'bowl');
+  if (bowlIdx < 0) return null;
+  const stemIdx = bowlIdx === 0 ? 1 : 0;
+  const stemCls = cls[stemIdx];
+  const stemRaw = strokes[stemIdx];
+  if (stemCls.kind !== 'vertical' && stemCls.kind !== 'hooked') return null;
+  const bowl = exts[bowlIdx], stem = exts[stemIdx];
+  // bowl sits in the midline–baseline zone
+  if (bowl.botGuide.key !== 'baseline' && bowl.botGuide.key !== 'midline') return null;
+  // stem touches/overlaps the bowl horizontally (at its edge, not floating)
+  const xGap = Math.max(bowl.minX - stem.maxX, stem.minX - bowl.maxX, 0);
+  if (xGap > 0.10) return null;
+  // stem overlaps the bowl vertically (they connect)
+  if (stem.minY > bowl.maxY || stem.maxY < bowl.minY) return null;
+
+  const stemRight = stem.cx > bowl.cx;
+  const ascends = stem.topGuide.key === 'ascender';
+  const descends = stem.botGuide.key === 'descender';
+  const hooked = stemCls.kind === 'hooked';
+
+  let letter = null, formation = 'approximate', note = '';
+  if (stemRight) {
+    if (ascends) letter = 'd';
+    else if (descends) letter = (hooked || stemHooksLeft(stemRaw)) ? 'g' : 'q';
+    else if (stem.topGuide.key === 'midline') letter = 'a';
+  } else {
+    if (ascends) letter = 'b';
+    else if (descends) letter = 'p';
+  }
+  if (!letter) return null;
+  if (letter === 'd' || letter === 'b') formation = ascends ? 'correct' : 'approximate';
+  if (letter === 'p' || letter === 'q' || letter === 'g') formation = descends ? 'correct' : 'approximate';
+  if (letter === 'a') formation = stem.topGuide.key === 'midline' && stem.botGuide.key === 'baseline' ? 'correct' : 'approximate';
+  if (letter === 'g' && !hooked) note = 'A straight down-stroke usually reads as "q"; calling it "g" because of the hook.';
+
+  const dirWord = ascends ? 'a tall stem up to the ascender' : descends ? 'a stem down to the descender' : 'a short stem at the midline';
+  const sideWord = stemRight ? 'right of the bowl' : 'left of the bowl';
+  const article = 'aeiou'.includes(letter) ? 'an' : 'a';
+  return {
+    letter,
+    formation,
+    summary: `Looks like ${article} '${letter}' — a bowl with ${dirWord} on the ${sideWord}.`,
+    note,
+  };
+}
+
 // Given raw strokes and their per-stroke classifications, return how they
 // interact: the pairwise crossings and the best letter inference (if any).
 export function analyzeStrokesInteraction(strokes, strokeResults) {
@@ -112,6 +186,6 @@ export function analyzeStrokesInteraction(strokes, strokeResults) {
     }
   }
   // More interaction rules can be added here (t-crossings for 't', etc.).
-  const inferred = inferFromDiagonals(cls, strokes, exts, crossings);
+  const inferred = inferFromDiagonals(cls, strokes, exts, crossings) || inferBowlStem(cls, strokes, exts);
   return { crossings, inferred };
 }
