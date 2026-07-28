@@ -205,6 +205,11 @@ function detectBowl(pts) {
     area += pts[j].x * pts[bi].y - pts[bi].x * pts[j].y;
     area = Math.abs(area) / 2;
     if (area < BOWL_AREA) continue;
+    // A tall, thin loop is a retrace or arch (h/m/n) or a 'w' middle — not a
+    // round bowl. Skip it so those fall through to the shoulder / curve path.
+    let lMinX = Infinity, lMaxX = -Infinity, lMinY = Infinity, lMaxY = -Infinity;
+    for (let k = bi; k <= j; k++) { const p = pts[k]; if (p.x < lMinX) lMinX = p.x; if (p.x > lMaxX) lMaxX = p.x; if (p.y < lMinY) lMinY = p.y; if (p.y > lMaxY) lMaxY = p.y; }
+    if ((lMaxY - lMinY) > 2.2 * (lMaxX - lMinX)) continue;
     const leadFrac = cum[bi] / total;
     const tailFrac = (total - cum[j]) / total;
     const leadDir = leadFrac > 0.12 ? dirLabel(pts[bi].x - pts[0].x, pts[bi].y - pts[0].y) : '';
@@ -366,6 +371,41 @@ function detectZigzag(pts) {
   return { c1, c2 };
 }
 
+// Count local y-maxima ("valleys" — the low points of a stroke). A 'u' has 1
+// valley; a 'w' has 2; an arch ('n'/'m') has 0 (its extrema are minima). Used to
+// tell a single-hump 'u' from a two-hump 'w' when both ends sit high.
+function countValleys(pts) {
+  const n = pts.length;
+  if (n < 6) return 0;
+  const w = Math.max(2, Math.round(n * 0.10));
+  const sep = Math.max(w, Math.round(n * 0.20));
+  let count = 0, last = -sep;
+  for (let i = w; i < n - w; i++) {
+    let isMax = true;
+    for (let k = 1; k <= w; k++) { if (pts[i - k].y > pts[i].y || pts[i + k].y > pts[i].y) { isMax = false; break; } }
+    if (isMax && i - last >= sep) { count++; last = i; }
+  }
+  return count;
+}
+
+// Does the stroke contain a long straight near-vertical run (a stem)? A bowl
+// with a stem is a/d/b/p/q, not 'e' — the 'e' is all curves, no stem — so a stem
+// disqualifies the 'e' eye.
+function hasVerticalStem(pts) {
+  let best = 0, run = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
+    const seg = Math.hypot(dx, dy);
+    if (Math.abs(dy) > 4 * Math.abs(dx) && seg > 0.004) run += seg;
+    else { if (run > best) best = run; run = 0; }
+  }
+  if (run > best) best = run;
+  let minY = Infinity, maxY = -Infinity;
+  for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  const h = maxY - minY;
+  return h > 0.05 && best >= 0.50 * h;
+}
+
 // Direction label for a vector in screen space (y grows downward). 0° = right,
 // 90° = up. Returns cardinal/ordinal phrases.
 function dirLabel(vx, vy) {
@@ -499,7 +539,13 @@ function analyzeCurve(pts, start, end) {
   let arc = 0;
   for (let i = 1; i < pts.length; i++) arc += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
   if (arc < 1e-4) return { opens: '', humps: 0, closed: true };
-  if (clen / arc < 0.18) return { opens: 'closed', humps: 0, closed: true };
+  // "Closed" means the stroke actually returns near its start. A zigzag ('w'/'m')
+  // has a long arc but its ends sit far apart — the old arc-length ratio called
+  // that "closed" wrongly. Use the real start→end gap against the stroke size.
+  let bMinX = Infinity, bMaxX = -Infinity, bMinY = Infinity, bMaxY = -Infinity;
+  for (const p of pts) { if (p.x < bMinX) bMinX = p.x; if (p.x > bMaxX) bMaxX = p.x; if (p.y < bMinY) bMinY = p.y; if (p.y > bMaxY) bMaxY = p.y; }
+  const size = Math.max(bMaxX - bMinX, bMaxY - bMinY);
+  if (size > 0.05 && clen < 0.15 * size) return { opens: 'closed', humps: 0, closed: true };
   const cmx = (start.x + end.x) / 2, cmy = (start.y + end.y) / 2;
   const nx = -cy / clen, ny = cx / clen; // unit normal to the chord
   const signed = pts.map((p) => (p.x - start.x) * nx + (p.y - start.y) * ny);
@@ -521,10 +567,12 @@ function analyzeCurve(pts, start, end) {
   for (const p of pts) { if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
   const H = maxY - minY, Wt = maxX - minX;
   if (H > 0.05 && Wt > 0.05 && !sCurve) {
-    const topBand = minY + 0.30 * H;
-    const endTop = start.y <= topBand && end.y <= topBand;
-    const apexLow = pts[apexI].y >= minY + 0.45 * H;
-    if (endTop && apexLow) {
+    // A 'u' is a single valley: both ends sit well above the bottom and there
+    // is exactly ONE low point. A 'w' has two valleys (keep its 2 humps); an
+    // arch ('n'/'m') has its extrema at the top, so its ends are NOT above the
+    // bottom — neither qualifies as a cup.
+    const endsAbove = start.y < maxY - 0.25 * H && end.y < maxY - 0.25 * H;
+    if (endsAbove && countValleys(pts) === 1) {
       humps = 1;
       let tot = 0; const ca = [0];
       for (let i = 1; i < pts.length; i++) { tot += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); ca.push(tot); }
@@ -576,7 +624,7 @@ export function classifyStroke(strokePx) {
       let sMinY = Infinity, sMaxY = -Infinity;
       for (const p of pts) { if (p.y < sMinY) sMinY = p.y; if (p.y > sMaxY) sMaxY = p.y; }
       const inZone = sMinY >= 0.25 && sMaxY <= 0.72;
-      bw.eye = inZone ? detectEye(pts, bw.loopStartIdx, bw.closureIdx) : false;
+      bw.eye = (inZone && !hasVerticalStem(pts)) ? detectEye(pts, bw.loopStartIdx, bw.closureIdx) : false;
       kind = 'bowl'; direction = ''; bowl = bw;
     } else if (hk) {
       kind = 'hooked'; direction = ''; hook = hk;

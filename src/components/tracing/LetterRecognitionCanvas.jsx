@@ -4,6 +4,7 @@ import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
+import { inferLetter } from '@/lib/strokeInfer';
 
 // Contact grouping is only a HINT. After clustering touching strokes, re-examine
 // every multi-stroke group against recognition: if EACH stroke already reads as
@@ -183,12 +184,16 @@ const GREEN_CONF = 65;
 const YELLOW_CONF = 40;
 const RED_DIST = 0.25;
 const tierOf = (seg) => {
-  // An inferred letter (right letter read from stroke interactions, not the
-  // taught path) is "fairly sure" — credited but not a clean pathway match.
+  // An inferred letter (right letter read from stroke shape/interactions, not
+  // the taught path) is "fairly sure" — credited but not a clean pathway match.
   if (seg.inferred) return 'yellow';
+  // A correct taught pathway IS the letter — green, even if the DTW similarity
+  // (softmax over distances) stays low. The strokes were formed correctly;
+  // "doesn't match anything" should not override that.
+  if (seg.pathway) return 'green';
   const dist = seg.ranked && seg.ranked[0] && isFinite(seg.ranked[0].dist) ? seg.ranked[0].dist : Infinity;
   if (dist > RED_DIST) return 'red';
-  if (seg.pathway && seg.confidence >= GREEN_CONF) return 'green';
+  if (seg.confidence >= GREEN_CONF) return 'green';
   if (seg.confidence >= YELLOW_CONF) return 'yellow';
   return 'red';
 };
@@ -280,7 +285,8 @@ export default function LetterRecognitionCanvas({ templates }) {
           desc: describeStroke(s),
         }));
         const interaction = analyzeStrokesInteraction(strokes, strokeResults);
-        setResult({ mode: 'stroke', strokeResults, interaction });
+        const inferred = inferLetter(strokes, strokeResults);
+        setResult({ mode: 'stroke', strokeResults, interaction, inferred });
         setGuessing(false);
         return;
       }
@@ -296,31 +302,30 @@ export default function LetterRecognitionCanvas({ templates }) {
       }
       const segments = groups.map((g) => {
         const ranked = recognize(g, templates);
-        const letter = ranked[0] ? ranked[0].letter : '?';
-        // A letter may have several saved templates (different writing styles).
-        // The pathway is correct if the drawn strokes match ANY of them.
+        const cls = g.map((s) => classifyStroke(s));
+        const structural = inferLetter(g, cls);
+        const dtwLetter = ranked[0] ? ranked[0].letter : '?';
+        const dtwConf = ranked[0] ? ranked[0].confidence : 0;
+        // When the template (DTW) match is weak, a clear structural read is more
+        // trustworthy: a correctly drawn 'u' whose closest template is 'v', or a
+        // correct 'a' that scores only 18%. When DTW is confident, keep it —
+        // structure alone can't separate 'r' from 'n'.
+        const weakDtw = dtwConf < YELLOW_CONF;
+        const letter = structural && weakDtw ? structural.letter : dtwLetter;
+        // Pathway is correct if the drawn strokes match the taught path for the
+        // letter we're reporting (not the DTW runner-up, which can be a false
+        // positive — a 'u' matching the 'v' pathway).
         const sameLetter = letter !== '?' ? templates.filter((t) => t.letter === letter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(g, t));
-        // Feature-based fallback: if the taught pathway wasn't followed, the
-        // stroke INTERACTIONS (a bowl + a stem, two crossing diagonals) can
-        // still infer the intended letter from geometry alone — so a student
-        // who writes the right letter the wrong way gets CREDIT for the letter
-        // (pathway stays false, which is the formation deduction). This mirrors
-        // the y/x crossing rule: deduct for formation, credit the letter.
+        // A structural read with no matching taught path is "inferred" — credited,
+        // with a formation note (correct letter, not the taught stroke path).
         let inferred = null;
-        if (!pathway && g.length >= 2) {
-          const cls = g.map((s) => classifyStroke(s));
-          const interaction = analyzeStrokesInteraction(g, cls);
-          if (interaction && interaction.inferred) inferred = interaction.inferred;
-        }
-        const finalLetter = inferred ? inferred.letter : letter;
-        return {
-          letter: finalLetter,
-          confidence: ranked[0] ? ranked[0].confidence : (inferred ? 65 : 0),
-          ranked,
-          pathway,
-          inferred,
-        };
+        if (structural && weakDtw && !pathway) inferred = structural;
+        // A correct pathway or a structural read is a confident result — floor
+        // the shown confidence so a correct letter isn't "unsure" just because
+        // the DTW softmax stayed low.
+        const confidence = pathway ? Math.max(dtwConf, 72) : inferred ? Math.max(dtwConf, 65) : dtwConf;
+        return { letter, confidence, ranked, pathway, inferred };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
@@ -431,6 +436,14 @@ export default function LetterRecognitionCanvas({ templates }) {
 
       {result && result.mode === 'stroke' && (
         <div className="w-full max-w-sm text-left space-y-2">
+          {result.inferred ? (
+            <div className="p-3 rounded-xl bg-indigo-50 border-2 border-indigo-300 text-center">
+              <div className="text-sm font-semibold text-slate-600">I think this is</div>
+              <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.inferred.letter}</div>
+              <div className="text-xs text-slate-500 leading-snug">{result.inferred.summary.replace(/^Looks like an? '.*?' — /, '')}</div>
+              {result.inferred.note && <div className="text-[10px] text-slate-400 mt-1">{result.inferred.note}</div>}
+            </div>
+          ) : null}
           <div className="text-sm font-bold text-slate-700 text-center">I see {result.strokeResults.length} stroke{result.strokeResults.length === 1 ? '' : 's'}:</div>
           {result.strokeResults.map((s) => (
             <div key={s.idx} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
