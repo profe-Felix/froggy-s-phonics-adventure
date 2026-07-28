@@ -178,17 +178,17 @@ function clusterByTouch(strokes, touchPx) {
 //            a b, but you did it in 2 strokes" tier — certainty of the LETTER is
 //            decoupled from compliance with the PATH.
 //   red    — nothing matches well = "doesn't match anything"
-// The letter GUESS comes from the order-tolerant shape match (shapeGuess), so the
-// right letter wins even when drawn with the wrong stroke count/order. The pathway
-// check (pathwayMatch) is a SEPARATE signal that only sets green vs yellow — it
-// never changes WHICH letter is guessed.
+// The letter GUESS comes from the DTW pathway match (recognize) — the accurate
+// signal for a well-drawn letter. The order-tolerant shape match (shapeGuess) only
+// takes over in fusion territory (wrong stroke count) or when DTW is uncertain,
+// so a letter drawn the wrong way still reads by its shape. The pathway check
+// (pathwayMatch) is a SEPARATE signal that only sets green vs yellow — it never
+// changes WHICH letter is guessed for a normally-drawn letter.
 const YELLOW_CONF = 40;
-const RED_DIST = 0.09;   // chamfer scale: a real letter sits ~0.02–0.06; a scribble ~0.10+
 const tierOf = (seg) => {
   if (seg.pathway) return 'green';
-  const dist = seg.ranked && seg.ranked[0] && isFinite(seg.ranked[0].dist) ? seg.ranked[0].dist : Infinity;
-  if (dist > RED_DIST || seg.confidence < YELLOW_CONF) return 'red';
-  return 'yellow';
+  if (seg.confidence >= YELLOW_CONF) return 'yellow';
+  return 'red';
 };
 const TIER_TEXT = { green: 'text-green-600', yellow: 'text-amber-500', red: 'text-red-600' };
 const TIER_BAR = { green: 'bg-green-500', yellow: 'bg-amber-500', red: 'bg-red-500' };
@@ -309,18 +309,47 @@ export default function LetterRecognitionCanvas({ templates }) {
         });
       }
       const segments = groups.map((g) => {
-        // The letter IDENTITY comes from the order-tolerant SHAPE match: does the
-        // ink fill the letter's form, regardless of stroke order/count/direction.
-        // A 'b' drawn stem-first-then-bowl still reads as 'b' (the shape is a b),
-        // instead of being misread as 'k' (which only won on stroke COUNT). The
-        // pathway check below is SEPARATE — it sets the green/yellow badge, never
-        // the letter: a 2-stroke 'b' is "b, 80% sure" + a yellow pathway warning.
-        const ranked = shapeGuess(g, templates);
-        const dtwLetter = ranked[0] ? ranked[0].letter : '?';
-        const dtwConf = ranked[0] ? ranked[0].confidence : 0;
-        const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
-        const pathway = sameLetter.some((t) => pathwayMatch(g, t));
-        return { letter: dtwLetter, confidence: dtwConf, ranked, pathway, inferred: null, strokesPx: g };
+        // The letter IDENTITY comes from the DTW pathway match (recognize): it
+        // compares the ink to each taught stroke pathway and is the ACCURATE
+        // signal for a well-drawn letter — it tells a from o (the stem+hook the
+        // bowl lacks), k from t (a diagonal is not a crossbar), w/z from s. It
+        // already fuses multi-stroke drawings onto a fewer-stroke template, so a
+        // normally-drawn letter reads correctly regardless of small start/speed
+        // variance. The order-tolerant SHAPE match (shapeGuess) is a WEAKER
+        // discriminator — it can't tell those apart by area alone — so it is only
+        // consulted when DTW is in FUSION territory (the drawing's stroke count
+        // differs from every same-count template, e.g. a 2-stroke 'b' against the
+        // 1-stroke b template) or when DTW is genuinely uncertain. That is the
+        // one case shape is the right identity signal: a letter drawn with the
+        // wrong stroke count whose SHAPE is still clearly the letter. The
+        // pathway check sets green (taught path followed) vs yellow (right letter,
+        // wrong path) — never changing which letter wins for a normal drawing.
+        const dtwRanked = recognize(g, templates);
+        const dtwTop = dtwRanked[0] || null;
+        const dtwLetter = dtwTop ? dtwTop.letter : '?';
+        const dtwConf = dtwTop ? dtwTop.confidence : 0;
+        const dtwPathwayOk = dtwLetter !== '?' && templates.filter((t) => t.letter === dtwLetter).some((t) => pathwayMatch(g, t));
+        const dtwWinner = dtwLetter !== '?' ? templates.find((t) => t.letter === dtwLetter) : null;
+        const sameCount = dtwWinner && dtwWinner.strokes.length === g.length;
+        let letter, confidence, ranked, pathway;
+        if (dtwPathwayOk) {
+          letter = dtwLetter; confidence = dtwConf; ranked = dtwRanked; pathway = true;
+        } else if (sameCount && dtwConf >= YELLOW_CONF) {
+          // Same stroke count, DTW confident, but the taught pathway wasn't
+          // followed (e.g. slightly wrong direction/start). DTW is reliable here —
+          // credit its letter, flag the pathway yellow.
+          letter = dtwLetter; confidence = dtwConf; ranked = dtwRanked; pathway = false;
+        } else {
+          // Fusion territory (drawn stroke count ≠ any matching template) or DTW
+          // uncertain: shape is the order-tolerant identity. A 2-stroke 'b' reads
+          // as 'b' here even though the 1-stroke b pathway wasn't followed.
+          const shapeRanked = shapeGuess(g, templates);
+          const shapeTop = shapeRanked[0] || null;
+          letter = shapeTop ? shapeTop.letter : dtwLetter;
+          confidence = shapeTop ? shapeTop.confidence : dtwConf;
+          ranked = shapeRanked; pathway = false;
+        }
+        return { letter, confidence, ranked, pathway, inferred: null, strokesPx: g };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
