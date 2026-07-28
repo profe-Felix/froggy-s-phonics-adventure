@@ -230,6 +230,32 @@ function strokeKind(strokeNorm) {
   const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
   return classifyStroke(px).kind;
 }
+// Classify a FUSED group (one or more drawn strokes joined into one template
+// stroke). A single stroke is classified directly. For a MULTI-stroke group we
+// must avoid the "artificial bowl" artifact: concatenating non-contiguous
+// strokes creates pen-up JUMPS between them, and the loop detector can treat a
+// jump as the closing edge of a loop — so a 'k' drawn as stem + two diagonals
+// fuses into a polyline that classifies as 'bowl' (the stem up, then a jump back
+// down to a diagonal's start closes a "loop"), and a 'd' (which needs a REAL
+// closed bowl) then passes the structural gate and wins. Fix: a bowl detected
+// on a multi-stroke group is only real if the strokes CONNECT end-to-start (no
+// pen-up gap). With gaps the group is an OPEN assembly, so downgrade 'bowl' to
+// 'curve' — the kind gate then fires against bowl-templates, pushing 'd' below
+// 'k' for a 'k' drawing.
+const FUSED_JUMP = 0.06;
+function fusedGroupKind(strokesArr) {
+  if (!strokesArr || !strokesArr.length) return 'dot';
+  if (strokesArr.length === 1) return strokeKind(strokesArr[0]);
+  let connects = true;
+  for (let i = 0; i < strokesArr.length - 1; i++) {
+    const a = strokesArr[i], b = strokesArr[i + 1];
+    if (!a || !b || !a.length || !b.length) continue;
+    if (Math.hypot(a[a.length - 1].x - b[0].x, a[a.length - 1].y - b[0].y) > FUSED_JUMP) { connects = false; break; }
+  }
+  const kind = strokeKind(concatStrokes(strokesArr));
+  if (kind === 'bowl' && !connects) return 'curve';
+  return kind;
+}
 // Template strokes never change — cache their kinds per template.
 const _kindCache = new WeakMap();
 function tmplKind(tmpl, i) {
@@ -302,17 +328,30 @@ function buildGroups(order, sizes, src) {
   }
   return out;
 }
+// Like buildGroups, but returns each group's CONSTITUENT strokes (not
+// concatenated), so fusedGroupKind can tell whether a bowl is real or a pen-up
+// artifact (concatenated polylines hide the jumps between non-touching strokes).
+function buildGroupedStrokes(order, sizes, src) {
+  const out = []; let k = 0;
+  for (const sz of sizes) {
+    const slice = [];
+    for (let i = 0; i < sz; i++) slice.push(src[order[k + i]]);
+    out.push(slice);
+    k += sz;
+  }
+  return out;
+}
 // Full distance (DTW + all penalties) for one fused grouping: aGroups are the
 // aligned concatenated polylines, dGroups the original-frame ones (for kind
 // classification), matched to the template's M strokes. n = drawn stroke count
 // (for the stroke-count penalty), m = template stroke count.
-function scoreGrouping(aGroups, dGroups, tmpl, n, m, dBox, tBox) {
+function scoreGrouping(aGroups, dGroups, dGroupStrokes, tmpl, n, m, dBox, tBox) {
   const costs = aGroups.map((g, j) => strokeDtw(g, tmpl[j]));
   let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
   dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   for (let j = 0; j < m; j++) {
-    if (!kindsCompatible(strokeKind(dGroups[j]), tmplKind(tmpl, j))) dist += KIND_PENALTY;
+    if (!kindsCompatible(fusedGroupKind(dGroupStrokes[j]), tmplKind(tmpl, j))) dist += KIND_PENALTY;
     if (!isDotStroke(dGroups[j]) && !isDotStroke(tmpl[j])) {
       const sp = Math.hypot(aGroups[j][0].x - tmpl[j][0].x, aGroups[j][0].y - tmpl[j][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
@@ -389,7 +428,8 @@ function letterDistance(drawn, dBox, tmpl) {
       for (const sizes of compositionsOf(n, m)) {
         const aG = buildGroups(order, sizes, aligned);
         const dG = buildGroups(order, sizes, drawn);
-        const d = scoreGrouping(aG, dG, tmpl, n, m, dBox, tBox);
+        const dGS = buildGroupedStrokes(order, sizes, drawn);
+        const d = scoreGrouping(aG, dG, dGS, tmpl, n, m, dBox, tBox);
         if (d < best) best = d;
       }
     }
@@ -518,7 +558,7 @@ function startDir(stroke) {
 // fused group must match its template stroke in shape (DTW), starting direction,
 // start position, structural kind, and hump count. Shared by the n==m and the
 // fused (n>m) paths.
-function fusedPathwayOk(aGroups, dGroups, template) {
+function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
   const m = template.strokes.length;
   let sum = 0;
   for (let i = 0; i < m; i++) {
@@ -532,7 +572,7 @@ function fusedPathwayOk(aGroups, dGroups, template) {
       const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
       if (startPos > PATHWAY_START_POS) return false;
     }
-    if (!kindsCompatible(strokeKind(dGroups[i]), tmplKind(template.strokes, i))) return false;
+    if (!kindsCompatible(fusedGroupKind(dGroupStrokes[i]), tmplKind(template.strokes, i))) return false;
     const dh = strokeShoulderHumps(dGroups[i]);
     const th = tmplHumps(template.strokes, i);
     if (dh != null && th != null && dh !== th) return false;
@@ -558,13 +598,14 @@ export function pathwayMatch(drawnStrokes, template) {
       for (const sizes of compositionsOf(n, m)) {
         const aG = buildGroups(order, sizes, aligned);
         const dG = buildGroups(order, sizes, drawn);
-        if (fusedPathwayOk(aG, dG, template)) return true;
+        const dGS = buildGroupedStrokes(order, sizes, drawn);
+        if (fusedPathwayOk(aG, dG, dGS, template)) return true;
       }
     }
     return false;
   }
   if (n !== m) return false;
-  return fusedPathwayOk(aligned, drawn, template);
+  return fusedPathwayOk(aligned, drawn, drawn.map((s) => [s]), template);
 }
 
 // Is a DTW winner structurally plausible for what was drawn? Every drawn
