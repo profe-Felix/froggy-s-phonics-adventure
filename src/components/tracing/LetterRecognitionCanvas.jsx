@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize, shapeGuess, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
+import { recognize, shapeGuess, pathwayMatch, groupFormsLetter, traceMatch } from '@/lib/letterRecognize';
 import MatchOverlap from '@/components/tracing/MatchOverlap';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
@@ -216,7 +216,7 @@ export default function LetterRecognitionCanvas({ templates }) {
   const [current, setCurrent] = useState([]);
   const [result, setResult] = useState(null);
   const [guessing, setGuessing] = useState(false);
-  const [mode, setMode] = useState('letter'); // 'letter' | 'stroke'
+  const [mode, setMode] = useState('letter'); // 'letter' | 'stroke' | 'trace'
   const [segMode, setSegMode] = useState('space'); // 'space' | 'pause'
   const [spaceGap, setSpaceGap] = useState(14); // canvas px — strokes join when ink is within this far (ink width already included); tuned for kids' multi-stroke letters whose parts don't quite touch
   const [pauseMs, setPauseMs] = useState(500);
@@ -320,6 +320,17 @@ export default function LetterRecognitionCanvas({ templates }) {
         setGuessing(false);
         return;
       }
+      if (mode === 'trace') {
+        // Join ALL the ink into one cloud (order/direction don't matter) and, for
+        // each saved letter, trace its taught pathway through that cloud. The
+        // best letter is the one whose path the ink actually covers with the
+        // least waste — a clean 'o' ring beats a giant filled-in circle, because
+        // the fill covers the ring (coverage 100%) but the interior is all waste.
+        const ranked = traceMatch(strokes, templates);
+        setResult({ mode: 'trace', ranked, guessLetter: ranked[0] ? ranked[0].letter : null, strokesPx: strokes });
+        setGuessing(false);
+        return;
+      }
       let groups;
       if (segMode === 'space') {
         groups = segmentByRecognition(strokes, spaceGap, templates);
@@ -395,12 +406,12 @@ export default function LetterRecognitionCanvas({ templates }) {
         }
         return { letter, confidence, ranked, pathway, inferred, strokesPx: g };
       });
-      setResult({ segments, word: segments.map((s) => s.letter).join('') });
+      setResult({ mode: 'letter', segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
     }, 60);
   };
 
-  const single = result && result.mode !== 'stroke' && result.segments.length === 1;
+  const single = result && result.mode === 'letter' && result.segments.length === 1;
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -448,6 +459,12 @@ export default function LetterRecognitionCanvas({ templates }) {
         >
           Recognize stroke
         </button>
+        <button
+          onClick={() => { setMode('trace'); setResult(null); }}
+          className={`px-3 py-1 rounded-md transition ${mode === 'trace' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500'}`}
+        >
+          Recognize by trace
+        </button>
       </div>
 
       {mode === 'letter' && (
@@ -491,7 +508,7 @@ export default function LetterRecognitionCanvas({ templates }) {
           disabled={!strokes.length || guessing}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : mode === 'stroke' ? 'Recognize strokes' : 'Guess my letters'}
+          <Sparkles className="w-4 h-4" /> {guessing ? 'Thinking…' : mode === 'stroke' ? 'Recognize strokes' : mode === 'trace' ? 'Trace match' : 'Guess my letters'}
         </button>
         <button
           onClick={clear}
@@ -566,7 +583,38 @@ export default function LetterRecognitionCanvas({ templates }) {
         </div>
       )}
 
-      {result && result.mode !== 'stroke' && (
+      {result && result.mode === 'trace' && (
+        <div className="w-full max-w-sm text-left space-y-2">
+          {result.guessLetter ? (
+            <div className="p-3 rounded-xl bg-indigo-50 border-2 border-indigo-300 text-center">
+              <div className="text-sm font-semibold text-slate-600">Best trace match</div>
+              <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.guessLetter}</div>
+              <div className="text-xs text-slate-500 leading-snug">
+                {Math.round(result.ranked[0].coverage * 100)}% of the letter's path was traced · {Math.round(result.ranked[0].extra * 100)}% waste ink
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                All your ink was treated as one shape; each letter's taught pathway was traced through it.
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-slate-500 p-3">No match — draw a letter first.</div>
+          )}
+          {result.ranked.filter((r) => r.confidence > 0).slice(0, 6).map((r, i) => (
+            <div key={r.letter} className="flex items-center gap-2">
+              <span className={`w-5 text-sm font-bold ${i === 0 ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+              </div>
+              <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums">
+                {Math.round(r.coverage * 100)}% cov · {Math.round(r.extra * 100)}% waste
+              </span>
+            </div>
+          ))}
+          <MatchOverlap segment={{ strokesPx: result.strokesPx, ranked: result.ranked.slice(0, 4) }} templates={templates} />
+        </div>
+      )}
+
+      {result && result.mode === 'letter' && (
         <div className="w-full max-w-xs text-center">
           {single ? (
             <>

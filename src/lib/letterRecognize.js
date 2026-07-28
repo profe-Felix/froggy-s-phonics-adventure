@@ -1248,3 +1248,122 @@ export function overlapAlignment(drawnStrokes, template) {
   const aligned = applyAlign(drawn, tr);
   return { aligned, template: template.strokes, drawn, sx: tr.sx, sy: tr.sy, capped: tr.capped, dBox, tBox };
 }
+
+// --- TRACE MATCH (the "trace the ideal pathway" recognizer) ---
+// Join ALL the student's ink into one point cloud — order and direction do NOT
+// matter, we only ask "is the ideal pathway inside the ink?" — then for each
+// letter trace its taught pathway through the cloud. A letter scores high when
+// the ink COVERS the pathway (the path was traced) AND the ink is not mostly
+// WASTE (extra ink that sits far from any path point). This is the user's rule:
+// a clean 'o' ring beats a giant filled-in circle, because the fill covers the
+// 'o' ring (coverage 100%) but the interior is all waste, so the waste penalty
+// drags the filled circle's score below the real 'o'. Reuses the anisotropic
+// alignment (a skinny/squashed letter stretches onto the template's
+// proportions) and the same structural exclusion gates (crossbar, diagonal-end,
+// zigzag) as the other recognizers, so a known-confusing letter is still gated
+// out. This is the order/direction-AGNOSTIC complement to recognize() (strict
+// pathway) and shapeGuess() (chamfer) — it answers "which letter's taught path
+// did the ink actually trace?" using coverage minus waste instead of average
+// nearest distance.
+const TRACE_R = 0.05;          // normalized pen-ink half-width — a template point counts as covered when ink sits within this. Tight (not the 0.07 blanket) so a clean 'o' ring does NOT also cover the 'a' stem that sits just inside the ring — the stem's middle is farther than this from the ring, so 'a' coverage stays < 100% and 'o' wins for an 'o'.
+const TRACE_EXTRA_W = 0.9;     // how strongly waste ink drags the score down; 0.9 → a half-waste drawing loses ~45% of its score, enough that a giant filled-in circle (lots of interior waste) scores well below a clean ring
+const TRACE_SOFTMAX_T = 0.08;  // softmax temperature over the score → confidence
+// Densely sample a template's taught pathway at a fixed normalized step.
+function denseTemplatePoints(tmplStrokes, step = 0.012) {
+  const out = [];
+  for (const s of tmplStrokes) {
+    if (!s) continue;
+    if (s.length < 2) { out.push({ x: s[0].x, y: s[0].y }); continue; }
+    for (let i = 0; i < s.length - 1; i++) {
+      const a = s[i], b = s[i + 1];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      const n = Math.max(1, Math.round(segLen / step));
+      for (let j = 0; j < n; j++) { const t = j / n; out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); }
+    }
+    const last = s[s.length - 1]; out.push({ x: last.x, y: last.y });
+  }
+  return out;
+}
+// Collect the ink as a point cloud PRESERVING its density: a single clean ring
+// yields few points all on the path; a scribbled fill yields many points, most
+// interior (waste). Arc-length resampling would flatten that (a long fill stroke
+// gets the same 40 points as a short ring), hiding the waste that is the whole
+// signal against a filled-in circle. So we keep raw points, thinned only by a
+// hard cap so the nearest-point sweep stays bounded.
+function inkCloud(alignedStrokes) {
+  const out = [];
+  for (const s of alignedStrokes) {
+    if (!s || !s.length) continue;
+    for (const p of s) out.push({ x: p.x, y: p.y });
+  }
+  if (out.length > 800) {
+    const thin = [];
+    const st = Math.ceil(out.length / 800);
+    for (let i = 0; i < out.length; i += st) thin.push(out[i]);
+    return thin;
+  }
+  return out;
+}
+function traceNearest(pt, pts) {
+  let mn = Infinity;
+  for (const q of pts) { const d = (pt.x - q.x) ** 2 + (pt.y - q.y) ** 2; if (d < mn) mn = d; }
+  return Math.sqrt(mn);
+}
+// drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes(0-1) }].
+// Returns [{ letter, score, coverage, extra, dist, confidence }] sorted best
+// (highest score / lowest dist) first.
+export function traceMatch(drawnStrokes, templates) {
+  if (!drawnStrokes.length || !templates.length) return [];
+  const drawn = normalize(drawnStrokes);
+  const dBox = bbox(drawn);
+  if (dBox.w === 0 && dBox.h === 0) return [];
+  const n = drawn.length;
+  // Same single-stroke curve/shoulder flat-tangent override as recognize():
+  // an 's' S-curve or 'r'/'n' arch has a flat tangent crossbarInfo mistakes for
+  // a crossbar, which would exclude the letter itself.
+  let drawHasBar = hasECrossbar(drawn);
+  if (n === 1) {
+    const c0 = strokeClassifyFull(drawn[0]);
+    if (c0.kind === 'curve' || c0.kind === 'shoulder') drawHasBar = false;
+  }
+  const lowBar = drawHasBar && crossbarIsLow(drawn);
+  const drawHasDiag = hasDiagonalRun(drawn);
+  const drawEndsDiag = drawingEndsDiagonal(drawn);
+  const results = templates.map((t) => {
+    let excluded = false;
+    if (drawHasBar) {
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
+      if (!templateHasHorizontalRun(t)) excluded = true;
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+    } else if (templateHasHorizontalRun(t)) {
+      excluded = true;
+    }
+    if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
+    if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    let coverage = 0, extra = 0, score = -1;
+    if (!excluded) {
+      const tBox = bbox(t.strokes);
+      const aligned = alignTo(drawn, dBox, tBox);
+      const ink = inkCloud(aligned);
+      const tPts = denseTemplatePoints(t.strokes);
+      if (ink.length && tPts.length) {
+        let covered = 0;
+        for (const tp of tPts) if (traceNearest(tp, ink) <= TRACE_R) covered++;
+        coverage = covered / tPts.length;
+        let waste = 0;
+        for (const ip of ink) if (traceNearest(ip, tPts) > TRACE_R) waste++;
+        extra = ink.length ? waste / ink.length : 0;
+        score = coverage - TRACE_EXTRA_W * extra;
+      }
+    }
+    return { letter: t.letter, score: Math.max(0, score), coverage, extra, dist: excluded ? Infinity : (1 - Math.max(0, score)), confidence: 0 };
+  });
+  results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
+  const active = results.filter((r) => isFinite(r.dist) && r.score > 0);
+  if (active.length) {
+    let sum = 0;
+    for (const r of active) sum += Math.exp(r.score / TRACE_SOFTMAX_T);
+    for (const r of results) r.confidence = active.includes(r) ? Math.round((Math.exp(r.score / TRACE_SOFTMAX_T) / sum) * 100) : 0;
+  }
+  return results;
+}
