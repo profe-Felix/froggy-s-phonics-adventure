@@ -9,6 +9,7 @@ const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = revers
 const COMPLETE_FRAC = 0.72; // fraction of ideal-path points the stroke must actually pass near to complete
 
 function scale(pt) {
+  if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
 }
 
@@ -76,7 +77,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
   const densePath = useMemo(() => {
     const wp = strokes[strokeIndex];
-    return wp && wp.length ? buildDensePath(wp) : [];
+    const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
+    return clean.length ? buildDensePath(clean) : [];
   }, [strokes, strokeIndex]);
 
   // Cancel any in-flight replay animation when the component unmounts.
@@ -126,7 +128,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
     const pos = getPos(e);
     const currentStrokes = strokes[strokeIndex];
-    if (!currentStrokes) return;
+    if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
     const firstWp = scale(currentStrokes[0]);
     // Must start near the first waypoint of current stroke
     if (waypointIndex === 0 && dist(pos, firstWp) > HIT_RADIUS * 1.8) {
