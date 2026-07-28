@@ -5,7 +5,7 @@ const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
 const WOBBLE_RADIUS = 50; // px — pen is "on the path corridor" within this; momentary excursions past it are tolerated (see OFF_TRAVEL_BUDGET)
 const OFF_TRAVEL_BUDGET = 90; // px — accumulated pen travel WHILE off the corridor before we restart; a momentary wobble that comes back costs nothing, a sustained drift (excessive wobble) exceeds it
-const FWD_RETRACE_RADIUS = 95; // px — retraced letters (b stem, a stem, d/h/r) double back, so the "nearest" ideal point can be the EARLIER (wrong-direction) copy; prefer the forward copy within this wider radius so a correct retrace isn't flagged as a direction error
+const FWD_RETRACE_RADIUS = 30; // px — retraced letters (b stem, a stem, d/h/r) double back, so the "nearest" ideal point can be the EARLIER (wrong-direction) copy; prefer the forward copy within this radius so a correct retrace isn't flagged as a direction error. Kept TIGHT (was 95) so it can't span a whole small letter and snap the progress marker from a 70% partial straight to the end.
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COVERAGE_RADIUS = 30; // px — the "thick pen": a dense path point counts as traced when the pen passes within this radius. Generous so natural hand wobble still lays ink that overlaps the ideal path; a shortcut cuts across and leaves the curved sections beyond this radius untouched.
@@ -273,8 +273,18 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // this radius) still fails the wobble budget below.
       let retraceForward = false;
       if (nearestIdx < pathProgressRef.current) {
+        // Clamp the forward search to a small index window above the current
+        // progress. A real retrace snaps to the forward copy AT the pen's
+        // current spot (index ~ pathProgress), so a +6 window is plenty.
+        // Without the clamp the search could leap to a forward point far ahead
+        // — the end of a closed 'o'/'a' sitting near its start, or the 'b'
+        // bowl's bottom near an 'h' arch — and JUMP pathProgress from a 70%
+        // partial straight to the end, letting an incomplete trace count as
+        // complete. The clamp forces the marker to advance one step at a time,
+        // so a partial that stops short can no longer fake reaching the end.
         let fwdD = Infinity, fwdIdx = -1;
-        for (let i = pathProgressRef.current; i < densePath.length; i++) {
+        const fwdLimit = Math.min(densePath.length - 1, pathProgressRef.current + 6);
+        for (let i = pathProgressRef.current; i <= fwdLimit; i++) {
           const d = dist(pos, densePath[i]);
           if (d < fwdD) { fwdD = d; fwdIdx = i; }
         }
