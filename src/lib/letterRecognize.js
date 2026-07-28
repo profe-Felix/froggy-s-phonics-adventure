@@ -36,6 +36,7 @@
 // space; the drawing is normalized the same way, so both share one frame.
 
 import { resample, CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
+import { classifyStroke } from '@/lib/strokeClassify';
 
 const R = 36;            // points per stroke after resampling — enough shape detail for DTW, small enough that O(R²) is cheap
 const DTW_BAND = 8;      // Sakoe-Chiba band: allow a point to warp ±8 indices — absorbs start/speed variance without the full O(R²) and without letting a stroke warp wildly onto an unrelated one
@@ -179,6 +180,43 @@ function bboxMaxDim(s) {
 }
 function isDotStroke(s) { return !s || s.length <= 2 || bboxMaxDim(s) < DOT_SIZE; }
 
+// --- structural-kind gate (combines "recognize stroke" with "recognize letter") ---
+// DTW warps one stroke onto another and only cares that the points are close
+// AFTER anisotropic alignment — so a 'b' bowl and a 'k' bent chevron, which cover
+// overlapping area, can score close. But they are NOT the same structural shape:
+// a bowl is a closed loop, a bent stroke is an open chevron. Classifying each
+// stroke (the same classifyStroke used in "recognize stroke" mode) and requiring
+// the kinds to agree is what stops the 'b'→'k' false positive: the bowl can't
+// pass the 'k' pathway no matter how many points it hits.
+const LINE_KINDS = new Set(['vertical', 'horizontal', 'diagonal']);
+// Two kinds are compatible if they are the same, or both lines (a slightly
+// tilted stem is still a stem), or a curve↔bowl (a 'c' and a barely-closed bowl
+// differ only by closure). Everything else — bowl vs bent, bowl vs shoulder,
+// bent vs curve — is a real structural mismatch.
+function kindsCompatible(ka, kb) {
+  if (ka === 'dot' || kb === 'dot') return true;   // dots are matched by position, not shape
+  if (ka === kb) return true;
+  if (LINE_KINDS.has(ka) && LINE_KINDS.has(kb)) return true;
+  const pair = [ka, kb].sort().join('|');
+  return pair === 'bowl|curve';
+}
+// Classify a normalized (0-1) stroke. classifyStroke takes canvas px and divides
+// by CANVAS_W/H, so scale the normalized points back to px first.
+function strokeKind(strokeNorm) {
+  if (!strokeNorm || strokeNorm.length < 2) return 'dot';
+  const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+  return classifyStroke(px).kind;
+}
+// Template strokes never change — cache their kinds per template.
+const _kindCache = new WeakMap();
+function tmplKind(tmpl, i) {
+  let arr = _kindCache.get(tmpl);
+  if (!arr) { arr = tmpl.map(strokeKind); _kindCache.set(tmpl, arr); }
+  return arr[i];
+}
+const KIND_PENALTY = 0.18;        // per mismatched stroke pair — pushes a structurally-wrong letter down in the ranking
+const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (normalized) distance of the template's start
+
 // Per-pair stroke-match costs between a drawing and one template (aligned to the
 // template's bbox). Dots are paired positionally (a dot is a mark, not a path);
 // real strokes are DTW'd in order. Returns the array of per-pair costs so callers
@@ -237,6 +275,14 @@ function letterDistance(drawn, dBox, tmpl) {
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
   dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
+  // Structural-kind penalty: a bowl is not a bent chevron even if DTW warps them
+  // close. This is what stops a 'b' (bowl) from ranking as a 'k' (bent) — the two
+  // "hit a lot of the same points" after anisotropic alignment, but the second
+  // stroke is a closed loop in one and an open chevron in the other.
+  const p = Math.min(drawn.length, tmpl.length);
+  for (let i = 0; i < p; i++) {
+    if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(tmpl, i))) dist += KIND_PENALTY;
+  }
   return dist;
 }
 
@@ -333,10 +379,42 @@ export function pathwayMatch(drawnStrokes, template) {
   let sum = 0;
   for (let i = 0; i < drawn.length; i++) {
     const a = aligned[i], b = template.strokes[i];
-    if (strokeDtw(a, b) > PATHWAY_DIST) return false;
-    sum += strokeDtw(a, b);
+    const c = strokeDtw(a, b);
+    if (c > PATHWAY_DIST) return false;
+    sum += c;
+    // START DIRECTION must agree (DTW is monotonic so a reversed stroke already
+    // scores poorly; this makes the start explicit).
     const da = startDir(a), db = startDir(b);
     if (da.x * db.x + da.y * db.y < DIR_THRESH) return false;
+    // START POINT must be near the template's start — 'k' second stroke starts
+    // at the midline on the stem; a 'b' bowl starts mid-stem. The start-position
+    // gap rejects the false positive even when DTW warps the rest of the stroke
+    // close and both head "to the right."
+    const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
+    if (startPos > PATHWAY_START_POS) return false;
+    // STRUCTURAL KIND must agree — a closed bowl is not an open bent chevron,
+    // no matter how well the points align. This is "recognize stroke" applied
+    // inside "recognize letter": the per-stroke shape must match the taught
+    // stroke's shape, not just cover the same area.
+    if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(template.strokes, i))) return false;
   }
   return sum / drawn.length < PATHWAY_DIST;
+}
+
+// Is a DTW winner structurally plausible for what was drawn? Every drawn
+// stroke's structural kind must match the winner template's corresponding
+// stroke kind. This is the "no false positive just because b and k hit a lot of
+// points" gate: a 'b' bowl (a closed curve) scores high against a 'k' chevron (a
+// bent stroke) under DTW + anisotropic alignment, but a bowl is not a bent
+// chevron — so 'k' is NOT plausible for a 'b' drawing, even at 100% DTW. The
+// canvas uses this to reject the DTW winner and fall back to the structural
+// inference (bowl + stem → 'b').
+export function strokeKindsPlausible(drawnStrokes, template) {
+  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
+  if (!drawnStrokes || drawnStrokes.length !== template.strokes.length) return false;
+  const drawn = normalize(drawnStrokes);
+  for (let i = 0; i < drawn.length; i++) {
+    if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(template.strokes, i))) return false;
+  }
+  return true;
 }

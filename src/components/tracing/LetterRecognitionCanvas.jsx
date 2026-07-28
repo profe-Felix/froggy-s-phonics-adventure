@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
+import { recognize, pathwayMatch, groupFormsLetter, strokeKindsPlausible } from '@/lib/letterRecognize';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
 import { inferLetter } from '@/lib/strokeInfer';
@@ -306,11 +306,19 @@ export default function LetterRecognitionCanvas({ templates }) {
         const structural = inferLetter(g, cls);
         const dtwLetter = ranked[0] ? ranked[0].letter : '?';
         const dtwConf = ranked[0] ? ranked[0].confidence : 0;
-        // When the template (DTW) match is weak, a clear structural read is more
-        // trustworthy: a correctly drawn 'u' whose closest template is 'v', or a
-        // correct 'a' that scores only 18%. When DTW is confident, keep it —
-        // structure alone can't separate 'r' from 'n'.
-        const weakDtw = dtwConf < YELLOW_CONF;
+        // Is the DTW winner structurally plausible? Each drawn stroke's structural
+        // kind must match the winner template's corresponding stroke kind. A 'b'
+        // bowl (a closed curve) hits a lot of the 'k' chevron's points under DTW +
+        // anisotropic alignment, but a bowl is not a bent chevron — so 'k' is NOT
+        // plausible for a 'b' drawing, even at 100% DTW. Reject the winner and let
+        // the structural inference (bowl + stem → 'b') take over.
+        const dtwPlausible = dtwLetter !== '?'
+          ? templates.filter((t) => t.letter === dtwLetter).some((t) => strokeKindsPlausible(g, t))
+          : false;
+        // When the template (DTW) match is weak OR structurally implausible, a
+        // clear structural read is more trustworthy: a 'u' whose closest template
+        // is 'v', a correct 'a' at 18%, or a 'b' bowl that DTW mis-reads as 'k'.
+        const weakDtw = dtwConf < YELLOW_CONF || !dtwPlausible;
         const letter = structural && weakDtw ? structural.letter : dtwLetter;
         // Pathway is correct if the drawn strokes match the taught path for the
         // letter we're reporting (not the DTW runner-up, which can be a false
