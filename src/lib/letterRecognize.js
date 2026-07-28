@@ -209,6 +209,32 @@ function bboxMaxDim(s) {
 }
 function isDotStroke(s) { return !s || s.length <= 2 || bboxMaxDim(s) < DOT_SIZE; }
 
+// --- Gate A: stroke-count parity for multi-stroke templates ---
+// A multi-stroke template (m >= 2: f, i, j, k, t, x, y, ñ) can only be the
+// answer if the drawing actually CONTAINS its components. Without this gate,
+// anisotropic DTW fusion stretches ONE drawn stroke across several template
+// strokes, inventing a crossbar / diagonal / dot the kid never drew — the
+// 1-stroke 'a' warped ×2.00 in y onto a 't' stem+crossbar, the 1-stroke 'b'
+// warped onto a 'k' stem+diagonal. So for m >= 2 we require count parity:
+//   n == m     — exact
+//   n == m+1   — one extra stroke (a doubled dot or a split stem) is fine
+//   n == m-1   — one missing stroke, ONLY when the template's missing stroke
+//                is a dot (the i/j dot the kid forgot); a missing crossbar or
+//                diagonal is never tolerated — that component can't be
+//                stretched into existence.
+// Single-stroke templates (m < 2 — the 19 single-stroke letters) are always
+// allowed: fusion already joins extra strokes onto one template stroke, and
+// a 1-stroke drawing against a 1-stroke template is the normal case.
+function templateHasDot(tmplStrokes) {
+  return tmplStrokes.some((s) => isDotStroke(s));
+}
+function strokeCountAllowed(n, m, tmplStrokes) {
+  if (m < 2) return true;
+  if (n === m || n === m + 1) return true;
+  if (n === m - 1 && templateHasDot(tmplStrokes)) return true;
+  return false;
+}
+
 // --- structural-kind gate (combines "recognize stroke" with "recognize letter") ---
 // DTW warps one stroke onto another and only cares that the points are close
 // AFTER anisotropic alignment — so a 'b' bowl and a 'k' bent chevron, which cover
@@ -513,9 +539,10 @@ export function recognize(drawnStrokes, templates) {
   const drawn = normalize(drawnStrokes);
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
+  const n = drawn.length;
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: letterDistance(drawn, dBox, t.strokes),
+    dist: strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity,
     confidence: 0,
   }));
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
@@ -607,9 +634,10 @@ export function shapeGuess(drawnStrokes, templates) {
   const drawn = normalize(drawnStrokes);
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
+  const n = drawn.length;
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: shapeDistance(drawn, dBox, t.strokes),
+    dist: strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity,
     confidence: 0,
   }));
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
@@ -745,6 +773,9 @@ export function pathwayMatchDebug(drawnStrokes, template) {
   const n = drawn.length;
   if (!n) return 'no-strokes';
   const m = template.strokes.length;
+  // Gate A: a multi-stroke template whose components the drawing doesn't
+  // contain can't be a followed pathway — the crossbar/diagonal/dot is missing.
+  if (!strokeCountAllowed(n, m, template.strokes)) return `count ${n}/${m}`;
   const dBox = bbox(drawn);
   const tBox = bbox(template.strokes);
   const aligned = alignTo(drawn, dBox, tBox);
