@@ -287,7 +287,22 @@ export default function LetterRecognitionCanvas({ templates }) {
         }));
         const interaction = analyzeStrokesInteraction(strokes, strokeResults);
         const inferred = inferLetter(strokes, strokeResults);
-        setResult({ mode: 'stroke', strokeResults, interaction, inferred });
+        // Fused ideal-pathway match: join the strokes (any order, any count) onto
+        // each taught pathway and take the closest. A 'k' drawn as 3 strokes or a
+        // 'p' as bowl+stem matches its taught pathway once the strokes are joined,
+        // instead of being misread stroke-by-stroke. This is the primary letter
+        // authority; the per-stroke structural inference below is the fallback.
+        const ranked = recognize(strokes, templates);
+        const dtwLetter = ranked[0] ? ranked[0].letter : '?';
+        const dtwConf = ranked[0] ? ranked[0].confidence : 0;
+        const dtwDist = ranked[0] ? ranked[0].dist : Infinity;
+        const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
+        const pathway = sameLetter.some((t) => pathwayMatch(strokes, t));
+        let guessLetter = null, guessKind = null;
+        if (pathway) { guessLetter = dtwLetter; guessKind = 'pathway'; }
+        else if (isFinite(dtwDist) && dtwDist < 0.25) { guessLetter = dtwLetter; guessKind = 'dtw'; }
+        else if (inferred) { guessLetter = inferred.letter; guessKind = 'inferred'; }
+        setResult({ mode: 'stroke', strokeResults, interaction, inferred, ranked, pathway, guessLetter, guessKind, dtwConf, dtwDist });
         setGuessing(false);
         return;
       }
@@ -425,14 +440,37 @@ export default function LetterRecognitionCanvas({ templates }) {
 
       {result && result.mode === 'stroke' && (
         <div className="w-full max-w-sm text-left space-y-2">
-          {result.inferred ? (
+          {result.guessLetter ? (
             <div className="p-3 rounded-xl bg-indigo-50 border-2 border-indigo-300 text-center">
               <div className="text-sm font-semibold text-slate-600">I think this is</div>
-              <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.inferred.letter}</div>
-              <div className="text-xs text-slate-500 leading-snug">{result.inferred.summary.replace(/^Looks like an? '.*?' — /, '')}</div>
-              {result.inferred.note && <div className="text-[10px] text-slate-400 mt-1">{result.inferred.note}</div>}
+              <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.guessLetter}</div>
+              <div className="text-xs text-slate-500 leading-snug">
+                {result.guessKind === 'pathway'
+                  ? `Matched the taught pathway by joining your ${result.strokeResults.length} stroke${result.strokeResults.length === 1 ? '' : 's'}.`
+                  : result.guessKind === 'dtw'
+                    ? `Closest taught letter — ${result.dtwConf}% sure.`
+                    : result.inferred
+                      ? result.inferred.summary.replace(/^Looks like an? '.*?' — /, '')
+                      : ''}
+              </div>
+              {result.guessKind === 'inferred' && result.inferred && result.inferred.note && (
+                <div className="text-[10px] text-slate-400 mt-1">{result.inferred.note}</div>
+              )}
             </div>
           ) : null}
+          {result.ranked && result.guessKind !== 'inferred' && result.ranked.length > 0 && (
+            <div className="space-y-1.5">
+              {result.ranked.slice(0, 5).map((r) => (
+                <div key={r.letter} className="flex items-center gap-2">
+                  <span className={`w-5 text-sm font-bold ${r === result.ranked[0] ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${r === result.ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+                  </div>
+                  <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{r.confidence}%</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="text-sm font-bold text-slate-700 text-center">I see {result.strokeResults.length} stroke{result.strokeResults.length === 1 ? '' : 's'}:</div>
           {result.strokeResults.map((s) => (
             <div key={s.idx} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">

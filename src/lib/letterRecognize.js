@@ -262,6 +262,68 @@ const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (no
 const START_POS_PENALTY = 0.5;    // per unit of start-point drift beyond the allowance — a stroke that begins somewhere different from the taught path costs more, the "wrong start path" deduction (d's bowl start vs k's midline-right start)
 const HUMP_PENALTY = 0.15;        // per missing/extra hump on a shoulder — the "missing ink" deduction: a 1-hump 'r' matched to a 2-hump 'n' costs 'n' this, because the drawing simply does not contain the second hump 'n' requires
 
+// --- stroke fusion: match N drawn strokes onto an M-stroke template (M ≤ N) ---
+// A student who draws a letter in MORE strokes than taught — a 'k' as a stem
+// plus two separate diagonals, a 'p' as a bowl plus a stem — should still match
+// the taught pathway once their strokes are JOINED IN THE RIGHT ORDER. We try
+// every way to partition the drawn strokes (in every order, for small counts)
+// into M contiguous groups, concatenate each group into one polyline, and
+// DTW-match it to the corresponding template stroke. The best fusion wins. This
+// is the "connect the strokes and fit an ideal pathway, even if drawn with a
+// different stroke count or order" rule.
+function concatStrokes(arr) { const o = []; for (const s of arr) for (const p of s) o.push({ x: p.x, y: p.y }); return o; }
+function rangeN(n) { return Array.from({ length: n }, (_, i) => i); }
+function permutationsOf(a) {
+  if (a.length <= 1) return [a.slice()];
+  const out = [];
+  for (let i = 0; i < a.length; i++) {
+    const rest = a.filter((_, k) => k !== i);
+    for (const p of permutationsOf(rest)) out.push([a[i], ...p]);
+  }
+  return out;
+}
+// All ways to split n items into m contiguous non-empty groups (as group sizes).
+function compositionsOf(n, m) {
+  if (m === 1) return [[n]];
+  const out = [];
+  for (let g = 1; g <= n - (m - 1); g++) for (const r of compositionsOf(n - g, m - 1)) out.push([g, ...r]);
+  return out;
+}
+// Build the fused groups for one (order, sizes) combination. `order` is a list of
+// stroke indices (the draw order to try); `src` is the stroke array to pull from
+// (aligned or original). Returns m concatenated polylines.
+function buildGroups(order, sizes, src) {
+  const out = []; let k = 0;
+  for (const sz of sizes) {
+    const slice = [];
+    for (let i = 0; i < sz; i++) slice.push(src[order[k + i]]);
+    out.push(concatStrokes(slice));
+    k += sz;
+  }
+  return out;
+}
+// Full distance (DTW + all penalties) for one fused grouping: aGroups are the
+// aligned concatenated polylines, dGroups the original-frame ones (for kind
+// classification), matched to the template's M strokes. n = drawn stroke count
+// (for the stroke-count penalty), m = template stroke count.
+function scoreGrouping(aGroups, dGroups, tmpl, n, m, dBox, tBox) {
+  const costs = aGroups.map((g, j) => strokeDtw(g, tmpl[j]));
+  let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
+  dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
+  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
+  for (let j = 0; j < m; j++) {
+    if (!kindsCompatible(strokeKind(dGroups[j]), tmplKind(tmpl, j))) dist += KIND_PENALTY;
+    if (!isDotStroke(dGroups[j]) && !isDotStroke(tmpl[j])) {
+      const sp = Math.hypot(aGroups[j][0].x - tmpl[j][0].x, aGroups[j][0].y - tmpl[j][0].y);
+      if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
+    }
+    const dh = strokeShoulderHumps(dGroups[j]);
+    const th = tmplHumps(tmpl, j);
+    if (dh != null && th != null && dh !== th) dist += HUMP_PENALTY * Math.abs(dh - th);
+  }
+  return dist;
+}
+
 // Per-pair stroke-match costs between a drawing and one template (aligned to the
 // template's bbox). Dots are paired positionally (a dot is a mark, not a path);
 // real strokes are DTW'd in order. Returns the array of per-pair costs so callers
@@ -309,24 +371,41 @@ function pairCosts(drawn, dBox, tmpl) {
   return costs;
 }
 
-// Total distance from a drawing to one template: average per-pair cost, then add
-// the stroke-count penalty and height-class guard.
+// Total distance from a drawing to one template. For n ≥ m and n > 1 we FUSE:
+// try every way to join the drawn strokes (in every order, for small counts)
+// into the template's M strokes, then DTW each fused group to its template
+// stroke. This is what lets a 'k' drawn as 3 strokes (stem + two diagonals)
+// match the 2-stroke 'k' pathway — the two diagonals fuse into the bent stroke.
+// A single drawn stroke, or fewer strokes than the template, uses the ordered
+// un-fused match (with the dot-aware pairing) plus the stroke-count penalty.
 function letterDistance(drawn, dBox, tmpl) {
+  const n = drawn.length, m = tmpl.length;
+  const tBox = bbox(tmpl);
+  if (n >= m && n > 1) {
+    const aligned = alignTo(drawn, dBox, tBox);
+    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    let best = Infinity;
+    for (const order of orders) {
+      for (const sizes of compositionsOf(n, m)) {
+        const aG = buildGroups(order, sizes, aligned);
+        const dG = buildGroups(order, sizes, drawn);
+        const d = scoreGrouping(aG, dG, tmpl, n, m, dBox, tBox);
+        if (d < best) best = d;
+      }
+    }
+    return best;
+  }
+  const aligned = alignTo(drawn, dBox, tBox);
   const costs = pairCosts(drawn, dBox, tmpl);
   if (!costs.length) return Infinity;
-  const tBox = bbox(tmpl);
-  const aligned = alignTo(drawn, dBox, tBox);
   let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
   // unmatched strokes (extra or missing) cost a flat penalty each — this is what
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
-  dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
+  dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   // Per-stroke structural + start-position deductions. A bowl is not a bent
   // chevron even if DTW warps them close (KIND_PENALTY), AND a stroke that begins
-  // somewhere different from the taught path costs more — the "k's second
-  // stroke starts at the midline on the right; d's bowl starts at the
-  // bottom-left" deduction. This fires in the RANKING, not only in the strict
-  // pathway check, so a wrong-start letter can't win on point overlap alone.
+  // somewhere different from the taught path costs more.
   const p = Math.min(aligned.length, tmpl.length);
   for (let i = 0; i < p; i++) {
     if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(tmpl, i))) dist += KIND_PENALTY;
@@ -334,9 +413,6 @@ function letterDistance(drawn, dBox, tmpl) {
       const sp = Math.hypot(aligned[i][0].x - tmpl[i][0].x, aligned[i][0].y - tmpl[i][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
     }
-    // Missing/extra humps (shoulder vs shoulder). A 1-hump 'r' matched to a
-    // 2-hump 'n' costs 'n' HUMP_PENALTY — the drawing lacks the ink 'n' requires,
-    // so 'n' ranks below 'r' for that drawing instead of winning on point overlap.
     const dh = strokeShoulderHumps(drawn[i]);
     const th = tmplHumps(tmpl, i);
     if (dh != null && th != null && dh !== th) dist += HUMP_PENALTY * Math.abs(dh - th);
@@ -393,19 +469,29 @@ export function recognize(drawnStrokes, templates) {
 // a 2-stroke template (l→stem good, but c→arm/crossbar/dot bad — the MAX stays
 // high, so it is NOT one letter). No shape fallback — the group is a letter only
 // if its strokes follow the taught pathway of some same-count template.
-const GROUP_PAIR_DIR = 0.26;    // every stroke pair's DTW at/below this = the group is this letter, directionally
+const GROUP_PAIR_DIR = 0.26;    // every fused stroke pair's DTW at/below this = the group is this letter, directionally
 export function groupFormsLetter(strokesPx, templates) {
   const drawn = normalize(strokesPx);
   if (!drawn.length) return null;
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return null;
+  const n = drawn.length;
   let best = null, bestScore = Infinity;
   for (const t of templates) {
-    if (!t.strokes || drawn.length !== t.strokes.length) continue;
-    const costs = pairCosts(drawn, dBox, t.strokes);
-    if (!costs.length) continue;
-    const maxPair = Math.max(...costs);
-    if (maxPair <= GROUP_PAIR_DIR && maxPair < bestScore) { bestScore = maxPair; best = t.letter; }
+    if (!t.strokes) continue;
+    const m = t.strokes.length;
+    if (n < m) continue;               // can't fuse up to more strokes than were drawn
+    const tBox = bbox(t.strokes);
+    const aligned = alignTo(drawn, dBox, tBox);
+    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    for (const order of orders) {
+      for (const sizes of compositionsOf(n, m)) {
+        const aG = buildGroups(order, sizes, aligned);
+        const costs = aG.map((g, j) => strokeDtw(g, t.strokes[j]));
+        const maxPair = Math.max(...costs);
+        if (maxPair <= GROUP_PAIR_DIR && maxPair < bestScore) { bestScore = maxPair; best = t.letter; }
+      }
+    }
   }
   return best;
 }
@@ -428,43 +514,57 @@ function startDir(stroke) {
   return { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
 }
 
-export function pathwayMatch(drawnStrokes, template) {
-  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
-  const drawn = normalize(drawnStrokes);
-  if (drawn.length !== template.strokes.length) return false;
-  const dBox = bbox(drawn);
-  const aligned = alignTo(drawn, dBox, bbox(template.strokes));
+// Does one fused grouping follow the template's taught pathway cleanly? Every
+// fused group must match its template stroke in shape (DTW), starting direction,
+// start position, structural kind, and hump count. Shared by the n==m and the
+// fused (n>m) paths.
+function fusedPathwayOk(aGroups, dGroups, template) {
+  const m = template.strokes.length;
   let sum = 0;
-  for (let i = 0; i < drawn.length; i++) {
-    const a = aligned[i], b = template.strokes[i];
+  for (let i = 0; i < m; i++) {
+    const a = aGroups[i], b = template.strokes[i];
     const c = strokeDtw(a, b);
     if (c > PATHWAY_DIST) return false;
     sum += c;
-    // START DIRECTION must agree (DTW is monotonic so a reversed stroke already
-    // scores poorly; this makes the start explicit).
     const da = startDir(a), db = startDir(b);
     if (da.x * db.x + da.y * db.y < DIR_THRESH) return false;
-    // START POINT must be near the template's start — 'k' second stroke starts
-    // at the midline on the stem; a 'b' bowl starts mid-stem. The start-position
-    // gap rejects the false positive even when DTW warps the rest of the stroke
-    // close and both head "to the right."
-    const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
-    if (startPos > PATHWAY_START_POS) return false;
-    // STRUCTURAL KIND must agree — a closed bowl is not an open bent chevron,
-    // no matter how well the points align. This is "recognize stroke" applied
-    // inside "recognize letter": the per-stroke shape must match the taught
-    // stroke's shape, not just cover the same area.
-    if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(template.strokes, i))) return false;
-    // HUMP COUNT must agree (shoulder vs shoulder). A 1-hump 'r' cannot follow the
-    // 2-hump 'n' pathway — the second hump 'n' requires is simply not in the ink.
-    // DTW + anisotropic alignment can stretch over the absent hump and score
-    // close, so this explicit count is what stops the r→n "correct pathway" false
-    // positive. Symmetric: a 2-hump drawing is equally not the 1-hump 'r'.
-    const dh = strokeShoulderHumps(drawn[i]);
+    if (!isDotStroke(dGroups[i]) && !isDotStroke(b)) {
+      const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
+      if (startPos > PATHWAY_START_POS) return false;
+    }
+    if (!kindsCompatible(strokeKind(dGroups[i]), tmplKind(template.strokes, i))) return false;
+    const dh = strokeShoulderHumps(dGroups[i]);
     const th = tmplHumps(template.strokes, i);
     if (dh != null && th != null && dh !== th) return false;
   }
-  return sum / drawn.length < PATHWAY_DIST;
+  return sum / m < PATHWAY_DIST;
+}
+
+export function pathwayMatch(drawnStrokes, template) {
+  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
+  const drawn = normalize(drawnStrokes);
+  const n = drawn.length;
+  if (!n) return false;
+  const m = template.strokes.length;
+  const dBox = bbox(drawn);
+  const tBox = bbox(template.strokes);
+  const aligned = alignTo(drawn, dBox, tBox);
+  // Fused: try joining the strokes (any order, for small counts) into the
+  // template's M strokes. A 'k' drawn as 3 strokes follows the 'k' pathway once
+  // the two diagonals are fused into the bent stroke.
+  if (n >= m && n > 1) {
+    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    for (const order of orders) {
+      for (const sizes of compositionsOf(n, m)) {
+        const aG = buildGroups(order, sizes, aligned);
+        const dG = buildGroups(order, sizes, drawn);
+        if (fusedPathwayOk(aG, dG, template)) return true;
+      }
+    }
+    return false;
+  }
+  if (n !== m) return false;
+  return fusedPathwayOk(aligned, drawn, template);
 }
 
 // Is a DTW winner structurally plausible for what was drawn? Every drawn
