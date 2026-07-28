@@ -188,6 +188,47 @@ function inferBowlStem(cls, strokes, exts) {
   };
 }
 
+// A vertical stem with a small shoulder (a down-then-up retrace) or a small
+// arch attached at the TOP, on the right, that does NOT come back down to the
+// baseline — a 2-stroke 'r': a straight stem down, then the little hook at the
+// top. The DTW stroke-joining fusion misreads this as 'k' (the shoulder vaguely
+// resembles the k's diagonal arm), so this structural rule — built from the
+// per-stroke "is it a vertical line?" test — overrides it. A full-height arch
+// that returns to the baseline is 'h'/'n', not 'r', so it is rejected here and
+// left to the DTW/pathway matcher.
+function inferStemShoulder(cls, strokes, exts) {
+  if (cls.length !== 2) return null;
+  const stemIdx = cls.findIndex((c) => c.kind === 'vertical');
+  if (stemIdx < 0) return null;
+  const shIdx = stemIdx === 0 ? 1 : 0;
+  const stem = exts[stemIdx], sh = exts[shIdx];
+  const shCls = cls[shIdx];
+  // stem must be a real stem reaching the baseline (not a short tick)
+  if (stem.botGuide.key !== 'baseline' && stem.botGuide.key !== 'descender') return null;
+  // the shoulder stroke: a shoulder retrace OR a small arch (a curve with ≤1
+  // hump, not an S-curve, not a closed loop, not a cup). A straight line, a
+  // bowl, or a diagonal is not a hook.
+  const isShoulder = shCls.kind === 'shoulder' && (shCls.shoulder?.humps || 0) <= 1;
+  const cv = shCls.curve;
+  const isArch = shCls.kind === 'curve' && cv && !cv.sCurve && !cv.closed && !cv.cup && (cv.humps || 1) <= 1;
+  if (!isShoulder && !isArch) return null;
+  // the hook does NOT reach the baseline (a full arch down to the baseline is
+  // 'h'/'n', not 'r')
+  if (sh.botGuide.key === 'baseline' || sh.botGuide.key === 'descender') return null;
+  // the hook touches/overlaps the stem and sits on its right
+  const xGap = Math.max(stem.minX - sh.maxX, sh.minX - stem.maxX, 0);
+  if (xGap > 0.10) return null;
+  if (sh.cx < stem.cx - 0.03) return null;
+  // the hook starts near the top of the stem (r's hook is at the top, not mid-stroke)
+  if (sh.minY > stem.minY + 0.20) return null;
+  return {
+    letter: 'r',
+    formation: 'approximate',
+    summary: "Looks like an 'r' — a vertical stem with a small hook at the top right.",
+    note: "Reads as 'r' from the stem + top hook, not a taught-pathway match.",
+  };
+}
+
 // Given raw strokes and their per-stroke classifications, return how they
 // interact: the pairwise crossings and the best letter inference (if any).
 export function analyzeStrokesInteraction(strokes, strokeResults) {
@@ -201,7 +242,8 @@ export function analyzeStrokesInteraction(strokes, strokeResults) {
       if (c) crossings.push({ ...c, a: i, b: j });
     }
   }
-  // More interaction rules can be added here (t-crossings for 't', etc.).
-  const inferred = inferFromDiagonals(cls, strokes, exts, crossings) || inferBowlStem(cls, strokes, exts);
+  const inferred = inferFromDiagonals(cls, strokes, exts, crossings)
+    || inferStemShoulder(cls, strokes, exts)
+    || inferBowlStem(cls, strokes, exts);
   return { crossings, inferred };
 }
