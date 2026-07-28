@@ -888,28 +888,20 @@ export function pathwayMatchDebug(drawnStrokes, template) {
   // Gate A: a multi-stroke template whose components the drawing doesn't
   // contain can't be a followed pathway — the crossbar/diagonal/dot is missing.
   if (!strokeCountAllowed(n, m, template.strokes)) return `count ${n}/${m}`;
+  // GREEN "correct pathway" requires the EXACT taught stroke count. When the
+  // drawing has MORE strokes than the template, recognition may still match by
+  // JOINING strokes (fusion) — but a joined result is "right letter, wrong
+  // pathway", not a followed pathway. So n > m never returns '' here, even when
+  // the fused shapes happen to line up. This stops a 3-stroke 'e' from showing a
+  // green 'x' (2-stroke) badge: 'x' can still be the guess, but the badge flags
+  // that the ink was joined, not drawn as taught. (A drawing with FEWER strokes
+  // than the template already failed Gate A above unless the missing stroke is a
+  // dot — and a missing dot is still not the taught pathway, so n < m also stays
+  // non-green.)
+  if (n !== m) return `count ${n}/${m}`;
   const dBox = bbox(drawn);
   const tBox = bbox(template.strokes);
   const aligned = alignTo(drawn, dBox, tBox);
-  // Fused: try joining the strokes (any order, for small counts) into the
-  // template's M strokes. A 'k' drawn as 3 strokes follows the 'k' pathway once
-  // the two diagonals are fused into the bent stroke.
-  if (n >= m && n > 1) {
-    const orders = n <= 4 ? permutationsOf(rangeN(n)) : [rangeN(n)];
-    let firstReason = '';
-    for (const order of orders) {
-      for (const sizes of compositionsOf(n, m)) {
-        const aG = buildGroups(order, sizes, aligned);
-        const dG = buildGroups(order, sizes, drawn);
-        const dGS = buildGroupedStrokes(order, sizes, drawn);
-        const r = fusedPathwayOk(aG, dG, dGS, template);
-        if (r === '') return '';
-        if (!firstReason) firstReason = r;   // keep the first (correct-order) reason
-      }
-    }
-    return firstReason || 'no-fusion-match';
-  }
-  if (n !== m) return `count ${n}/${m}`;
   return fusedPathwayOk(aligned, drawn, drawn.map((s) => [s]), template);
 }
 
