@@ -14,6 +14,7 @@
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { GUIDES } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
+import { drawingHasCrossbar } from '@/lib/letterRecognize';
 
 const ASC = 0.22;   // above this y = reaches the ascender
 const DESC = 0.78;  // below this y = reaches the descender
@@ -87,7 +88,11 @@ export function inferSingleStrokeLetter(cls, raw) {
   }
   if (k === 'bowl') {
     const b = cls.bowl || {};
-    if (b.eye) return guess('e', 'a closed loop with a horizontal crossbar (the eye)');
+    // The eye flag can be suppressed when the stroke has a near-vertical lead-in
+    // (an 'e' drawn bottom-to-top reads as "stem + bowl"), so also detect the
+    // crossbar geometrically — a straight horizontal bar through the loop is an
+    // 'e' regardless of how the stroke was entered.
+    if (b.eye || drawingHasCrossbar([raw])) return guess('e', 'a closed loop with a horizontal crossbar (the eye)');
     const hasStem = b.leadFrac > 0.15 || b.tailFrac > 0.15;
     if (ascends) {
       const side = stemSideOfBowl(raw, b);
@@ -102,7 +107,7 @@ export function inferSingleStrokeLetter(cls, raw) {
   }
   if (k === 'curve') {
     const cv = cls.curve || {};
-    if (cv.closed) return guess('o', 'a closed loop');
+    if (cv.closed) return drawingHasCrossbar([raw]) ? guess('e', 'a closed loop with a horizontal crossbar') : guess('o', 'a closed loop');
     if (cv.sCurve) return guess('s', 'an S-curve');
     if (cv.cup) return guess('u', 'a curve opening upward');
     const h = cv.humps || 1;

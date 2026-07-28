@@ -230,7 +230,11 @@ function templateHasDot(tmplStrokes) {
 }
 function strokeCountAllowed(n, m, tmplStrokes) {
   if (m < 2) return true;
-  if (n === m || n === m + 1) return true;
+  // Fusion joins N drawn strokes onto M template strokes (M ≤ N), so ANY n ≥ m is
+  // allowed — a 4-stroke 'x' (each diagonal split in two) fuses onto the 2-stroke
+  // 'x' template. Only n < m is restricted (a missing component can't be stretched
+  // into existence), and even then only when the missing stroke is a dot.
+  if (n >= m) return true;
   if (n === m - 1 && templateHasDot(tmplStrokes)) return true;
   return false;
 }
@@ -349,6 +353,16 @@ const KIND_PENALTY = 0.18;        // per mismatched stroke pair — pushes a str
 const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (normalized) distance of the template's start
 const START_POS_PENALTY = 0.5;    // per unit of start-point drift beyond the allowance — a stroke that begins somewhere different from the taught path costs more, the "wrong start path" deduction (d's bowl start vs k's midline-right start)
 const HUMP_PENALTY = 0.15;        // per missing/extra hump on a shoulder — the "missing ink" deduction: a 1-hump 'r' matched to a 2-hump 'n' costs 'n' this, because the drawing simply does not contain the second hump 'n' requires
+const LINE_ANGLE_TOL = 30;       // a drawn line and a template line must point within this many degrees — a 40° diagonal is not an 85° vertical stem (r/n/h), and a crossbar is not a diagonal. The user's "gates for verticals/horizontals/diagonals": the three line KINDS are no longer freely interchangeable.
+// Chord angle (0–90° from horizontal) of a stroke's net displacement — the line
+// direction. Used by the line-angle gate so a diagonal can't pose as a vertical.
+function chordAngleDeg(strokeNorm) {
+  if (!strokeNorm || strokeNorm.length < 2) return null;
+  const a = strokeNorm[0], b = strokeNorm[strokeNorm.length - 1];
+  const ax = Math.abs(b.x - a.x), ay = Math.abs(b.y - a.y);
+  if (ax < 1e-4 && ay < 1e-4) return null;
+  return Math.atan2(ay, ax) * 180 / Math.PI;
+}
 
 // --- stroke fusion: match N drawn strokes onto an M-stroke template (M ≤ N) ---
 // A student who draws a letter in MORE strokes than taught — a 'k' as a stem
@@ -413,7 +427,16 @@ function scoreGrouping(aGroups, dGroups, dGroupStrokes, tmpl, n, m, dBox, tBox) 
   dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   for (let j = 0; j < m; j++) {
-    if (!kindsCompatible(fusedGroupKind(dGroupStrokes[j]), tmplKind(tmpl, j))) dist += KIND_PENALTY;
+    const dk = fusedGroupKind(dGroupStrokes[j]);
+    const tk = tmplKind(tmpl, j);
+    if (!kindsCompatible(dk, tk)) dist += KIND_PENALTY;
+    // Line-angle gate: a drawn line and a template line must point the same way.
+    // A 40° diagonal is not an 85° vertical stem (r/n/h), and a crossbar is not a
+    // diagonal — so a clearly-wrong line direction excludes this fusion outright.
+    if (LINE_KINDS.has(dk) && LINE_KINDS.has(tk)) {
+      const da = chordAngleDeg(dGroups[j]), ta = chordAngleDeg(tmpl[j]);
+      if (da != null && ta != null && Math.abs(da - ta) > LINE_ANGLE_TOL) return Infinity;
+    }
     if (!isDotStroke(dGroups[j]) && !isDotStroke(tmpl[j])) {
       const sp = Math.hypot(aGroups[j][0].x - tmpl[j][0].x, aGroups[j][0].y - tmpl[j][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
@@ -484,7 +507,7 @@ function letterDistance(drawn, dBox, tmpl) {
   const tBox = bbox(tmpl);
   if (n >= m && n > 1) {
     const aligned = alignTo(drawn, dBox, tBox);
-    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    const orders = n <= 4 ? permutationsOf(rangeN(n)) : [rangeN(n)];
     let best = Infinity;
     for (const order of orders) {
       for (const sizes of compositionsOf(n, m)) {
@@ -510,7 +533,12 @@ function letterDistance(drawn, dBox, tmpl) {
   // somewhere different from the taught path costs more.
   const p = Math.min(aligned.length, tmpl.length);
   for (let i = 0; i < p; i++) {
-    if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(tmpl, i))) dist += KIND_PENALTY;
+    const dk = strokeKind(drawn[i]), tk = tmplKind(tmpl, i);
+    if (!kindsCompatible(dk, tk)) dist += KIND_PENALTY;
+    if (LINE_KINDS.has(dk) && LINE_KINDS.has(tk)) {
+      const da = chordAngleDeg(drawn[i]), ta = chordAngleDeg(tmpl[i]);
+      if (da != null && ta != null && Math.abs(da - ta) > LINE_ANGLE_TOL) return Infinity;
+    }
     if (!isDotStroke(drawn[i]) && !isDotStroke(tmpl[i])) {
       const sp = Math.hypot(aligned[i][0].x - tmpl[i][0].x, aligned[i][0].y - tmpl[i][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
@@ -582,6 +610,9 @@ function hasECrossbar(drawnNorm) {
   }
   return end();
 }
+
+// px-stroke wrapper for callers that have canvas-pixel strokes (not normalized).
+export function drawingHasCrossbar(pxStrokes) { return hasECrossbar(normalize(pxStrokes)); }
 
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
@@ -726,7 +757,7 @@ export function groupFormsLetter(strokesPx, templates) {
     if (n < m) continue;               // can't fuse up to more strokes than were drawn
     const tBox = bbox(t.strokes);
     const aligned = alignTo(drawn, dBox, tBox);
-    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    const orders = n <= 4 ? permutationsOf(rangeN(n)) : [rangeN(n)];
     for (const order of orders) {
       for (const sizes of compositionsOf(n, m)) {
         const aG = buildGroups(order, sizes, aligned);
@@ -838,7 +869,7 @@ export function pathwayMatchDebug(drawnStrokes, template) {
   // template's M strokes. A 'k' drawn as 3 strokes follows the 'k' pathway once
   // the two diagonals are fused into the bent stroke.
   if (n >= m && n > 1) {
-    const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    const orders = n <= 4 ? permutationsOf(rangeN(n)) : [rangeN(n)];
     let firstReason = '';
     for (const order of orders) {
       for (const sizes of compositionsOf(n, m)) {
