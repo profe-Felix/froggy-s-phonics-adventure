@@ -194,11 +194,22 @@ const LINE_KINDS = new Set(['vertical', 'horizontal', 'diagonal']);
 // differ only by closure). Everything else — bowl vs bent, bowl vs shoulder,
 // bent vs curve — is a real structural mismatch.
 function kindsCompatible(ka, kb) {
-  if (ka === 'dot' || kb === 'dot') return true;   // dots are matched by position, not shape
   if (ka === kb) return true;
+  // A dot is a defining MARK, not a stroke shape — it is NOT structurally
+  // compatible with any real stroke. A bowl of extra ink where a dot should be
+  // (a 2-stroke 'a' mis-read as 'i') is a real mismatch: 'i' REQUIRES a dot
+  // above the midline, and a bowl of ink below is not that dot. (Dots are still
+  // paired positionally inside pairCosts; this only governs the structural-kind
+  // penalty, so a genuine dot-vs-dot pair stays compatible via the ka===kb rule.)
+  if (ka === 'dot' || kb === 'dot') return false;
+  // Straight stems are interchangeable (a slightly tilted vertical is still a
+  // stem). Every other shape is ITSELF only — a bowl is a closed loop, a curve
+  // is an open arc, a bent is an open chevron; they are not each other. The old
+  // bowl|curve allowance let a closed 'd'/'b' bowl match 'k's open chevron (when
+  // the chevron classified as a curve), which is exactly the false positive we
+  // are removing: features must be accurately recognized.
   if (LINE_KINDS.has(ka) && LINE_KINDS.has(kb)) return true;
-  const pair = [ka, kb].sort().join('|');
-  return pair === 'bowl|curve';
+  return false;
 }
 // Classify a normalized (0-1) stroke. classifyStroke takes canvas px and divides
 // by CANVAS_W/H, so scale the normalized points back to px first.
@@ -216,6 +227,7 @@ function tmplKind(tmpl, i) {
 }
 const KIND_PENALTY = 0.18;        // per mismatched stroke pair — pushes a structurally-wrong letter down in the ranking
 const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (normalized) distance of the template's start
+const START_POS_PENALTY = 0.5;    // per unit of start-point drift beyond the allowance — a stroke that begins somewhere different from the taught path costs more, the "wrong start path" deduction (d's bowl start vs k's midline-right start)
 
 // Per-pair stroke-match costs between a drawing and one template (aligned to the
 // template's bbox). Dots are paired positionally (a dot is a mark, not a path);
@@ -270,18 +282,25 @@ function letterDistance(drawn, dBox, tmpl) {
   const costs = pairCosts(drawn, dBox, tmpl);
   if (!costs.length) return Infinity;
   const tBox = bbox(tmpl);
+  const aligned = alignTo(drawn, dBox, tBox);
   let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
   // unmatched strokes (extra or missing) cost a flat penalty each — this is what
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
   dist += STROKE_COUNT_PENALTY * Math.abs(drawn.length - tmpl.length);
   if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
-  // Structural-kind penalty: a bowl is not a bent chevron even if DTW warps them
-  // close. This is what stops a 'b' (bowl) from ranking as a 'k' (bent) — the two
-  // "hit a lot of the same points" after anisotropic alignment, but the second
-  // stroke is a closed loop in one and an open chevron in the other.
-  const p = Math.min(drawn.length, tmpl.length);
+  // Per-stroke structural + start-position deductions. A bowl is not a bent
+  // chevron even if DTW warps them close (KIND_PENALTY), AND a stroke that begins
+  // somewhere different from the taught path costs more — the "k's second
+  // stroke starts at the midline on the right; d's bowl starts at the
+  // bottom-left" deduction. This fires in the RANKING, not only in the strict
+  // pathway check, so a wrong-start letter can't win on point overlap alone.
+  const p = Math.min(aligned.length, tmpl.length);
   for (let i = 0; i < p; i++) {
     if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(tmpl, i))) dist += KIND_PENALTY;
+    if (!isDotStroke(drawn[i]) && !isDotStroke(tmpl[i])) {
+      const sp = Math.hypot(aligned[i][0].x - tmpl[i][0].x, aligned[i][0].y - tmpl[i][0].y);
+      if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
+    }
   }
   return dist;
 }

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize, pathwayMatch, groupFormsLetter, strokeKindsPlausible } from '@/lib/letterRecognize';
+import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
 import { inferLetter } from '@/lib/strokeInfer';
@@ -302,38 +302,18 @@ export default function LetterRecognitionCanvas({ templates }) {
       }
       const segments = groups.map((g) => {
         const ranked = recognize(g, templates);
-        const cls = g.map((s) => classifyStroke(s));
-        const structural = inferLetter(g, cls);
         const dtwLetter = ranked[0] ? ranked[0].letter : '?';
         const dtwConf = ranked[0] ? ranked[0].confidence : 0;
-        // Is the DTW winner structurally plausible? Each drawn stroke's structural
-        // kind must match the winner template's corresponding stroke kind. A 'b'
-        // bowl (a closed curve) hits a lot of the 'k' chevron's points under DTW +
-        // anisotropic alignment, but a bowl is not a bent chevron — so 'k' is NOT
-        // plausible for a 'b' drawing, even at 100% DTW. Reject the winner and let
-        // the structural inference (bowl + stem → 'b') take over.
-        const dtwPlausible = dtwLetter !== '?'
-          ? templates.filter((t) => t.letter === dtwLetter).some((t) => strokeKindsPlausible(g, t))
-          : false;
-        // When the template (DTW) match is weak OR structurally implausible, a
-        // clear structural read is more trustworthy: a 'u' whose closest template
-        // is 'v', a correct 'a' at 18%, or a 'b' bowl that DTW mis-reads as 'k'.
-        const weakDtw = dtwConf < YELLOW_CONF || !dtwPlausible;
-        const letter = structural && weakDtw ? structural.letter : dtwLetter;
-        // Pathway is correct if the drawn strokes match the taught path for the
-        // letter we're reporting (not the DTW runner-up, which can be a false
-        // positive — a 'u' matching the 'v' pathway).
-        const sameLetter = letter !== '?' ? templates.filter((t) => t.letter === letter) : [];
+        // DTW is the SOLE letter authority. The hand-coded structural guesser that
+        // used to override DTW when it was weak HALLUCINATED features — a plain
+        // loop became an 'e' with a crossbar (the eye) that was never drawn, a 'W'
+        // became "a bowl with a stem (a)". DTW only compares ink that is actually
+        // there against the taught paths, so it is the accurate feature compare.
+        // The shown confidence is the real DTW softmax — no artificial floor — so
+        // a weak match honestly reads as weak instead of being painted "72% sure".
+        const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(g, t));
-        // A structural read with no matching taught path is "inferred" — credited,
-        // with a formation note (correct letter, not the taught stroke path).
-        let inferred = null;
-        if (structural && weakDtw && !pathway) inferred = structural;
-        // A correct pathway or a structural read is a confident result — floor
-        // the shown confidence so a correct letter isn't "unsure" just because
-        // the DTW softmax stayed low.
-        const confidence = pathway ? Math.max(dtwConf, 72) : inferred ? Math.max(dtwConf, 65) : dtwConf;
-        return { letter, confidence, ranked, pathway, inferred };
+        return { letter: dtwLetter, confidence: dtwConf, ranked, pathway, inferred: null };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
