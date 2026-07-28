@@ -396,12 +396,20 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // dense point (no gaps), while a shortcut drawn across a curve misses
       // the curve's extremes and stays below the completion threshold.
       const covFrom = Math.max(0, pathProgressRef.current - 2);
+      // Cap the forward scan to a small window ahead of progress — same window
+      // the nearest-point search uses. Scanning all the way to the end lets a
+      // nearly-closed letter mark a LATER part of the path that happens to sit
+      // near the pen (the 'a' stem-top is spatially above its bowl, so a pen on
+      // the bowl covers the stem it hasn't drawn yet), which is the coverage
+      // "traveling past where it was supposed to." The window follows the pen,
+      // so only points the pen is actually reaching get marked.
+      const covTo = Math.min(densePath.length, pathProgressRef.current + 8);
       const covSteps = Math.max(1, Math.ceil(moveDist / (COVERAGE_RADIUS * 0.6)));
       for (let s = 0; s <= covSteps; s++) {
         const t = s / covSteps;
         const sx = prev ? prev.x + (pos.x - prev.x) * t : pos.x;
         const sy = prev ? prev.y + (pos.y - prev.y) * t : pos.y;
-        for (let k = covFrom; k < densePath.length; k++) {
+        for (let k = covFrom; k < covTo; k++) {
           if (Math.hypot(sx - densePath[k].x, sy - densePath[k].y) <= COVERAGE_RADIUS) {
             visitedRef.current.add(k);
           }
