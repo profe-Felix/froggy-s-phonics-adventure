@@ -806,7 +806,6 @@ export function recognize(drawnStrokes, templates) {
   const n = drawn.length;
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
-  const drawHasDiag = hasDiagonalRun(drawn);
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
@@ -814,17 +813,20 @@ export function recognize(drawnStrokes, templates) {
       if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
       if (!templateHasHorizontalRun(t)) excluded = true;
       if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+    } else if (templateHasHorizontalRun(t)) {
+      // Symmetric crossbar gate: a template whose taught pathway contains a
+      // straight horizontal run (t/f crossbar, e middle bar, z bars) cannot be the
+      // answer when the drawing contains NO horizontal bar — the crossbar ink those
+      // letters REQUIRE is absent. A 2-stroke 'h' (stem + arch, no horizontal line)
+      // must not read as 't' (stem + crossbar): the 't' crossbar is structural ink
+      // the 'h' drawing simply lacks. Asymmetric: only absence is penalized, so a
+      // real 't'/'e' (whose bar triggers drawHasBar) is never excluded.
+      excluded = true;
     }
-    // Diagonal gate: a template whose taught pathway contains a straight diagonal
-    // run (k leg, v/w/x arms, y, z connector) cannot be the answer when the drawing
-    // contains NO straight diagonal — the diagonal ink those letters require is
-    // simply absent (an 'h' arch has no diagonal). Asymmetric: only absence is
-    // penalized, so a real 'k' (which has diagonals) is never excluded.
-    if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
     // End-direction gate: a template whose stroke ENDS in a diagonal kick/exit
-    // (k leg, v/w/x/y, c/e/s) cannot be the answer when NO drawn stroke ends
-    // diagonally — the hump ends in a VERTICAL stem, not a kick. The diagonal-run
-    // gate is tripped by the hump's up-right start; the END direction is invariant.
+    // (k leg, v/w/x/y) cannot be the answer when NO drawn stroke ends diagonally
+    // — the 'h' hump ends in a VERTICAL stem, not a kick. This is the robust
+    // h→k discriminator (the 'k' leg ends diagonally; the 'h' stem ends vertical).
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     return {
       letter: t.letter,
@@ -924,7 +926,6 @@ export function shapeGuess(drawnStrokes, templates) {
   const n = drawn.length;
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
-  const drawHasDiag = hasDiagonalRun(drawn);
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
@@ -932,16 +933,15 @@ export function shapeGuess(drawnStrokes, templates) {
       if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
       if (!templateHasHorizontalRun(t)) excluded = true;
       if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+    } else if (templateHasHorizontalRun(t)) {
+      // Symmetric crossbar gate (see recognize): a template with a horizontal
+      // run (t/f/e/z) cannot be the SHAPE of a drawing with NO horizontal bar —
+      // the crossbar ink is absent. Stops a 2-stroke 'h' reading as 't'.
+      excluded = true;
     }
-    // Diagonal gate (see recognize): a template requiring a diagonal run is
-    // excluded when the drawing has no straight diagonal — the 'h'→'k' shape
-    // confusion. Shape IDENTITY still drops 'k' for an 'h' drawing because the
-    // diagonal ink is absent; a real 'k' drawing keeps its diagonals.
-    if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
     // End-direction gate (see recognize): the 'h' hump ends in a vertical stem,
     // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
-    // end when no drawn stroke ends diagonally. Robust where the diagonal-run
-    // gate is tripped by the hump's up-right start.
+    // end when no drawn stroke ends diagonally.
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     return {
       letter: t.letter,
