@@ -764,6 +764,40 @@ function templateHasDiagonalRun(t) {
 // px-stroke wrapper for callers that have canvas-pixel strokes (not normalized).
 export function drawingHasCrossbar(pxStrokes) { return hasECrossbar(normalize(pxStrokes)); }
 
+// --- END-DIRECTION gate (the robust h→k discriminator) ---
+// The diagonal-run gate above is tripped by a hump's up-right START: a smooth
+// 'h' hump begins by going up-and-to-the-right, which registers a short diagonal
+// run, so the gate decides "the drawing has a diagonal" and lets 'k' through.
+// The RELIABLE structural difference is the END direction — the signal the stroke
+// recognizer already reports ("a curve… that straightens into a vertical stem"):
+// the 'h' hump ENDS in a VERTICAL descent (the right stem of the 'h'), while the
+// 'k' leg ENDS in a DIAGONAL kick. So when a template has a stroke that ends
+// DIAGONALLY (the k leg, the v/w/x/y arms, the c/e/s sideways exit) but NO drawn
+// stroke ends diagonally, the template requires a kick/exit the drawing simply
+// lacks — exclude it. Asymmetric (only "template needs a diagonal end, drawing
+// has none"): a real 'k' drawing HAS a diagonal end so 'k' is never excluded, and
+// a vertical-ending template ('h','n','m','r','u'…) is never excluded for a
+// diagonal drawing. Dots are marks with no direction and are skipped. The 'k'
+// template leg classifies as a smooth 'curve' (not 'bent'), so the structural-
+// kind gate cannot separate it from the hump — but its diagonal END is invariant.
+const END_VERT_X = 0.25;
+const END_DIAG_X = 0.45;
+const END_DIAG_Y = 0.30;
+function endIsVertical(d) { return Math.abs(d.x) <= END_VERT_X; }
+function endIsDiagonal(d) { return Math.abs(d.x) >= END_DIAG_X && Math.abs(d.y) >= END_DIAG_Y; }
+function strokeEndsDiagonal(stroke) {
+  if (!stroke || stroke.length < 2 || isDotStroke(stroke)) return false;
+  return endIsDiagonal(endDir(stroke));
+}
+const _endDiagCache = new WeakMap();
+function templateEndsDiagonal(t) {
+  if (_endDiagCache.has(t)) return _endDiagCache.get(t);
+  const v = (t.strokes || []).some(strokeEndsDiagonal);
+  _endDiagCache.set(t, v);
+  return v;
+}
+function drawingEndsDiagonal(drawn) { return drawn.some(strokeEndsDiagonal); }
+
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawn = normalize(drawnStrokes);
@@ -773,6 +807,7 @@ export function recognize(drawnStrokes, templates) {
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
   const drawHasDiag = hasDiagonalRun(drawn);
+  const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
     if (drawHasBar) {
@@ -786,6 +821,11 @@ export function recognize(drawnStrokes, templates) {
     // simply absent (an 'h' arch has no diagonal). Asymmetric: only absence is
     // penalized, so a real 'k' (which has diagonals) is never excluded.
     if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
+    // End-direction gate: a template whose stroke ENDS in a diagonal kick/exit
+    // (k leg, v/w/x/y, c/e/s) cannot be the answer when NO drawn stroke ends
+    // diagonally — the hump ends in a VERTICAL stem, not a kick. The diagonal-run
+    // gate is tripped by the hump's up-right start; the END direction is invariant.
+    if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
@@ -885,6 +925,7 @@ export function shapeGuess(drawnStrokes, templates) {
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
   const drawHasDiag = hasDiagonalRun(drawn);
+  const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
     if (drawHasBar) {
@@ -897,6 +938,11 @@ export function shapeGuess(drawnStrokes, templates) {
     // confusion. Shape IDENTITY still drops 'k' for an 'h' drawing because the
     // diagonal ink is absent; a real 'k' drawing keeps its diagonals.
     if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
+    // End-direction gate (see recognize): the 'h' hump ends in a vertical stem,
+    // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
+    // end when no drawn stroke ends diagonally. Robust where the diagonal-run
+    // gate is tripped by the hump's up-right start.
+    if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
