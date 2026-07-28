@@ -9,6 +9,7 @@ const FWD_RETRACE_RADIUS = 95; // px — retraced letters (b stem, a stem, d/h/r
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COMPLETE_FRAC = 0.68; // fraction of ideal-path points the stroke must actually pass near to complete
+const COVERAGE_RADIUS = 30; // px — mark every dense point within this of the pen (spatial coverage), so a clean trace fills the path even where the nearest-index stalls (closed bowls, retraces)
 
 function scale(pt) {
   if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
@@ -336,8 +337,21 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // the densely-sampled points, so it can't fake completion the way a lone
       // "furthest index" jump could. Mark a small window around the nearest
       // index so normal pen speed still fills the path in.
-      const lo = Math.max(0, nearestIdx - 1), hi = Math.min(densePath.length - 1, nearestIdx + 1);
-      for (let k = lo; k <= hi; k++) visitedRef.current.add(k);
+      // Coverage: mark every dense point the pen has passed NEAR (spatial),
+      // not just a small index window around the nearest index. On a retrace
+      // or a closed bowl (b, d, a, r) the global-nearest index can stall in
+      // already-visited territory for the whole second half of the stroke —
+      // the earlier copy of the geometry sits at the same spot and wins the
+      // "nearest" search — so an index-window would leave the second half
+      // unmarked and a PERFECT trace would barely reach the threshold (then
+      // fail on any hand wobble). Spatial marking marks whichever dense points
+      // the pen actually passes over, so a clean trace reliably fills the path.
+      // A straight-line cheat only touches the small cluster of points near the
+      // line, so it stays well below the threshold; reverse-scribble cheats
+      // are still caught by the direction gate above.
+      for (let k = 0; k < densePath.length; k++) {
+        if (dist(pos, densePath[k]) <= COVERAGE_RADIUS) visitedRef.current.add(k);
+      }
       pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
 
       // Completed once the stroke has covered enough of the ideal path → prompt to lift.
