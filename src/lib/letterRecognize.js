@@ -585,18 +585,36 @@ const SOFTMAX_T = 0.025;  // softmax temperature: sharp enough that a clean lett
 const CROSSBAR_W_FRAC = 0.50;     // the bar must span >= half the drawing width — an 'o' arc flattens over only ~32%
 const CROSSBAR_STRAIGHT = 0.08;   // over a long run the bar's y varies < this fraction of the height — a curved bowl edge deviates more
 const NO_CROSSBAR_BOWLS = new Set(['o', 'a', 'd', 'g', 'q', 'b', 'p']);
-function hasECrossbar(drawnNorm) {
+// Letters whose horizontal bar sits at the MIDLINE (top of x-height): 't' and 'f'.
+// An 'e' bar sits in the MIDDLE of the loop — clearly below the midline, between
+// midline (0.367) and baseline (0.633). So a crossbar detected in that lower band
+// is an 'e' bar and cannot be 't'/'f'; a crossbar at/above the midline is a 't'/'f'
+// bar. This is the user's rule: "the horizontal stroke between midline and baseline
+// is unique to 'e'." CROSSBAR_LOW_MIN is the y below which a bar counts as low
+// (e-position) — set at 0.43, just under the 'e' middle (~0.50) and above the
+// 't' midline (0.367), so the two do not collide.
+const CROSSBAR_LOW_MIN = 0.43;
+const NO_LOW_CROSSBAR = new Set(['t', 'f']);
+// Detect a straight horizontal crossbar and return { present, y } — y is the
+// average y of the longest qualifying straight run (normalized, 0=top). Callers
+// use `present` as a boolean AND `y` to decide whether the bar is low (e) or
+// high (t/f).
+function crossbarInfo(drawnNorm) {
   const pts = [];
   for (const s of drawnNorm) if (s) for (const p of s) pts.push(p);
-  if (pts.length < 4) return false;
+  if (pts.length < 4) return { present: false, y: null };
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
   const w = maxX - minX, h = maxY - minY;
-  if (w < 0.05 || h < 0.05) return false;
+  if (w < 0.05 || h < 0.05) return { present: false, y: null };
+  // Track the longest qualifying run so its midpoint y is the bar's position.
+  let best = { dx: 0, y: null };
   let runDx = 0, runMinY = Infinity, runMaxY = -Infinity;
-  const end = () => {
-    if (runDx >= CROSSBAR_W_FRAC * w && (runMaxY - runMinY) <= CROSSBAR_STRAIGHT * h) return true;
-    runDx = 0; runMinY = Infinity; runMaxY = -Infinity; return false;
+  const flush = () => {
+    if (runDx >= CROSSBAR_W_FRAC * w && (runMaxY - runMinY) <= CROSSBAR_STRAIGHT * h) {
+      if (runDx > best.dx) best = { dx: runDx, y: (runMinY + runMaxY) / 2 };
+    }
+    runDx = 0; runMinY = Infinity; runMaxY = -Infinity;
   };
   for (let i = 1; i < pts.length; i++) {
     const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
@@ -604,11 +622,19 @@ function hasECrossbar(drawnNorm) {
       runDx += Math.abs(dx);
       if (pts[i].y < runMinY) runMinY = pts[i].y;
       if (pts[i].y > runMaxY) runMaxY = pts[i].y;
-    } else if (end()) {
-      return true;
+    } else {
+      flush();
     }
   }
-  return end();
+  flush();
+  return { present: best.y != null, y: best.y };
+}
+function hasECrossbar(drawnNorm) { return crossbarInfo(drawnNorm).present; }
+// Is the detected crossbar in the LOWER band (between midline and baseline)?
+// That is the 'e' position — distinct from 't'/'f' whose bar sits at the midline.
+function crossbarIsLow(drawnNorm) {
+  const c = crossbarInfo(drawnNorm);
+  return c.present && c.y != null && c.y >= CROSSBAR_LOW_MIN;
 }
 
 // px-stroke wrapper for callers that have canvas-pixel strokes (not normalized).
@@ -620,10 +646,10 @@ export function recognize(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
-  const crossbar = hasECrossbar(drawn);
+  const lowBar = crossbarIsLow(drawn);
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: (crossbar && NO_CROSSBAR_BOWLS.has(t.letter))
+    dist: ((lowBar ? (NO_CROSSBAR_BOWLS.has(t.letter) || NO_LOW_CROSSBAR.has(t.letter)) : hasECrossbar(drawn) && NO_CROSSBAR_BOWLS.has(t.letter)))
       ? Infinity
       : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
     confidence: 0,
@@ -718,10 +744,10 @@ export function shapeGuess(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
-  const crossbar = hasECrossbar(drawn);
+  const lowBar = crossbarIsLow(drawn);
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: (crossbar && NO_CROSSBAR_BOWLS.has(t.letter))
+    dist: ((lowBar ? (NO_CROSSBAR_BOWLS.has(t.letter) || NO_LOW_CROSSBAR.has(t.letter)) : hasECrossbar(drawn) && NO_CROSSBAR_BOWLS.has(t.letter)))
       ? Infinity
       : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
     confidence: 0,
