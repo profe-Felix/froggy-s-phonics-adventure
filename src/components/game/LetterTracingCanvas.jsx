@@ -8,7 +8,7 @@ const OFF_TRAVEL_BUDGET = 140; // px — accumulated pen travel WHILE off the co
 const FWD_RETRACE_RADIUS = 70; // px — tolerates veering while retracing (d/b/p stems double back). The +6-index CLAMP on the forward search is what stops a partial from leaping to the end, so this radius can stay generous for wobble without re-introducing that jump.
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.78; // drawn-vs-ideal direction dot below this = reverse direction → restart. Loosened (was -0.6) so genuine veering (which isn't a reversal) doesn't trip it; only a clear backtrack does. A backtrack that then recovers and completes is allowed — partial detection is handled by the sequential end-gate, not this.
-const COVERAGE_RADIUS = 46; // px — the "thick pen": a dense path point counts as traced when the pen passes within this radius. Wide enough that natural hand wobble/veer (especially on retraced d/b/p stems) still lays ink overlapping the path, so a complete-but-wobbly trace isn't rejected at lift. Partial/shortcut detection no longer relies on this radius — the sequential end-gate (clamped forward search) forces the pen to actually advance to the end — so widening it doesn't reopen the partial-pass hole.
+const COVERAGE_RADIUS = 16; // px — the pen's actual ink half-width: a dense path point counts as traced only when the pen passes within this. Kept tight (was 46, which blanketed both stems and bowls from a single press and let partials pass) so coverage reflects where the ink really overlaps the guide path. Hand wobble that brings the pen back near the path still marks it; a sustained drift that never overlaps does not — but it won't RESTART (see WOBBLE_RADIUS), it just won't count as covered.
 const MIN_COVER_FRAC = 0.95; // fraction of the ideal path the pen must actually cover. At 95% a two-thirds trace of a tight curve (c, d, o) that the 30px thick pen would otherwise mark as ~85% covered is rejected; only a near-complete, deliberate trace reaches it.
 const MAX_GAP = 10; // dense points — the largest run of UNCOVERED path the pen may leave. A shortcut skips a curved section, leaving a gap bigger than this → restart. A complete trace leaves no gaps (the pen passes every segment).
 const START_TOL = 6; // dense points — the pen must reach the path's start within this many points (slight start variation allowed).
@@ -258,9 +258,18 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // a stem runs down), tripping the direction gate. Once the stroke has
       // advanced past a region (pathProgress), prefer the FORWARD copy when the
       // pen is still within wobble of it — that is the taught continuation.
+      // Windowed nearest-point search: only look at dense points within a few
+      // indices of the current progress. A full scan snaps ACROSS a nearly-closed
+      // shape (the b bowl's top sits near its bottom, an a's stem near its bowl)
+      // and leaps pathProgress from 30% to 90% in one step — which then jumps
+      // covFrom and stops coverage marking for everything the pen hasn't drawn
+      // yet. The window follows the pen, so the nearest point can only be one
+      // the pen is actually approaching, never a far copy across the letter.
       let minD = Infinity;
-      let nearestIdx = 0;
-      for (let i = 0; i < densePath.length; i++) {
+      let nearestIdx = Math.max(0, Math.min(densePath.length - 1, pathProgressRef.current));
+      const scanLo = Math.max(0, pathProgressRef.current - 3);
+      const scanHi = Math.min(densePath.length - 1, pathProgressRef.current + 8);
+      for (let i = scanLo; i <= scanHi; i++) {
         const d = dist(pos, densePath[i]);
         if (d < minD) { minD = d; nearestIdx = i; }
       }
@@ -377,29 +386,26 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         }
       }
 
-      // Coverage: the stroke must actually pass NEAR most of the ideal path's
-      // points. A straight line or quick flick only touches a small cluster of
-      // the densely-sampled points, so it can't fake completion the way a lone
-      // "furthest index" jump could. Mark a small window around the nearest
-      // index so normal pen speed still fills the path in.
-      // Coverage: mark every dense point the pen has passed NEAR (spatial),
-      // not just a small index window around the nearest index. On a retrace
-      // or a closed bowl (b, d, a, r) the global-nearest index can stall in
-      // already-visited territory for the whole second half of the stroke —
-      // the earlier copy of the geometry sits at the same spot and wins the
-      // "nearest" search — so an index-window would leave the second half
-      // unmarked and a PERFECT trace would barely reach the threshold (then
-      // fail on any hand wobble). Spatial marking marks whichever dense points
-      // the pen actually passes over, so a clean trace reliably fills the path.
-      // A straight-line cheat only touches the small cluster of points near the
-      // line, so it stays well below the threshold; reverse-scribble cheats
-      // are still caught by the direction gate above.
-      // Thick-pen coverage: mark every dense path point the pen has passed
-      // within COVERAGE_RADIUS of. Completion (coverageComplete) needs most of
-      // the path covered with no large gap AND the start/end reached, so a
-      // shortcut or partial loop can't sneak through.
-      for (let k = 0; k < densePath.length; k++) {
-        if (dist(pos, densePath[k]) <= COVERAGE_RADIUS) visitedRef.current.add(k);
+      // Forward-only coverage. A single press must NOT blanket the whole
+      // letter — it only marks dense points the pen is actually near (within
+      // the tight COVERAGE_RADIUS, ≈ the ink width) AND that lie AHEAD of the
+      // current progress (the direction of travel). This is what stops the
+      // bowl of a 'b' from "covering" the stem it never drew: the stem sits at
+      // lower indices, behind progress, so it is never marked. Sub-stepping
+      // along the pen move means a fast but on-path stroke still fills every
+      // dense point (no gaps), while a shortcut drawn across a curve misses
+      // the curve's extremes and stays below the completion threshold.
+      const covFrom = Math.max(0, pathProgressRef.current - 2);
+      const covSteps = Math.max(1, Math.ceil(moveDist / (COVERAGE_RADIUS * 0.6)));
+      for (let s = 0; s <= covSteps; s++) {
+        const t = s / covSteps;
+        const sx = prev ? prev.x + (pos.x - prev.x) * t : pos.x;
+        const sy = prev ? prev.y + (pos.y - prev.y) * t : pos.y;
+        for (let k = covFrom; k < densePath.length; k++) {
+          if (Math.hypot(sx - densePath[k].x, sy - densePath[k].y) <= COVERAGE_RADIUS) {
+            visitedRef.current.add(k);
+          }
+        }
       }
       pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
 
