@@ -9,7 +9,7 @@ const FWD_RETRACE_RADIUS = 95; // px — retraced letters (b stem, a stem, d/h/r
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COVERAGE_RADIUS = 30; // px — the "thick pen": a dense path point counts as traced when the pen passes within this radius. Generous so natural hand wobble still lays ink that overlaps the ideal path; a shortcut cuts across and leaves the curved sections beyond this radius untouched.
-const MIN_COVER_FRAC = 0.85; // fraction of the ideal path the pen must actually cover. High so a shortcut or partial loop (c, o, s, b, p, u) can't reach it even with the generous pen radius.
+const MIN_COVER_FRAC = 0.95; // fraction of the ideal path the pen must actually cover. At 95% a two-thirds trace of a tight curve (c, d, o) that the 30px thick pen would otherwise mark as ~85% covered is rejected; only a near-complete, deliberate trace reaches it.
 const MAX_GAP = 10; // dense points — the largest run of UNCOVERED path the pen may leave. A shortcut skips a curved section, leaving a gap bigger than this → restart. A complete trace leaves no gaps (the pen passes every segment).
 const START_TOL = 6; // dense points — the pen must reach the path's start within this many points (slight start variation allowed).
 const END_TOL = 5; // dense points — the pen must reach the path's end within this many points (slight end variation allowed, but the student must actually finish the stroke).
