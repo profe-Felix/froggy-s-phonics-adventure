@@ -682,6 +682,85 @@ function templateHasHorizontalRun(t) {
   return v;
 }
 
+// --- DIAGONAL gate (the user's "diagonal line test") ---
+// A 'k' leg is a straight DIAGONAL run (down-right then down-left at ~45°). An
+// 'h' arch is a SMOOTH curve: the up-stroke is vertical (90°, out of the diagonal
+// band) and the curve over the top is horizontal-ish at the apex — there is no
+// sustained straight diagonal anywhere. Anisotropic DTW can stretch the 'h' arch
+// onto the 'k' chevron's bounding box and score it close (a 'bowl'/'curve' leg
+// passing the kind gate once the template leg reads as 'curve' rather than
+// 'bent'), but the 'h' simply does not CONTAIN a diagonal — the ink the 'k' leg
+// requires is absent. So the diagonal gate, symmetric in spirit to the crossbar
+// gate: when the drawing contains NO straight diagonal run, any template whose
+// taught pathway DOES contain a straight diagonal run is excluded. The 'k' leg,
+// the 'v'/'w'/'x' arms, the 'y' diagonals, and the 'z' connector all have a
+// diagonal run in their templates; an 'h' (or 'n','m','r','b','d'…) drawing has
+// none, so 'k' (and v/w/x/y/z) drop out for an 'h' drawing. A real 'k' drawing
+// HAS diagonals, so the gate (drawing LACKS a diagonal) does not fire and 'k' is
+// unaffected — this is the asymmetric safety: only the absence of diagonal ink
+// is penalized, never its presence.
+const DIAG_ANGLE_LO = 20;   // degrees from horizontal — below this a run is horizontal, not diagonal
+const DIAG_ANGLE_HI = 70;   // above this a run is vertical, not diagonal
+const DIAG_MIN_LEN = 0.14;  // the straight diagonal run must span >= this fraction of the drawing's larger dimension — an 'h' arch has no diagonal this long; a 'k' leg is ~0.2-0.3
+// Detect a straight MONOTONIC diagonal run in the drawing (normalized 0-1).
+// "Straight" here means the run's segments keep the same x-sign and y-sign
+// (monotonic — no zigzag, so a curve that doubles back doesn't qualify) AND each
+// segment's angle sits in the diagonal band (20-70°), AND the accumulated arc
+// length reaches DIAG_MIN_LEN of the drawing's larger bbox dimension. A smooth
+// 'h' arch breaks the band on every vertical up/down stroke and never accumulates
+// a diagonal run; a 'k' leg stays in-band and monotonic for its full length.
+function hasDiagonalRun(drawnNorm) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, any = false;
+  for (const s of drawnNorm) if (s) for (const p of s) {
+    any = true;
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  if (!any) return false;
+  const w = maxX - minX, h = maxY - minY;
+  if (w < 0.05 || h < 0.05) return false;
+  const minLen = DIAG_MIN_LEN * Math.max(w, h);
+  let best = 0;
+  for (const s of drawnNorm) {
+    if (!s || s.length < 2) continue;
+    let runLen = 0, runSx = 0, runSy = 0, curSx = 0, curSy = 0;
+    const flush = () => {
+      if (runLen >= minLen) {
+        const ax = Math.abs(runSx), ay = Math.abs(runSy);
+        if (ax > 1e-4 && ay > 1e-4) {
+          const ang = Math.atan2(ay, ax) * 180 / Math.PI;
+          if (ang >= DIAG_ANGLE_LO && ang <= DIAG_ANGLE_HI && runLen > best) best = runLen;
+        }
+      }
+      runLen = 0; runSx = 0; runSy = 0; curSx = 0; curSy = 0;
+    };
+    for (let i = 1; i < s.length; i++) {
+      const dx = s[i].x - s[i - 1].x, dy = s[i].y - s[i - 1].y;
+      const seg = Math.hypot(dx, dy);
+      if (seg < 1e-5) continue;
+      const sx = Math.sign(dx), sy = Math.sign(dy);
+      const ang = Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI;
+      const inBand = ang >= DIAG_ANGLE_LO && ang <= DIAG_ANGLE_HI;
+      const sameSign = (curSx === 0 || sx === curSx) && (curSy === 0 || sy === curSy);
+      if (inBand && sameSign) {
+        runLen += seg; runSx += dx; runSy += dy; curSx = sx; curSy = sy;
+      } else {
+        flush();
+        if (inBand) { runLen = seg; runSx = dx; runSy = dy; curSx = sx; curSy = sy; }
+      }
+    }
+    flush();
+  }
+  return best > 0;
+}
+const _diagCache = new WeakMap();
+function templateHasDiagonalRun(t) {
+  if (_diagCache.has(t)) return _diagCache.get(t);
+  const v = hasDiagonalRun(t.strokes);
+  _diagCache.set(t, v);
+  return v;
+}
+
 // px-stroke wrapper for callers that have canvas-pixel strokes (not normalized).
 export function drawingHasCrossbar(pxStrokes) { return hasECrossbar(normalize(pxStrokes)); }
 
@@ -693,6 +772,7 @@ export function recognize(drawnStrokes, templates) {
   const n = drawn.length;
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
+  const drawHasDiag = hasDiagonalRun(drawn);
   const results = templates.map((t) => {
     let excluded = false;
     if (drawHasBar) {
@@ -700,6 +780,12 @@ export function recognize(drawnStrokes, templates) {
       if (!templateHasHorizontalRun(t)) excluded = true;
       if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
     }
+    // Diagonal gate: a template whose taught pathway contains a straight diagonal
+    // run (k leg, v/w/x arms, y, z connector) cannot be the answer when the drawing
+    // contains NO straight diagonal — the diagonal ink those letters require is
+    // simply absent (an 'h' arch has no diagonal). Asymmetric: only absence is
+    // penalized, so a real 'k' (which has diagonals) is never excluded.
+    if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
@@ -798,6 +884,7 @@ export function shapeGuess(drawnStrokes, templates) {
   const n = drawn.length;
   const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
+  const drawHasDiag = hasDiagonalRun(drawn);
   const results = templates.map((t) => {
     let excluded = false;
     if (drawHasBar) {
@@ -805,6 +892,11 @@ export function shapeGuess(drawnStrokes, templates) {
       if (!templateHasHorizontalRun(t)) excluded = true;
       if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
     }
+    // Diagonal gate (see recognize): a template requiring a diagonal run is
+    // excluded when the drawing has no straight diagonal — the 'h'→'k' shape
+    // confusion. Shape IDENTITY still drops 'k' for an 'h' drawing because the
+    // diagonal ink is absent; a real 'k' drawing keeps its diagonals.
+    if (!drawHasDiag && templateHasDiagonalRun(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
