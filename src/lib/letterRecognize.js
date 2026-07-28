@@ -502,6 +502,100 @@ export function recognize(drawnStrokes, templates) {
   return results;
 }
 
+// --- order-tolerant SHAPE match (the letter GUESS, decoupled from pathway) ---
+// The GUESS ("I'm 80% sure you wrote a b") must be driven by SHAPE: does the ink
+// fill the letter's form, regardless of stroke ORDER, COUNT, or DIRECTION. A
+// student who draws the stem first and then attaches the bowl still drew a 'b' —
+// the shape is a b. The pathway check (DTW in taught order + stroke count +
+// direction) is a SEPARATE signal — the badge: green when followed, YELLOW when
+// the letter is right but the taught path wasn't. This is the "don't let
+// stroke-count override the certainty of the letter" rule: count/order penalize
+// the PATHWAY, not the IDENTITY. So a 'b' drawn in 2 strokes reads "b, 80% sure"
+// and gets a yellow pathway badge — instead of being misread as 'k' (which only
+// won because it matched the 2-stroke COUNT, not the b SHAPE).
+//
+// Shape distance = bidirectional CHAMFER after anisotropic alignment (does each
+// drawing point land on the template, and is the template covered) + light
+// structural-identity penalties that chamfer alone blurs: a closed bowl vs an
+// open bent chevron cover similar area (KIND), shoulder hump count (the missing
+// ink signal), and height class. ALL structural checks are ORDER- and
+// COUNT-tolerant (set-based): a template kind is "covered" if ANY drawn stroke is
+// compatible; a MISSING template kind costs (a 'k' needs a bent the drawing
+// lacks), but extra drawn ink does NOT (a 2-stroke 'b' stem is not "extra" — the
+// chamfer d2t already charges for ink that doesn't land on the template, and the
+// stem IS part of a b).
+const SHAPE_R = 28;       // points per stroke for chamfer — dense enough to resolve shape, cheap for the O(n*m) nearest sweep
+const SHAPE_T = 0.012;    // softmax temperature for the shape distance (chamfer scale is tighter than DTW, so a sharper T gives a clean letter a confident read)
+function allPoints(strokes, r) {
+  const out = [];
+  for (const s of strokes) { const rs = resample(s, r); for (const p of rs) out.push(p); }
+  return out;
+}
+// Bidirectional chamfer: avg(drawing→template) + avg(template→drawing). The first
+// charges for ink that lands off the template (an 'i' dot over an 'l' line), the
+// second for template parts the ink fails to cover. Both are order/direction
+// agnostic — that is exactly what makes a stem-then-bowl 'b' still read as 'b'.
+function chamfer(A, B) {
+  if (!A.length || !B.length) return 1;
+  let sumAB = 0;
+  for (const p of A) { let mn = Infinity; for (const q of B) { const d = (p.x - q.x) ** 2 + (p.y - q.y) ** 2; if (d < mn) mn = d; } sumAB += Math.sqrt(mn); }
+  let sumBA = 0;
+  for (const p of B) { let mn = Infinity; for (const q of A) { const d = (p.x - q.x) ** 2 + (p.y - q.y) ** 2; if (d < mn) mn = d; } sumBA += Math.sqrt(mn); }
+  return (sumAB / A.length + sumBA / B.length) / 2;
+}
+// Order-/count-tolerant structural identity. Missing template kinds cost; extra
+// drawn ink does not (a stem fused into a 1-stroke 'b' template is not "extra" —
+// the template's bowl stroke already covers the stem geometrically).
+function shapeStructPenalty(drawn, tmpl) {
+  let pen = 0;
+  const dKinds = drawn.map(strokeKind);
+  const tKindsArr = tmpl.map(strokeKind);
+  for (const tk of tKindsArr) {
+    let covered = false;
+    for (const dk of dKinds) if (kindsCompatible(dk, tk)) { covered = true; break; }
+    if (!covered) pen += KIND_PENALTY;
+  }
+  // Humps are a shoulder concept — compare total humps (order-tolerant). A 1-hump
+  // drawing cannot be a 2-hump 'n' or 3-hump 'm' no matter how chamfer stretches.
+  const dHumps = drawn.map(strokeShoulderHumps).filter((h) => h != null);
+  const tHumps = tmpl.map(strokeShoulderHumps).filter((h) => h != null);
+  if (dHumps.length && tHumps.length) {
+    pen += HUMP_PENALTY * Math.abs(dHumps.reduce((a, b) => a + b, 0) - tHumps.reduce((a, b) => a + b, 0));
+  }
+  return pen;
+}
+function shapeDistance(drawn, dBox, tmpl) {
+  const tBox = bbox(tmpl);
+  const aligned = alignTo(drawn, dBox, tBox);
+  let dist = chamfer(allPoints(aligned, SHAPE_R), allPoints(tmpl, SHAPE_R));
+  dist += shapeStructPenalty(drawn, tmpl);
+  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
+  return dist;
+}
+// drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes }].
+// Returns [{ letter, dist, confidence }] sorted best (lowest shape dist) first —
+// the SHAPE identity of the ink, decoupled from the taught pathway. Use
+// pathwayMatch() separately to decide the green/yellow pathway badge.
+export function shapeGuess(drawnStrokes, templates) {
+  if (!drawnStrokes.length || !templates.length) return [];
+  const drawn = normalize(drawnStrokes);
+  const dBox = bbox(drawn);
+  if (dBox.w === 0 && dBox.h === 0) return [];
+  const results = templates.map((t) => ({
+    letter: t.letter,
+    dist: shapeDistance(drawn, dBox, t.strokes),
+    confidence: 0,
+  }));
+  results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
+  const finite = results.filter((r) => isFinite(r.dist));
+  if (finite.length) {
+    let sum = 0;
+    for (const r of finite) sum += Math.exp(-r.dist / SHAPE_T);
+    for (const r of results) r.confidence = isFinite(r.dist) ? Math.round((Math.exp(-r.dist / SHAPE_T) / sum) * 100) : 0;
+  }
+  return results;
+}
+
 // Does a multi-stroke group clearly form ONE known letter? Same stroke count is
 // required, AND every stroke pair must match the template along the taught
 // pathway. The EVERY-pair rule (MAX, not average) is what tells a 2-stroke 't'

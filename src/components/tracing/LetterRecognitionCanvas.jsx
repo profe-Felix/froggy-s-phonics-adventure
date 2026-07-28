@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
-import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
+import { recognize, shapeGuess, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
 import MatchOverlap from '@/components/tracing/MatchOverlap';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
@@ -171,36 +171,28 @@ function clusterByTouch(strokes, touchPx) {
 }
 
 // Confidence tiers for a recognised segment.
-//   green  — correct taught pathway AND high confidence = "pretty sure"
-//   yellow — a real best guess but not a confident/clean match = "fairly sure"
+//   green  — the taught pathway was followed (correct stroke order/direction/count)
+//   yellow — the SHAPE is a confident letter, but the taught pathway wasn't followed
+//            (e.g. a 'b' drawn in 2 strokes, stem-first). The letter identity is
+//            credited; the pathway is flagged. This is the "I'm 80% sure you wrote
+//            a b, but you did it in 2 strokes" tier — certainty of the LETTER is
+//            decoupled from compliance with the PATH.
 //   red    — nothing matches well = "doesn't match anything"
-// Confidence (softmax over distances) is the honest "doesn't match" signal: a
-// scribble or a badly-formed letter is roughly equidistant from many templates,
-// so its winning probability stays LOW (e.g. 17–37%) however lenient the per-letter
-// match is — exactly the case where a wrong 'p' used to read confidently as 'y'.
-// A correct letter, by contrast, is clearly closer to its template than to any
-// other, so it scores HIGH (79–94%). The RED_DIST backstop forces red when even
-// the best template is far away, so a tiny template set can't fake confidence.
-const GREEN_CONF = 65;
+// The letter GUESS comes from the order-tolerant shape match (shapeGuess), so the
+// right letter wins even when drawn with the wrong stroke count/order. The pathway
+// check (pathwayMatch) is a SEPARATE signal that only sets green vs yellow — it
+// never changes WHICH letter is guessed.
 const YELLOW_CONF = 40;
-const RED_DIST = 0.25;
+const RED_DIST = 0.09;   // chamfer scale: a real letter sits ~0.02–0.06; a scribble ~0.10+
 const tierOf = (seg) => {
-  // An inferred letter (right letter read from stroke shape/interactions, not
-  // the taught path) is "fairly sure" — credited but not a clean pathway match.
-  if (seg.inferred) return 'yellow';
-  // A correct taught pathway IS the letter — green, even if the DTW similarity
-  // (softmax over distances) stays low. The strokes were formed correctly;
-  // "doesn't match anything" should not override that.
   if (seg.pathway) return 'green';
   const dist = seg.ranked && seg.ranked[0] && isFinite(seg.ranked[0].dist) ? seg.ranked[0].dist : Infinity;
-  if (dist > RED_DIST) return 'red';
-  if (seg.confidence >= GREEN_CONF) return 'green';
-  if (seg.confidence >= YELLOW_CONF) return 'yellow';
-  return 'red';
+  if (dist > RED_DIST || seg.confidence < YELLOW_CONF) return 'red';
+  return 'yellow';
 };
 const TIER_TEXT = { green: 'text-green-600', yellow: 'text-amber-500', red: 'text-red-600' };
 const TIER_BAR = { green: 'bg-green-500', yellow: 'bg-amber-500', red: 'bg-red-500' };
-const TIER_BADGE = { green: '✓ correct pathway', yellow: '? fairly sure', red: '✗ no match' };
+const TIER_BADGE = { green: '✓ correct pathway', yellow: '⚠ right letter, wrong pathway', red: '✗ no match' };
 
 export default function LetterRecognitionCanvas({ templates }) {
   const [strokes, setStrokes] = useState([]);
@@ -317,16 +309,15 @@ export default function LetterRecognitionCanvas({ templates }) {
         });
       }
       const segments = groups.map((g) => {
-        const ranked = recognize(g, templates);
+        // The letter IDENTITY comes from the order-tolerant SHAPE match: does the
+        // ink fill the letter's form, regardless of stroke order/count/direction.
+        // A 'b' drawn stem-first-then-bowl still reads as 'b' (the shape is a b),
+        // instead of being misread as 'k' (which only won on stroke COUNT). The
+        // pathway check below is SEPARATE — it sets the green/yellow badge, never
+        // the letter: a 2-stroke 'b' is "b, 80% sure" + a yellow pathway warning.
+        const ranked = shapeGuess(g, templates);
         const dtwLetter = ranked[0] ? ranked[0].letter : '?';
         const dtwConf = ranked[0] ? ranked[0].confidence : 0;
-        // DTW is the SOLE letter authority. The hand-coded structural guesser that
-        // used to override DTW when it was weak HALLUCINATED features — a plain
-        // loop became an 'e' with a crossbar (the eye) that was never drawn, a 'W'
-        // became "a bowl with a stem (a)". DTW only compares ink that is actually
-        // there against the taught paths, so it is the accurate feature compare.
-        // The shown confidence is the real DTW softmax — no artificial floor — so
-        // a weak match honestly reads as weak instead of being painted "72% sure".
         const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(g, t));
         return { letter: dtwLetter, confidence: dtwConf, ranked, pathway, inferred: null, strokesPx: g };
