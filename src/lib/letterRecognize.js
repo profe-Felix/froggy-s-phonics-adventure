@@ -544,15 +544,57 @@ function letterDistance(drawn, dBox, tmpl) {
 // probability (not just the winner). A clean letter reads ~98%; a torn call
 // reads ~55/45 and shows the runner-up was close.
 const SOFTMAX_T = 0.025;  // softmax temperature: sharp enough that a clean letter reads high, soft enough that a close call shows both
+// An 'e' crossbar is a STRAIGHT horizontal run spanning a good fraction of the
+// drawing's width. The closed-loop bowl letters (o, a, d, g, q, b, p) have NO
+// such run — their tops/bottoms are curved arcs that only flatten briefly
+// (~30% of width) before turning, and a real crossbar is a drawn line (~60%+
+// of width, nearly constant y). This gate answers the user's "a horizontal bar
+// should not match o, a, d, g": when the drawing contains a straight
+// crossbar, those bowl letters are excluded and the match falls to 'e'. It is
+// ASYMMETRIC — only fires when a crossbar IS detected — so a faint 'e' whose
+// crossbar wasn't picked up still competes normally (no regression on
+// hard-to-read e's), and a clean 'o' (curved, no straight run) is untouched.
+const CROSSBAR_W_FRAC = 0.50;     // the bar must span >= half the drawing width — an 'o' arc flattens over only ~32%
+const CROSSBAR_STRAIGHT = 0.08;   // over a long run the bar's y varies < this fraction of the height — a curved bowl edge deviates more
+const NO_CROSSBAR_BOWLS = new Set(['o', 'a', 'd', 'g', 'q', 'b', 'p']);
+function hasECrossbar(drawnNorm) {
+  const pts = [];
+  for (const s of drawnNorm) if (s) for (const p of s) pts.push(p);
+  if (pts.length < 4) return false;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  const w = maxX - minX, h = maxY - minY;
+  if (w < 0.05 || h < 0.05) return false;
+  let runDx = 0, runMinY = Infinity, runMaxY = -Infinity;
+  const end = () => {
+    if (runDx >= CROSSBAR_W_FRAC * w && (runMaxY - runMinY) <= CROSSBAR_STRAIGHT * h) return true;
+    runDx = 0; runMinY = Infinity; runMaxY = -Infinity; return false;
+  };
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
+    if (Math.abs(dx) >= 4 * Math.abs(dy) && Math.abs(dx) > 0.004) {
+      runDx += Math.abs(dx);
+      if (pts[i].y < runMinY) runMinY = pts[i].y;
+      if (pts[i].y > runMaxY) runMaxY = pts[i].y;
+    } else if (end()) {
+      return true;
+    }
+  }
+  return end();
+}
+
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
   const drawn = normalize(drawnStrokes);
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
+  const crossbar = hasECrossbar(drawn);
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity,
+    dist: (crossbar && NO_CROSSBAR_BOWLS.has(t.letter))
+      ? Infinity
+      : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
     confidence: 0,
   }));
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
@@ -645,9 +687,12 @@ export function shapeGuess(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
+  const crossbar = hasECrossbar(drawn);
   const results = templates.map((t) => ({
     letter: t.letter,
-    dist: strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity,
+    dist: (crossbar && NO_CROSSBAR_BOWLS.has(t.letter))
+      ? Infinity
+      : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
     confidence: 0,
   }));
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
