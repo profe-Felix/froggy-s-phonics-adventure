@@ -229,6 +229,69 @@ function inferStemShoulder(cls, strokes, exts) {
   };
 }
 
+// How many downward-opening arches ("humps") a single stroke contributes to an
+// 'm'/'n' gate. A real arch is a curve OPENING DOWN (an 'n'/'m' bump), not a cup
+// (opens up → 'u'/'w'), not a closed loop (bowl), not an S-curve. A shoulder
+// retrace contributes its humps; a "curve-over-top into a stem" (topHook) is one
+// arch (the right leg of an 'm' drawn as its own stroke).
+function archCountOf(cls) {
+  if (!cls) return 0;
+  if (cls.kind === 'curve') {
+    const cv = cls.curve;
+    if (!cv || cv.sCurve || cv.closed || cv.cup) return 0;
+    if (cv.opens && /down/.test(cv.opens)) return Math.max(1, cv.humps || 1);
+    return 0;
+  }
+  if (cls.kind === 'shoulder') return Math.max(1, cls.shoulder?.humps || 1);
+  if (cls.kind === 'topHook') return 1;
+  return 0;
+}
+
+// 'm' and 'n' drawn as SEPARATE strokes — the cases the DTW stroke-joining
+// fusion misreads. Students often draw: a line down, then one arch, lift, then
+// another arch + line; or two humps then add a line on the left. The fusion
+// glues these onto 'k' (a stem + two curves resembles the k's stem + diagonals).
+// The reliable signal here is the HUMP COUNT across the strokes: count the
+// downward-opening arches that return to the baseline — 2+ → 'm', 1 (with a
+// stem) → 'n'. r's small hook is excluded because it does NOT reach the
+// baseline; a tall (ascender) stem is left to the matcher ('h'-shaped letters).
+function inferArchLetter(cls, strokes, exts) {
+  const n = cls.length;
+  if (n < 2) return null;
+  let arches = 0, hasStem = false, tallStem = false;
+  for (let i = 0; i < n; i++) {
+    const c = cls[i], e = exts[i];
+    if (c.kind === 'vertical') {
+      hasStem = true;
+      if (e.topGuide.key === 'ascender') tallStem = true;
+      continue;
+    }
+    // an arch must span midline→baseline — it comes back DOWN to the baseline
+    // (r's hook doesn't, so it's not counted here; a tall arch isn't m/n)
+    if (e.topGuide.key === 'midline' && e.botGuide.key === 'baseline') {
+      arches += archCountOf(c);
+    }
+  }
+  if (arches < 1 || tallStem) return null;
+  if (arches >= 2) {
+    return {
+      letter: 'm',
+      formation: 'approximate',
+      summary: `Looks like an 'm' — ${arches} arches in a row.`,
+      note: "Reads as 'm' from the arch count, not a taught-pathway match.",
+    };
+  }
+  if (hasStem) {
+    return {
+      letter: 'n',
+      formation: 'approximate',
+      summary: "Looks like an 'n' — a stem with one arch down to the baseline.",
+      note: "Reads as 'n' from the stem + arch, not a taught-pathway match.",
+    };
+  }
+  return null;
+}
+
 // Given raw strokes and their per-stroke classifications, return how they
 // interact: the pairwise crossings and the best letter inference (if any).
 export function analyzeStrokesInteraction(strokes, strokeResults) {
@@ -244,6 +307,7 @@ export function analyzeStrokesInteraction(strokes, strokeResults) {
   }
   const inferred = inferFromDiagonals(cls, strokes, exts, crossings)
     || inferStemShoulder(cls, strokes, exts)
+    || inferArchLetter(cls, strokes, exts)
     || inferBowlStem(cls, strokes, exts);
   return { crossings, inferred };
 }
