@@ -283,6 +283,15 @@ function kindsCompatible(ka, kb) {
   // structural difference — the b→k protection relies on bowl≠shoulder/bent,
   // and a curve↔bowl pairing would dissolve that). curve↔vertical/diagonal
   // stays: a wobbly stem/diagonal legitimately classifies as curve.
+  // An S-curve ('s') is a distinct open-curve shape: two humps on OPPOSITE sides
+  // of the chord. It is compatible with a plain curve (both open, non-looping)
+  // but NOT with a shoulder arch, a closed bowl, or a straight line — this is
+  // what stops a rushed 's' reading as 'n'/'r' (shoulder) or 'o'/'e' (bowl): the
+  // S-structure is none of those.
+  const isOpenCurve = (k) => k === 'curve' || k === 's_curve';
+  if (ka === 's_curve' || kb === 's_curve') {
+    return isOpenCurve(ka) && isOpenCurve(kb);
+  }
   if ((ka === 'curve' || kb === 'curve') && ka !== 'bowl' && kb !== 'bowl') {
     if (ka === 'horizontal' || kb === 'horizontal') return false;
     return true;
@@ -293,8 +302,20 @@ function kindsCompatible(ka, kb) {
 // by CANVAS_W/H, so scale the normalized points back to px first.
 function strokeKind(strokeNorm) {
   if (!strokeNorm || strokeNorm.length < 2) return 'dot';
+  // A dot MARK (a tap or tiny flick) is a dot for the structural-kind gate too,
+  // not whatever classifyStroke would call a short flick ('vertical'). This
+  // unifies the dot definition so an 'i'/'j' dot reads as 'dot' and the dot-
+  // vs-no-dot kind penalty fires against 'r'/'l' (templates with no dot) — the
+  // i→r / j→l confusion.
+  if (isDotStroke(strokeNorm)) return 'dot';
   const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
-  return classifyStroke(px).kind;
+  const c = classifyStroke(px);
+  // An S-curve ('s') is a distinct open-curve structure — two humps on opposite
+  // sides of the chord — not a generic curve and not a shoulder arch. Tag it so
+  // the kind gate can keep it off 'n'/'r' (shoulders) and 'o'/'e' (bowls): the
+  // s→n / s→r confusion.
+  if (c.kind === 'curve' && c.curve && c.curve.sCurve) return 's_curve';
+  return c.kind;
 }
 // Full classification of a normalized (0-1) stroke — returns the whole
 // classifyStroke object (kind + bowl.eye flag, etc.), not just the kind string.
@@ -622,8 +643,8 @@ const SOFTMAX_T = 0.025;  // softmax temperature: sharp enough that a clean lett
 // ASYMMETRIC — only fires when a crossbar IS detected — so a faint 'e' whose
 // crossbar wasn't picked up still competes normally (no regression on
 // hard-to-read e's), and a clean 'o' (curved, no straight run) is untouched.
-const CROSSBAR_W_FRAC = 0.50;     // the bar must span >= half the drawing width — an 'o' arc flattens over only ~32%
-const CROSSBAR_STRAIGHT = 0.08;   // over a long run the bar's y varies < this fraction of the height — a curved bowl edge deviates more
+const CROSSBAR_W_FRAC = 0.42;     // the bar must span a good fraction of the drawing width — relaxed from 0.50 so a slightly-short rushed 'e' crossbar still detects; an 'o' arc flattens over only ~32%
+const CROSSBAR_STRAIGHT = 0.10;   // over a long run the bar's y varies < this fraction of the height — relaxed from 0.08 to accept a slightly wavy rushed 'e' crossbar; a curved bowl edge deviates more
 const NO_CROSSBAR_BOWLS = new Set(['o', 'a', 'd', 'g', 'q', 'b', 'p']);
 // Letters whose horizontal bar sits at the MIDLINE (top of x-height): 't' and 'f'.
 // An 'e' bar sits in the MIDDLE of the loop — clearly below the midline, between
@@ -843,14 +864,13 @@ export function recognize(drawnStrokes, templates) {
     const c0 = strokeClassifyFull(drawn[0]);
     // A curve ('s' S-curve) or shoulder ('r'/'n' arch) has a flat tangent that
     // crossbarInfo mistakes for a crossbar — override it off so the asymmetric
-    // gate doesn't exclude the letter itself.
+    // gate doesn't exclude the letter itself. A bowl is NOT overridden: a real
+    // 'e' crossbar is a straight horizontal run crossbarInfo detects reliably,
+    // and overriding it off (just because detectEye missed the eye on a rushed
+    // 'e') lets 'o' win — the crossbar is the one feature that tells 'e' from
+    // 'o'. The 's' S-curve (the old bowl-misread case) is now classified as a
+    // 'curve' by strokeClassify, so the curve override already covers it.
     if (c0.kind === 'curve' || c0.kind === 'shoulder') drawHasBar = false;
-    // A 'bowl' WITHOUT an 'e' eye is a closed loop with NO crossbar (o/a/d/g/p/b
-    // — and the 's' S-curve, which detectBowl can misread as a bowl on captured
-    // ink). Its flattest run is a bowl edge / curve tangent, not a drawn bar, so
-    // it must not trigger the crossbar gate. Only a bowl WITH an eye ('e') keeps
-    // a real crossbar — that stays on so 'e' is not wrongly excluded.
-    if (c0.kind === 'bowl' && !(c0.bowl && c0.bowl.eye)) drawHasBar = false;
   }
   const lowBar = drawHasBar && crossbarIsLow(drawn);
   const drawHasDiag = hasDiagonalRun(drawn);

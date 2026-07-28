@@ -28,7 +28,7 @@ function splitGroup(g, templates) {
   if (g.length < 2) return [g];
   if (groupFormsLetter(g, templates)) return [g];
   const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };
-  const isDotPx = (s) => s.length <= 2 || arcLenPx(s) < 6;
+  const isDotPx = (s) => { if (s.length <= 2) return true; const L = arcLenPx(s); if (L < 6) return true; let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity; for (const p of s) { if (p.x<mnx) mnx=p.x; if (p.x>mxx) mxx=p.x; if (p.y<mny) mny=p.y; if (p.y>mxy) mxy=p.y; } return Math.max(mxx-mnx, mxy-mny) < 30; };
   // Peel: a confident standalone stroke whose remainder still forms a letter.
   for (let i = 0; i < g.length; i++) {
     const rest = g.filter((_, k) => k !== i);
@@ -55,7 +55,7 @@ function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];
   const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };
-  const isDotPx = (s) => s.length <= 2 || arcLenPx(s) < 6;
+  const isDotPx = (s) => { if (s.length <= 2) return true; const L = arcLenPx(s); if (L < 6) return true; let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity; for (const p of s) { if (p.x<mnx) mnx=p.x; if (p.x>mxx) mxx=p.x; if (p.y<mny) mny=p.y; if (p.y>mxy) mxy=p.y; } return Math.max(mxx-mnx, mxy-mny) < 30; };
   for (const g of groups) {
     if (g.length < 2 || !templates.length) { out.push(g); continue; }
     // A simple dot+stem (i/j) stays together — never tear the dot off, even if
@@ -155,11 +155,27 @@ function clusterByTouch(strokes, touchPx) {
   const parent = strokes.map((_, i) => i);
   const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
   const union = (a, b) => { parent[find(a)] = find(b); };
+  // Two non-mark strokes whose ENDPOINT lies near the other stroke form a
+  // JUNCTION — the V of a 'y'/'v' or the cross of an 'x'. Converging strokes
+  // drawn with a small gap at the join are still ONE letter, so they merge on a
+  // modest fixed tolerance beyond the ink-touch rule. Marks (dots/tildes) are
+  // excluded — they only join via dotAbove — and side-by-side letters don't aim
+  // endpoints at each other, so this doesn't over-merge neighbors.
+  const JUNCTION = 24;
+  const endpointNear = (i, j) => {
+    const a = strokes[i], b = strokes[j];
+    const ae = [a[0], a[a.length - 1]];
+    for (const e of ae) {
+      for (let k = 0; k < b.length; k++) { if (Math.hypot(e.x - b[k].x, e.y - b[k].y) <= JUNCTION) return true; }
+    }
+    return false;
+  };
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       // a mark joins ONLY its closest stem (not any stem it happens to sit over)
       const dotAbove = (isMark(i) && closestStemFor[i] === j) || (isMark(j) && closestStemFor[j] === i);
-      if (ptDist(i, j) <= touchPx + INK_W || dotAbove) union(i, j);
+      const junction = !isMark(i) && !isMark(j) && (endpointNear(i, j) || endpointNear(j, i));
+      if (ptDist(i, j) <= touchPx + INK_W || dotAbove || junction) union(i, j);
     }
   }
   const groups = {};

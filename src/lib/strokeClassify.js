@@ -184,7 +184,7 @@ function detectShoulder(pts) {
 // sub-loop anywhere in the stroke and report the lead/tail around it.
 const BOWL_AREA = 0.012;       // min enclosed area (normalized) for a real loop
                                  // (real bowls ≈0.05–0.10; a 'w'/'z' pseudo-loop is ≈0.005)
-const BOWL_CLOSURE = 0.22;     // loop start/end within this fraction of stroke size
+const BOWL_CLOSURE = 0.30;     // loop start/end within this fraction of stroke size — relaxed from 0.22 so a rushed 'b'/'p' bowl that doesn't fully close still reads as a bowl (not a shoulder/curve that lets 'h' win)
 function detectBowl(pts) {
   const N = pts.length;
   if (N < 8) return null;
