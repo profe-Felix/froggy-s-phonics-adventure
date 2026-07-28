@@ -291,7 +291,13 @@ export default function LetterRecognitionCanvas({ templates }) {
         const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(strokes, t));
         let guessLetter = null, guessKind = null;
-        if (pathway) { guessLetter = dtwLetter; guessKind = 'pathway'; }
+        // Structural inference (bowl+stem → a/d/g/p/q/b, crossing diagonals →
+        // x/y) is the reliable identity for MULTI-stroke drawings; the DTW
+        // fusion misreads a 2-stroke 'a' as 'x'. Prefer the structural read when
+        // it fires on 2+ strokes. (1-stroke keeps the DTW/pathway authority.)
+        const multi = strokes.length >= 2;
+        if (multi && inferred) { guessLetter = inferred.letter; guessKind = 'inferred'; }
+        else if (pathway) { guessLetter = dtwLetter; guessKind = 'pathway'; }
         else if (isFinite(dtwDist) && dtwDist < 0.25) { guessLetter = dtwLetter; guessKind = 'dtw'; }
         else if (inferred) { guessLetter = inferred.letter; guessKind = 'inferred'; }
         setResult({ mode: 'stroke', strokeResults, interaction, inferred, ranked, pathway, guessLetter, guessKind, dtwConf, dtwDist });
@@ -331,8 +337,30 @@ export default function LetterRecognitionCanvas({ templates }) {
         const dtwPathwayOk = dtwLetter !== '?' && templates.filter((t) => t.letter === dtwLetter).some((t) => pathwayMatch(g, t));
         const dtwWinner = dtwLetter !== '?' ? templates.find((t) => t.letter === dtwLetter) : null;
         const sameCount = dtwWinner && dtwWinner.strokes.length === g.length;
+        // Structural inference for MULTI-stroke segments: a bowl + stem
+        // (a/d/g/p/q/b) or two crossing diagonals (x/y) read by GEOMETRY, not by
+        // taught-pathway fusion. The DTW fusion misreads these — a 2-stroke 'a'
+        // (a c-bowl + a stem) fuses onto the 2-stroke 'x' pathway and reads 'x'
+        // with a green "correct pathway" badge — because the parts don't follow
+        // any single-stroke template's taught path. The structural rules ("a bowl
+        // with a short stem at the midline on the right of the bowl") are the
+        // reliable identity signal here, so when they fire they override DTW.
+        // Single-stroke segments skip this (DTW already reads them well), so a
+        // clean 1-stroke 'a' or 'b' is still read by its taught pathway.
+        let inferred = null;
+        if (g.length >= 2) {
+          const cls = g.map((s) => classifyStroke(s));
+          inferred = inferLetter(g, cls);
+        }
         let letter, confidence, ranked, pathway;
-        if (dtwPathwayOk) {
+        if (inferred) {
+          letter = inferred.letter;
+          const infPathway = templates.filter((t) => t.letter === inferred.letter).some((t) => pathwayMatch(g, t));
+          pathway = infPathway;
+          confidence = infPathway ? 90 : (inferred.formation === 'correct' ? 82 : 64);
+          const rest = dtwRanked.filter((r) => r.letter !== inferred.letter);
+          ranked = [{ letter: inferred.letter, confidence, dist: 0 }, ...rest];
+        } else if (dtwPathwayOk) {
           letter = dtwLetter; confidence = dtwConf; ranked = dtwRanked; pathway = true;
         } else if (sameCount && dtwConf >= YELLOW_CONF) {
           // Same stroke count, DTW confident, but the taught pathway wasn't
@@ -349,7 +377,7 @@ export default function LetterRecognitionCanvas({ templates }) {
           confidence = shapeTop ? shapeTop.confidence : dtwConf;
           ranked = shapeRanked; pathway = false;
         }
-        return { letter, confidence, ranked, pathway, inferred: null, strokesPx: g };
+        return { letter, confidence, ranked, pathway, inferred, strokesPx: g };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
