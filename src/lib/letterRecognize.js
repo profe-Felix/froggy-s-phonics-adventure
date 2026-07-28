@@ -296,6 +296,16 @@ function strokeKind(strokeNorm) {
   const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
   return classifyStroke(px).kind;
 }
+// Full classification of a normalized (0-1) stroke — returns the whole
+// classifyStroke object (kind + bowl.eye flag, etc.), not just the kind string.
+// Used by the crossbar override, which needs to know whether a 'bowl' stroke has
+// an 'e' eye (a real crossbar) or is a closed loop WITHOUT a bar (o/a/d/g/p/b —
+// and the 's' S-curve, which detectBowl can misread as a bowl on captured ink).
+function strokeClassifyFull(strokeNorm) {
+  if (!strokeNorm || strokeNorm.length < 2) return { kind: 'dot' };
+  const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+  return classifyStroke(px);
+}
 // Classify a FUSED group (one or more drawn strokes joined into one template
 // stroke). A single stroke is classified directly. For a MULTI-stroke group we
 // must avoid the "artificial bowl" artifact: concatenating non-contiguous
@@ -830,8 +840,17 @@ export function recognize(drawnStrokes, templates) {
   // distinct horizontal stroke; a 'c'+'l' pair won't falsely trigger it).
   let drawHasBar = hasECrossbar(drawn);
   if (n === 1) {
-    const dk0 = strokeKind(drawn[0]);
-    if (dk0 === 'curve' || dk0 === 'shoulder') drawHasBar = false;
+    const c0 = strokeClassifyFull(drawn[0]);
+    // A curve ('s' S-curve) or shoulder ('r'/'n' arch) has a flat tangent that
+    // crossbarInfo mistakes for a crossbar — override it off so the asymmetric
+    // gate doesn't exclude the letter itself.
+    if (c0.kind === 'curve' || c0.kind === 'shoulder') drawHasBar = false;
+    // A 'bowl' WITHOUT an 'e' eye is a closed loop with NO crossbar (o/a/d/g/p/b
+    // — and the 's' S-curve, which detectBowl can misread as a bowl on captured
+    // ink). Its flattest run is a bowl edge / curve tangent, not a drawn bar, so
+    // it must not trigger the crossbar gate. Only a bowl WITH an eye ('e') keeps
+    // a real crossbar — that stays on so 'e' is not wrongly excluded.
+    if (c0.kind === 'bowl' && !(c0.bowl && c0.bowl.eye)) drawHasBar = false;
   }
   const lowBar = drawHasBar && crossbarIsLow(drawn);
   const drawHasDiag = hasDiagonalRun(drawn);
@@ -979,8 +998,12 @@ export function shapeGuess(drawnStrokes, templates) {
   // NOT a real crossbar.
   let drawHasBar = hasECrossbar(drawn);
   if (n === 1) {
-    const dk0 = strokeKind(drawn[0]);
-    if (dk0 === 'curve' || dk0 === 'shoulder') drawHasBar = false;
+    const c0 = strokeClassifyFull(drawn[0]);
+    // Curve/shoulder flat-tangent override (see recognize).
+    if (c0.kind === 'curve' || c0.kind === 'shoulder') drawHasBar = false;
+    // Bowl-without-eye override (see recognize): a closed loop with no 'e' eye
+    // (o/a/d/g/p/b, and the 's' S-curve misread as a bowl) has no real crossbar.
+    if (c0.kind === 'bowl' && !(c0.bowl && c0.bowl.eye)) drawHasBar = false;
   }
   const lowBar = drawHasBar && crossbarIsLow(drawn);
   const drawHasDiag = hasDiagonalRun(drawn);
