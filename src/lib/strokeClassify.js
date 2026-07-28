@@ -143,8 +143,14 @@ function detectShoulder(pts) {
     for (let i = 0; i < N; i++) if (pts[i].y > my) { my = pts[i].y; bi = i; }
     if (bi >= 2 && bi <= N - 3) cands.push(bi);
   }
+  let strokeMaxY = -Infinity;
+  for (let i = 0; i < N; i++) if (pts[i].y > strokeMaxY) strokeMaxY = pts[i].y;
   for (const baseI of cands) {
     if (baseI < 2 || baseI > N - 3) continue;
+    // The base must sit at the stroke's true low point — a shoulder's retrace
+    // base IS the bottom; a 'u' curves past its first local max to a deeper low,
+    // so a mid-stroke base would otherwise steal u into the shoulder family.
+    if (strokeMaxY - pts[baseI].y > 0.06) continue;
     // downstroke start→base must be a straight, near-vertical line
     const downChord = classifyChord(pts[baseI].x - pts[0].x, pts[baseI].y - pts[0].y);
     if (downChord.kind !== 'vertical') continue;
@@ -176,7 +182,8 @@ function detectShoulder(pts) {
 // encloses ~0 area; a bowl bulges away and encloses a real region. A bowl may
 // have a stem lead-in (b, p) or a tail (d, g), so we find the earliest closed
 // sub-loop anywhere in the stroke and report the lead/tail around it.
-const BOWL_AREA = 0.004;       // min enclosed area (normalized) for a real loop
+const BOWL_AREA = 0.012;       // min enclosed area (normalized) for a real loop
+                                 // (real bowls ≈0.05–0.10; a 'w'/'z' pseudo-loop is ≈0.005)
 const BOWL_CLOSURE = 0.22;     // loop start/end within this fraction of stroke size
 function detectBowl(pts) {
   const N = pts.length;
@@ -231,15 +238,22 @@ function detectEye(pts, bi, j) {
   for (const p of loop) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
   const w = maxX - minX;
   if (w < 0.05) return false;
-  let best = 0, bestN = 0, run = 0, runN = 0;
+  let best = 0, bestN = 0, bestY = 0, run = 0, runN = 0, runYSum = 0;
   for (let i = 1; i < loop.length; i++) {
     const dseg = Math.abs(loop[i].y - loop[i - 1].y);
     const xseg = Math.abs(loop[i].x - loop[i - 1].x);
-    if (dseg < 0.012 && xseg > 0.004) { run += xseg; runN++; }
-    else { if (run > best) { best = run; bestN = runN; } run = 0; runN = 0; }
+    if (dseg < 0.012 && xseg > 0.004) { run += xseg; runN++; runYSum += (loop[i].y + loop[i - 1].y) / 2; }
+    else { if (run > best) { best = run; bestN = runN; bestY = runN ? runYSum / runN : loop[i].y; } run = 0; runN = 0; runYSum = 0; }
   }
-  if (run > best) { best = run; bestN = runN; }
-  return best >= 0.30 * w && bestN >= 2;   // ≥2 flat segments = ≥3 colinear points
+  if (run > best) { best = run; bestN = runN; bestY = runN ? runYSum / runN : 0; }
+  if (best < 0.30 * w || bestN < 2) return false;   // ≥2 flat segments = ≥3 colinear points
+  // The crossbar is either an INTERIOR line (loop ink above AND below it) or, for
+  // the crossbar-first 'e' stroke, a long flat run along the TOP edge of the loop
+  // (the bowl hangs below the crossbar). A bowl's bottom ('o') flattens into a
+  // run too, but at the BOTTOM edge with nothing below it — neither passes.
+  let minY = Infinity, above = false, below = false;
+  for (const p of loop) { if (p.y < minY) minY = p.y; if (p.y < bestY - 0.02) above = true; if (p.y > bestY + 0.02) below = true; }
+  return (above && below) || (bestY - minY < 0.03);
 }
 
 // Detect a "hooked line" — a long, mostly-straight stem (vertical or diagonal)
@@ -279,6 +293,10 @@ function detectHookedLine(pts) {
   if (turn < HOOK_TURN_DEG) return null;
   const hookArc = total - stemArc;
   if (hookArc / total < 0.06) return null;
+  // A straight tail is a chevron's second half (a 'k'), not a curving hook. A
+  // real hook (j, y tail) curves; reject when the tail is as straight as the
+  // stem so the bent detector handles the chevron instead.
+  if (halfStraightness(pts, stemEnd, N - 1) >= HOOK_STEM_STRAIGHT) return null;
   // Reject a shoulder-style arch: if the tail climbs back up above the stem's
   // lowest point by more than a quarter of the stem height, it's an arch (h/r/m),
   // not a hook. A hook stays near the stem's bottom.
@@ -623,7 +641,7 @@ export function classifyStroke(strokePx) {
       // bottom, not a crossbar — so don't even test for the eye.
       let sMinY = Infinity, sMaxY = -Infinity;
       for (const p of pts) { if (p.y < sMinY) sMinY = p.y; if (p.y > sMaxY) sMaxY = p.y; }
-      const inZone = sMinY >= 0.25 && sMaxY <= 0.72;
+      const inZone = sMinY >= 0.20 && sMaxY <= 0.80;
       bw.eye = (inZone && !hasVerticalStem(pts)) ? detectEye(pts, bw.loopStartIdx, bw.closureIdx) : false;
       kind = 'bowl'; direction = ''; bowl = bw;
     } else if (hk) {
