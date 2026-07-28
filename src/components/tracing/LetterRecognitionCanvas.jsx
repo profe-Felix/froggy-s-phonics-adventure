@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import { recognize, pathwayMatch, groupFormsLetter } from '@/lib/letterRecognize';
+import MatchOverlap from '@/components/tracing/MatchOverlap';
 import { classifyStroke, describeStroke } from '@/lib/strokeClassify';
 import { analyzeStrokesInteraction } from '@/lib/strokeInteract';
 import { inferLetter } from '@/lib/strokeInfer';
@@ -313,7 +314,7 @@ export default function LetterRecognitionCanvas({ templates }) {
         // a weak match honestly reads as weak instead of being painted "72% sure".
         const sameLetter = dtwLetter !== '?' ? templates.filter((t) => t.letter === dtwLetter) : [];
         const pathway = sameLetter.some((t) => pathwayMatch(g, t));
-        return { letter: dtwLetter, confidence: dtwConf, ranked, pathway, inferred: null };
+        return { letter: dtwLetter, confidence: dtwConf, ranked, pathway, inferred: null, strokesPx: g };
       });
       setResult({ segments, word: segments.map((s) => s.letter).join('') });
       setGuessing(false);
@@ -498,6 +499,7 @@ export default function LetterRecognitionCanvas({ templates }) {
                   </div>
                 ))}
               </div>
+              <MatchOverlap segment={result.segments[0]} templates={templates} />
             </>
           ) : (
             <>

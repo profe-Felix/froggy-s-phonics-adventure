@@ -88,17 +88,29 @@ function classMismatch(a, b) {
 // ASP_CAP lets a genuinely squashed/skinny letter (≈1.5× distortion) match while
 // stopping a degenerate line from flipping orientation into a different letter.
 const ASP_CAP = 2.5;
-function alignTo(drawn, dBox, tBox) {
+// The anisotropic scale that maps the drawing's bbox onto the template's bbox,
+// independently in x and y (a skinny letter widens, a squashed letter stretches),
+// with the aspect distortion CAPPED so a degenerate line can't flip orientation.
+// Exposed so the "match overlap" visual can render the exact stretch the recognizer
+// applies — the user can see when a letter is being deformed to fit a template.
+function alignTransform(dBox, tBox) {
   let sx = dBox.w > 1e-4 ? tBox.w / dBox.w : 1;
   let sy = dBox.h > 1e-4 ? tBox.h / dBox.h : 1;
-  if (sy > sx * ASP_CAP) sy = sx * ASP_CAP;
-  else if (sx > sy * ASP_CAP) sx = sy * ASP_CAP;
+  let capped = false;
+  if (sy > sx * ASP_CAP) { sy = sx * ASP_CAP; capped = true; }
+  else if (sx > sy * ASP_CAP) { sx = sy * ASP_CAP; capped = true; }
   const dcx = dBox.minX + dBox.w / 2, dcy = dBox.minY + dBox.h / 2;
   const tcx = tBox.minX + tBox.w / 2, tcy = tBox.minY + tBox.h / 2;
+  return { sx, sy, capped, dcx, dcy, tcx, tcy };
+}
+function applyAlign(drawn, tr) {
   return drawn.map((s) => s.map((p) => ({
-    x: tcx + (p.x - dcx) * sx,
-    y: tcy + (p.y - dcy) * sy,
+    x: tr.tcx + (p.x - tr.dcx) * tr.sx,
+    y: tr.tcy + (p.y - tr.dcy) * tr.sy,
   })));
+}
+function alignTo(drawn, dBox, tBox) {
+  return applyAlign(drawn, alignTransform(dBox, tBox));
 }
 
 // Bounded DTW (Sakoe-Chiba band). Returns the average per-step cost along the
@@ -471,4 +483,22 @@ export function strokeKindsPlausible(drawnStrokes, template) {
     if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(template.strokes, i))) return false;
   }
   return true;
+}
+
+// Build the exact anisotropic alignment the recognizer uses to fit a drawing onto
+// a template, plus the scale factors and aspect-cap flag — for the "match overlap"
+// visual. Returns the aligned drawn strokes (indigo, the stretched drawing) and the
+// template strokes (gray), both in normalized 0-1 template-bbox space, so they can
+// be rendered overlaid in one frame. sx/sy are the per-axis stretch; capped=true
+// means the aspect distortion hit the ASP_CAP clamp (the distortion was so extreme
+// it got clamped — the case the user wants to spot for h/v/z).
+export function overlapAlignment(drawnStrokes, template) {
+  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return null;
+  const drawn = normalize(drawnStrokes);
+  const dBox = bbox(drawn);
+  if (dBox.w === 0 && dBox.h === 0) return null;
+  const tBox = bbox(template.strokes);
+  const tr = alignTransform(dBox, tBox);
+  const aligned = applyAlign(drawn, tr);
+  return { aligned, template: template.strokes, drawn, sx: tr.sx, sy: tr.sy, capped: tr.capped, dBox, tBox };
 }
