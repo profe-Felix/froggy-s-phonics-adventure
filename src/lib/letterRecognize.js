@@ -666,20 +666,34 @@ function crossbarIsLow(drawnNorm) {
   const c = crossbarInfo(drawnNorm);
   return c.present && c.y != null && c.y >= CROSSBAR_LOW_MIN;
 }
-// A template "has a horizontal run" if its taught pathway contains a straight
-// horizontal ink run — a crossbar (t, f), the middle bar of an 'e', or the
-// top/bottom bars of a zigzag (z). When the drawing contains a horizontal
-// crossbar, letters WITHOUT such a run cannot be the answer: the crossbar is
-// structural ink those letters' forms don't have. This is the "a horizontal
-// line should remove v, r, m, u" rule — shoulders, curves, and bowls (v, r, m,
-// u, n, h, c, o, s…) have no straight horizontal run, so a drawn crossbar
-// excludes them, leaving only the crossbar/zigzag letters (t, f, e, z).
+// A template "has a horizontal run" if it is one of the BAR letters (t, f, e,
+// z) — letters whose taught pathway contains a STRAIGHT horizontal bar that is
+// structural to the letter (a crossbar, the 'e' middle bar, or the 'z' top/bottom
+// bars). When the drawing contains a horizontal crossbar, letters WITHOUT such
+// a run cannot be the answer: the crossbar is structural ink those letters'
+// forms don't have. This is the "a horizontal line should remove v, r, m, u"
+// rule — shoulders, curves, and bowls (v, r, m, u, n, h, c, o, s…) have no
+// straight horizontal bar, so a drawn crossbar excludes them, leaving only the
+// bar letters (t, f, e, z). The whitelist is required because an 's' S-curve
+// has a horizontal-ish segment in its top/bottom arc, and crossbarInfo detects
+// it as a "horizontal run" — but 's' is a CURVE, not a bar letter, so the
+// symmetric crossbar gate was wrongly EXCLUDING 's' (the ideal 's' template
+// matched 'r' instead of 's'). Restricting to the actual bar letters stops 's'
+// (and other curved letters with a flattish segment) from being excluded.
+const HORIZONTAL_BAR_LETTERS = new Set(['t', 'f', 'e', 'z']);
 const _hRunCache = new WeakMap();
 function templateHasHorizontalRun(t) {
   if (_hRunCache.has(t)) return _hRunCache.get(t);
-  const v = crossbarInfo(t.strokes).present;
+  const v = HORIZONTAL_BAR_LETTERS.has(t.letter) && crossbarInfo(t.strokes).present;
   _hRunCache.set(t, v);
   return v;
+}
+// A template "is a zigzag" if any of its taught strokes classifies as 'zigzag'
+// — the open 2-horizontals-plus-diagonal shape unique to 'z'. This is used by
+// the diagonal gate below to exclude 'z' when the drawing has no diagonal.
+function templateIsZigzag(t) {
+  if (!t || !Array.isArray(t.strokes)) return false;
+  return t.strokes.some((s, i) => tmplKind(t.strokes, i) === 'zigzag');
 }
 
 // --- DIAGONAL gate (the user's "diagonal line test") ---
@@ -804,8 +818,23 @@ export function recognize(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
-  const drawHasBar = hasECrossbar(drawn);
-  const lowBar = crossbarIsLow(drawn);
+  // A curve ('s' S-curve) or shoulder ('r'/'n'/'m'/'h' arch) has a flat tangent at
+  // its apex that crossbarInfo can mistake for a straight crossbar — and once a
+  // crossbar is "detected", the asymmetric gate excludes every non-bar letter
+  // (including 's' itself), so the ideal 's' template matched 'r'. A real
+  // crossbar belongs to a bar letter whose stroke kind is a bowl-with-eye ('e'),
+  // a topHook ('t','f'), a zigzag ('z'), or a straight horizontal/crossbar stroke
+  // — NOT a generic curve or shoulder. So when the (single) drawn stroke is a
+  // curve or shoulder, its flat tangent is NOT a crossbar: override drawHasBar
+  // to false. Multi-stroke drawings keep crossbarInfo as-is (a 't' crossbar is a
+  // distinct horizontal stroke; a 'c'+'l' pair won't falsely trigger it).
+  let drawHasBar = hasECrossbar(drawn);
+  if (n === 1) {
+    const dk0 = strokeKind(drawn[0]);
+    if (dk0 === 'curve' || dk0 === 'shoulder') drawHasBar = false;
+  }
+  const lowBar = drawHasBar && crossbarIsLow(drawn);
+  const drawHasDiag = hasDiagonalRun(drawn);
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
@@ -828,6 +857,16 @@ export function recognize(drawnStrokes, templates) {
     // — the 'h' hump ends in a VERTICAL stem, not a kick. This is the robust
     // h→k discriminator (the 'k' leg ends diagonally; the 'h' stem ends vertical).
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
+    // Zigzag-diagonal gate: 'z' is a ZIGZAG — two horizontal bars joined by a
+    // straight DIAGONAL. An 'e' (a closed loop) and an 's' (an S-curve) have NO
+    // diagonal — they contain no straight diagonal run — so they cannot be 'z':
+    // the diagonal connector 'z' requires is absent ink. This is the user's
+    // "there is no diagonal in e" rule. The gate is TARGETED at zigzag templates
+    // (only 'z'), so an 'h' hump's up-right start (which registers a short
+    // diagonal run) is irrelevant — the gate never excludes 'h', only 'z', and
+    // only when the drawing genuinely has no diagonal. A real 'z' drawing HAS a
+    // diagonal so 'z' is never excluded by this gate.
+    if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
@@ -897,6 +936,16 @@ function shapeStructPenalty(drawn, tmpl) {
     for (const dk of dKinds) if (kindsCompatible(dk, tk)) { covered = true; break; }
     if (!covered) pen += KIND_PENALTY;
   }
+  // A DOT is a defining MARK (the 'i'/'j' tittle), not generic extra ink. The
+  // chamfer is order/count-tolerant by design, so without this a 2-stroke 'i'
+  // (stem + dot) chamfer-matches a 1-stroke 'r' (stem + shoulder): the dot sits
+  // near the shoulder and the stem aligns, scoring ~0. But the 'i' HAS a dot
+  // and 'r' does NOT — the dot is structural ink 'r' lacks. So when the drawing
+  // contains a dot and the template has NO dot, the template is not a dotted
+  // letter: charge a kind penalty (symmetric to the missing-kind charge above).
+  const dHasDot = dKinds.some((k) => k === 'dot');
+  const tHasDot = tKindsArr.some((k) => k === 'dot');
+  if (dHasDot && !tHasDot) pen += KIND_PENALTY;
   // Humps are a shoulder concept — compare total humps (order-tolerant). A 1-hump
   // drawing cannot be a 2-hump 'n' or 3-hump 'm' no matter how chamfer stretches.
   const dHumps = drawn.map(strokeShoulderHumps).filter((h) => h != null);
@@ -924,8 +973,17 @@ export function shapeGuess(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
-  const drawHasBar = hasECrossbar(drawn);
-  const lowBar = crossbarIsLow(drawn);
+  // Curve/shoulder flat-tangent override (see recognize): an 's' S-curve or
+  // 'r'/'n' arch has a flat tangent crossbarInfo mistakes for a crossbar, which
+  // would exclude the letter itself. A curve/shoulder stroke's flat tangent is
+  // NOT a real crossbar.
+  let drawHasBar = hasECrossbar(drawn);
+  if (n === 1) {
+    const dk0 = strokeKind(drawn[0]);
+    if (dk0 === 'curve' || dk0 === 'shoulder') drawHasBar = false;
+  }
+  const lowBar = drawHasBar && crossbarIsLow(drawn);
+  const drawHasDiag = hasDiagonalRun(drawn);
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
@@ -943,6 +1001,9 @@ export function shapeGuess(drawnStrokes, templates) {
     // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
     // end when no drawn stroke ends diagonally.
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
+    // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
+    // an 'e' loop or 's' curve has none — exclude 'z'.
+    if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
