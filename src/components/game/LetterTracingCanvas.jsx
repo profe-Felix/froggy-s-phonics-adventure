@@ -5,6 +5,7 @@ const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
 const WOBBLE_RADIUS = 50; // px — pen is "on the path corridor" within this; momentary excursions past it are tolerated (see OFF_TRAVEL_BUDGET)
 const OFF_TRAVEL_BUDGET = 90; // px — accumulated pen travel WHILE off the corridor before we restart; a momentary wobble that comes back costs nothing, a sustained drift (excessive wobble) exceeds it
+const FWD_RETRACE_RADIUS = 95; // px — retraced letters (b stem, a stem, d/h/r) double back, so the "nearest" ideal point can be the EARLIER (wrong-direction) copy; prefer the forward copy within this wider radius so a correct retrace isn't flagged as a direction error
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COMPLETE_FRAC = 0.68; // fraction of ideal-path points the stroke must actually pass near to complete
@@ -227,15 +228,26 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         const d = dist(pos, densePath[i]);
         if (d < minD) { minD = d; nearestIdx = i; }
       }
+      // Retrace preference: when the nearest ideal point is in ALREADY-COVERED
+      // territory (the pen has doubled back over a region it already drew — the
+      // b/a/d/h/r stem retraced, or a minor backtrack), the "nearest" copy points
+      // the WRONG way and a correct retrace trips the direction gate. Prefer the
+      // FORWARD copy (the taught continuation, correct direction) when the pen
+      // is still reasonably near it. The retrace tolerance is WIDER than the
+      // normal wobble corridor because the doubled-back copies sit close
+      // together and a small wobble flips the snap; a genuinely-lost pen (beyond
+      // this radius) still fails the wobble budget below.
+      let retraceForward = false;
       if (nearestIdx < pathProgressRef.current) {
         let fwdD = Infinity, fwdIdx = -1;
         for (let i = pathProgressRef.current; i < densePath.length; i++) {
           const d = dist(pos, densePath[i]);
           if (d < fwdD) { fwdD = d; fwdIdx = i; }
         }
-        if (fwdIdx >= 0 && fwdD <= WOBBLE_RADIUS) {
+        if (fwdIdx >= 0 && fwdD <= FWD_RETRACE_RADIUS) {
           nearestIdx = fwdIdx;
           minD = fwdD;
+          retraceForward = true;
         }
       }
 
@@ -248,11 +260,18 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // longer overlaps the path) exceeds the budget and restarts the stroke.
       // A genuinely-lost huge jump still restarts immediately.
       if (minD > WOBBLE_RADIUS) {
-        offTravelRef.current += moveDist;
-        if (minD > WOBBLE_RADIUS * 2 || offTravelRef.current > OFF_TRAVEL_BUDGET) {
-          flashError();
-          restartStroke();
-          return;
+        if (retraceForward) {
+          // The pen is retracing taught geometry but wider than the thin ideal
+          // line — still "on the path," just wider ink. Don't accumulate drift
+          // (that would punish the retrace itself); reset the budget instead.
+          offTravelRef.current = 0;
+        } else {
+          offTravelRef.current += moveDist;
+          if (minD > WOBBLE_RADIUS * 2 || offTravelRef.current > OFF_TRAVEL_BUDGET) {
+            flashError();
+            restartStroke();
+            return;
+          }
         }
       } else {
         offTravelRef.current = 0;
@@ -270,9 +289,45 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         const ix = (densePath[b].x - densePath[a].x) / iLen;
         const iy = (densePath[b].y - densePath[a].y) / iLen;
         if (dx * ix + dy * iy < DIR_REJECT_DOT) {
-          flashError();
-          restartStroke();
-          return;
+          // Before restarting, check for a retrace TURN. At a doubled-back
+          // point (b stem bottom, a stem top, h arch valley) the taught path's
+          // LEAVING direction flips while the pen is still ARRIVING in the
+          // original direction — so a correct arrival reads as "reversed".
+          // Two signals of a legitimate turn:
+          //   (1) TURN ARRIVAL: the pen still matches the direction the path
+          //       was TRAVERSED to reach this point (arrival direction). Allow
+          //       it; the next move snaps to the forward (retraced) copy.
+          //   (2) TURN LEAVE: a nearby FORWARD ideal point already points the
+          //       new drawn direction — the retrace has begun. Advance there.
+          // If neither, it's genuine reverse scribbling → restart.
+          const ai = Math.max(0, nearestIdx - 2);
+          const aLen = Math.hypot(densePath[nearestIdx].x - densePath[ai].x, densePath[nearestIdx].y - densePath[ai].y) || 1;
+          const arrX = (densePath[nearestIdx].x - densePath[ai].x) / aLen;
+          const arrY = (densePath[nearestIdx].y - densePath[ai].y) / aLen;
+          if (dx * arrX + dy * arrY >= 0) {
+            // turn arrival — legitimate, allow without restarting
+          } else {
+            let saved = false;
+            for (let f = nearestIdx + 1; f <= Math.min(nearestIdx + 6, densePath.length - 1); f++) {
+              if (dist(pos, densePath[f]) > FWD_RETRACE_RADIUS) continue;
+              const fa = f, fb = Math.min(f + 2, densePath.length - 1);
+              const fLen = Math.hypot(densePath[fb].x - densePath[fa].x, densePath[fb].y - densePath[fa].y) || 1;
+              const fx = (densePath[fb].x - densePath[fa].x) / fLen;
+              const fy = (densePath[fb].y - densePath[fa].y) / fLen;
+              if (dx * fx + dy * fy >= 0) {
+                nearestIdx = f;
+                minD = dist(pos, densePath[f]);
+                retraceForward = true;
+                saved = true;
+                break;
+              }
+            }
+            if (!saved) {
+              flashError();
+              restartStroke();
+              return;
+            }
+          }
         }
       }
 
