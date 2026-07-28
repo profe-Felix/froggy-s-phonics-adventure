@@ -700,10 +700,24 @@ function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
     // but the template expects a real stroke, the kind gate still fires (a dot
     // where a stem/crossbar should be is a real mismatch).
     const bIsDot = isDotStroke(b);
+    // A straight LINE (vertical stem, horizontal crossbar, diagonal) has no
+    // meaningful "direction" for the pathway badge: drawing it left-to-right or
+    // right-to-left, top-to-bottom or bottom-to-top, is the SAME correct stroke.
+    // The direction gate was firing -1.00 (exactly reversed) on a correctly-drawn
+    // crossbar after the anisotropic x-stretch on a narrow drawing — a false
+    // "wrong pathway" on a letter the student formed correctly. The DTW SHAPE
+    // gate (direction-preserving by construction) already rejects a stroke that
+    // goes the genuinely wrong way (a bottom-up stem, a right-to-left crossbar
+    // against a left-to-right template scores high DTW), so skipping the
+    // direction gate for line template strokes is safe: curves, bowls,
+    // shoulders and hooks keep the gate (their direction is structural).
+    const bIsLine = !bIsDot && LINE_KINDS.has(tmplKind(template.strokes, i));
     if (!isDotStroke(dGroups[i]) && !bIsDot) {
-      const da = startDir(a), db = startDir(b);
-      const dot = da.x * db.x + da.y * db.y;
-      if (dot < DIR_THRESH) return `s${i + 1}:dir ${dot.toFixed(2)}`;
+      if (!bIsLine) {
+        const da = startDir(a), db = startDir(b);
+        const dot = da.x * db.x + da.y * db.y;
+        if (dot < DIR_THRESH) return `s${i + 1}:dir ${dot.toFixed(2)}`;
+      }
       const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
       if (startPos > PATHWAY_START_GATE) return `s${i + 1}:start ${startPos.toFixed(2)}`;
     }
