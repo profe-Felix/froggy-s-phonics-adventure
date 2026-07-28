@@ -225,9 +225,30 @@ function tmplKind(tmpl, i) {
   if (!arr) { arr = tmpl.map(strokeKind); _kindCache.set(tmpl, arr); }
   return arr[i];
 }
+// Number of humps on a shoulder stroke (the 'r' shoulder has 1 hump, the 'n'
+// shoulder has 2, the 'm' shoulder has 3). Returns null when the stroke is NOT a
+// shoulder — humps are a shoulder concept, so we only compare humps when BOTH the
+// drawn and template strokes are shoulders (and thus share the same structural
+// kind, so the kind gate has already passed). This is the "missing ink" signal: a
+// 1-hump drawing cannot be a 2-hump letter no matter how DTW stretches over the
+// absent hump.
+function strokeShoulderHumps(strokeNorm) {
+  if (!strokeNorm || strokeNorm.length < 2) return null;
+  const px = strokeNorm.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+  const c = classifyStroke(px);
+  if (c.kind !== 'shoulder' || !c.shoulder) return null;
+  return c.shoulder.humps || 0;
+}
+const _humpCache = new WeakMap();
+function tmplHumps(tmpl, i) {
+  let arr = _humpCache.get(tmpl);
+  if (!arr) { arr = tmpl.map(strokeShoulderHumps); _humpCache.set(tmpl, arr); }
+  return arr[i];
+}
 const KIND_PENALTY = 0.18;        // per mismatched stroke pair — pushes a structurally-wrong letter down in the ranking
 const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (normalized) distance of the template's start
 const START_POS_PENALTY = 0.5;    // per unit of start-point drift beyond the allowance — a stroke that begins somewhere different from the taught path costs more, the "wrong start path" deduction (d's bowl start vs k's midline-right start)
+const HUMP_PENALTY = 0.15;        // per missing/extra hump on a shoulder — the "missing ink" deduction: a 1-hump 'r' matched to a 2-hump 'n' costs 'n' this, because the drawing simply does not contain the second hump 'n' requires
 
 // Per-pair stroke-match costs between a drawing and one template (aligned to the
 // template's bbox). Dots are paired positionally (a dot is a mark, not a path);
@@ -301,6 +322,12 @@ function letterDistance(drawn, dBox, tmpl) {
       const sp = Math.hypot(aligned[i][0].x - tmpl[i][0].x, aligned[i][0].y - tmpl[i][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
     }
+    // Missing/extra humps (shoulder vs shoulder). A 1-hump 'r' matched to a
+    // 2-hump 'n' costs 'n' HUMP_PENALTY — the drawing lacks the ink 'n' requires,
+    // so 'n' ranks below 'r' for that drawing instead of winning on point overlap.
+    const dh = strokeShoulderHumps(drawn[i]);
+    const th = tmplHumps(tmpl, i);
+    if (dh != null && th != null && dh !== th) dist += HUMP_PENALTY * Math.abs(dh - th);
   }
   return dist;
 }
@@ -416,6 +443,14 @@ export function pathwayMatch(drawnStrokes, template) {
     // inside "recognize letter": the per-stroke shape must match the taught
     // stroke's shape, not just cover the same area.
     if (!kindsCompatible(strokeKind(drawn[i]), tmplKind(template.strokes, i))) return false;
+    // HUMP COUNT must agree (shoulder vs shoulder). A 1-hump 'r' cannot follow the
+    // 2-hump 'n' pathway — the second hump 'n' requires is simply not in the ink.
+    // DTW + anisotropic alignment can stretch over the absent hump and score
+    // close, so this explicit count is what stops the r→n "correct pathway" false
+    // positive. Symmetric: a 2-hump drawing is equally not the 1-hump 'r'.
+    const dh = strokeShoulderHumps(drawn[i]);
+    const th = tmplHumps(template.strokes, i);
+    if (dh != null && th != null && dh !== th) return false;
   }
   return sum / drawn.length < PATHWAY_DIST;
 }
