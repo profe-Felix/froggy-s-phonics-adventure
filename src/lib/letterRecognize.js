@@ -269,10 +269,20 @@ function kindsCompatible(ka, kb) {
   // with slight wobble — a not-quite-straight vertical classifies as 'curve'
   // instead of 'vertical', a soft shoulder as 'curve' instead of 'shoulder'.
   // Those are the SAME structural stroke, just messier, so 'curve' is
-  // compatible with any other non-dot, non-bowl kind. 'bowl' stays strict (a
-  // closed loop is a real structural difference — the b→k protection relies on
-  // bowl≠shoulder/bent, and a curve↔bowl pairing would dissolve that).
-  if ((ka === 'curve' || kb === 'curve') && ka !== 'bowl' && kb !== 'bowl') return true;
+  // compatible with any other non-dot, non-bowl kind EXCEPT 'horizontal'. A
+  // 'horizontal' crossbar is a STRAIGHT line by definition; a curve is not
+  // straight, so a curve is NOT a crossbar. This is the a→t / b→k protection:
+  // the 'c' curve of a 2-stroke 'a' (curve + stem) cannot fill the 't' crossbar,
+  // and a 'b' bowl cannot fill the 'k' bent stroke once it reads as a curve —
+  // the structural kind gates the match BEFORE anisotropic DTW can stretch the
+  // curve onto the short crossbar. 'bowl' stays strict (a closed loop is a real
+  // structural difference — the b→k protection relies on bowl≠shoulder/bent,
+  // and a curve↔bowl pairing would dissolve that). curve↔vertical/diagonal
+  // stays: a wobbly stem/diagonal legitimately classifies as curve.
+  if ((ka === 'curve' || kb === 'curve') && ka !== 'bowl' && kb !== 'bowl') {
+    if (ka === 'horizontal' || kb === 'horizontal') return false;
+    return true;
+  }
   return false;
 }
 // Classify a normalized (0-1) stroke. classifyStroke takes canvas px and divides
