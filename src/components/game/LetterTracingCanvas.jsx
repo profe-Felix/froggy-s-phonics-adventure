@@ -2,11 +2,11 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
-const HIT_RADIUS = 10; // pixels to count as hitting a waypoint
-const WOBBLE_RADIUS = 30; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
-const MIN_MOVE = 4; // px — ignore direction checks for sub-noise movements
-const DIR_REJECT_DOT = -0.5; // drawn-vs-ideal direction dot below this = reverse direction → restart
-const COMPLETE_FRAC = 0.85; // fraction of ideal path length the student must cover to complete a stroke
+const HIT_RADIUS = 16; // pixels to count as hitting a waypoint
+const WOBBLE_RADIUS = 55; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
+const MIN_MOVE = 6; // px — ignore direction checks for sub-noise movements
+const DIR_REJECT_DOT = -0.72; // drawn-vs-ideal direction dot below this = reverse direction → restart (only egregious backtracking)
+const COMPLETE_FRAC = 0.68; // fraction of ideal path length the student must cover to complete a stroke
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
