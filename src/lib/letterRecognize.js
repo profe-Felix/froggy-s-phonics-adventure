@@ -666,6 +666,21 @@ function crossbarIsLow(drawnNorm) {
   const c = crossbarInfo(drawnNorm);
   return c.present && c.y != null && c.y >= CROSSBAR_LOW_MIN;
 }
+// A template "has a horizontal run" if its taught pathway contains a straight
+// horizontal ink run — a crossbar (t, f), the middle bar of an 'e', or the
+// top/bottom bars of a zigzag (z). When the drawing contains a horizontal
+// crossbar, letters WITHOUT such a run cannot be the answer: the crossbar is
+// structural ink those letters' forms don't have. This is the "a horizontal
+// line should remove v, r, m, u" rule — shoulders, curves, and bowls (v, r, m,
+// u, n, h, c, o, s…) have no straight horizontal run, so a drawn crossbar
+// excludes them, leaving only the crossbar/zigzag letters (t, f, e, z).
+const _hRunCache = new WeakMap();
+function templateHasHorizontalRun(t) {
+  if (_hRunCache.has(t)) return _hRunCache.get(t);
+  const v = crossbarInfo(t.strokes).present;
+  _hRunCache.set(t, v);
+  return v;
+}
 
 // px-stroke wrapper for callers that have canvas-pixel strokes (not normalized).
 export function drawingHasCrossbar(pxStrokes) { return hasECrossbar(normalize(pxStrokes)); }
@@ -676,14 +691,21 @@ export function recognize(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
+  const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
-  const results = templates.map((t) => ({
-    letter: t.letter,
-    dist: ((lowBar ? (NO_CROSSBAR_BOWLS.has(t.letter) || NO_LOW_CROSSBAR.has(t.letter)) : hasECrossbar(drawn) && NO_CROSSBAR_BOWLS.has(t.letter)))
-      ? Infinity
-      : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
-    confidence: 0,
-  }));
+  const results = templates.map((t) => {
+    let excluded = false;
+    if (drawHasBar) {
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
+      if (!templateHasHorizontalRun(t)) excluded = true;
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+    }
+    return {
+      letter: t.letter,
+      dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
+      confidence: 0,
+    };
+  });
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
   if (finite.length) {
@@ -774,14 +796,21 @@ export function shapeGuess(drawnStrokes, templates) {
   const dBox = bbox(drawn);
   if (dBox.w === 0 && dBox.h === 0) return [];
   const n = drawn.length;
+  const drawHasBar = hasECrossbar(drawn);
   const lowBar = crossbarIsLow(drawn);
-  const results = templates.map((t) => ({
-    letter: t.letter,
-    dist: ((lowBar ? (NO_CROSSBAR_BOWLS.has(t.letter) || NO_LOW_CROSSBAR.has(t.letter)) : hasECrossbar(drawn) && NO_CROSSBAR_BOWLS.has(t.letter)))
-      ? Infinity
-      : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
-    confidence: 0,
-  }));
+  const results = templates.map((t) => {
+    let excluded = false;
+    if (drawHasBar) {
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
+      if (!templateHasHorizontalRun(t)) excluded = true;
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+    }
+    return {
+      letter: t.letter,
+      dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
+      confidence: 0,
+    };
+  });
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
   if (finite.length) {
