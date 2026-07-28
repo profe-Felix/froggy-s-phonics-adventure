@@ -13,6 +13,9 @@ const MIN_COVER_FRAC = 0.95; // fraction of the ideal path the pen must actually
 const MAX_GAP = 10; // dense points — the largest run of UNCOVERED path the pen may leave. A shortcut skips a curved section, leaving a gap bigger than this → restart. A complete trace leaves no gaps (the pen passes every segment).
 const START_TOL = 6; // dense points — the pen must reach the path's start within this many points (slight start variation allowed).
 const END_TOL = 5; // dense points — the pen must reach the path's end within this many points (slight end variation allowed, but the student must actually finish the stroke).
+// Per-stroke guide colors — match the teacher authoring canvas (StrokeAuthoringCanvas)
+// so the faint guide path is clearly visible instead of a low-contrast gray dashed line.
+const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
 function scale(pt) {
   if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
@@ -600,18 +603,23 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         <line x1="0" y1={0.90 * CANVAS_H} x2={CANVAS_W} y2={0.90 * CANVAS_H}
           stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Faint waypoint guide path (all future waypoints) */}
-        {strokes.map((stroke, si) => (
-          <polyline
-            key={si}
-            points={stroke.map(p => `${scale(p).x},${scale(p).y}`).join(' ')}
-            fill="none"
-            stroke={si < strokeIndex ? '#22c55e' : '#94a3b8'}
-            strokeWidth="3"
-            strokeDasharray="6 4"
-            opacity="0.3"
-          />
-        ))}
+        {/* Waypoint guide path — vibrant per-stroke colors matching the teacher
+            authoring canvas, solid and visible so the student can see what to trace. */}
+        {strokes.map((stroke, si) => {
+          const color = si < strokeIndex ? '#22c55e' : GUIDE_COLORS[si % GUIDE_COLORS.length];
+          return (
+            <polyline
+              key={si}
+              points={stroke.map(p => `${scale(p).x},${scale(p).y}`).join(' ')}
+              fill="none"
+              stroke={color}
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={si < strokeIndex ? 0.5 : 0.6}
+            />
+          );
+        })}
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
@@ -651,17 +659,19 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
             strokeWidth="1.5" opacity="0.7" />
         )}
 
-        {/* Start dot — show only when waiting to begin a stroke */}
+        {/* Start dot — color matches the current stroke's guide (teacher authoring palette) */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
+          (() => { const dc = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length]; return (
           <>
-            <circle cx={nextWp.x} cy={nextWp.y} r="18" fill="#6366f1" opacity="0.15">
+            <circle cx={nextWp.x} cy={nextWp.y} r="18" fill={dc} opacity="0.15">
               <animate attributeName="r" values="14;22;14" dur="1s" repeatCount="indefinite" />
               <animate attributeName="opacity" values="0.2;0.05;0.2" dur="1s" repeatCount="indefinite" />
             </circle>
-            <circle cx={nextWp.x} cy={nextWp.y} r="8" fill="#6366f1" />
+            <circle cx={nextWp.x} cy={nextWp.y} r="8" fill={dc} />
             <text x={nextWp.x} y={nextWp.y + 4} textAnchor="middle" fontSize="9"
               fill="white" fontWeight="bold">{strokeIndex + 1}</text>
           </>
+          ); })()
         )}
       </svg>
 
