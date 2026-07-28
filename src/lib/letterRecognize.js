@@ -636,8 +636,9 @@ export function groupFormsLetter(strokesPx, templates) {
 // stroke already scores poorly; the start-tangent check makes it explicit).
 // Stricter than recognize(): the whole letter must clearly be THIS template,
 // not just the closest one.
-const PATHWAY_DIST = 0.14;    // average per-stroke DTW below this = the stroke shapes genuinely match (not just "closest available")
+const PATHWAY_DIST = 0.18;    // average per-stroke DTW below this = the stroke shapes genuinely match (not just "closest available") — loosened from 0.14: real handwriting sits ~0.10–0.16 and was failing the stricter bar
 const DIR_THRESH = 0.5;       // start-tangent dot above this = same starting direction
+const PATHWAY_START_GATE = 0.30;  // hard start-position gate for the pathway BADGE — deliberately looser than the 0.15 soft penalty in recognize(): a multi-stroke letter's 2nd/3rd stroke naturally begins at a different relative spot (a 't' crossbar begun at center vs the template's left end; a 'k' chevron begun mid-right) and that is proportion variance, NOT a wrong pathway. The soft penalty still nudges recognition; the badge no longer hard-fails on it.
 
 function startDir(stroke) {
   const rs = resample(stroke, R);
@@ -664,7 +665,7 @@ function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
     if (da.x * db.x + da.y * db.y < DIR_THRESH) return false;
     if (!isDotStroke(dGroups[i]) && !isDotStroke(b)) {
       const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
-      if (startPos > PATHWAY_START_POS) return false;
+      if (startPos > PATHWAY_START_GATE) return false;
     }
     if (!kindsCompatible(fusedGroupKind(dGroupStrokes[i]), tmplKind(template.strokes, i))) return false;
     const dh = strokeShoulderHumps(dGroups[i]);
