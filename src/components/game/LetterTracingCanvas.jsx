@@ -3,7 +3,8 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
-const WOBBLE_RADIUS = 50; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
+const WOBBLE_RADIUS = 50; // px — pen is "on the path corridor" within this; momentary excursions past it are tolerated (see OFF_TRAVEL_BUDGET)
+const OFF_TRAVEL_BUDGET = 90; // px — accumulated pen travel WHILE off the corridor before we restart; a momentary wobble that comes back costs nothing, a sustained drift (excessive wobble) exceeds it
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COMPLETE_FRAC = 0.68; // fraction of ideal-path points the stroke must actually pass near to complete
@@ -65,6 +66,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
   const pathProgressRef = useRef(0); // furthest dense-path index reached this stroke
   const visitedRef = useRef(new Set()); // dense-path indices the stroke actually passed near (coverage)
+  const offTravelRef = useRef(0); // accumulated px traveled while off the path corridor — sustained drift restarts (overlap-based wobble)
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
@@ -99,6 +101,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    offTravelRef.current = 0;
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
@@ -140,6 +143,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setReplayPts([]);
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    offTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setDrawing(true);
     setStatus('tracing');
@@ -163,6 +167,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    offTravelRef.current = 0;
   };
 
   // Finalise the current stroke as completed and advance to the next one.
@@ -173,6 +178,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setCurrentPath([]);
     strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
+    offTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setAwaitingLift(false);
     const newStrokeIdx = strokeIndex + 1;
@@ -203,6 +209,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     const prev = currentPathRef.current[currentPathRef.current.length - 1];
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
+    const moveDist = prev ? dist(pos, prev) : 0;
 
     if (densePath.length) {
       // Nearest point on the densely-sampled ideal path. For retraced letters
@@ -232,31 +239,40 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         }
       }
 
-      // Wobble: wandering too far from the ideal path restarts the stroke.
+      // Wobble (overlap-based): the drawn ink is WIDER than the thin ideal line,
+      // so a pen that wobbles a little still lays ink that OVERLAPS the path —
+      // "fairly on the path." We do NOT restart on a single stray point. Instead
+      // we accumulate how far the pen has traveled WHILE off the corridor
+      // (minD > WOBBLE_RADIUS); a momentary wobble that comes right back costs
+      // nothing, but a SUSTAINED drift (excessive wobble → wide ink that no
+      // longer overlaps the path) exceeds the budget and restarts the stroke.
+      // A genuinely-lost huge jump still restarts immediately.
       if (minD > WOBBLE_RADIUS) {
-        flashError();
-        restartStroke();
-        return;
+        offTravelRef.current += moveDist;
+        if (minD > WOBBLE_RADIUS * 2 || offTravelRef.current > OFF_TRAVEL_BUDGET) {
+          flashError();
+          restartStroke();
+          return;
+        }
+      } else {
+        offTravelRef.current = 0;
       }
 
       // Direction: the drawn movement must align with the ideal path's local
       // direction. Reverse-direction scribbling or "coloring in" the letter
       // without following the stroke order is rejected and restarts the stroke.
-      if (prev) {
-        const moveDist = dist(pos, prev);
-        if (moveDist >= MIN_MOVE) {
-          const dx = (pos.x - prev.x) / moveDist;
-          const dy = (pos.y - prev.y) / moveDist;
-          const a = Math.min(nearestIdx, densePath.length - 1);
-          const b = Math.min(nearestIdx + 2, densePath.length - 1);
-          const iLen = Math.hypot(densePath[b].x - densePath[a].x, densePath[b].y - densePath[a].y) || 1;
-          const ix = (densePath[b].x - densePath[a].x) / iLen;
-          const iy = (densePath[b].y - densePath[a].y) / iLen;
-          if (dx * ix + dy * iy < DIR_REJECT_DOT) {
-            flashError();
-            restartStroke();
-            return;
-          }
+      if (prev && moveDist >= MIN_MOVE) {
+        const dx = (pos.x - prev.x) / moveDist;
+        const dy = (pos.y - prev.y) / moveDist;
+        const a = Math.min(nearestIdx, densePath.length - 1);
+        const b = Math.min(nearestIdx + 2, densePath.length - 1);
+        const iLen = Math.hypot(densePath[b].x - densePath[a].x, densePath[b].y - densePath[a].y) || 1;
+        const ix = (densePath[b].x - densePath[a].x) / iLen;
+        const iy = (densePath[b].y - densePath[a].y) / iLen;
+        if (dx * ix + dy * iy < DIR_REJECT_DOT) {
+          flashError();
+          restartStroke();
+          return;
         }
       }
 
