@@ -352,6 +352,25 @@ function tmplHumps(tmpl, i) {
 const KIND_PENALTY = 0.18;        // per mismatched stroke pair — pushes a structurally-wrong letter down in the ranking
 const PATHWAY_START_POS = 0.15;   // a pathway stroke must BEGIN within this (normalized) distance of the template's start
 const START_POS_PENALTY = 0.5;    // per unit of start-point drift beyond the allowance — a stroke that begins somewhere different from the taught path costs more, the "wrong start path" deduction (d's bowl start vs k's midline-right start)
+// ABSOLUTE start-height gate. The aligned (template-bbox) start check above is
+// done AFTER anisotropic scaling, so it can't tell a stroke that began at the
+// TOP guide line from one that began at the BOTTOM — a backwards 'z' (starts at
+// the baseline, bottom-left) anisotropically aligns its bbox onto the 'v' bbox
+// and its start lands exactly one bbox-height from the 'v' start (which begins
+// at the midline, top-left), squeaking under the aligned gate. The ABSOLUTE
+// vertical start position is anchored to the guide LINES (a 'v' begins at the
+// midline; a 'z' begins at the midline; a backwards 'z' begins at the baseline),
+// so it is invariant to anisotropic stretching: a stroke that began at a
+// different guide-line height than the taught pathway is simply NOT that
+// pathway, no matter how the bbox is stretched. X is left to the aligned gate
+// (a letter may be drawn at any horizontal position on the wide canvas). The
+// threshold (0.15) comfortably separates a same-guide-line start (correct
+// letter, ≤~0.08 with natural variance + the tracing-vs-recognition guide-line
+// convention offset) from an opposite-guide-line start (≥~0.21).
+const ABS_START_Y = 0.15;
+function startYZoneOK(drawnStartY, tmplStartY) {
+  return Math.abs(drawnStartY - tmplStartY) <= ABS_START_Y;
+}
 const HUMP_PENALTY = 0.15;        // per missing/extra hump on a shoulder — the "missing ink" deduction: a 1-hump 'r' matched to a 2-hump 'n' costs 'n' this, because the drawing simply does not contain the second hump 'n' requires
 const LINE_ANGLE_TOL = 30;       // a drawn line and a template line must point within this many degrees — a 40° diagonal is not an 85° vertical stem (r/n/h), and a crossbar is not a diagonal. The user's "gates for verticals/horizontals/diagonals": the three line KINDS are no longer freely interchangeable.
 // Chord angle (0–90° from horizontal) of a stroke's net displacement — the line
@@ -438,6 +457,12 @@ function scoreGrouping(aGroups, dGroups, dGroupStrokes, tmpl, n, m, dBox, tBox) 
       if (da != null && ta != null && Math.abs(da - ta) > LINE_ANGLE_TOL) return Infinity;
     }
     if (!isDotStroke(dGroups[j]) && !isDotStroke(tmpl[j])) {
+      // Absolute start-height gate: a fused group whose first point began at a
+      // different guide-line height than the template stroke's start is NOT this
+      // pathway (a backwards 'z' begins at the baseline; 'v' begins at the
+      // midline) — exclude the fusion outright instead of letting anisotropic
+      // stretching hide the wrong start.
+      if (!startYZoneOK(dGroups[j][0].y, tmpl[j][0].y)) return Infinity;
       const sp = Math.hypot(aGroups[j][0].x - tmpl[j][0].x, aGroups[j][0].y - tmpl[j][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
     }
@@ -540,6 +565,11 @@ function letterDistance(drawn, dBox, tmpl) {
       if (da != null && ta != null && Math.abs(da - ta) > LINE_ANGLE_TOL) return Infinity;
     }
     if (!isDotStroke(drawn[i]) && !isDotStroke(tmpl[i])) {
+      // Absolute start-height gate (see ABS_START_Y): a stroke beginning at a
+      // different guide-line height than the taught pathway can't be this letter
+      // — excludes it outright so a backwards 'z' (baseline start) can't read as
+      // 'v' (midline start) regardless of anisotropic alignment.
+      if (!startYZoneOK(drawn[i][0].y, tmpl[i][0].y)) return Infinity;
       const sp = Math.hypot(aligned[i][0].x - tmpl[i][0].x, aligned[i][0].y - tmpl[i][0].y);
       if (sp > PATHWAY_START_POS) dist += START_POS_PENALTY * (sp - PATHWAY_START_POS);
     }
@@ -853,6 +883,13 @@ function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
     // shoulders and hooks keep the gate (their direction is structural).
     const bIsLine = !bIsDot && LINE_KINDS.has(tmplKind(template.strokes, i));
     if (!isDotStroke(dGroups[i]) && !bIsDot) {
+      // Absolute start-height gate (see ABS_START_Y): the green "correct pathway"
+      // badge requires the stroke to have BEGUN at the taught guide-line height.
+      // A backwards 'z' starts at the baseline while 'v' starts at the midline —
+      // different guide lines — so the badge comes back yellow, not green, even
+      // though anisotropic alignment made the shapes overlap. dGroups[i] is the
+      // RAW (pre-alignment) stroke, so this reads the true start height.
+      if (!startYZoneOK(dGroups[i][0].y, b[0].y)) return `s${i + 1}:ystart ${Math.abs(dGroups[i][0].y - b[0].y).toFixed(2)}`;
       if (!bIsLine) {
         const da = startDir(a), db = startDir(b);
         const dot = da.x * db.x + da.y * db.y;
