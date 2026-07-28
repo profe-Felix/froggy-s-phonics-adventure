@@ -3,10 +3,10 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
-const WOBBLE_RADIUS = 42; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
+const WOBBLE_RADIUS = 50; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
 const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
-const COMPLETE_FRAC = 0.72; // fraction of ideal-path points the stroke must actually pass near to complete
+const COMPLETE_FRAC = 0.68; // fraction of ideal-path points the stroke must actually pass near to complete
 
 function scale(pt) {
   if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
@@ -205,12 +205,31 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (!currentStrokes) return;
 
     if (densePath.length) {
-      // Nearest point on the densely-sampled ideal path.
+      // Nearest point on the densely-sampled ideal path. For retraced letters
+      // (b, d, h, m, n, q, g…) the same geometry appears twice in the dense path
+      // — the b stem is traversed down then back up, the a stem retraces the
+      // bowl's right edge. A plain nearest-point search snaps to the lower-index
+      // copy, so the retrace copy is never reached and coverage stalls; worse,
+      // the snapped copy can point the WRONG way (the bowl edge runs up while the
+      // a stem runs down), tripping the direction gate. Once the stroke has
+      // advanced past a region (pathProgress), prefer the FORWARD copy when the
+      // pen is still within wobble of it — that is the taught continuation.
       let minD = Infinity;
       let nearestIdx = 0;
       for (let i = 0; i < densePath.length; i++) {
         const d = dist(pos, densePath[i]);
         if (d < minD) { minD = d; nearestIdx = i; }
+      }
+      if (nearestIdx < pathProgressRef.current) {
+        let fwdD = Infinity, fwdIdx = -1;
+        for (let i = pathProgressRef.current; i < densePath.length; i++) {
+          const d = dist(pos, densePath[i]);
+          if (d < fwdD) { fwdD = d; fwdIdx = i; }
+        }
+        if (fwdIdx >= 0 && fwdD <= WOBBLE_RADIUS) {
+          nearestIdx = fwdIdx;
+          minD = fwdD;
+        }
       }
 
       // Wobble: wandering too far from the ideal path restarts the stroke.
