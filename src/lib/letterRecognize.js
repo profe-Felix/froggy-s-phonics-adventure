@@ -221,6 +221,15 @@ function kindsCompatible(ka, kb) {
   // the chevron classified as a curve), which is exactly the false positive we
   // are removing: features must be accurately recognized.
   if (LINE_KINDS.has(ka) && LINE_KINDS.has(kb)) return true;
+  // 'curve' is the generic "this stroke bends" classification that real
+  // handwriting falls into when a clean template stem/shoulder/hook is drawn
+  // with slight wobble — a not-quite-straight vertical classifies as 'curve'
+  // instead of 'vertical', a soft shoulder as 'curve' instead of 'shoulder'.
+  // Those are the SAME structural stroke, just messier, so 'curve' is
+  // compatible with any other non-dot, non-bowl kind. 'bowl' stays strict (a
+  // closed loop is a real structural difference — the b→k protection relies on
+  // bowl≠shoulder/bent, and a curve↔bowl pairing would dissolve that).
+  if ((ka === 'curve' || kb === 'curve') && ka !== 'bowl' && kb !== 'bowl') return true;
   return false;
 }
 // Classify a normalized (0-1) stroke. classifyStroke takes canvas px and divides
@@ -637,7 +646,7 @@ export function groupFormsLetter(strokesPx, templates) {
 // Stricter than recognize(): the whole letter must clearly be THIS template,
 // not just the closest one.
 const PATHWAY_DIST = 0.18;    // average per-stroke DTW below this = the stroke shapes genuinely match (not just "closest available") — loosened from 0.14: real handwriting sits ~0.10–0.16 and was failing the stricter bar
-const DIR_THRESH = 0.5;       // start-tangent dot above this = same starting direction
+const DIR_THRESH = 0.0;       // start-tangent dot above this = same starting direction — 0.0 rejects only genuinely REVERSED strokes (dot<0). The old 0.5 falsely rejected diagonals (v/x/y) and slightly-off stems whose first-segment direction wobbled under handwriting variance. Reversed strokes still fail — the f hook points up/right while the k stem points down (dot<0) — so the f→k protection holds.
 const PATHWAY_START_GATE = 0.30;  // hard start-position gate for the pathway BADGE — deliberately looser than the 0.15 soft penalty in recognize(): a multi-stroke letter's 2nd/3rd stroke naturally begins at a different relative spot (a 't' crossbar begun at center vs the template's left end; a 'k' chevron begun mid-right) and that is proportion variance, NOT a wrong pathway. The soft penalty still nudges recognition; the badge no longer hard-fails on it.
 
 function startDir(stroke) {
@@ -653,33 +662,47 @@ function startDir(stroke) {
 // fused group must match its template stroke in shape (DTW), starting direction,
 // start position, structural kind, and hump count. Shared by the n==m and the
 // fused (n>m) paths.
+// Returns '' when the grouping follows the taught pathway cleanly, else a short
+// reason tag naming the first failing gate (s1:shape / s1:dir / s1:start /
+// s1:kind / s1:humps / avg). Used by pathwayMatch (boolean) and the diagnostic
+// pathwayMatchDebug (reason) so the UI can show WHY a correct-looking letter was
+// flagged "wrong pathway".
 function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
   const m = template.strokes.length;
   let sum = 0;
   for (let i = 0; i < m; i++) {
     const a = aGroups[i], b = template.strokes[i];
     const c = strokeDtw(a, b);
-    if (c > PATHWAY_DIST) return false;
+    if (c > PATHWAY_DIST) return `s${i + 1}:shape ${c.toFixed(2)}`;
     sum += c;
     const da = startDir(a), db = startDir(b);
-    if (da.x * db.x + da.y * db.y < DIR_THRESH) return false;
+    const dot = da.x * db.x + da.y * db.y;
+    if (dot < DIR_THRESH) return `s${i + 1}:dir ${dot.toFixed(2)}`;
     if (!isDotStroke(dGroups[i]) && !isDotStroke(b)) {
       const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
-      if (startPos > PATHWAY_START_GATE) return false;
+      if (startPos > PATHWAY_START_GATE) return `s${i + 1}:start ${startPos.toFixed(2)}`;
     }
-    if (!kindsCompatible(fusedGroupKind(dGroupStrokes[i]), tmplKind(template.strokes, i))) return false;
+    const dk = fusedGroupKind(dGroupStrokes[i]), tk = tmplKind(template.strokes, i);
+    if (!kindsCompatible(dk, tk)) return `s${i + 1}:kind ${dk}/${tk}`;
     const dh = strokeShoulderHumps(dGroups[i]);
     const th = tmplHumps(template.strokes, i);
-    if (dh != null && th != null && dh !== th) return false;
+    if (dh != null && th != null && dh !== th) return `s${i + 1}:humps ${dh}/${th}`;
   }
-  return sum / m < PATHWAY_DIST;
+  if (sum / m >= PATHWAY_DIST) return `avg ${(sum / m).toFixed(2)}`;
+  return '';
 }
 
 export function pathwayMatch(drawnStrokes, template) {
-  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return false;
+  return pathwayMatchDebug(drawnStrokes, template) === '';
+}
+
+// Same as pathwayMatch but returns the failing-gate reason ('' = ok). For the
+// diagnostic self-test and for surfacing "why wrong pathway" in the UI.
+export function pathwayMatchDebug(drawnStrokes, template) {
+  if (!template || !Array.isArray(template.strokes) || !template.strokes.length) return 'no-template';
   const drawn = normalize(drawnStrokes);
   const n = drawn.length;
-  if (!n) return false;
+  if (!n) return 'no-strokes';
   const m = template.strokes.length;
   const dBox = bbox(drawn);
   const tBox = bbox(template.strokes);
@@ -689,17 +712,20 @@ export function pathwayMatch(drawnStrokes, template) {
   // the two diagonals are fused into the bent stroke.
   if (n >= m && n > 1) {
     const orders = n <= 3 ? permutationsOf(rangeN(n)) : [rangeN(n)];
+    let firstReason = '';
     for (const order of orders) {
       for (const sizes of compositionsOf(n, m)) {
         const aG = buildGroups(order, sizes, aligned);
         const dG = buildGroups(order, sizes, drawn);
         const dGS = buildGroupedStrokes(order, sizes, drawn);
-        if (fusedPathwayOk(aG, dG, dGS, template)) return true;
+        const r = fusedPathwayOk(aG, dG, dGS, template);
+        if (r === '') return '';
+        if (!firstReason) firstReason = r;   // keep the first (correct-order) reason
       }
     }
-    return false;
+    return firstReason || 'no-fusion-match';
   }
-  if (n !== m) return false;
+  if (n !== m) return `count ${n}/${m}`;
   return fusedPathwayOk(aligned, drawn, drawn.map((s) => [s]), template);
 }
 
