@@ -10,6 +10,7 @@ const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
 const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
 const COMPLETE_FRAC = 0.68; // fraction of ideal-path points the stroke must actually pass near to complete
 const COVERAGE_RADIUS = 30; // px — mark every dense point within this of the pen (spatial coverage), so a clean trace fills the path even where the nearest-index stalls (closed bowls, retraces)
+const END_RADIUS = 26; // px — the pen must get this close to the path's final point, so a half-traced letter can't complete (the student must actually reach the end of the stroke)
 
 function scale(pt) {
   if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
@@ -68,6 +69,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
   const pathProgressRef = useRef(0); // furthest dense-path index reached this stroke
   const visitedRef = useRef(new Set()); // dense-path indices the stroke actually passed near (coverage)
+  const minEndDistRef = useRef(Infinity); // closest the pen has come to the path's final point this stroke — enforces reaching the end
   const offTravelRef = useRef(0); // accumulated px traveled while off the path corridor — sustained drift restarts (overlap-based wobble)
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
@@ -103,6 +105,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    minEndDistRef.current = Infinity;
     offTravelRef.current = 0;
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
@@ -145,6 +148,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setReplayPts([]);
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    minEndDistRef.current = Infinity;
     offTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setDrawing(true);
@@ -169,6 +173,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    minEndDistRef.current = Infinity;
     offTravelRef.current = 0;
   };
 
@@ -181,6 +186,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
+    minEndDistRef.current = Infinity;
     pendingCompleteRef.current = false;
     setAwaitingLift(false);
     const newStrokeIdx = strokeIndex + 1;
@@ -352,10 +358,17 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       for (let k = 0; k < densePath.length; k++) {
         if (dist(pos, densePath[k]) <= COVERAGE_RADIUS) visitedRef.current.add(k);
       }
+      // Track the closest the pen has come to the path's final point. A
+      // half-traced letter covers plenty of the path within the generous
+      // coverage radius but never reaches the end — so completion also
+      // requires the pen to have actually arrived at the stroke's endpoint.
+      minEndDistRef.current = Math.min(minEndDistRef.current, dist(pos, densePath[densePath.length - 1]));
       pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
 
-      // Completed once the stroke has covered enough of the ideal path → prompt to lift.
-      if (visitedRef.current.size >= COMPLETE_FRAC * densePath.length) {
+      // Completed once the stroke has covered enough of the ideal path AND the
+      // pen has reached the path's endpoint → prompt to lift. Requiring the
+      // endpoint stops a partial trace from completing early.
+      if (visitedRef.current.size >= COMPLETE_FRAC * densePath.length && minEndDistRef.current <= END_RADIUS) {
         pendingCompleteRef.current = true;
         setAwaitingLift(true);
         setWaypointIndex(currentStrokes.length);
@@ -388,8 +401,12 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     // path (in the correct direction — enforced in handlePointerMove). Lifting
     // early is rejected and the stroke restarts. There is no "almost done"
     // forgiveness: students must actually complete each stroke.
+    // Complete only if the student covered enough of the path AND actually
+    // reached the stroke's endpoint — a half-traced letter that never gets to
+    // the end is rejected, even if the generous coverage radius marked enough
+    // points along the way.
     const reachedEnd = densePath.length > 1
-      ? visitedRef.current.size >= COMPLETE_FRAC * densePath.length
+      ? visitedRef.current.size >= COMPLETE_FRAC * densePath.length && minEndDistRef.current <= END_RADIUS
       : true;
     if (reachedEnd) {
       commitStroke();
@@ -445,6 +462,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     strokeAccuraciesRef.current = [];
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
+    minEndDistRef.current = Infinity;
+    offTravelRef.current = 0;
     onReset?.();
   };
 
