@@ -172,7 +172,24 @@ function strokeDtw(dStroke, tStroke) {
   // slightly-off start still matches; reversed strokes (which start at the wrong
   // end entirely) already fail DTW on direction and fall to the shape rescue.
   const startCost = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
-  return dtw(a, b) + 0.10 * startCost;
+  // Emphasize the END DIRECTION: letters that share a bowl but differ in tail
+  // direction (q tail ends RIGHT, g tail ends LEFT) differ only in a small
+  // fraction of the stroke, so DTW — which averages over all points — dilutes
+  // the tail. The explicit end-direction term keeps the tail decisive: a q
+  // drawing's rightward tail costs 'g' (leftward tail) extra, while 'q'
+  // (matching direction) pays nothing.
+  const endA = endDir(a), endB = endDir(b);
+  const endDot = endA.x * endB.x + endA.y * endB.y;
+  const endPenalty = Math.max(0, 1 - endDot);
+  return dtw(a, b) + 0.10 * startCost + 0.05 * endPenalty;
+}
+
+function endDir(stroke) {
+  if (!stroke || stroke.length < 2) return { x: 0, y: 0 };
+  const k = Math.max(2, Math.round(stroke.length * 0.15));
+  const a = stroke[stroke.length - 1], b = stroke[Math.max(0, stroke.length - 1 - k)];
+  const len = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  return { x: (a.x - b.x) / len, y: (a.y - b.y) / len };
 }
 
 // A dot (the i/j dot, or a tilde mark) is a small isolated MARK, not a path —
@@ -675,15 +692,25 @@ function fusedPathwayOk(aGroups, dGroups, dGroupStrokes, template) {
     const c = strokeDtw(a, b);
     if (c > PATHWAY_DIST) return `s${i + 1}:shape ${c.toFixed(2)}`;
     sum += c;
-    const da = startDir(a), db = startDir(b);
-    const dot = da.x * db.x + da.y * db.y;
-    if (dot < DIR_THRESH) return `s${i + 1}:dir ${dot.toFixed(2)}`;
-    if (!isDotStroke(dGroups[i]) && !isDotStroke(b)) {
+    // A dot is a MARK — its direction, start position, and structural kind are
+    // noise (a tap, a tiny up-flick, a small down-flick are all "a dot"). So when
+    // the TEMPLATE stroke is a dot, skip the direction, start-position, and kind
+    // gates for this pair; the shape (centroid/nearest) check above already
+    // verified the mark sits in the right place. When the DRAWN stroke is a dot
+    // but the template expects a real stroke, the kind gate still fires (a dot
+    // where a stem/crossbar should be is a real mismatch).
+    const bIsDot = isDotStroke(b);
+    if (!isDotStroke(dGroups[i]) && !bIsDot) {
+      const da = startDir(a), db = startDir(b);
+      const dot = da.x * db.x + da.y * db.y;
+      if (dot < DIR_THRESH) return `s${i + 1}:dir ${dot.toFixed(2)}`;
       const startPos = Math.hypot(a[0].x - b[0].x, a[0].y - b[0].y);
       if (startPos > PATHWAY_START_GATE) return `s${i + 1}:start ${startPos.toFixed(2)}`;
     }
-    const dk = fusedGroupKind(dGroupStrokes[i]), tk = tmplKind(template.strokes, i);
-    if (!kindsCompatible(dk, tk)) return `s${i + 1}:kind ${dk}/${tk}`;
+    if (!bIsDot) {
+      const dk = fusedGroupKind(dGroupStrokes[i]), tk = tmplKind(template.strokes, i);
+      if (!kindsCompatible(dk, tk)) return `s${i + 1}:kind ${dk}/${tk}`;
+    }
     const dh = strokeShoulderHumps(dGroups[i]);
     const th = tmplHumps(template.strokes, i);
     if (dh != null && th != null && dh !== th) return `s${i + 1}:humps ${dh}/${th}`;
