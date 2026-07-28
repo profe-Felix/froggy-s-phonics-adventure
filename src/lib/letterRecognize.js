@@ -826,7 +826,16 @@ export function drawingHasCrossbar(pxStrokes) { return hasECrossbar(normalize(px
 // template leg classifies as a smooth 'curve' (not 'bent'), so the structural-
 // kind gate cannot separate it from the hump — but its diagonal END is invariant.
 const END_VERT_X = 0.25;
-const END_DIAG_X = 0.45;
+// Lowered from 0.45 → 0.35: a steep 'v' (or 'w') drawn tall ends at endDir.x ≈ 0.38,
+// which sat JUST under 0.45 so the drawing was judged "not ending diagonally" while
+// the 'v' template (endDir.x ≈ 0.49) was a "diagonal-ending template" — and the
+// end-direction gate excluded 'v' for a 'v' drawing (self-exclusion), leaving 'r'
+// (vertical end) to win on coverage. At 0.35 the steep 'v'/'w' diagonals count as
+// diagonal for BOTH drawing and template, so 'v' self-excludes no longer and its
+// 100% coverage wins. 'r' (endDir.x ≈ 0.27) stays below the line = vertical, so
+// 'r' drawings still exclude the diagonal templates (k/x/v/w) as intended; 'k'/'x'
+// (0.75+) stay clearly diagonal.
+const END_DIAG_X = 0.35;
 const END_DIAG_Y = 0.30;
 function endIsVertical(d) { return Math.abs(d.x) <= END_VERT_X; }
 function endIsDiagonal(d) { return Math.abs(d.x) >= END_DIAG_X && Math.abs(d.y) >= END_DIAG_Y; }
