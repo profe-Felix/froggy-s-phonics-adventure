@@ -105,19 +105,23 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const scaleX = CANVAS_W / rect.width;
     const scaleY = CANVAS_H / rect.height;
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
     };
   };
 
   const handlePointerDown = useCallback((e) => {
     e.preventDefault();
+    if (e.button != null && e.button !== 0) return; // left mouse / touch / pen only
     if (status === 'success') return;
+    // Pointer Events unify mouse, touch, and pen. setPointerCapture keeps events
+    // flowing to the canvas even if the pen/finger/cursor leaves it mid-stroke —
+    // the same model the authoring canvas uses, so graphics-tablet pens
+    // (Wacom/Promethean) and iPad/PC/touch all draw reliably here.
+    try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
     const pos = getPos(e);
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
@@ -258,6 +262,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
+    try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     if (!drawing) return;
     setDrawing(false);
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
@@ -388,13 +393,11 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-white/40 bg-white/10'
         }`}
-        style={{ cursor: 'crosshair' }}
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        onTouchStart={handlePointerDown}
-        onTouchMove={handlePointerMove}
-        onTouchEnd={handlePointerUp}
+        style={{ cursor: 'crosshair', touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         {/* Guide letter removed until suitable font is found */}
 
