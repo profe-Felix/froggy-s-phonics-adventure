@@ -16,6 +16,7 @@ export default function LetterTracingAuthoring() {
   const [rawStrokes, setRawStrokes] = useState([]);
   const [copied, setCopied] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -226,6 +227,18 @@ export default function LetterTracingAuthoring() {
                 >
                   <Play className="w-4 h-4" /> {previewing ? 'Hide' : 'Preview'}
                 </button>
+                {previewing && (
+                  <button
+                    onClick={() => setShowCoverage((s) => !s)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                      showCoverage
+                        ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+                    }`}
+                  >
+                    🖊️ {showCoverage ? 'Hide thick-pen' : 'Show thick-pen'}
+                  </button>
+                )}
               </div>
               {previewing && normalized.length > 0 ? (
                 <div className="flex justify-center bg-gradient-to-b from-purple-400 to-indigo-600 rounded-xl p-4">
@@ -235,6 +248,7 @@ export default function LetterTracingAuthoring() {
                     strokes={normalized}
                     onComplete={() => {}}
                     onReset={() => {}}
+                    debugCoverage={showCoverage}
                   />
                 </div>
               ) : (

@@ -87,7 +87,7 @@ function coverageComplete(visited, denseLen) {
   return frac >= MIN_COVER_FRAC && maxGap <= MAX_GAP && startCovered && endCovered;
 }
 
-export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy }) {
+export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage }) {
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
@@ -103,6 +103,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
+  const [coverageStats, setCoverageStats] = useState(null); // debug: covered/total/progress for the thick-pen visualization
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
   const [replaying, setReplaying] = useState(false);
   const [replayPts, setReplayPts] = useState([]);
@@ -138,6 +139,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setReplaying(false);
     setReplayPts([]);
     setAccuracy(null);
+    setCoverageStats(null);
     strokeAccuraciesRef.current = [];
   }, [letter]);
 
@@ -411,6 +413,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         setAwaitingLift(true);
         setWaypointIndex(currentStrokes.length);
       }
+      if (debugCoverage) setCoverageStats({ covered: visitedRef.current.size, total: densePath.length, progress: pathProgressRef.current });
     }
 
     currentPathRef.current = [...currentPathRef.current, pos];
@@ -424,7 +427,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath]);
+  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, debugCoverage]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
@@ -495,6 +498,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setStatus('idle');
     setErrorFlash(false);
     setAccuracy(null);
+    setCoverageStats(null);
     strokeAccuraciesRef.current = [];
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
@@ -617,6 +621,22 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           </>
         )}
 
+        {/* Debug: thick-pen coverage visualization — green dots = dense path
+            points the pen has passed within COVERAGE_RADIUS of; gray dots =
+            not-yet-covered. Amber ring = the pen tip's coverage radius. */}
+        {debugCoverage && densePath.map((p, i) => {
+          const cov = visitedRef.current.has(i);
+          return <circle key={'dcov' + i} cx={p.x} cy={p.y}
+            r={cov ? 3 : 1.6} fill={cov ? '#22c55e' : '#94a3b8'}
+            opacity={cov ? 0.85 : 0.5} />;
+        })}
+        {debugCoverage && currentPath.length > 0 && (
+          <circle cx={currentPath[currentPath.length - 1].x}
+            cy={currentPath[currentPath.length - 1].y}
+            r={COVERAGE_RADIUS} fill="none" stroke="#f59e0b"
+            strokeWidth="1.5" opacity="0.7" />
+        )}
+
         {/* Start dot — show only when waiting to begin a stroke */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           <>
@@ -630,6 +650,16 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           </>
         )}
       </svg>
+
+      {debugCoverage && coverageStats && (
+        <div className="text-xs font-mono leading-tight text-center">
+          <div className="text-amber-200">
+            covered {coverageStats.covered}/{coverageStats.total} ({Math.round(coverageStats.covered / Math.max(1, coverageStats.total) * 100)}%) ·
+            reached end {coverageStats.progress >= coverageStats.total - 5 ? 'yes' : 'no'}
+          </div>
+          <div className="text-amber-300/70">green dots = inside thick pen · amber ring = pen tip</div>
+        </div>
+      )}
 
       <div className="flex items-center gap-4">
         {!isSuccess && (
