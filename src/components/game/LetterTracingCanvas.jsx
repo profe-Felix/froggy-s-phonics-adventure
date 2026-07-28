@@ -2,11 +2,11 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
-const HIT_RADIUS = 16; // pixels to count as hitting a waypoint
-const WOBBLE_RADIUS = 55; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
-const MIN_MOVE = 6; // px — ignore direction checks for sub-noise movements
-const DIR_REJECT_DOT = -0.72; // drawn-vs-ideal direction dot below this = reverse direction → restart (only egregious backtracking)
-const COMPLETE_FRAC = 0.68; // fraction of ideal path length the student must cover to complete a stroke
+const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
+const WOBBLE_RADIUS = 42; // px — max deviation from the ideal path; beyond this = wobble, restart stroke
+const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
+const DIR_REJECT_DOT = -0.6; // drawn-vs-ideal direction dot below this = reverse direction → restart (clear backtracking only)
+const COMPLETE_FRAC = 0.72; // fraction of ideal-path points the stroke must actually pass near to complete
 
 function scale(pt) {
   return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
@@ -63,6 +63,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const currentPathRef = useRef([]); // always-current ref to avoid stale closure
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
   const pathProgressRef = useRef(0); // furthest dense-path index reached this stroke
+  const visitedRef = useRef(new Set()); // dense-path indices the stroke actually passed near (coverage)
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
@@ -95,6 +96,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setAwaitingLift(false);
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
+    visitedRef.current = new Set();
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
@@ -135,6 +137,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setReplaying(false);
     setReplayPts([]);
     pathProgressRef.current = 0;
+    visitedRef.current = new Set();
     pendingCompleteRef.current = false;
     setDrawing(true);
     setStatus('tracing');
@@ -157,6 +160,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setAwaitingLift(false);
     pendingCompleteRef.current = false;
     pathProgressRef.current = 0;
+    visitedRef.current = new Set();
   };
 
   // Finalise the current stroke as completed and advance to the next one.
@@ -235,12 +239,17 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         }
       }
 
-      // Progress: how far along the ideal path the student has drawn. Only
-      // moves forward — never decreases — so backtracking cannot fake progress.
+      // Coverage: the stroke must actually pass NEAR most of the ideal path's
+      // points. A straight line or quick flick only touches a small cluster of
+      // the densely-sampled points, so it can't fake completion the way a lone
+      // "furthest index" jump could. Mark a small window around the nearest
+      // index so normal pen speed still fills the path in.
+      const lo = Math.max(0, nearestIdx - 1), hi = Math.min(densePath.length - 1, nearestIdx + 1);
+      for (let k = lo; k <= hi; k++) visitedRef.current.add(k);
       pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
 
-      // Reached the end of the ideal path → prompt to lift to finalise.
-      if (pathProgressRef.current >= COMPLETE_FRAC * (densePath.length - 1)) {
+      // Completed once the stroke has covered enough of the ideal path → prompt to lift.
+      if (visitedRef.current.size >= COMPLETE_FRAC * densePath.length) {
         pendingCompleteRef.current = true;
         setAwaitingLift(true);
         setWaypointIndex(currentStrokes.length);
@@ -274,7 +283,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     // early is rejected and the stroke restarts. There is no "almost done"
     // forgiveness: students must actually complete each stroke.
     const reachedEnd = densePath.length > 1
-      ? pathProgressRef.current >= COMPLETE_FRAC * (densePath.length - 1)
+      ? visitedRef.current.size >= COMPLETE_FRAC * densePath.length
       : true;
     if (reachedEnd) {
       commitStroke();
@@ -329,6 +338,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setAccuracy(null);
     strokeAccuraciesRef.current = [];
     pathProgressRef.current = 0;
+    visitedRef.current = new Set();
     onReset?.();
   };
 
