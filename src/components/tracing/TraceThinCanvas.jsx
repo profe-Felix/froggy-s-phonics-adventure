@@ -22,10 +22,103 @@ function Arrow({ pos, color }) {
   const p1 = `${(pos.x + size * Math.cos(a1)).toFixed(1)},${(pos.y + size * Math.sin(a1)).toFixed(1)}`;
   const p2 = `${(pos.x + size * Math.cos(a2)).toFixed(1)},${(pos.y + size * Math.sin(a2)).toFixed(1)}`;
   return <polygon points={`${pos.x.toFixed(1)},${pos.y.toFixed(1)} ${p1} ${p2}`} fill={color} />;
-}
+  }
 
+  // Zhang-Suen thinning: peel boundary pixels of the black-ink mask until a 1px
+  // centerline remains. Unlike cross-section centroids it follows the ink all the
+  // way to stroke tips (no splits) and never flares at round caps.
+  function zhangSuen(mask, W, H) {
+  const m = mask.slice();
+  const nb = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let pass = 0; pass < 2; pass++) {
+      const rm = [];
+      for (let y = 1; y < H - 1; y++) {
+        for (let x = 1; x < W - 1; x++) {
+          const idx = y * W + x;
+          if (m[idx] !== 1) continue;
+          const p = nb.map(([dx, dy]) => m[(y + dy) * W + (x + dx)]);
+          let A = 0;
+          for (let i = 0; i < 8; i++) if (p[i] === 0 && p[(i + 1) % 8] === 1) A++;
+          let B = 0;
+          for (let i = 0; i < 8; i++) B += p[i];
+          if (B < 2 || B > 6) continue;
+          if (A !== 1) continue;
+          if (pass === 0) {
+            if (p[0] && p[2] && p[4]) continue;
+            if (p[2] && p[4] && p[6]) continue;
+          } else {
+            if (p[0] && p[2] && p[6]) continue;
+            if (p[0] && p[4] && p[6]) continue;
+          }
+          rm.push(idx);
+        }
+      }
+      if (rm.length) {
+        for (const idx of rm) m[idx] = 0;
+        changed = true;
+      }
+    }
+  }
+  return m;
+  }
 
-export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
+  const NB8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+
+  // Remove dead-end spurs shorter than maxLen. Zhang-Suen leaves these at sharp
+  // convex corners (an A apex) — pruning yields a clean vertex.
+  function pruneSpurs(m, W, H, maxLen) {
+  const ncount = (x, y) => {
+    let n = 0;
+    for (const [dx, dy] of NB8) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      if (m[ny * W + nx]) n++;
+    }
+    return n;
+  };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!m[y * W + x] || ncount(x, y) !== 1) continue;
+        const branch = [{ x, y }];
+        let cxp = x, cyp = y, px = -1, py = -1;
+        let hitJunction = false;
+        for (let step = 0; step < maxLen; step++) {
+          let nx = -1, ny = -1;
+          for (const [dx, dy] of NB8) {
+            const tx = cxp + dx, ty = cyp + dy;
+            if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
+            if (tx === px && ty === py) continue;
+            if (m[ty * W + tx]) { nx = tx; ny = ty; break; }
+          }
+          if (nx < 0) break;
+          px = cxp; py = cyp; cxp = nx; cyp = ny;
+          branch.push({ x: cxp, y: cyp });
+          const nc = ncount(cxp, cyp);
+          if (nc >= 3) { hitJunction = true; break; }
+          if (nc === 1) break;
+        }
+        if (hitJunction) {
+          for (let k = 0; k < branch.length - 1; k++) m[branch[k].y * W + branch[k].x] = 0;
+          changed = true;
+        }
+      }
+    }
+  }
+  }
+
+  function collectPts(m, W, H) {
+  const pts = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x]) pts.push({ x, y });
+  return pts;
+  }
+
+  export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   // Committed strokes are owned by the parent (rawStrokes); only the in-progress
   // stroke is local. Using the parent state directly avoids the two-way sync
   // loop (the old traced↔rawStrokes effects) that flickered while drawing.
@@ -51,9 +144,9 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
   const skeletonRef = useRef(null);
   const [skeletonUrl, setSkeletonUrl] = useState(null);
 
-  // Rasterize the trace image at its current transform, build the centerline
-  // from ink cross-section centroids, and render it. Only runs in Trace view —
-  // no work in the background otherwise.
+  // Rasterize the trace image, thin the black ink to a 1px centerline (which
+  // reaches every stroke tip), prune dead-end spurs, and render it. Only runs
+  // in Trace view — no work in the background otherwise.
   useEffect(() => {
     if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -76,28 +169,13 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
       const r = src[o], g = src[o + 1], b = src[o + 2];
       mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
-    // Centerline via cross-section centroids: the midpoint of each ink run in
-    // every row and column is a point on the stroke's true midline. This yields
-    // a single, centered, smooth line per stroke — no Zhang-Suen spurs at sharp
-    // corners (an A apex) and no jogs at junctions (legs crossing a crossbar),
-    // because every point is the center of its own ink cross-section.
-    const pts = [];
-    for (let y = 0; y < H; y++) {
-      let s = -1;
-      for (let x = 0; x <= W; x++) {
-        const ink = x < W && mask[y * W + x] === 1;
-        if (ink && s < 0) s = x;
-        else if (!ink && s >= 0) { pts.push({ x: (s + x - 1) / 2, y }); s = -1; }
-      }
-    }
-    for (let x = 0; x < W; x++) {
-      let s = -1;
-      for (let y = 0; y <= H; y++) {
-        const ink = y < H && mask[y * W + x] === 1;
-        if (ink && s < 0) s = y;
-        else if (!ink && s >= 0) { pts.push({ x, y: (s + y - 1) / 2 }); s = -1; }
-      }
-    }
+    // Thin to a 1px centerline, then prune short dead-end spurs (the "pinch"
+    // Zhang-Suen leaves at sharp corners like an A apex). Render as overlapping
+    // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
+    // meeting a leg) so they're invisible, without fragmenting the line.
+    const skel = zhangSuen(mask, W, H);
+    pruneSpurs(skel, W, H, 6);
+    const pts = collectPts(skel, W, H);
     skeletonRef.current = { pts };
     const sc = document.createElement('canvas');
     sc.width = W; sc.height = H;
@@ -105,7 +183,7 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
     scx.clearRect(0, 0, W, H);
     scx.fillStyle = '#1e293b';
     scx.beginPath();
-    for (const p of pts) { scx.moveTo(p.x + 1.2, p.y); scx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); }
+    for (const p of pts) { scx.moveTo(p.x + 1.1, p.y); scx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); }
     scx.fill();
     setSkeletonUrl(sc.toDataURL());
   }, [bg, bgScale, bgX, bgY, traceView]);
