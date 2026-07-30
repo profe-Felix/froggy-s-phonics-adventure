@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
-import { extractCenterlines, smoothChain, arcLen } from './centerline';
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -25,51 +24,13 @@ function Arrow({ pos, color }) {
   return <polygon points={`${pos.x.toFixed(1)},${pos.y.toFixed(1)} ${p1} ${p2}`} fill={color} />;
 }
 
-// Zhang-Suen thinning: iteratively peel boundary pixels of the black-ink mask
-// until a 1px-wide skeleton (the medial-axis centerline) remains. Erodes from
-// the outer wall AND the inner wall of loops evenly — exactly the "offset the
-// outer and inner walls until thin" the user described.
-function zhangSuen(mask, W, H) {
-  const m = mask.slice();
-  // P2..P9 clockwise: top, top-right, right, bottom-right, bottom, bottom-left, left, top-left
-  const nb = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (let pass = 0; pass < 2; pass++) {
-      const rm = [];
-      for (let y = 1; y < H - 1; y++) {
-        for (let x = 1; x < W - 1; x++) {
-          const idx = y * W + x;
-          if (m[idx] !== 1) continue;
-          const p = nb.map(([dx, dy]) => m[(y + dy) * W + (x + dx)]);
-          let A = 0;
-          for (let i = 0; i < 8; i++) if (p[i] === 0 && p[(i + 1) % 8] === 1) A++;
-          let B = 0;
-          for (let i = 0; i < 8; i++) B += p[i];
-          if (B < 2 || B > 6) continue;
-          if (A !== 1) continue;
-          if (pass === 0) {
-            if (p[0] && p[2] && p[4]) continue; // P2*P4*P6
-            if (p[2] && p[4] && p[6]) continue; // P4*P6*P8
-          } else {
-            if (p[0] && p[2] && p[6]) continue; // P2*P4*P8
-            if (p[0] && p[4] && p[6]) continue; // P2*P6*P8
-          }
-          rm.push(idx);
-        }
-      }
-      if (rm.length) {
-        for (const idx of rm) m[idx] = 0;
-        changed = true;
-      }
-    }
-  }
-  return m;
-}
 
 export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
-  const [traced, setTraced] = useState(rawStrokes && rawStrokes.length ? rawStrokes : []);
+  // Committed strokes are owned by the parent (rawStrokes); only the in-progress
+  // stroke is local. Using the parent state directly avoids the two-way sync
+  // loop (the old traced↔rawStrokes effects) that flickered while drawing.
+  const traced = rawStrokes;
+  const setTraced = setRawStrokes;
   const [current, setCurrent] = useState([]);
 
   // Image display opacity + drag mode are local UI state (the image itself and
@@ -90,21 +51,9 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
   const skeletonRef = useRef(null);
   const [skeletonUrl, setSkeletonUrl] = useState(null);
 
-  // Adopt external rawStrokes (letter change / DB load) into traced when they
-  // differ. Internal writes pass the same array ref to setRawStrokes, so this
-  // only fires for genuinely external changes.
-  useEffect(() => {
-    if (rawStrokes !== traced) setTraced(rawStrokes || []);
-  }, [rawStrokes]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Push traced strokes to the parent so waypoints/preview/save stay in sync.
-  useEffect(() => {
-    setRawStrokes(traced);
-  }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Rasterize the trace image at its current transform, skeletonize the black
-  // ink, vectorize into chains, drop spur chains, smooth, and render a clean
-  // centerline. Only runs in Trace view — no work in the background otherwise.
+  // Rasterize the trace image at its current transform, build the centerline
+  // from ink cross-section centroids, and render it. Only runs in Trace view —
+  // no work in the background otherwise.
   useEffect(() => {
     if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -127,26 +76,37 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
       const r = src[o], g = src[o + 1], b = src[o + 2];
       mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
-    const skel = zhangSuen(mask, W, H);
-    // Pixel thinning leaves spurs at sharp corners (an A apex) and 1px jogs at
-    // junctions (legs crossing the crossbar). Vectorize into chains, drop short
-    // spur chains, and Laplacian-smooth the rest → a clean single centerline.
-    const chains = extractCenterlines(skel, W, H).filter((c) => c.length >= 2 && arcLen(c) >= 6);
-    const smoothed = chains.map((c) => smoothChain(c, 3));
-    skeletonRef.current = { pts: smoothed.flat() };
+    // Centerline via cross-section centroids: the midpoint of each ink run in
+    // every row and column is a point on the stroke's true midline. This yields
+    // a single, centered, smooth line per stroke — no Zhang-Suen spurs at sharp
+    // corners (an A apex) and no jogs at junctions (legs crossing a crossbar),
+    // because every point is the center of its own ink cross-section.
+    const pts = [];
+    for (let y = 0; y < H; y++) {
+      let s = -1;
+      for (let x = 0; x <= W; x++) {
+        const ink = x < W && mask[y * W + x] === 1;
+        if (ink && s < 0) s = x;
+        else if (!ink && s >= 0) { pts.push({ x: (s + x - 1) / 2, y }); s = -1; }
+      }
+    }
+    for (let x = 0; x < W; x++) {
+      let s = -1;
+      for (let y = 0; y <= H; y++) {
+        const ink = y < H && mask[y * W + x] === 1;
+        if (ink && s < 0) s = y;
+        else if (!ink && s >= 0) { pts.push({ x, y: (s + y - 1) / 2 }); s = -1; }
+      }
+    }
+    skeletonRef.current = { pts };
     const sc = document.createElement('canvas');
     sc.width = W; sc.height = H;
     const scx = sc.getContext('2d');
     scx.clearRect(0, 0, W, H);
-    scx.strokeStyle = '#1e293b';
-    scx.lineWidth = 1.6;
-    scx.lineCap = 'round';
-    scx.lineJoin = 'round';
-    for (const ch of smoothed) {
-      scx.beginPath();
-      ch.forEach((p, i) => (i === 0 ? scx.moveTo(p.x, p.y) : scx.lineTo(p.x, p.y)));
-      scx.stroke();
-    }
+    scx.fillStyle = '#1e293b';
+    scx.beginPath();
+    for (const p of pts) { scx.moveTo(p.x + 1.2, p.y); scx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); }
+    scx.fill();
     setSkeletonUrl(sc.toDataURL());
   }, [bg, bgScale, bgX, bgY, traceView]);
 
