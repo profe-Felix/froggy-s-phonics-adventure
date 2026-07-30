@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
-import { skeletonToPolylines } from '@/lib/skeletonVectorize';
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -119,6 +118,46 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
+  // Walk each connected skeleton component as ONE continuous polyline via DFS,
+  // emitting a point on every step AND on backtrack. Retracing branch segments
+  // keeps the path unbroken (no gaps/dashes) while covering every stroke; at a
+  // branch the path simply crosses itself, which renders clean (overlapping
+  // strokes, no bulge). Rendered with miter joins this gives sharp corners
+  // (an A's apex) and round caps give slightly rounded tips.
+  function skeletonToPaths(mask, W, H) {
+  const idx = (x, y) => y * W + x;
+  const is = (x, y) => x >= 0 && y >= 0 && x < W && y < H && mask[idx(x, y)];
+  const neigh = (x, y) => {
+    const r = [];
+    for (const [dx, dy] of NB8) { const nx = x + dx, ny = y + dy; if (is(nx, ny)) r.push([nx, ny]); }
+    return r;
+  };
+  const visited = new Uint8Array(W * H);
+  const paths = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const k = idx(x, y);
+    if (!mask[k] || visited[k]) continue;
+    const path = [];
+    const stack = [[x, y]];
+    visited[k] = 1;
+    while (stack.length) {
+      const [cx, cy] = stack[stack.length - 1];
+      path.push({ x: cx, y: cy });
+      const ns = neigh(cx, cy).filter(([nx, ny]) => !visited[idx(nx, ny)]);
+      if (ns.length) {
+        const [nx, ny] = ns[0];
+        visited[idx(nx, ny)] = 1;
+        stack.push([nx, ny]);
+      } else {
+        stack.pop();
+        if (stack.length) path.push({ x: stack[stack.length - 1][0], y: stack[stack.length - 1][1] });
+      }
+    }
+    if (path.length > 1) paths.push(path);
+  }
+  return paths;
+  }
+
   export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   // Committed strokes are owned by the parent (rawStrokes); only the in-progress
   // stroke is local. Using the parent state directly avoids the two-way sync
@@ -143,13 +182,13 @@ function Arrow({ pos, color }) {
 
   // Skeleton of the image ink (in canvas coords) + its rendered thin-line image.
   const skeletonRef = useRef(null);
-  const [skeletonPolylines, setSkeletonPolylines] = useState([]);
+  const [skeletonPaths, setSkeletonPaths] = useState([]);
 
   // Rasterize the trace image, thin the black ink to a 1px centerline (which
   // reaches every stroke tip), prune dead-end spurs, and render it. Only runs
   // in Trace view — no work in the background otherwise.
   useEffect(() => {
-    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonPolylines([]); return; }
+    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonPaths([]); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
     const dh = CANVAS_H * bgScale;
     const dw = dh * (bg.aspect || 1);
@@ -179,15 +218,13 @@ function Arrow({ pos, color }) {
     // removes the inward "bisector" spur a T-/X-junction leaves where the
     // crossbar overlaps a leg (the visible pinch at the A's midbar).
     pruneSpurs(skel, W, H, 16);
-    // Vectorize the 1px skeleton into polylines (endpoints → junctions → loops),
-    // snap nearby nodes to a shared centroid, and simplify with Douglas–Peucker.
-    // Rendering crisp <path> strokes (instead of overlapping dots) eliminates the
-    // bulges at junctions and the blunt blob at a round cap, and keeps sharp
-    // corners (an A's apex) as single vertices.
-    const polylines = skeletonToPolylines(skel, W, H);
+    // Walk the 1px skeleton into continuous polylines (one per connected
+    // component, retracing branches so there are no gaps) and render with miter
+    // joins — sharp corners (apex) — and round caps — rounded tips.
     const allPts = collectPts(skel, W, H);
-    skeletonRef.current = { pts: allPts, polylines };
-    setSkeletonPolylines(polylines);
+    const paths = skeletonToPaths(skel, W, H);
+    skeletonRef.current = { pts: allPts };
+    setSkeletonPaths(paths);
   }, [bg, bgScale, bgX, bgY, traceView]);
 
   const lineTop = 0.10, lineMid = 0.367, lineBase = 0.633, lineDesc = 0.90;
@@ -299,15 +336,10 @@ function Arrow({ pos, color }) {
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Inferred thin centerline — vectorized skeleton polylines.
-            Butt caps terminate flush at junctions (no cap protrusion past the
-            crossing stroke); a small dot rounds only the free tips. */}
-        {skeletonPolylines.map((pl, i) => pl.pts.length > 1 && (
-          <g key={'sk' + i}>
-            <path d={pathD(pl.pts)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinecap="butt" strokeLinejoin="round" opacity="0.9" />
-            {!pl.startJ && <circle cx={pl.pts[0].x} cy={pl.pts[0].y} r="1.3" fill="#1e293b" opacity="0.9" />}
-            {!pl.endJ && <circle cx={pl.pts[pl.pts.length - 1].x} cy={pl.pts[pl.pts.length - 1].y} r="1.3" fill="#1e293b" opacity="0.9" />}
-          </g>
+        {/* Inferred thin centerline — continuous skeleton polylines with miter
+            joins (sharp apex) and round caps (rounded tips). */}
+        {skeletonPaths.map((p, i) => p.length > 1 && (
+          <path key={'sk' + i} d={pathD(p)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinejoin="miter" miterLimit="10" strokeLinecap="round" opacity="0.9" />
         ))}
 
         {/* Traced strokes — clean, directed waypoints */}
@@ -355,7 +387,7 @@ function Arrow({ pos, color }) {
               <Move className="w-4 h-4" /> {moveMode ? 'Dragging image' : 'Move image'}
             </button>
             <button
-              onClick={() => {           setBg(null); setMoveMode(false); setSkeletonPolylines([]); skeletonRef.current = null; }}
+              onClick={() => {           setBg(null); setMoveMode(false); setSkeletonPaths([]); skeletonRef.current = null; }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
             >
               <X className="w-4 h-4" /> Remove
