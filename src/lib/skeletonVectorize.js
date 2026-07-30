@@ -171,7 +171,7 @@ export function skeletonToPolylines(mask, W, H) {
   const polys = chains
     .filter((ch) => ch.length >= 2 && pathLen(ch) >= 3)
     .map((ch) => {
-      const s = dpSimplify(ch, 1.0);
+      const s = dpSimplify(ch, 2.0);
       const a = snap2(s[0]);
       const b = snap2(s[s.length - 1]);
       s[0] = { x: a.x, y: a.y };

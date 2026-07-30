@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
+import { skeletonToPolylines } from '@/lib/skeletonVectorize';
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -118,45 +119,7 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
-  // Walk each connected skeleton component as ONE continuous polyline via DFS,
-  // emitting a point on every step AND on backtrack. Retracing branch segments
-  // keeps the path unbroken (no gaps/dashes) while covering every stroke; at a
-  // branch the path simply crosses itself, which renders clean (overlapping
-  // strokes, no bulge). Rendered with miter joins this gives sharp corners
-  // (an A's apex) and round caps give slightly rounded tips.
-  function skeletonToPaths(mask, W, H) {
-  const idx = (x, y) => y * W + x;
-  const is = (x, y) => x >= 0 && y >= 0 && x < W && y < H && mask[idx(x, y)];
-  const neigh = (x, y) => {
-    const r = [];
-    for (const [dx, dy] of NB8) { const nx = x + dx, ny = y + dy; if (is(nx, ny)) r.push([nx, ny]); }
-    return r;
-  };
-  const visited = new Uint8Array(W * H);
-  const paths = [];
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const k = idx(x, y);
-    if (!mask[k] || visited[k]) continue;
-    const path = [];
-    const stack = [[x, y]];
-    visited[k] = 1;
-    while (stack.length) {
-      const [cx, cy] = stack[stack.length - 1];
-      path.push({ x: cx, y: cy });
-      const ns = neigh(cx, cy).filter(([nx, ny]) => !visited[idx(nx, ny)]);
-      if (ns.length) {
-        const [nx, ny] = ns[0];
-        visited[idx(nx, ny)] = 1;
-        stack.push([nx, ny]);
-      } else {
-        stack.pop();
-        if (stack.length) path.push({ x: stack[stack.length - 1][0], y: stack[stack.length - 1][1] });
-      }
-    }
-    if (path.length > 1) paths.push(path);
-  }
-  return paths;
-  }
+
 
   export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   // Committed strokes are owned by the parent (rawStrokes); only the in-progress
@@ -218,11 +181,10 @@ function Arrow({ pos, color }) {
     // removes the inward "bisector" spur a T-/X-junction leaves where the
     // crossbar overlaps a leg (the visible pinch at the A's midbar).
     pruneSpurs(skel, W, H, 16);
-    // Walk the 1px skeleton into continuous polylines (one per connected
-    // component, retracing branches so there are no gaps) and render with miter
-    // joins — sharp corners (apex) — and round caps — rounded tips.
+    // Vectorize the skeleton into straight strokes (DP-simplified, exact
+    // junction pixels) so lines are straight and meet with no gaps.
     const allPts = collectPts(skel, W, H);
-    const paths = skeletonToPaths(skel, W, H);
+    const paths = skeletonToPolylines(skel, W, H);
     skeletonRef.current = { pts: allPts };
     setSkeletonPaths(paths);
   }, [bg, bgScale, bgX, bgY, traceView]);
@@ -338,8 +300,11 @@ function Arrow({ pos, color }) {
 
         {/* Inferred thin centerline — continuous skeleton polylines with miter
             joins (sharp apex) and round caps (rounded tips). */}
-        {skeletonPaths.map((p, i) => p.length > 1 && (
-          <path key={'sk' + i} d={pathD(p)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinejoin="miter" miterLimit="10" strokeLinecap="round" opacity="0.9" />
+        {/* Inferred thin centerline — clustered skeleton polylines.
+            Round caps bridge any sub-pixel endpoint gap (no dashes) and are
+            hidden where strokes cross (no bulge); miter joins keep the apex sharp. */}
+        {skeletonPaths.map((pl, i) => pl.pts.length > 1 && (
+          <path key={'sk' + i} d={pathD(pl.pts)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinejoin="miter" miterLimit="4" strokeLinecap="round" opacity="0.9" />
         ))}
 
         {/* Traced strokes — clean, directed waypoints */}
