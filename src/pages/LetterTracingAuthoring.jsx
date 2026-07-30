@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
+import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
@@ -20,6 +21,10 @@ export default function LetterTracingAuthoring() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
+  // Authoring canvas: 'snap' = image-based center-on-ink (the original tool),
+  // 'thin' = draw-then-trace-thin (draw a thick guide, shrink it to a thin
+  // line, then trace over it with the pen held to that line).
+  const [authorMode, setAuthorMode] = useState('snap');
 
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
@@ -178,10 +183,34 @@ export default function LetterTracingAuthoring() {
         <div className="grid md:grid-cols-2 gap-5 items-start">
           {/* Drawing canvas */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">
-              Draw · <span className="text-indigo-600 text-xl align-middle">{target}</span>
-            </h2>
-            <StrokeAuthoringCanvas rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} />
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
+                Draw · <span className="text-indigo-600 text-xl align-middle">{target}</span>
+              </h2>
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+                <button
+                  onClick={() => setAuthorMode('snap')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                    authorMode === 'snap' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Snap to ink
+                </button>
+                <button
+                  onClick={() => setAuthorMode('thin')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                    authorMode === 'thin' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Trace thin
+                </button>
+              </div>
+            </div>
+            {authorMode === 'snap' ? (
+              <StrokeAuthoringCanvas rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} />
+            ) : (
+              <TraceThinCanvas key={'thin-' + target} rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} />
+            )}
           </div>
 
           {/* Output + preview */}
