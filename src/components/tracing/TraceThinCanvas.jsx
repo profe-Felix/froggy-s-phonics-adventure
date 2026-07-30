@@ -119,6 +119,64 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
+  // Keep only the largest connected ink blob — drops specks and stray marks
+  // that would otherwise branch the skeleton into dashes.
+  function largestComponent(mask, W, H) {
+  const seen = new Uint8Array(W * H);
+  let best = null;
+  for (let s = 0; s < W * H; s++) {
+    if (!mask[s] || seen[s]) continue;
+    const comp = [];
+    const stack = [s];
+    seen[s] = 1;
+    while (stack.length) {
+    const p = stack.pop();
+    comp.push(p);
+    const x = p % W, y = (p / W) | 0;
+    for (const [dx, dy] of NB8) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+    const k = ny * W + nx;
+    if (mask[k] && !seen[k]) { seen[k] = 1; stack.push(k); }
+    }
+    }
+    if (!best || comp.length > best.length) best = comp;
+  }
+  const out = new Uint8Array(W * H);
+  if (best) for (const k of best) out[k] = 1;
+  return out;
+  }
+
+  // Fill interior holes (anti-aliasing gaps inside strokes) so the skeleton
+  // doesn't sprout noise branches.
+  function fillHoles(mask, W, H) {
+  const bg = new Uint8Array(W * H);
+  const stack = [];
+  for (let x = 0; x < W; x++) {
+    if (!mask[x]) { bg[x] = 1; stack.push(x); }
+    const b = (H - 1) * W + x;
+    if (!mask[b]) { bg[b] = 1; stack.push(b); }
+  }
+  for (let y = 0; y < H; y++) {
+    if (!mask[y * W]) { bg[y * W] = 1; stack.push(y * W); }
+    const r = y * W + (W - 1);
+    if (!mask[r]) { bg[r] = 1; stack.push(r); }
+  }
+  while (stack.length) {
+    const p = stack.pop();
+    const x = p % W, y = (p / W) | 0;
+    for (const [dx, dy] of NB8) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+    const k = ny * W + nx;
+    if (!mask[k] && !bg[k]) { bg[k] = 1; stack.push(k); }
+    }
+  }
+  const out = mask.slice();
+  for (let i = 0; i < W * H; i++) if (!mask[i] && !bg[i]) out[i] = 1;
+  return out;
+  }
+
 
 
   export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
@@ -172,15 +230,19 @@ function Arrow({ pos, color }) {
       const r = src[o], g = src[o + 1], b = src[o + 2];
       mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
+    // Clean the mask before thinning: keep only the largest ink blob (drops
+    // specks and stray marks) and fill interior holes (anti-aliasing gaps that
+    // would otherwise branch the skeleton into dashes).
+    const cleaned = fillHoles(largestComponent(mask, W, H), W, H);
     // Thin to a 1px centerline, then prune short dead-end spurs (the "pinch"
     // Zhang-Suen leaves at sharp corners like an A apex). Render as overlapping
     // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
     // meeting a leg) so they're invisible, without fragmenting the line.
-    const skel = zhangSuen(mask, W, H);
+    const skel = zhangSuen(cleaned, W, H);
     // Prune dead-end spurs up to ~half the typical stroke thickness — this
     // removes the inward "bisector" spur a T-/X-junction leaves where the
     // crossbar overlaps a leg (the visible pinch at the A's midbar).
-    pruneSpurs(skel, W, H, 16);
+    pruneSpurs(skel, W, H, 20);
     // Vectorize the skeleton into straight strokes (DP-simplified, exact
     // junction pixels) so lines are straight and meet with no gaps.
     const allPts = collectPts(skel, W, H);

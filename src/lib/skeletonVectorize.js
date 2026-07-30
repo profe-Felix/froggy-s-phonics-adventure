@@ -133,7 +133,7 @@ export function skeletonToPolylines(mask, W, H) {
   // shared point — no bulge, no blunt gap.
   const used = new Set();
   const clusters = [];
-  const R2 = 6 * 6;
+  const R2 = 10 * 10;
   for (let i = 0; i < nodePts.length; i++) {
     if (used.has(i)) continue;
     const cl = [nodePts[i]];
@@ -182,7 +182,7 @@ export function skeletonToPolylines(mask, W, H) {
   // crossing polyline segment so it lands EXACTLY on that stroke's centerline —
   // this kills the cap protrusion / step where a crossbar meets a leg. Free
   // tips (an A's apex) are left alone so they stay sharp.
-  const projR = 8;
+  const projR = 12;
   const project = (p, self) => {
     let best = null, bd = projR * projR;
     for (const q of polys) {
@@ -204,5 +204,47 @@ export function skeletonToPolylines(mask, W, H) {
     if (p.startJ) { const pr = project(p.pts[0], p); if (pr) p.pts[0] = pr; }
     if (p.endJ) { const pr = project(p.pts[p.pts.length - 1], p); if (pr) p.pts[p.pts.length - 1] = pr; }
   }
-  return polys;
+
+  // Reconnect fragments: a noisy skeleton splits one stroke into many short
+  // chains (looks "dashed"). Merge consecutive fragments whose endpoints meet
+  // and are collinear (a leg split by junction noise) back into single strokes.
+  // Then merge free-tip pairs that meet at a corner (an A apex) so the corner
+  // becomes an internal vertex and renders as a sharp miter, not two round caps.
+  const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const norm = (v) => { const l = Math.hypot(v.x, v.y) || 1; return { x: v.x / l, y: v.y / l }; };
+  const dotp = (a, b) => a.x * b.x + a.y * b.y;
+  const dirEnd = (pts) => norm(sub(pts[pts.length - 1], pts[pts.length - 2] || pts[0]));
+  const dirStart = (pts) => norm(sub(pts[1] || pts[0], pts[0]));
+  const angDeg = (a, b) => Math.acos(Math.max(-1, Math.min(1, dotp(a, b)))) * 180 / Math.PI;
+  const reverse = (p) => ({ pts: p.pts.slice().reverse(), startJ: p.endJ, endJ: p.startJ });
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const tryMerge = (opts) => {
+    const { gap, maxAng, requireFreeTips } = opts;
+    for (let i = 0; i < polys.length; i++) {
+      for (let j = i + 1; j < polys.length; j++) {
+        const A = polys[i], B = polys[j];
+        const ae = A.pts[A.pts.length - 1], be = B.pts[B.pts.length - 1], bs = B.pts[0];
+        const variants = [
+          { P: A, Q: B, pe: ae, qs: bs, aFree: !A.endJ, bFree: !B.startJ },
+          { P: A, Q: reverse(B), pe: ae, qs: be, aFree: !A.endJ, bFree: !B.endJ },
+        ];
+        for (const v of variants) {
+          if (dist(v.pe, v.qs) > gap) continue;
+          if (requireFreeTips && !(v.aFree && v.bFree)) continue;
+          if (angDeg(dirEnd(v.P.pts), dirStart(v.Q.pts)) > maxAng) continue;
+          polys[i] = { pts: v.P.pts.concat(v.Q.pts.slice(1)), startJ: v.P.startJ, endJ: v.Q.endJ };
+          polys.splice(j, 1);
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  while (tryMerge({ gap: 14, maxAng: 22, requireFreeTips: false })) {}
+  while (tryMerge({ gap: 6, maxAng: 150, requireFreeTips: true })) {}
+  const MIN = 5;
+  const final = polys
+    .filter((p) => pathLen(p.pts) >= MIN)
+    .map((p) => ({ ...p, pts: dpSimplify(p.pts, 2.0) }));
+  return final;
 }
