@@ -67,6 +67,50 @@ function zhangSuen(mask, W, H) {
   return m;
 }
 
+// Remove short spurs (branches ≤ maxLen px) left by thinning at junctions —
+// the small artifacts where strokes meet (an A's apex / crossbar joints).
+function pruneSpurs(m, W, H, maxLen) {
+  const nb = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 0 : m[y * W + x];
+  const ncount = (x, y) => {
+    let c = 0;
+    for (const [dx, dy] of nb) if (at(x + dx, y + dy) === 1) c++;
+    return c;
+  };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const endpoints = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (m[y * W + x] === 1 && ncount(x, y) === 1) endpoints.push({ x, y });
+    }
+    for (const ep of endpoints) {
+      const branch = [{ x: ep.x, y: ep.y }];
+      let cx = ep.x, cy = ep.y, px = -1, py = -1;
+      while (true) {
+        let nx = -1, ny = -1;
+        for (const [dx, dy] of nb) {
+          const xx = cx + dx, yy = cy + dy;
+          if (at(xx, yy) !== 1) continue;
+          if (xx === px && yy === py) continue;
+          if (branch.some((b) => b.x === xx && b.y === yy)) continue;
+          nx = xx; ny = yy; break;
+        }
+        if (nx < 0) break;
+        branch.push({ x: nx, y: ny });
+        const nc = ncount(nx, ny);
+        if (nc >= 3 || nc === 1) break; // junction or other endpoint — stop
+        px = cx; py = cy; cx = nx; cy = ny;
+      }
+      if (branch.length <= maxLen) {
+        for (const b of branch) m[b.y * W + b.x] = 0;
+        changed = true;
+      }
+    }
+  }
+  return m;
+}
+
 export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   const [traced, setTraced] = useState(rawStrokes && rawStrokes.length ? rawStrokes : []);
   const [current, setCurrent] = useState([]);
@@ -75,6 +119,9 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
   // its transform live in the parent so they persist across the Snap↔Thin toggle).
   const [bgOpacity, setBgOpacity] = useState(0.35);
   const [moveMode, setMoveMode] = useState(false);
+  // Trace view: hide the photo and show ONLY the thinned centerline for the
+  // current letter (computed on demand, not in the background).
+  const [traceView, setTraceView] = useState(false);
   const moveStartRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -99,9 +146,10 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
   }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rasterize the trace image at its current transform, skeletonize the black
-  // ink, collect the centerline pixels, and render them as a thin-line image.
+  // ink (Zhang-Suen + spur pruning), and render the centerline as a thin line.
+  // Only runs in Trace view — no thinning work in the background otherwise.
   useEffect(() => {
-    if (!bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
+    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
     const dh = CANVAS_H * bgScale;
     const dw = dh * (bg.aspect || 1);
@@ -122,19 +170,21 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
       const r = src[o], g = src[o + 1], b = src[o + 2];
       mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
-    const skel = zhangSuen(mask, W, H);
+    const skel = pruneSpurs(zhangSuen(mask, W, H), W, H, 5);
     const pts = [];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (skel[y * W + x]) pts.push({ x, y });
     skeletonRef.current = { pts };
-    // Render the skeleton as a slightly-thickened thin line (dark on transparent).
+    // Render the skeleton as a smooth thin dark line.
     const sc = document.createElement('canvas');
     sc.width = W; sc.height = H;
     const scx = sc.getContext('2d');
     scx.clearRect(0, 0, W, H);
     scx.fillStyle = '#1e293b';
-    for (const p of pts) scx.fillRect(p.x - 0.8, p.y - 0.8, 1.6, 1.6);
+    scx.beginPath();
+    for (const p of pts) { scx.moveTo(p.x + 1.1, p.y); scx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); }
+    scx.fill();
     setSkeletonUrl(sc.toDataURL());
-  }, [bg, bgScale, bgX, bgY]);
+  }, [bg, bgScale, bgX, bgY, traceView]);
 
   const lineTop = 0.10, lineMid = 0.367, lineBase = 0.633, lineDesc = 0.90;
 
@@ -233,8 +283,9 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
       >
-        {/* Trace image (faint) */}
-        {bg && (
+        {/* Trace image (faint) — hidden once you enter Trace view so only the
+            thin centerline shows (no faded photo bleeding through as a "double"). */}
+        {bg && !traceView && (
           <image href={bg.url} x={bgX} y={bgY} width={dispW} height={dispH} opacity={bgOpacity} />
         )}
 
@@ -281,6 +332,12 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
         </button>
         {bg && (
           <>
+            <button
+              onClick={() => setTraceView((t) => !t)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${traceView ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'}`}
+            >
+              <PenLine className="w-4 h-4" /> {traceView ? 'Show image' : 'Trace'}
+            </button>
             <button
               onClick={() => setMoveMode((m) => !m)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${moveMode ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
@@ -342,8 +399,10 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
 
       <p className="text-xs text-gray-500 text-center max-w-xs">
         {bg
-          ? 'The black letter is thinned to a thin centerline (skeletonized from the outer and inner walls). Trace over it — your pen is held to that line, so just move in the right direction. The colored trace is what gets saved.'
-          : 'Add a black-letter image. Its ink will be thinned into a thin centerline you can trace.'}
+          ? (traceView
+            ? 'Thinned centerline only — trace over it; your pen is held to the line, so just steer the direction. The colored trace is what gets saved.'
+            : 'Move/scale the image to align it to the guide lines, then press Trace to thin the black letter into a centerline you can follow.')
+          : 'Add a black-letter image, then press Trace to thin its black ink into a centerline you can trace.'}
       </p>
     </div>
   );
