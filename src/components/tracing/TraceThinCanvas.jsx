@@ -382,10 +382,9 @@ function Arrow({ pos, color }) {
     } else {
       bone = cleaned;
     }
-    // Snap target: all bone pixels (canvas coords).
-    const pts = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (bone[y * W + x]) pts.push({ x, y });
-    skeletonRef.current = { pts };
+    // Snap target: the bone band as a pixel grid, queried by a perpendicular
+    // slice during drawing (see snapToSkeleton).
+    skeletonRef.current = { mask: bone, W, H };
     // Render the bone as a faint dark line via an offscreen canvas -> dataURL.
     const oc = document.createElement('canvas');
     oc.width = W; oc.height = H;
@@ -410,21 +409,59 @@ function Arrow({ pos, color }) {
     };
   };
 
-  // Hold the pen to the bone: snap to the CENTROID of all bone pixels within
-  // the corridor (center-on-ink). This rides the middle of the stroke and stays
-  // smooth even where the band is a few px wide. Outside the corridor, draw
-  // freely so you can lift and start a fresh stroke elsewhere.
-  const snapToSkeleton = (pos) => {
+  // Hold the pen to the bone CENTERLINE: take a slice PERPENDICULAR to the
+  // direction of travel and find the bone's centroid along it (Gaussian-
+  // weighted so the ink right under the pen dominates). This is the same
+  // approach that works in "Snap to ink" mode — it rides the center of the
+  // stroke you're drawing and ignores a crossing stroke or a junction bulge a
+  // few widths away, so the crossbar of an A stays on the crossbar through the
+  // leg junction instead of dipping toward the leg/bulge. No ink on the slice
+  // → draw freely (lift / start a fresh stroke elsewhere).
+  const snapToSkeleton = (pos, prev) => {
     const s = skeletonRef.current;
-    if (!s || !s.pts.length) return pos;
-    const r2 = SNAP_CORRIDOR * SNAP_CORRIDOR;
-    let sx = 0, sy = 0, n = 0;
-    for (const p of s.pts) {
-      const d = (pos.x - p.x) * (pos.x - p.x) + (pos.y - p.y) * (pos.y - p.y);
-      if (d <= r2) { sx += p.x; sy += p.y; n++; }
+    if (!s || !s.mask) return pos;
+    const { mask, W, H } = s;
+    const inkW = (x, y) => {
+      const xi = Math.round(x), yi = Math.round(y);
+      if (xi < 0 || yi < 0 || xi >= W || yi >= H) return 0;
+      return mask[yi * W + xi] ? 1 : 0;
+    };
+    const SIG = 6; // ~bone half-width: the band is sampled, a crossing stroke is not
+    const g = (t) => Math.exp(-(t * t) / (2 * SIG * SIG));
+    const MAX_PULL = 22;
+    // perpendicular to recent travel; first point of a stroke has none yet
+    let nx, ny;
+    if (prev) {
+      const dx = pos.x - prev.x, dy = pos.y - prev.y;
+      const dl = Math.hypot(dx, dy);
+      if (dl > 1e-3) { nx = -dy / dl; ny = dx / dl; }
     }
-    if (!n) return pos;
-    return { x: sx / n, y: sy / n };
+    if (nx === undefined) {
+      // first point: Gaussian-weighted centroid over a local disc — centers on
+      // the band under the cursor, ignoring a neighboring stroke
+      const R = 22, xi = Math.round(pos.x), yi = Math.round(pos.y);
+      const x0 = Math.max(0, xi - R), x1 = Math.min(W - 1, xi + R);
+      const y0 = Math.max(0, yi - R), y1 = Math.min(H - 1, yi + R);
+      let sw = 0, sx = 0, sy = 0;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if (!mask[y * W + x]) continue;
+        const gw = g(Math.hypot(x - xi, y - yi));
+        sw += gw; sx += x * gw; sy += y * gw;
+      }
+      return sw === 0 ? pos : { x: sx / sw, y: sy / sw };
+    }
+    // perpendicular slice, Gaussian-weighted centroid
+    const L = 24;
+    let sw = 0, st = 0;
+    for (let t = -L; t <= L; t++) {
+      const w = inkW(pos.x + t * nx, pos.y + t * ny);
+      if (!w) continue;
+      const gw = w * g(t);
+      sw += gw; st += t * gw;
+    }
+    if (sw === 0) return pos;
+    const off = Math.max(-MAX_PULL, Math.min(MAX_PULL, st / sw));
+    return { x: pos.x + off * nx, y: pos.y + off * ny };
   };
 
   const down = (e) => {
@@ -453,8 +490,9 @@ function Arrow({ pos, color }) {
     }
     if (!drawingRef.current) return;
     e.preventDefault();
-    const pos = snapToSkeleton(getPos(e));
+    const raw = getPos(e);
     const last = currentRef.current[currentRef.current.length - 1];
+    const pos = snapToSkeleton(raw, last);
     if (last && Math.hypot(pos.x - last.x, pos.y - last.y) < 2) return;
     currentRef.current = [...currentRef.current, pos];
     setCurrent(currentRef.current);
