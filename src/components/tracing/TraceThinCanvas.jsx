@@ -120,40 +120,48 @@ function Arrow({ pos, color }) {
 
   // Laplacian-smooth the 1px skeleton point cloud to kill the inward "bow"
   // Zhang-Suen leaves at junctions of overlapping thick strokes (the crossbar
-  // meeting an A's legs). Each point relaxes toward the centroid of its
-  // skeleton neighbours; stroke tips (degree-1) are pinned so legs don't
-  // retract. Rendered as overlapping dots, the smoothed points form a
-  // straighter, cleaner centerline without fragmenting.
+  // meeting an A's legs). Only straight-ish interior points relax toward the
+  // centroid of their skeleton neighbours; tips (degree-1), junctions
+  // (degree>=3) and sharp corners (an A's apex) are PINNED so legs don't
+  // retract, junctions don't drift inward, and the apex stays a sharp point.
   function smoothSkeletonPts(m, W, H, iters = 3) {
     const idx = (x, y) => y * W + x;
-    const cur = new Map(); // key -> {x,y,deg}
+    const cur = new Map();
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         if (!m[idx(x, y)]) continue;
-        let deg = 0;
+        const nbs = [];
         for (const [dx, dy] of NB8) {
           const nx = x + dx, ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-          if (m[idx(nx, ny)]) deg++;
+          if (m[idx(nx, ny)]) nbs.push([nx, ny]);
         }
-        cur.set(idx(x, y), { x, y, deg });
+        cur.set(idx(x, y), { x, y, deg: nbs.length, nbs });
       }
     }
     const keys = [...cur.keys()];
+    // Sharp corner = degree-2 point whose two neighbours form a hard turn
+    // (the apex of an A). Keep these fixed so smoothing can't blunt them.
+    const isCorner = new Set();
+    for (const k of keys) {
+      const p = cur.get(k);
+      if (p.deg !== 2) continue;
+      const [a, b] = p.nbs;
+      const v1 = { x: a[0] - p.x, y: a[1] - p.y };
+      const v2 = { x: b[0] - p.x, y: b[1] - p.y };
+      const dot = v1.x * v2.x + v1.y * v2.y;
+      const m1 = Math.hypot(v1.x, v1.y), m2 = Math.hypot(v2.x, v2.y);
+      const ang = Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2 || 1))));
+      if (ang < (50 * Math.PI) / 180) isCorner.add(k); // turn > 130°
+    }
     for (let it = 0; it < iters; it++) {
       const next = new Map();
       for (const k of keys) {
         const p = cur.get(k);
-        const [x, y] = [k % W, (k / W) | 0];
-        if (p.deg <= 1) { next.set(k, { x: p.x, y: p.y, deg: p.deg }); continue; } // pin tips
+        if (p.deg <= 1 || p.deg >= 3 || isCorner.has(k)) { next.set(k, { x: p.x, y: p.y, deg: p.deg, nbs: p.nbs }); continue; }
         let sx = p.x, sy = p.y, n = 1;
-        for (const [dx, dy] of NB8) {
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-          const nb = cur.get(idx(nx, ny));
-          if (nb) { sx += nb.x; sy += nb.y; n++; }
-        }
-        next.set(k, { x: sx / n, y: sy / n, deg: p.deg });
+        for (const [nx, ny] of p.nbs) { const nb = cur.get(idx(nx, ny)); if (nb) { sx += nb.x; sy += nb.y; n++; } }
+        next.set(k, { x: sx / n, y: sy / n, deg: p.deg, nbs: p.nbs });
       }
       cur.clear();
       for (const k of keys) cur.set(k, next.get(k));
