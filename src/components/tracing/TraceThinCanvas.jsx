@@ -354,17 +354,34 @@ function Arrow({ pos, color }) {
     for (let i = 0; i < W * H; i++) {
       const o = i * 4;
       const r = src[o], g = src[o + 1], b = src[o + 2];
-      if (r < 120 && g < 120 && b < 120) blackMask[i] = 1;
+      // Catch the letter ink — practice-sheet letters are often thin GREY
+      // (#8c8c8c ≈ 140), not pure black, so a strict <120 threshold misses
+      // them and the bone comes up empty. Accept dark-ish neutral pixels,
+      // excluding the colored guide lines (light blue / pink).
+      const isGrey = Math.abs(r - g) < 30 && Math.abs(g - b) < 30;
+      if (r < 175 && g < 175 && b < 175 && isGrey) blackMask[i] = 1;
       else if (r > 140 && g < 140 && b > 60 && b < 200 && r > b) magMask[i] = 1;
     }
     const nearBlack = dilate(blackMask, W, H, 3);
     const mask = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
     const cleaned = fillSmallHoles(keepSignificantComponents(mask, W, H, 25), W, H, 64);
-    // Erode symmetrically to a narrow band centered on the original centerline.
+    // Normalize to a ~7px band centered on the letter's centerline. Thick
+    // letters are eroded DOWN; THIN letters (1-2px grey practice sheets) are
+    // DILATED UP — without thickening, a thin letter yields a spotty, broken
+    // band the pen can't follow, and eroding already-thin ink erases it.
+    const TARGET_W = 7;
     const sw = strokeWidth(cleaned, W, H);
-    const erodeR = Math.max(0, Math.min(60, Math.floor((sw - 5) / 2)));
-    const bone = erodeR > 0 ? keepSignificantComponents(erode(cleaned, W, H, erodeR), W, H, 8) : cleaned;
+    let bone;
+    if (sw > TARGET_W + 2) {
+      const erodeR = Math.min(60, Math.floor((sw - TARGET_W) / 2));
+      bone = keepSignificantComponents(erode(cleaned, W, H, erodeR), W, H, 8);
+    } else if (sw < TARGET_W - 2) {
+      const dilateR = Math.ceil((TARGET_W - sw) / 2);
+      bone = dilate(cleaned, W, H, dilateR);
+    } else {
+      bone = cleaned;
+    }
     // Snap target: all bone pixels (canvas coords).
     const pts = [];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (bone[y * W + x]) pts.push({ x, y });
