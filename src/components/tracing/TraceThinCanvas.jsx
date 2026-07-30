@@ -178,7 +178,7 @@ function Arrow({ pos, color }) {
     // Prune dead-end spurs up to ~half the typical stroke thickness — this
     // removes the inward "bisector" spur a T-/X-junction leaves where the
     // crossbar overlaps a leg (the visible pinch at the A's midbar).
-    pruneSpurs(skel, W, H, 12);
+    pruneSpurs(skel, W, H, 16);
     // Vectorize the 1px skeleton into polylines (endpoints → junctions → loops),
     // snap nearby nodes to a shared centroid, and simplify with Douglas–Peucker.
     // Rendering crisp <path> strokes (instead of overlapping dots) eliminates the
@@ -299,9 +299,15 @@ function Arrow({ pos, color }) {
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Inferred thin centerline — vectorized skeleton polylines */}
-        {skeletonPolylines.map((pl, i) => pl.length > 1 && (
-          <path key={'sk' + i} d={pathD(pl)} fill="none" stroke="#1e293b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+        {/* Inferred thin centerline — vectorized skeleton polylines.
+            Butt caps terminate flush at junctions (no cap protrusion past the
+            crossing stroke); a small dot rounds only the free tips. */}
+        {skeletonPolylines.map((pl, i) => pl.pts.length > 1 && (
+          <g key={'sk' + i}>
+            <path d={pathD(pl.pts)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinecap="butt" strokeLinejoin="round" opacity="0.9" />
+            {!pl.startJ && <circle cx={pl.pts[0].x} cy={pl.pts[0].y} r="1.3" fill="#1e293b" opacity="0.9" />}
+            {!pl.endJ && <circle cx={pl.pts[pl.pts.length - 1].x} cy={pl.pts[pl.pts.length - 1].y} r="1.3" fill="#1e293b" opacity="0.9" />}
+          </g>
         ))}
 
         {/* Traced strokes — clean, directed waypoints */}

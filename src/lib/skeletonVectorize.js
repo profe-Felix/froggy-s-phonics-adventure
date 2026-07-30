@@ -53,7 +53,7 @@ export function skeletonToPolylines(mask, W, H) {
       if (!mask[idx(x, y)]) continue;
       const d = neigh(x, y).length;
       deg.set(idx(x, y), d);
-      if (d === 1 || d >= 3) nodePts.push({ x, y });
+      if (d === 1 || d >= 3) nodePts.push({ x, y, deg: d });
     }
   }
   const nodeAt = (k) => {
@@ -147,7 +147,11 @@ export function skeletonToPolylines(mask, W, H) {
     }
     let sx = 0, sy = 0;
     for (const c of cl) { sx += c.x; sy += c.y; }
-    clusters.push({ cx: sx / cl.length, cy: sy / cl.length });
+    // A junction cluster contains a degree>=3 node (a real branch point); a
+    // cluster of only degree-1 tips (two round caps touching at an A's apex) is
+    // NOT a junction — its tips just merge to one sharp point.
+    const isJunction = cl.some((c) => c.deg >= 3);
+    clusters.push({ cx: sx / cl.length, cy: sy / cl.length, isJunction });
   }
   const snap2 = (p) => {
     let best = null, bd = R2 * 4;
@@ -155,7 +159,7 @@ export function skeletonToPolylines(mask, W, H) {
       const d = (p.x - cl.cx) ** 2 + (p.y - cl.cy) ** 2;
       if (d < bd) { bd = d; best = cl; }
     }
-    return best ? { x: best.cx, y: best.cy } : p;
+    return best ? { x: best.cx, y: best.cy, isJunction: best.isJunction } : { x: p.x, y: p.y, isJunction: false };
   };
 
   const pathLen = (pts) => {
@@ -163,14 +167,42 @@ export function skeletonToPolylines(mask, W, H) {
     for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
     return L;
   };
-  // Drop degenerate snippets shorter than 3px (node-to-node artifacts and
-  // fragments left inside a junction cluster) — they render as invisible noise.
-  return chains
+  // Simplify, then snap endpoints to their junction/tip cluster centroid.
+  const polys = chains
     .filter((ch) => ch.length >= 2 && pathLen(ch) >= 3)
     .map((ch) => {
       const s = dpSimplify(ch, 1.0);
-      s[0] = snap2(s[0]);
-      s[s.length - 1] = snap2(s[s.length - 1]);
-      return s;
+      const a = snap2(s[0]);
+      const b = snap2(s[s.length - 1]);
+      s[0] = { x: a.x, y: a.y };
+      s[s.length - 1] = { x: b.x, y: b.y };
+      return { pts: s, startJ: a.isJunction, endJ: b.isJunction };
     });
+  // At a junction, project the terminating polyline's endpoint onto the nearest
+  // crossing polyline segment so it lands EXACTLY on that stroke's centerline —
+  // this kills the cap protrusion / step where a crossbar meets a leg. Free
+  // tips (an A's apex) are left alone so they stay sharp.
+  const projR = 8;
+  const project = (p, self) => {
+    let best = null, bd = projR * projR;
+    for (const q of polys) {
+      if (q === self) continue;
+      for (let i = 1; i < q.pts.length; i++) {
+        const a = q.pts[i - 1], b = q.pts[i];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy || 1;
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dx, py = a.y + t * dy;
+        const d = (p.x - px) ** 2 + (p.y - py) ** 2;
+        if (d < bd) { bd = d; best = { x: px, y: py }; }
+      }
+    }
+    return best;
+  };
+  for (const p of polys) {
+    if (p.startJ) { const pr = project(p.pts[0], p); if (pr) p.pts[0] = pr; }
+    if (p.endJ) { const pr = project(p.pts[p.pts.length - 1], p); if (pr) p.pts[p.pts.length - 1] = pr; }
+  }
+  return polys;
 }
