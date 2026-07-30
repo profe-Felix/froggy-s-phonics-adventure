@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
+import { skeletonToPolylines } from '@/lib/skeletonVectorize';
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -118,57 +119,6 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
-  // Laplacian-smooth the 1px skeleton point cloud to kill the inward "bow"
-  // Zhang-Suen leaves at junctions of overlapping thick strokes (the crossbar
-  // meeting an A's legs). Only straight-ish interior points relax toward the
-  // centroid of their skeleton neighbours; tips (degree-1), junctions
-  // (degree>=3) and sharp corners (an A's apex) are PINNED so legs don't
-  // retract, junctions don't drift inward, and the apex stays a sharp point.
-  function smoothSkeletonPts(m, W, H, iters = 3) {
-    const idx = (x, y) => y * W + x;
-    const cur = new Map();
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (!m[idx(x, y)]) continue;
-        const nbs = [];
-        for (const [dx, dy] of NB8) {
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-          if (m[idx(nx, ny)]) nbs.push([nx, ny]);
-        }
-        cur.set(idx(x, y), { x, y, deg: nbs.length, nbs });
-      }
-    }
-    const keys = [...cur.keys()];
-    // Sharp corner = degree-2 point whose two neighbours form a hard turn
-    // (the apex of an A). Keep these fixed so smoothing can't blunt them.
-    const isCorner = new Set();
-    for (const k of keys) {
-      const p = cur.get(k);
-      if (p.deg !== 2) continue;
-      const [a, b] = p.nbs;
-      const v1 = { x: a[0] - p.x, y: a[1] - p.y };
-      const v2 = { x: b[0] - p.x, y: b[1] - p.y };
-      const dot = v1.x * v2.x + v1.y * v2.y;
-      const m1 = Math.hypot(v1.x, v1.y), m2 = Math.hypot(v2.x, v2.y);
-      const ang = Math.acos(Math.max(-1, Math.min(1, dot / (m1 * m2 || 1))));
-      if (ang < (50 * Math.PI) / 180) isCorner.add(k); // turn > 130°
-    }
-    for (let it = 0; it < iters; it++) {
-      const next = new Map();
-      for (const k of keys) {
-        const p = cur.get(k);
-        if (p.deg <= 1 || p.deg >= 3 || isCorner.has(k)) { next.set(k, { x: p.x, y: p.y, deg: p.deg, nbs: p.nbs }); continue; }
-        let sx = p.x, sy = p.y, n = 1;
-        for (const [nx, ny] of p.nbs) { const nb = cur.get(idx(nx, ny)); if (nb) { sx += nb.x; sy += nb.y; n++; } }
-        next.set(k, { x: sx / n, y: sy / n, deg: p.deg, nbs: p.nbs });
-      }
-      cur.clear();
-      for (const k of keys) cur.set(k, next.get(k));
-    }
-    return keys.map((k) => cur.get(k));
-  }
-
   export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   // Committed strokes are owned by the parent (rawStrokes); only the in-progress
   // stroke is local. Using the parent state directly avoids the two-way sync
@@ -193,13 +143,13 @@ function Arrow({ pos, color }) {
 
   // Skeleton of the image ink (in canvas coords) + its rendered thin-line image.
   const skeletonRef = useRef(null);
-  const [skeletonUrl, setSkeletonUrl] = useState(null);
+  const [skeletonPolylines, setSkeletonPolylines] = useState([]);
 
   // Rasterize the trace image, thin the black ink to a 1px centerline (which
   // reaches every stroke tip), prune dead-end spurs, and render it. Only runs
   // in Trace view — no work in the background otherwise.
   useEffect(() => {
-    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
+    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonPolylines([]); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
     const dh = CANVAS_H * bgScale;
     const dw = dh * (bg.aspect || 1);
@@ -229,17 +179,15 @@ function Arrow({ pos, color }) {
     // removes the inward "bisector" spur a T-/X-junction leaves where the
     // crossbar overlaps a leg (the visible pinch at the A's midbar).
     pruneSpurs(skel, W, H, 12);
-    const pts = smoothSkeletonPts(skel, W, H, 3);
-    skeletonRef.current = { pts };
-    const sc = document.createElement('canvas');
-    sc.width = W; sc.height = H;
-    const scx = sc.getContext('2d');
-    scx.clearRect(0, 0, W, H);
-    scx.fillStyle = '#1e293b';
-    scx.beginPath();
-    for (const p of pts) { scx.moveTo(p.x + 1.3, p.y); scx.arc(p.x, p.y, 1.3, 0, Math.PI * 2); }
-    scx.fill();
-    setSkeletonUrl(sc.toDataURL());
+    // Vectorize the 1px skeleton into polylines (endpoints → junctions → loops),
+    // snap nearby nodes to a shared centroid, and simplify with Douglas–Peucker.
+    // Rendering crisp <path> strokes (instead of overlapping dots) eliminates the
+    // bulges at junctions and the blunt blob at a round cap, and keeps sharp
+    // corners (an A's apex) as single vertices.
+    const polylines = skeletonToPolylines(skel, W, H);
+    const allPts = collectPts(skel, W, H);
+    skeletonRef.current = { pts: allPts, polylines };
+    setSkeletonPolylines(polylines);
   }, [bg, bgScale, bgX, bgY, traceView]);
 
   const lineTop = 0.10, lineMid = 0.367, lineBase = 0.633, lineDesc = 0.90;
@@ -351,10 +299,10 @@ function Arrow({ pos, color }) {
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Inferred thin centerline (the skeletonized image ink) */}
-        {skeletonUrl && (
-          <image href={skeletonUrl} x={0} y={0} width={CANVAS_W} height={CANVAS_H} opacity={0.85} />
-        )}
+        {/* Inferred thin centerline — vectorized skeleton polylines */}
+        {skeletonPolylines.map((pl, i) => pl.length > 1 && (
+          <path key={'sk' + i} d={pathD(pl)} fill="none" stroke="#1e293b" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+        ))}
 
         {/* Traced strokes — clean, directed waypoints */}
         {traced.map((s, i) => {
@@ -401,7 +349,7 @@ function Arrow({ pos, color }) {
               <Move className="w-4 h-4" /> {moveMode ? 'Dragging image' : 'Move image'}
             </button>
             <button
-              onClick={() => { setBg(null); setMoveMode(false); setSkeletonUrl(null); skeletonRef.current = null; }}
+              onClick={() => {           setBg(null); setMoveMode(false); setSkeletonPolylines([]); skeletonRef.current = null; }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
             >
               <X className="w-4 h-4" /> Remove
