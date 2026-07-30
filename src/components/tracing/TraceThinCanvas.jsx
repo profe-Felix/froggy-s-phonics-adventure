@@ -118,6 +118,49 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
+  // Laplacian-smooth the 1px skeleton point cloud to kill the inward "bow"
+  // Zhang-Suen leaves at junctions of overlapping thick strokes (the crossbar
+  // meeting an A's legs). Each point relaxes toward the centroid of its
+  // skeleton neighbours; stroke tips (degree-1) are pinned so legs don't
+  // retract. Rendered as overlapping dots, the smoothed points form a
+  // straighter, cleaner centerline without fragmenting.
+  function smoothSkeletonPts(m, W, H, iters = 3) {
+    const idx = (x, y) => y * W + x;
+    const cur = new Map(); // key -> {x,y,deg}
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!m[idx(x, y)]) continue;
+        let deg = 0;
+        for (const [dx, dy] of NB8) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          if (m[idx(nx, ny)]) deg++;
+        }
+        cur.set(idx(x, y), { x, y, deg });
+      }
+    }
+    const keys = [...cur.keys()];
+    for (let it = 0; it < iters; it++) {
+      const next = new Map();
+      for (const k of keys) {
+        const p = cur.get(k);
+        const [x, y] = [k % W, (k / W) | 0];
+        if (p.deg <= 1) { next.set(k, { x: p.x, y: p.y, deg: p.deg }); continue; } // pin tips
+        let sx = p.x, sy = p.y, n = 1;
+        for (const [dx, dy] of NB8) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const nb = cur.get(idx(nx, ny));
+          if (nb) { sx += nb.x; sy += nb.y; n++; }
+        }
+        next.set(k, { x: sx / n, y: sy / n, deg: p.deg });
+      }
+      cur.clear();
+      for (const k of keys) cur.set(k, next.get(k));
+    }
+    return keys.map((k) => cur.get(k));
+  }
+
   export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   // Committed strokes are owned by the parent (rawStrokes); only the in-progress
   // stroke is local. Using the parent state directly avoids the two-way sync
@@ -174,8 +217,11 @@ function Arrow({ pos, color }) {
     // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
     // meeting a leg) so they're invisible, without fragmenting the line.
     const skel = zhangSuen(mask, W, H);
-    pruneSpurs(skel, W, H, 6);
-    const pts = collectPts(skel, W, H);
+    // Prune dead-end spurs up to ~half the typical stroke thickness — this
+    // removes the inward "bisector" spur a T-/X-junction leaves where the
+    // crossbar overlaps a leg (the visible pinch at the A's midbar).
+    pruneSpurs(skel, W, H, 12);
+    const pts = smoothSkeletonPts(skel, W, H, 3);
     skeletonRef.current = { pts };
     const sc = document.createElement('canvas');
     sc.width = W; sc.height = H;
@@ -183,7 +229,7 @@ function Arrow({ pos, color }) {
     scx.clearRect(0, 0, W, H);
     scx.fillStyle = '#1e293b';
     scx.beginPath();
-    for (const p of pts) { scx.moveTo(p.x + 1.1, p.y); scx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); }
+    for (const p of pts) { scx.moveTo(p.x + 1.3, p.y); scx.arc(p.x, p.y, 1.3, 0, Math.PI * 2); }
     scx.fill();
     setSkeletonUrl(sc.toDataURL());
   }, [bg, bgScale, bgX, bgY, traceView]);
