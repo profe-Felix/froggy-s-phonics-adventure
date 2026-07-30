@@ -10,7 +10,6 @@ import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 // point, so you only steer the direction. The colored trace (with direction
 // arrows + stroke numbers) becomes the saved waypoints.
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
-const DEFAULT_BG_SCALE = 16.3;
 const SNAP_CORRIDOR = 36; // px — pen is held to the thin line within this distance
 
 const pathD = (pts) =>
@@ -68,16 +67,12 @@ function zhangSuen(mask, W, H) {
   return m;
 }
 
-export default function TraceThinCanvas({ rawStrokes, setRawStrokes }) {
+export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   const [traced, setTraced] = useState(rawStrokes && rawStrokes.length ? rawStrokes : []);
   const [current, setCurrent] = useState([]);
 
-  // Trace image (the black letter). Auto-fit + center on load; drag/scale to
-  // align it to the writing guide lines.
-  const [bg, setBg] = useState(null);
-  const [bgScale, setBgScale] = useState(DEFAULT_BG_SCALE);
-  const [bgX, setBgX] = useState(0);
-  const [bgY, setBgY] = useState(0);
+  // Image display opacity + drag mode are local UI state (the image itself and
+  // its transform live in the parent so they persist across the Snap↔Thin toggle).
   const [bgOpacity, setBgOpacity] = useState(0.35);
   const [moveMode, setMoveMode] = useState(false);
   const moveStartRef = useRef(null);
@@ -103,12 +98,6 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes }) {
     setRawStrokes(traced);
   }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Revoke object URLs.
-  useEffect(() => {
-    if (!bg) return;
-    return () => URL.revokeObjectURL(bg.url);
-  }, [bg]);
-
   // Rasterize the trace image at its current transform, skeletonize the black
   // ink, collect the centerline pixels, and render them as a thin-line image.
   useEffect(() => {
@@ -128,8 +117,10 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes }) {
     const mask = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) {
       const o = i * 4;
-      const l = 0.299 * src[o] + 0.587 * src[o + 1] + 0.114 * src[o + 2];
-      mask[i] = l < 120 ? 1 : 0;
+      // Only truly BLACK ink counts (all RGB channels low) — pink/colored marks
+      // in the image are ignored so the thin line follows only the black letter.
+      const r = src[o], g = src[o + 1], b = src[o + 2];
+      mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
     const skel = zhangSuen(mask, W, H);
     const pts = [];
@@ -216,22 +207,6 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes }) {
     }
     currentRef.current = [];
     setCurrent([]);
-  };
-
-  const loadImage = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const aspect = img.naturalWidth / img.naturalHeight || 1;
-      setBg({ url, aspect, img });
-      const dh = CANVAS_H * DEFAULT_BG_SCALE;
-      const dw = dh * aspect;
-      setBgScale(DEFAULT_BG_SCALE);
-      setBgX((CANVAS_W - dw) / 2);
-      setBgY((CANVAS_H - dh) / 2);
-    };
-    img.src = url;
   };
 
   const onPickImage = (e) => { loadImage(e.target.files?.[0]); e.target.value = ''; };

@@ -3,8 +3,6 @@ import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet } from 'lucid
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
-// Auto-fit scale for a freshly loaded trace image (centered on the canvas).
-const DEFAULT_BG_SCALE = 16.3;
 
 function Arrow({ pos, color }) {
   const size = 7;
@@ -18,17 +16,14 @@ function Arrow({ pos, color }) {
 const pathD = (pts) =>
   pts.length < 2 ? '' : pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
+export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   const [current, setCurrent] = useState([]);
   const svgRef = useRef(null);
   const currentRef = useRef([]);
   const drawingRef = useRef(false);
 
-  // Traceable background image — a temporary tracing aid, never saved with strokes.
-  const [bg, setBg] = useState(null); // { url, aspect }
-  const [bgScale, setBgScale] = useState(1);
-  const [bgX, setBgX] = useState(0);
-  const [bgY, setBgY] = useState(0);
+  // Image display opacity + drag mode are local UI state (the image itself and
+  // its transform live in the parent so they persist across the Snap↔Thin toggle).
   const [bgOpacity, setBgOpacity] = useState(0.4);
   const [moveMode, setMoveMode] = useState(false);
   const moveStartRef = useRef(null);
@@ -67,12 +62,6 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
   const lineBase = 0.633;
   const lineDesc = 0.90;
 
-  // Revoke object URLs when the image is replaced/removed/unmounted.
-  useEffect(() => {
-    if (!bg) return;
-    return () => URL.revokeObjectURL(bg.url);
-  }, [bg]);
-
   // Build a per-pixel ink-weight map (0=white, 1=solid black) of the trace image
   // in its current canvas transform — only while auto-center is on, so moving
   // the image or sliding scale never pays for it when the magnet is off.
@@ -93,8 +82,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     const data = new Float32Array(W * H);
     for (let i = 0; i < W * H; i++) {
       const o = i * 4;
-      const l = 0.299 * src[o] + 0.587 * src[o + 1] + 0.114 * src[o + 2];
-      data[i] = l < 120 ? (120 - l) / 120 : 0;
+      // Only BLACK ink counts (all RGB channels low) — pink/colored marks are
+      // ignored so the magnet follows only the black letter line.
+      const r = src[o], g = src[o + 1], b = src[o + 2];
+      const dark = Math.max(r, g, b);
+      data[i] = r < 120 && g < 120 && b < 120 ? (120 - dark) / 120 : 0;
     }
     inkMapRef.current = { data, W, H };
   }, [autoCenter, bg, bgScale, bgX, bgY]);
@@ -303,24 +295,6 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
     if (drawingRef.current) finishStroke();
   };
 
-  const loadImage = (file) => {
-    if (!file || !file.type.startsWith('image/')) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const aspect = img.naturalWidth / img.naturalHeight || 1;
-      setBg({ url, aspect, img });
-      // Auto-scale to the known-good size and center on the canvas (not grow to
-      // the upper-right from the top-left corner).
-      const dh = CANVAS_H * DEFAULT_BG_SCALE;
-      const dw = dh * aspect;
-      setBgScale(DEFAULT_BG_SCALE);
-      setBgX((CANVAS_W - dw) / 2);
-      setBgY((CANVAS_H - dh) / 2);
-    };
-    img.src = url;
-  };
-
   const onPickImage = (e) => {
     loadImage(e.target.files?.[0]);
     e.target.value = ''; // allow re-picking the same file
@@ -359,8 +333,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes }) {
       const xi = Math.round(x), yi = Math.round(y);
       if (xi < 0 || yi < 0 || xi >= W || yi >= H) return 0;
       const o = (yi * W + xi) * 4;
-      const l = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
-      return l < 120 ? (120 - l) / 120 : 0;
+      const r = data[o], g = data[o + 1], b = data[o + 2];
+      const dark = Math.max(r, g, b);
+      return r < 120 && g < 120 && b < 120 ? (120 - dark) / 120 : 0;
     };
     const L = 30; // half-width of the perpendicular cross-section sample
     const LOCAL = 10; // local half-width: ignore joined strokes beyond this

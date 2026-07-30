@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
@@ -25,6 +25,33 @@ export default function LetterTracingAuthoring() {
   // 'thin' = draw-then-trace-thin (draw a thick guide, shrink it to a thin
   // line, then trace over it with the pen held to that line).
   const [authorMode, setAuthorMode] = useState('snap');
+
+  // Shared trace image + transform — lives here so it persists when toggling
+  // between "Snap to ink" and "Trace thin" (no re-inserting the image).
+  const DEFAULT_BG_SCALE = 16.3;
+  const [sharedBg, setSharedBg] = useState(null);
+  const [sharedBgScale, setSharedBgScale] = useState(DEFAULT_BG_SCALE);
+  const [sharedBgX, setSharedBgX] = useState(0);
+  const [sharedBgY, setSharedBgY] = useState(0);
+  const loadImage = useCallback((file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const aspect = img.naturalWidth / img.naturalHeight || 1;
+      setSharedBg({ url, aspect, img });
+      const dh = CANVAS_H * DEFAULT_BG_SCALE;
+      const dw = dh * aspect;
+      setSharedBgScale(DEFAULT_BG_SCALE);
+      setSharedBgX((CANVAS_W - dw) / 2);
+      setSharedBgY((CANVAS_H - dh) / 2);
+    };
+    img.src = url;
+  }, []);
+  useEffect(() => {
+    if (!sharedBg) return;
+    return () => URL.revokeObjectURL(sharedBg.url);
+  }, [sharedBg]);
 
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
@@ -106,12 +133,14 @@ export default function LetterTracingAuthoring() {
     setRawStrokes([]);
     setHint('');
     setPreviewing(false);
+    setSharedBg(null);
   };
 
   const pickLetter = (c) => {
     setLetter(c.toLowerCase());
     setRawStrokes([]);
     setPreviewing(false);
+    setSharedBg(null);
   };
 
   return (
@@ -207,9 +236,9 @@ export default function LetterTracingAuthoring() {
               </div>
             </div>
             {authorMode === 'snap' ? (
-              <StrokeAuthoringCanvas rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} />
+              <StrokeAuthoringCanvas rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} bg={sharedBg} bgScale={sharedBgScale} bgX={sharedBgX} bgY={sharedBgY} setBgScale={setSharedBgScale} setBgX={setSharedBgX} setBgY={setSharedBgY} setBg={setSharedBg} loadImage={loadImage} />
             ) : (
-              <TraceThinCanvas key={'thin-' + target} rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} />
+              <TraceThinCanvas rawStrokes={rawStrokes} setRawStrokes={setRawStrokes} bg={sharedBg} bgScale={sharedBgScale} bgX={sharedBgX} bgY={sharedBgY} setBgScale={setSharedBgScale} setBgX={setSharedBgX} setBgY={setSharedBgY} setBg={setSharedBg} loadImage={loadImage} />
             )}
           </div>
 
