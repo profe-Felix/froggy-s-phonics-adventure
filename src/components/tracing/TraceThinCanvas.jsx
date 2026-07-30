@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
+import { extractCenterlines, smoothChain, arcLen } from './centerline';
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -67,50 +68,6 @@ function zhangSuen(mask, W, H) {
   return m;
 }
 
-// Remove short spurs (branches ≤ maxLen px) left by thinning at junctions —
-// the small artifacts where strokes meet (an A's apex / crossbar joints).
-function pruneSpurs(m, W, H, maxLen) {
-  const nb = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-  const at = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? 0 : m[y * W + x];
-  const ncount = (x, y) => {
-    let c = 0;
-    for (const [dx, dy] of nb) if (at(x + dx, y + dy) === 1) c++;
-    return c;
-  };
-  let changed = true;
-  while (changed) {
-    changed = false;
-    const endpoints = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (m[y * W + x] === 1 && ncount(x, y) === 1) endpoints.push({ x, y });
-    }
-    for (const ep of endpoints) {
-      const branch = [{ x: ep.x, y: ep.y }];
-      let cx = ep.x, cy = ep.y, px = -1, py = -1;
-      while (true) {
-        let nx = -1, ny = -1;
-        for (const [dx, dy] of nb) {
-          const xx = cx + dx, yy = cy + dy;
-          if (at(xx, yy) !== 1) continue;
-          if (xx === px && yy === py) continue;
-          if (branch.some((b) => b.x === xx && b.y === yy)) continue;
-          nx = xx; ny = yy; break;
-        }
-        if (nx < 0) break;
-        branch.push({ x: nx, y: ny });
-        const nc = ncount(nx, ny);
-        if (nc >= 3 || nc === 1) break; // junction or other endpoint — stop
-        px = cx; py = cy; cx = nx; cy = ny;
-      }
-      if (branch.length <= maxLen) {
-        for (const b of branch) m[b.y * W + b.x] = 0;
-        changed = true;
-      }
-    }
-  }
-  return m;
-}
-
 export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale, bgX, bgY, setBgScale, setBgX, setBgY, setBg, loadImage }) {
   const [traced, setTraced] = useState(rawStrokes && rawStrokes.length ? rawStrokes : []);
   const [current, setCurrent] = useState([]);
@@ -146,8 +103,8 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
   }, [traced]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rasterize the trace image at its current transform, skeletonize the black
-  // ink (Zhang-Suen + spur pruning), and render the centerline as a thin line.
-  // Only runs in Trace view — no thinning work in the background otherwise.
+  // ink, vectorize into chains, drop spur chains, smooth, and render a clean
+  // centerline. Only runs in Trace view — no work in the background otherwise.
   useEffect(() => {
     if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonUrl(null); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
@@ -170,19 +127,26 @@ export default function TraceThinCanvas({ rawStrokes, setRawStrokes, bg, bgScale
       const r = src[o], g = src[o + 1], b = src[o + 2];
       mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
     }
-    const skel = pruneSpurs(zhangSuen(mask, W, H), W, H, 5);
-    const pts = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (skel[y * W + x]) pts.push({ x, y });
-    skeletonRef.current = { pts };
-    // Render the skeleton as a smooth thin dark line.
+    const skel = zhangSuen(mask, W, H);
+    // Pixel thinning leaves spurs at sharp corners (an A apex) and 1px jogs at
+    // junctions (legs crossing the crossbar). Vectorize into chains, drop short
+    // spur chains, and Laplacian-smooth the rest → a clean single centerline.
+    const chains = extractCenterlines(skel, W, H).filter((c) => c.length >= 2 && arcLen(c) >= 6);
+    const smoothed = chains.map((c) => smoothChain(c, 3));
+    skeletonRef.current = { pts: smoothed.flat() };
     const sc = document.createElement('canvas');
     sc.width = W; sc.height = H;
     const scx = sc.getContext('2d');
     scx.clearRect(0, 0, W, H);
-    scx.fillStyle = '#1e293b';
-    scx.beginPath();
-    for (const p of pts) { scx.moveTo(p.x + 1.1, p.y); scx.arc(p.x, p.y, 1.1, 0, Math.PI * 2); }
-    scx.fill();
+    scx.strokeStyle = '#1e293b';
+    scx.lineWidth = 1.6;
+    scx.lineCap = 'round';
+    scx.lineJoin = 'round';
+    for (const ch of smoothed) {
+      scx.beginPath();
+      ch.forEach((p, i) => (i === 0 ? scx.moveTo(p.x, p.y) : scx.lineTo(p.x, p.y)));
+      scx.stroke();
+    }
     setSkeletonUrl(sc.toDataURL());
   }, [bg, bgScale, bgX, bgY, traceView]);
 
