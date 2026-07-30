@@ -133,7 +133,7 @@ export function skeletonToPolylines(mask, W, H) {
   // shared point — no bulge, no blunt gap.
   const used = new Set();
   const clusters = [];
-  const R2 = 10 * 10;
+  const R2 = 14 * 14;
   for (let i = 0; i < nodePts.length; i++) {
     if (used.has(i)) continue;
     const cl = [nodePts[i]];
@@ -241,7 +241,7 @@ export function skeletonToPolylines(mask, W, H) {
     return false;
   };
   while (tryMerge({ gap: 14, maxAng: 22, requireFreeTips: false })) {}
-  while (tryMerge({ gap: 6, maxAng: 150, requireFreeTips: true })) {}
+  while (tryMerge({ gap: 10, maxAng: 150, requireFreeTips: true })) {}
   const MIN = 5;
   const final = polys
     .filter((p) => pathLen(p.pts) >= MIN)

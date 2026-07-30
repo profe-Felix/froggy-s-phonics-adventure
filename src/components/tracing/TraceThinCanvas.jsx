@@ -119,11 +119,13 @@ function Arrow({ pos, color }) {
   return pts;
   }
 
-  // Keep only the largest connected ink blob — drops specks and stray marks
-  // that would otherwise branch the skeleton into dashes.
-  function largestComponent(mask, W, H) {
+  // Keep every ink blob of meaningful size — drops only specks/stray marks.
+  // (Keeping ONLY the largest blob would erase separate strokes of a letter
+  // whose ink doesn't fully connect — e.g. a crossbar with a tiny gap to the
+  // legs — which is what made A's lose their crossbar and a leg.)
+  function keepSignificantComponents(mask, W, H, minSize) {
   const seen = new Uint8Array(W * H);
-  let best = null;
+  const out = new Uint8Array(W * H);
   for (let s = 0; s < W * H; s++) {
     if (!mask[s] || seen[s]) continue;
     const comp = [];
@@ -140,10 +142,8 @@ function Arrow({ pos, color }) {
     if (mask[k] && !seen[k]) { seen[k] = 1; stack.push(k); }
     }
     }
-    if (!best || comp.length > best.length) best = comp;
+    if (comp.length >= minSize) for (const k of comp) out[k] = 1;
   }
-  const out = new Uint8Array(W * H);
-  if (best) for (const k of best) out[k] = 1;
   return out;
   }
 
@@ -233,7 +233,7 @@ function Arrow({ pos, color }) {
     // Clean the mask before thinning: keep only the largest ink blob (drops
     // specks and stray marks) and fill interior holes (anti-aliasing gaps that
     // would otherwise branch the skeleton into dashes).
-    const cleaned = fillHoles(largestComponent(mask, W, H), W, H);
+    const cleaned = fillHoles(keepSignificantComponents(mask, W, H, 25), W, H);
     // Thin to a 1px centerline, then prune short dead-end spurs (the "pinch"
     // Zhang-Suen leaves at sharp corners like an A apex). Render as overlapping
     // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
