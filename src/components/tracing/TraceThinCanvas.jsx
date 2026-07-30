@@ -147,9 +147,12 @@ function Arrow({ pos, color }) {
   return out;
   }
 
-  // Fill interior holes (anti-aliasing gaps inside strokes) so the skeleton
-  // doesn't sprout noise branches.
-  function fillHoles(mask, W, H) {
+  // Fill only SMALL interior holes (anti-aliasing pinholes inside strokes)
+  // so the skeleton doesn't sprout noise branches — but leave LARGE enclosed
+  // counters open. Filling the counter of an A (the triangle between the legs
+  // and crossbar) or the bowl of an O/P/B/D turns the letter into a solid blob
+  // whose skeleton is a Y-shaped medial axis, not the letter.
+  function fillSmallHoles(mask, W, H, maxHoleArea) {
   const bg = new Uint8Array(W * H);
   const stack = [];
   for (let x = 0; x < W; x++) {
@@ -173,8 +176,44 @@ function Arrow({ pos, color }) {
     }
   }
   const out = mask.slice();
-  for (let i = 0; i < W * H; i++) if (!mask[i] && !bg[i]) out[i] = 1;
+  const visited = new Uint8Array(W * H);
+  for (let s = 0; s < W * H; s++) {
+    if (mask[s] || bg[s] || visited[s]) continue;
+    const comp = [];
+    const st = [s];
+    visited[s] = 1;
+    while (st.length) {
+    const p = st.pop();
+    comp.push(p);
+    const x = p % W, y = (p / W) | 0;
+    for (const [dx, dy] of NB8) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+    const k = ny * W + nx;
+    if (!mask[k] && !bg[k] && !visited[k]) { visited[k] = 1; st.push(k); }
+    }
+    }
+    if (comp.length <= maxHoleArea) for (const k of comp) out[k] = 1;
+  }
   return out;
+  }
+
+  // Grow the mask outward by r pixels (3x3 dilation, r iterations).
+  function dilate(mask, W, H, r) {
+  let m = mask.slice();
+  for (let iter = 0; iter < r; iter++) {
+    const out = m.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (m[y * W + x]) continue;
+    for (const [dx, dy] of NB8) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+    if (m[ny * W + nx]) { out[y * W + x] = 1; break; }
+    }
+    }
+    m = out;
+  }
+  return m;
   }
 
 
@@ -222,18 +261,28 @@ function Arrow({ pos, color }) {
     let imgData;
     try { imgData = cx.getImageData(0, 0, W, H); } catch { return; }
     const src = imgData.data;
-    const mask = new Uint8Array(W * H);
+    // Detect the black letter, PLUS magenta stroke-order overlays where they
+    // sit on top of the black ink. Practice sheets draw pink arrows/numerals
+    // directly on the letter; those pink pixels replaced the black and would
+    // otherwise punch holes through every stroke (apex, legs, crossbar) and
+    // shatter the skeleton. We fill them back in by including magenta pixels
+    // that lie within a few px of real black ink — overlays on the letter are
+    // kept, but magenta guide lines on the white background are not.
+    const blackMask = new Uint8Array(W * H);
+    const magMask = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) {
       const o = i * 4;
-      // Only truly BLACK ink counts (all RGB channels low) — pink/colored marks
-      // in the image are ignored so the thin line follows only the black letter.
       const r = src[o], g = src[o + 1], b = src[o + 2];
-      mask[i] = r < 120 && g < 120 && b < 120 ? 1 : 0;
+      if (r < 120 && g < 120 && b < 120) blackMask[i] = 1;
+      else if (r > 140 && g < 140 && b > 60 && b < 200 && r > b) magMask[i] = 1;
     }
+    const nearBlack = dilate(blackMask, W, H, 3);
+    const mask = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
     // Clean the mask before thinning: keep only the largest ink blob (drops
     // specks and stray marks) and fill interior holes (anti-aliasing gaps that
     // would otherwise branch the skeleton into dashes).
-    const cleaned = fillHoles(keepSignificantComponents(mask, W, H, 25), W, H);
+    const cleaned = fillSmallHoles(keepSignificantComponents(mask, W, H, 25), W, H, 64);
     // Thin to a 1px centerline, then prune short dead-end spurs (the "pinch"
     // Zhang-Suen leaves at sharp corners like an A apex). Render as overlapping
     // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
