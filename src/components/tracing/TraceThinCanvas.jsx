@@ -113,10 +113,89 @@ function Arrow({ pos, color }) {
   }
   }
 
+  // Bridge pairs of free-tip endpoints (degree-1 skeleton pixels) that lie
+  // within maxGap of each other. Zhang-Suen occasionally leaves a 1-2px gap at a
+  // sharp corner (an A apex) where two strokes should meet; without bridging,
+  // the two legs vectorize as separate chains and the apex renders as a flat
+  // notch. Drawing a 1px line between close tips connects them first, so the
+  // apex becomes one sharp vertex regardless of sub-pixel image position.
+  function bridgeCloseTips(m, W, H, maxGap) {
+  const isOn = (x, y) => x >= 0 && y >= 0 && x < W && y < H && m[y * W + x];
+  const endpoints = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!m[y * W + x]) continue;
+    let n = 0;
+    for (const [dx, dy] of NB8) if (isOn(x + dx, y + dy)) n++;
+    if (n === 1) endpoints.push({ x, y });
+  }
+  const sq = maxGap * maxGap;
+  const used = new Set();
+  for (let i = 0; i < endpoints.length; i++) {
+    if (used.has(i)) continue;
+    let best = -1, bd = sq;
+    for (let j = 0; j < endpoints.length; j++) {
+    if (i === j || used.has(j)) continue;
+    const d = (endpoints[i].x - endpoints[j].x) ** 2 + (endpoints[i].y - endpoints[j].y) ** 2;
+    if (d < bd) { bd = d; best = j; }
+    }
+    if (best >= 0) {
+    const a = endpoints[i], b = endpoints[best];
+    let x0 = a.x | 0, y0 = a.y | 0, x1 = b.x | 0, y1 = b.y | 0;
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+    m[y0 * W + x0] = 1;
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+    }
+    used.add(i); used.add(best);
+    }
+  }
+  }
+
   function collectPts(m, W, H) {
   const pts = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x]) pts.push({ x, y });
   return pts;
+  }
+
+  // Erode the foreground by r pixels (8-connected: a pixel survives only if
+  // ALL 8 neighbors are foreground). Used to thin thick letter ink down to a
+  // narrow stroke BEFORE Zhang-Suen, which otherwise leaves 2px-wide diagonals
+  // that register as hundreds of spurious junctions and shatter the trace.
+  function erode(mask, W, H, r) {
+  let m = mask.slice();
+  for (let iter = 0; iter < r; iter++) {
+    const out = m.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!m[y * W + x]) continue;
+    for (const [dx, dy] of NB8) {
+    const nx = x + dx, ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= W || ny >= H || !m[ny * W + nx]) { out[y * W + x] = 0; break; }
+    }
+    }
+    m = out;
+  }
+  return m;
+  }
+
+  // Median horizontal black-run length — a robust estimate of stroke width.
+  function strokeWidth(mask, W, H) {
+  const runs = [];
+  for (let y = 0; y < H; y++) {
+    let run = 0;
+    for (let x = 0; x < W; x++) {
+    if (mask[y * W + x]) run++;
+    else { if (run > 0) runs.push(run); run = 0; }
+    }
+    if (run > 0) runs.push(run);
+  }
+  if (!runs.length) return 1;
+  runs.sort((a, b) => a - b);
+  return runs[Math.floor(runs.length / 2)];
   }
 
   // Keep every ink blob of meaningful size — drops only specks/stray marks.
@@ -249,53 +328,66 @@ function Arrow({ pos, color }) {
   // in Trace view — no work in the background otherwise.
   useEffect(() => {
     if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonPaths([]); return; }
+    // Supersample the rasterization: Zhang-Suen thinning is exquisitely
+    // sensitive to which pixels the ink lands on, so a fractional-pixel shift
+    // of the SAME image (same scale) moves the ink across the grid and yields a
+    // different 1px skeleton — producing the dashed / fragmented / flattened
+    // traces seen when just nudging the image. Render at 3x, thin THERE (where
+    // the ink is many px wide and position-stable), then downscale the skeleton
+    // back to canvas resolution so vectorize thresholds are unchanged and the
+    // result is consistent regardless of image position.
+    const SS = 3;
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
+    const W2 = W * SS, H2 = H * SS;
     const dh = CANVAS_H * bgScale;
     const dw = dh * (bg.aspect || 1);
     const c = document.createElement('canvas');
-    c.width = W; c.height = H;
+    c.width = W2; c.height = H2;
     const cx = c.getContext('2d');
     cx.fillStyle = '#ffffff';
-    cx.fillRect(0, 0, W, H);
-    cx.drawImage(bg.img, bgX, bgY, dw, dh);
+    cx.fillRect(0, 0, W2, H2);
+    cx.drawImage(bg.img, bgX * SS, bgY * SS, dw * SS, dh * SS);
     let imgData;
-    try { imgData = cx.getImageData(0, 0, W, H); } catch { return; }
+    try { imgData = cx.getImageData(0, 0, W2, H2); } catch { return; }
     const src = imgData.data;
     // Detect the black letter, PLUS magenta stroke-order overlays where they
-    // sit on top of the black ink. Practice sheets draw pink arrows/numerals
-    // directly on the letter; those pink pixels replaced the black and would
-    // otherwise punch holes through every stroke (apex, legs, crossbar) and
-    // shatter the skeleton. We fill them back in by including magenta pixels
-    // that lie within a few px of real black ink — overlays on the letter are
-    // kept, but magenta guide lines on the white background are not.
-    const blackMask = new Uint8Array(W * H);
-    const magMask = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) {
+    // sit on top of the black ink (practice sheets draw pink arrows/numerals on
+    // the letter; they punched holes through every stroke). Fill them back in
+    // by including magenta pixels within a few px of real black ink — overlays
+    // on the letter are kept, magenta guide lines on white are not.
+    const blackMask = new Uint8Array(W2 * H2);
+    const magMask = new Uint8Array(W2 * H2);
+    for (let i = 0; i < W2 * H2; i++) {
       const o = i * 4;
       const r = src[o], g = src[o + 1], b = src[o + 2];
       if (r < 120 && g < 120 && b < 120) blackMask[i] = 1;
       else if (r > 140 && g < 140 && b > 60 && b < 200 && r > b) magMask[i] = 1;
     }
-    const nearBlack = dilate(blackMask, W, H, 3);
-    const mask = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
-    // Clean the mask before thinning: keep only the largest ink blob (drops
-    // specks and stray marks) and fill interior holes (anti-aliasing gaps that
-    // would otherwise branch the skeleton into dashes).
-    const cleaned = fillSmallHoles(keepSignificantComponents(mask, W, H, 25), W, H, 64);
-    // Thin to a 1px centerline, then prune short dead-end spurs (the "pinch"
-    // Zhang-Suen leaves at sharp corners like an A apex). Render as overlapping
-    // dots: the ~2px width absorbs the 1px routing kinks at junctions (a crossbar
-    // meeting a leg) so they're invisible, without fragmenting the line.
-    const skel = zhangSuen(cleaned, W, H);
-    // Prune dead-end spurs up to ~half the typical stroke thickness — this
-    // removes the inward "bisector" spur a T-/X-junction leaves where the
-    // crossbar overlaps a leg (the visible pinch at the A's midbar).
-    pruneSpurs(skel, W, H, 20);
-    // Vectorize the skeleton into straight strokes (DP-simplified, exact
-    // junction pixels) so lines are straight and meet with no gaps.
-    const allPts = collectPts(skel, W, H);
-    const paths = skeletonToPolylines(skel, W, H);
+    const nearBlack = dilate(blackMask, W2, H2, 3 * SS);
+    const mask = new Uint8Array(W2 * H2);
+    for (let i = 0; i < W2 * H2; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
+    const cleaned = fillSmallHoles(keepSignificantComponents(mask, W2, H2, 25 * SS * SS), W2, H2, 64 * SS * SS);
+    // The source letter is thick solid ink; Zhang-Suen on thick strokes leaves
+    // 2px-wide diagonals that register as hundreds of spurious junctions
+    // ("junction soup"), which shatter the vectorized trace and make the result
+    // depend on exactly where the ink sits on the pixel grid. Erode the ink down
+    // to a narrow (~8px) stroke BEFORE thinning so Zhang-Suen produces a clean
+    // 1px centerline with only the real junctions — stable across positions.
+    const sw = strokeWidth(cleaned, W2, H2);
+    const erodeR = Math.max(0, Math.min(40, Math.floor((sw - 8) / 2)));
+    const thinnable = erodeR > 0 ? keepSignificantComponents(erode(cleaned, W2, H2, erodeR), W2, H2, 25 * SS * SS) : cleaned;
+    const skel2 = zhangSuen(thinnable, W2, H2);
+    pruneSpurs(skel2, W2, H2, 20 * SS);
+    bridgeCloseTips(skel2, W2, H2, 10 * SS);
+    // Vectorize at full supersampled resolution (distance thresholds scaled by
+    // SS so the effective geometry matches the 1x case), then scale every point
+    // back down to canvas coordinates. Thinning at 3x is position-stable, so
+    // nudging the image no longer changes which strokes fragment.
+    const allPts = collectPts(skel2, W2, H2).map((p) => ({ x: p.x / SS, y: p.y / SS }));
+    const paths = skeletonToPolylines(skel2, W2, H2, SS).map((pl) => ({
+      ...pl,
+      pts: pl.pts.map((p) => ({ x: p.x / SS, y: p.y / SS })),
+    }));
     skeletonRef.current = { pts: allPts };
     setSkeletonPaths(paths);
   }, [bg, bgScale, bgX, bgY, traceView]);

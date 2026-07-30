@@ -38,7 +38,7 @@ function dpSimplify(pts, eps) {
   return out.map((i) => pts[i]);
 }
 
-export function skeletonToPolylines(mask, W, H) {
+export function skeletonToPolylines(mask, W, H, pxScale = 1) {
   const idx = (x, y) => y * W + x;
   const is = (x, y) => x >= 0 && y >= 0 && x < W && y < H && mask[idx(x, y)];
   const neigh = (x, y) => {
@@ -133,7 +133,7 @@ export function skeletonToPolylines(mask, W, H) {
   // shared point — no bulge, no blunt gap.
   const used = new Set();
   const clusters = [];
-  const R2 = 14 * 14;
+  const R2 = (14 * pxScale) * (14 * pxScale);
   for (let i = 0; i < nodePts.length; i++) {
     if (used.has(i)) continue;
     const cl = [nodePts[i]];
@@ -171,7 +171,7 @@ export function skeletonToPolylines(mask, W, H) {
   const polys = chains
     .filter((ch) => ch.length >= 2 && pathLen(ch) >= 3)
     .map((ch) => {
-      const s = dpSimplify(ch, 2.0);
+      const s = dpSimplify(ch, 2.0 * pxScale);
       const a = snap2(s[0]);
       const b = snap2(s[s.length - 1]);
       s[0] = { x: a.x, y: a.y };
@@ -182,7 +182,7 @@ export function skeletonToPolylines(mask, W, H) {
   // crossing polyline segment so it lands EXACTLY on that stroke's centerline —
   // this kills the cap protrusion / step where a crossbar meets a leg. Free
   // tips (an A's apex) are left alone so they stay sharp.
-  const projR = 12;
+  const projR = 12 * pxScale;
   const project = (p, self) => {
     let best = null, bd = projR * projR;
     for (const q of polys) {
@@ -223,10 +223,15 @@ export function skeletonToPolylines(mask, W, H) {
     for (let i = 0; i < polys.length; i++) {
       for (let j = i + 1; j < polys.length; j++) {
         const A = polys[i], B = polys[j];
-        const ae = A.pts[A.pts.length - 1], be = B.pts[B.pts.length - 1], bs = B.pts[0];
+        const ae = A.pts[A.pts.length - 1], be = B.pts[B.pts.length - 1], bs = B.pts[0], as = A.pts[0];
+        // All 4 orientations so two free tips that meet at a corner (an A apex,
+        // where both chains START at the shared tip) always join regardless of
+        // which direction each chain was walked.
         const variants = [
           { P: A, Q: B, pe: ae, qs: bs, aFree: !A.endJ, bFree: !B.startJ },
           { P: A, Q: reverse(B), pe: ae, qs: be, aFree: !A.endJ, bFree: !B.endJ },
+          { P: reverse(A), Q: B, pe: as, qs: bs, aFree: !A.startJ, bFree: !B.startJ },
+          { P: reverse(A), Q: reverse(B), pe: as, qs: be, aFree: !A.startJ, bFree: !B.endJ },
         ];
         for (const v of variants) {
           if (dist(v.pe, v.qs) > gap) continue;
@@ -240,11 +245,11 @@ export function skeletonToPolylines(mask, W, H) {
     }
     return false;
   };
-  while (tryMerge({ gap: 14, maxAng: 22, requireFreeTips: false })) {}
-  while (tryMerge({ gap: 10, maxAng: 150, requireFreeTips: true })) {}
-  const MIN = 5;
+  while (tryMerge({ gap: 14 * pxScale, maxAng: 22, requireFreeTips: false })) {}
+  while (tryMerge({ gap: 10 * pxScale, maxAng: 150, requireFreeTips: true })) {}
+  const MIN = 5 * pxScale;
   const final = polys
     .filter((p) => pathLen(p.pts) >= MIN)
-    .map((p) => ({ ...p, pts: dpSimplify(p.pts, 2.0) }));
+    .map((p) => ({ ...p, pts: dpSimplify(p.pts, 2.0 * pxScale) }));
   return final;
 }
