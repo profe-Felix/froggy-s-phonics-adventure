@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, PenLine } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
-import { skeletonToPolylines } from '@/lib/skeletonVectorize';
+
 
 // "Trace thin" authoring mode — image-based.
 // You load a black-letter trace image. The thick black ink is SKELETONIZED
@@ -319,77 +319,67 @@ function Arrow({ pos, color }) {
   const currentRef = useRef([]);
   const drawingRef = useRef(false);
 
-  // Skeleton of the image ink (in canvas coords) + its rendered thin-line image.
+  // "Bigger bone": the thick letter ink eroded to a ~5px-wide centerline band.
+  // Smooth, solid through junctions/apexes, and stable under sub-pixel shifts
+  // (no fragile 1px skeleton that dashes or flattens). The pen snaps to the
+  // centroid of nearby bone pixels — center-on-ink.
   const skeletonRef = useRef(null);
-  const [skeletonPaths, setSkeletonPaths] = useState([]);
+  const [boneUrl, setBoneUrl] = useState(null);
 
-  // Rasterize the trace image, thin the black ink to a 1px centerline (which
-  // reaches every stroke tip), prune dead-end spurs, and render it. Only runs
-  // in Trace view — no work in the background otherwise.
+  // Rasterize the trace image and erode the black ink down to a ~5px-wide
+  // centerline band ("bigger bone"). A several-px-wide band is smooth, solid
+  // through junctions and sharp apexes, and stable when the image is nudged —
+  // no fragile 1px skeleton that dashes or shifts. Only runs in Trace view.
   useEffect(() => {
-    if (!traceView || !bg?.img) { skeletonRef.current = null; setSkeletonPaths([]); return; }
-    // Supersample the rasterization: Zhang-Suen thinning is exquisitely
-    // sensitive to which pixels the ink lands on, so a fractional-pixel shift
-    // of the SAME image (same scale) moves the ink across the grid and yields a
-    // different 1px skeleton — producing the dashed / fragmented / flattened
-    // traces seen when just nudging the image. Render at 3x, thin THERE (where
-    // the ink is many px wide and position-stable), then downscale the skeleton
-    // back to canvas resolution so vectorize thresholds are unchanged and the
-    // result is consistent regardless of image position.
-    const SS = 3;
+    if (!traceView || !bg?.img) { skeletonRef.current = null; setBoneUrl(null); return; }
     const W = Math.round(CANVAS_W), H = Math.round(CANVAS_H);
-    const W2 = W * SS, H2 = H * SS;
     const dh = CANVAS_H * bgScale;
     const dw = dh * (bg.aspect || 1);
     const c = document.createElement('canvas');
-    c.width = W2; c.height = H2;
+    c.width = W; c.height = H;
     const cx = c.getContext('2d');
     cx.fillStyle = '#ffffff';
-    cx.fillRect(0, 0, W2, H2);
-    cx.drawImage(bg.img, bgX * SS, bgY * SS, dw * SS, dh * SS);
+    cx.fillRect(0, 0, W, H);
+    cx.drawImage(bg.img, bgX, bgY, dw, dh);
     let imgData;
-    try { imgData = cx.getImageData(0, 0, W2, H2); } catch { return; }
+    try { imgData = cx.getImageData(0, 0, W, H); } catch { return; }
     const src = imgData.data;
     // Detect the black letter, PLUS magenta stroke-order overlays where they
     // sit on top of the black ink (practice sheets draw pink arrows/numerals on
     // the letter; they punched holes through every stroke). Fill them back in
     // by including magenta pixels within a few px of real black ink — overlays
     // on the letter are kept, magenta guide lines on white are not.
-    const blackMask = new Uint8Array(W2 * H2);
-    const magMask = new Uint8Array(W2 * H2);
-    for (let i = 0; i < W2 * H2; i++) {
+    const blackMask = new Uint8Array(W * H);
+    const magMask = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) {
       const o = i * 4;
       const r = src[o], g = src[o + 1], b = src[o + 2];
       if (r < 120 && g < 120 && b < 120) blackMask[i] = 1;
       else if (r > 140 && g < 140 && b > 60 && b < 200 && r > b) magMask[i] = 1;
     }
-    const nearBlack = dilate(blackMask, W2, H2, 3 * SS);
-    const mask = new Uint8Array(W2 * H2);
-    for (let i = 0; i < W2 * H2; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
-    const cleaned = fillSmallHoles(keepSignificantComponents(mask, W2, H2, 25 * SS * SS), W2, H2, 64 * SS * SS);
-    // The source letter is thick solid ink; Zhang-Suen on thick strokes leaves
-    // 2px-wide diagonals that register as hundreds of spurious junctions
-    // ("junction soup"), which shatter the vectorized trace and make the result
-    // depend on exactly where the ink sits on the pixel grid. Erode the ink down
-    // to a narrow (~8px) stroke BEFORE thinning so Zhang-Suen produces a clean
-    // 1px centerline with only the real junctions — stable across positions.
-    const sw = strokeWidth(cleaned, W2, H2);
-    const erodeR = Math.max(0, Math.min(40, Math.floor((sw - 8) / 2)));
-    const thinnable = erodeR > 0 ? keepSignificantComponents(erode(cleaned, W2, H2, erodeR), W2, H2, 25 * SS * SS) : cleaned;
-    const skel2 = zhangSuen(thinnable, W2, H2);
-    pruneSpurs(skel2, W2, H2, 20 * SS);
-    bridgeCloseTips(skel2, W2, H2, 10 * SS);
-    // Vectorize at full supersampled resolution (distance thresholds scaled by
-    // SS so the effective geometry matches the 1x case), then scale every point
-    // back down to canvas coordinates. Thinning at 3x is position-stable, so
-    // nudging the image no longer changes which strokes fragment.
-    const allPts = collectPts(skel2, W2, H2).map((p) => ({ x: p.x / SS, y: p.y / SS }));
-    const paths = skeletonToPolylines(skel2, W2, H2, SS).map((pl) => ({
-      ...pl,
-      pts: pl.pts.map((p) => ({ x: p.x / SS, y: p.y / SS })),
-    }));
-    skeletonRef.current = { pts: allPts };
-    setSkeletonPaths(paths);
+    const nearBlack = dilate(blackMask, W, H, 3);
+    const mask = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) mask[i] = blackMask[i] || (magMask[i] && nearBlack[i]) ? 1 : 0;
+    const cleaned = fillSmallHoles(keepSignificantComponents(mask, W, H, 25), W, H, 64);
+    // Erode symmetrically to a narrow band centered on the original centerline.
+    const sw = strokeWidth(cleaned, W, H);
+    const erodeR = Math.max(0, Math.min(60, Math.floor((sw - 5) / 2)));
+    const bone = erodeR > 0 ? keepSignificantComponents(erode(cleaned, W, H, erodeR), W, H, 8) : cleaned;
+    // Snap target: all bone pixels (canvas coords).
+    const pts = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (bone[y * W + x]) pts.push({ x, y });
+    skeletonRef.current = { pts };
+    // Render the bone as a faint dark line via an offscreen canvas -> dataURL.
+    const oc = document.createElement('canvas');
+    oc.width = W; oc.height = H;
+    const ox = oc.getContext('2d');
+    const id2 = ox.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) {
+      const v = bone[i] ? 30 : 255;
+      id2.data[i * 4] = v; id2.data[i * 4 + 1] = v; id2.data[i * 4 + 2] = v; id2.data[i * 4 + 3] = 255;
+    }
+    ox.putImageData(id2, 0, 0);
+    setBoneUrl(oc.toDataURL());
   }, [bg, bgScale, bgX, bgY, traceView]);
 
   const lineTop = 0.10, lineMid = 0.367, lineBase = 0.633, lineDesc = 0.90;
@@ -403,19 +393,21 @@ function Arrow({ pos, color }) {
     };
   };
 
-  // Hold the pen to the thin line: snap to the nearest skeleton pixel when the
-  // pen is within the corridor. Outside it, draw freely (so you can lift and
-  // start a fresh stroke elsewhere without teleporting).
+  // Hold the pen to the bone: snap to the CENTROID of all bone pixels within
+  // the corridor (center-on-ink). This rides the middle of the stroke and stays
+  // smooth even where the band is a few px wide. Outside the corridor, draw
+  // freely so you can lift and start a fresh stroke elsewhere.
   const snapToSkeleton = (pos) => {
     const s = skeletonRef.current;
     if (!s || !s.pts.length) return pos;
-    let best = null, bd = Infinity;
+    const r2 = SNAP_CORRIDOR * SNAP_CORRIDOR;
+    let sx = 0, sy = 0, n = 0;
     for (const p of s.pts) {
       const d = (pos.x - p.x) * (pos.x - p.x) + (pos.y - p.y) * (pos.y - p.y);
-      if (d < bd) { bd = d; best = p; }
+      if (d <= r2) { sx += p.x; sy += p.y; n++; }
     }
-    if (!best || bd > SNAP_CORRIDOR * SNAP_CORRIDOR) return pos;
-    return { x: best.x, y: best.y };
+    if (!n) return pos;
+    return { x: sx / n, y: sy / n };
   };
 
   const down = (e) => {
@@ -501,14 +493,11 @@ function Arrow({ pos, color }) {
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Inferred thin centerline — continuous skeleton polylines with miter
-            joins (sharp apex) and round caps (rounded tips). */}
-        {/* Inferred thin centerline — clustered skeleton polylines.
-            Round caps bridge any sub-pixel endpoint gap (no dashes) and are
-            hidden where strokes cross (no bulge); miter joins keep the apex sharp. */}
-        {skeletonPaths.map((pl, i) => pl.pts.length > 1 && (
-          <path key={'sk' + i} d={pathD(pl.pts)} fill="none" stroke="#1e293b" strokeWidth="2.6" strokeLinejoin="miter" miterLimit="4" strokeLinecap="round" opacity="0.9" />
-        ))}
+        {/* Centerline "bone" — a faint band eroded from the letter ink. The pen
+            snaps to the centroid of nearby bone pixels, so you steer the middle. */}
+        {boneUrl && (
+          <image href={boneUrl} x={0} y={0} width={CANVAS_W} height={CANVAS_H} opacity="0.5" />
+        )}
 
         {/* Traced strokes — clean, directed waypoints */}
         {traced.map((s, i) => {
@@ -555,7 +544,7 @@ function Arrow({ pos, color }) {
               <Move className="w-4 h-4" /> {moveMode ? 'Dragging image' : 'Move image'}
             </button>
             <button
-              onClick={() => {           setBg(null); setMoveMode(false); setSkeletonPaths([]); skeletonRef.current = null; }}
+              onClick={() => {           setBg(null); setMoveMode(false); setBoneUrl(null); skeletonRef.current = null; }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
             >
               <X className="w-4 h-4" /> Remove
@@ -610,9 +599,9 @@ function Arrow({ pos, color }) {
       <p className="text-xs text-gray-500 text-center max-w-xs">
         {bg
           ? (traceView
-            ? 'Thinned centerline only — trace over it; your pen is held to the line, so just steer the direction. The colored trace is what gets saved.'
-            : 'Move/scale the image to align it to the guide lines, then press Trace to thin the black letter into a centerline you can follow.')
-          : 'Add a black-letter image, then press Trace to thin its black ink into a centerline you can trace.'}
+            ? 'Centerline band only — trace over it; your pen is held to the middle of the ink, so just steer the direction. The colored trace is what gets saved.'
+            : 'Move/scale the image to align it to the guide lines, then press Trace to erode the black letter into a centerline band you can follow.')
+          : 'Add a black-letter image, then press Trace to turn its black ink into a centerline band you can trace.'}
       </p>
     </div>
   );
