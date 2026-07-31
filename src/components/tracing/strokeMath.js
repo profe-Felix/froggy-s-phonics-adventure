@@ -71,6 +71,36 @@ export function smoothAndNormalize(rawPx, maxPts = 60, density = 8) {
   }));
 }
 
+// Smooth interpolating spline THROUGH every control point (Catmull-Rom).
+// Returns a dense polyline the curve tool previews and commits. A 2-point input
+// yields a straight resampled line (no bend), which is what a no-control curve is.
+export function catmullRom(points, samplesPerSegment = 16) {
+  if (!points || points.length < 2) return points ? points.slice() : [];
+  if (points.length === 2) {
+    const out = [];
+    for (let i = 0; i <= samplesPerSegment; i++) {
+      const t = i / samplesPerSegment;
+      out.push({ x: points[0].x + t * (points[1].x - points[0].x), y: points[0].y + t * (points[1].y - points[0].y) });
+    }
+    return out;
+  }
+  const pts = [points[0], ...points, points[points.length - 1]];
+  const out = [];
+  for (let i = 1; i < pts.length - 2; i++) {
+    const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2];
+    const last = i === pts.length - 3;
+    const n = last ? samplesPerSegment + 1 : samplesPerSegment;
+    for (let j = 0; j < n; j++) {
+      const t = j / samplesPerSegment, t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      });
+    }
+  }
+  return out;
+}
+
 // Return {x,y,angle} at a fraction (0-1) along a polyline — for arrowheads.
 export function pointAtLength(pts, frac) {
   if (!pts || pts.length < 2) return { x: 0, y: 0, angle: 0 };

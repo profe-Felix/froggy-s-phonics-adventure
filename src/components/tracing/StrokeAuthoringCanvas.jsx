@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet } from 'lucide-react';
-import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength } from './strokeMath';
+import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength, catmullRom } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
@@ -29,16 +29,21 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   const moveStartRef = useRef(null);
   const fileRef = useRef(null);
 
-  // Hold-key straight-line helpers for cleaner template authoring:
-  //  Hold D while drawing  → the in-progress segment locks to a straight line
-  //                         (direction set by the first movement from the anchor).
-  //  Hold D+S              → retrace the last straight line back down it, so an
-  //                         up-then-down stem (m, n, g, a) overlaps exactly.
+  // Structured-stroke tools (held keys), layered on top of freehand drawing:
+  //  D = line:  pen-down = start, drag = dashed preview, pen-up = commit one
+  //             straight segment. Pen must lift after (segment ends on up).
+  //  S = curve: pen-down = start, drag = chord preview, pen-up = fix END. Then
+  //             tap to add control points between start↔end (curve previews
+  //             through them); release S to commit. Auto-snaps to ink when
+  //             "Center on ink" is on.
+  //  A = chain: hold to make the next segment START at the previous stroke's
+  //             endpoint (piggyback into one continuous stroke) instead of a
+  //             new stroke. Release A (pen up) to finish the chained stroke.
   const dHeldRef = useRef(false);
   const sHeldRef = useRef(false);
-  const straightAnchorRef = useRef(null);
-  const straightDirRef = useRef(null);
-  const lastStraightRef = useRef(null);
+  const aHeldRef = useRef(false);
+  const gestureRef = useRef(null);     // { type:'line'|'curve', start, end, ctrls:[], phase }
+  const [preview, setPreview] = useState(null);
 
   // Latest bg scale/position in refs so the scale slider can anchor to the
   // bottom-left corner without going stale across rapid drag events.
@@ -91,40 +96,38 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     inkMapRef.current = { data, W, H };
   }, [autoCenter, bg, bgScale, bgX, bgY]);
 
-  // Global hold-key listeners for the straight-line / retrace shortcuts. Only
-  // active when not typing in a text field, so the hint/letter inputs still work.
+  // Hold-key listeners for the structured-stroke tools (D/S/A). Only active
+  // when not typing in a text field, so the hint/letter inputs still work.
   useEffect(() => {
     const isInput = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
     const onKeyDown = (e) => {
       if (isInput(e.target)) return;
       const k = e.key.toLowerCase();
-      if (k === 'd' && !dHeldRef.current) {
-        dHeldRef.current = true;
-        if (drawingRef.current) {
-          const last = currentRef.current[currentRef.current.length - 1];
-          if (sHeldRef.current && lastStraightRef.current) {
-            straightAnchorRef.current = lastStraightRef.current.anchor;
-            straightDirRef.current = lastStraightRef.current.dir;
-          } else {
-            straightAnchorRef.current = last || { x: 0, y: 0 };
-            straightDirRef.current = null;
-          }
-        }
-      } else if (k === 's' && !sHeldRef.current) {
-        sHeldRef.current = true;
+      if (k === 'd') dHeldRef.current = true;
+      else if (k === 's') sHeldRef.current = true;
+      else if (k === 'a') aHeldRef.current = true;
+      else if (k === 'escape') {
+        // cancel any active structured gesture
+        gestureRef.current = null; setPreview(null); drawingRef.current = false;
       }
     };
     const onKeyUp = (e) => {
       const k = e.key.toLowerCase();
       if (k === 'd') {
-        if (straightDirRef.current) {
-          lastStraightRef.current = { anchor: straightAnchorRef.current, dir: straightDirRef.current };
-        }
-        straightAnchorRef.current = null;
-        straightDirRef.current = null;
         dHeldRef.current = false;
+        // releasing D mid-line-gesture cancels the preview (no commit)
+        if (gestureRef.current && gestureRef.current.type === 'line' && drawingRef.current) {
+          gestureRef.current = null; setPreview(null); drawingRef.current = false;
+        }
       } else if (k === 's') {
         sHeldRef.current = false;
+        // releasing S commits the active curve (if any)
+        if (gestureRef.current && gestureRef.current.type === 'curve') {
+          commitCurve(gestureRef.current);
+          gestureRef.current = null; setPreview(null); drawingRef.current = false;
+        }
+      } else if (k === 'a') {
+        aHeldRef.current = false;
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -133,7 +136,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, []);
+  }, [autoCenter, rawStrokes]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -211,15 +214,46 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       // these raw points, so reload shows identical pixels.
       setRawStrokes((prev) => [...prev, currentRef.current.slice()]);
     }
-    // Remember the just-finished straight segment so a later D+S can retrace it,
-    // then reset straight state (D may still be physically held).
-    if (straightDirRef.current) {
-      lastStraightRef.current = { anchor: straightAnchorRef.current, dir: straightDirRef.current };
-    }
-    straightAnchorRef.current = null;
-    straightDirRef.current = null;
     currentRef.current = [];
     setCurrent([]);
+  };
+
+  // ---- Structured-stroke tools (D=line, S=curve, A=chain) ----
+  // Build the live preview object from the active gesture.
+  const buildPreview = (g) => {
+    if (!g) return null;
+    if (g.type === 'line') return { kind: 'line', start: g.start, end: g.end };
+    const ctrls = [g.start, ...g.ctrls, g.end];
+    return { kind: 'curve', start: g.start, end: g.end, ctrls: g.ctrls.slice(), spline: catmullRom(ctrls, 16) };
+  };
+  // Append a committed segment to the strokes — chained onto the previous
+  // stroke's endpoint when A is held, otherwise a fresh stroke.
+  const commitSegment = (pts) => {
+    if (!pts || pts.length < 2) return;
+    if (aHeldRef.current && rawStrokes.length > 0) {
+      const tail = pts.slice(1); // start equals the last point — skip duplicate
+      setRawStrokes((prev) => {
+        const copy = prev.slice();
+        copy[copy.length - 1] = [...copy[copy.length - 1], ...tail];
+        return copy;
+      });
+    } else {
+      setRawStrokes((prev) => [...prev, pts]);
+    }
+  };
+  // Snap a dense point list onto the ink centerline (perpendicular-slice), so a
+  // curve drops onto the black line when "Center on ink" is on.
+  const snapCurveToInk = (pts) => {
+    const out = [];
+    let prev = null;
+    for (const p of pts) { const sp = snapToInk(p, prev); out.push(sp); prev = sp; }
+    return out;
+  };
+  const commitCurve = (g) => {
+    const ctrls = [g.start, ...g.ctrls, g.end];
+    let pts = catmullRom(ctrls, 16);
+    if (autoCenter && inkMapRef.current) pts = snapCurveToInk(pts);
+    commitSegment(pts);
   };
 
   // Pointer Events unify mouse, touch, and pen. setPointerCapture keeps events
@@ -233,19 +267,37 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
       return;
     }
-    const start = autoCenter && !dHeldRef.current ? snapToInk(pos) : pos;
+    // Adding a control point to an active curve (S still held): each tap bends it.
+    if (gestureRef.current && gestureRef.current.type === 'curve' && gestureRef.current.phase === 'add-ctrls' && sHeldRef.current) {
+      gestureRef.current.ctrls.push(pos);
+      setPreview(buildPreview(gestureRef.current));
+      drawingRef.current = true;
+      return;
+    }
+    // Chain: A held → the new segment starts at the previous stroke's endpoint.
+    const chainStart = (aHeldRef.current && rawStrokes.length > 0)
+      ? { ...rawStrokes[rawStrokes.length - 1][rawStrokes[rawStrokes.length - 1].length - 1] }
+      : null;
+    if (dHeldRef.current) {
+      const start = chainStart || pos;
+      gestureRef.current = { type: 'line', start, end: pos };
+      setPreview(buildPreview(gestureRef.current));
+      drawingRef.current = true;
+      return;
+    }
+    if (sHeldRef.current) {
+      const start = chainStart || pos;
+      gestureRef.current = { type: 'curve', start, end: pos, ctrls: [], phase: 'drag-end' };
+      setPreview(buildPreview(gestureRef.current));
+      drawingRef.current = true;
+      return;
+    }
+    // Starting freehand without a tool key → drop any lingering gesture.
+    if (gestureRef.current) { gestureRef.current = null; setPreview(null); }
+    const start = autoCenter ? snapToInk(pos) : pos;
     currentRef.current = [start];
     setCurrent([start]);
     drawingRef.current = true;
-    if (dHeldRef.current) {
-      if (sHeldRef.current && lastStraightRef.current) {
-        straightAnchorRef.current = lastStraightRef.current.anchor;
-        straightDirRef.current = lastStraightRef.current.dir;
-      } else {
-        straightAnchorRef.current = pos;
-        straightDirRef.current = null;
-      }
-    }
   };
 
   const move = (e) => {
@@ -260,25 +312,14 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     if (!drawingRef.current) return;
     e.preventDefault();
     const pos = getPos(e);
-    // Straight-line mode (hold D): project the cursor onto the locked line so
-    // the segment stays perfectly straight. Hold D+S to retrace the last
-    // straight line back down it (same anchor+dir), for up-then-down stems.
-    if (dHeldRef.current && straightAnchorRef.current) {
-      let dir = straightDirRef.current;
-      if (!dir) {
-        const dx = pos.x - straightAnchorRef.current.x;
-        const dy = pos.y - straightAnchorRef.current.y;
-        const dl = Math.hypot(dx, dy);
-        if (dl < 2) return; // wait for enough movement to lock the direction
-        dir = { x: dx / dl, y: dy / dl };
-        straightDirRef.current = dir;
+    if (gestureRef.current) {
+      const g = gestureRef.current;
+      if (g.type === 'line') g.end = pos;
+      else if (g.type === 'curve') {
+        if (g.phase === 'drag-end') g.end = pos;
+        else if (g.ctrls.length) g.ctrls[g.ctrls.length - 1] = pos; // live control point
       }
-      const t = (pos.x - straightAnchorRef.current.x) * dir.x + (pos.y - straightAnchorRef.current.y) * dir.y;
-      const proj = { x: straightAnchorRef.current.x + dir.x * t, y: straightAnchorRef.current.y + dir.y * t };
-      const last = currentRef.current[currentRef.current.length - 1];
-      if (last && Math.hypot(proj.x - last.x, proj.y - last.y) < 2) return;
-      currentRef.current = [...currentRef.current, proj];
-      setCurrent(currentRef.current);
+      setPreview(buildPreview(g));
       return;
     }
     const last = currentRef.current[currentRef.current.length - 1];
@@ -292,7 +333,24 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     moveStartRef.current = null;
-    if (drawingRef.current) finishStroke();
+    if (moveMode) return;
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    if (gestureRef.current) {
+      const g = gestureRef.current;
+      if (g.type === 'line') {
+        if (dHeldRef.current) commitSegment([g.start, g.end]);
+        gestureRef.current = null; setPreview(null);
+        return;
+      }
+      if (g.type === 'curve') {
+        if (g.phase === 'drag-end') { g.end = getPos(e); g.phase = 'add-ctrls'; }
+        // else: control point already set by move; stay in add-ctrls
+        setPreview(buildPreview(g));
+        return; // S release commits
+      }
+    }
+    finishStroke();
   };
 
   const onPickImage = (e) => {
@@ -496,7 +554,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   };
 
   const undo = () => setRawStrokes((prev) => prev.slice(0, -1));
-  const clear = () => setRawStrokes([]);
+  const clear = () => { setRawStrokes([]); setSnapHistory([]); gestureRef.current = null; setPreview(null); };
 
   const dispH = CANVAS_H * bgScale;
   const dispW = dispH * (bg?.aspect || 1);
@@ -543,6 +601,23 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
             </g>
           );
         })}
+
+        {/* Structured-stroke tool preview (D line / S curve) */}
+        {preview && preview.kind === 'line' && (
+          <line x1={preview.start.x} y1={preview.start.y} x2={preview.end.x} y2={preview.end.y}
+            stroke="#6366f1" strokeWidth="6" strokeLinecap="round" strokeDasharray="4 7" opacity="0.75" />
+        )}
+        {preview && preview.kind === 'curve' && (
+          <g>
+            <path d={pathD(preview.spline)} fill="none" stroke="#6366f1" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
+            <line x1={preview.start.x} y1={preview.start.y} x2={preview.end.x} y2={preview.end.y} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 5" opacity="0.5" />
+            <circle cx={preview.start.x} cy={preview.start.y} r="6" fill="#22c55e" />
+            <circle cx={preview.end.x} cy={preview.end.y} r="6" fill="#ef4444" />
+            {preview.ctrls.map((c, i) => (
+              <circle key={i} cx={c.x} cy={c.y} r="5" fill="#6366f1" stroke="white" strokeWidth="2" />
+            ))}
+          </g>
+        )}
 
         {/* Current in-progress stroke — shown with the same smoothing as committed strokes, so lift has no snap */}
         {current.length > 1 && (
@@ -679,7 +754,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       <p className="text-xs text-gray-500 text-center max-w-xs">
         Draw each stroke in order, in the correct direction. Lift between strokes — the number shows the stroke order.
         {bg && ' Toggle "Move image" to reposition the trace image.'}
-        <br />Hold <b>D</b> while drawing for a straight line; hold <b>D+S</b> to retrace the last straight line back down (for m, n, g, a stems).
+        <br />Hold <b>D</b> = line (pen-down start, drag preview, pen-up commit). Hold <b>S</b> = curve (set start+end, then tap to add control points; release S to commit, auto-snaps to ink). Hold <b>A</b> to chain a segment onto the previous stroke. <b>Esc</b> cancels.
         <br />Toggle <b>Center on ink</b> to snap each point to the black line of your trace image as you draw.
       </p>
     </div>
