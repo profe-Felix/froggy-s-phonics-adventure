@@ -33,3 +33,7 @@ export function getPowerfulWordPreset(id) {
 export function getLetterSortPreset(id) {
   return letterSortPresets[id] || null;
 }
+
+export function getFluencyPreset(id) {
+  return fluencyPresets[id] || null;
+}

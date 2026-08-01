@@ -52,7 +52,8 @@
               "syllable_train",
               "syllable_blender",
               "activities",
-              "word_builder"
+              "word_builder",
+              "fluency"
             ],
             "description": "Which existing activity this step launches"
           },
@@ -102,7 +103,7 @@
           },
           "config": {
             "type": "object",
-            "description": "Mode-specific settings (e.g. target letters) for future per-step overrides.",
+            "description": "Mode-specific settings (e.g. target letters, preset id) for per-step overrides.",
             "default": {}
           }
         },

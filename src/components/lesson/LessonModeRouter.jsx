@@ -22,6 +22,7 @@ import SyllableTrainStep from '@/components/lesson/modes/SyllableTrainStep';
 import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
 import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
 import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
+import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -129,7 +130,7 @@ export default function LessonModeRouter({
       case 'book_reading':
         return <BookReading prefillClass={className} prefillNumber={studentNumber} onBack={wrappedBack} />;
       case 'letter_sort':
-        return <LetterSortStep onComplete={completeStep} />;
+        return <LetterSortStep onComplete={completeStep} presetId={step?.config?.preset} />;
       case 'letter_recognition':
         return <LetterRecognitionStep onComplete={completeStep} />;
       case 'powerful_word':
@@ -142,6 +143,8 @@ export default function LessonModeRouter({
         return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} />;
       case 'word_builder':
         return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} presetId={step?.config?.preset} />;
+      case 'fluency':
+        return <FluencyPracticeStep onComplete={completeStep} presetId={step?.config?.preset} studentNumber={studentNumber} className={className} />;
       default:
         return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
     }

@@ -1,0 +1,101 @@
+{
+  "name": "FluencyPracticeSession",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions.",
+      "default": ""
+    },
+    "preset_id": {
+      "type": "string",
+      "description": "Fluency preset id used for this practice session."
+    },
+    "preset_label": {
+      "type": "string",
+      "default": ""
+    },
+    "rows_data": {
+      "type": "string",
+      "description": "JSON array of { row, audio_url, strokes_data, duration_ms, recorded_at } \u2014 one entry per row practiced."
+    },
+    "last_active": {
+      "type": "string",
+      "description": "ISO timestamp of the last saved row."
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "preset_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "student"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

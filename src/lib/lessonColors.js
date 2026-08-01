@@ -37,6 +37,7 @@ export const MODE_OPTIONS = [
   { value: 'syllable_blender',      label: 'Elkonin Boxes',      emoji: '🟦', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'activities',           label: 'Counting Activity',   emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'word_builder',          label: 'Word Builder',       emoji: '🧱', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'fluency',               label: 'Fluency Practice',   emoji: '⚡', defaultCompletion: 'view',    defaultTarget: 1 },
 ];
 
 export const MODE_BY_VALUE = Object.fromEntries(MODE_OPTIONS.map(m => [m.value, m]));
