@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom';
 
 const LESSON_TOOLS = [
   {
+    path: '/LessonEditor',
+    emoji: '📝',
+    title: 'Lesson Editor',
+    description: 'Create and edit lessons — add activity steps, presets, and mastery goals.',
+    color: 'from-violet-100 to-purple-50 border-violet-200 hover:border-violet-400',
+  },
+  {
     path: '/WordSentenceBuilder',
     emoji: '🧩',
     title: 'Word & Sentence Builder',
