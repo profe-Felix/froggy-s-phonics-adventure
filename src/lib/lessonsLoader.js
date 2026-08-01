@@ -14,7 +14,7 @@ import { base44 } from '@/api/base44Client';
 // If the fetch fails (file not uploaded yet, bad path, network), we fall back
 // to the Base44 Lesson entity so the app never breaks during the transition.
 const LESSONS_URL =
-  'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/images/lessons/lessons.json';
+  'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-lessons/lessons.json';
 
 function normalize(arr) {
   return (Array.isArray(arr) ? arr : [])
