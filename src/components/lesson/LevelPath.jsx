@@ -23,7 +23,8 @@ const AMP = 0.24;
 const FREQ = 0.85;
 function defaultPos(i) {
   const x = 50 + AMP * 100 * Math.sin((i - 1) * FREQ);
-  const y = Y_BOT - ((Y_BOT - Y_TOP) * (i - 1)) / (TOTAL_LEVELS - 1);
+  // Top-down: level 1 at the top, level TOTAL_LEVELS at the bottom.
+  const y = Y_TOP + ((Y_BOT - Y_TOP) * (i - 1)) / (TOTAL_LEVELS - 1);
   return { x, y };
 }
 
@@ -195,12 +196,17 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     };
   }, [editing, dragSlot]);
 
-  // Auto-scroll to the active puck in student (non-edit) mode.
+  // Auto-follow the active puck. Pucks only render once `ready` is true, so the
+  // effect must re-run when ready flips — otherwise the scroll is missed and the
+  // page sits at the top. Instant on first load, smooth as the student advances.
   const activeRef = useRef(null);
+  const firstScrollRef = useRef(true);
   useEffect(() => {
-    if (editing) return;
-    if (activeRef.current) activeRef.current.scrollIntoView({ block: 'center' });
-  }, [activeSlot, editing]);
+    if (editing || !ready) return;
+    if (!activeRef.current) return;
+    activeRef.current.scrollIntoView({ block: 'center', behavior: firstScrollRef.current ? 'auto' : 'smooth' });
+    firstScrollRef.current = false;
+  }, [activeSlot, editing, ready]);
 
   const posFor = (n) => (editing ? draft[String(n)] : savedPositions[String(n)]) || defaultPos(n);
 

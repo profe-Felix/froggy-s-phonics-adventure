@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Check, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 
 import LetterSoundsMode from '@/components/game/modes/LetterSoundsMode';
@@ -35,6 +35,9 @@ export default function LessonModeRouter({
   );
   const alreadyDone = (progress?.completed_steps || []).includes(stepIndex);
   const [done, setDone] = useState(alreadyDone);
+  // Once a step is complete (from a prior session or this one), replays no longer
+  // persist progress/points — students can keep playing just for fun.
+  const noPointsRef = useRef(alreadyDone);
   const comp = step?.completion || { type: 'view', target: 1 };
 
   const maybeComplete = useCallback((progressData) => {
@@ -48,13 +51,15 @@ export default function LessonModeRouter({
     }
     if (isDone) {
       setDone(true);
+      noPointsRef.current = true;
       markStepComplete(stepIndex, totalSteps);
     }
   }, [done, comp, stepIndex, totalSteps, markStepComplete]);
 
-  // progress-aware wrapper (also persists via the parent's onUpdateProgress)
+  // progress-aware wrapper (also persists via the parent's onUpdateProgress).
+  // Suppressed once the step is complete so replays don't re-award points.
   const wrappedUpdateProgress = useCallback((mode, progressData) => {
-    if (onUpdateProgress) onUpdateProgress(mode, progressData);
+    if (!noPointsRef.current && onUpdateProgress) onUpdateProgress(mode, progressData);
     maybeComplete(progressData);
   }, [onUpdateProgress, maybeComplete]);
 
@@ -141,10 +146,16 @@ export default function LessonModeRouter({
               <h2 className="text-2xl font-black text-gray-800">Step Complete!</h2>
               <p className="text-gray-500 text-sm mt-1">Great job on “{step.title}”.</p>
             </div>
-            <Button onClick={wrappedBack} className="bg-green-500 hover:bg-green-600 text-white font-black text-lg px-8 py-3">
-              <Sparkles className="w-5 h-5 mr-2" />
-              Continue
-            </Button>
+            <div className="flex flex-col gap-2 w-full">
+              <Button onClick={() => setDone(false)} className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-lg px-8 py-3">
+                <RotateCcw className="w-5 h-5 mr-2" />
+                Play Again
+              </Button>
+              <Button onClick={wrappedBack} className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5">
+                <ArrowLeft className="w-5 h-5 mr-2" />
+                Return to Lesson
+              </Button>
+            </div>
           </div>
         </div>
       )}
