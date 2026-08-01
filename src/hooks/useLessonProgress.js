@@ -16,15 +16,23 @@ export function useLessonProgress(studentNumber, className, lessonId) {
   const qc = useQueryClient();
   const key = ['lesson-progress', String(studentNumber), className, lessonId];
 
-  const { data: progress, isLoading } = useQuery({
+  const { data: progress, isLoading, error } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const list = await base44.entities.LessonProgress.filter({
-        student_number: studentNumber,
-        class_name: className,
-        lesson_id: lessonId,
-      });
-      return list[0] || null;
+      try {
+        const list = await base44.entities.LessonProgress.filter({
+          student_number: studentNumber,
+          class_name: className,
+          lesson_id: lessonId,
+        });
+        // eslint-disable-next-line no-console
+        console.log('[useLP] queryFn result', { count: list?.length, firstId: list?.[0]?.id });
+        return list[0] || null;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.log('[useLP] queryFn error', e?.message);
+        throw e;
+      }
     },
     enabled: !!lessonId && !!studentNumber,
   });
@@ -68,5 +76,5 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     qc.setQueryData(key, updated);
   };
 
-  return { progress, isLoading, markStepComplete };
+  return { progress, isLoading, error, markStepComplete };
 }

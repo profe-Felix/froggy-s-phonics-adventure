@@ -9,7 +9,7 @@ import LessonModeRouter from './LessonModeRouter';
 const NAVY = '#26264d';
 
 export default function LessonStepper({ studentData, selectedStudent, lesson, steps, lessonId, onBack, onLessonComplete, onUpdateProgress, onStudentPatch }) {
-  const { progress, isLoading } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
+  const { progress, isLoading, error } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
   const initRef = useRef(false);
@@ -35,6 +35,8 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     }
   }, [allDone, lesson, onLessonComplete]);
 
+  // eslint-disable-next-line no-console
+  console.log('[Stepper] gate', { isLoading, hasProgress: !!progress, progressId: progress?.id, initRef: initRef.current, studentNumber: selectedStudent?.number, className: selectedStudent?.class_name, lessonId, hookError: error?.message });
   if (isLoading || !progress || !initRef.current) {
     return (
       <div className="h-screen bg-[#dae2f3] flex items-center justify-center">
