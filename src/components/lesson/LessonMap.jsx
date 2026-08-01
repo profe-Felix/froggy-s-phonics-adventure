@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
+import { fetchLessons } from '@/lib/lessonsLoader';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
 
@@ -78,7 +78,7 @@ export default function LessonMap({ studentData, selectedStudent, onStartStep, o
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
-    queryFn: () => base44.entities.Lesson.filter({ active: true }),
+    queryFn: fetchLessons,
   });
 
   const myLessons = useMemo(

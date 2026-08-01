@@ -1,0 +1,46 @@
+{
+  "lessons": [
+    {
+      "id": "lesson-1",
+      "lesson_number": 1,
+      "class_name": "",
+      "title": "Letter M",
+      "subtitle": "Learn the letter M and practice saying words and sounds!",
+      "active": true,
+      "steps": [
+        {
+          "mode": "letter_sounds",
+          "completion": { "type": "mastery", "target": 3 },
+          "title": "Letter Sounds",
+          "emoji": "🔤",
+          "color": "sky",
+          "config": { "targetLetters": ["m", "a", "s"] }
+        },
+        {
+          "mode": "sight_words_easy",
+          "completion": { "type": "view", "target": 1 },
+          "title": "Sight Words",
+          "emoji": "👁️",
+          "color": "green",
+          "config": {}
+        },
+        {
+          "mode": "case_matching",
+          "completion": { "type": "mastery", "target": 3 },
+          "title": "Upper & Lowercase",
+          "emoji": "🅰️",
+          "color": "pink",
+          "config": {}
+        },
+        {
+          "mode": "spelling",
+          "completion": { "type": "view", "target": 1 },
+          "title": "Spelling Words",
+          "emoji": "🧩",
+          "color": "orange",
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

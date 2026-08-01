@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Lock, Star } from 'lucide-react';
+import { fetchLessons } from '@/lib/lessonsLoader';
 
 // Level-path homepage: the student's Supabase "Level_Path" background image is
 // fit to width and scrolls vertically; 120 level pucks are laid along a gentle
@@ -29,7 +30,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
-    queryFn: () => base44.entities.Lesson.filter({ active: true }),
+    queryFn: fetchLessons,
   });
 
   const { data: progresses = [] } = useQuery({
