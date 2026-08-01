@@ -22,6 +22,7 @@ import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
 import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
 import LessonMap from '../components/lesson/LessonMap';
 import LessonModeRouter from '../components/lesson/LessonModeRouter';
+import GameHome from '../components/lesson/GameHome';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -334,32 +335,17 @@ export default function LetterGame() {
   }
 
   if (!currentMode && !activeLessonStep) {
-    if (hasAssignedLesson) {
-      return (
-        <LessonMap
-          studentData={studentData}
-          selectedStudent={selectedStudent}
-          onStartStep={(step, index, lesson) => {
-            setActiveLessonStep(step);
-            setActiveLesson(lesson);
-            setActiveStepIndex(index);
-          }}
-          onLogout={handleLogout}
-          onFreePlay={() => {
-            // No lesson assigned fallback — show the classic mode grid.
-            setCurrentMode(null);
-          }}
-        />
-      );
-    }
     return (
-      <ModeSelection
+      <GameHome
         studentData={studentData}
-        onSelectMode={handleModeSelect}
+        selectedStudent={selectedStudent}
+        onStartStep={(step, index, lesson) => {
+          setActiveLessonStep(step);
+          setActiveLesson(lesson);
+          setActiveStepIndex(index);
+        }}
+        onPlayMode={handleModeSelect}
         onLogout={handleLogout}
-        onPetUnlock={handlePetUnlock}
-        onSelectPet={handleSelectPet}
-        onSetLanguage={handleSetLanguage}
       />
     );
   }

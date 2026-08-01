@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
@@ -71,7 +71,7 @@ function StepCard({ step, index, status, onStart }) {
   );
 }
 
-export default function LessonMap({ studentData, selectedStudent, onStartStep, onLogout, onFreePlay }) {
+export default function LessonMap({ studentData, selectedStudent, onStartStep, onLogout, onFreePlay, initialLessonId, onBack }) {
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -87,6 +87,13 @@ export default function LessonMap({ studentData, selectedStudent, onStartStep, o
       .sort((a, b) => (a.lesson_number || 0) - (b.lesson_number || 0)),
     [lessons, className]
   );
+
+  // When opened from a level puck, jump straight to that lesson.
+  useEffect(() => {
+    if (!initialLessonId || !myLessons.length) return;
+    const idx = myLessons.findIndex((l) => l.id === initialLessonId);
+    if (idx >= 0) setLessonIdx(idx);
+  }, [initialLessonId, myLessons]);
 
   if (!myLessons.length) {
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;
@@ -108,13 +115,14 @@ export default function LessonMap({ studentData, selectedStudent, onStartStep, o
       onStartStep={(step, index) => onStartStep(step, index, currentLesson)}
       onNextLesson={() => setLessonIdx(i => Math.min(i + 1, myLessons.length - 1))}
       onLogout={onLogout}
+      onBack={onBack}
       showInfo={showInfo}
       setShowInfo={setShowInfo}
     />
   );
 }
 
-function LessonMapInner({ studentNumber, className, lesson, steps, lessonId, isLast, onStartStep, onNextLesson, onLogout, showInfo, setShowInfo }) {
+function LessonMapInner({ studentNumber, className, lesson, steps, lessonId, isLast, onStartStep, onNextLesson, onLogout, onBack, showInfo, setShowInfo }) {
   const { progress, isLoading } = useLessonProgress(studentNumber, className, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const firstIncomplete = steps.findIndex((_, i) => !completedSteps.includes(i));
@@ -132,7 +140,7 @@ function LessonMapInner({ studentNumber, className, lesson, steps, lessonId, isL
     <div className="min-h-screen bg-white flex flex-col">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3">
-        <button onClick={onLogout} className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center hover:bg-indigo-200">
+        <button onClick={onBack || onLogout} className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center hover:bg-indigo-200">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="text-center">
