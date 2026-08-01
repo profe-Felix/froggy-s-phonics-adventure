@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
@@ -530,9 +530,19 @@ function ProblemZone({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function WordSentenceBuilder() {
+export default function WordSentenceBuilder({ embedStudent, embedClass, embedPreset } = {}) {
   const [searchParams] = useSearchParams();
-  const { config, loading } = usePreset(searchParams);
+  // When embedded as a lesson step, inject the logged-in student's context
+  // so the builder runs in student mode without a separate login.
+  const effectiveParams = useMemo(() => {
+    if (embedStudent == null) return searchParams;
+    const p = new URLSearchParams(searchParams);
+    p.set('student', String(embedStudent));
+    if (embedClass) p.set('class', embedClass);
+    if (embedPreset) p.set('preset', embedPreset);
+    return p;
+  }, [searchParams, embedStudent, embedClass, embedPreset]);
+  const { config, loading } = usePreset(effectiveParams);
 
   const [problems, setProblems] = useState(() => [[]]);
   const [problemStates, setProblemStates] = useState(() => [null]);
@@ -1195,7 +1205,7 @@ export default function WordSentenceBuilder() {
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white ${isFullscreen ? 'fixed inset-0 overflow-auto z-50' : ''}`} style={{fontFamily:'Andika,system-ui,sans-serif'}}>
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
-          <Link to="/Lessons" className="text-blue-600 hover:underline font-bold text-sm">← Lecciones</Link>
+          {embedStudent == null && <Link to="/Lessons" className="text-blue-600 hover:underline font-bold text-sm">← Lecciones</Link>}
           <h1 className="text-lg font-black text-gray-800">🧩 Construye palabras</h1>
           {sessionRestored && <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">✓ Sesión restaurada</span>}
           <div className="flex-1" />

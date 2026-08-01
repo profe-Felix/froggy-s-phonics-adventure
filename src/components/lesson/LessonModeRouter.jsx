@@ -15,6 +15,13 @@ import SentencesMode from '@/components/game/modes/SentencesMode';
 import SpanishReadingGame from '@/components/game/spanishReading/SpanishReadingGame';
 import StoryBuilder from '@/pages/StoryBuilder';
 import BookReading from '@/pages/BookReading';
+import LetterSortStep from '@/components/lesson/modes/LetterSortStep';
+import LetterRecognitionStep from '@/components/lesson/modes/LetterRecognitionStep';
+import PowerfulWordStep from '@/components/lesson/modes/PowerfulWordStep';
+import SyllableTrainStep from '@/components/lesson/modes/SyllableTrainStep';
+import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
+import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
+import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -75,6 +82,14 @@ export default function LessonModeRouter({
     onBack?.();
   }, [done, comp, stepIndex, totalSteps, markStepComplete, onBack]);
 
+  // Manual completion for open-ended activities that don't report progress.
+  const completeStep = useCallback(() => {
+    if (done) return;
+    setDone(true);
+    noPointsRef.current = true;
+    markStepComplete(stepIndex, totalSteps);
+  }, [done, stepIndex, totalSteps, markStepComplete]);
+
   const studentNumber = selectedStudent?.number;
   const className = selectedStudent?.class_name;
 
@@ -113,6 +128,20 @@ export default function LessonModeRouter({
         return <StoryBuilder studentNumber={studentNumber} className={className} onBack={wrappedBack} />;
       case 'book_reading':
         return <BookReading prefillClass={className} prefillNumber={studentNumber} onBack={wrappedBack} />;
+      case 'letter_sort':
+        return <LetterSortStep onComplete={completeStep} />;
+      case 'letter_recognition':
+        return <LetterRecognitionStep onComplete={completeStep} />;
+      case 'powerful_word':
+        return <PowerfulWordStep onComplete={completeStep} />;
+      case 'syllable_train':
+        return <SyllableTrainStep onComplete={completeStep} />;
+      case 'syllable_blender':
+        return <SyllableBlenderStep onComplete={completeStep} />;
+      case 'activities':
+        return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} />;
+      case 'word_builder':
+        return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} />;
       default:
         return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
     }

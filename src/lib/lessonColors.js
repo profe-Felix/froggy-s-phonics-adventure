@@ -30,6 +30,13 @@ export const MODE_OPTIONS = [
   { value: 'storybuilder',          label: 'Story Builder',    emoji: '🎨', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'book_reading',          label: 'Book Reading',     emoji: '📚', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'number_hearing',        label: 'Number Hearing',    emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'letter_sort',           label: 'Letter Sort',        emoji: '🔠', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'letter_recognition',    label: 'Letter Recognition', emoji: '🎯', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'powerful_word',         label: 'Powerful Word',      emoji: '🃏', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'syllable_train',        label: 'Syllable Train',     emoji: '🚂', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'syllable_blender',      label: 'Elkonin Boxes',      emoji: '🟦', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'activities',           label: 'Counting Activity',   emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'word_builder',          label: 'Word Builder',       emoji: '🧱', defaultCompletion: 'view',    defaultTarget: 1 },
 ];
 
 export const MODE_BY_VALUE = Object.fromEntries(MODE_OPTIONS.map(m => [m.value, m]));

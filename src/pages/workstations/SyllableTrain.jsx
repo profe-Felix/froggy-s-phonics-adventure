@@ -11,7 +11,7 @@ const MAX = 12;
 // and can rearrange or remove cars by dragging them. No data persistence —
 // it's a free-play activity.
 // ?role=teacher → slot controls + student QR
-export default function SyllableTrain() {
+export default function SyllableTrain({ embedded = false }) {
   const params = new URLSearchParams(window.location.search);
   const isTeacher = params.get('role') === 'teacher';
   const [slots, setSlots] = useState(() => Array.from({ length: 4 }, () => null));
@@ -115,7 +115,7 @@ export default function SyllableTrain() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#fff' }}>
       <div className="flex items-center gap-3 p-3 bg-slate-100 border-b sticky top-0 z-20 flex-wrap">
-        <BackButton onClick={() => window.history.back()} />
+        {!embedded && <BackButton onClick={() => window.history.back()} />}
         <h1 className="font-bold text-lg mr-2">Syllable Train</h1>
         <div className="flex items-center gap-2">
           <button onClick={() => changeCount(-1)} className="w-9 h-8 rounded-lg border-2 border-slate-300 bg-slate-50 text-blue-600 font-bold">−</button>

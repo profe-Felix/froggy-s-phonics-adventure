@@ -45,7 +45,14 @@
               "spanish_reading",
               "storybuilder",
               "book_reading",
-              "number_hearing"
+              "number_hearing",
+              "letter_sort",
+              "letter_recognition",
+              "powerful_word",
+              "syllable_train",
+              "syllable_blender",
+              "activities",
+              "word_builder"
             ],
             "description": "Which existing activity this step launches"
           },
