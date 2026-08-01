@@ -52,11 +52,45 @@ function buildConfigFromParams(sp) {
 }
 
 // ─── Preset loader ────────────────────────────────────────────────────────────
-function usePreset(searchParams) {
+// Build a config object from a preset's content block + URL fallbacks.
+function configFromPresetContent(c, presetId, presetLabel, searchParams) {
+  return {
+    letters:     c.letters   ?? parseList(searchParams.get('letters'))   ?? DEFAULT_LETTERS,
+    syllables:   c.syllables ?? parseList(searchParams.get('syll'))       ?? DEFAULT_SYLL,
+    words:       c.words     ?? parseList(searchParams.get('words'))      ?? DEFAULT_WORDS,
+    punc:        c.punc      ?? parseList(searchParams.get('punc'))       ?? DEFAULT_PUNC,
+    images:      c.images    ?? parseList(searchParams.get('imgs'))       ?? [],
+    answers:     c.answers   ?? null,
+    numProblems: c.rows ?? c.problems ?? (parseInt(searchParams.get('rows')) || 1),
+    trayColumns: c.cols ?? c.trayColumns ?? (parseInt(searchParams.get('cols')) || 0),
+    perRow: c.perRow ?? 0,
+    toggles: {
+      space:  c.toggles?.space  !== false,
+      caps:   c.toggles?.caps   !== false,
+      accent: c.toggles?.accent !== false,
+      punc:   c.toggles?.punc   !== false,
+      images: c.toggles?.images !== false,
+      write:  c.toggles?.write  === true,
+    },
+    prefillProblems: c.prefillRows ?? c.prefillProblems ?? null,
+    isStudent: searchParams.has('student'),
+    presetId,
+    presetLabel: presetLabel || presetId,
+    studentNumber: searchParams.get('student') || null,
+    className: searchParams.get('class') || null,
+  };
+}
+
+function usePreset(searchParams, presetObject) {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Embedded lesson step: use the in-app preset object directly (no fetch).
+    if (presetObject?.content) {
+      setConfig(configFromPresetContent(presetObject.content, presetObject._id || null, presetObject.label, searchParams));
+      return;
+    }
     const presetId = searchParams.get('preset');
     if (!presetId) {
       setConfig(buildConfigFromParams(searchParams));
@@ -68,36 +102,11 @@ function usePreset(searchParams) {
       .then(all => {
         const preset = all[presetId];
         if (!preset?.content) { setConfig(buildConfigFromParams(searchParams)); return; }
-        const c = preset.content;
-        setConfig({
-          letters:     c.letters   ?? parseList(searchParams.get('letters'))   ?? DEFAULT_LETTERS,
-          syllables:   c.syllables ?? parseList(searchParams.get('syll'))       ?? DEFAULT_SYLL,
-          words:       c.words     ?? parseList(searchParams.get('words'))      ?? DEFAULT_WORDS,
-          punc:        c.punc      ?? parseList(searchParams.get('punc'))       ?? DEFAULT_PUNC,
-          images:      c.images    ?? parseList(searchParams.get('imgs'))       ?? [],
-          answers:     c.answers   ?? null,
-          numProblems: c.rows ?? c.problems ?? (parseInt(searchParams.get('rows')) || 1),
-          trayColumns: c.cols ?? c.trayColumns ?? (parseInt(searchParams.get('cols')) || 0),
-          perRow: c.perRow ?? 0,
-          toggles: {
-            space:  c.toggles?.space  !== false,
-            caps:   c.toggles?.caps   !== false,
-            accent: c.toggles?.accent !== false,
-            punc:   c.toggles?.punc   !== false,
-            images: c.toggles?.images !== false,
-            write:  c.toggles?.write  === true,
-          },
-          prefillProblems: c.prefillRows ?? c.prefillProblems ?? null,
-          isStudent: searchParams.has('student'),
-          presetId,
-          presetLabel: preset.label || presetId,
-          studentNumber: searchParams.get('student') || null,
-          className: searchParams.get('class') || null,
-        });
+        setConfig(configFromPresetContent(preset.content, presetId, preset.label, searchParams));
       })
       .catch(() => setConfig(buildConfigFromParams(searchParams)))
       .finally(() => setLoading(false));
-  }, [searchParams.toString()]);
+  }, [searchParams.toString(), presetObject]);
 
   return { config, loading };
 }
@@ -530,7 +539,7 @@ function ProblemZone({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function WordSentenceBuilder({ embedStudent, embedClass, embedPreset } = {}) {
+export default function WordSentenceBuilder({ embedStudent, embedClass, embedPreset, embedPresetObject } = {}) {
   const [searchParams] = useSearchParams();
   // When embedded as a lesson step, inject the logged-in student's context
   // so the builder runs in student mode without a separate login.
@@ -542,7 +551,7 @@ export default function WordSentenceBuilder({ embedStudent, embedClass, embedPre
     if (embedPreset) p.set('preset', embedPreset);
     return p;
   }, [searchParams, embedStudent, embedClass, embedPreset]);
-  const { config, loading } = usePreset(effectiveParams);
+  const { config, loading } = usePreset(effectiveParams, embedPresetObject);
 
   const [problems, setProblems] = useState(() => [[]]);
   const [problemStates, setProblemStates] = useState(() => [null]);

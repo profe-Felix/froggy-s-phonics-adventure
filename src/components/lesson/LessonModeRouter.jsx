@@ -133,7 +133,7 @@ export default function LessonModeRouter({
       case 'letter_recognition':
         return <LetterRecognitionStep onComplete={completeStep} />;
       case 'powerful_word':
-        return <PowerfulWordStep onComplete={completeStep} />;
+        return <PowerfulWordStep onComplete={completeStep} presetId={step?.config?.preset} />;
       case 'syllable_train':
         return <SyllableTrainStep onComplete={completeStep} />;
       case 'syllable_blender':
@@ -141,7 +141,7 @@ export default function LessonModeRouter({
       case 'activities':
         return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} />;
       case 'word_builder':
-        return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} />;
+        return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} presetId={step?.config?.preset} />;
       default:
         return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
     }

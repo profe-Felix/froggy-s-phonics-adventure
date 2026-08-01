@@ -4,7 +4,8 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy } from 'lucide-react';
+import { getPresetList } from '@/lib/presets';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -74,6 +75,16 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
         </label>
       </div>
 
+      {getPresetList(step.mode).length > 0 && (
+        <label className="text-xs text-gray-600 font-bold">Preset
+          <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+            <option value="">— default —</option>
+            {getPresetList(step.mode).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </label>
+      )}
+
       <div className="grid grid-cols-3 gap-2">
         <label className="text-xs text-gray-600 font-bold col-span-1">Emoji
           <input value={step.emoji} onChange={e => update({ emoji: e.target.value })} maxLength={4}
@@ -117,6 +128,7 @@ export default function LessonEditor() {
   const canManage = user && (user.role === 'admin' || user.role === 'teacher');
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null); // lesson object being edited (new or existing)
+  const [filterMode, setFilterMode] = useState('');
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['all-lessons'],
@@ -182,6 +194,20 @@ export default function LessonEditor() {
   const remove = async (id) => {
     if (!confirm('Delete this lesson?')) return;
     await base44.entities.Lesson.delete(id);
+    qc.invalidateQueries({ queryKey: ['all-lessons'] });
+    qc.invalidateQueries({ queryKey: ['lessons'] });
+  };
+
+  // Clone a lesson with a new number so it appears as the next puck on the path.
+  const duplicate = async (l) => {
+    const { id, created_date, updated_date, created_by_id, ...payload } = l;
+    const maxNum = Math.max(0, ...lessons.map((x) => x.lesson_number || 0));
+    await base44.entities.Lesson.create({
+      ...payload,
+      title: (l.title || 'Lesson') + ' (copy)',
+      lesson_number: maxNum + 1,
+      steps: (l.steps || []).map((s) => ({ ...s })),
+    });
     qc.invalidateQueries({ queryKey: ['all-lessons'] });
     qc.invalidateQueries({ queryKey: ['lessons'] });
   };
@@ -274,7 +300,14 @@ export default function LessonEditor() {
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white p-4">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-          <h1 className="text-3xl font-black text-gray-800">📚 Lessons</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black text-gray-800">📚 Lesson Planner</h1>
+            <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold text-gray-700">
+              <option value="">All activities</option>
+              {MODE_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
           <div className="flex items-center gap-2">
             <button onClick={exportJson}
               className="px-3 py-2 bg-white text-gray-700 font-bold rounded-xl border hover:bg-gray-50 inline-flex items-center gap-1">
@@ -299,7 +332,7 @@ export default function LessonEditor() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {sorted.map(l => {
+            {sorted.filter(l => !filterMode || (l.steps || []).some(s => s.mode === filterMode)).map(l => {
               const done = (l.steps || []).length;
               return (
                 <div key={l.id} className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-2">
@@ -319,6 +352,8 @@ export default function LessonEditor() {
                   <div className="flex gap-2 mt-1">
                     <button onClick={() => setEditing({ ...l, steps: (l.steps || []).map(s => ({ ...s })) })}
                       className="flex-1 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200">Edit</button>
+                    <button onClick={() => duplicate(l)}
+                      className="px-3 py-2 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-100" title="Duplicate"><Copy className="w-4 h-4" /></button>
                     <button onClick={() => remove(l.id)}
                       className="px-3 py-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><Trash2 className="w-4 h-4" /></button>
                   </div>

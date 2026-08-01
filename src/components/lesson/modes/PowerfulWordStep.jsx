@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { POWERFUL_WORD_PRESETS } from '@/components/workstations/powerfulWordPresets';
+import { getPowerfulWordPreset } from '@/lib/presets';
 import StepDoneBar from './StepDoneBar';
 
-// Embedded student step for Powerful Word — bilingual flashcards.
-// Uses the first preset with its default card count.
-export default function PowerfulWordStep({ onComplete }) {
-  const preset = POWERFUL_WORD_PRESETS[0];
-  const pairs = useMemo(
-    () => (preset?.pairs || []).slice(0, preset?.defaultCount || preset?.pairs?.length || 3),
-    [preset]
-  );
+// Embedded student step for Powerful Word — bilingual flashcards. Uses the
+// chosen preset's pairs if set, otherwise the first built-in preset.
+export default function PowerfulWordStep({ onComplete, presetId }) {
+  const preset = presetId ? getPowerfulWordPreset(presetId) : null;
+  const fallback = POWERFUL_WORD_PRESETS[0];
+  const pairs = useMemo(() => {
+    const src = preset || fallback;
+    return (src?.pairs || []).slice(0, src?.defaultCount || src?.pairs?.length || 3);
+  }, [preset, fallback]);
   const [hidden, setHidden] = useState({});
 
   return (
