@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 
-export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
+export default function SightWordsEasyMode({ studentData, onUpdateProgress, targets }) {
   const [currentWord, setCurrentWord] = useState(null);
   const [options, setOptions] = useState([]);
   const [score, setScore] = useState(0);
@@ -71,7 +71,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress }) {
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
-    const knownWords = allKnown.length > 0 ? allKnown : ['el', 'la', 'un'];
+    const knownWords = (targets && targets.length > 0) ? targets : (allKnown.length > 0 ? allKnown : ['el', 'la', 'un']);
     
     // Always pick from known words (mastered + learning) — new words are only introduced via progress
     const targetWord = knownWords[Math.floor(Math.random() * knownWords.length)];

@@ -9,7 +9,7 @@ const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('').filter(l => LETTER_W
 // share the same waypoints across both languages (same shapes, different phonemes).
 const SPANISH_EXTRA = ['ñ'];
 
-export default function LetterTracingMode({ studentData, onUpdateProgress }) {
+export default function LetterTracingMode({ studentData, onUpdateProgress, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [completedLetters, setCompletedLetters] = useState(new Set());
   const [streak, setStreak] = useState(0);
@@ -39,7 +39,8 @@ export default function LetterTracingMode({ studentData, onUpdateProgress }) {
   }, []);
 
   const lang = getLanguage(studentData);
-  const LETTERS = [...BASE_LETTERS, ...(lang === 'es' ? SPANISH_EXTRA : [])].filter(l => waypoints[l]);
+  const LETTERS = (targets && targets.length > 0 ? targets : [...BASE_LETTERS, ...(lang === 'es' ? SPANISH_EXTRA : [])])
+    .map(l => l.toLowerCase()).filter(l => waypoints[l]);
 
   const handleComplete = (letter) => {
     setCompletedLetters(prev => new Set([...prev, letter]));

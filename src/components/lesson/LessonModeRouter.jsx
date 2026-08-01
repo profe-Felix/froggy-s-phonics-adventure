@@ -108,15 +108,15 @@ export default function LessonModeRouter({
       case 'letter_sounds':
         return <LetterSoundsMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
       case 'sight_words_easy':
-        return <SightWordsEasyMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
+        return <SightWordsEasyMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
       case 'sight_words_spelling':
         return <SightWordsSpellingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} onBack={wrappedBack} />;
       case 'spelling':
         return <SpellingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} onBack={wrappedBack} />;
       case 'case_matching':
-        return <CaseMatchingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
+        return <CaseMatchingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets || step?.config?.targetLetters} />;
       case 'letter_tracing':
-        return <LetterTracingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
+        return <LetterTracingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets || step?.config?.targetLetters} />;
       case 'number_hearing':
         return <NumberHearingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
       case 'phonics':

@@ -3,7 +3,7 @@ import GameCanvas from '../GameCanvas';
 
 const ALL_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
-export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
+export default function CaseMatchingMode({ studentData, onUpdateProgress, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [options, setOptions] = useState([]);
   const [score, setScore] = useState(0);
@@ -24,7 +24,10 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
     const mastered = modeData.mastered_items || [];
     const learning = modeData.learning_items || [];
     const allKnown = [...mastered, ...learning];
-    const knownLetters = allKnown.length > 0 ? allKnown : ['a', 'b', 'c'];
+    const knownLetters = (targets && targets.length > 0)
+      ? targets.map(t => t.toLowerCase()).filter(l => ALL_LETTERS.includes(l))
+      : (allKnown.length > 0 ? allKnown : ['a', 'b', 'c']);
+    if (knownLetters.length === 0) return;
     
     const targetLetter = knownLetters[Math.floor(Math.random() * knownLetters.length)];
     
@@ -135,7 +138,7 @@ export default function CaseMatchingMode({ studentData, onUpdateProgress }) {
   if (!currentLetter) return null;
 
   return (
-    <div className="relative">
+    <div className="relative h-full w-full min-h-screen">
       <div className="absolute bottom-8 left-8 bg-white/95 rounded-3xl shadow-xl p-4 z-10">
         <p className="text-sm text-gray-600 mb-2">Match:</p>
         <div className="flex gap-3 justify-center">
