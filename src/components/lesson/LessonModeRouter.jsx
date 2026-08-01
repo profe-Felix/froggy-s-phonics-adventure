@@ -49,23 +49,30 @@ export default function LessonModeRouter({
   // Once a step is complete (from a prior session or this one), replays no longer
   // persist progress/points — students can keep playing just for fun.
   const noPointsRef = useRef(alreadyDone);
+  // Suppresses the completion overlay from re-firing on "Play Again" so a replay
+  // doesn't instantly re-master after a single attempt.
+  const completedOnceRef = useRef(alreadyDone);
   const comp = step?.completion || { type: 'view', target: 1 };
 
   const maybeComplete = useCallback((progressData) => {
-    if (done) return;
+    if (completedOnceRef.current) return;
     let isDone = false;
     if (comp.type === 'mastery') {
       isDone = (progressData?.mastered_items?.length || 0) >= (comp.target || 1);
     } else {
-      // view = at least one real attempt recorded by the activity
-      isDone = (progressData?.total_attempts || 0) >= 1;
+      // view = a full round of participation (not a single tap), so kids play
+      // several letters before the step completes. Teachers can override via the
+      // step's completion.target (any value > 1 is honored).
+      const need = comp.target && comp.target > 1 ? comp.target : 5;
+      isDone = (progressData?.total_attempts || 0) >= need;
     }
     if (isDone) {
-      setDone(true);
+      completedOnceRef.current = true;
       noPointsRef.current = true;
+      setDone(true);
       markStepComplete(stepIndex, totalSteps);
     }
-  }, [done, comp, stepIndex, totalSteps, markStepComplete]);
+  }, [comp, stepIndex, totalSteps, markStepComplete]);
 
   // progress-aware wrapper (also persists via the parent's onUpdateProgress).
   // Suppressed once the step is complete so replays don't re-award points.
@@ -76,20 +83,23 @@ export default function LessonModeRouter({
 
   // back wrapper: 'view' steps complete when the student finishes and returns
   const wrappedBack = useCallback(() => {
-    if (!done && comp.type === 'view') {
+    if (!completedOnceRef.current && comp.type === 'view') {
+      completedOnceRef.current = true;
+      noPointsRef.current = true;
       setDone(true);
       markStepComplete(stepIndex, totalSteps);
     }
     onBack?.();
-  }, [done, comp, stepIndex, totalSteps, markStepComplete, onBack]);
+  }, [comp, stepIndex, totalSteps, markStepComplete, onBack]);
 
   // Manual completion for open-ended activities that don't report progress.
   const completeStep = useCallback(() => {
-    if (done) return;
-    setDone(true);
+    if (completedOnceRef.current) return;
+    completedOnceRef.current = true;
     noPointsRef.current = true;
+    setDone(true);
     markStepComplete(stepIndex, totalSteps);
-  }, [done, stepIndex, totalSteps, markStepComplete]);
+  }, [stepIndex, totalSteps, markStepComplete]);
 
   const studentNumber = selectedStudent?.number;
   const className = selectedStudent?.class_name;

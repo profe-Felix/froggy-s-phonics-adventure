@@ -14,12 +14,16 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
   const [stepIdx, setStepIdx] = useState(0);
   const initRef = useRef(false);
 
-  // Land on the first not-yet-completed step (only on first load).
+  // Land on the first not-yet-completed step (only on first load). initRef is
+  // set BEFORE choosing the target so the loading guard below hides the activity
+  // area until the right step is chosen — otherwise step 0's activity mounts for
+  // one render and plays its startup audio before we jump to step N.
   useEffect(() => {
-    if (initRef.current || !progress || !steps.length) return;
+    if (initRef.current || !progress) return;
+    initRef.current = true;
+    if (!steps.length) return;
     const firstIncomplete = steps.findIndex((_, i) => !completedSteps.includes(i));
     setStepIdx(firstIncomplete === -1 ? steps.length - 1 : firstIncomplete);
-    initRef.current = true;
   }, [progress]);
 
   const allDone = steps.length > 0 && completedSteps.length >= steps.length;
@@ -31,7 +35,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     }
   }, [allDone, lesson, onLessonComplete]);
 
-  if (isLoading || !progress) {
+  if (isLoading || !progress || !initRef.current) {
     return (
       <div className="h-screen bg-[#dae2f3] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-white border-t-[#26264d] rounded-full animate-spin" />
