@@ -17,6 +17,7 @@ Deno.serve(async (req) => {
       'lettersort-audio',
       'syllable-audio',
       'audio',
+      'images',
     ]);
 
     const body = await req.json().catch(() => ({}));

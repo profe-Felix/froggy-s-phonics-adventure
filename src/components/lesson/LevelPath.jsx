@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Lock, Star, Pencil, Save, X, Plus } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
+import CoinBadge from '@/components/game/CoinBadge';
+import CharacterDock from '@/components/game/CharacterDock';
+import CharacterWheel from '@/components/game/CharacterWheel';
+import { getCharacters } from '@/lib/characters';
 
 // Level-path homepage. A single background image is shown once (no repeat),
 // sized to fill the container exactly. Level pucks are positioned by % over it.
@@ -25,7 +29,7 @@ function defaultPos(i) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout }) {
+export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout, onStudentPatch }) {
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const qc = useQueryClient();
@@ -36,6 +40,20 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     queryFn: async () => { try { return await base44.auth.me(); } catch { return null; } },
   });
   const canEdit = me?.role === 'admin' || me?.role === 'teacher';
+
+  // Character collection + coin state for the dock / wheel.
+  const [characters, setCharacters] = useState([]);
+  const [wheelOpen, setWheelOpen] = useState(false);
+  useEffect(() => { getCharacters().then(setCharacters); }, []);
+  const coins = studentData?.coins || 0;
+  const unlockedChars = studentData?.unlocked_characters || [];
+  const handleSpend = (c) => onStudentPatch?.({ coins: Math.max(0, coins - c) });
+  const handleUnlock = (id) => {
+    if (unlockedChars.includes(id)) return;
+    const next = [...unlockedChars, id];
+    onStudentPatch?.({ unlocked_characters: next, active_character: studentData?.active_character || id });
+  };
+  const handleSetActiveChar = (id) => onStudentPatch?.({ active_character: id });
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -153,7 +171,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const containerH = aspect && width ? Math.round(width * aspect) : TOP_FALLBACK_H;
+  const ready = aspect > 0 && width > 0;
+  const containerH = ready ? Math.round(width * aspect) : 0;
 
   // --- Drag handling (edit mode) ---
   const dragInfo = useRef(null);
@@ -207,7 +226,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
         onClick={onPathClick}
         className="relative w-full"
         style={{
-          height: containerH,
+          height: ready ? containerH : '100vh',
           backgroundImage: `url(${BG_URL})`,
           backgroundSize: '100% 100%',
           backgroundRepeat: 'no-repeat',
@@ -248,6 +267,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
                 </button>
               </>
             )}
+            <CoinBadge coins={coins} onClick={() => setWheelOpen(true)} />
             <div className="px-4 py-1.5 rounded-full bg-white/90 text-indigo-900 text-sm font-black shadow">
               {studentData?.name || `Student ${studentNumber}`}{className ? ` · ${className}` : ''}
             </div>
@@ -261,7 +281,12 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           </div>
         )}
 
-        {slotsToShow.map((n) => {
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 border-4 border-white/40 border-t-white rounded-full animate-spin" />
+          </div>
+        )}
+        {ready && slotsToShow.map((n) => {
           const lesson = byNumber.get(n);
           const done = completedSet.has(n);
           const active = n === activeSlot;
@@ -319,6 +344,20 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 text-white/80 text-xs font-semibold bg-black/40 px-2 py-1 rounded-full">
             <Plus className="w-3.5 h-3.5" /> tap path to add
           </div>
+        )}
+
+        {!editing && (
+          <>
+            <CharacterDock studentData={studentData} characters={characters} onSetActive={handleSetActiveChar} />
+            {wheelOpen && (
+              <CharacterWheel
+                studentData={studentData}
+                onSpend={handleSpend}
+                onUnlock={handleUnlock}
+                onClose={() => setWheelOpen(false)}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

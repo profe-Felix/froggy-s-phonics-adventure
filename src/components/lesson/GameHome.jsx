@@ -19,7 +19,7 @@ const FREE_MODES = [
   { mode: 'number_hearing', label: 'Numbers', emoji: '🔢' },
 ];
 
-export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout }) {
+export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onLessonComplete }) {
   const [section, setSection] = useState('lessons');
   const [openLesson, setOpenLesson] = useState(null);
 
@@ -37,6 +37,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             selectedStudent={selectedStudent}
             onOpenLesson={setOpenLesson}
             onLogout={onLogout}
+            onStudentPatch={onStudentPatch}
           />
         )}
 
@@ -49,6 +50,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             onStartStep={onStartStep}
             onFreePlay={() => go('games')}
             onLogout={onLogout}
+            onLessonComplete={onLessonComplete}
           />
         )}
 

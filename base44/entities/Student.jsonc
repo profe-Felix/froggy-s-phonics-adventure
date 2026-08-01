@@ -41,20 +41,38 @@
       "description": "Assessment grouping tags e.g. 'Math SG 1', 'Decoding SG 2'",
       "default": []
     },
+    "coins": {
+      "type": "integer",
+      "description": "Unified coin balance \u2014 earned from lessons, mastered skills, games, and reading; spent to spin the character wheel.",
+      "default": 0
+    },
+    "unlocked_characters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Character IDs (e.g. '0001') the student has unlocked from the character wheel.",
+      "default": []
+    },
+    "active_character": {
+      "type": "string",
+      "description": "Character ID currently shown on the map."
+    },
     "active_pet": {
       "type": "string",
-      "description": "ID of currently active pet"
+      "description": "ID of currently active pet (legacy)"
     },
     "unlocked_pets": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "List of unlocked pet IDs"
+      "description": "List of unlocked pet IDs (legacy)",
+      "default": []
     },
     "pending_pet_unlocks": {
       "type": "integer",
-      "description": "Number of mystery box reveals waiting",
+      "description": "Number of mystery box reveals waiting (legacy)",
       "default": 0
     },
     "unlocked_fruits": {
@@ -62,22 +80,22 @@
       "items": {
         "type": "string"
       },
-      "description": "List of fruit emojis collected (one per 75 spelling pts)",
+      "description": "List of fruit emojis collected (one per 75 spelling pts) (legacy)",
       "default": []
     },
     "spelling_total_points": {
       "type": "integer",
-      "description": "Lifetime spelling points across spelling + sight words spelling modes",
+      "description": "Lifetime spelling points across spelling + sight words spelling modes (legacy)",
       "default": 0
     },
     "sentences_total_points": {
       "type": "integer",
-      "description": "Lifetime sentence points",
+      "description": "Lifetime sentence points (legacy)",
       "default": 0
     },
     "sentence_prize_spins_claimed": {
       "type": "integer",
-      "description": "Number of sentence prize wheel spins already claimed",
+      "description": "Number of sentence prize wheel spins already claimed (legacy)",
       "default": 0
     },
     "redeemed_prizes": {
@@ -85,7 +103,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Prize IDs claimed forever (one-time prizes like ring)",
+      "description": "Prize IDs claimed forever (one-time prizes like ring) (legacy)",
       "default": []
     },
     "prize_history": {
@@ -93,7 +111,7 @@
       "items": {
         "type": "object"
       },
-      "description": "Every prize wheel result claimed by the student",
+      "description": "Every prize wheel result claimed by the student (legacy)",
       "default": []
     },
     "active_prizes": {
@@ -101,12 +119,12 @@
       "items": {
         "type": "string"
       },
-      "description": "Prize IDs currently active (e.g. cushion, friend, lollipop). Teacher manages these.",
+      "description": "Prize IDs currently active (e.g. cushion, friend, lollipop). Teacher manages these. (legacy)",
       "default": []
     },
     "cushion_since": {
       "type": "number",
-      "description": "Unix timestamp when cushion prize was granted, for FIFO eviction"
+      "description": "Unix timestamp when cushion prize was granted, for FIFO eviction (legacy)"
     },
     "mode_progress": {
       "type": "object",

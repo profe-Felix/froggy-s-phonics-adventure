@@ -281,6 +281,26 @@ export default function LetterGame() {
     });
   };
 
+  // Persist a patch (coins, characters) to the server with optimistic local state.
+  const handlePersistPatch = async (patch) => {
+    if (!studentData?.id) return;
+    setStudentData(prev => prev ? { ...prev, ...patch } : prev);
+    queryClient.setQueryData(['students'], old => Array.isArray(old)
+      ? old.map(s => s.id === studentData.id ? { ...s, ...patch } : s) : old);
+    try { await base44.entities.Student.update(studentData.id, patch); } catch {}
+  };
+
+  // Award coins when a lesson is completed.
+  const handleLessonComplete = async () => {
+    if (!studentData?.id) return;
+    const reward = 50;
+    const newCoins = (studentData.coins || 0) + reward;
+    setStudentData(prev => prev ? { ...prev, coins: newCoins } : prev);
+    queryClient.setQueryData(['students'], old => Array.isArray(old)
+      ? old.map(s => s.id === studentData.id ? { ...s, coins: newCoins } : s) : old);
+    try { await base44.entities.Student.update(studentData.id, { coins: newCoins }); } catch {}
+  };
+
   // --- Pet system ---
   // Check for new milestone and grant pending unlock
   const checkPetMilestone = (newStudentData) => {
@@ -339,6 +359,8 @@ export default function LetterGame() {
       <GameHome
         studentData={studentData}
         selectedStudent={selectedStudent}
+        onStudentPatch={handlePersistPatch}
+        onLessonComplete={handleLessonComplete}
         onStartStep={(step, index, lesson) => {
           setActiveLessonStep(step);
           setActiveLesson(lesson);

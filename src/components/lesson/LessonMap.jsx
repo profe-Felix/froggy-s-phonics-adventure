@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { fetchLessons } from '@/lib/lessonsLoader';
@@ -71,7 +71,7 @@ function StepCard({ step, index, status, onStart }) {
   );
 }
 
-export default function LessonMap({ studentData, selectedStudent, onStartStep, onLogout, onFreePlay, initialLessonId, onBack }) {
+export default function LessonMap({ studentData, selectedStudent, onStartStep, onLogout, onFreePlay, initialLessonId, onBack, onLessonComplete }) {
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -116,17 +116,26 @@ export default function LessonMap({ studentData, selectedStudent, onStartStep, o
       onNextLesson={() => setLessonIdx(i => Math.min(i + 1, myLessons.length - 1))}
       onLogout={onLogout}
       onBack={onBack}
+      onLessonComplete={onLessonComplete}
       showInfo={showInfo}
       setShowInfo={setShowInfo}
     />
   );
 }
 
-function LessonMapInner({ studentNumber, className, lesson, steps, lessonId, isLast, onStartStep, onNextLesson, onLogout, onBack, showInfo, setShowInfo }) {
+function LessonMapInner({ studentNumber, className, lesson, steps, lessonId, isLast, onStartStep, onNextLesson, onLogout, onBack, onLessonComplete, showInfo, setShowInfo }) {
   const { progress, isLoading } = useLessonProgress(studentNumber, className, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const firstIncomplete = steps.findIndex((_, i) => !completedSteps.includes(i));
   const allDone = completedSteps.length >= steps.length && steps.length > 0;
+
+  const awardedRef = useRef(false);
+  useEffect(() => {
+    if (allDone && !awardedRef.current && onLessonComplete) {
+      awardedRef.current = true;
+      onLessonComplete(lesson?.lesson_number);
+    }
+  }, [allDone, lesson, onLessonComplete]);
 
   if (isLoading || !progress) {
     return (
