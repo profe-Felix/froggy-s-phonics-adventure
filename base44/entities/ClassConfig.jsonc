@@ -28,6 +28,24 @@
       ],
       "default": "emerald",
       "description": "Tailwind color family used for this class's login tiles and accents."
+    },
+    "grade": {
+      "type": "string",
+      "enum": [
+        "kinder",
+        "first"
+      ],
+      "default": "kinder",
+      "description": "Grade level this class belongs to. Drives grouping on the student login screen."
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "es",
+        "en"
+      ],
+      "default": "es",
+      "description": "Default content language for students in this class. New students inherit it at creation; literacy audio and word pools pull from this language on Supabase."
     }
   },
   "required": [

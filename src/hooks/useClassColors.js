@@ -23,10 +23,11 @@ export const CLASS_COLOR_PALETTE = {
   rose: { name: 'Rose', from: '#fb7185', to: '#e11d48' },
 };
 
-// Starting defaults the teacher asked for. Stored records override these.
-const DEFAULT_COLORS = { Felix: 'red', Valero: 'purple', Campos: 'blue' };
 const FALLBACK = CLASS_COLOR_PALETTE.emerald;
 
+// Loads all ClassConfig records and exposes color/grade/language lookups plus a
+// grade-grouped class list for the login screens. Color, grade, and language
+// are all data-driven from the stored records.
 export function useClassColors() {
   const queryClient = useQueryClient();
   const { data: configs = [], isLoading } = useQuery({
@@ -34,11 +35,23 @@ export function useClassColors() {
     queryFn: () => base44.entities.ClassConfig.list('-updated_date', 100),
   });
 
-  const stored = {};
-  configs.forEach((c) => { if (c.class_name) stored[c.class_name] = c.color; });
-  const merged = { ...DEFAULT_COLORS, ...stored };
+  const byName = {};
+  configs.forEach((c) => { if (c.class_name) byName[c.class_name] = c; });
 
-  const colorFor = (cls) => CLASS_COLOR_PALETTE[merged[cls]] || FALLBACK;
+  const colorFor = (cls) => CLASS_COLOR_PALETTE[byName[cls]?.color] || FALLBACK;
+  const languageFor = (cls) => byName[cls]?.language || 'es';
+  const gradeFor = (cls) => byName[cls]?.grade || 'kinder';
+
+  // Classes grouped by grade, preserving storage order.
+  const groupedClasses = () => {
+    const grades = { kinder: [], first: [] };
+    configs.forEach((c) => {
+      if (!c.class_name) return;
+      const g = c.grade === 'first' ? 'first' : 'kinder';
+      grades[g].push(c.class_name);
+    });
+    return grades;
+  };
 
   const setColor = async (cls, color) => {
     const existing = configs.find((c) => c.class_name === cls);
@@ -50,5 +63,5 @@ export function useClassColors() {
     queryClient.invalidateQueries({ queryKey: ['class-colors'] });
   };
 
-  return { colorMap: merged, colorFor, setColor, palette: CLASS_COLOR_PALETTE, loading: isLoading };
+  return { colorFor, languageFor, gradeFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading };
 }

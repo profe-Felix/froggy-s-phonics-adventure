@@ -23,13 +23,18 @@ import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
 import LessonMap from '../components/lesson/LessonMap';
 import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
+import { useClassColors } from '@/hooks/useClassColors';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
   const rawClass = urlParams.get('class') || null;
   // Map all variations to canonical names
-  const classMap = { 'felix': 'Felix', 'f': 'Felix', 'valero': 'Valero', 'v': 'Valero', 'campos': 'Campos', 'c': 'Campos' };
+  const classMap = {
+    felix: 'Felix', f: 'Felix', schwarz: 'Schwarz', gutierrez: 'Gutierrez',
+    valero: 'Valero', v: 'Valero', mendez: 'Mendez', jimenez: 'Jimenez',
+    campos: 'Campos', c: 'Campos', aguirre: 'Aguirre'
+  };
   const urlClass = rawClass ? classMap[rawClass.toLowerCase()] || null : null;
   const urlNumber = parseInt(urlParams.get('number'));
   const urlYear = urlParams.get('year') || null;
@@ -43,6 +48,7 @@ export default function LetterGame() {
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const queryClient = useQueryClient();
+  const { languageFor, configs } = useClassColors();
 
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
@@ -109,29 +115,40 @@ export default function LetterGame() {
         s => s.student_number === selectedStudent.number && s.class_name === selectedStudent.class_name && s.school_year === effectiveYear
       );
       if (existing) {
+        // Sync the student's content language to their class's configured
+        // language (Mendez/Schwarz = English) so all literacy audio and word
+        // pools pull from English on Supabase.
+        const classLang = languageFor(selectedStudent.class_name);
+        const langPatch = classLang && existing.language !== classLang ? { language: classLang } : {};
+        if (Object.keys(langPatch).length) {
+          base44.entities.Student.update(existing.id, langPatch);
+        }
         if (!existing.unlocked_pets?.length) {
           // Brand new student — give starter pet
           const p = ALL_PETS[Math.floor(Math.random() * ALL_PETS.length)];
           const updates = { unlocked_pets: [p.id], active_pet: p.id, pending_pet_unlocks: existing.pending_pet_unlocks || 0 };
           base44.entities.Student.update(existing.id, updates);
-          setStudentData({ ...existing, ...updates });
+          setStudentData({ ...existing, ...langPatch, ...updates });
         } else if (!existing.active_pet) {
           // Has pets but active_pet is missing — restore it from collection
           const updates = { active_pet: existing.unlocked_pets[0] };
           base44.entities.Student.update(existing.id, updates);
-          setStudentData({ ...existing, ...updates });
+          setStudentData({ ...existing, ...langPatch, ...updates });
         } else {
-          setStudentData(existing);
+          setStudentData({ ...existing, ...langPatch });
         }
       } else if (!urlYear || urlYear === ACTIVE_SCHOOL_YEAR) {
+        const classLang = languageFor(selectedStudent.class_name) || 'es';
+        const isEnglish = classLang === 'en';
         createStudentMutation.mutate({
           student_number: selectedStudent.number,
           class_name: selectedStudent.class_name,
           school_year: ACTIVE_SCHOOL_YEAR,
+          language: classLang,
           mode_progress: {
             letter_sounds: {
               mastered_items: [],
-              learning_items: ['o', 'i', 'a'],
+              learning_items: isEnglish ? ['s', 'a', 't'] : ['o', 'i', 'a'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
@@ -176,7 +193,7 @@ export default function LetterGame() {
         });
       }
     }
-  }, [selectedStudent, students]);
+  }, [selectedStudent, students, configs]);
 
   const handleUpdateProgress = async (mode, progressData) => {
     if (!studentData) return;

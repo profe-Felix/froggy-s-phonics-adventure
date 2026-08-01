@@ -29,7 +29,7 @@ import StudentLoginShell from '../components/game/StudentLoginShell';
 import { useClassColors } from '@/hooks/useClassColors';
 import { ArrowLeft } from 'lucide-react';
 
-const CLASSES = ['Felix', 'Valero', 'Campos'];
+const CLASSES = ['Felix', 'Schwarz', 'Gutierrez', 'Valero', 'Mendez', 'Jimenez', 'Campos', 'Aguirre'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 export default function MathGames() {

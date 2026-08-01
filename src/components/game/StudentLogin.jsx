@@ -1,26 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { base44 } from '@/api/base44Client';
-import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { ArrowLeft } from 'lucide-react';
 import StudentLoginShell from './StudentLoginShell';
 import { useClassColors } from '@/hooks/useClassColors';
 
+const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
+
 export default function StudentLogin({ onSelectStudent, preselectedClass = null }) {
   const numbers = Array.from({ length: 30 }, (_, i) => i + 1);
-  const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(preselectedClass);
-  const [loadingClasses, setLoadingClasses] = useState(!preselectedClass);
-  const { colorFor } = useClassColors();
-
-  useEffect(() => {
-    const CANONICAL_CLASSES = ['Felix', 'Valero', 'Campos'];
-    base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(students => {
-      const unique = [...new Set([...CANONICAL_CLASSES, ...students.map(s => s.class_name).filter(Boolean)])];
-      setClasses(unique);
-      setLoadingClasses(false);
-    });
-  }, []);
+  const { colorFor, groupedClasses, loading } = useClassColors();
+  const groups = groupedClasses();
+  const noClasses = Object.values(groups).every((g) => g.length === 0);
 
   const subtitle = !selectedClass ? (
     'Choose your class!'
@@ -47,35 +38,44 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
       toggleEmoji="🧮"
       toggleTextClass="text-indigo-700"
       toggleBorderClass="border-indigo-200"
-      loading={!selectedClass && loadingClasses}
+      loading={!selectedClass && loading}
     >
       {!selectedClass ? (
-        classes.length === 0 ? (
+        noClasses ? (
           <div className="text-center py-10 text-slate-400">
             <p className="text-lg font-semibold">No classes set up yet.</p>
             <p className="text-sm mt-1">Ask your teacher to set up classes in the dashboard first.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3 sm:gap-5">
-            {classes.map((cls, i) => {
-              const c = colorFor(cls);
-              return (
-                <motion.button
-                  key={cls}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.06 }}
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSelectedClass(cls)}
-                  className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-xl sm:text-3xl shadow-xl ring-2 ring-white/40 transition"
-                  style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
-                >
-                  <span className="absolute top-2 left-3 text-xl sm:text-2xl opacity-70 group-hover:opacity-100 transition">🌿</span>
-                  <span className="relative z-10">{cls}</span>
-                </motion.button>
-              );
-            })}
+          <div className="flex flex-col gap-6">
+            {['kinder', 'first'].map((grade) =>
+              groups[grade]?.length ? (
+                <div key={grade}>
+                  <h2 className="text-center text-slate-500 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    {groups[grade].map((cls, i) => {
+                      const c = colorFor(cls);
+                      return (
+                        <motion.button
+                          key={cls}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.05 }}
+                          whileHover={{ scale: 1.06 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setSelectedClass(cls)}
+                          className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
+                          style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+                        >
+                          <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">🌿</span>
+                          <span className="relative z-10">{cls}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null
+            )}
           </div>
         )
       ) : (
