@@ -23,8 +23,8 @@ const AMP = 0.24;
 const FREQ = 0.85;
 function defaultPos(i) {
   const x = 50 + AMP * 100 * Math.sin((i - 1) * FREQ);
-  // Top-down: level 1 at the top, level TOTAL_LEVELS at the bottom.
-  const y = Y_TOP + ((Y_BOT - Y_TOP) * (i - 1)) / (TOTAL_LEVELS - 1);
+  // Bottom-up: level 1 at the bottom, level TOTAL_LEVELS at the top.
+  const y = Y_BOT - ((Y_BOT - Y_TOP) * (i - 1)) / (TOTAL_LEVELS - 1);
   return { x, y };
 }
 
