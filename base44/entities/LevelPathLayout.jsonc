@@ -1,0 +1,19 @@
+{
+  "name": "LevelPathLayout",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this path layout belongs to. Empty string = default layout for all classes."
+    },
+    "positions_data": {
+      "type": "string",
+      "description": "JSON map of slot number (as string) -> { x, y } where x and y are percentages (0-100) of the path container. Only placed slots appear on the student path.",
+      "default": "{}"
+    }
+  },
+  "required": [
+    "class_name"
+  ]
+}

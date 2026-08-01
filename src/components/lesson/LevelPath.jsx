@@ -1,32 +1,41 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Lock, Star } from 'lucide-react';
+import { Lock, Star, Pencil, Save, X, Plus } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
 
-// Level-path homepage: the student's Supabase "Level_Path" background image is
-// fit to width and scrolls vertically; 120 level pucks are laid along a gentle
-// serpentine over it. A puck is green once its lesson is mastered, the next
-// playable lesson is the active (white + pink ring) puck, everything else is
-// greyed/locked. The view auto-scrolls to the active puck on load.
+// Level-path homepage. A single background image is shown once (no repeat),
+// sized to fill the container exactly. Level pucks are positioned by % over it.
+// Default layout is a bottom-up serpentine (level 1 near the bottom, ascending).
+// Teachers/admins get an Edit mode: drag pucks to place them, tap empty path to
+// add the next level, then Save to persist the layout (syncs to all students).
 const BG_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/images/Backgrounds/Level_Path.png';
 const TOTAL_LEVELS = 120;
-const ROW_H = 108;     // vertical px between pucks
-const TOP_PAD = 80;    // top inset for the first puck
-const AMP = 0.26;      // serpentine amplitude (fraction of width)
-const FREQ = 0.8;      // serpentine frequency per level
 
-// Serpentine position for a 1-indexed level. Tunable constants above let you
-// match the pucks to the painted road in the background image.
-function levelPos(i) {
-  const left = 50 + AMP * 100 * Math.sin((i - 1) * FREQ);
-  const top = TOP_PAD + (i - 1) * ROW_H;
-  return { left, top };
+// Default serpentine — bottom-up: level 1 near the bottom, level 120 near the top.
+const Y_TOP = 8;
+const Y_BOT = 92;
+const AMP = 0.24;
+const FREQ = 0.85;
+function defaultPos(i) {
+  const x = 50 + AMP * 100 * Math.sin((i - 1) * FREQ);
+  const y = Y_BOT - ((Y_BOT - Y_TOP) * (i - 1)) / (TOTAL_LEVELS - 1);
+  return { x, y };
 }
 
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout }) {
-  const className = selectedStudent?.class_name;
+  const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
+  const qc = useQueryClient();
+
+  // Who's logged in (to gate the teacher Edit mode).
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: async () => { try { return await base44.auth.me(); } catch { return null; } },
+  });
+  const canEdit = me?.role === 'admin' || me?.role === 'teacher';
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -42,21 +51,34 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     enabled: !!studentNumber && !!className,
   });
 
-  // Lessons for this class (or all-classes), ordered by lesson_number.
+  // Saved layout for this class (slot -> {x,y}). Empty = use the 120-slot default.
+  const { data: layoutRec } = useQuery({
+    queryKey: ['level-path-layout', className],
+    queryFn: async () => {
+      const rows = await base44.entities.LevelPathLayout.filter({ class_name: className });
+      return rows[0] || null;
+    },
+    enabled: !!className,
+  });
+  const savedPositions = useMemo(() => {
+    if (!layoutRec?.positions_data) return {};
+    try { return JSON.parse(layoutRec.positions_data) || {}; } catch { return {}; }
+  }, [layoutRec]);
+
+  const hasSavedLayout = Object.keys(savedPositions).length > 0;
+
   const myLessons = useMemo(
     () => lessons
       .filter(l => !l.class_name || l.class_name === className)
       .sort((a, b) => (a.lesson_number || 0) - (b.lesson_number || 0)),
     [lessons, className]
   );
-
   const byNumber = useMemo(() => {
     const m = new Map();
     for (const l of myLessons) if (l.lesson_number) m.set(l.lesson_number, l);
     return m;
   }, [myLessons]);
 
-  // A level is "done" when its lesson's LessonProgress.completed is true.
   const completedSet = useMemo(() => {
     const s = new Set();
     for (const p of progresses) {
@@ -67,92 +89,240 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     return s;
   }, [progresses, myLessons]);
 
-  // Next playable = the lowest existing lesson_number that isn't completed yet.
-  const nextNumber = useMemo(() => {
-    for (const l of myLessons) {
-      if (!completedSet.has(l.lesson_number)) return l.lesson_number;
-    }
-    return null;
-  }, [myLessons, completedSet]);
+  // Slots shown to students: the placed slots if a layout exists, else all 120.
+  const studentSlots = useMemo(
+    () => hasSavedLayout
+      ? Object.keys(savedPositions).map(Number).filter(n => n >= 1 && n <= TOTAL_LEVELS).sort((a, b) => a - b)
+      : Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1),
+    [hasSavedLayout, savedPositions]
+  );
 
-  const scrollRef = useRef(null);
+  // Active = first placed slot not yet completed.
+  const activeSlot = useMemo(() => {
+    for (const n of studentSlots) if (!completedSet.has(n)) return n;
+    return null;
+  }, [studentSlots, completedSet]);
+
+  // --- Edit mode state (teacher) ---
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({});      // slot(string) -> {x,y}
+  const [dragSlot, setDragSlot] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const enterEdit = () => { setDraft({ ...savedPositions }); setEditing(true); };
+  const cancelEdit = () => { setEditing(false); setDraft({}); setDragSlot(null); };
+
+  const saveLayout = async () => {
+    setSaving(true);
+    try {
+      const payload = { class_name: className, positions_data: JSON.stringify(draft) };
+      if (layoutRec?.id) {
+        await base44.entities.LevelPathLayout.update(layoutRec.id, payload);
+      } else {
+        await base44.entities.LevelPathLayout.create(payload);
+      }
+      await qc.invalidateQueries({ queryKey: ['level-path-layout', className] });
+      setEditing(false);
+      setDraft({});
+    } catch (e) {
+      alert('Could not save layout: ' + (e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const nextSlotToAdd = useMemo(() => {
+    const used = new Set(Object.keys(draft).map(Number));
+    for (let n = 1; n <= TOTAL_LEVELS; n++) if (!used.has(n)) return n;
+    return null;
+  }, [draft]);
+
+  // --- Background image: measure aspect so the container matches one image, no repeat. ---
+  const wrapRef = useRef(null);
+  const [aspect, setAspect] = useState(0);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const im = new Image();
+    im.onload = () => setAspect(im.naturalHeight && im.naturalWidth ? im.naturalHeight / im.naturalWidth : 0);
+    im.src = BG_URL;
+  }, []);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const containerH = aspect && width ? Math.round(width * aspect) : TOP_FALLBACK_H;
+
+  // --- Drag handling (edit mode) ---
+  const dragInfo = useRef(null);
+  useEffect(() => {
+    if (!editing || dragSlot == null) return;
+    const onMove = (e) => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const x = clamp(((e.clientX - r.left) / r.width) * 100, 2, 98);
+      const y = clamp(((e.clientY - r.top) / r.height) * 100, 2, 98);
+      setDraft((d) => ({ ...d, [dragSlot]: { x, y } }));
+    };
+    const onUp = () => setDragSlot(null);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [editing, dragSlot]);
+
+  // Auto-scroll to the active puck in student (non-edit) mode.
   const activeRef = useRef(null);
   useEffect(() => {
-    if (activeRef.current && scrollRef.current) {
-      activeRef.current.scrollIntoView({ block: 'center' });
-    }
-  }, [nextNumber]);
+    if (editing) return;
+    if (activeRef.current) activeRef.current.scrollIntoView({ block: 'center' });
+  }, [activeSlot, editing]);
 
-  const levels = Array.from({ length: TOTAL_LEVELS }, (_, i) => i + 1);
+  const posFor = (n) => (editing ? draft[String(n)] : savedPositions[String(n)]) || defaultPos(n);
+
+  // Click empty path in edit mode → add the next level puck there.
+  const onPathClick = (e) => {
+    if (!editing || dragSlot != null) return;
+    if (e.target !== wrapRef.current) return;
+    if (nextSlotToAdd == null) return;
+    const r = wrapRef.current.getBoundingClientRect();
+    const x = clamp(((e.clientX - r.left) / r.width) * 100, 2, 98);
+    const y = clamp(((e.clientY - r.top) / r.height) * 100, 2, 98);
+    setDraft((d) => ({ ...d, [nextSlotToAdd]: { x, y } }));
+  };
+
+  const slotsToShow = editing
+    ? Object.keys(draft).map(Number).sort((a, b) => a - b)
+    : studentSlots;
 
   return (
-    <div ref={scrollRef} className="relative h-screen overflow-y-auto bg-[#a932d5]">
+    <div className="relative h-screen overflow-y-auto bg-[#a932d5]">
       <div
+        ref={wrapRef}
+        onClick={onPathClick}
         className="relative w-full"
         style={{
-          height: TOP_PAD + TOTAL_LEVELS * ROW_H,
+          height: containerH,
           backgroundImage: `url(${BG_URL})`,
-          backgroundSize: '100% auto',
-          backgroundRepeat: 'repeat-y',
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
           backgroundPosition: 'top center',
         }}
       >
-        {/* Top bar (sticky within the scroll) */}
-        <div className="sticky top-0 z-20 flex items-center justify-between px-4 py-3">
+        {/* Top bar */}
+        <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3">
           <button
             onClick={onLogout}
             className="px-4 py-1.5 rounded-full bg-white text-indigo-900 text-sm font-bold shadow"
           >
             Grownups
           </button>
-          <div className="px-4 py-1.5 rounded-full bg-white/90 text-indigo-900 text-sm font-black shadow">
-            {studentData?.name || `Student ${studentNumber}`} · {className}
+          <div className="flex items-center gap-2">
+            {canEdit && !editing && (
+              <button
+                onClick={enterEdit}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white text-indigo-900 text-sm font-bold shadow"
+              >
+                <Pencil className="w-4 h-4" /> Edit path
+              </button>
+            )}
+            {editing && (
+              <>
+                <button
+                  onClick={saveLayout}
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-green-500 text-white text-sm font-bold shadow disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white text-red-600 text-sm font-bold shadow"
+                >
+                  <X className="w-4 h-4" /> Cancel
+                </button>
+              </>
+            )}
+            <div className="px-4 py-1.5 rounded-full bg-white/90 text-indigo-900 text-sm font-black shadow">
+              {studentData?.name || `Student ${studentNumber}`}{className ? ` · ${className}` : ''}
+            </div>
           </div>
         </div>
 
-        {levels.map((n) => {
+        {/* Edit-mode hint */}
+        {editing && (
+          <div className="sticky top-14 z-20 mx-auto w-fit px-3 py-1 rounded-full bg-black/60 text-white text-xs font-semibold">
+            {nextSlotToAdd ? `Tap the path to add level ${nextSlotToAdd} · drag to move` : 'Drag pucks · all 120 placed'}
+          </div>
+        )}
+
+        {slotsToShow.map((n) => {
           const lesson = byNumber.get(n);
           const done = completedSet.has(n);
-          const active = n === nextNumber;
+          const active = n === activeSlot;
           const locked = !lesson || (!done && !active);
-          const pos = levelPos(n);
+          const pos = posFor(n);
+          const isDrag = editing && String(dragSlot) === String(n);
           return (
             <button
               key={n}
-              ref={active ? activeRef : null}
-              disabled={locked}
-              onClick={() => lesson && !locked && onOpenLesson(lesson)}
-              className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center rounded-full shadow-lg select-none"
+              ref={!editing && active ? activeRef : null}
+              disabled={locked && !editing}
+              onClick={(e) => { if (editing) return; if (lesson && !locked) onOpenLesson(lesson); }}
+              onPointerDown={(e) => {
+                if (!editing) return;
+                e.preventDefault();
+                setDragSlot(n);
+              }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center rounded-full shadow-lg select-none touch-none"
               style={{
-                left: `${pos.left}%`,
-                top: pos.top,
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
                 width: 56,
                 height: 56,
-                background: done ? '#4ade80' : active ? '#ffffff' : '#c5d8ff',
+                background: done ? '#4ade80' : active ? '#ffffff' : editing ? '#c7d2fe' : '#ffffff',
                 border: active ? '4px solid #F48FB1' : '3px solid #ffffff',
-                opacity: locked ? 0.55 : 1,
-                cursor: locked ? 'default' : 'pointer',
+                opacity: locked && !editing ? 0.85 : 1,
+                cursor: editing ? (isDrag ? 'grabbing' : 'grab') : (locked ? 'default' : 'pointer'),
+                zIndex: isDrag ? 40 : 10,
               }}
             >
-              {locked ? (
-                <Lock className="w-5 h-5 text-gray-500" />
+              {locked && !editing ? (
+                <>
+                  <span className="text-lg font-black text-gray-400">{n}</span>
+                  <Lock className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-gray-400/80" />
+                </>
               ) : (
                 <span className="text-lg font-black" style={{ color: done ? '#ffffff' : '#311B92' }}>
                   {n}
                 </span>
               )}
-              {done && (
+              {done && !editing && (
                 <Star className="absolute -top-1 -right-1 w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow" />
               )}
-              {active && (
-                <span className="absolute -bottom-5 text-[10px] font-black text-white bg-pink-500 rounded-full px-2 py-0.5 shadow">
+              {active && !editing && (
+                <span className="absolute -bottom-5 text-[10px] font-black text-white bg-pink-500 rounded-full px-2 py-0.5 shadow whitespace-nowrap">
                   ▶ HERE
                 </span>
               )}
             </button>
           );
         })}
+
+        {/* Add affordance in edit mode */}
+        {editing && nextSlotToAdd != null && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 text-white/80 text-xs font-semibold bg-black/40 px-2 py-1 rounded-full">
+            <Plus className="w-3.5 h-3.5" /> tap path to add
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const TOP_FALLBACK_H = 6000;
