@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload } from 'lucide-react';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -123,6 +123,40 @@ export default function LessonEditor() {
     queryFn: () => base44.entities.Lesson.list(),
   });
   const sorted = [...lessons].sort((a, b) => (a.lesson_number || 0) - (b.lesson_number || 0));
+  const fileInputRef = useRef(null);
+
+  // Export all lessons to a JSON file the teacher can edit locally and re-import.
+  const exportJson = () => {
+    const blob = new Blob([JSON.stringify(sorted, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lessons.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import a lessons JSON array — upserts by id (updates existing, creates new).
+  const importJson = async (file) => {
+    try {
+      const arr = JSON.parse(await file.text());
+      if (!Array.isArray(arr)) { alert('JSON must be an array of lessons.'); return; }
+      for (const l of arr) {
+        const { id, created_date, updated_date, created_by_id, ...payload } = l;
+        if (id) {
+          try { await base44.entities.Lesson.update(id, payload); }
+          catch { await base44.entities.Lesson.create(payload); }
+        } else {
+          await base44.entities.Lesson.create(payload);
+        }
+      }
+      qc.invalidateQueries({ queryKey: ['all-lessons'] });
+      qc.invalidateQueries({ queryKey: ['lessons'] });
+      alert(`Imported ${arr.length} lesson(s).`);
+    } catch (e) {
+      alert('Import failed: ' + (e?.message || 'invalid JSON'));
+    }
+  };
 
   const save = async () => {
     if (!editing.title?.trim()) return alert('Please give the lesson a title.');
@@ -239,12 +273,24 @@ export default function LessonEditor() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white p-4">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
           <h1 className="text-3xl font-black text-gray-800">📚 Lessons</h1>
-          <button onClick={() => setEditing(blankLesson())}
-            className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow hover:bg-indigo-700 inline-flex items-center gap-1">
-            <Plus className="w-4 h-4" /> New Lesson
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={exportJson}
+              className="px-3 py-2 bg-white text-gray-700 font-bold rounded-xl border hover:bg-gray-50 inline-flex items-center gap-1">
+              <Download className="w-4 h-4" /> Export
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-2 bg-white text-gray-700 font-bold rounded-xl border hover:bg-gray-50 inline-flex items-center gap-1">
+              <Upload className="w-4 h-4" /> Import
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json,.json" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
+            <button onClick={() => setEditing(blankLesson())}
+              className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow hover:bg-indigo-700 inline-flex items-center gap-1">
+              <Plus className="w-4 h-4" /> New Lesson
+            </button>
+          </div>
         </div>
 
         {sorted.length === 0 ? (
