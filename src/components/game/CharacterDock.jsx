@@ -17,7 +17,7 @@ export default function CharacterDock({ studentData, characters, onSetActive }) 
       <button
         onClick={() => setOpen(true)}
         title="Your character"
-        className="fixed bottom-4 left-4 z-30 w-20 h-20 rounded-2xl bg-white/90 border-4 border-white shadow-lg flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition text-9xl">
+        className="fixed bottom-4 left-4 z-30 w-[200px] h-[200px] rounded-3xl bg-white/90 border-4 border-white shadow-lg flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition">
         
         {active ?
         <img src={active.url} alt="character" className="w-full h-full object-cover" /> :

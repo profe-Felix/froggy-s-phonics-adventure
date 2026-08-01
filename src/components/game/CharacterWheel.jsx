@@ -8,7 +8,7 @@ const ITEM_H = 120;                  // tile height during spin — big & clear
 const VISIBLE = 3;                    // 3 characters visible at a time
 const WINDOW_H = ITEM_H * VISIBLE;
 const RESULT_H = Math.round(ITEM_H * 2.5); // winner shown 2.5x bigger
-const SPIN_MS = 5500;                 // slower than the 1 More 1 Less spinner (~2.6s)
+const SPIN_MS = 5000;                 // starts fast, decelerates quickly so kids can see characters
 const TREASURE_CHANCE = 0.05;         // rare physical-prize box
 const REEL_LEN = 48;
 
@@ -89,11 +89,11 @@ export default function CharacterWheel({ studentData, onSpend, onUnlock, onClose
     setWinner(null);
     setSpinning(true);
 
-    // Land the winner on the BOTTOM visible row.
-    const target = (winIdx - (VISIBLE - 1)) * ITEM_H;
+    // Land the winner on the CENTER visible row.
+    const target = (winIdx - 1) * ITEM_H;
     startRef.current = null;
     const startOffset = 0;
-    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 5); // starts fast, slows down quickly
 
     const animate = (ts) => {
       if (!startRef.current) startRef.current = ts;
@@ -180,7 +180,7 @@ export default function CharacterWheel({ studentData, onSpend, onUnlock, onClose
               {/* pointer arrow at the bottom (result) row */}
               <div
                 className="absolute z-20"
-                style={{ top: ITEM_H * 2 + ITEM_H / 2, right: -6, transform: 'translateY(-50%)' }}
+                style={{ top: ITEM_H + ITEM_H / 2, right: -6, transform: 'translateY(-50%)' }}
               >
                 <div
                   style={{
@@ -231,7 +231,7 @@ export default function CharacterWheel({ studentData, onSpend, onUnlock, onClose
                 {/* bottom result highlight band */}
                 <div
                   className="absolute left-0 right-0 pointer-events-none"
-                  style={{ top: ITEM_H * 2, height: ITEM_H, boxShadow: 'inset 0 0 0 3px #ef4444', borderRadius: 12 }}
+                  style={{ top: ITEM_H, height: ITEM_H, boxShadow: 'inset 0 0 0 3px #ef4444', borderRadius: 12 }}
                 />
               </div>
             </div>
