@@ -19,7 +19,7 @@ const FREE_MODES = [
   { mode: 'number_hearing', label: 'Numbers', emoji: '🔢' },
 ];
 
-export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onLessonComplete }) {
+export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete }) {
   const [section, setSection] = useState('lessons');
   const [openLesson, setOpenLesson] = useState(null);
 
@@ -47,10 +47,11 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             selectedStudent={selectedStudent}
             initialLessonId={openLesson.id}
             onBack={() => setOpenLesson(null)}
-            onStartStep={onStartStep}
             onFreePlay={() => go('games')}
             onLogout={onLogout}
             onLessonComplete={onLessonComplete}
+            onUpdateProgress={onUpdateProgress}
+            onStudentPatch={onStudentPatch}
           />
         )}
 
@@ -94,7 +95,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
         )}
       </div>
 
-      <LevelSideNav active={section} onSelect={go} onLogout={onLogout} />
+      {!openLesson && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} />}
     </div>
   );
 }

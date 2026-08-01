@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { fetchLessons } from '@/lib/lessonsLoader';
+import LessonStepper from './LessonStepper';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
 
@@ -71,7 +72,7 @@ function StepCard({ step, index, status, onStart }) {
   );
 }
 
-export default function LessonMap({ studentData, selectedStudent, onStartStep, onLogout, onFreePlay, initialLessonId, onBack, onLessonComplete }) {
+export default function LessonMap({ studentData, selectedStudent, onUpdateProgress, onStudentPatch, onLogout, onFreePlay, initialLessonId, onBack, onLessonComplete }) {
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -101,24 +102,19 @@ export default function LessonMap({ studentData, selectedStudent, onStartStep, o
 
   const currentLesson = myLessons[Math.min(lessonIdx, myLessons.length - 1)];
   const steps = currentLesson?.steps || [];
-  const lessonId = currentLesson?.id;
 
   return (
-    <LessonMapInner
-      key={lessonId}
-      studentNumber={selectedStudent?.number}
-      className={className}
+    <LessonStepper
+      key={currentLesson.id}
+      studentData={studentData}
+      selectedStudent={selectedStudent}
       lesson={currentLesson}
       steps={steps}
-      lessonId={lessonId}
-      isLast={lessonIdx >= myLessons.length - 1}
-      onStartStep={(step, index) => onStartStep(step, index, currentLesson)}
-      onNextLesson={() => setLessonIdx(i => Math.min(i + 1, myLessons.length - 1))}
-      onLogout={onLogout}
+      lessonId={currentLesson.id}
       onBack={onBack}
       onLessonComplete={onLessonComplete}
-      showInfo={showInfo}
-      setShowInfo={setShowInfo}
+      onUpdateProgress={onUpdateProgress}
+      onStudentPatch={onStudentPatch}
     />
   );
 }

@@ -360,6 +360,7 @@ export default function LetterGame() {
         studentData={studentData}
         selectedStudent={selectedStudent}
         onStudentPatch={handlePersistPatch}
+        onUpdateProgress={handleUpdateProgress}
         onLessonComplete={handleLessonComplete}
         onStartStep={(step, index, lesson) => {
           setActiveLessonStep(step);

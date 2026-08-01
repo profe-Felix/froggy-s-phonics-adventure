@@ -29,6 +29,9 @@ export default function LessonModeRouter({
   onUpdateProgress,
   onStudentPatch,
   onBack,
+  stepperMode = false,
+  onNext,
+  isLast = false,
 }) {
   const { progress, markStepComplete } = useLessonProgress(
     selectedStudent?.number, selectedStudent?.class_name, lessonId
@@ -116,17 +119,19 @@ export default function LessonModeRouter({
   }
 
   return (
-    <div className="relative h-screen flex flex-col">
+    <div className={`relative flex flex-col ${stepperMode ? 'h-full' : 'h-screen'}`}>
       {renderMode()}
 
-      {/* Floating back-to-lesson button (always available) */}
-      <Button
-        onClick={wrappedBack}
-        className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
-      >
-        <ArrowLeft className="w-5 h-5 mr-2" />
-        Back to Lesson
-      </Button>
+      {/* Floating back-to-lesson button (hidden in stepper mode — the stepper has its own exit) */}
+      {!stepperMode && (
+        <Button
+          onClick={wrappedBack}
+          className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Lesson
+        </Button>
+      )}
 
       {/* Goal / progress chip */}
       <div className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
@@ -151,9 +156,9 @@ export default function LessonModeRouter({
                 <RotateCcw className="w-5 h-5 mr-2" />
                 Play Again
               </Button>
-              <Button onClick={wrappedBack} className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5">
+              <Button onClick={stepperMode ? onNext : wrappedBack} className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5">
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Return to Lesson
+                {stepperMode ? (isLast ? 'Finish' : 'Next Step') : 'Return to Lesson'}
               </Button>
             </div>
           </div>
