@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { AUDIO_BASE } from '@/lib/audio';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
@@ -16,6 +17,15 @@ const END_TOL = 5; // dense points — the pen must reach the path's end within 
 // Per-stroke guide colors — match the teacher authoring canvas (StrokeAuthoringCanvas)
 // so the faint guide path is clearly visible instead of a low-contrast gray dashed line.
 const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
+
+// Multisensory fonema audio played while the pen is down. Files live in the
+// Supabase "audio" bucket under {lang}/letters/fonemas/, named per case:
+// A_mayu_fonema.mp3 (uppercase) / a_minu_fonema.mp3 (lowercase).
+function fonemaUrl(letter, lang = 'es') {
+  const isUpper = letter && letter.length === 1 && letter === letter.toUpperCase() && letter !== letter.toLowerCase();
+  const name = isUpper ? `${letter}_mayu_fonema` : `${letter.toLowerCase()}_minu_fonema`;
+  return `${AUDIO_BASE}/${lang}/letters/fonemas/${name}.mp3`;
+}
 
 function scale(pt) {
   if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
@@ -90,7 +100,7 @@ function coverageComplete(visited, denseLen) {
   return frac >= MIN_COVER_FRAC && maxGap <= MAX_GAP && startCovered && endCovered;
 }
 
-export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage }) {
+export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage, renderWidth = 256, lang = 'es' }) {
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
@@ -111,6 +121,26 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [replaying, setReplaying] = useState(false);
   const [replayPts, setReplayPts] = useState([]);
   const replayRafRef = useRef(null);
+  const fonemaAudioRef = useRef(null);
+
+  const stopFonema = useCallback(() => {
+    if (fonemaAudioRef.current) {
+      try { fonemaAudioRef.current.pause(); } catch {}
+      fonemaAudioRef.current = null;
+    }
+  }, []);
+
+  // Loop the letter's fonema while the pen is down so tracing is multisensory —
+  // students hear and say the sound as they write. Stops on lift / letter change.
+  const playFonema = useCallback(() => {
+    stopFonema();
+    try {
+      const a = new Audio(fonemaUrl(letter, lang));
+      a.loop = true;
+      a.play().catch(() => {});
+      fonemaAudioRef.current = a;
+    } catch {}
+  }, [letter, lang, stopFonema]);
 
   const densePath = useMemo(() => {
     const wp = strokes[strokeIndex];
@@ -121,10 +151,12 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   // Cancel any in-flight replay animation when the component unmounts.
   useEffect(() => () => {
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
+    stopFonema();
   }, []);
 
   // Reset when letter changes
   useEffect(() => {
+    stopFonema();
     setStrokeIndex(0);
     setWaypointIndex(0);
     setDrawing(false);
@@ -187,7 +219,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setStatus('tracing');
     currentPathRef.current = [pos];
     setCurrentPath([pos]);
-  }, [status, strokeIndex, waypointIndex, strokes]);
+    playFonema();
+  }, [status, strokeIndex, waypointIndex, strokes, playFonema]);
 
   const flashError = () => {
     setErrorFlash(true);
@@ -451,6 +484,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     if (!drawing) return;
     setDrawing(false);
+    stopFonema();
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
@@ -573,19 +607,19 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           </div>
         )}
         {status === 'idle' && strokeIndex === 0 && waypointIndex === 0 && (
-          <div className="text-white/70 text-sm">Start at the ● dot</div>
+          <div className="text-slate-400 text-sm">Start at the ● dot</div>
         )}
       </div>
 
       <svg
         ref={svgRef}
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-        className={`w-64 rounded-2xl border-4 touch-none aspect-[4/5] ${
+        className={`rounded-2xl border-4 touch-none aspect-[4/5] ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
-          'border-white/40 bg-white/10'
+          'border-slate-200 bg-white'
         }`}
-        style={{ cursor: 'crosshair', touchAction: 'none' }}
+        style={{ width: renderWidth, maxWidth: '92vw', cursor: 'crosshair', touchAction: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -690,14 +724,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           <button
             onClick={startReplay}
             disabled={drawing || replaying || !strokes[strokeIndex]}
-            className="text-amber-200 hover:text-amber-100 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-amber-600 hover:text-amber-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ▶ Show me
           </button>
         )}
         <button
           onClick={reset}
-          className="text-white/60 hover:text-white text-sm underline"
+          className="text-slate-400 hover:text-slate-700 text-sm underline"
         >
           Start over
         </button>
