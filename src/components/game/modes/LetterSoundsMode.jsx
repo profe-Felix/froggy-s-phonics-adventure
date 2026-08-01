@@ -4,7 +4,7 @@ import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
 import { AUDIO_BASE } from '@/lib/audio';
 
-export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete }) {
+export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [options, setOptions] = useState([]);
   const [score, setScore] = useState(0);
@@ -44,7 +44,10 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     // If there are no mastered letters, use learning only.
     let targetPool;
 
-    if (hasLearning && hasMastered) {
+    if (targets && targets.length > 0) {
+      targetPool = targets.filter(l => ALL_LETTERS.includes(l));
+      if (targetPool.length === 0) targetPool = fallbackLearning;
+    } else if (hasLearning && hasMastered) {
       targetPool = Math.random() < 0.8 ? learningSet : mastered;
     } else if (hasLearning) {
       targetPool = learningSet;

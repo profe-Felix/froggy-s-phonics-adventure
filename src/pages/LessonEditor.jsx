@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
 import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy } from 'lucide-react';
 import { getPresetList } from '@/lib/presets';
+import StudentPicker from '@/components/lesson/StudentPicker';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -30,6 +31,7 @@ function blankLesson() {
     subtitle: '',
     steps: [blankStep('letter_sounds')],
     active: true,
+    assignment_type: 'class',
   };
 }
 
@@ -188,6 +190,8 @@ export default function LessonEditor() {
       subtitle: editing.subtitle || '',
       steps: (editing.steps || []).map(({ __new, ...s }) => s),
       active: editing.active !== false,
+      assignment_type: editing.assignment_type || 'class',
+      assigned_students: editing.assignment_type === 'side_quest' ? (editing.assigned_students || []) : [],
     };
     if (editing.id) {
       await base44.entities.Lesson.update(editing.id, payload);
@@ -274,6 +278,23 @@ export default function LessonEditor() {
                 Active (visible to students)
               </label>
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
+            <label className="text-xs text-gray-600 font-bold flex items-center gap-2">
+              <input type="checkbox" checked={editing.assignment_type === 'side_quest'}
+                onChange={e => setEditing({ ...editing, assignment_type: e.target.checked ? 'side_quest' : 'class' })} />
+              Side quest (assign to specific students instead of whole class)
+            </label>
+            {editing.assignment_type === 'side_quest' && (
+              <div>
+                <p className="text-xs font-bold text-gray-600 mb-1">Assigned students</p>
+                <StudentPicker
+                  selected={editing.assigned_students || []}
+                  onChange={(as) => setEditing({ ...editing, assigned_students: as })}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between mb-2">

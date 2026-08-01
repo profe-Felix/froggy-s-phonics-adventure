@@ -1,10 +1,11 @@
 import React from 'react';
-import { BookOpen, Gamepad2, PlayCircle, ListChecks, LogOut } from 'lucide-react';
+import { BookOpen, Gamepad2, PlayCircle, ListChecks, Compass, LogOut } from 'lucide-react';
 
 // Vertical side menu (right edge) — switches the student between the level
 // path (Lessons) and the free-play sections (Books / Games / Videos).
 const ITEMS = [
   { key: 'lessons', label: 'Lessons', Icon: ListChecks },
+  { key: 'sidequests', label: 'Quests', Icon: Compass },
   { key: 'books', label: 'Books', Icon: BookOpen },
   { key: 'games', label: 'Games', Icon: Gamepad2 },
   { key: 'videos', label: 'Videos', Icon: PlayCircle },

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import LevelPath from './LevelPath';
 import LevelSideNav from './LevelSideNav';
 import LessonMap from './LessonMap';
+import LessonStepper from './LessonStepper';
+import SideQuests from './SideQuests';
 import { BookOpen, PlayCircle } from 'lucide-react';
 
 // The student's home shell: a side nav (Lessons / Books / Games / Videos) plus
@@ -22,9 +24,11 @@ const FREE_MODES = [
 export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete }) {
   const [section, setSection] = useState('lessons');
   const [openLesson, setOpenLesson] = useState(null);
+  const [openSideQuest, setOpenSideQuest] = useState(null);
 
   const go = (s) => {
     if (s !== 'lessons') setOpenLesson(null);
+    setOpenSideQuest(null);
     setSection(s);
   };
 
@@ -49,6 +53,28 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             onBack={() => setOpenLesson(null)}
             onFreePlay={() => go('games')}
             onLogout={onLogout}
+            onLessonComplete={onLessonComplete}
+            onUpdateProgress={onUpdateProgress}
+            onStudentPatch={onStudentPatch}
+          />
+        )}
+
+        {section === 'sidequests' && !openSideQuest && (
+          <SideQuests
+            studentData={studentData}
+            selectedStudent={selectedStudent}
+            onOpen={(l) => setOpenSideQuest(l)}
+          />
+        )}
+
+        {section === 'sidequests' && openSideQuest && (
+          <LessonStepper
+            studentData={studentData}
+            selectedStudent={selectedStudent}
+            lesson={openSideQuest}
+            steps={openSideQuest.steps || []}
+            lessonId={openSideQuest.id}
+            onBack={() => setOpenSideQuest(null)}
             onLessonComplete={onLessonComplete}
             onUpdateProgress={onUpdateProgress}
             onStudentPatch={onStudentPatch}
@@ -95,7 +121,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
         )}
       </div>
 
-      {!openLesson && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} />}
+      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} />}
     </div>
   );
 }

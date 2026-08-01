@@ -106,7 +106,7 @@ export default function LessonModeRouter({
   function renderMode() {
     switch (step.mode) {
       case 'letter_sounds':
-        return <LetterSoundsMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
+        return <LetterSoundsMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
       case 'sight_words_easy':
         return <SightWordsEasyMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
       case 'sight_words_spelling':
@@ -132,7 +132,7 @@ export default function LessonModeRouter({
       case 'letter_sort':
         return <LetterSortStep onComplete={completeStep} presetId={step?.config?.preset} />;
       case 'letter_recognition':
-        return <LetterRecognitionStep onComplete={completeStep} />;
+        return <LetterRecognitionStep onComplete={completeStep} targets={step?.config?.targets} />;
       case 'powerful_word':
         return <PowerfulWordStep onComplete={completeStep} presetId={step?.config?.preset} />;
       case 'syllable_train':

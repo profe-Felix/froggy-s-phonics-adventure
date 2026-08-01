@@ -26,6 +26,31 @@
       "default": "",
       "description": "One-line description shown under the lesson title e.g. 'Learn the letter M and practice saying words and sounds!'"
     },
+    "assignment_type": {
+      "type": "string",
+      "enum": [
+        "class",
+        "side_quest"
+      ],
+      "default": "class",
+      "description": "class = shown on the main level path for the whole class. side_quest = assigned to specific students, appears in their Side Quests menu for small-group practice."
+    },
+    "assigned_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": [],
+      "description": "For side quests: the specific students assigned. Each entry is { class_name, student_number }."
+    },
     "steps": {
       "type": "array",
       "items": {

@@ -88,7 +88,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
 
   const myLessons = useMemo(
     () => lessons
-      .filter(l => !l.class_name || l.class_name === className)
+      .filter(l => l.assignment_type !== 'side_quest' && (!l.class_name || l.class_name === className))
       .sort((a, b) => (a.lesson_number || 0) - (b.lesson_number || 0)),
     [lessons, className]
   );

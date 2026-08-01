@@ -5,7 +5,7 @@ import StepDoneBar from './StepDoneBar';
 
 // Embedded student step for "Guess My Letter". Loads saved letter templates
 // and lets the student draw — the canvas guesses which letter it is.
-export default function LetterRecognitionStep({ onComplete }) {
+export default function LetterRecognitionStep({ onComplete, targets }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +24,10 @@ export default function LetterRecognitionStep({ onComplete }) {
           } catch { /* ignore malformed */ }
         }
         t.sort((a, b) => a.letter.localeCompare(b.letter, undefined, { sensitivity: 'base' }));
-        setTemplates(t);
+        const filtered = (targets && targets.length > 0)
+          ? t.filter(x => targets.includes(x.letter.toLowerCase()))
+          : t;
+        setTemplates(filtered);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
