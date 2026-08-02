@@ -16,25 +16,18 @@ export function useLessonProgress(studentNumber, className, lessonId) {
   const qc = useQueryClient();
   const key = ['lesson-progress', String(studentNumber), className, lessonId];
 
-  const { data: progress, isLoading, error } = useQuery({
+  const { data: progress, isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      try {
-        const list = await base44.entities.LessonProgress.filter({
-          student_number: studentNumber,
-          class_name: className,
-          lesson_id: lessonId,
-        });
-        // eslint-disable-next-line no-console
-        console.log('[useLP] queryFn result', { count: list?.length, firstId: list?.[0]?.id });
-        return list[0] || null;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.log('[useLP] queryFn error', e?.message);
-        throw e;
-      }
+      const list = await base44.entities.LessonProgress.filter({
+        student_number: studentNumber,
+        class_name: className,
+        lesson_id: lessonId,
+      });
+      return list[0] || null;
     },
     enabled: !!lessonId && !!studentNumber,
+    staleTime: 60000,
   });
 
   // Lazily create a progress record the first time a student opens a lesson.
@@ -76,5 +69,5 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     qc.setQueryData(key, updated);
   };
 
-  return { progress, isLoading, error, markStepComplete };
+  return { progress, isLoading, markStepComplete };
 }

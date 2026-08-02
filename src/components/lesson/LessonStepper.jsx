@@ -9,21 +9,16 @@ import LessonModeRouter from './LessonModeRouter';
 const NAVY = '#26264d';
 
 export default function LessonStepper({ studentData, selectedStudent, lesson, steps, lessonId, onBack, onLessonComplete, onUpdateProgress, onStudentPatch }) {
-  const { progress, isLoading, error } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
+  const { progress, isLoading } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
-  const initRef = useRef(false);
 
-  // Land on the first not-yet-completed step (only on first load). initRef is
-  // set BEFORE choosing the target so the loading guard below hides the activity
-  // area until the right step is chosen — otherwise step 0's activity mounts for
-  // one render and plays its startup audio before we jump to step N.
+  // Land on the first not-yet-completed step once progress loads.
   useEffect(() => {
-    if (initRef.current || !progress) return;
-    initRef.current = true;
-    if (!steps.length) return;
+    if (!progress || !steps.length) return;
     const firstIncomplete = steps.findIndex((_, i) => !completedSteps.includes(i));
-    setStepIdx(firstIncomplete === -1 ? steps.length - 1 : firstIncomplete);
+    const target = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete;
+    setStepIdx(prev => prev !== target ? target : prev);
   }, [progress]);
 
   const allDone = steps.length > 0 && completedSteps.length >= steps.length;
@@ -35,9 +30,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     }
   }, [allDone, lesson, onLessonComplete]);
 
-  // eslint-disable-next-line no-console
-  console.log('[Stepper] gate', { isLoading, hasProgress: !!progress, progressId: progress?.id, initRef: initRef.current, studentNumber: selectedStudent?.number, className: selectedStudent?.class_name, lessonId, hookError: error?.message });
-  if (isLoading || !progress || !initRef.current) {
+  if (isLoading || !progress) {
     return (
       <div className="h-screen bg-[#dae2f3] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-white border-t-[#26264d] rounded-full animate-spin" />
