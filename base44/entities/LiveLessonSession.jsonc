@@ -53,7 +53,7 @@
         "try"
       ],
       "default": "watch",
-      "description": "watch = students locked, viewing broadcast/instruction (I do). try = released to interact with the activity (we do / you do)."
+      "description": "watch = teacher models (I do), students see a live mirror of the teacher's screen. try = released to interact with the activity themselves (we do / you do)."
     },
     "active": {
       "type": "boolean",
@@ -82,6 +82,11 @@
       },
       "default": [],
       "description": "Roster of students who have joined this live session, for the teacher's control panel."
+    },
+    "broadcast_state": {
+      "type": "object",
+      "description": "Live mirror of the teacher's screen during the 'watch' phase. Teacher's model panel writes here (throttled); student mirror panels read from here. Shape depends on the step type: video = {type:'video', playing, currentTime, updatedAt}, counting = {type:'counting', placed, drag, itemIndex, itemText, items, mode, correct}.",
+      "default": {}
     }
   },
   "required": [

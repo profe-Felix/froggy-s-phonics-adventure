@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import LessonModeRouter from '@/components/lesson/LessonModeRouter';
+import StudentMirrorPanel from './StudentMirrorPanel';
+import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import { Eye, Lock, Unlock, CheckCircle2, Radio } from 'lucide-react';
 
 // Student view for a live guided lesson. Subscribes to the teacher's session
@@ -40,6 +42,9 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   const currentStep = steps[stepIndex];
   const phase = localSession?.phase || 'watch';
 
+  // Live mirror of the teacher's screen during the "watch" phase.
+  const { broadcast } = useLiveBroadcast(session?.id);
+
   if (!lesson) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -61,42 +66,16 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     );
   }
 
-  // ---------- WATCH PHASE (locked) ----------
+  // ---------- WATCH PHASE (locked) — live mirror of the teacher's screen ----------
   if (phase === 'watch') {
-    const videoUrl = currentStep.config?.videoUrl;
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-5 p-4">
-        <div className="flex items-center gap-2 text-rose-400 font-black text-sm">
+      <div className="min-h-screen bg-slate-900 flex flex-col">
+        <div className="flex items-center justify-center gap-2 text-rose-400 font-black text-sm py-2">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
           LIVE with your teacher
         </div>
-
-        {videoUrl ? (
-          <div className="w-full max-w-2xl flex flex-col items-center gap-3">
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              className="w-full rounded-2xl shadow-2xl bg-black"
-            />
-            <div className="text-white/80 text-sm flex items-center gap-2">
-              <Eye className="w-4 h-4" /> Watch on your iPad — your teacher will tell you when to try.
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-24 h-24 rounded-full bg-indigo-500/20 flex items-center justify-center">
-              <Eye className="w-12 h-12 text-indigo-300" />
-            </div>
-            <h2 className="text-2xl font-black text-white">{currentStep.title}</h2>
-            <p className="text-white/70 text-center max-w-xs">
-              👀 Watch your teacher… getting ready to practice!
-            </p>
-          </div>
-        )}
-
-        <div className="text-xs text-white/50 flex items-center gap-1.5">
-          <Lock className="w-3.5 h-3.5" /> Locked until your teacher says go
+        <div className="flex-1 min-h-0">
+          <StudentMirrorPanel step={currentStep} broadcast={broadcast} />
         </div>
       </div>
     );

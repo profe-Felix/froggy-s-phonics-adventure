@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Eye, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
+import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 
 const CLASSES = ['Valero', 'Felix', 'Gutierrez', 'Schwarz', 'Campos', 'Mendez', 'Aguirre', 'Jimenez'];
 
@@ -49,6 +51,8 @@ export default function LiveLesson() {
     return unsub;
   }, [session?.id]);
 
+  const { send, clear: clearBroadcast } = useLiveBroadcast(session?.id);
+
   const startSession = async () => {
     if (!selectedLessonId || !className) return;
     setStarting(true);
@@ -84,7 +88,18 @@ export default function LiveLesson() {
     const steps = selectedLesson?.steps || [];
     if (!steps.length) return;
     const next = Math.max(0, Math.min(steps.length - 1, (session.current_step || 0) + dir));
+    clearBroadcast();
     updateSession({ current_step: next, phase: 'watch' });
+  };
+
+  const goToStep = (i) => {
+    clearBroadcast();
+    updateSession({ current_step: i, phase: 'watch' });
+  };
+
+  const setPhase = (p) => {
+    if (p === 'try') clearBroadcast();
+    updateSession({ phase: p });
   };
 
   const endSession = async () => {
@@ -230,6 +245,17 @@ export default function LiveLesson() {
           </Button>
         </div>
 
+        {phase === 'watch' && (
+          <div className="bg-slate-800 rounded-2xl p-4 mb-5">
+            <div className="text-xs text-gray-400 font-bold mb-2 flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5" /> MODELING — student iPads mirror this screen
+            </div>
+            <div className="h-[55vh] min-h-[360px] overflow-auto">
+              <TeacherModelPanel step={currentStep} send={send} />
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* QR + join code */}
           <div className="bg-white rounded-2xl p-5 flex flex-col items-center gap-3">
@@ -268,7 +294,7 @@ export default function LiveLesson() {
             {/* Phase toggle */}
             <div className="flex gap-2">
               <button
-                onClick={() => updateSession({ phase: 'watch' })}
+                onClick={() => setPhase('watch')}
                 className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border-2 transition ${
                   phase === 'watch' ? 'bg-amber-500 text-white border-amber-500' : 'bg-slate-700 text-gray-300 border-slate-600'
                 }`}
@@ -276,7 +302,7 @@ export default function LiveLesson() {
                 <Lock className="w-4 h-4" /> Watch (locked)
               </button>
               <button
-                onClick={() => updateSession({ phase: 'try' })}
+                onClick={() => setPhase('try')}
                 className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border-2 transition ${
                   phase === 'try' ? 'bg-green-500 text-white border-green-500' : 'bg-slate-700 text-gray-300 border-slate-600'
                 }`}
@@ -298,7 +324,7 @@ export default function LiveLesson() {
                 {steps.map((s, i) => (
                   <button
                     key={i}
-                    onClick={() => updateSession({ current_step: i, phase: 'watch' })}
+                    onClick={() => goToStep(i)}
                     className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
                       i === (session.current_step || 0) ? 'bg-rose-500 text-white' : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
                     }`}
