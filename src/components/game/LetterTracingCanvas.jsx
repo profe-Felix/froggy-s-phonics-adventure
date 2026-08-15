@@ -100,7 +100,7 @@ function coverageComplete(visited, denseLen) {
   return frac >= MIN_COVER_FRAC && maxGap <= MAX_GAP && startCovered && endCovered;
 }
 
-export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage, renderWidth = 256, lang = 'es' }) {
+export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage, renderWidth = 256, lang = 'es', onStrokesChange }) {
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
@@ -147,6 +147,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
     return clean.length ? buildDensePath(clean) : [];
   }, [strokes, strokeIndex]);
+
+  // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
+  // student iPads mirror the teacher's pen in real time. Optional — no-op when
+  // unset, so the standalone tracing game is unaffected.
+  useEffect(() => {
+    onStrokesChange?.({ strokeIndex, currentPath, drawnPaths, status, accuracy });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strokeIndex, currentPath, drawnPaths, status, accuracy, onStrokesChange]);
 
   // Cancel any in-flight replay animation when the component unmounts.
   useEffect(() => () => {

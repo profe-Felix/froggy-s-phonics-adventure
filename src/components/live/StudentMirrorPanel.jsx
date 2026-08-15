@@ -1,20 +1,31 @@
 import VideoMirrorPlayer from './VideoMirrorPlayer';
 import CountingMirrorCanvas from './CountingMirrorCanvas';
+import ManipulationMirrorCanvas from './ManipulationMirrorCanvas';
+import HuntMirrorPanel from './HuntMirrorPanel';
+import TracingMirrorCanvas from './TracingMirrorCanvas';
 import { Eye, Lock } from 'lucide-react';
 
 // Student's side: renders a read-only mirror of the teacher's screen during the
-// "watch" phase. Routes by the broadcast type the teacher is emitting (video or
-// counting); any other activity shows a "watch the board" screen until that
-// mirror is added.
+// "watch" phase. Routes by the broadcast type the teacher is emitting (video,
+// counting, manipulation, hunt, or tracing); any other activity shows a
+// "watch the board" screen until that mirror is added.
 export default function StudentMirrorPanel({ step, broadcast }) {
   const bType = broadcast?.type;
 
   if (step?.mode === 'video' || bType === 'video') {
     return <VideoMirrorPlayer broadcast={bType === 'video' ? broadcast : null} videoUrl={step?.config?.videoUrl} />;
   }
-
   if (bType === 'counting') {
     return <CountingMirrorCanvas broadcast={broadcast} />;
+  }
+  if (bType === 'manipulation') {
+    return <ManipulationMirrorCanvas broadcast={broadcast} />;
+  }
+  if (bType === 'hunt') {
+    return <HuntMirrorPanel broadcast={broadcast} />;
+  }
+  if (step?.mode === 'letter_tracing' || bType === 'tracing') {
+    return <TracingMirrorCanvas broadcast={bType === 'tracing' ? broadcast : null} />;
   }
 
   // Fallback: teacher is modeling an activity whose mirror isn't built yet.
