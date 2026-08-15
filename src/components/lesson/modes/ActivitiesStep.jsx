@@ -3,7 +3,7 @@ import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import HuntActivity from '@/components/activities/HuntActivity';
 import RhymeActivity from '@/components/activities/RhymeActivity';
-import { PRESETS } from '@/lib/activities/presets';
+import { useActivityPresets } from '@/hooks/useActivityPresets';
 import StepDoneBar from './StepDoneBar';
 
 // Parse a textarea string into activity items based on the mode.
@@ -28,6 +28,7 @@ const DEFAULT_CONFIG = {
 };
 
 export default function ActivitiesStep({ onComplete, studentName, stepConfig }) {
+  const { presets: PRESETS, isLoading } = useActivityPresets();
   const config = useMemo(() => {
     const cfg = stepConfig || {};
     // If a preset is selected, use it as the base.
@@ -56,6 +57,10 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig }) 
 
   const mode = config.mode || 'counting_words';
   const name = studentName || 'Estudiante';
+
+  if (isLoading && stepConfig?.preset && !PRESETS[stepConfig.preset]) {
+    return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading activity…</div>;
+  }
 
   return (
     <div className="relative h-full flex flex-col bg-[#f7f8fc]">

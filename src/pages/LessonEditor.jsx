@@ -4,13 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getPresetList } from '@/lib/presets';
 import StudentPicker from '@/components/lesson/StudentPicker';
 import VideoPicker from '@/components/lesson/VideoPicker';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
-import { PRESETS as ACTIVITY_PRESETS } from '@/lib/activities/presets';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
+import { useActivityPresets } from '@/hooks/useActivityPresets';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -40,6 +41,7 @@ function blankLesson() {
 }
 
 function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
+  const { presets: ACTIVITY_PRESETS } = useActivityPresets();
   const update = (patch) => onChange({ ...step, ...patch });
   const updateCompletion = (patch) => onChange({ ...step, completion: { ...step.completion, ...patch } });
 
@@ -135,24 +137,29 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
             </select>
           </label>
 
-          <label className="text-xs text-gray-600 font-bold">Preset (optional — fills examples)
-            <select value={step.config?.preset || ''}
-              onChange={e => {
-                const pid = e.target.value;
-                if (!pid) { update({ config: { ...step.config, preset: '' } }); return; }
-                const p = ACTIVITY_PRESETS[pid];
-                const lines = (p.items || []).map(it => {
-                  if (typeof it === 'string') return it;
-                  if (p.mode === 'rhyme_identification') return `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`;
-                  return it.text || '';
-                });
-                update({ config: { ...step.config, preset: pid, activityMode: p.mode, itemsText: lines.join('\n'), huntType: p.huntType || step.config?.huntType || '', huntTarget: p.target != null ? String(p.target) : step.config?.huntTarget || '' } });
-              }}
-              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
-              <option value="">— none —</option>
-              {Object.keys(ACTIVITY_PRESETS).filter(id => ACTIVITY_PRESETS[id].mode === (step.config?.activityMode || 'counting_words')).map(id => <option key={id} value={id}>{ACTIVITY_PRESETS[id].label || id}</option>)}
-            </select>
-          </label>
+          <div>
+            <label className="text-xs text-gray-600 font-bold">Preset (optional — fills examples)
+              <select value={step.config?.preset || ''}
+                onChange={e => {
+                  const pid = e.target.value;
+                  if (!pid) { update({ config: { ...step.config, preset: '' } }); return; }
+                  const p = ACTIVITY_PRESETS[pid];
+                  const lines = (p.items || []).map(it => {
+                    if (typeof it === 'string') return it;
+                    if (p.mode === 'rhyme_identification') return `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`;
+                    return it.text || '';
+                  });
+                  update({ config: { ...step.config, preset: pid, activityMode: p.mode, itemsText: lines.join('\n'), huntType: p.huntType || step.config?.huntType || '', huntTarget: p.target != null ? String(p.target) : step.config?.huntTarget || '' } });
+                }}
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                <option value="">— none —</option>
+                {Object.keys(ACTIVITY_PRESETS).filter(id => ACTIVITY_PRESETS[id].mode === (step.config?.activityMode || 'counting_words')).map(id => <option key={id} value={id}>{ACTIVITY_PRESETS[id].label || id}</option>)}
+              </select>
+            </label>
+            <Link to="/ActivityPresets" className="text-[10px] text-indigo-500 hover:underline font-bold inline-flex items-center gap-0.5 mt-1">
+              <Settings className="w-3 h-3" /> Manage presets
+            </Link>
+          </div>
 
           {step.config?.activityMode === 'text_hunt' && (
             <div className="grid grid-cols-2 gap-2">

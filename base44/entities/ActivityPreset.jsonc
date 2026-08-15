@@ -1,0 +1,90 @@
+{
+  "name": "ActivityPreset",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Display name shown in the preset dropdown"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "counting_words",
+        "counting_phonemes",
+        "phoneme_manipulation",
+        "text_hunt",
+        "rhyme_identification"
+      ],
+      "description": "Which activity mode this preset belongs to"
+    },
+    "items_data": {
+      "type": "string",
+      "description": "JSON-encoded items array. Counting modes: [\"text\", ...] or [{text, answer}]. Rhyme: [{word1, word2, answer}].",
+      "default": "[]"
+    },
+    "hunt_type": {
+      "type": "string",
+      "description": "For text_hunt mode: hunt type key (phoneme, letter, syllable, punctuation, word, space)",
+      "default": ""
+    },
+    "hunt_target": {
+      "type": "string",
+      "description": "For text_hunt mode with phoneme/letter: the target to find",
+      "default": ""
+    },
+    "palette_data": {
+      "type": "string",
+      "description": "For phoneme_manipulation mode: JSON-encoded color array",
+      "default": ""
+    }
+  },
+  "required": [
+    "label",
+    "mode"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

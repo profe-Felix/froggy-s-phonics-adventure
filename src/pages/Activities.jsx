@@ -8,7 +8,7 @@ import HuntActivity from '@/components/activities/HuntActivity';
 import RhymeActivity from '@/components/activities/RhymeActivity';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
-import { PRESETS } from '@/lib/activities/presets';
+import { useActivityPresets } from '@/hooks/useActivityPresets';
 
 // "Contar __ en __" page. Two roles via a top-bar toggle:
 //   - Estudiante: recordable Elkonin counting (voice + tile placement)
@@ -59,6 +59,7 @@ function readRole() {
 }
 
 export default function Activities() {
+  const { presets: PRESETS } = useActivityPresets();
   const [role, setRole] = useState(readRole());
   const [modeKey, setModeKey] = useState(ACTIVITY_MODES[0].key);
   const [presetKey, setPresetKey] = useState('');
@@ -72,7 +73,7 @@ export default function Activities() {
 
   const presetKeys = useMemo(
     () => Object.keys(PRESETS).filter((k) => PRESETS[k].mode === modeKey),
-    [modeKey]
+    [modeKey, PRESETS]
   );
 
   const config = useMemo(() => {
@@ -80,7 +81,7 @@ export default function Activities() {
     let out = modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
     if (modeKey === 'text_hunt') out = { ...out, huntType, target: huntTarget };
     return out;
-  }, [modeKey, presetKey, itemsText, palette, huntType, huntTarget]);
+  }, [modeKey, presetKey, itemsText, palette, huntType, huntTarget, PRESETS]);
 
   // keep role in the URL so a refresh preserves the view
   useEffect(() => {

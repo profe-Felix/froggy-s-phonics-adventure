@@ -30,6 +30,7 @@ import SyllableBlender from './pages/workstations/SyllableBlender';
 import LiveWorkstations from './pages/workstations/LiveWorkstations';
 import LetterSort from './pages/workstations/LetterSort';
 import Activities from './pages/Activities';
+import ActivityPresets from './pages/ActivityPresets';
 import LetterRecognition from './pages/LetterRecognition';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -109,6 +110,7 @@ const AuthenticatedApp = () => {
       <Route path="/LiveWorkstations" element={<LiveWorkstations />} />
       <Route path="/LetterSort" element={<LetterSort />} />
       <Route path="/Activities" element={<Activities />} />
+      <Route path="/ActivityPresets" element={<ActivityPresets />} />
       <Route path="/LetterRecognition" element={<LetterRecognition />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
