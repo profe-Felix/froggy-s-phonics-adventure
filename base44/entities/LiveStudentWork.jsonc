@@ -1,0 +1,74 @@
+{
+  "name": "LiveStudentWork",
+  "type": "object",
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "ID of the LiveLessonSession this work belongs to"
+    },
+    "student_key": {
+      "type": "string",
+      "description": "Stable key `${class_name}:${student_number}` for dedup/upsert"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "step_index": {
+      "type": "integer",
+      "default": 0,
+      "description": "Which step the student is working on"
+    },
+    "mode": {
+      "type": "string",
+      "default": "",
+      "description": "Mode of the current step (letter_sounds, activities, video, \u2026)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "working",
+        "done",
+        "idle"
+      ],
+      "default": "working",
+      "description": "working = actively trying, done = finished the step, idle = left the try phase"
+    },
+    "progress_data": {
+      "type": "object",
+      "description": "Compact mode-aware snapshot the teacher dashboard renders. e.g. {label, mastered, attempts} or {label:'Working\u2026'}.",
+      "default": {}
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "ISO timestamp of the last heartbeat/report"
+    }
+  },
+  "required": [
+    "session_id",
+    "student_key",
+    "class_name",
+    "student_number"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

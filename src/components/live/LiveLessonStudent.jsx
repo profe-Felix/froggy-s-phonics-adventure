@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import LessonModeRouter from '@/components/lesson/LessonModeRouter';
 import StudentMirrorPanel from './StudentMirrorPanel';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
+import { useLiveStudentReporter } from '@/hooks/useLiveStudentWork';
 import { Eye, Lock, Unlock, CheckCircle2, Radio } from 'lucide-react';
 
 // Student view for a live guided lesson. Subscribes to the teacher's session
@@ -44,6 +45,19 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
 
   // Live mirror of the teacher's screen during the "watch" phase.
   const { broadcast } = useLiveBroadcast(session?.id);
+
+  // Report this student's work to the teacher dashboard during the try phase.
+  const student = selectedStudent
+    ? { class_name: selectedStudent.class_name, number: selectedStudent.number }
+    : null;
+  useLiveStudentReporter(
+    session?.id,
+    student,
+    currentStep,
+    stepIndex,
+    studentData,
+    phase === 'try'
+  );
 
   if (!lesson) {
     return (

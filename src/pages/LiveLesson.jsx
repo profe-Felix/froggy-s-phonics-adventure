@@ -8,6 +8,7 @@ import { ArrowLeft, Eye, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, User
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
+import TryDashboard from '@/components/live/TryDashboard';
 
 const CLASSES = ['Valero', 'Felix', 'Gutierrez', 'Schwarz', 'Campos', 'Mendez', 'Aguirre', 'Jimenez'];
 
@@ -252,6 +253,14 @@ export default function LiveLesson() {
             </div>
             <div className="h-[55vh] min-h-[360px] overflow-auto">
               <TeacherModelPanel step={currentStep} send={send} />
+            </div>
+          </div>
+        )}
+
+        {phase === 'try' && (
+          <div className="bg-slate-800 rounded-2xl p-4 mb-5">
+            <div className="h-[55vh] min-h-[360px] overflow-auto">
+              <TryDashboard session={session} />
             </div>
           </div>
         )}
