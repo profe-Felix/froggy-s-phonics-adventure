@@ -23,6 +23,7 @@ import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
 import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
 import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
 import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
+import VideoStep from '@/components/lesson/modes/VideoStep';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -155,6 +156,8 @@ export default function LessonModeRouter({
         return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} presetId={step?.config?.preset} />;
       case 'fluency':
         return <FluencyPracticeStep onComplete={completeStep} presetId={step?.config?.preset} studentNumber={studentNumber} className={className} />;
+      case 'video':
+        return <VideoStep onComplete={completeStep} videoUrl={step?.config?.videoUrl} title={step.title} />;
       default:
         return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
     }

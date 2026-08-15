@@ -7,6 +7,7 @@ import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonCo
 import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy } from 'lucide-react';
 import { getPresetList } from '@/lib/presets';
 import StudentPicker from '@/components/lesson/StudentPicker';
+import VideoPicker from '@/components/lesson/VideoPicker';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -112,6 +113,12 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
           <input type="number" min={1} value={step.completion.target}
             onChange={e => updateCompletion({ target: parseInt(e.target.value) || 1 })}
             className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+        </label>
+      )}
+
+      {step.mode === 'video' && (
+        <label className="text-xs text-gray-600 font-bold">Video
+          <VideoPicker value={step.config?.videoUrl || ''} onChange={(url) => update({ config: { ...step.config, videoUrl: url } })} />
         </label>
       )}
 
