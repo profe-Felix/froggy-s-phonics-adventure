@@ -8,6 +8,9 @@ import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, 
 import { getPresetList } from '@/lib/presets';
 import StudentPicker from '@/components/lesson/StudentPicker';
 import VideoPicker from '@/components/lesson/VideoPicker';
+import { ACTIVITY_MODES } from '@/lib/activities/engine';
+import { PRESETS as ACTIVITY_PRESETS } from '@/lib/activities/presets';
+import { HUNT_TYPES } from '@/lib/activities/hunt';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -120,6 +123,64 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
         <label className="text-xs text-gray-600 font-bold">Video
           <VideoPicker value={step.config?.videoUrl || ''} onChange={(url) => update({ config: { ...step.config, videoUrl: url } })} />
         </label>
+      )}
+
+      {step.mode === 'activities' && (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <label className="text-xs text-gray-600 font-bold">Activity type
+            <select value={step.config?.activityMode || 'counting_words'}
+              onChange={e => update({ config: { ...step.config, activityMode: e.target.value, itemsText: '', preset: '' } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              {ACTIVITY_MODES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+          </label>
+
+          <label className="text-xs text-gray-600 font-bold">Preset (optional — fills examples)
+            <select value={step.config?.preset || ''}
+              onChange={e => {
+                const pid = e.target.value;
+                if (!pid) { update({ config: { ...step.config, preset: '' } }); return; }
+                const p = ACTIVITY_PRESETS[pid];
+                const lines = (p.items || []).map(it => {
+                  if (typeof it === 'string') return it;
+                  if (p.mode === 'rhyme_identification') return `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`;
+                  return it.text || '';
+                });
+                update({ config: { ...step.config, preset: pid, activityMode: p.mode, itemsText: lines.join('\n'), huntType: p.huntType || step.config?.huntType || '', huntTarget: p.target != null ? String(p.target) : step.config?.huntTarget || '' } });
+              }}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">— none —</option>
+              {Object.keys(ACTIVITY_PRESETS).filter(id => ACTIVITY_PRESETS[id].mode === (step.config?.activityMode || 'counting_words')).map(id => <option key={id} value={id}>{ACTIVITY_PRESETS[id].label || id}</option>)}
+            </select>
+          </label>
+
+          {step.config?.activityMode === 'text_hunt' && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-gray-600 font-bold">Hunt type
+                <select value={step.config?.huntType || 'phoneme'}
+                  onChange={e => update({ config: { ...step.config, huntType: e.target.value } })}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                  {HUNT_TYPES.map(h => <option key={h.key} value={h.key}>{h.label}</option>)}
+                </select>
+              </label>
+              {HUNT_TYPES.find(h => h.key === (step.config?.huntType || 'phoneme'))?.needsTarget && (
+                <label className="text-xs text-gray-600 font-bold">Target
+                  <input value={step.config?.huntTarget || ''}
+                    onChange={e => update({ config: { ...step.config, huntTarget: e.target.value } })}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+                </label>
+              )}
+            </div>
+          )}
+
+          <label className="text-xs text-gray-600 font-bold">Examples (one per line{step.config?.activityMode === 'rhyme_identification' ? ' · word1, word2, sí/no' : ''})
+            <textarea value={step.config?.itemsText || ''}
+              onChange={e => update({ config: { ...step.config, itemsText: e.target.value, preset: '' } })}
+              rows={4}
+              placeholder={step.config?.activityMode === 'counting_words' ? 'El gato come\nYo soy grande' : step.config?.activityMode === 'rhyme_identification' ? 'gracioso, hermoso, sí\nnota, noche, no' : 'gato\nsol\nflor'}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
+          </label>
+        </div>
       )}
 
       {(() => {
