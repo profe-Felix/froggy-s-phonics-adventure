@@ -115,7 +115,11 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
       setTimeout(() => setCelebrate(null), 2200);
     }
-    setTimeout(() => { setCurrentLetter(null); setLastAccuracy(null); }, leveledUp ? 1600 : 900);
+    // Auto-advance to the next letter on the page instead of bouncing back to
+    // the grid each time — smoother practice flow.
+    const idx = paged.indexOf(letter);
+    const nextLetter = idx >= 0 && idx < paged.length - 1 ? paged[idx + 1] : null;
+    setTimeout(() => { setCurrentLetter(nextLetter); setLastAccuracy(null); }, leveledUp ? 1600 : 900);
   };
 
   if (!currentLetter) {
