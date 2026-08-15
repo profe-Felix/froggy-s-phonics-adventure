@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet } from 'lucide-react';
+import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet, Edit3 } from 'lucide-react';
 import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength, catmullRom } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
@@ -60,6 +60,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   const [autoCenter, setAutoCenter] = useState(false);
   const inkMapRef = useRef(null);
 
+  // Edit mode: drag any stroke point to fine-tune, or tap a segment to insert
+  // a new point between its neighbors. Lets you fix a curve after committing.
+  const [editMode, setEditMode] = useState(false);
+  const dragRef = useRef(null); // { strokeIdx, pointIdx } while dragging
+
   // Writing guide lines — fixed at the confirmed positions (10/37/63/90).
   // Locked so they can't drift; align the trace image to them via Move/Scale.
   const lineTop = 0.10;
@@ -106,6 +111,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       if (k === 'd') dHeldRef.current = true;
       else if (k === 's') sHeldRef.current = true;
       else if (k === 'a') aHeldRef.current = true;
+      else if (k === 'e') { setEditMode(m => !m); gestureRef.current = null; setPreview(null); drawingRef.current = false; }
       else if (k === 'escape') {
         // cancel any active structured gesture
         gestureRef.current = null; setPreview(null); drawingRef.current = false;
@@ -256,6 +262,81 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     commitSegment(pts);
   };
 
+  // ---- Edit mode: handle-based fine-tuning ----
+  // Show a simplified set of "handles" (~12 per stroke) instead of every dense
+  // catmullRom sample, so the user can grab meaningful shape points. Dragging a
+  // handle re-interpolates the dense points between it and its neighbors, so the
+  // curve follows the handle smoothly. Tapping a segment between handles inserts
+  // a new handle there.
+  const HANDLES_PER_STROKE = 8;
+  const getHandleIndices = (stroke) => {
+    const n = stroke.length;
+    if (n <= HANDLES_PER_STROKE) return stroke.map((_, i) => i);
+    const step = Math.max(1, Math.floor((n - 1) / (HANDLES_PER_STROKE - 1)));
+    const idx = [0];
+    for (let i = step; i < n - 1; i += step) idx.push(i);
+    if (idx[idx.length - 1] !== n - 1) idx.push(n - 1);
+    return idx;
+  };
+  const findNearestHandle = (pos, threshold) => {
+    let best = null, bestD = threshold;
+    for (let si = 0; si < rawStrokes.length; si++) {
+      for (const pi of getHandleIndices(rawStrokes[si])) {
+        const p = rawStrokes[si][pi];
+        const d = Math.hypot(p.x - pos.x, p.y - pos.y);
+        if (d < bestD) { bestD = d; best = { strokeIdx: si, pointIdx: pi }; }
+      }
+    }
+    return best;
+  };
+  const findNearestHandleSegment = (pos, threshold) => {
+    let best = null, bestD = threshold;
+    for (let si = 0; si < rawStrokes.length; si++) {
+      const handles = getHandleIndices(rawStrokes[si]);
+      for (let k = 0; k < handles.length - 1; k++) {
+        const a = rawStrokes[si][handles[k]], b = rawStrokes[si][handles[k + 1]];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy;
+        if (len2 < 1e-6) continue;
+        let t = ((pos.x - a.x) * dx + (pos.y - a.y) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const px = a.x + t * dx, py = a.y + t * dy;
+        const d = Math.hypot(pos.x - px, pos.y - py);
+        if (d < bestD) { bestD = d; best = { strokeIdx: si, insertAt: Math.round(handles[k] + t * (handles[k + 1] - handles[k])), pos: { x: px, y: py } }; }
+      }
+    }
+    return best;
+  };
+  // Move a handle and re-interpolate the dense points between it and its
+  // neighbor handles, so the curve follows the handle instead of making a kink.
+  const dragHandlePoint = (strokeIdx, pointIdx, newPos) => {
+    setRawStrokes(prev => {
+      const copy = prev.slice();
+      const stroke = copy[strokeIdx].slice();
+      const handles = getHandleIndices(stroke);
+      const hk = handles.indexOf(pointIdx);
+      stroke[pointIdx] = newPos;
+      if (hk !== -1) {
+        if (hk > 0) {
+          const pi = handles[hk - 1], pp = stroke[pi];
+          for (let i = pi + 1; i < pointIdx; i++) {
+            const t = (i - pi) / (pointIdx - pi);
+            stroke[i] = { x: pp.x + t * (newPos.x - pp.x), y: pp.y + t * (newPos.y - pp.y) };
+          }
+        }
+        if (hk < handles.length - 1) {
+          const ni = handles[hk + 1], np = stroke[ni];
+          for (let i = pointIdx + 1; i < ni; i++) {
+            const t = (i - pointIdx) / (ni - pointIdx);
+            stroke[i] = { x: newPos.x + t * (np.x - newPos.x), y: newPos.y + t * (np.y - newPos.y) };
+          }
+        }
+      }
+      copy[strokeIdx] = stroke;
+      return copy;
+    });
+  };
+
   // Pointer Events unify mouse, touch, and pen. setPointerCapture keeps events
   // flowing to the canvas even if the finger/cursor leaves it mid-stroke.
   const down = (e) => {
@@ -265,6 +346,25 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     const pos = getPos(e);
     if (moveMode && bg) {
       moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
+      return;
+    }
+    // Edit mode: drag a handle, or tap a segment between handles to insert one.
+    if (editMode) {
+      const hit = findNearestHandle(pos, 8);
+      if (hit) { dragRef.current = hit; drawingRef.current = true; return; }
+      const seg = findNearestHandleSegment(pos, 20);
+      if (seg) {
+        const newPt = autoCenter && inkMapRef.current ? snapToInk(seg.pos, null) : seg.pos;
+        setRawStrokes(prev => {
+          const copy = prev.slice();
+          const stroke = copy[seg.strokeIdx].slice();
+          stroke.splice(seg.insertAt, 0, newPt);
+          copy[seg.strokeIdx] = stroke;
+          return copy;
+        });
+        dragRef.current = { strokeIdx: seg.strokeIdx, pointIdx: seg.insertAt };
+        drawingRef.current = true;
+      }
       return;
     }
     // Adding a control point to an active curve (S still held): each tap bends it.
@@ -309,6 +409,16 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       setBgY(s.bgY + (pos.y - s.y));
       return;
     }
+    if (editMode && dragRef.current) {
+      e.preventDefault();
+      const pos = getPos(e);
+      const { strokeIdx, pointIdx } = dragRef.current;
+      const stroke = rawStrokes[strokeIdx] || [];
+      const neighbor = pointIdx > 0 ? stroke[pointIdx - 1] : (pointIdx < stroke.length - 1 ? stroke[pointIdx + 1] : null);
+      const p = autoCenter && inkMapRef.current ? snapToInk(pos, neighbor) : pos;
+      dragHandlePoint(strokeIdx, pointIdx, p);
+      return;
+    }
     if (!drawingRef.current) return;
     e.preventDefault();
     const pos = getPos(e);
@@ -333,6 +443,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
     moveStartRef.current = null;
+    if (editMode) { dragRef.current = null; drawingRef.current = false; return; }
     if (moveMode) return;
     if (!drawingRef.current) return;
     drawingRef.current = false;
@@ -565,7 +676,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         ref={svgRef}
         viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
         className="w-72 max-w-full rounded-2xl border-4 border-indigo-300 bg-white touch-none aspect-[4/5] shadow-sm"
-        style={{ cursor: moveMode && bg ? 'move' : 'crosshair', touchAction: 'none' }}
+        style={{ cursor: moveMode && bg ? 'move' : (editMode ? 'pointer' : 'crosshair'), touchAction: 'none' }}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
@@ -623,6 +734,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         {current.length > 1 && (
           <path d={pathD(smoothPoints(current, 3))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         )}
+
+        {/* Edit-mode handle points (simplified — ~12 per stroke, not every dense point) */}
+        {editMode && rawStrokes.map((s, i) => {
+          const color = STROKE_COLORS[i % STROKE_COLORS.length];
+          const handles = getHandleIndices(s);
+          return handles.map((pi, j) => (
+            <circle key={`pt-${i}-${j}`} cx={s[pi].x} cy={s[pi].y} r="7" fill="white" stroke={color} strokeWidth="2.5" style={{ pointerEvents: 'all' }} />
+          ));
+        })}
       </svg>
 
       {/* Background image toolbar */}
@@ -736,6 +856,16 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
 
       <div className="flex gap-2">
         <button
+          onClick={() => { setEditMode(m => !m); gestureRef.current = null; setPreview(null); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+            editMode
+              ? 'bg-amber-500 text-white border-amber-500'
+              : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'
+          }`}
+        >
+          <Edit3 className="w-4 h-4" /> {editMode ? 'Done editing' : 'Edit points'}
+        </button>
+        <button
           onClick={undo}
           disabled={!rawStrokes.length}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -756,6 +886,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         {bg && ' Toggle "Move image" to reposition the trace image.'}
         <br />Hold <b>D</b> = line (pen-down start, drag preview, pen-up commit). Hold <b>S</b> = curve (set start+end, then tap to add control points; release S to commit, auto-snaps to ink). Hold <b>A</b> to chain a segment onto the previous stroke. <b>Esc</b> cancels.
         <br />Toggle <b>Center on ink</b> to snap each point to the black line of your trace image as you draw.
+        <br />Press <b>E</b> or tap "Edit points" to fine-tune: drag any point to move it, or tap a segment to insert a new point. Dragged points snap to ink when "Center on ink" is on.
       </p>
     </div>
   );
