@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
@@ -74,6 +74,18 @@ export default function LessonModeRouter({
       markStepComplete(stepIndex, totalSteps);
     }
   }, [comp, stepIndex, totalSteps, markStepComplete]);
+
+  // Auto-complete mastery steps the student already satisfied in a prior session
+  // so they don't have to re-answer questions just to unlock the next step.
+  useEffect(() => {
+    if (completedOnceRef.current) return;
+    if (comp.type !== 'mastery') return;
+    const mp = studentData?.mode_progress?.[step.mode];
+    const masteredCount = mp?.mastered_items?.length || 0;
+    if (masteredCount >= (comp.target || 1)) {
+      maybeComplete({ mastered_items: mp?.mastered_items || [] });
+    }
+  }, [studentData, step.mode, comp.type, comp.target, maybeComplete]);
 
   // progress-aware wrapper (also persists via the parent's onUpdateProgress).
   // Suppressed once the step is complete so replays don't re-award points.

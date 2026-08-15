@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { Sparkles } from 'lucide-react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
@@ -35,6 +35,10 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
   const [celebrate, setCelebrate] = useState(null);
   const [page, setPage] = useState(0);
   const studentKey = studentData?.id || 'guest';
+  // Counts completed traces so the lesson stepper's "view" completion (needs N
+  // attempts) can fire — without this the step never reports progress and the
+  // student gets stuck.
+  const traceCountRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +95,10 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
   const handleComplete = (letter) => {
     setCompletedLetters(prev => new Set([...prev, letter]));
     setStreak(s => s + 1);
+    traceCountRef.current += 1;
+    if (onUpdateProgress) {
+      onUpdateProgress('letter_tracing', { total_attempts: traceCountRef.current });
+    }
     const acc = lastAccuracy;
     const cur = levelFor(letter);
     let next = cur;
