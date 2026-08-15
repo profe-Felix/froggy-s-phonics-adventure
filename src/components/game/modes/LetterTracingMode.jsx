@@ -39,6 +39,9 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
   // attempts) can fire — without this the step never reports progress and the
   // student gets stuck.
   const traceCountRef = useRef(0);
+  // Bumped on each completion to force the canvas to remount/reset for the
+  // next round — even when it's the same letter again.
+  const [traceKey, setTraceKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,8 +121,8 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
     // Auto-advance to the next letter on the page instead of bouncing back to
     // the grid each time — smoother practice flow.
     const idx = paged.indexOf(letter);
-    const nextLetter = idx >= 0 && idx < paged.length - 1 ? paged[idx + 1] : null;
-    setTimeout(() => { setCurrentLetter(nextLetter); setLastAccuracy(null); }, leveledUp ? 1600 : 900);
+    const nextLetter = idx >= 0 && idx < paged.length - 1 ? paged[idx + 1] : letter;
+    setTimeout(() => { setCurrentLetter(nextLetter); setLastAccuracy(null); setTraceKey(k => k + 1); }, leveledUp ? 1600 : 900);
   };
 
   if (!currentLetter) {
@@ -190,6 +193,7 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
       )}
 
       <LetterTracingCanvas
+        key={traceKey}
         letter={currentLetter}
         lang={lang}
         strokes={letterData.strokes}
