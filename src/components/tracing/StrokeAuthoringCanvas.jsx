@@ -65,6 +65,19 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   const [editMode, setEditMode] = useState(false);
   const dragRef = useRef(null); // { strokeIdx, pointIdx } while dragging
 
+  // When entering edit mode, upsample sparse strokes so handle dragging has
+  // enough intermediate dense points for smooth Catmull-Rom interpolation.
+  // Without this, short strokes (all points are handles) have no points
+  // between handles to curve.
+  useEffect(() => {
+    if (!editMode) return;
+    setRawStrokes(prev => prev.map(stroke => {
+      if (stroke.length >= 50) return stroke;
+      const up = catmullRom(stroke, 8);
+      return up.length > stroke.length ? up : stroke;
+    }));
+  }, [editMode]);
+
   // Writing guide lines — fixed at the confirmed positions (10/37/63/90).
   // Locked so they can't drift; align the trace image to them via Move/Scale.
   const lineTop = 0.10;
@@ -307,8 +320,24 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     }
     return best;
   };
+  // Catmull-Rom interpolation for a single segment from p1 to p2, given the
+  // neighbor handles p0 (before p1) and p3 (after p2). Returns n interior points
+  // (excluding p1 and p2 themselves) so the curve stays smooth when a handle
+  // moves — linear interpolation would flatten it into a straight line.
+  const catmullInterior = (p0, p1, p2, p3, n) => {
+    const out = [];
+    for (let j = 1; j <= n; j++) {
+      const t = j / (n + 1), t2 = t * t, t3 = t2 * t;
+      out.push({
+        x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      });
+    }
+    return out;
+  };
   // Move a handle and re-interpolate the dense points between it and its
-  // neighbor handles, so the curve follows the handle instead of making a kink.
+  // neighbor handles using Catmull-Rom, so the curve follows the handle
+  // smoothly instead of flattening into a straight line.
   const dragHandlePoint = (strokeIdx, pointIdx, newPos) => {
     setRawStrokes(prev => {
       const copy = prev.slice();
@@ -317,18 +346,27 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       const hk = handles.indexOf(pointIdx);
       stroke[pointIdx] = newPos;
       if (hk !== -1) {
+        const getH = (i) => {
+          if (i < 0) return stroke[handles[0]];
+          if (i >= handles.length) return stroke[handles[handles.length - 1]];
+          return stroke[handles[i]];
+        };
+        // Left segment: between handles[hk-1] and the dragged handle.
         if (hk > 0) {
-          const pi = handles[hk - 1], pp = stroke[pi];
-          for (let i = pi + 1; i < pointIdx; i++) {
-            const t = (i - pi) / (pointIdx - pi);
-            stroke[i] = { x: pp.x + t * (newPos.x - pp.x), y: pp.y + t * (newPos.y - pp.y) };
+          const pi = handles[hk - 1];
+          const n = pointIdx - pi - 1;
+          if (n > 0) {
+            const interp = catmullInterior(getH(hk - 2), stroke[pi], newPos, getH(hk + 1), n);
+            for (let i = 0; i < interp.length; i++) stroke[pi + 1 + i] = interp[i];
           }
         }
+        // Right segment: between the dragged handle and handles[hk+1].
         if (hk < handles.length - 1) {
-          const ni = handles[hk + 1], np = stroke[ni];
-          for (let i = pointIdx + 1; i < ni; i++) {
-            const t = (i - pointIdx) / (ni - pointIdx);
-            stroke[i] = { x: newPos.x + t * (np.x - newPos.x), y: newPos.y + t * (np.y - newPos.y) };
+          const ni = handles[hk + 1];
+          const n = ni - pointIdx - 1;
+          if (n > 0) {
+            const interp = catmullInterior(getH(hk - 1), newPos, stroke[ni], getH(hk + 2), n);
+            for (let i = 0; i < interp.length; i++) stroke[pointIdx + 1 + i] = interp[i];
           }
         }
       }
