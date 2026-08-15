@@ -41,6 +41,7 @@ export default function LessonModeRouter({
   stepperMode = false,
   onNext,
   isLast = false,
+  liveMode = false,
 }) {
   const { progress, markStepComplete } = useLessonProgress(
     selectedStudent?.number, selectedStudent?.class_name, lessonId
@@ -57,6 +58,9 @@ export default function LessonModeRouter({
 
   const maybeComplete = useCallback((progressData) => {
     if (completedOnceRef.current) return;
+    // In live mode the teacher controls advancement — don't auto-complete or
+    // trap the student behind the "Step Complete" overlay.
+    if (liveMode) return;
     let isDone = false;
     if (comp.type === 'mastery') {
       isDone = (progressData?.mastered_items?.length || 0) >= (comp.target || 1);
@@ -179,8 +183,8 @@ export default function LessonModeRouter({
     <div className={`relative flex flex-col ${stepperMode ? 'h-full' : 'h-screen'}`}>
       {renderMode()}
 
-      {/* Floating back-to-lesson button (hidden in stepper mode — the stepper has its own exit) */}
-      {!stepperMode && (
+      {/* Floating back-to-lesson button (hidden in stepper/live mode) */}
+      {!stepperMode && !liveMode && (
         <Button
           onClick={wrappedBack}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
@@ -197,8 +201,8 @@ export default function LessonModeRouter({
         {goalText}
       </div>
 
-      {/* Completion overlay */}
-      {done && (
+      {/* Completion overlay (hidden in live mode — teacher drives advancement) */}
+      {done && !liveMode && (
         <div className="absolute inset-0 z-[100] bg-black/40 flex items-center justify-center p-6">
           <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center gap-4">
             <span className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">

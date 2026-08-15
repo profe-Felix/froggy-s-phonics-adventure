@@ -23,6 +23,8 @@ import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
 import LessonMap from '../components/lesson/LessonMap';
 import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
+import LiveLessonStudent from '@/components/live/LiveLessonStudent';
+import { Radio } from 'lucide-react';
 import { useClassColors } from '@/hooks/useClassColors';
 
 export default function LetterGame() {
@@ -38,6 +40,7 @@ export default function LetterGame() {
   const urlClass = rawClass ? classMap[rawClass.toLowerCase()] || null : null;
   const urlNumber = parseInt(urlParams.get('number'));
   const urlYear = urlParams.get('year') || null;
+  const liveCode = urlParams.get('live');
   const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
 
   const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
@@ -47,6 +50,8 @@ export default function LetterGame() {
   const [activeLessonStep, setActiveLessonStep] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
+  const [liveSession, setLiveSession] = useState(null);
+  const [liveBanner, setLiveBanner] = useState(null);
   const queryClient = useQueryClient();
   const { languageFor, configs } = useClassColors();
 
@@ -59,6 +64,39 @@ export default function LetterGame() {
   const hasAssignedLesson = lessonsForClass.some(
     l => !l.class_name || l.class_name === selectedStudent?.class_name
   );
+
+  // Detect active live lesson sessions for this student's class. QR deep-links
+  // (via ?live=CODE) auto-join; otherwise a banner is shown on the class page
+  // for the student to tap. Polls every 5s so a newly started session appears.
+  const { data: activeLiveSessions = [] } = useQuery({
+    queryKey: ['live-sessions', selectedStudent?.class_name, liveCode],
+    queryFn: () => base44.entities.LiveLessonSession.filter({ active: true }),
+    enabled: !!studentData,
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    if (!activeLiveSessions.length) { setLiveBanner(null); return; }
+    // QR deep-link: auto-join the matching session immediately.
+    if (liveCode) {
+      const qrMatch = activeLiveSessions.find(s => s.code === liveCode);
+      if (qrMatch && !liveSession) {
+        setLiveSession(qrMatch);
+        setLiveBanner(null);
+        return;
+      }
+    }
+    // Class-page banner: find a session for this student's class where they're
+    // targeted (whole class = empty target_students, or explicitly listed).
+    const classMatch = activeLiveSessions.find(s => {
+      if (s.class_name !== selectedStudent?.class_name) return false;
+      if (!s.target_students || s.target_students.length === 0) return true;
+      return s.target_students.some(
+        t => t.class_name === selectedStudent?.class_name && t.student_number === selectedStudent?.number
+      );
+    });
+    setLiveBanner(classMatch || null);
+  }, [activeLiveSessions, liveCode, selectedStudent, liveSession]);
 
   // Direct load by student ID (from QR code)
   const { data: directStudent } = useQuery({
@@ -371,22 +409,53 @@ export default function LetterGame() {
     );
   }
 
-  if (!currentMode && !activeLessonStep) {
+  // Live guided lesson — teacher drives the pace; student is locked to the
+  // current step until released. Takes over the whole screen.
+  if (liveSession) {
     return (
-      <GameHome
+      <LiveLessonStudent
+        session={liveSession}
         studentData={studentData}
         selectedStudent={selectedStudent}
-        onStudentPatch={handlePersistPatch}
         onUpdateProgress={handleUpdateProgress}
-        onLessonComplete={handleLessonComplete}
-        onStartStep={(step, index, lesson) => {
-          setActiveLessonStep(step);
-          setActiveLesson(lesson);
-          setActiveStepIndex(index);
-        }}
-        onPlayMode={handleModeSelect}
-        onLogout={handleLogout}
+        onStudentPatch={handleStudentPatch}
+        onExit={() => setLiveSession(null)}
       />
+    );
+  }
+
+  if (!currentMode && !activeLessonStep) {
+    return (
+      <>
+        {liveBanner && (
+          <div className="fixed top-4 inset-x-0 z-[200] flex justify-center px-4 pointer-events-none">
+            <button
+              onClick={() => { setLiveSession(liveBanner); setLiveBanner(null); }}
+              className="pointer-events-auto bg-rose-500 text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-3 animate-bounce hover:bg-rose-600"
+            >
+              <Radio className="w-6 h-6" />
+              <div className="text-left">
+                <div className="font-black text-sm">Your teacher started a Live Lesson!</div>
+                <div className="text-xs text-white/80">{liveBanner.lesson_title || 'Tap to join'}</div>
+              </div>
+            </button>
+          </div>
+        )}
+        <GameHome
+          studentData={studentData}
+          selectedStudent={selectedStudent}
+          onStudentPatch={handlePersistPatch}
+          onUpdateProgress={handleUpdateProgress}
+          onLessonComplete={handleLessonComplete}
+          onStartStep={(step, index, lesson) => {
+            setActiveLessonStep(step);
+            setActiveLesson(lesson);
+            setActiveStepIndex(index);
+          }}
+          onPlayMode={handleModeSelect}
+          onLogout={handleLogout}
+        />
+      </>
     );
   }
 

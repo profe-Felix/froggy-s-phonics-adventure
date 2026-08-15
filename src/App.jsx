@@ -32,6 +32,7 @@ import LetterSort from './pages/workstations/LetterSort';
 import Activities from './pages/Activities';
 import ActivityPresets from './pages/ActivityPresets';
 import LetterRecognition from './pages/LetterRecognition';
+import LiveLesson from './pages/LiveLesson';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -112,6 +113,7 @@ const AuthenticatedApp = () => {
       <Route path="/Activities" element={<Activities />} />
       <Route path="/ActivityPresets" element={<ActivityPresets />} />
       <Route path="/LetterRecognition" element={<LetterRecognition />} />
+      <Route path="/LiveLesson" element={<LiveLesson />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

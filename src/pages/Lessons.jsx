@@ -23,6 +23,13 @@ const LESSON_TOOLS = [
     description: 'Teacher dashboard: see student work, replay attempts.',
     color: 'from-green-100 to-emerald-50 border-green-200 hover:border-green-400',
   },
+  {
+    path: '/LiveLesson',
+    emoji: '🔴',
+    title: 'Live Lesson',
+    description: 'Launch a guided live lesson — broadcast video to iPads, lock students to your step, release them to try (I do → we do → you do).',
+    color: 'from-rose-100 to-pink-50 border-rose-200 hover:border-rose-400',
+  },
 ];
 
 export default function Lessons() {

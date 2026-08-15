@@ -1,0 +1,136 @@
+{
+  "name": "LiveLessonSession",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Short join code students enter or scan via QR"
+    },
+    "lesson_id": {
+      "type": "string",
+      "description": "ID of the Lesson being run live"
+    },
+    "lesson_title": {
+      "type": "string",
+      "default": "",
+      "description": "Cached lesson title for display"
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this session is for. Drives auto-join banner for students in this class."
+    },
+    "school_year": {
+      "type": "string",
+      "description": "School year tag e.g. '26-27'.",
+      "default": ""
+    },
+    "target_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": [],
+      "description": "For small group: specific students targeted. Empty array = whole class auto-joins."
+    },
+    "current_step": {
+      "type": "integer",
+      "default": 0,
+      "description": "Index of the step the teacher is currently on. All joined students are locked here."
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "watch",
+        "try"
+      ],
+      "default": "watch",
+      "description": "watch = students locked, viewing broadcast/instruction (I do). try = released to interact with the activity (we do / you do)."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "False once the teacher ends the session. Students return to their normal home."
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the session started"
+    },
+    "joined_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          },
+          "joined_at": {
+            "type": "string"
+          }
+        }
+      },
+      "default": [],
+      "description": "Roster of students who have joined this live session, for the teacher's control panel."
+    }
+  },
+  "required": [
+    "code",
+    "lesson_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
