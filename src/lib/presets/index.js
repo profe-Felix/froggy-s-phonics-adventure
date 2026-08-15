@@ -5,6 +5,7 @@ import fluencyPresets from './fluencyPresets';
 import letterSortPresets from './letterSortPresets';
 import powerfulWordPresets from './powerfulWordPresetsLocal';
 import wordBuilderPresets from './wordBuilderPresets';
+import { PRESETS as ACTIVITY_PRESETS } from '@/lib/activities/presets';
 
 function list(obj, labelFn) {
   return Object.keys(obj).map((id) => ({ id, label: labelFn(obj[id], id) }));
@@ -15,6 +16,7 @@ export const PRESET_GROUPS = {
   letter_sort: list(letterSortPresets, (_p, id) => id),
   powerful_word: list(powerfulWordPresets, (_p, id) => id),
   fluency: list(fluencyPresets, (p, id) => p.title || id),
+  activities: list(ACTIVITY_PRESETS, (p, id) => p.label || id),
 };
 
 export function getPresetList(mode) {

@@ -163,7 +163,7 @@ export default function LessonModeRouter({
       case 'syllable_blender':
         return <SyllableBlenderStep onComplete={completeStep} />;
       case 'activities':
-        return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} />;
+        return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} presetId={step?.config?.preset} />;
       case 'word_builder':
         return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} presetId={step?.config?.preset} />;
       case 'fluency':

@@ -35,7 +35,7 @@ export const MODE_OPTIONS = [
   { value: 'powerful_word',         label: 'Powerful Word',      emoji: '🃏', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'syllable_train',        label: 'Syllable Train',     emoji: '🚂', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'syllable_blender',      label: 'Elkonin Boxes',      emoji: '🟦', defaultCompletion: 'view',    defaultTarget: 1 },
-  { value: 'activities',           label: 'Counting Activity',   emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'activities',           label: 'Contar / Actividades', emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'word_builder',          label: 'Word Builder',       emoji: '🧱', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'fluency',               label: 'Fluency Practice',   emoji: '⚡', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'video',                  label: 'Video',              emoji: '🎬', defaultCompletion: 'view',    defaultTarget: 1 },
