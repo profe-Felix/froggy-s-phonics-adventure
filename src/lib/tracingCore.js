@@ -82,12 +82,9 @@ export function coverageComplete(visited, denseLen) {
 }
 
 // Multisensory fonema audio — files live in the Supabase "audio" bucket under
-// {lang}/letters/fonemas/, named per case:
-// A_mayu_fonema.mp3 (uppercase) / a_minu_fonema.mp3 (lowercase).
+// {lang}/letters/fonemas/, named by the plain lowercase letter: m.mp3, e.mp3, etc.
 export function fonemaUrl(letter, lang = 'es') {
-  const isUpper = letter && letter.length === 1 && letter === letter.toUpperCase() && letter !== letter.toLowerCase();
-  const name = isUpper ? `${letter}_mayu_fonema` : `${letter.toLowerCase()}_minu_fonema`;
-  return `${AUDIO_BASE}/${lang}/letters/fonemas/${name}.mp3`;
+  return `${AUDIO_BASE}/${lang}/letters/fonemas/${letter.toLowerCase()}.mp3`;
 }
 
 // Compute the layout for a word: each letter's actual ink bounds (minX/maxX
