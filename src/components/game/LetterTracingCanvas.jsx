@@ -5,6 +5,7 @@ import {
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
 } from '@/lib/tracingCore';
+import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
@@ -35,7 +36,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const fonemaIntervalRef = useRef(null);
   // Replay the letter sound every 3s while the pen is down — often enough to
   // reinforce the phoneme, not so often it becomes annoying. Stops on lift.
-  const FONEMA_INTERVAL_MS = 3000;
+  const FONEMA_INTERVAL_MS = 2000;
 
   const stopFonema = useCallback(() => {
     if (fonemaIntervalRef.current) {
@@ -55,8 +56,11 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const playFonema = useCallback(() => {
     stopFonema();
     try {
+      const url = fonemaUrl(letter, lang);
       const playOnce = () => {
-        const a = new Audio(fonemaUrl(letter, lang));
+        const a = new Audio(url);
+        const trim = getSilenceStartSync(url);
+        if (trim > 0) a.addEventListener('loadedmetadata', () => { a.currentTime = trim; }, { once: true });
         a.play().catch(() => {});
         fonemaAudioRef.current = a;
       };
@@ -84,6 +88,11 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
     stopFonema();
   }, []);
+
+  // Preload fonema audio and detect silence start for instant playback.
+  useEffect(() => {
+    if (letter) preloadSilenceStart(fonemaUrl(letter, lang));
+  }, [letter, lang]);
 
   // Reset when letter changes
   useEffect(() => {
@@ -206,6 +215,17 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     // Once the end of the ideal path is reached, just track the finger until
     // lift — don't penalise the natural loop-back/overshoot at a stroke's end.
     if (pendingCompleteRef.current) {
+      // After reaching the end, the pen must stay near the path's end. Going
+      // significantly off (e.g., tracing back up to make a 'd' after completing
+      // 'e') is penalized — the student should lift, not keep drawing.
+      if (densePath.length) {
+        const endPt = densePath[densePath.length - 1];
+        if (dist(pos, endPt) > WOBBLE_RADIUS * 1.5) {
+          flashError();
+          restartStroke();
+          return;
+        }
+      }
       currentPathRef.current = [...currentPathRef.current, pos];
       setCurrentPath(currentPathRef.current);
       return;

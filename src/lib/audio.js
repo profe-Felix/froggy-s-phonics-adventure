@@ -44,3 +44,41 @@ export function playLetterSound(letter, lang = 'es') {
     a.play().catch(() => {});
   } catch {}
 }
+
+// Silence trimming: detect and cache the start of actual audio (skipping
+// leading silence) so phoneme playback is instant with no awkward gap. The
+// first call fetches + decodes via Web Audio API; subsequent calls return
+// the cached offset instantly.
+const silenceCache = {};
+
+export function getSilenceStartSync(url) {
+  return silenceCache[url] ?? 0;
+}
+
+export async function preloadSilenceStart(url) {
+  if (silenceCache[url] !== undefined) return;
+  silenceCache[url] = 0; // mark pending so concurrent calls don't re-fetch
+  try {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    const channelData = audioBuffer.getChannelData(0);
+    const threshold = 0.01;
+    const sampleRate = audioBuffer.sampleRate;
+    const chunkSize = Math.floor(sampleRate * 0.005); // 5ms chunks
+    let startSample = 0;
+    for (let i = 0; i < channelData.length; i += chunkSize) {
+      let maxAmp = 0;
+      for (let j = i; j < Math.min(i + chunkSize, channelData.length); j++) {
+        const amp = Math.abs(channelData[j]);
+        if (amp > maxAmp) maxAmp = amp;
+      }
+      if (maxAmp > threshold) { startSample = i; break; }
+    }
+    silenceCache[url] = startSample / sampleRate;
+    ctx.close();
+  } catch {
+    silenceCache[url] = 0;
+  }
+}

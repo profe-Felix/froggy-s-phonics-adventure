@@ -6,6 +6,7 @@ import {
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
 } from '@/lib/tracingCore';
+import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
@@ -13,7 +14,7 @@ const LETTER_GAP = 20;
 const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
 const REPETITIONS = 3; // trace the word 3 times with spaces between
 const WORD_GAP = 80; // px space between word repetitions (like a real word space)
-const FONEMA_INTERVAL_MS = 3000;
+const FONEMA_INTERVAL_MS = 2000;
 
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
@@ -83,8 +84,11 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     stopFonema();
     if (!currentLetter) return;
     try {
+      const url = fonemaUrl(currentLetter, lang);
       const playOnce = () => {
-        const a = new Audio(fonemaUrl(currentLetter, lang));
+        const a = new Audio(url);
+        const trim = getSilenceStartSync(url);
+        if (trim > 0) a.addEventListener('loadedmetadata', () => { a.currentTime = trim; }, { once: true });
         a.play().catch(() => {});
         fonemaAudioRef.current = a;
       };
@@ -117,6 +121,11 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   }, [letterIndex, wordLength, repetitions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { stopFonema(); }, [stopFonema]);
+
+  // Preload fonema audio and detect silence start for instant playback.
+  useEffect(() => {
+    if (currentLetter) preloadSilenceStart(fonemaUrl(currentLetter, lang));
+  }, [currentLetter, lang]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -214,6 +223,17 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
     if (pendingCompleteRef.current) {
+      // After reaching the end, the pen must stay near the path's end. Going
+      // significantly off (e.g., tracing back up after completing the letter)
+      // is penalized — the student should lift, not keep drawing.
+      if (densePath.length) {
+        const endPt = densePath[densePath.length - 1];
+        if (dist(pos, endPt) > WOBBLE_RADIUS * 1.5) {
+          flashError();
+          restartStroke();
+          return;
+        }
+      }
       currentPathRef.current = [...currentPathRef.current, pos];
       setCurrentPath(currentPathRef.current);
       return;
