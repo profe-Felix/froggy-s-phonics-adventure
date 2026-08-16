@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
-import { AUDIO_BASE } from '@/lib/audio';
+import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 
 export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -109,7 +109,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     };
 
     if (language === 'en') {
-      const url = `${AUDIO_BASE}/en/letters/${encodeURIComponent(letter)}.mp3`;
+      const url = `${AUDIO_BASE}/en/letters/${toAudioName(letter)}.mp3`;
       const audio = new Audio(url);
       audio.preload = 'auto';
       audio.onended = enable;
@@ -121,7 +121,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     }
 
     if (!preloadedAudio.current[letter]) {
-      preloadedAudio.current[letter] = new Audio(`${AUDIO_BASE}/${language}/letters/${encodeURIComponent(letter)}.mp3`);
+      preloadedAudio.current[letter] = new Audio(`${AUDIO_BASE}/${language}/letters/${toAudioName(letter)}.mp3`);
       preloadedAudio.current[letter].preload = 'auto';
     }
     audioRef.current = preloadedAudio.current[letter];
@@ -194,7 +194,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       const commonLetters = ['a', 'e', 'i', 'o', 'u', 'b', 'c', 'd', 'f', 'g'];
       commonLetters.forEach(letter => {
         if (!preloadedAudio.current[letter]) {
-          preloadedAudio.current[letter] = new Audio(`/letter-sounds/${letter}.mp3`);
+          preloadedAudio.current[letter] = new Audio(`${AUDIO_BASE}/${language}/letters/${toAudioName(letter)}.mp3`);
           preloadedAudio.current[letter].preload = 'auto';
         }
       });

@@ -40,7 +40,7 @@ export function playLetterSound(letter, lang = 'es') {
       window.speechSynthesis.speak(u);
       return;
     }
-    const a = new Audio(`${AUDIO_BASE}/${lang}/letters/${encodeURIComponent(letter)}.mp3`);
+    const a = new Audio(`${AUDIO_BASE}/${lang}/letters/${toAudioName(letter)}.mp3`);
     a.play().catch(() => {});
   } catch {}
 }
