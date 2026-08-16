@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Volume2, RotateCw } from 'lucide-react';
+import { RotateCw } from 'lucide-react';
+import GameCanvas from '@/components/game/GameCanvas';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
 import { playLetterSound } from '@/lib/audio';
 
 // Teacher's model panel for the Letter Sounds activity during the "I do" phase.
-// The teacher picks a target letter (or lets a round auto-generate), plays its
-// sound, and taps an option to demonstrate. Each state change broadcasts to the
-// student mirror so iPads show the same letter, options, and the teacher's pick.
+// Reuses the real frog-catches-flies GameCanvas so the teacher demonstrates on
+// the exact same scene the students play. Each state change broadcasts to the
+// student mirror so iPads show the same target, flies, and the teacher's catch.
 const CONFUSING = {
   en: { 'b': ['d'], 'd': ['b'], 'p': ['b', 'q'], 'q': ['p'], 'm': ['n'], 'n': ['m'], 'v': ['w'], 'w': ['v'], 'g': ['j'], 'j': ['g'], 'c': ['k'], 'k': ['c'], 's': ['c'], 'u': ['v'], 'i': ['l'] },
   es: { 'c': ['k', 'c-soft'], 'k': ['c'], 'c-soft': ['c'], 'll': ['y'], 'y': ['ll'], 'b': ['v'], 'v': ['b'], 'r': ['r-soft'], 'r-soft': ['r'], 'g': ['g-soft', 'j'], 'g-soft': ['g', 'j'], 'j': ['g', 'g-soft'] },
@@ -21,8 +22,9 @@ export default function LetterSoundsModelCanvas({ step, send }) {
   const [target, setTarget] = useState(null);
   const [options, setOptions] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [phase, setPhase] = useState('prompt'); // prompt | answered
+  const [canAnswer, setCanAnswer] = useState(true);
 
   const buildOptions = useCallback((t) => {
     const avoid = CONFUSING[lang]?.[t] || [];
@@ -39,8 +41,9 @@ export default function LetterSoundsModelCanvas({ step, send }) {
     setTarget(letter);
     setOptions(buildOptions(letter));
     setSelected(null);
+    setShowFeedback(false);
     setIsCorrect(false);
-    setPhase('prompt');
+    setCanAnswer(true);
     playLetterSound(letter, lang);
   }, [pool, buildOptions, lang]);
 
@@ -50,80 +53,75 @@ export default function LetterSoundsModelCanvas({ step, send }) {
   // Broadcast every state change so the student mirror stays in sync.
   useEffect(() => {
     if (!target) return;
-    send({ type: 'letter_sounds', lang, targetLetter: target, options, selectedLetter: selected, isCorrect, phase });
-  }, [target, options, selected, isCorrect, phase, lang, send]);
+    send({
+      type: 'letter_sounds', lang, targetLetter: target, options,
+      selectedLetter: selected, isCorrect, phase: showFeedback ? 'answered' : 'prompt',
+    });
+  }, [target, options, selected, showFeedback, isCorrect, lang, send]);
 
   const handleAnswer = (letter) => {
-    if (phase === 'answered') return;
+    if (showFeedback) return;
+    const correct = letter === target;
     setSelected(letter);
-    setIsCorrect(letter === target);
-    setPhase('answered');
+    setIsCorrect(correct);
+    setShowFeedback(true);
+    setCanAnswer(false);
   };
 
+  const handleRetry = () => {
+    setShowFeedback(false);
+    setIsCorrect(false);
+    setSelected(null);
+    setCanAnswer(true);
+    playLetterSound(target, lang);
+  };
+
+  // Auto-advance after a correct demonstration
+  useEffect(() => {
+    if (showFeedback && isCorrect) {
+      const t = setTimeout(() => newRound(), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [showFeedback, isCorrect, newRound]);
+
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-5 p-6 bg-gradient-to-b from-sky-50 to-indigo-50 overflow-auto">
-      <div className="text-center">
-        <div className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Letter Sounds · Modeling</div>
-        <div className="text-6xl font-black text-slate-800 mt-1">{(target || '?').toUpperCase()}</div>
+    <div className="h-full flex flex-col items-center gap-3 p-4 overflow-auto">
+      <div className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Letter Sounds · Modeling — students see your frog</div>
+
+      <div className="relative w-full max-w-3xl h-[58vh] rounded-2xl overflow-hidden shadow-lg">
+        <GameCanvas
+          currentLetter={target}
+          options={options}
+          onAnswer={handleAnswer}
+          score={0}
+          streak={0}
+          onPlaySound={() => target && playLetterSound(target, lang)}
+          showFeedback={showFeedback}
+          isCorrect={isCorrect}
+          canAnswer={canAnswer}
+          onRetry={handleRetry}
+        />
       </div>
 
-      <button
-        onClick={() => target && playLetterSound(target, lang)}
-        className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-bold px-5 py-2.5 rounded-full shadow"
-      >
-        <Volume2 className="w-5 h-5" /> Play sound
-      </button>
-
-      {targets.length > 1 && (
-        <div className="flex flex-wrap gap-1.5 justify-center max-w-md">
-          {targets.map((l) => (
-            <button
-              key={l}
-              onClick={() => newRound(l)}
-              className={`w-9 h-9 rounded-lg text-sm font-bold transition ${
-                target === l ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {l.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 max-w-md w-full">
-        {options.map((opt, i) => {
-          const isSelected = selected === opt.letter;
-          const showCorrect = phase === 'answered' && opt.letter === target;
-          const showWrong = phase === 'answered' && isSelected && !isCorrect;
-          return (
-            <button
-              key={i}
-              onClick={() => handleAnswer(opt.letter)}
-              disabled={phase === 'answered'}
-              className={`h-28 rounded-2xl border-2 flex items-center justify-center transition active:scale-95 ${
-                showCorrect ? 'border-green-500 bg-green-100' :
-                showWrong ? 'border-red-500 bg-red-100' :
-                'border-slate-200 bg-white hover:border-indigo-300'
-              }`}
-            >
-              <span className="text-5xl font-black text-slate-800">{opt.display}</span>
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap gap-2 justify-center items-center">
+        {targets.length > 1 && targets.map((l) => (
+          <button
+            key={l}
+            onClick={() => newRound(l)}
+            className={`px-3 h-9 rounded-lg text-sm font-bold transition ${
+              target === l ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {l.toUpperCase()}
+          </button>
+        ))}
+        <button
+          onClick={() => newRound()}
+          className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-800 text-white px-4 h-9 rounded-lg text-sm font-bold shadow"
+        >
+          <RotateCw className="w-4 h-4" /> New round
+        </button>
       </div>
-
-      {phase === 'answered' && (
-        <div className={`text-2xl font-black ${isCorrect ? 'text-green-600' : 'text-red-500'}`}>
-          {isCorrect ? '🎉 Correct!' : `❌ It's "${(target || '').toUpperCase()}"`}
-        </div>
-      )}
-
-      <button
-        onClick={() => newRound()}
-        className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-full shadow"
-      >
-        <RotateCw className="w-5 h-5" /> New round
-      </button>
     </div>
   );
 }

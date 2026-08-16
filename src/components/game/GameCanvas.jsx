@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Volume2, Trophy } from 'lucide-react';
 
-export default function GameCanvas({ 
+const GameCanvas = React.forwardRef(function GameCanvas({ 
   currentLetter, 
   options, 
   onAnswer, 
@@ -17,7 +17,7 @@ export default function GameCanvas({
   usedIndices = [],
   canAnswer = true,
   onRetry
-}) {
+}, ref) {
   const [milestoneStreak, setMilestoneStreak] = useState(null);
   const prevStreak = useRef(0);
   const [tongueActive, setTongueActive] = useState(false);
@@ -27,6 +27,30 @@ export default function GameCanvas({
   const [animationPhase, setAnimationPhase] = useState('idle'); // idle, extend, retract, swallow, spit
   const frogRef = useRef(null);
   const dingSound = useRef(null);
+  const containerRef = useRef(null);
+
+  // Programmatic catch: lets the live-lesson mirror replay the teacher's
+  // frog-catches-fly animation without a real pointer click.
+  const catchFly = useCallback((letter) => {
+    const idx = options.findIndex((o) => (typeof o === 'string' ? o : o.letter) === letter);
+    if (idx < 0) return;
+    const el = containerRef.current?.querySelector(`[data-fly-index="${idx}"]`);
+    const frogEl = frogRef.current;
+    if (!el || !frogEl) return;
+    const rect = el.getBoundingClientRect();
+    const frogRect = frogEl.getBoundingClientRect();
+    setFlyPosition({
+      x: rect.left + rect.width / 2 - (frogRect.left + frogRect.width / 2),
+      y: rect.top + rect.height / 2 - (frogRect.top + frogRect.height / 2),
+    });
+    setTargetFly(idx);
+    setCapturedLetter(letter);
+    setAnimationPhase('extend');
+    setTimeout(() => setAnimationPhase('retract'), 300);
+    setTimeout(() => setAnimationPhase('process'), 900);
+  }, [options]);
+
+  React.useImperativeHandle(ref, () => ({ catchFly }), [catchFly]);
 
   useEffect(() => {
     if (streak > prevStreak.current && [3, 5, 10, 15, 20].includes(streak)) {
@@ -97,7 +121,7 @@ export default function GameCanvas({
   }, [showFeedback, isCorrect, animationPhase]);
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-sky-400 via-sky-300 to-green-300 overflow-hidden">
+    <div ref={containerRef} className="absolute inset-0 w-full h-full bg-gradient-to-b from-sky-400 via-sky-300 to-green-300 overflow-hidden">
       {/* Clouds */}
       <div className="absolute top-10 left-10 text-6xl opacity-70 animate-pulse">☁️</div>
       <div className="absolute top-20 right-20 text-8xl opacity-60 animate-pulse">☁️</div>
@@ -189,6 +213,7 @@ export default function GameCanvas({
                 opacity: { duration: 0.2 },
               }}
               onClick={(e) => handleFlyClick(item, index, e)}
+              data-fly-index={index}
               className="absolute z-20"
               style={{ top: pos.top, left: pos.left }}
             >
@@ -353,4 +378,6 @@ export default function GameCanvas({
       </AnimatePresence>
     </div>
   );
-}
+});
+
+export default GameCanvas;

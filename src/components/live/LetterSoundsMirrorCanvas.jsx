@@ -1,12 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Lock } from 'lucide-react';
+import GameCanvas from '@/components/game/GameCanvas';
 import { playLetterSound } from '@/lib/audio';
 
 // Student's read-only mirror of the teacher's Letter Sounds model. Renders the
-// same target letter + four option cards and highlights the teacher's pick
-// (green = the teacher found the right one, red = a wrong demonstration). Plays
-// the letter sound on the iPad too so students with headphones hear it. No
-// interaction — students try themselves once the teacher releases the "try" phase.
+// real frog-catches-flies scene (sky, clouds, lily pad, frog, letter flies) so
+// students watch the same game their teacher is playing. When the teacher taps a
+// fly, the mirror replays the frog's tongue-catch animation and shows the same
+// correct/wrong feedback. No answering — students try themselves in the "try" phase.
 export default function LetterSoundsMirrorCanvas({ broadcast }) {
   const has = broadcast?.type === 'letter_sounds';
   const lang = has ? (broadcast.lang || 'es') : 'es';
@@ -16,51 +17,46 @@ export default function LetterSoundsMirrorCanvas({ broadcast }) {
   const isCorrect = has ? broadcast.isCorrect : false;
   const phase = has ? broadcast.phase : 'prompt';
 
-  // Replay the sound whenever the teacher moves to a new target letter.
+  const gameRef = useRef(null);
   const lastTargetRef = useRef(null);
+  const caughtRef = useRef(false);
+
+  // Replay the letter sound whenever the teacher moves to a new target.
   useEffect(() => {
     if (target && target !== lastTargetRef.current) {
       lastTargetRef.current = target;
+      caughtRef.current = false;
       playLetterSound(target, lang);
     }
   }, [target, lang]);
 
+  // Replay the frog's catch animation when the teacher answers.
+  useEffect(() => {
+    if (phase === 'answered' && selected && !caughtRef.current) {
+      caughtRef.current = true;
+      gameRef.current?.catchFly(selected);
+    }
+  }, [phase, selected]);
+
+  if (!has || !target) return null;
+
   return (
-    <div className="flex flex-col gap-4 p-6 max-w-md mx-auto w-full">
-      <div className="rounded-2xl bg-white border-2 border-slate-200 p-4 text-center shadow-sm">
-        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Sound</div>
-        <div className="text-5xl font-black text-slate-800">{(target || '?').toUpperCase()}</div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 w-full">
-        {options.map((opt, i) => {
-          const isSelected = selected === opt.letter;
-          const showCorrect = phase === 'answered' && opt.letter === target;
-          const showWrong = phase === 'answered' && isSelected && !isCorrect;
-          return (
-            <div
-              key={i}
-              className={`h-28 rounded-2xl border-2 flex items-center justify-center ${
-                showCorrect ? 'border-green-500 bg-green-100' :
-                showWrong ? 'border-red-500 bg-red-100' :
-                isSelected ? 'border-indigo-400 bg-indigo-50' :
-                'border-slate-200 bg-white'
-              }`}
-            >
-              <span className="text-5xl font-black text-slate-800">{opt.display}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      {phase === 'answered' && (
-        <div className={`text-center text-2xl font-black ${isCorrect ? 'text-green-600' : 'text-red-500'}`}>
-          {isCorrect ? '🎉 Correct!' : `❌ It's "${(target || '').toUpperCase()}"`}
+    <div className="flex flex-col items-center gap-2 w-full">
+      <div className="relative w-full max-w-2xl h-[58vh] rounded-2xl overflow-hidden shadow-lg">
+        <GameCanvas
+          ref={gameRef}
+          currentLetter={target}
+          options={options}
+          score={0}
+          streak={0}
+          onPlaySound={() => target && playLetterSound(target, lang)}
+          showFeedback={phase === 'answered'}
+          isCorrect={isCorrect}
+          canAnswer={false}
+        />
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-white/95 bg-black/45 px-3 py-1.5 rounded-full flex items-center gap-1.5 pointer-events-none">
+          <Lock className="w-3.5 h-3.5" /> Watch your teacher — try it when they say go
         </div>
-      )}
-
-      <div className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
-        <Lock className="w-3.5 h-3.5" /> Watch your teacher — try it yourself when they say go
       </div>
     </div>
   );
