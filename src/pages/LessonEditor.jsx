@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { getPresetList } from '@/lib/presets';
 import StudentPicker from '@/components/lesson/StudentPicker';
 import VideoPicker from '@/components/lesson/VideoPicker';
+import ImagePicker from '@/components/lesson/ImagePicker';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
@@ -121,9 +122,93 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
         </label>
       )}
 
+      <label className="text-xs text-gray-600 font-bold">Availability
+        <select value={step.live_scope || 'both'} onChange={e => update({ live_scope: e.target.value })}
+          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+          <option value="both">Both (independent + live lesson)</option>
+          <option value="live_only">Live lesson only</option>
+        </select>
+      </label>
+
       {step.mode === 'video' && (
         <label className="text-xs text-gray-600 font-bold">Video
           <VideoPicker value={step.config?.videoUrl || ''} onChange={(url) => update({ config: { ...step.config, videoUrl: url } })} />
+        </label>
+      )}
+
+      {step.mode === 'soundwall' && (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-600">Sound wall cards</span>
+            <button
+              onClick={() => update({ config: { ...step.config, cards: [...(step.config?.cards || []), { label: '', imageUrl: '', sound: '' }] } })}
+              className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"
+            >
+              <Plus className="w-3 h-3" /> Add card
+            </button>
+          </div>
+          {(step.config?.cards || []).map((c, i) => (
+            <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-gray-200 p-2 bg-white/70">
+              <div className="flex items-center gap-2">
+                <input
+                  value={c.label}
+                  onChange={(e) => {
+                    const cards = [...(step.config.cards)];
+                    cards[i] = { ...c, label: e.target.value };
+                    update({ config: { ...step.config, cards } });
+                  }}
+                  placeholder="Label e.g. /m/"
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1"
+                />
+                <input
+                  value={c.sound}
+                  onChange={(e) => {
+                    const cards = [...(step.config.cards)];
+                    cards[i] = { ...c, sound: e.target.value };
+                    update({ config: { ...step.config, cards } });
+                  }}
+                  placeholder="Letter (m)"
+                  className="w-20 text-sm border border-gray-200 rounded-lg px-2 py-1"
+                />
+                <button
+                  onClick={() => update({ config: { ...step.config, cards: step.config.cards.filter((_, j) => j !== i) } })}
+                  className="text-red-400 hover:text-red-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <ImagePicker
+                value={c.imageUrl}
+                onChange={(url) => {
+                  const cards = [...(step.config.cards)];
+                  cards[i] = { ...c, imageUrl: url };
+                  update({ config: { ...step.config, cards } });
+                }}
+              />
+            </div>
+          ))}
+          {(!step.config?.cards || step.config.cards.length === 0) && (
+            <p className="text-xs text-gray-400">No cards yet. Add one above.</p>
+          )}
+        </div>
+      )}
+
+      {step.mode === 'google_slides' && (
+        <label className="text-xs text-gray-600 font-bold">Google Slides embed URL
+          <input
+            value={step.config?.slidesUrl || ''}
+            onChange={(e) => update({ config: { ...step.config, slidesUrl: e.target.value } })}
+            placeholder="https://docs.google.com/presentation/d/.../embed"
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+          />
+          <a
+            href="https://docs.google.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] text-indigo-500 hover:underline"
+          >
+            In Google Slides: File → Share → Publish to web → Embed, then copy the embed link.
+          </a>
         </label>
       )}
 

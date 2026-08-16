@@ -4,6 +4,8 @@ import ManipulationMirrorCanvas from './ManipulationMirrorCanvas';
 import HuntMirrorPanel from './HuntMirrorPanel';
 import TracingMirrorCanvas from './TracingMirrorCanvas';
 import LetterSoundsMirrorCanvas from './LetterSoundsMirrorCanvas';
+import SoundWallMirrorCanvas from './SoundWallMirrorCanvas';
+import GoogleSlidesMirrorPanel from './GoogleSlidesMirrorPanel';
 import { Eye, Lock } from 'lucide-react';
 
 // Student's side: renders a read-only mirror of the teacher's screen during the
@@ -31,6 +33,14 @@ export default function StudentMirrorPanel({ step, broadcast }) {
 
   if (bType === 'letter_sounds') {
     return <LetterSoundsMirrorCanvas broadcast={broadcast} />;
+  }
+
+  if (bType === 'soundwall') {
+    return <SoundWallMirrorCanvas broadcast={broadcast} />;
+  }
+
+  if (bType === 'google_slides' || step?.mode === 'google_slides') {
+    return <GoogleSlidesMirrorPanel broadcast={bType === 'google_slides' ? broadcast : null} step={step} />;
   }
 
   // Fallback: teacher is modeling an activity whose mirror isn't built yet.

@@ -13,15 +13,20 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
 
+  // Filter out live_only steps — they only appear during teacher-led live lessons.
+  const visibleSteps = steps
+    .map((s, originalIndex) => ({ step: s, originalIndex }))
+    .filter(({ step }) => step.live_scope !== 'live_only');
+
   // Land on the first not-yet-completed step once progress loads.
   useEffect(() => {
-    if (!progress || !steps.length) return;
-    const firstIncomplete = steps.findIndex((_, i) => !completedSteps.includes(i));
-    const target = firstIncomplete === -1 ? steps.length - 1 : firstIncomplete;
+    if (!progress || !visibleSteps.length) return;
+    const firstIncomplete = visibleSteps.findIndex(({ originalIndex }) => !completedSteps.includes(originalIndex));
+    const target = firstIncomplete === -1 ? visibleSteps.length - 1 : firstIncomplete;
     setStepIdx(prev => prev !== target ? target : prev);
-  }, [progress]);
+  }, [progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const allDone = steps.length > 0 && completedSteps.length >= steps.length;
+  const allDone = visibleSteps.length > 0 && visibleSteps.every(({ originalIndex }) => completedSteps.includes(originalIndex));
   const awardedRef = useRef(false);
   useEffect(() => {
     if (allDone && !awardedRef.current && onLessonComplete) {
@@ -38,8 +43,10 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     );
   }
 
-  const curDone = completedSteps.includes(stepIdx);
-  const isLast = stepIdx >= steps.length - 1;
+  const cur = visibleSteps[stepIdx];
+  const curOriginalIndex = cur?.originalIndex ?? 0;
+  const curDone = completedSteps.includes(curOriginalIndex);
+  const isLast = stepIdx >= visibleSteps.length - 1;
   const canNext = curDone && !isLast;
   const canPrev = stepIdx > 0;
 
@@ -49,7 +56,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     setStepIdx(i => i + 1);
   };
   const goPrev = () => canPrev && setStepIdx(i => i - 1);
-  const step = steps[stepIdx];
+  const step = cur?.step;
 
   return (
     <div className="relative h-screen flex flex-col bg-[#dae2f3]">
@@ -68,8 +75,8 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
       <div className="flex-1 relative flex min-h-0">
         {/* Left dots — one per step */}
         <div className="flex flex-col items-center justify-center gap-3 px-2 sm:px-3">
-          {steps.map((s, i) => {
-            const done = completedSteps.includes(i);
+          {visibleSteps.map(({ step: s, originalIndex }, i) => {
+            const done = completedSteps.includes(originalIndex);
             const current = i === stepIdx;
             const clickable = done || current;
             return (
@@ -93,7 +100,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
           <LessonModeRouter
             key={stepIdx}
             step={step}
-            stepIndex={stepIdx}
+            stepIndex={curOriginalIndex}
             lessonId={lessonId}
             totalSteps={steps.length}
             studentData={studentData}

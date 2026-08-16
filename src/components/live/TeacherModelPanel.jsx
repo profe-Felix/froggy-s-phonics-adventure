@@ -8,6 +8,8 @@ import ManipulationModelCanvas from './ManipulationModelCanvas';
 import HuntModelPanel from './HuntModelPanel';
 import TracingModelCanvas from './TracingModelCanvas';
 import LetterSoundsModelCanvas from './LetterSoundsModelCanvas';
+import SoundWallModelCanvas from './SoundWallModelCanvas';
+import GoogleSlidesModelPanel from './GoogleSlidesModelPanel';
 import { Eye } from 'lucide-react';
 
 // Teacher's side: renders the model panel for the current step so the teacher
@@ -55,6 +57,14 @@ export default function TeacherModelPanel({ step, send }) {
 
   if (step?.mode === 'letter_sounds') {
     return <LetterSoundsModelCanvas step={step} send={send} />;
+  }
+
+  if (step?.mode === 'soundwall') {
+    return <SoundWallModelCanvas step={step} send={send} />;
+  }
+
+  if (step?.mode === 'google_slides') {
+    return <GoogleSlidesModelPanel step={step} send={send} />;
   }
 
   if (step?.mode === 'activities') {

@@ -79,7 +79,9 @@
               "activities",
               "word_builder",
               "fluency",
-              "video"
+              "video",
+              "soundwall",
+              "google_slides"
             ],
             "description": "Which existing activity this step launches"
           },
@@ -108,6 +110,15 @@
             ],
             "default": "sky"
           },
+          "live_scope": {
+            "type": "string",
+            "enum": [
+              "both",
+              "live_only"
+            ],
+            "default": "both",
+            "description": "both = step appears in independent student lessons AND live lessons. live_only = step only appears during teacher-led live lessons (skipped in independent flow)."
+          },
           "completion": {
             "type": "object",
             "properties": {
@@ -129,7 +140,7 @@
           },
           "config": {
             "type": "object",
-            "description": "Mode-specific settings (e.g. target letters, preset id, videoUrl) for per-step overrides.",
+            "description": "Mode-specific settings (e.g. target letters, preset id, videoUrl, cardUrl, slidesUrl) for per-step overrides.",
             "default": {}
           }
         },
