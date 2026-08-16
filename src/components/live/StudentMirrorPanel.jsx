@@ -3,6 +3,7 @@ import CountingMirrorCanvas from './CountingMirrorCanvas';
 import ManipulationMirrorCanvas from './ManipulationMirrorCanvas';
 import HuntMirrorPanel from './HuntMirrorPanel';
 import TracingMirrorCanvas from './TracingMirrorCanvas';
+import LetterSoundsMirrorCanvas from './LetterSoundsMirrorCanvas';
 import { Eye, Lock } from 'lucide-react';
 
 // Student's side: renders a read-only mirror of the teacher's screen during the
@@ -26,6 +27,10 @@ export default function StudentMirrorPanel({ step, broadcast }) {
   }
   if (step?.mode === 'letter_tracing' || bType === 'tracing') {
     return <TracingMirrorCanvas broadcast={bType === 'tracing' ? broadcast : null} />;
+  }
+
+  if (bType === 'letter_sounds') {
+    return <LetterSoundsMirrorCanvas broadcast={broadcast} />;
   }
 
   // Fallback: teacher is modeling an activity whose mirror isn't built yet.

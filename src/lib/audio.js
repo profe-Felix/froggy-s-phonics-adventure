@@ -26,3 +26,21 @@ export function toAudioName(word) {
     .replace(/ü/g, 'u,,').replace(/Ü/g, 'U,,')
     .replace(/ñ/g, 'n..').replace(/Ñ/g, 'N..');
 }
+
+// Play a letter sound for the given language. Spanish uses recorded mp3s in
+// the audio bucket; English falls back to the browser's speech synthesizer
+// (no recorded files yet). Used by the Letter Sounds live model + mirror.
+export function playLetterSound(letter, lang = 'es') {
+  try {
+    if (lang === 'en') {
+      window.speechSynthesis?.cancel();
+      const u = new SpeechSynthesisUtterance(letter);
+      u.lang = 'en-US';
+      u.rate = 0.75;
+      window.speechSynthesis.speak(u);
+      return;
+    }
+    const a = new Audio(`${AUDIO_BASE}/${lang}/letters/${encodeURIComponent(letter)}.mp3`);
+    a.play().catch(() => {});
+  } catch {}
+}

@@ -7,6 +7,7 @@ import CountingModelCanvas from './CountingModelCanvas';
 import ManipulationModelCanvas from './ManipulationModelCanvas';
 import HuntModelPanel from './HuntModelPanel';
 import TracingModelCanvas from './TracingModelCanvas';
+import LetterSoundsModelCanvas from './LetterSoundsModelCanvas';
 import { Eye } from 'lucide-react';
 
 // Teacher's side: renders the model panel for the current step so the teacher
@@ -50,6 +51,10 @@ export default function TeacherModelPanel({ step, send }) {
 
   if (step?.mode === 'letter_tracing') {
     return <TracingModelCanvas step={step} send={send} />;
+  }
+
+  if (step?.mode === 'letter_sounds') {
+    return <LetterSoundsModelCanvas step={step} send={send} />;
   }
 
   if (step?.mode === 'activities') {
