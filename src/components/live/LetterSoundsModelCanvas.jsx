@@ -66,9 +66,6 @@ export default function LetterSoundsModelCanvas({ step, send }) {
     setIsCorrect(correct);
     setShowFeedback(true);
     setCanAnswer(false);
-    // Play the target sound on the teacher's tap so the class hears the letter
-    // being modeled — this also unlocks audio on the user gesture.
-    if (target) playLetterSound(target, lang);
   };
 
   const handleRetry = () => {
