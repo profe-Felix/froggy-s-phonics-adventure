@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Eye, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
@@ -24,6 +24,7 @@ export default function LiveLesson() {
   const [targetMode, setTargetMode] = useState('class');
   const [pickedStudents, setPickedStudents] = useState([]);
   const [starting, setStarting] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons-all-live'],
@@ -110,6 +111,7 @@ export default function LiveLesson() {
     setClassName('');
     setPickedStudents([]);
     setTargetMode('class');
+    setShowQR(false);
   };
 
   const toggleStudent = (s) => {
@@ -229,48 +231,98 @@ export default function LiveLesson() {
   const currentStep = steps[session.current_step || 0];
   const phase = session.phase || 'watch';
   const joinUrl = `${window.location.origin}/?live=${session.code}&class=${encodeURIComponent(session.class_name)}`;
+  const isLocked = phase === 'watch';
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-2 text-rose-400 font-black text-xl">
-              <span className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
-              LIVE
-            </span>
-            <h1 className="text-xl font-bold">{session.lesson_title || 'Live Lesson'}</h1>
-          </div>
-          <Button onClick={endSession} className="bg-red-500 hover:bg-red-600 text-white font-bold">
-            <X className="w-4 h-4 mr-1" /> End Session
-          </Button>
+    <div className="h-screen flex flex-col bg-slate-900 text-white overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-950/70 border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="flex items-center gap-2 text-rose-400 font-black shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />LIVE
+          </span>
+          <h1 className="text-base font-bold truncate">{session.lesson_title || 'Live Lesson'}</h1>
+          <span className="text-xs text-slate-500 hidden sm:inline">· {session.class_name}</span>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowQR(v => !v)}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700"
+          >
+            <Users className="w-4 h-4" /> Join
+          </button>
+          <button
+            onClick={() => setPhase(isLocked ? 'try' : 'watch')}
+            className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border transition ${
+              isLocked ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                       : 'bg-green-500/20 text-green-300 border-green-500/40 hover:bg-green-500/30'
+            }`}
+            title={isLocked ? 'Students locked — tap to release' : 'Students released — tap to lock'}
+          >
+            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            {isLocked ? 'Locked' : 'Released'}
+          </button>
+          <button
+            onClick={endSession}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-red-500/90 hover:bg-red-500 text-white"
+          >
+            <X className="w-4 h-4" /> End
+          </button>
+        </div>
+      </div>
 
-        {phase === 'watch' && (
-          <div className="bg-slate-800 rounded-2xl p-4 mb-5">
-            <div className="text-xs text-gray-400 font-bold mb-2 flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5" /> MODELING — student iPads mirror this screen
-            </div>
-            <div className="h-[55vh] min-h-[360px] overflow-auto">
-              <TeacherModelPanel step={currentStep} send={send} />
-            </div>
-          </div>
+      {/* Main modeling area — fills the screen */}
+      <div className="flex-1 min-h-0 overflow-auto bg-slate-900">
+        {phase === 'watch' ? (
+          <TeacherModelPanel step={currentStep} send={send} />
+        ) : (
+          <TryDashboard session={session} />
         )}
+      </div>
 
-        {phase === 'try' && (
-          <div className="bg-slate-800 rounded-2xl p-4 mb-5">
-            <div className="h-[55vh] min-h-[360px] overflow-auto">
-              <TryDashboard session={session} />
-            </div>
-          </div>
-        )}
+      {/* Bottom step toolbar */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-slate-950/70 border-t border-slate-800 shrink-0">
+        <button
+          onClick={() => advance(-1)}
+          disabled={(session.current_step || 0) === 0}
+          className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800 hover:bg-slate-700 disabled:opacity-40 shrink-0"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div className="flex-1 flex items-center gap-1.5 overflow-x-auto justify-center">
+          {steps.map((s, i) => {
+            const active = i === (session.current_step || 0);
+            return (
+              <button
+                key={i}
+                onClick={() => goToStep(i)}
+                className={`h-9 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold whitespace-nowrap transition ${
+                  active ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+                title={s.title}
+              >
+                <span className="text-base leading-none">{s.emoji || '▶'}</span>
+                <span>{i + 1}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          onClick={() => advance(1)}
+          disabled={(session.current_step || 0) >= steps.length - 1}
+          className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-800 hover:bg-slate-700 disabled:opacity-40 shrink-0"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* QR + join code */}
-          <div className="bg-white rounded-2xl p-5 flex flex-col items-center gap-3">
-            <div className="text-gray-800 font-bold text-sm flex items-center gap-1"><Users className="w-4 h-4" /> Students join</div>
-            <div className="bg-white p-3 rounded-xl">
-              <QRCodeSVG value={joinUrl} size={160} />
+      {/* QR + join code popover — shown on demand */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowQR(false)}>
+          <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            <div className="text-gray-800 font-bold text-sm flex items-center gap-1.5"><Users className="w-4 h-4" /> Students join</div>
+            <div className="bg-white p-1 rounded-xl">
+              <QRCodeSVG value={joinUrl} size={180} />
             </div>
             <div className="text-center">
               <div className="text-xs text-gray-400 font-bold">OR enter code</div>
@@ -281,104 +333,10 @@ export default function LiveLesson() {
                 ? `Small group: ${session.target_students?.length || 0} students`
                 : `Whole class: ${session.class_name}`}
             </div>
-          </div>
-
-          {/* Current step + controls */}
-          <div className="md:col-span-2 bg-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-            <div>
-              <div className="text-xs text-gray-400 font-bold mb-1">
-                Step {(session.current_step || 0) + 1} of {steps.length}
-              </div>
-              {currentStep ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{currentStep.emoji || '▶'}</span>
-                  <div>
-                    <div className="font-black text-lg">{currentStep.title}</div>
-                    <div className="text-xs text-gray-400">{currentStep.mode}</div>
-                  </div>
-                </div>
-              ) : <div className="text-gray-400">No step</div>}
-            </div>
-
-            {/* Phase toggle */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPhase('watch')}
-                className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border-2 transition ${
-                  phase === 'watch' ? 'bg-amber-500 text-white border-amber-500' : 'bg-slate-700 text-gray-300 border-slate-600'
-                }`}
-              >
-                <Lock className="w-4 h-4" /> Watch (locked)
-              </button>
-              <button
-                onClick={() => setPhase('try')}
-                className={`flex-1 px-4 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border-2 transition ${
-                  phase === 'try' ? 'bg-green-500 text-white border-green-500' : 'bg-slate-700 text-gray-300 border-slate-600'
-                }`}
-              >
-                <Unlock className="w-4 h-4" /> Try (released)
-              </button>
-            </div>
-
-            {/* Step navigation */}
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => advance(-1)}
-                disabled={(session.current_step || 0) === 0}
-                className="bg-slate-700 hover:bg-slate-600 text-white"
-              >
-                <ChevronLeft className="w-5 h-5" /> Prev
-              </Button>
-              <div className="flex-1 flex flex-wrap gap-1 justify-center">
-                {steps.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => goToStep(i)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
-                      i === (session.current_step || 0) ? 'bg-rose-500 text-white' : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <Button
-                onClick={() => advance(1)}
-                disabled={(session.current_step || 0) >= steps.length - 1}
-                className="bg-slate-700 hover:bg-slate-600 text-white"
-              >
-                Next <ChevronRight className="w-5 h-5" />
-              </Button>
-            </div>
-
-            {/* Phase hint */}
-            <div className={`rounded-xl p-3 text-sm font-bold flex items-center gap-2 ${
-              phase === 'watch' ? 'bg-amber-900/40 text-amber-200' : 'bg-green-900/40 text-green-200'
-            }`}>
-              {phase === 'watch'
-                ? <><Eye className="w-4 h-4" /> Students are watching — their screens are locked.</>
-                : <><Unlock className="w-4 h-4" /> Students can try the activity on their iPads now.</>}
-            </div>
+            <button onClick={() => setShowQR(false)} className="mt-1 px-4 h-9 rounded-lg bg-slate-800 text-white text-xs font-bold">Close</button>
           </div>
         </div>
-
-        {/* Step list preview */}
-        <div className="mt-5 bg-slate-800 rounded-2xl p-4">
-          <div className="text-xs text-gray-400 font-bold mb-2">LESSON STEPS</div>
-          <div className="flex flex-col gap-1.5">
-            {steps.map((s, i) => (
-              <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                i === (session.current_step || 0) ? 'bg-rose-500/20 text-white' : 'text-gray-400'
-              }`}>
-                <span className="w-6 text-center font-bold">{i + 1}</span>
-                <span>{s.emoji || '▶'}</span>
-                <span className="flex-1">{s.title}</span>
-                <span className="text-xs text-gray-500">{s.mode}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

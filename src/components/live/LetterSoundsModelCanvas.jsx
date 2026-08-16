@@ -66,6 +66,9 @@ export default function LetterSoundsModelCanvas({ step, send }) {
     setIsCorrect(correct);
     setShowFeedback(true);
     setCanAnswer(false);
+    // Play the target sound on the teacher's tap so the class hears the letter
+    // being modeled — this also unlocks audio on the user gesture.
+    if (target) playLetterSound(target, lang);
   };
 
   const handleRetry = () => {
@@ -85,10 +88,10 @@ export default function LetterSoundsModelCanvas({ step, send }) {
   }, [showFeedback, isCorrect, newRound]);
 
   return (
-    <div className="h-full flex flex-col items-center gap-3 p-4 overflow-auto">
-      <div className="text-xs font-bold text-indigo-500 uppercase tracking-wide">Letter Sounds · Modeling — students see your frog</div>
+    <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
+      <div className="text-xs font-bold text-indigo-500 uppercase tracking-wide shrink-0">Letter Sounds · Modeling — students see your frog</div>
 
-      <div className="relative w-full max-w-3xl h-[58vh] rounded-2xl overflow-hidden shadow-lg">
+      <div className="relative flex-1 min-h-0 w-full rounded-2xl overflow-hidden shadow-lg">
         <GameCanvas
           currentLetter={target}
           options={options}
@@ -103,7 +106,7 @@ export default function LetterSoundsModelCanvas({ step, send }) {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2 justify-center items-center">
+      <div className="flex flex-wrap gap-2 justify-center items-center shrink-0">
         {targets.length > 1 && targets.map((l) => (
           <button
             key={l}
