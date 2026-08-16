@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client';
 //   realtime subscription.
 // Both sides subscribe; the teacher ignores its own echo (its model panel is
 // driven by local interaction, not by the received state).
-const THROTTLE_MS = 90;
+const THROTTLE_MS = 50;
 
 export function useLiveBroadcast(sessionId) {
   const [broadcast, setBroadcast] = useState(null);

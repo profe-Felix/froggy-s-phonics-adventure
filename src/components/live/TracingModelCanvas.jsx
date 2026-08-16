@@ -3,6 +3,20 @@ import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 
+// Downsample a live stroke path to shrink the broadcast payload. The mirror
+// renders a 12px-wide ink line, so dropping sub-3px points is visually
+// identical while cutting the per-frame payload several-fold.
+function downsample(pts, minDist = 3) {
+  if (!pts || pts.length <= 2) return pts || [];
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const last = out[out.length - 1];
+    if (Math.hypot(pts[i].x - last.x, pts[i].y - last.y) >= minDist) out.push(pts[i]);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
 const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('').filter((l) => LETTER_WAYPOINTS[l]);
 const SPANISH_EXTRA = ['ñ'];
 
@@ -50,10 +64,26 @@ export default function TracingModelCanvas({ step, send }) {
 
   const guideStrokes = letter ? waypoints[letter]?.strokes : null;
 
-  const handleStrokesChange = useCallback((payload) => {
+  // Send the guide path ONCE when the letter changes — not on every pen move.
+  // The mirror caches it per letter, so ink frames omit it entirely, keeping
+  // each per-frame write small (just the live ink, not the whole ideal path).
+  useEffect(() => {
     if (!letter || !guideStrokes) return;
-    send({ type: 'tracing', letter, guideStrokes, ...payload });
-  }, [send, letter, guideStrokes]);
+    send({ type: 'tracing', letter, guideStrokes, status: 'setup' });
+  }, [letter, guideStrokes, send]);
+
+  const handleStrokesChange = useCallback((payload) => {
+    if (!letter) return;
+    send({
+      type: 'tracing',
+      letter,
+      strokeIndex: payload.strokeIndex,
+      currentPath: downsample(payload.currentPath),
+      drawnPaths: payload.drawnPaths,
+      status: payload.status,
+      accuracy: payload.accuracy,
+    });
+  }, [send, letter]);
 
   if (!letter || !guideStrokes) {
     return <div className="p-10 text-center text-slate-400">No letters available for this step.</div>;

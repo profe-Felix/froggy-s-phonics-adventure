@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { Lock } from 'lucide-react';
 
 // Student's read-only letter-tracing mirror. Renders the same guided canvas
@@ -16,7 +17,16 @@ function pathD(pts) {
 export default function TracingMirrorCanvas({ broadcast }) {
   const has = broadcast?.type === 'tracing';
   const letter = has ? broadcast.letter : null;
-  const guideStrokes = has ? (broadcast.guideStrokes || []) : [];
+  // Cache the guide path per letter: the model sends it once on letter change
+  // (a "setup" frame) and omits it from the high-frequency ink frames, so we
+  // fall back to the cached guide when a frame doesn't carry it.
+  const guideCacheRef = useRef({});
+  useEffect(() => {
+    if (has && letter && broadcast.guideStrokes) {
+      guideCacheRef.current[letter] = broadcast.guideStrokes;
+    }
+  }, [has, letter, broadcast.guideStrokes]);
+  const guideStrokes = has ? (broadcast.guideStrokes || guideCacheRef.current[letter] || []) : [];
   const drawnPaths = has ? (broadcast.drawnPaths || []) : [];
   const currentPath = has ? (broadcast.currentPath || []) : [];
   const status = has ? broadcast.status : null;
