@@ -1,21 +1,26 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   dist, buildDensePath, strokeAccuracy, coverageComplete,
+  computeWordLayout,
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
 } from '@/lib/tracingCore';
 
-const CELL_W = 200; // per-letter cell width in canvas units
+const X_SCALE = 300; // same x-scale as single-letter canvas for natural proportions
 const CANVAS_H = 375; // matches single-letter canvas height
+const LETTER_GAP = 20; // px between letters — tight so the word reads as one unit
 const FONEMA_INTERVAL_MS = 3000;
 
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
 export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, onComplete, onAccuracy }) {
-  const wordLetters = word.split('').filter(l => waypoints[l]);
-  const totalW = Math.max(CELL_W, CELL_W * wordLetters.length);
+  const layoutResult = useMemo(
+    () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP),
+    [word, waypoints]
+  );
+  const { letters: wordLetters, layout: letterLayout, totalW } = layoutResult;
 
   const [letterIndex, setLetterIndex] = useState(0);
   const [strokeIndex, setStrokeIndex] = useState(0);
@@ -42,16 +47,28 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const strokes = rawStrokes;
 
   // Scale a normalized point into this letter's cell within the word canvas.
-  const scaleWord = useCallback((pt) => ({
-    x: letterIndex * CELL_W + pt.x * CELL_W,
-    y: pt.y * CANVAS_H,
-  }), [letterIndex]);
+  // Scale a normalized point into the current letter's position within the
+  // word canvas, shifted so the letter's leftmost ink point sits at its offset.
+  const scaleWord = useCallback((pt) => {
+    const lay = letterLayout[letterIndex];
+    const baseX = lay ? lay.offset : 0;
+    const minX = lay ? lay.minX : 0;
+    return {
+      x: baseX + (pt.x - minX) * X_SCALE,
+      y: pt.y * CANVAS_H,
+    };
+  }, [letterIndex, letterLayout]);
 
   // Scale for any letter (used for guide-path rendering across all letters).
-  const scaleForLetter = useCallback((pt, li) => ({
-    x: li * CELL_W + pt.x * CELL_W,
-    y: pt.y * CANVAS_H,
-  }), []);
+  const scaleForLetter = useCallback((pt, li) => {
+    const lay = letterLayout[li];
+    const baseX = lay ? lay.offset : 0;
+    const minX = lay ? lay.minX : 0;
+    return {
+      x: baseX + (pt.x - minX) * X_SCALE,
+      y: pt.y * CANVAS_H,
+    };
+  }, [letterLayout]);
 
   const stopFonema = useCallback(() => {
     if (fonemaIntervalRef.current) { clearInterval(fonemaIntervalRef.current); fonemaIntervalRef.current = null; }

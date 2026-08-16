@@ -89,3 +89,32 @@ export function fonemaUrl(letter, lang = 'es') {
   const name = isUpper ? `${letter}_mayu_fonema` : `${letter.toLowerCase()}_minu_fonema`;
   return `${AUDIO_BASE}/${lang}/letters/fonemas/${name}.mp3`;
 }
+
+// Compute the layout for a word: each letter's actual ink bounds (minX/maxX
+// across all its strokes), pixel width, and x-offset. Letters are placed
+// left-to-right based on their real ink width plus a small gap so the word
+// reads as a connected unit instead of sitting in fixed-width cells.
+export function computeWordLayout(word, waypoints, xScale = 300, gap = 20) {
+  const letters = word.split('').filter(l => waypoints[l]);
+  let cursor = 0;
+  const layout = letters.map((ch) => {
+    const letterStrokes = waypoints[ch]?.strokes || [];
+    let minX = Infinity, maxX = -Infinity;
+    for (const stroke of letterStrokes) {
+      if (!Array.isArray(stroke)) continue;
+      for (const p of stroke) {
+        if (p && p.x != null) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+        }
+      }
+    }
+    if (!isFinite(minX)) { minX = 0; maxX = 1; }
+    const width = (maxX - minX) * xScale;
+    const offset = cursor;
+    cursor += width + gap;
+    return { ch, minX, maxX, width, offset };
+  });
+  const totalW = Math.max(xScale, cursor);
+  return { letters, layout, totalW };
+}

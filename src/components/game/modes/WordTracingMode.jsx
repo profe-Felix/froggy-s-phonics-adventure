@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import WordTracingCanvas from '../WordTracingCanvas';
 import { getLanguage } from '@/lib/language';
+import { computeWordLayout } from '@/lib/tracingCore';
 import { base44 } from '@/api/base44Client';
 
 // How many times each word is traced before moving to the next one.
@@ -47,8 +48,7 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
     .filter(Boolean);
 
   const currentWord = words[wordIndex] || '';
-  const wordLetters = currentWord.split('').filter(l => waypoints[l]);
-  const totalW = Math.max(200, 200 * wordLetters.length);
+  const { totalW, letters: wordLetters } = computeWordLayout(currentWord, waypoints, 300, 20);
 
   const handleWordComplete = (accuracy) => {
     traceCountRef.current += 1;
