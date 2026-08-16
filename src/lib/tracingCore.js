@@ -48,8 +48,21 @@ export function buildDensePath(waypoints, scaleFn, step = 3) {
   return dense;
 }
 
+// Total arc length of a polyline — used to compare drawn ink length against
+// the ideal path length. A smooth stroke ≈ ideal length; a zigzagging stroke
+// that wobbles back and forth across the corridor is much longer.
+function pathLength(pts) {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += dist(pts[i], pts[i - 1]);
+  return len;
+}
+
 // Score a finished stroke 0–100: each drawn point's closeness to the nearest
-// ideal point is averaged.
+// ideal point is averaged (proximity), then scaled by a length factor. A
+// zigzag that stays in the wobble corridor scores high on proximity alone,
+// but its ink is far longer than the ideal path — so the length factor
+// (idealLen / drawnLen, with a 10% tolerance) pulls the score down. A smooth,
+// clean trace has drawnLen ≈ idealLen and keeps its full proximity score.
 export function strokeAccuracy(drawnPts, idealDense, penalty = 30) {
   if (!drawnPts.length || !idealDense.length) return 100;
   let sum = 0;
@@ -61,7 +74,19 @@ export function strokeAccuracy(drawnPts, idealDense, penalty = 30) {
     }
     sum += Math.max(0, 100 * (1 - minD / penalty));
   }
-  return Math.round(sum / drawnPts.length);
+  const proximityScore = sum / drawnPts.length;
+
+  let lengthFactor = 1;
+  if (drawnPts.length > 1 && idealDense.length > 1) {
+    const drawnLen = pathLength(drawnPts);
+    const idealLen = pathLength(idealDense);
+    if (drawnLen > 0 && idealLen > 0) {
+      const ratio = drawnLen / idealLen;
+      if (ratio > 1.1) lengthFactor = 1.1 / ratio;
+    }
+  }
+
+  return Math.round(proximityScore * lengthFactor);
 }
 
 // Decide whether the pen has traced enough of the ideal path to count the
