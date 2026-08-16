@@ -7,7 +7,6 @@ import { Volume2, VolumeX, Eye } from 'lucide-react';
 export default function VideoMirrorPlayer({ broadcast, videoUrl: fallbackUrl }) {
   const videoRef = useRef(null);
   const [muted, setMuted] = useState(true);
-  const lastSeekRef = useRef(-1);
 
   // Apply broadcast changes.
   useEffect(() => {
@@ -16,13 +15,19 @@ export default function VideoMirrorPlayer({ broadcast, videoUrl: fallbackUrl }) 
     const target = broadcast.playing
       ? broadcast.currentTime + (Date.now() - (broadcast.updatedAt || Date.now())) / 1000
       : broadcast.currentTime;
-    // Seek if drifted > 0.7s.
-    if (Math.abs(v.currentTime - target) > 0.7) {
-      v.currentTime = target;
-      lastSeekRef.current = target;
+    if (broadcast.playing) {
+      if (v.paused) {
+        // First play — always seek to the teacher's current position so the
+        // student starts at the right spot, not wherever the video was buffered.
+        v.currentTime = target;
+        v.play().catch(() => {});
+      } else if (Math.abs(v.currentTime - target) > 0.7) {
+        v.currentTime = target;
+      }
+    } else {
+      if (!v.paused) v.pause();
+      if (Math.abs(v.currentTime - broadcast.currentTime) > 0.3) v.currentTime = broadcast.currentTime;
     }
-    if (broadcast.playing && v.paused) v.play().catch(() => {});
-    if (!broadcast.playing && !v.paused) v.pause();
   }, [broadcast]);
 
   // Drift correction while playing (in case broadcasts pause).
@@ -55,6 +60,7 @@ export default function VideoMirrorPlayer({ broadcast, videoUrl: fallbackUrl }) 
           ref={videoRef}
           src={videoUrl}
           playsInline
+          preload="auto"
           muted={muted}
           className="w-full rounded-2xl shadow-2xl bg-black pointer-events-none"
         />

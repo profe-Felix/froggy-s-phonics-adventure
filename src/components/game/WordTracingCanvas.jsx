@@ -4,23 +4,27 @@ import {
   computeWordLayout,
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
-  MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
+  MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS,
 } from '@/lib/tracingCore';
+import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 
-const X_SCALE = 300; // same x-scale as single-letter canvas for natural proportions
-const CANVAS_H = 375; // matches single-letter canvas height
-const LETTER_GAP = 20; // px between letters — tight so the word reads as one unit
+const X_SCALE = 300;
+const CANVAS_H = 375;
+const LETTER_GAP = 20;
+const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
+const REPETITIONS = 3; // trace the word 3 times with spaces between
+const WORD_GAP = 80; // px space between word repetitions (like a real word space)
 const FONEMA_INTERVAL_MS = 3000;
 
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
-export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, onComplete, onAccuracy }) {
+export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, onComplete, onAccuracy, onProgress }) {
   const layoutResult = useMemo(
-    () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP),
+    () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP, PADDING, REPETITIONS, WORD_GAP),
     [word, waypoints]
   );
-  const { letters: wordLetters, layout: letterLayout, totalW } = layoutResult;
+  const { letters: wordLetters, layout: letterLayout, totalW, wordLength, repetitions } = layoutResult;
 
   const [letterIndex, setLetterIndex] = useState(0);
   const [strokeIndex, setStrokeIndex] = useState(0);
@@ -73,14 +77,28 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const stopFonema = useCallback(() => {
     if (fonemaIntervalRef.current) { clearInterval(fonemaIntervalRef.current); fonemaIntervalRef.current = null; }
     if (fonemaAudioRef.current) { try { fonemaAudioRef.current.pause(); } catch {} fonemaAudioRef.current = null; }
+    try { window.speechSynthesis?.cancel(); } catch {}
   }, []);
 
   const playFonema = useCallback(() => {
     stopFonema();
     if (!currentLetter) return;
     try {
+      if (lang === 'en') {
+        const playOnce = () => {
+          window.speechSynthesis?.cancel();
+          const u = new SpeechSynthesisUtterance(currentLetter);
+          u.lang = 'en-US';
+          u.rate = 0.75;
+          window.speechSynthesis.speak(u);
+        };
+        playOnce();
+        fonemaIntervalRef.current = setInterval(playOnce, FONEMA_INTERVAL_MS);
+        return;
+      }
       const playOnce = () => {
-        const a = new Audio(fonemaUrl(currentLetter, lang));
+        const url = `${AUDIO_BASE}/${lang}/letters/${toAudioName(currentLetter)}.mp3`;
+        const a = new Audio(url);
         a.play().catch(() => {});
         fonemaAudioRef.current = a;
       };
@@ -104,6 +122,13 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       return () => clearTimeout(timer);
     }
   }, [status, accuracy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Report current repetition to parent for the progress dots.
+  useEffect(() => {
+    if (onProgress && wordLength > 0) {
+      onProgress({ currentRep: Math.floor(letterIndex / wordLength) + 1, totalReps: repetitions });
+    }
+  }, [letterIndex, wordLength, repetitions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { stopFonema(); }, [stopFonema]);
 
@@ -400,7 +425,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
         )}
         {status === 'idle' && waypointIndex === 0 && !drawing && (
           <div className="text-slate-400 text-sm">
-            Start at the ● dot · Letter {letterIndex + 1} of {wordLetters.length}: <span className="font-bold text-indigo-500">{currentLetter?.toUpperCase()}</span>
+            Start at the ● dot · Word {Math.floor(letterIndex / wordLength) + 1} of {repetitions}: <span className="font-bold text-indigo-500">{currentLetter?.toUpperCase()}</span>
           </div>
         )}
       </div>

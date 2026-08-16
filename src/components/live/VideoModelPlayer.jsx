@@ -51,6 +51,7 @@ export default function VideoModelPlayer({ videoUrl, title, send }) {
           src={videoUrl}
           controls
           playsInline
+          preload="auto"
           className="w-full rounded-2xl shadow-2xl bg-black"
           onPlay={() => emit(true)}
           onPause={() => emit(false)}
