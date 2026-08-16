@@ -37,6 +37,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const pathProgressRef = useRef(0);
   const visitedRef = useRef(new Set());
   const offTravelRef = useRef(0);
+  const postCompleteTravelRef = useRef(0);
   const [status, setStatus] = useState('idle');
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false);
@@ -154,6 +155,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
   };
 
   const commitStroke = () => {
@@ -169,6 +171,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setAwaitingLift(false);
     visitedRef.current = new Set();
@@ -210,6 +213,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setDrawing(true);
     setStatus('tracing');
@@ -223,19 +227,14 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
     if (pendingCompleteRef.current) {
-      // After reaching the end, the pen must stay near the END of the path
-      // (the last 15% of dense points). Going significantly off — e.g. tracing
-      // back up to make an 'o' after completing 'e', or going too far down
-      // past the baseline on a non-descending letter like 'l' — is penalized.
-      if (densePath.length > 1) {
-        const tailCount = Math.max(10, Math.floor(densePath.length * 0.15));
-        const tailStart = densePath.length - tailCount;
-        let minTailD = Infinity;
-        for (let i = tailStart; i < densePath.length; i++) {
-          const d = dist(pos, densePath[i]);
-          if (d < minTailD) minTailD = d;
-        }
-        if (minTailD > WOBBLE_RADIUS * 0.6) {
+      // After reaching the end, only a small natural overshoot is allowed.
+      // Track total travel distance after completion — circling back to close
+      // an 'e' into an 'o', or going too far down past the baseline on a
+      // non-descending letter like 'l', exceeds the budget and restarts.
+      const prevP = currentPathRef.current[currentPathRef.current.length - 1];
+      if (prevP) {
+        postCompleteTravelRef.current += dist(pos, prevP);
+        if (postCompleteTravelRef.current > 35) {
           flashError();
           restartStroke();
           return;
@@ -342,6 +341,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       pathProgressRef.current = Math.max(pathProgressRef.current, nearestIdx);
       if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
         pendingCompleteRef.current = true;
+        postCompleteTravelRef.current = 0;
         setAwaitingLift(true);
         setWaypointIndex(currentStrokes.length);
       }
@@ -391,6 +391,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     pendingCompleteRef.current = false;
   };
 

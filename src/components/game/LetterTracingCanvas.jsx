@@ -22,6 +22,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const pathProgressRef = useRef(0); // furthest dense-path index reached this stroke
   const visitedRef = useRef(new Set()); // dense-path indices the stroke actually passed near (coverage)
   const offTravelRef = useRef(0); // accumulated px traveled while off the path corridor — sustained drift restarts (overlap-based wobble)
+  const postCompleteTravelRef = useRef(0); // accumulated px traveled AFTER the stroke is complete — overshoot budget
   const [status, setStatus] = useState('idle'); // idle | tracing | lift | success | error
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
@@ -110,6 +111,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     visitedRef.current = new Set();
 
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
@@ -154,6 +156,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     visitedRef.current = new Set();
 
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     pendingCompleteRef.current = false;
     setDrawing(true);
     setStatus('tracing');
@@ -180,6 +183,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     visitedRef.current = new Set();
 
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
   };
 
   // Finalise the current stroke as completed and advance to the next one.
@@ -191,6 +195,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
 
     pendingCompleteRef.current = false;
     setAwaitingLift(false);
@@ -215,19 +220,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     // Once the end of the ideal path is reached, just track the finger until
     // lift — don't penalise the natural loop-back/overshoot at a stroke's end.
     if (pendingCompleteRef.current) {
-      // After reaching the end, the pen must stay near the END of the path
-      // (the last 15% of dense points). Going significantly off — e.g. tracing
-      // back up to make an 'o' after completing 'e', or going too far down
-      // past the baseline on a non-descending letter like 'l' — is penalized.
-      if (densePath.length > 1) {
-        const tailCount = Math.max(10, Math.floor(densePath.length * 0.15));
-        const tailStart = densePath.length - tailCount;
-        let minTailD = Infinity;
-        for (let i = tailStart; i < densePath.length; i++) {
-          const d = dist(pos, densePath[i]);
-          if (d < minTailD) minTailD = d;
-        }
-        if (minTailD > WOBBLE_RADIUS * 0.6) {
+      // After reaching the end, only a small natural overshoot is allowed.
+      // Track total travel distance after completion — circling back to close
+      // an 'e' into an 'o', or going too far down past the baseline on a
+      // non-descending letter like 'l', exceeds the budget and restarts.
+      const prevP = currentPathRef.current[currentPathRef.current.length - 1];
+      if (prevP) {
+        postCompleteTravelRef.current += dist(pos, prevP);
+        if (postCompleteTravelRef.current > 35) {
           flashError();
           restartStroke();
           return;
@@ -418,6 +418,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       // the end region from neighboring strokes the pen never actually drew.
       if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
         pendingCompleteRef.current = true;
+        postCompleteTravelRef.current = 0;
         setAwaitingLift(true);
         setWaypointIndex(currentStrokes.length);
       }
@@ -513,6 +514,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     visitedRef.current = new Set();
 
     offTravelRef.current = 0;
+    postCompleteTravelRef.current = 0;
     onReset?.();
   };
 
