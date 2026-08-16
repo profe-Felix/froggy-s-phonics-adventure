@@ -223,12 +223,19 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
     if (pendingCompleteRef.current) {
-      // After reaching the end, the pen must stay near the path's end. Going
-      // significantly off (e.g., tracing back up after completing the letter)
-      // is penalized — the student should lift, not keep drawing.
-      if (densePath.length) {
-        const endPt = densePath[densePath.length - 1];
-        if (dist(pos, endPt) > WOBBLE_RADIUS * 1.5) {
+      // After reaching the end, the pen must stay near the END of the path
+      // (the last 15% of dense points). Going significantly off — e.g. tracing
+      // back up to make an 'o' after completing 'e', or going too far down
+      // past the baseline on a non-descending letter like 'l' — is penalized.
+      if (densePath.length > 1) {
+        const tailCount = Math.max(10, Math.floor(densePath.length * 0.15));
+        const tailStart = densePath.length - tailCount;
+        let minTailD = Infinity;
+        for (let i = tailStart; i < densePath.length; i++) {
+          const d = dist(pos, densePath[i]);
+          if (d < minTailD) minTailD = d;
+        }
+        if (minTailD > WOBBLE_RADIUS * 0.6) {
           flashError();
           restartStroke();
           return;
