@@ -1,104 +1,14 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { AUDIO_BASE } from '@/lib/audio';
+import {
+  dist, scale as scaleFn, buildDensePath, strokeAccuracy, coverageComplete,
+  HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
+  MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
+  MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
+} from '@/lib/tracingCore';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
-const HIT_RADIUS = 14; // pixels to count as hitting a waypoint
-const WOBBLE_RADIUS = 62; // px — pen is "on the path corridor" within this; momentary excursions past it are tolerated (see OFF_TRAVEL_BUDGET). Widened (was 50) so real handwriting veer — especially on retraced d/b/p stems — stays inside the corridor instead of restarting.
-const OFF_TRAVEL_BUDGET = 140; // px — accumulated pen travel WHILE off the corridor before we restart; a momentary wobble that comes back costs nothing, a sustained drift (excessive wobble) exceeds it. Raised (was 90) to give retraced stems more room before a restart.
-const FWD_RETRACE_RADIUS = 70; // px — tolerates veering while retracing (d/b/p stems double back). The +6-index CLAMP on the forward search is what stops a partial from leaping to the end, so this radius can stay generous for wobble without re-introducing that jump.
-const MIN_MOVE = 5; // px — ignore direction checks for sub-noise movements
-const DIR_REJECT_DOT = -0.78; // drawn-vs-ideal direction dot below this = reverse direction → restart. Loosened (was -0.6) so genuine veering (which isn't a reversal) doesn't trip it; only a clear backtrack does. A backtrack that then recovers and completes is allowed — partial detection is handled by the sequential end-gate, not this.
-const COVERAGE_RADIUS = 16; // px — the pen's actual ink half-width: a dense path point counts as traced only when the pen passes within this. Kept tight (was 46, which blanketed both stems and bowls from a single press and let partials pass) so coverage reflects where the ink really overlaps the guide path. Hand wobble that brings the pen back near the path still marks it; a sustained drift that never overlaps does not — but it won't RESTART (see WOBBLE_RADIUS), it just won't count as covered.
-const MIN_COVER_FRAC = 0.95; // fraction of the ideal path the pen must actually cover. At 95% a two-thirds trace of a tight curve (c, d, o) that the 30px thick pen would otherwise mark as ~85% covered is rejected; only a near-complete, deliberate trace reaches it.
-const MAX_GAP = 10; // dense points — the largest run of UNCOVERED path the pen may leave. A shortcut skips a curved section, leaving a gap bigger than this → restart. A complete trace leaves no gaps (the pen passes every segment).
-const START_TOL = 6; // dense points — the pen must reach the path's start within this many points (slight start variation allowed).
-const END_TOL = 5; // dense points — the pen must reach the path's end within this many points (slight end variation allowed, but the student must actually finish the stroke).
-// Per-stroke guide colors — match the teacher authoring canvas (StrokeAuthoringCanvas)
-// so the faint guide path is clearly visible instead of a low-contrast gray dashed line.
-const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
-
-// Multisensory fonema audio played while the pen is down. Files live in the
-// Supabase "audio" bucket under {lang}/letters/fonemas/, named per case:
-// A_mayu_fonema.mp3 (uppercase) / a_minu_fonema.mp3 (lowercase).
-function fonemaUrl(letter, lang = 'es') {
-  const isUpper = letter && letter.length === 1 && letter === letter.toUpperCase() && letter !== letter.toLowerCase();
-  const name = isUpper ? `${letter}_mayu_fonema` : `${letter.toLowerCase()}_minu_fonema`;
-  return `${AUDIO_BASE}/${lang}/letters/fonemas/${name}.mp3`;
-}
-
-function scale(pt) {
-  if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
-  return { x: pt.x * CANVAS_W, y: pt.y * CANVAS_H };
-}
-
-function dist(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-// Densely sample the ideal path for a stroke by interpolating between its
-// waypoints at a fixed pixel step. Used for wobble detection (distance from
-// each drawn point to the nearest ideal point) and for the replay hint.
-function buildDensePath(waypoints, step = 3) {
-  const pts = waypoints.map(scale);
-  if (pts.length === 1) return [pts[0]];
-  const dense = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    const segLen = dist(a, b);
-    const n = Math.max(1, Math.round(segLen / step));
-    for (let j = 0; j < n; j++) {
-      const t = j / n;
-      dense.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-    }
-  }
-  dense.push(pts[pts.length - 1]);
-  return dense;
-}
-
-// Score a finished stroke 0–100: each drawn point's closeness to the nearest
-// ideal point is averaged. A point on the ideal path scores 100; one `penalty`
-// px away scores 0.
-function strokeAccuracy(drawnPts, idealDense, penalty = 30) {
-  if (!drawnPts.length || !idealDense.length) return 100;
-  let sum = 0;
-  for (const p of drawnPts) {
-    let minD = Infinity;
-    for (const q of idealDense) {
-      const d = dist(p, q);
-      if (d < minD) minD = d;
-    }
-    sum += Math.max(0, 100 * (1 - minD / penalty));
-  }
-  return Math.round(sum / drawnPts.length);
-}
-
-// Decide whether the pen has traced enough of the ideal path to count the
-// stroke complete. We treat the ideal path as a road and the pen as a thick
-// disk: a dense point is "covered" when the pen passed within COVERAGE_RADIUS.
-// Completion needs (1) most of the path covered, (2) no large uncovered gap —
-// a shortcut cuts across a curve, leaving the curved section untouched, which
-// is a big gap, and (3) the pen actually reached both the start and the end of
-// the path (slight variation allowed). This catches shortcuts (s, o) and
-// partial loops (c, o) that the old "fraction + endpoint" check let through,
-// because for nearly-closed letters the start and end sit close together so
-// reaching "the end" was trivial, and the generous radius marked enough points
-// even when cutting across.
-function coverageComplete(visited, denseLen) {
-  if (denseLen <= 1) return true;
-  const sorted = [...visited].sort((a, b) => a - b);
-  if (!sorted.length) return false;
-  let maxGap = sorted[0]; // gap before the first covered point
-  for (let i = 1; i < sorted.length; i++) {
-    maxGap = Math.max(maxGap, sorted[i] - sorted[i - 1] - 1);
-  }
-  maxGap = Math.max(maxGap, denseLen - 1 - sorted[sorted.length - 1]); // gap after the last covered point
-  const frac = sorted.length / denseLen;
-  const startCovered = sorted[0] <= START_TOL;
-  const endCovered = denseLen - 1 - sorted[sorted.length - 1] <= END_TOL;
-  return frac >= MIN_COVER_FRAC && maxGap <= MAX_GAP && startCovered && endCovered;
-}
+const scale = (pt) => scaleFn(pt, CANVAS_W, CANVAS_H);
 
 export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage, renderWidth = 256, lang = 'es', onStrokesChange }) {
   const [strokeIndex, setStrokeIndex] = useState(0);
@@ -158,7 +68,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const densePath = useMemo(() => {
     const wp = strokes[strokeIndex];
     const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
-    return clean.length ? buildDensePath(clean) : [];
+    return clean.length ? buildDensePath(clean, scale) : [];
   }, [strokes, strokeIndex]);
 
   // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
@@ -537,7 +447,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (drawing || status === 'success') return;
     const wp = strokes[strokeIndex];
     if (!wp || wp.length < 2) return;
-    const refPath = buildDensePath(wp);
+    const refPath = buildDensePath(wp, scale);
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
     setReplaying(true);
     setReplayPts([]);

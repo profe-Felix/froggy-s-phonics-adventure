@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
-import LetterTracingCanvas from '../LetterTracingCanvas';
+import WordTracingCanvas from '../WordTracingCanvas';
 import { getLanguage } from '@/lib/language';
 import { base44 } from '@/api/base44Client';
 
@@ -11,12 +11,10 @@ const TRACES_PER_WORD = 2;
 export default function WordTracingMode({ studentData, onUpdateProgress, targets }) {
   const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
   const [wordIndex, setWordIndex] = useState(0);
-  const [letterIndex, setLetterIndex] = useState(0);
   const [traceRound, setTraceRound] = useState(0);
   const [traceKey, setTraceKey] = useState(0);
   const [celebrate, setCelebrate] = useState(null);
   const traceCountRef = useRef(0);
-  const advanceRef = useRef(false);
 
   const lang = getLanguage(studentData);
 
@@ -50,71 +48,36 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
 
   const currentWord = words[wordIndex] || '';
   const wordLetters = currentWord.split('').filter(l => waypoints[l]);
-  const currentLetter = wordLetters[letterIndex];
-  const letterData = currentLetter ? waypoints[currentLetter] : null;
+  const totalW = Math.max(200, 200 * wordLetters.length);
 
-  const doAdvance = () => {
+  const handleWordComplete = (accuracy) => {
     traceCountRef.current += 1;
     if (onUpdateProgress) {
       onUpdateProgress('word_tracing', { total_attempts: traceCountRef.current });
     }
 
-    const nextLetterIndex = letterIndex + 1;
-    if (nextLetterIndex < wordLetters.length) {
-      // Next letter in the current word.
+    const nextRound = traceRound + 1;
+    if (nextRound < TRACES_PER_WORD) {
+      setCelebrate({ round: nextRound + 1, total: TRACES_PER_WORD, accuracy });
       setTimeout(() => {
-        setLetterIndex(nextLetterIndex);
+        setCelebrate(null);
+        setTraceRound(nextRound);
         setTraceKey(k => k + 1);
-      }, 500);
+      }, 1800);
     } else {
-      // All letters in this word traced once.
-      const nextRound = traceRound + 1;
-      if (nextRound < TRACES_PER_WORD) {
-        setCelebrate({ round: nextRound + 1, total: TRACES_PER_WORD });
-        setTimeout(() => {
-          setCelebrate(null);
-          setLetterIndex(0);
-          setTraceRound(nextRound);
-          setTraceKey(k => k + 1);
-        }, 1200);
-      } else {
-        // Word fully complete — celebrate and move to the next word.
-        setCelebrate({ wordComplete: true, word: currentWord });
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-        const nextWordIndex = (wordIndex + 1) % words.length;
-        setTimeout(() => {
-          setCelebrate(null);
-          setWordIndex(nextWordIndex);
-          setLetterIndex(0);
-          setTraceRound(0);
-          setTraceKey(k => k + 1);
-        }, 1800);
-      }
-    }
-  };
-
-  // Auto-advance ~1.2s after the letter is traced cleanly, so young students
-  // don't have to find and click the "Next" button — but if they do click it,
-  // advance immediately. Either path fires doAdvance exactly once.
-  const handleAccuracy = (acc) => {
-    if (acc != null && !advanceRef.current) {
-      advanceRef.current = true;
+      setCelebrate({ wordComplete: true, word: currentWord, accuracy });
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      const nextWordIndex = (wordIndex + 1) % words.length;
       setTimeout(() => {
-        if (advanceRef.current) {
-          advanceRef.current = false;
-          doAdvance();
-        }
-      }, 1200);
+        setCelebrate(null);
+        setWordIndex(nextWordIndex);
+        setTraceRound(0);
+        setTraceKey(k => k + 1);
+      }, 2200);
     }
   };
 
-  const handleComplete = () => {
-    if (advanceRef.current) return; // auto-advance already scheduled
-    advanceRef.current = false;
-    doAdvance();
-  };
-
-  if (!currentLetter || !letterData) {
+  if (!currentWord || !wordLetters.length) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -127,29 +90,15 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 gap-3">
-      {/* Word header with per-letter progress */}
+      {/* Word + round indicator */}
       <div className="flex flex-col items-center gap-2">
         <div className="flex items-end gap-0.5">
-          {currentWord.split('').map((ch, i) => {
-            const hasWp = !!waypoints[ch];
-            const isDone = hasWp && i < letterIndex;
-            const isCurrent = i === letterIndex;
-            return (
-              <span
-                key={i}
-                className={`text-4xl font-bold transition-all ${
-                  !hasWp ? 'text-slate-300' :
-                  isDone ? 'text-green-500' :
-                  isCurrent ? 'text-indigo-600 scale-110' :
-                  'text-slate-300'
-                }`}
-              >
-                {ch}
-              </span>
-            );
-          })}
+          {currentWord.split('').map((ch, i) => (
+            <span key={i} className={`text-3xl font-bold ${waypoints[ch] ? 'text-slate-700' : 'text-slate-300'}`}>
+              {ch}
+            </span>
+          ))}
         </div>
-        {/* Round dots */}
         <div className="flex items-center gap-1.5">
           {Array.from({ length: TRACES_PER_WORD }).map((_, i) => (
             <div key={i} className={`w-2.5 h-2.5 rounded-full transition-colors ${
@@ -162,21 +111,14 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
         </div>
       </div>
 
-      {/* Current letter label */}
-      <div className="text-sm font-bold text-slate-500">
-        Tracing: <span className="text-indigo-600 text-lg">{currentLetter.toUpperCase()}</span>
-      </div>
-
-      {/* Tracing canvas — reuses the same validation as letter tracing */}
-      <LetterTracingCanvas
-        key={`${wordIndex}-${letterIndex}-${traceRound}-${traceKey}`}
-        letter={currentLetter}
+      {/* Word tracing canvas — all letters on one connected canvas */}
+      <WordTracingCanvas
+        key={traceKey}
+        word={currentWord}
+        waypoints={waypoints}
         lang={lang}
-        strokes={letterData.strokes}
-        renderWidth={Math.min(360, Math.max(220, (typeof window !== 'undefined' ? window.innerWidth : 800) * 0.85))}
-        onComplete={handleComplete}
-        onAccuracy={handleAccuracy}
-        onReset={() => {}}
+        renderWidth={Math.min(totalW, Math.max(280, (typeof window !== 'undefined' ? window.innerWidth : 800) * 0.92))}
+        onComplete={handleWordComplete}
       />
 
       {/* Celebration overlay */}
@@ -187,11 +129,21 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
               <>
                 <div className="text-4xl">🎉</div>
                 <div className="text-xl font-black text-slate-800">"{celebrate.word}" complete!</div>
+                {celebrate.accuracy != null && (
+                  <div className={`text-sm font-bold ${celebrate.accuracy >= 80 ? 'text-green-600' : 'text-amber-600'}`}>
+                    🎯 {celebrate.accuracy}% accuracy
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <div className="text-3xl">⭐</div>
                 <div className="text-lg font-bold text-slate-700">Round {celebrate.round} of {celebrate.total}</div>
+                {celebrate.accuracy != null && (
+                  <div className={`text-sm font-bold ${celebrate.accuracy >= 80 ? 'text-green-600' : 'text-amber-600'}`}>
+                    🎯 {celebrate.accuracy}%
+                  </div>
+                )}
               </>
             )}
           </div>
