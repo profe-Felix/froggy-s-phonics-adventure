@@ -4,9 +4,8 @@ import {
   computeWordLayout,
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
-  MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS,
+  MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
 } from '@/lib/tracingCore';
-import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
@@ -84,21 +83,8 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     stopFonema();
     if (!currentLetter) return;
     try {
-      if (lang === 'en') {
-        const playOnce = () => {
-          window.speechSynthesis?.cancel();
-          const u = new SpeechSynthesisUtterance(currentLetter);
-          u.lang = 'en-US';
-          u.rate = 0.75;
-          window.speechSynthesis.speak(u);
-        };
-        playOnce();
-        fonemaIntervalRef.current = setInterval(playOnce, FONEMA_INTERVAL_MS);
-        return;
-      }
       const playOnce = () => {
-        const url = `${AUDIO_BASE}/${lang}/letters/${toAudioName(currentLetter)}.mp3`;
-        const a = new Audio(url);
+        const a = new Audio(fonemaUrl(currentLetter, lang));
         a.play().catch(() => {});
         fonemaAudioRef.current = a;
       };
