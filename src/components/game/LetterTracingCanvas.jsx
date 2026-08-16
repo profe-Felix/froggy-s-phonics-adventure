@@ -122,23 +122,36 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   const [replayPts, setReplayPts] = useState([]);
   const replayRafRef = useRef(null);
   const fonemaAudioRef = useRef(null);
+  const fonemaIntervalRef = useRef(null);
+  // Replay the letter sound every 3s while the pen is down — often enough to
+  // reinforce the phoneme, not so often it becomes annoying. Stops on lift.
+  const FONEMA_INTERVAL_MS = 3000;
 
   const stopFonema = useCallback(() => {
+    if (fonemaIntervalRef.current) {
+      clearInterval(fonemaIntervalRef.current);
+      fonemaIntervalRef.current = null;
+    }
     if (fonemaAudioRef.current) {
       try { fonemaAudioRef.current.pause(); } catch {}
       fonemaAudioRef.current = null;
     }
   }, []);
 
-  // Loop the letter's fonema while the pen is down so tracing is multisensory —
-  // students hear and say the sound as they write. Stops on lift / letter change.
+  // Play the letter's fonema at intervals while the pen is down so tracing is
+  // multisensory — students hear and say the sound as they write. Stops on lift
+  // / letter change. Replays every FONEMA_INTERVAL_MS instead of looping
+  // continuously, which was too repetitive during long strokes.
   const playFonema = useCallback(() => {
     stopFonema();
     try {
-      const a = new Audio(fonemaUrl(letter, lang));
-      a.loop = true;
-      a.play().catch(() => {});
-      fonemaAudioRef.current = a;
+      const playOnce = () => {
+        const a = new Audio(fonemaUrl(letter, lang));
+        a.play().catch(() => {});
+        fonemaAudioRef.current = a;
+      };
+      playOnce();
+      fonemaIntervalRef.current = setInterval(playOnce, FONEMA_INTERVAL_MS);
     } catch {}
   }, [letter, lang, stopFonema]);
 

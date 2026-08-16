@@ -26,6 +26,7 @@ import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
 import VideoStep from '@/components/lesson/modes/VideoStep';
 import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
+import WordTracingMode from '@/components/game/modes/WordTracingMode';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -180,6 +181,8 @@ export default function LessonModeRouter({
         return <SoundWallStep onComplete={completeStep} stepConfig={step?.config} />;
       case 'google_slides':
         return <GoogleSlidesStep onComplete={completeStep} stepConfig={step?.config} title={step.title} />;
+      case 'word_tracing':
+        return <WordTracingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
       default:
         return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
     }

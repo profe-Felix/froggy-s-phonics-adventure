@@ -81,7 +81,8 @@
               "fluency",
               "video",
               "soundwall",
-              "google_slides"
+              "google_slides",
+              "word_tracing"
             ],
             "description": "Which existing activity this step launches"
           },

@@ -277,7 +277,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
 
       {(() => {
         const LETTER_MODES = ['letter_sounds', 'case_matching', 'letter_tracing', 'letter_recognition'];
-        const WORD_MODES = ['sight_words_easy', 'sight_words_spelling', 'spelling', 'word_builder', 'powerful_word', 'syllable_blender', 'syllable_train'];
+        const WORD_MODES = ['sight_words_easy', 'sight_words_spelling', 'spelling', 'word_builder', 'powerful_word', 'syllable_blender', 'syllable_train', 'word_tracing'];
         const cat = LETTER_MODES.includes(step.mode) ? 'letters' : WORD_MODES.includes(step.mode) ? 'words' : null;
         if (!cat) return null;
         return (
