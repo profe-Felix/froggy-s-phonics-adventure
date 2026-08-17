@@ -28,7 +28,7 @@ export default function HuntSegments({ segments, marks = {}, onTap, interactive 
           <span
             key={i}
             onClick={onTap ? () => onTap(seg) : undefined}
-            className={`inline-block min-w-[0.6em] rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300'} ${interactive ? 'cursor-pointer hover:bg-slate-200 active:bg-slate-300' : ''}`}
+            className={`inline-block min-w-[1em] py-0.5 rounded ${st ? 'border-2 ' + statusClass(st) : 'border-b-2 border-dashed border-slate-300'} ${interactive ? 'cursor-pointer hover:bg-slate-200 active:bg-slate-300' : ''}`}
           >&nbsp;</span>
         );
         out.push(<span key={`z2${k++}`}>{'\u200B'}</span>);
@@ -38,7 +38,7 @@ export default function HuntSegments({ segments, marks = {}, onTap, interactive 
           <span
             key={i}
             onClick={onTap ? () => onTap(seg) : undefined}
-            className={`${interactive ? 'cursor-pointer ' : ''}rounded px-0.5 leading-relaxed border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
+            className={`${interactive ? 'cursor-pointer ' : ''}rounded px-1.5 py-0.5 leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
           >{seg.text}</span>
         );
       }

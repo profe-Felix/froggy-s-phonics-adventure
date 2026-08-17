@@ -16,11 +16,11 @@ const SPANISH_EXTRA = ['ñ'];
 // (smaller); a rough trace levels it back down (bigger) so a struggling student
 // returns to large-format practice before shrinking again.
 const SIZE_LEVELS = [
-  { w: 600, label: 'Huge' },
-  { w: 460, label: 'Big' },
-  { w: 360, label: 'Medium' },
-  { w: 290, label: 'Small' },
-  { w: 240, label: 'Zaner-Bloser' },
+  { w: 720, label: 'Huge' },
+  { w: 560, label: 'Big' },
+  { w: 440, label: 'Medium' },
+  { w: 340, label: 'Small' },
+  { w: 280, label: 'Zaner-Bloser' },
 ];
 const MAX_LEVEL = SIZE_LEVELS.length - 1;
 const PAGE_SIZE = 10;

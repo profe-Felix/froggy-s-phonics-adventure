@@ -12,7 +12,9 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
   const [traceKey, setTraceKey] = useState(0);
   const [currentRep, setCurrentRep] = useState(1);
   const [celebrate, setCelebrate] = useState(null);
+  const [scrollLetterIndex, setScrollLetterIndex] = useState(0);
   const traceCountRef = useRef(0);
+  const scrollRef = useRef(null);
 
   const lang = getLanguage(studentData);
 
@@ -44,9 +46,24 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
     .filter(Boolean);
 
   const currentWord = words[wordIndex] || '';
-  const { totalW, letters: wordLetters } = computeWordLayout(currentWord, waypoints, 300, 20, 30, 3, 80);
+  const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 360, 20, 30, 3, 80);
 
-  const handleProgress = ({ currentRep: rep }) => setCurrentRep(rep);
+  // Auto-scroll the tracing canvas so the current letter is always centered and
+  // large enough for accurate tracing. The canvas renders at full width inside a
+  // scroll container; students never scroll manually (touch is captured for drawing).
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const lay = letterLayout[scrollLetterIndex];
+    if (!lay) return;
+    const containerW = scrollRef.current.clientWidth;
+    const target = Math.max(0, lay.offset + (lay.width || 360) / 2 - containerW / 2);
+    scrollRef.current.scrollTo({ left: target, behavior: 'smooth' });
+  }, [scrollLetterIndex, letterLayout]);
+
+  const handleProgress = ({ currentRep: rep, letterIndex: li }) => {
+    setCurrentRep(rep);
+    if (li != null) setScrollLetterIndex(li);
+  };
 
   const handleWordComplete = (accuracy) => {
     traceCountRef.current += 1;
@@ -98,16 +115,20 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
         </div>
       </div>
 
-      {/* Word tracing canvas — 3 repetitions with spaces on one connected canvas */}
-      <WordTracingCanvas
-        key={traceKey}
-        word={currentWord}
-        waypoints={waypoints}
-        lang={lang}
-        renderWidth={Math.min(totalW, Math.max(280, (typeof window !== 'undefined' ? window.innerWidth : 800) * 0.95))}
-        onComplete={handleWordComplete}
-        onProgress={handleProgress}
-      />
+      {/* Word tracing canvas — 3 repetitions with spaces on one connected canvas.
+          Rendered at full width inside a horizontally scrollable container so each
+          letter is large; auto-scrolls to the current letter. */}
+      <div ref={scrollRef} className="w-full overflow-x-auto overflow-y-hidden pb-2 -mx-2 px-2">
+        <WordTracingCanvas
+          key={traceKey}
+          word={currentWord}
+          waypoints={waypoints}
+          lang={lang}
+          renderWidth={totalW}
+          onComplete={handleWordComplete}
+          onProgress={handleProgress}
+        />
+      </div>
 
       {/* Celebration overlay */}
       {celebrate && (

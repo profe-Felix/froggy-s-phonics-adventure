@@ -188,7 +188,7 @@ export default function HuntActivity({ config, studentName }) {
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
+        <p className="text-2xl sm:text-4xl font-bold text-slate-800 leading-loose">
           <HuntSegments
             segments={segments}
             marks={marks}

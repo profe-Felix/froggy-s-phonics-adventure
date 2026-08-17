@@ -8,8 +8,8 @@ import {
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
-const X_SCALE = 300;
-const CANVAS_H = 375;
+const X_SCALE = 360;
+const CANVAS_H = 450;
 const LETTER_GAP = 20;
 const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
 const REPETITIONS = 3; // trace the word 3 times with spaces between
@@ -117,7 +117,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   // Report current repetition to parent for the progress dots.
   useEffect(() => {
     if (onProgress && wordLength > 0) {
-      onProgress({ currentRep: Math.floor(letterIndex / wordLength) + 1, totalReps: repetitions });
+      onProgress({ currentRep: Math.floor(letterIndex / wordLength) + 1, totalReps: repetitions, letterIndex });
     }
   }, [letterIndex, wordLength, repetitions]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -452,7 +452,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
         }`}
-        style={{ width: renderWidth, maxWidth: '95vw', cursor: 'crosshair', touchAction: 'none' }}
+        style={{ width: renderWidth, maxWidth: 'none', cursor: 'crosshair', touchAction: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
