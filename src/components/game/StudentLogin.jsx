@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
+import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import StudentLoginShell from './StudentLoginShell';
 import { useClassColors } from '@/hooks/useClassColors';
 
@@ -12,6 +15,17 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
   const { colorFor, groupedClasses, loading } = useClassColors();
   const groups = groupedClasses();
   const noClasses = Object.values(groups).every((g) => g.length === 0);
+
+  // Fetch student records for the selected class so we can show login photos
+  // (set by teachers via PrintPro URL paste or direct upload) instead of numbers.
+  const { data: classStudents = [] } = useQuery({
+    queryKey: ['login-students', selectedClass],
+    queryFn: () => base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }),
+    enabled: !!selectedClass,
+  });
+  const photoByNumber = new Map(
+    classStudents.filter(s => s.photo_url).map(s => [s.student_number, s.photo_url])
+  );
 
   const subtitle = !selectedClass ? (
     'Choose your class!'
@@ -82,6 +96,7 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
         <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2.5 sm:gap-3">
           {numbers.map((num, i) => {
             const c = colorFor(selectedClass);
+            const photo = photoByNumber.get(num);
             return (
               <motion.button
                 key={num}
@@ -91,10 +106,17 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
                 whileHover={{ scale: 1.12, y: -2 }}
                 whileTap={{ scale: 0.92 }}
                 onClick={() => onSelectStudent({ number: num, class_name: selectedClass })}
-                className="aspect-square rounded-2xl text-white font-extrabold text-xl sm:text-2xl shadow-lg ring-1 ring-white/30"
+                className="relative aspect-square rounded-2xl text-white font-extrabold text-xl sm:text-2xl shadow-lg ring-1 ring-white/30 overflow-hidden"
                 style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
               >
-                {num}
+                {photo ? (
+                  <>
+                    <img src={photo} alt={`${num}`} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <span className="absolute bottom-0.5 right-1 text-[10px] sm:text-xs font-black bg-black/45 px-1.5 py-0.5 rounded-md leading-none">{num}</span>
+                  </>
+                ) : (
+                  <span className="relative z-10">{num}</span>
+                )}
               </motion.button>
             );
           })}

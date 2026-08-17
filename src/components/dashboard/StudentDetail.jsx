@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import StudentPhotoEditor from './StudentPhotoEditor';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../data/letterSounds';
 import { SIGHT_WORDS_EASY_EN, SIGHT_WORDS_SPELLING_EN } from '../data/sightWords';
 import { SPELLING_WORDS_EN } from '../data/spellingWords';
@@ -269,6 +270,9 @@ export default function StudentDetail({ student, onClose, onUpdate }) {
               Lock — students can't change
             </label>
           </div>
+
+          {/* Login photo (teacher only) — picture login for non-readers */}
+          <StudentPhotoEditor student={student} onUpdate={onUpdate} />
 
           {/* Letter Sounds interactive editor */}
           <LetterSoundsEditor student={student} onUpdate={onUpdate} />

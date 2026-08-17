@@ -10,6 +10,12 @@
       "type": "string",
       "description": "Optional student name"
     },
+    "photo_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Student photo URL (e.g. copied from PrintPro ID cards, or uploaded). Shown on the login tile instead of the number when set, so non-readers can find themselves by picture.",
+      "default": ""
+    },
     "class_name": {
       "type": "string",
       "description": "Class identifier, e.g. F, V, C"
