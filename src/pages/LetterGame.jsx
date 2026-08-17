@@ -72,7 +72,7 @@ export default function LetterGame() {
     queryKey: ['live-sessions', selectedStudent?.class_name, liveCode],
     queryFn: () => base44.entities.LiveLessonSession.filter({ active: true }),
     enabled: !!studentData,
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   useEffect(() => {

@@ -50,6 +50,16 @@ export function useLiveBroadcast(sessionId) {
     }
   }, [sessionId]);
 
+  // Re-seed the broadcast from the DB. Used by the student side as a safety net
+  // when the realtime subscription may have missed an update (backgrounded tab,
+  // transient disconnect) — e.g. after a step change is detected via polling.
+  const refresh = useCallback(() => {
+    if (!sessionId) return;
+    base44.entities.LiveLessonSession.get(sessionId)
+      .then((s) => { if (s?.broadcast_state) setBroadcast(s.broadcast_state); })
+      .catch(() => {});
+  }, [sessionId]);
+
   // Clear broadcast (used on step advance / phase change to try).
   const clear = useCallback(() => {
     if (!sessionId) return;
@@ -58,5 +68,5 @@ export function useLiveBroadcast(sessionId) {
     base44.entities.LiveLessonSession.update(sessionId, { broadcast_state: {} }).catch(() => {});
   }, [sessionId]);
 
-  return { broadcast, send, clear };
+  return { broadcast, send, clear, refresh };
 }

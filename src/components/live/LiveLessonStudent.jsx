@@ -38,13 +38,48 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     return unsub;
   }, [session?.id]);
 
+  // Polling safety net — realtime subscriptions can miss events when a student's
+  // tab is backgrounded or the network blips, which left students stuck on the
+  // old step while the teacher moved on. Every 3s we re-fetch the session and
+  // reconcile: exit if the teacher ended the lesson, jump to the teacher's
+  // current step/phase if we fell behind, and re-seed the broadcast so the
+  // mirror catches up. This also guarantees late joiners land on the correct
+  // step (their initial state comes from the fetch, not a possibly-stale cache).
+  useEffect(() => {
+    if (!session?.id) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const s = await base44.entities.LiveLessonSession.get(session.id);
+        if (!alive || !s) return;
+        if (!s.active) { onExit?.(); return; }
+        setLocalSession((prev) => {
+          const prevStep = prev?.current_step ?? 0;
+          const prevPhase = prev?.phase ?? 'watch';
+          const newStep = s.current_step ?? 0;
+          const newPhase = s.phase ?? 'watch';
+          // Step changed → the teacher moved on. Re-seed the broadcast so the
+          // mirror reflects the new activity even if the subscription missed it.
+          if (newStep !== prevStep) refreshBroadcast();
+          if (newStep !== prevStep || newPhase !== prevPhase) {
+            return { ...prev, ...s };
+          }
+          return prev;
+        });
+      } catch { /* best-effort */ }
+    };
+    tick(); // run immediately so late joiners reconcile at mount
+    const iv = setInterval(tick, 3000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const steps = lesson?.steps || [];
   const stepIndex = localSession?.current_step || 0;
   const currentStep = steps[stepIndex];
   const phase = localSession?.phase || 'watch';
 
   // Live mirror of the teacher's screen during the "watch" phase.
-  const { broadcast } = useLiveBroadcast(session?.id);
+  const { broadcast, refresh: refreshBroadcast } = useLiveBroadcast(session?.id);
 
   // Report this student's work to the teacher dashboard during the try phase.
   const student = selectedStudent
