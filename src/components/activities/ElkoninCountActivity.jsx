@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildActivity } from '@/lib/activities/engine';
+import { playTts } from '@/lib/audio';
 import { RefreshCw, Volume2, Mic, Send } from 'lucide-react';
 
 // Canvas-based Elkonin counting. Eight SQUARE boxes sit touching in a single
@@ -251,11 +252,7 @@ export default function ElkoninCountActivity({ config, studentName }) {
   }
 
   function speak() {
-    try {
-      const u = new SpeechSynthesisUtterance(current.text);
-      u.lang = 'es-ES'; u.rate = 0.85;
-      window.speechSynthesis?.speak(u);
-    } catch { /* best-effort */ }
+    playTts(current.text, 'es');
   }
 
   const placedCount = placed.filter(Boolean).length;

@@ -1,3 +1,5 @@
+import { base44 } from '@/api/base44Client';
+
 // Central Supabase audio bucket for all literacy/math games.
 //
 // Public bucket name: "audio"  (create it in Supabase Storage and set it PUBLIC).
@@ -81,4 +83,40 @@ export async function preloadSilenceStart(url) {
   } catch {
     silenceCache[url] = 0;
   }
+}
+
+// Cloud TTS with persistent caching. Generates spoken audio via the
+// generateTts backend function (Google Cloud TTS → Supabase audio bucket) and
+// caches the result URL in memory so repeat plays are instant. The backend
+// function itself checks the bucket first — so once a sentence is generated,
+// it's reused forever across all students/devices. Falls back to the
+// browser's speech synthesizer if the backend is unreachable.
+const ttsCache = new Map();
+
+export async function playTts(text, lang = 'es') {
+  if (!text) return;
+  const key = `${lang}:${text}`;
+  let url = ttsCache.get(key);
+  if (!url) {
+    try {
+      const res = await base44.functions.invoke('generateTts', { text, lang });
+      url = res.data?.url;
+      if (url) ttsCache.set(key, url);
+    } catch { /* fall through to speechSynthesis */ }
+  }
+  if (url) {
+    try {
+      const a = new Audio(url);
+      a.play().catch(() => {});
+      return;
+    } catch { /* fall through */ }
+  }
+  // Fallback: browser speech synthesizer (less natural but always available)
+  try {
+    window.speechSynthesis?.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang === 'en' ? 'en-US' : 'es-ES';
+    u.rate = 0.85;
+    window.speechSynthesis?.speak(u);
+  } catch { /* best-effort */ }
 }

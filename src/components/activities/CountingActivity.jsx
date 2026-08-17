@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Volume2 } from 'lucide-react';
 import { buildActivity } from '@/lib/activities/engine';
+import { playTts } from '@/lib/audio';
 
 function shuffle(arr) {
   const a = [...arr];
@@ -66,12 +67,7 @@ export default function CountingActivity({ config }) {
   }
 
   function speak() {
-    try {
-      const u = new SpeechSynthesisUtterance(current.text);
-      u.lang = 'es-ES';
-      u.rate = 0.85;
-      window.speechSynthesis?.speak(u);
-    } catch { /* best-effort */ }
+    playTts(current.text, 'es');
   }
 
   return (
