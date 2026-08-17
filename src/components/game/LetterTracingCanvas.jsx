@@ -227,7 +227,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       const prevP = currentPathRef.current[currentPathRef.current.length - 1];
       if (prevP) {
         postCompleteTravelRef.current += dist(pos, prevP);
-        if (postCompleteTravelRef.current > 15) {
+        if (postCompleteTravelRef.current > 35) {
           flashError();
           restartStroke();
           return;

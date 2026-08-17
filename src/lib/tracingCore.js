@@ -4,17 +4,17 @@
 
 import { AUDIO_BASE } from '@/lib/audio';
 
-export const HIT_RADIUS = 14;
-export const WOBBLE_RADIUS = 62;
-export const OFF_TRAVEL_BUDGET = 140;
-export const FWD_RETRACE_RADIUS = 70;
+export const HIT_RADIUS = 18;
+export const WOBBLE_RADIUS = 85;
+export const OFF_TRAVEL_BUDGET = 240;
+export const FWD_RETRACE_RADIUS = 90;
 export const MIN_MOVE = 5;
-export const DIR_REJECT_DOT = -0.78;
-export const COVERAGE_RADIUS = 16;
-export const MIN_COVER_FRAC = 0.95;
-export const MAX_GAP = 10;
-export const START_TOL = 6;
-export const END_TOL = 5;
+export const DIR_REJECT_DOT = -0.86;
+export const COVERAGE_RADIUS = 22;
+export const MIN_COVER_FRAC = 0.80;
+export const MAX_GAP = 20;
+export const START_TOL = 12;
+export const END_TOL = 12;
 
 export const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
