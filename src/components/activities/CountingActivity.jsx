@@ -22,6 +22,7 @@ export default function CountingActivity({ config }) {
   const [selected, setSelected] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
+  const [speed, setSpeed] = useState(0.85);
 
   useEffect(() => {
     if (!activity.items.length) return;
@@ -67,7 +68,7 @@ export default function CountingActivity({ config }) {
   }
 
   function speak() {
-    playTts(current.text, 'es');
+    playTts(current.text, 'es', speed);
   }
 
   return (
@@ -83,13 +84,36 @@ export default function CountingActivity({ config }) {
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {modeDef.in}
         </div>
-        <div className="text-3xl font-bold text-slate-800 leading-snug">{current.text}</div>
-        <button
-          onClick={speak}
-          className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold"
-        >
-          <Volume2 className="w-4 h-4" /> Escuchar
-        </button>
+        {feedback || activity.mode !== 'counting_words' ? (
+          <div className="text-3xl font-bold text-slate-800 leading-snug">{current.text}</div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-2">
+            <div className="text-6xl animate-pulse">🔊</div>
+            <div className="text-sm text-slate-400 font-semibold">Toca Escuchar y cuenta las palabras</div>
+          </div>
+        )}
+        <div className="mt-3 flex flex-col items-center gap-2">
+          <button
+            onClick={speak}
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-indigo-500 text-white text-base font-bold hover:bg-indigo-600"
+          >
+            <Volume2 className="w-5 h-5" /> Escuchar
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-base">🐢</span>
+            <input
+              type="range"
+              min="0.5"
+              max="1.0"
+              step="0.05"
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="w-32 accent-indigo-500"
+            />
+            <span className="text-base">🐰</span>
+            <span className="text-xs font-bold text-slate-500 ml-1 w-9">{Math.round(speed * 100)}%</span>
+          </div>
+        </div>
       </div>
 
       {/* number tiles */}

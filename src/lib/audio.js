@@ -93,7 +93,7 @@ export async function preloadSilenceStart(url) {
 // browser's speech synthesizer if the backend is unreachable.
 const ttsCache = new Map();
 
-export async function playTts(text, lang = 'es') {
+export async function playTts(text, lang = 'es', rate = 0.85) {
   if (!text) return;
   const key = `${lang}:${text}`;
   let url = ttsCache.get(key);
@@ -107,6 +107,7 @@ export async function playTts(text, lang = 'es') {
   if (url) {
     try {
       const a = new Audio(url);
+      a.playbackRate = rate;
       a.play().catch(() => {});
       return;
     } catch { /* fall through */ }
@@ -116,7 +117,7 @@ export async function playTts(text, lang = 'es') {
     window.speechSynthesis?.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = lang === 'en' ? 'en-US' : 'es-ES';
-    u.rate = 0.85;
+    u.rate = rate;
     window.speechSynthesis?.speak(u);
   } catch { /* best-effort */ }
 }

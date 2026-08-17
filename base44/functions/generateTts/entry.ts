@@ -45,7 +45,7 @@ export default async function(req: Request): Promise<Response> {
             languageCode: lang === 'en' ? 'en-US' : 'es-ES',
             name: lang === 'en' ? 'en-US-Standard-E' : 'es-ES-Standard-A',
           },
-          audioConfig: { audioEncoding: 'MP3', speakingRate: 0.85 },
+          audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0 },
         }),
       }
     );
