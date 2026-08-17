@@ -9,7 +9,6 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
-import { useAuth } from '@/lib/AuthContext';
 
 const CLASSES = ['Valero', 'Felix', 'Gutierrez', 'Schwarz', 'Campos', 'Mendez', 'Aguirre', 'Jimenez'];
 
@@ -19,7 +18,6 @@ function genCode() {
 }
 
 export default function LiveLesson() {
-  const { isAuthenticated, user, isLoadingAuth, navigateToLogin } = useAuth();
   const [session, setSession] = useState(null);
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [className, setClassName] = useState('');
@@ -56,42 +54,6 @@ export default function LiveLesson() {
   }, [session?.id]);
 
   const { send, clear: clearBroadcast } = useLiveBroadcast(session?.id);
-
-  // Teacher-only page — on the published site, teachers must be logged in
-  // with a teacher/admin role to create LiveLessonSession records (RLS).
-  // Without this guard, unauthenticated visitors hit a 403 on session create.
-  if (isLoadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-rose-50">
-        <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-  if (!isAuthenticated || !user || !['teacher', 'admin'].includes(user.role)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 to-pink-50 p-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-8 text-center max-w-sm">
-          <div className="w-14 h-14 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-7 h-7 text-rose-500" />
-          </div>
-          <h2 className="text-xl font-black text-gray-800 mb-2">Teachers only</h2>
-          <p className="text-sm text-gray-500 mb-5">
-            {isAuthenticated
-              ? "Your account doesn't have teacher access. Ask an admin to update your role."
-              : "You need to log in as a teacher to start a live lesson."}
-          </p>
-          {!isAuthenticated && (
-            <Button onClick={() => navigateToLogin()} className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5">
-              Log in
-            </Button>
-          )}
-          <Link to="/Lessons" className="block mt-3 text-rose-600 hover:underline font-bold text-sm">
-            <ArrowLeft className="w-4 h-4 inline mr-1" />Back to Lessons
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const startSession = async () => {
     if (!selectedLessonId || !className) return;
