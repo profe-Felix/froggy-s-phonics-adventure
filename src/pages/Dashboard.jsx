@@ -87,6 +87,24 @@ export default function Dashboard() {
     setSelectedStudent(updated);
   };
 
+  // Clicking a greyed-out (placeholder) slot creates that student record on the
+  // fly and opens their detail, so the teacher can add a photo / set language.
+  const handleCardClick = async (s) => {
+    if (!s._placeholder) { setSelectedStudent(s); return; }
+    try {
+      const created = await base44.entities.Student.create({
+        student_number: s.student_number,
+        class_name: s.class_name,
+        school_year: '26-27',
+        language: 'es',
+      });
+      setStudents(prev => [...prev, created]);
+      setSelectedStudent(created);
+    } catch (e) {
+      console.error('Failed to create student', e);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-100 to-blue-50 p-3 sm:p-6">
       <div className="max-w-6xl mx-auto">
@@ -274,7 +292,7 @@ export default function Dashboard() {
                   {student.class_name && <div className="text-xs text-gray-400 mt-0.5">Class {student.class_name}</div>}
                 </button>
               ) : (
-                <StudentCard key={student.id || student.student_number} student={student} displayMode={selectedMode === 'All' ? null : selectedMode} onClick={s => !s._placeholder && setSelectedStudent(s)} />
+                <StudentCard key={student.id || student.student_number} student={student} displayMode={selectedMode === 'All' ? null : selectedMode} onClick={handleCardClick} />
               )
             ))}
           </div>
