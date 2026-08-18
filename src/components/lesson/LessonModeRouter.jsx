@@ -58,6 +58,12 @@ export default function LessonModeRouter({
   // doesn't instantly re-master after a single attempt.
   const completedOnceRef = useRef(alreadyDone);
   const comp = step?.completion || { type: 'view', target: 1 };
+  // Tracing modes report completed traces through total_attempts, not
+  // mastered_items. Some lesson records were saved with completion.type =
+  // 'mastery', which made those steps impossible to finish (e.g. Master 8
+  // stayed at 0/8 even after 9 successful traces). Treat the target as the
+  // required number of completed traces for these modes.
+  const isTracingMode = step?.mode === 'letter_tracing' || step?.mode === 'word_tracing';
 
   const maybeComplete = useCallback((progressData) => {
     if (completedOnceRef.current) return;
@@ -65,7 +71,10 @@ export default function LessonModeRouter({
     // trap the student behind the "Step Complete" overlay.
     if (liveMode) return;
     let isDone = false;
-    if (comp.type === 'mastery') {
+    if (isTracingMode) {
+      const need = comp.target && comp.target > 1 ? comp.target : 5;
+      isDone = (progressData?.total_attempts || 0) >= need;
+    } else if (comp.type === 'mastery') {
       isDone = (progressData?.mastered_items?.length || 0) >= (comp.target || 1);
     } else {
       // view = a full round of participation (not a single tap), so kids play
@@ -80,19 +89,19 @@ export default function LessonModeRouter({
       setDone(true);
       markStepComplete(stepIndex, totalSteps);
     }
-  }, [comp, stepIndex, totalSteps, markStepComplete]);
+  }, [comp, isTracingMode, stepIndex, totalSteps, markStepComplete]);
 
   // Auto-complete mastery steps the student already satisfied in a prior session
   // so they don't have to re-answer questions just to unlock the next step.
   useEffect(() => {
     if (completedOnceRef.current) return;
-    if (comp.type !== 'mastery') return;
+    if (comp.type !== 'mastery' || isTracingMode) return;
     const mp = studentData?.mode_progress?.[step.mode];
     const masteredCount = mp?.mastered_items?.length || 0;
     if (masteredCount >= (comp.target || 1)) {
       maybeComplete({ mastered_items: mp?.mastered_items || [] });
     }
-  }, [studentData, step.mode, comp.type, comp.target, maybeComplete]);
+  }, [studentData, step.mode, comp.type, comp.target, isTracingMode, maybeComplete]);
 
   // progress-aware wrapper (also persists via the parent's onUpdateProgress).
   // Suppressed once the step is complete so replays don't re-award points.
@@ -125,13 +134,17 @@ export default function LessonModeRouter({
   const className = selectedStudent?.class_name;
 
   // Build a goal/progress label so the student knows what "done" means.
-  const isMastery = comp.type === 'mastery';
+  const isMastery = comp.type === 'mastery' && !isTracingMode;
   const modeProgress = studentData?.mode_progress?.[step.mode];
   const masteredCount = modeProgress?.mastered_items?.length || 0;
-  const goalText = isMastery
-    ? `🎯 Master ${comp.target} — ${Math.min(masteredCount, comp.target)}/${comp.target}`
-    : '★ Play once to finish';
-  const goalDone = isMastery ? masteredCount >= comp.target : false;
+  const attemptTarget = comp.target && comp.target > 1 ? comp.target : 5;
+  const attemptCount = modeProgress?.total_attempts || 0;
+  const goalText = isTracingMode
+    ? `✍️ Trace ${attemptTarget} times`
+    : isMastery
+      ? `🎯 Master ${comp.target} — ${Math.min(masteredCount, comp.target)}/${comp.target}`
+      : '★ Play once to finish';
+  const goalDone = isTracingMode ? done : (isMastery ? masteredCount >= comp.target : false);
 
   function renderMode() {
     switch (step.mode) {
