@@ -531,6 +531,40 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   // completion followed it; accuracy measures how cleanly.
   const isAmber = isSuccess && accuracy != null && accuracy < 80;
 
+  // Moving "Pac-Man pellet" guide dots.
+  // While the student is tracing, show only a few points AHEAD of their
+  // current progress. Because these come directly from densePath, they follow
+  // the exact taught stroke direction — including curves and retraces.
+  const guideDots = useMemo(() => {
+    if (!drawing || awaitingLift || isSuccess || !densePath.length) return [];
+
+    const progress = Math.max(
+      0,
+      Math.min(densePath.length - 1, pathProgressRef.current)
+    );
+
+    // Increasing offsets put four breadcrumbs ahead of the student's finger.
+    const offsets = [5, 11, 18, 26];
+    const seen = new Set();
+
+    return offsets
+      .map((offset, i) => {
+        const idx = Math.min(densePath.length - 1, progress + offset);
+
+        // Near the end several offsets can clamp to the same point.
+        if (seen.has(idx)) return null;
+        seen.add(idx);
+
+        return {
+          ...densePath[idx],
+          index: idx,
+          radius: [5.5, 4.8, 4.1, 3.5][i],
+          opacity: [0.95, 0.78, 0.60, 0.42][i],
+        };
+      })
+      .filter(Boolean);
+  }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+
   return (
     <div className="flex flex-col items-center gap-3 select-none">
       {/* Status prompt */}
@@ -631,6 +665,24 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
+
+        {/* Moving direction guide — "Pac-Man pellets" that stay just ahead
+            of the student's finger along the taught stroke path. */}
+        {guideDots.map((dot, i) => {
+          const guideColor = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length];
+
+          return (
+            <circle
+              key={`guide-dot-${dot.index}-${i}`}
+              cx={dot.x}
+              cy={dot.y}
+              r={dot.radius}
+              fill={guideColor}
+              opacity={dot.opacity}
+              pointerEvents="none"
+            />
+          );
+        })}        
 
         {/* Replay hint — animated demo of the current stroke's ideal path */}
         {replayPts.length > 1 && (
