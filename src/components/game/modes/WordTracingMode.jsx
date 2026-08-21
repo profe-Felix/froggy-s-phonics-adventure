@@ -46,7 +46,7 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
     .filter(Boolean);
 
   const currentWord = words[wordIndex] || '';
-  const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 360, 20, 30, 3, 80);
+  const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 480, 20, 30, 3, 80);
 
   // Auto-scroll the tracing canvas so the current letter is always centered and
   // large enough for accurate tracing. The canvas renders at full width inside a
