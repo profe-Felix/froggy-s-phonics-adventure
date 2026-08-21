@@ -52,7 +52,16 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       try {
         const s = await base44.entities.LiveLessonSession.get(session.id);
         if (!alive || !s) return;
-        if (!s.active) { onExit?.(); return; }
+
+        const lastUpdate = s.updated_date || s.started_at;
+        const stale =
+          !lastUpdate ||
+          Date.now() - new Date(lastUpdate).getTime() > 90 * 1000;
+
+        if (!s.active || stale) {
+          onExit?.();
+          return;
+        }
         setLocalSession((prev) => {
           const prevStep = prev?.current_step ?? 0;
           const prevPhase = prev?.phase ?? 'watch';
