@@ -437,6 +437,36 @@ const guideDots = useMemo(() => {
     .filter(Boolean);
 }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
+// Direction arrow just beyond the breadcrumb dots.
+// Uses two nearby points on densePath to determine the direction
+// the student should continue moving.
+const guideArrow = useMemo(() => {
+  if (!drawing || awaitingLift || isSuccess || !densePath.length) return null;
+
+  const progress = Math.max(
+    0,
+    Math.min(densePath.length - 1, pathProgressRef.current)
+  );
+
+  const arrowIndex = Math.min(densePath.length - 1, progress + 30);
+  const directionIndex = Math.min(densePath.length - 1, arrowIndex + 4);
+
+  // Don't show an arrow if there isn't enough path left to establish direction.
+  if (directionIndex === arrowIndex) return null;
+
+  const p1 = densePath[arrowIndex];
+  const p2 = densePath[directionIndex];
+
+  const angle =
+    Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+
+  return {
+    x: p1.x,
+    y: p1.y,
+    angle,
+  };
+}, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+
 const currentStrokeWaypoints = strokes[strokeIndex] || [];
   const nextWp = waypointIndex < currentStrokeWaypoints.length
     ? scaleWord(currentStrokeWaypoints[waypointIndex]) : null;
@@ -559,6 +589,22 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
             />
           );
         })}
+
+        {/* Direction arrow at the front of the Pac-Man trail */}
+        {guideArrow && (
+          <g
+            transform={`translate(${guideArrow.x} ${guideArrow.y}) rotate(${guideArrow.angle})`}
+            pointerEvents="none"
+          >
+            <path
+              d="M -8 -7 L 8 0 L -8 7 Z"
+              fill="#FACC15"
+              stroke="#854D0E"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+          </g>
+        )}
 
         {/* Start dot — at the current stroke's first waypoint */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
