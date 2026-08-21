@@ -579,7 +579,12 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
         }`}
-        style={{ width: renderWidth, maxWidth: '92vw', cursor: 'crosshair', touchAction: 'none' }}
+        style={{
+          width: renderWidth,
+          maxWidth: '96vw',
+          cursor: 'crosshair',
+          touchAction: 'none'
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
