@@ -398,9 +398,46 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const pathD = (pts) => pts.length < 2 ? '' :
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-  const isSuccess = status === 'success';
-  const isAmber = isSuccess && accuracy != null && accuracy < 80;
-  const currentStrokeWaypoints = strokes[strokeIndex] || [];
+const isSuccess = status === 'success';
+const isAmber = isSuccess && accuracy != null && accuracy < 80;
+
+// Moving "Pac-Man pellet" guide dots.
+// Shows only a few points ahead of the student's current tracing position.
+// Because these use densePath, they follow the exact taught direction,
+// including curves, turns, and retraces.
+const guideDots = useMemo(() => {
+  if (!drawing || awaitingLift || isSuccess || !densePath.length) return [];
+
+  const progress = Math.max(
+    0,
+    Math.min(densePath.length - 1, pathProgressRef.current)
+  );
+
+  const offsets = [5, 11, 18, 26];
+  const seen = new Set();
+
+  return offsets
+    .map((offset, i) => {
+      const idx = Math.min(
+        densePath.length - 1,
+        progress + offset
+      );
+
+      // Near the end, several offsets may land on the same final point.
+      if (seen.has(idx)) return null;
+      seen.add(idx);
+
+      return {
+        ...densePath[idx],
+        index: idx,
+        radius: [5.5, 4.8, 4.1, 3.5][i],
+        opacity: [0.95, 0.78, 0.60, 0.42][i],
+      };
+    })
+    .filter(Boolean);
+}, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+
+const currentStrokeWaypoints = strokes[strokeIndex] || [];
   const nextWp = waypointIndex < currentStrokeWaypoints.length
     ? scaleWord(currentStrokeWaypoints[waypointIndex]) : null;
 
@@ -502,6 +539,24 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
           <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
+
+        {/* Moving direction guide — "Pac-Man pellets" that stay just ahead
+            of the student's finger along the taught stroke path. */}
+        {guideDots.map((dot, i) => {
+          const guideColor = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length];
+
+          return (
+            <circle
+              key={`guide-dot-${dot.index}-${i}`}
+              cx={dot.x}
+              cy={dot.y}
+              r={dot.radius}
+              fill={guideColor}
+              opacity={dot.opacity}
+              pointerEvents="none"
+            />
+          );
+        })}
 
         {/* Start dot — at the current stroke's first waypoint */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
