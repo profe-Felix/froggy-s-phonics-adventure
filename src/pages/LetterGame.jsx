@@ -65,13 +65,46 @@ export default function LetterGame() {
     l => !l.class_name || l.class_name === selectedStudent?.class_name
   );
 
-  // Detect active live lesson sessions for this student's class. QR deep-links
-  // (via ?live=CODE) auto-join; otherwise a banner is shown on the class page
-  // for the student to tap. Polls every 5s so a newly started session appears.
+  // Detect active live lesson sessions for this student's class.
+  //
+  // The teacher LiveLesson page refreshes the session's updated_date every
+  // 15 seconds. If we have not heard from the teacher for 90 seconds, treat
+  // the session as abandoned even if its database "active" flag is still true.
+  //
+  // This prevents forgotten/closed teacher tabs from leaving the
+  // "Your teacher started a Live Lesson!" banner stuck on student devices.
   const { data: activeLiveSessions = [] } = useQuery({
     queryKey: ['live-sessions', selectedStudent?.class_name, liveCode],
-    queryFn: () => base44.entities.LiveLessonSession.filter({ active: true }),
+
+    queryFn: async () => {
+      const sessions =
+        await base44.entities.LiveLessonSession.filter({
+          active: true,
+        });
+
+      const now = Date.now();
+      const STALE_AFTER_MS = 90 * 1000;
+
+      return (sessions || []).filter(session => {
+        // Base44 automatically updates updated_date whenever the teacher
+        // heartbeat touches this session.
+        const lastUpdate =
+          session.updated_date ||
+          session.started_at;
+
+        if (!lastUpdate) return false;
+
+        const age =
+          now - new Date(lastUpdate).getTime();
+
+        return age < STALE_AFTER_MS;
+      });
+    },
+
     enabled: !!studentData,
+
+    // Check frequently so stale banners disappear quickly once the
+    // 90-second timeout has been reached.
     refetchInterval: 3000,
   });
 
