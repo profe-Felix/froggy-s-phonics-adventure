@@ -8,8 +8,8 @@ import {
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
-const X_SCALE = 360;
-const CANVAS_H = 450;
+const X_SCALE = 480;
+const CANVAS_H = 600;
 const LETTER_GAP = 20;
 const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
 const REPETITIONS = 3; // trace the word 3 times with spaces between
