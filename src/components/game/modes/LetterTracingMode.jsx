@@ -112,7 +112,7 @@ export default function LetterTracingMode({ studentData, onUpdateProgress, targe
           ...(lang === 'es' ? SPANISH_EXTRA : [])
         ]
   )
-    .map(l => l.toLowerCase())
+    .map(l => String(l).trim())
     .filter(l => waypoints[l]);
 
   const pageCount = Math.max(
