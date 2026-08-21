@@ -283,7 +283,15 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
         return (
           <label className="text-xs text-gray-600 font-bold">{cat === 'letters' ? 'Target letters' : 'Target words'}
             <input value={(step.config?.targets || []).join(', ')}
-              onChange={e => update({ config: { ...step.config, targets: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })}
+              onChange={e => update({
+                config: {
+                  ...step.config,
+                  targets: e.target.value
+                    .split(/[\s,]+/)
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                }
+              })}
               placeholder={cat === 'letters' ? 'e.g. m, a, s  (blank = all)' : 'e.g. el, la, un  (blank = auto)'}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
           </label>
