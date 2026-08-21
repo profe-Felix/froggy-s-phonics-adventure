@@ -234,7 +234,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       const prevP = currentPathRef.current[currentPathRef.current.length - 1];
       if (prevP) {
         postCompleteTravelRef.current += dist(pos, prevP);
-        if (postCompleteTravelRef.current > 35) {
+        if (postCompleteTravelRef.current > 70) {
           flashError();
           restartStroke();
           return;
