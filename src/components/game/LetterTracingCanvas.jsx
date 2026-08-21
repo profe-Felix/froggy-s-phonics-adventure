@@ -559,7 +559,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           ...densePath[idx],
           index: idx,
           radius: [5.5, 4.8, 4.1, 3.5][i],
-          opacity: [0.95, 0.78, 0.60, 0.42][i],
+          opacity: [1, 0.95, 0.85, 0.75][i],
         };
       })
       .filter(Boolean);
@@ -669,7 +669,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         {/* Moving direction guide — "Pac-Man pellets" that stay just ahead
             of the student's finger along the taught stroke path. */}
         {guideDots.map((dot, i) => {
-          const guideColor = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length];
+          const guideColor = '#FACC15';
 
           return (
             <circle
@@ -678,6 +678,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
               cy={dot.y}
               r={dot.radius}
               fill={guideColor}
+              stroke="#854D0E"
+              strokeWidth="1.5"
               opacity={dot.opacity}
               pointerEvents="none"
             />
