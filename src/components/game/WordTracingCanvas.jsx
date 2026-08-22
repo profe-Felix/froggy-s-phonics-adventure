@@ -525,7 +525,10 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
           maxHeight: 'calc(100dvh - 190px)',
           maxWidth: 'none',
           cursor: 'crosshair',
-          touchAction: 'none'
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none'
         }}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
