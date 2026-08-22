@@ -644,8 +644,9 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           'border-slate-200 bg-white'
         }`}
         style={{
-          width: renderWidth,
-          maxWidth: '96vw',
+          width: `min(${renderWidth}px, 96vw, calc((100dvh - 190px) * 0.8))`,
+          height: 'auto',
+          maxHeight: 'calc(100dvh - 190px)',
           cursor: 'crosshair',
           touchAction: 'none'
         }}
