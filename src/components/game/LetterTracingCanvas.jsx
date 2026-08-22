@@ -750,23 +750,48 @@ export default function LetterTracingCanvas({
         <line x1="0" y1={0.90 * CANVAS_H} x2={TOTAL_W} y2={0.90 * CANVAS_H}
           stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Waypoint guide path — vibrant per-stroke colors matching the teacher
-            authoring canvas, solid and visible so the student can see what to trace. */}
-        {strokes.map((stroke, si) => {
-          const color = si < strokeIndex ? '#22c55e' : GUIDE_COLORS[si % GUIDE_COLORS.length];
-          return (
-            <polyline
-              key={si}
-              points={stroke.map(p => `${scale(p).x},${scale(p).y}`).join(' ')}
-              fill="none"
-              stroke={color}
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={si < strokeIndex ? 0.5 : 0.6}
-            />
-          );
-        })}
+        {/* Practice row. Earlier copies are completed, the active copy
+            uses the normal stroke colors, and upcoming copies stay faint. */}
+        {Array.from({ length: copyCount }, (_, copyIndex) =>
+          strokes.map((stroke, si) => {
+            const isPastCopy = copyIndex < safeActiveCopy;
+            const isFutureCopy = copyIndex > safeActiveCopy;
+            const isPastStroke =
+              copyIndex === safeActiveCopy && si < strokeIndex;
+
+            const color =
+              isPastCopy || isPastStroke
+                ? '#22c55e'
+                : isFutureCopy
+                  ? '#94a3b8'
+                  : GUIDE_COLORS[si % GUIDE_COLORS.length];
+
+            return (
+              <polyline
+                key={`${copyIndex}-${si}`}
+                points={stroke.map((p) => {
+                  const q = scaleForCopy(p, copyIndex);
+                  return `${q.x},${q.y}`;
+                }).join(' ')}
+                fill="none"
+                stroke={color}
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={
+                  isPastCopy
+                    ? 0.42
+                    : isFutureCopy
+                      ? 0.25
+                      : isPastStroke
+                        ? 0.5
+                        : 0.6
+                }
+                pointerEvents="none"
+              />
+            );
+          })
+        )}
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
@@ -869,7 +894,7 @@ export default function LetterTracingCanvas({
       )}
 
       <div className="flex items-center gap-4">
-        {!isSuccess && (
+        {!isSuccess && showGuide && (
           <button
             onClick={startReplay}
             disabled={drawing || replaying || !strokes[strokeIndex]}
