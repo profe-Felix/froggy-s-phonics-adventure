@@ -540,7 +540,16 @@ export default function LetterTracingCanvas({
       flashError();
       restartStroke();
     }
-  }, [drawing, densePath, strokeIndex, strokes, onComplete, onAccuracy]);
+  }, [
+    drawing,
+    densePath,
+    strokeIndex,
+    strokes,
+    onComplete,
+    onAccuracy,
+    flashError,
+    stopFonema,
+  ]);
 
   const stopReplay = () => {
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
