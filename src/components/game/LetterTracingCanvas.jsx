@@ -648,7 +648,10 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           height: 'auto',
           maxHeight: 'calc(100dvh - 190px)',
           cursor: 'crosshair',
-          touchAction: 'none'
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none'
         }}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
