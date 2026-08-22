@@ -9,9 +9,49 @@ import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
-const scale = (pt) => scaleFn(pt, CANVAS_W, CANVAS_H);
+const COPY_GAP = 24;
 
-export default function LetterTracingCanvas({ letter, strokes, onComplete, onReset, onAccuracy, debugCoverage, renderWidth = 256, lang = 'es', onStrokesChange }) {
+export default function LetterTracingCanvas({
+  letter,
+  strokes,
+  onComplete,
+  onReset,
+  onAccuracy,
+  onMistake,
+  debugCoverage,
+  renderWidth = 256,
+  lang = 'es',
+  onStrokesChange,
+  showGuide = true,
+  practiceCopies = 1,
+  activeCopy = 0,
+}) {
+  const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
+  const safeActiveCopy = Math.max(
+    0,
+    Math.min(copyCount - 1, Math.floor(activeCopy || 0))
+  );
+
+  const TOTAL_W =
+    CANVAS_W * copyCount +
+    COPY_GAP * (copyCount - 1);
+
+  const scaleForCopy = useCallback(
+    (pt, copyIndex = safeActiveCopy) => {
+      const base = scaleFn(pt, CANVAS_W, CANVAS_H);
+
+      return {
+        x: base.x + copyIndex * (CANVAS_W + COPY_GAP),
+        y: base.y,
+      };
+    },
+    [safeActiveCopy]
+  );
+
+  const scaleActive = useCallback(
+    (pt) => scaleForCopy(pt, safeActiveCopy),
+    [scaleForCopy, safeActiveCopy]
+  );
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
@@ -72,9 +112,14 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
   const densePath = useMemo(() => {
     const wp = strokes[strokeIndex];
-    const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
-    return clean.length ? buildDensePath(clean, scale) : [];
-  }, [strokes, strokeIndex]);
+    const clean = Array.isArray(wp)
+      ? wp.filter(p => p && p.x != null && p.y != null)
+      : [];
+
+    return clean.length
+      ? buildDensePath(clean, scaleActive)
+      : [];
+  }, [strokes, strokeIndex, scaleActive]);
 
   // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
   // student iPads mirror the teacher's pen in real time. Optional — no-op when
@@ -118,18 +163,37 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     setAccuracy(null);
     setCoverageStats(null);
     strokeAccuraciesRef.current = [];
-  }, [letter]);
+  }, [letter, safeActiveCopy]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const scaleX = CANVAS_W / rect.width;
+
+    const scaleX = TOTAL_W / rect.width;
     const scaleY = CANVAS_H / rect.height;
+
     return {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY,
     };
   };
+
+  const flashError = useCallback(() => {
+    setErrorFlash(true);
+
+    onMistake?.({
+      letter,
+      strokeIndex,
+      activeCopy: safeActiveCopy,
+    });
+
+    setTimeout(() => setErrorFlash(false), 600);
+  }, [
+    onMistake,
+    letter,
+    strokeIndex,
+    safeActiveCopy,
+  ]);
 
   const handlePointerDown = useCallback((e) => {
     e.preventDefault();
@@ -143,7 +207,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     const pos = getPos(e);
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
-    const firstWp = scale(currentStrokes[0]);
+    const firstWp = scaleActive(currentStrokes[0]);
     // Must start near the first waypoint of current stroke
     if (waypointIndex === 0 && dist(pos, firstWp) > HIT_RADIUS * 1.8) {
       flashError();
@@ -163,12 +227,15 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     currentPathRef.current = [pos];
     setCurrentPath([pos]);
     playFonema();
-  }, [status, strokeIndex, waypointIndex, strokes, playFonema]);
-
-  const flashError = () => {
-    setErrorFlash(true);
-    setTimeout(() => setErrorFlash(false), 600);
-  };
+  }, [
+    status,
+    strokeIndex,
+    waypointIndex,
+    strokes,
+    playFonema,
+    scaleActive,
+    flashError,
+  ]);
 
   // Reset the current (in-progress) stroke without touching completed ones.
   const restartStroke = () => {
@@ -431,12 +498,22 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     // Visual waypoint advancement (start/progress dots) — completion is
     // governed by pathProgress above, not by these dots.
     if (!pendingCompleteRef.current) {
-      const nextWp = scale(currentStrokes[waypointIndex]);
+      const nextWp = scaleActive(currentStrokes[waypointIndex]);
       if (dist(pos, nextWp) < HIT_RADIUS) {
         setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, debugCoverage]);
+  }, [
+    drawing,
+    status,
+    strokeIndex,
+    waypointIndex,
+    strokes,
+    densePath,
+    debugCoverage,
+    scaleActive,
+    flashError,
+  ]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
@@ -475,7 +552,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
     if (drawing || status === 'success') return;
     const wp = strokes[strokeIndex];
     if (!wp || wp.length < 2) return;
-    const refPath = buildDensePath(wp, scale);
+    const refPath = buildDensePath(wp, scaleActive);
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
     setReplaying(true);
     setReplayPts([]);
@@ -520,7 +597,8 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
   const currentStrokeWaypoints = strokes[strokeIndex] || [];
   const nextWp = waypointIndex < currentStrokeWaypoints.length
-    ? scale(currentStrokeWaypoints[waypointIndex]) : null;
+    ? scaleActive(currentStrokeWaypoints[waypointIndex])
+    : null;
 
   const pathD = (pts) => pts.length < 2 ? '' :
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -536,7 +614,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
   // current progress. Because these come directly from densePath, they follow
   // the exact taught stroke direction — including curves and retraces.
   const guideDots = useMemo(() => {
-    if (!drawing || awaitingLift || isSuccess || !densePath.length) return [];
+    if (!showGuide || !drawing || awaitingLift || isSuccess || !densePath.length) return [];
 
     const progress = Math.max(
       0,
@@ -563,13 +641,13 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         };
       })
       .filter(Boolean);
-  }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+  }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   // Direction arrow just beyond the breadcrumb dots.
   // Uses two nearby points on densePath to determine the direction
   // the student should continue moving.
   const guideArrow = useMemo(() => {
-    if (!drawing || awaitingLift || isSuccess || !densePath.length) return null;
+    if (!showGuide || !drawing || awaitingLift || isSuccess || !densePath.length) return null;
 
     const progress = Math.max(
       0,
@@ -593,7 +671,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
       y: p1.y,
       angle,
     };
-  }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+  }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   return (
     <div className="flex flex-col items-center gap-3 select-none">
@@ -637,16 +715,17 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
 
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-        className={`rounded-2xl border-4 touch-none aspect-[4/5] ${
+        viewBox={`0 0 ${TOTAL_W} ${CANVAS_H}`}
+        className={`rounded-2xl border-4 touch-none ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
         }`}
         style={{
-          width: `min(${renderWidth}px, 96vw, calc((100dvh - 190px) * 0.8))`,
+          width: `min(${renderWidth * copyCount + COPY_GAP * (copyCount - 1)}px, 96vw, calc((100dvh - 190px) * ${TOTAL_W / CANVAS_H}))`,
           height: 'auto',
           maxHeight: 'calc(100dvh - 190px)',
+          aspectRatio: `${TOTAL_W} / ${CANVAS_H}`,
           cursor: 'crosshair',
           touchAction: 'none',
           userSelect: 'none',
@@ -662,13 +741,13 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
         {/* Guide letter removed until suitable font is found */}
 
         {/* Primary writing lines — equal-zone spacing (matches authoring) */}
-        <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H}
+        <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.367 * CANVAS_H} x2={CANVAS_W} y2={0.367 * CANVAS_H}
+        <line x1="0" y1={0.367 * CANVAS_H} x2={TOTAL_W} y2={0.367 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
-        <line x1="0" y1={0.633 * CANVAS_H} x2={CANVAS_W} y2={0.633 * CANVAS_H}
+        <line x1="0" y1={0.633 * CANVAS_H} x2={TOTAL_W} y2={0.633 * CANVAS_H}
           stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-        <line x1="0" y1={0.90 * CANVAS_H} x2={CANVAS_W} y2={0.90 * CANVAS_H}
+        <line x1="0" y1={0.90 * CANVAS_H} x2={TOTAL_W} y2={0.90 * CANVAS_H}
           stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
         {/* Waypoint guide path — vibrant per-stroke colors matching the teacher
