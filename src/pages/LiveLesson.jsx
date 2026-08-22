@@ -46,18 +46,35 @@ export default function LiveLesson() {
     enabled: !!className,
   });
 
-  // Real-time subscription to the active session
+  // Real-time subscription to the active session.
+  //
+  // IMPORTANT: the teacher tab is authoritative for current_step and phase.
+  // Student joins, heartbeats, and delayed realtime events are allowed to
+  // refresh the rest of the session, but they must NEVER move the teacher
+  // backward to an older activity.
   useEffect(() => {
     if (!session?.id) return;
 
     const unsub = base44.entities.LiveLessonSession.subscribe((event) => {
-      if (event.data?.id === session.id) {
-        setSession(event.data);
+      if (event.data?.id !== session.id) return;
 
-        if (event.type === 'delete' || !event.data?.active) {
-          setSession(null);
-        }
+      if (event.type === 'delete' || !event.data?.active) {
+        setSession(null);
+        return;
       }
+
+      setSession(prev => {
+        if (!prev) return event.data;
+
+        return {
+          ...event.data,
+
+          // Preserve the teacher's current controls instead of accepting
+          // possibly delayed values from another realtime update.
+          current_step: prev.current_step,
+          phase: prev.phase,
+        };
+      });
     });
 
     return unsub;
@@ -93,6 +110,8 @@ export default function LiveLesson() {
       try {
         await base44.entities.LiveLessonSession.update(session.id, {
           active: true,
+          current_step: session.current_step ?? 0,
+          phase: session.phase || 'watch',
         });
       } catch {
         // Best effort only. A temporary network failure should
