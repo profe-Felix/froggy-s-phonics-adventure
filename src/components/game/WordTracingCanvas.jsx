@@ -519,7 +519,14 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
         }`}
-        style={{ width: renderWidth, maxWidth: 'none', cursor: 'crosshair', touchAction: 'none' }}
+        style={{
+          width: `min(${renderWidth}px, calc((100dvh - 190px) * ${totalW / CANVAS_H}))`,
+          height: 'auto',
+          maxHeight: 'calc(100dvh - 190px)',
+          maxWidth: 'none',
+          cursor: 'crosshair',
+          touchAction: 'none'
+        }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
