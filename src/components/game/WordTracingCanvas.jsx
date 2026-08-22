@@ -527,6 +527,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
           cursor: 'crosshair',
           touchAction: 'none'
         }}
+        onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
