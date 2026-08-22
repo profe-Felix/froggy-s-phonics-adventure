@@ -1,174 +1,885 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { X } from 'lucide-react';
+import { getCharacters } from '@/lib/characters';
+import { base44 } from '@/api/base44Client';
 
-// Prize definitions
-// weight: higher = more frequent. ring is one-time.
+export const SPIN_COST = 100;
+export const DUPLICATE_CHARACTER_COINS = 40;
+
+// These remain exported because PrizeDashboard already imports ALL_PRIZES.
 export const ALL_PRIZES = [
-  { id: 'friend',  label: 'Sit with a Friend',  emoji: '👫', color: '#f9a8d4', weight: 3, oneTime: false },
-  { id: 'cushion', label: 'Cushion for a Day',   emoji: '🪑', color: '#86efac', weight: 3, oneTime: false },
-  { id: 'lollipop',label: 'Dum-Dum Lollipop',   emoji: '🍭', color: '#fde68a', weight: 4, oneTime: false },
-  { id: 'sticker', label: 'Sticker Prize',       emoji: '🏷️', color: '#a5f3fc', weight: 5, oneTime: false },
-  { id: 'ring',    label: 'Fidget Ring',         emoji: '💍', color: '#c4b5fd', weight: 3, oneTime: true  },
-  { id: 'chips',   label: 'Bag of Chips',        emoji: '🍟', color: '#fed7aa', weight: 2, oneTime: false },
+  {
+    id: 'sticker',
+    type: 'sticker',
+    label: 'Sticker',
+    emoji: '⭐',
+    color: '#a5f3fc',
+    weight: 50,
+    oneTime: false,
+  },
+  {
+    id: 'character',
+    type: 'character',
+    label: 'Character',
+    emoji: '🧑',
+    color: '#fde68a',
+    weight: 35,
+    oneTime: false,
+  },
+  {
+    id: 'lollipop',
+    type: 'physical',
+    label: 'Lollipop',
+    emoji: '🍭',
+    color: '#f9a8d4',
+    weight: 5,
+    oneTime: false,
+  },
+  {
+    id: 'treasure_box',
+    type: 'physical',
+    label: 'Treasure Box',
+    emoji: '🎁',
+    color: '#fcd34d',
+    weight: 5,
+    oneTime: false,
+  },
+  {
+    id: 'cushion',
+    type: 'physical',
+    label: 'Cushion',
+    emoji: '🪑',
+    color: '#86efac',
+    weight: 5,
+    oneTime: false,
+  },
 ];
 
-/** Build the weighted prize list, filtering out claimed one-time prizes */
-export function buildPrizePool(redeemedPrizes = []) {
-  const available = ALL_PRIZES.filter(p => !(p.oneTime && redeemedPrizes.includes(p.id)));
-  const pool = [];
-  available.forEach(p => { for (let i = 0; i < p.weight; i++) pool.push(p); });
-  return available; // return unique prizes for the wheel segments
+const ITEM_H = 120;
+const VISIBLE = 3;
+const WINDOW_H = ITEM_H * VISIBLE;
+const RESULT_H = Math.round(ITEM_H * 2.5);
+const SPIN_MS = 5000;
+const REEL_LEN = 48;
+
+/**
+ * Keep these old exports working because other files may import them.
+ */
+export function buildPrizePool() {
+  return ALL_PRIZES;
 }
 
-/** Pick a random prize from weighted pool */
-export function pickPrize(redeemedPrizes = []) {
-  const available = ALL_PRIZES.filter(p => !(p.oneTime && redeemedPrizes.includes(p.id)));
-  if (available.length === 0) return ALL_PRIZES[3]; // fallback: sticker
-  const pool = [];
-  available.forEach(p => { for (let i = 0; i < p.weight; i++) pool.push(p); });
-  return pool[Math.floor(Math.random() * pool.length)];
+export function pickPrize(redeemedPrizes = [], allowCharacters = true) {
+  const available = ALL_PRIZES.filter(
+    prize =>
+      !(prize.oneTime && redeemedPrizes.includes(prize.id)) &&
+      (allowCharacters || prize.id !== 'character')
+  );
+
+  const total = available.reduce(
+    (sum, prize) => sum + prize.weight,
+    0
+  );
+
+  let roll = Math.random() * total;
+
+  for (const prize of available) {
+    roll -= prize.weight;
+
+    if (roll <= 0) {
+      return prize;
+    }
+  }
+
+  return available[0] || ALL_PRIZES[0];
 }
 
-// Draw the wheel on a canvas
-function drawWheel(canvas, prizes, rotationDeg) {
-  const ctx = canvas.getContext('2d');
-  const size = canvas.width;
-  const cx = size / 2, cy = size / 2, r = size / 2 - 4;
-  const count = prizes.length;
-  const arc = (2 * Math.PI) / count;
+function randomCharacter(characters) {
+  if (!characters?.length) return null;
 
-  ctx.clearRect(0, 0, size, size);
-
-  prizes.forEach((prize, i) => {
-    const start = (i / count) * 2 * Math.PI - Math.PI / 2 + (rotationDeg * Math.PI) / 180;
-    const end = start + arc;
-
-    // Slice
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r, start, end);
-    ctx.closePath();
-    ctx.fillStyle = prize.color;
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Label
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(start + arc / 2);
-    ctx.textAlign = 'right';
-    ctx.font = `bold ${size * 0.045}px system-ui, sans-serif`;
-    ctx.fillStyle = '#1f2937';
-    ctx.fillText(prize.emoji + ' ' + prize.label, r - 10, 5);
-    ctx.restore();
-  });
-
-  // Center circle
-  ctx.beginPath();
-  ctx.arc(cx, cy, 18, 0, 2 * Math.PI);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
-  ctx.strokeStyle = '#d1d5db';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  return characters[
+    Math.floor(Math.random() * characters.length)
+  ];
 }
 
-export default function PrizeWheel({ redeemedPrizes = [], onClaim, onClose }) {
-  const prizes = buildPrizePool(redeemedPrizes);
-  const canvasRef = useRef(null);
+function makeTile(reward, characters) {
+  if (reward?.id === 'character') {
+    const char = randomCharacter(characters);
+
+    if (char) {
+      return {
+        type: 'character',
+        char,
+      };
+    }
+
+    return {
+      type: 'reward',
+      reward: ALL_PRIZES.find(p => p.id === 'sticker'),
+    };
+  }
+
+  return {
+    type: 'reward',
+    reward,
+  };
+}
+
+export default function PrizeWheel({
+  // Existing PrizeWheel props
+  redeemedPrizes = [],
+  onClaim,
+  onClose,
+
+  // New unified-wheel props
+  studentData,
+  onStudentPatch,
+  freeSpin = true,
+  source = 'reward',
+
+  // Existing CharacterWheel callbacks.
+  // Supporting these means CharacterWheel can remain a safe wrapper.
+  onSpend,
+  onUnlock,
+}) {
+  const [characters, setCharacters] = useState([]);
+  const [reel, setReel] = useState([]);
+  const [offset, setOffset] = useState(0);
   const [spinning, setSpinning] = useState(false);
-  const [rotation, setRotation] = useState(0);
   const [winner, setWinner] = useState(null);
-  const rotRef = useRef(0);
+
+  const [coins, setCoins] = useState(
+    () => studentData?.coins || 0
+  );
+
+  const [unlockedCharacters, setUnlockedCharacters] = useState(
+    () => studentData?.unlocked_characters || []
+  );
+
+  const [activePrizes, setActivePrizes] = useState(
+    () => studentData?.active_prizes || []
+  );
+
   const animRef = useRef(null);
+  const startRef = useRef(null);
+
+  /*
+   * We can only safely award a character when we know which student
+   * owns it OR when the old CharacterWheel onUnlock callback exists.
+   *
+   * This lets old Sentences/Phonics callers continue working before
+   * we update them to pass studentData.
+   */
+  const characterRewardsEnabled =
+    !!studentData || typeof onUnlock === 'function';
 
   useEffect(() => {
-    if (canvasRef.current) drawWheel(canvasRef.current, prizes, rotRef.current);
+    setCoins(studentData?.coins || 0);
+  }, [studentData?.coins]);
+
+  useEffect(() => {
+    setUnlockedCharacters(
+      studentData?.unlocked_characters || []
+    );
+  }, [studentData?.unlocked_characters]);
+
+  useEffect(() => {
+    setActivePrizes(
+      studentData?.active_prizes || []
+    );
+  }, [studentData?.active_prizes]);
+
+  useEffect(() => {
+    let alive = true;
+
+    getCharacters()
+      .then(all => {
+        if (!alive) return;
+
+        const safe = Array.isArray(all) ? all : [];
+        setCharacters(safe);
+
+        const tiles = [];
+
+        for (let i = 0; i < REEL_LEN; i++) {
+          const reward = pickPrize(
+            redeemedPrizes,
+            characterRewardsEnabled
+          );
+
+          tiles.push(makeTile(reward, safe));
+        }
+
+        setReel(tiles);
+      })
+      .catch(() => {
+        if (!alive) return;
+
+        const sticker = ALL_PRIZES.find(
+          p => p.id === 'sticker'
+        );
+
+        setReel(
+          Array.from(
+            { length: REEL_LEN },
+            () => ({
+              type: 'reward',
+              reward: sticker,
+            })
+          )
+        );
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [characterRewardsEnabled]);
+
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(animRef.current);
+    };
   }, []);
 
-  const spin = () => {
-    if (spinning || winner) return;
-    setSpinning(true);
+  const canAfford =
+    freeSpin || coins >= SPIN_COST;
 
-    // Pick the winner
-    const prize = pickPrize(redeemedPrizes);
-    const prizeIdx = prizes.findIndex(p => p.id === prize.id);
+  /*
+   * IMPORTANT:
+   *
+   * If the parent supplies onStudentPatch, use that.
+   * Otherwise update Base44 directly.
+   *
+   * This avoids making the parent AND this component both persist
+   * the same change.
+   */
+  const persistPatch = async patch => {
+    if (onStudentPatch) {
+      onStudentPatch(patch);
+      return;
+    }
 
-    // Calculate final angle so the pointer (top, 270°) lands on the prize segment
-    const count = prizes.length;
-    const segDeg = 360 / count;
-    // Middle of prize segment in wheel's local space (before rotation):
-    // prize starts at (prizeIdx / count)*360 - 90 (offset for our -π/2 start)
-    // We want that mid-point to land at 0° (top pointer)
-    const segMid = (prizeIdx / count) * 360 + segDeg / 2;
-    // How much extra rotation to land it at top (270° = -90°):
-    const extraSpins = 5 * 360;
-    const targetRot = extraSpins + (360 - segMid) % 360;
-
-    const startRot = rotRef.current;
-    const endRot = startRot + targetRot;
-    const duration = 4000;
-    const startTime = performance.now();
-
-    const easeOut = (t) => 1 - Math.pow(1 - t, 3);
-
-    const animate = (now) => {
-      const elapsed = now - startTime;
-      const t = Math.min(elapsed / duration, 1);
-      const current = startRot + targetRot * easeOut(t);
-      rotRef.current = current;
-      if (canvasRef.current) drawWheel(canvasRef.current, prizes, current);
-
-      if (t < 1) {
-        animRef.current = requestAnimationFrame(animate);
-      } else {
-        setSpinning(false);
-        setWinner(prize);
-      }
-    };
-    animRef.current = requestAnimationFrame(animate);
+    if (studentData?.id) {
+      try {
+        await base44.entities.Student.update(
+          studentData.id,
+          patch
+        );
+      } catch {}
+    }
   };
 
-  useEffect(() => () => cancelAnimationFrame(animRef.current), []);
+  const spendSpinCoins = async () => {
+    if (typeof onSpend === 'function') {
+      onSpend(SPIN_COST);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={e => { if (e.target === e.currentTarget && !spinning) onClose(); }}>
-      <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.7, opacity: 0 }}
-        className="bg-white rounded-3xl shadow-2xl p-6 flex flex-col items-center gap-4 mx-4 max-w-sm w-full">
-        
-        <h2 className="text-2xl font-black text-rose-600">🎡 Prize Wheel!</h2>
-        <p className="text-sm text-gray-500 font-bold text-center">You earned a spin — tap to find out your prize!</p>
+      setCoins(current =>
+        Math.max(0, current - SPIN_COST)
+      );
 
-        {/* Wheel + pointer */}
-        <div className="relative">
-          {/* Pointer triangle at top */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-10"
-            style={{ width: 0, height: 0, borderLeft: '10px solid transparent', borderRight: '10px solid transparent', borderTop: '22px solid #ef4444' }} />
-          <canvas ref={canvasRef} width={280} height={280} className="rounded-full border-4 border-gray-200 shadow-lg" />
+      return;
+    }
+
+    const nextCoins = Math.max(
+      0,
+      coins - SPIN_COST
+    );
+
+    setCoins(nextCoins);
+
+    await persistPatch({
+      coins: nextCoins,
+    });
+  };
+
+  const spin = async () => {
+    if (
+      spinning ||
+      winner ||
+      !canAfford ||
+      !reel.length
+    ) {
+      return;
+    }
+
+    /*
+     * Paid spin:
+     * deduct coins only when the student actually presses Spin.
+     */
+    if (!freeSpin) {
+      await spendSpinCoins();
+    }
+
+    /*
+     * Select the winning CATEGORY first using the real weights.
+     */
+    const winningReward = pickPrize(
+      redeemedPrizes,
+      characterRewardsEnabled
+    );
+
+    const winnerTile = makeTile(
+      winningReward,
+      characters
+    );
+
+    /*
+     * Build the visible reel separately.
+     * The visual reel does NOT determine probability.
+     */
+    const tiles = [];
+
+    for (let i = 0; i < REEL_LEN; i++) {
+      const reward = pickPrize(
+        redeemedPrizes,
+        characterRewardsEnabled
+      );
+
+      tiles.push(
+        makeTile(reward, characters)
+      );
+    }
+
+    /*
+     * Force the predetermined result near the end.
+     */
+    const winIdx = REEL_LEN - 5;
+    tiles[winIdx] = winnerTile;
+
+    setReel(tiles);
+    setOffset(0);
+    setWinner(null);
+    setSpinning(true);
+
+    /*
+     * Same CharacterWheel behavior:
+     * winner lands in center visible row.
+     */
+    const target =
+      (winIdx - 1) * ITEM_H;
+
+    startRef.current = null;
+
+    const easeOut = t =>
+      1 - Math.pow(1 - t, 5);
+
+    const animate = timestamp => {
+      if (!startRef.current) {
+        startRef.current = timestamp;
+      }
+
+      const progress = Math.min(
+        (timestamp - startRef.current) / SPIN_MS,
+        1
+      );
+
+      setOffset(
+        target * easeOut(progress)
+      );
+
+      if (progress < 1) {
+        animRef.current =
+          requestAnimationFrame(animate);
+      } else {
+        setOffset(target);
+        setSpinning(false);
+        setWinner(winnerTile);
+      }
+    };
+
+    animRef.current =
+      requestAnimationFrame(animate);
+  };
+
+  const claimCharacter = async char => {
+    const duplicate =
+      unlockedCharacters.includes(char.id);
+
+    /*
+     * DUPLICATE
+     * +40 coins toward another 100-coin spin.
+     */
+    if (duplicate) {
+      const nextCoins =
+        coins + DUPLICATE_CHARACTER_COINS;
+
+      setCoins(nextCoins);
+
+      await persistPatch({
+        coins: nextCoins,
+      });
+
+      return {
+        id: char.id,
+        type: 'character',
+        label: char.name || 'Character',
+        character: char,
+        duplicate: true,
+        coins_awarded:
+          DUPLICATE_CHARACTER_COINS,
+        coin_balance: nextCoins,
+      };
+    }
+
+    /*
+     * NEW CHARACTER
+     *
+     * If the old CharacterWheel caller supplied onUnlock,
+     * preserve its original unlock behavior.
+     */
+    if (typeof onUnlock === 'function') {
+      onUnlock(char.id);
+
+      setUnlockedCharacters(current =>
+        current.includes(char.id)
+          ? current
+          : [...current, char.id]
+      );
+    } else {
+      const nextUnlocked = [
+        ...unlockedCharacters,
+        char.id,
+      ];
+
+      setUnlockedCharacters(nextUnlocked);
+
+      const patch = {
+        unlocked_characters: nextUnlocked,
+      };
+
+      /*
+       * Keep the first unlocked character usable immediately.
+       */
+      if (!studentData?.active_character) {
+        patch.active_character = char.id;
+      }
+
+      await persistPatch(patch);
+    }
+
+    return {
+      id: char.id,
+      type: 'character',
+      label: char.name || 'Character',
+      character: char,
+      duplicate: false,
+      coins_awarded: 0,
+    };
+  };
+
+  const claimNormalReward = async reward => {
+    /*
+     * Keep compatibility with PrizeDashboard's active_prizes field.
+     */
+    const nextActivePrizes =
+      activePrizes.includes(reward.id)
+        ? activePrizes
+        : [...activePrizes, reward.id];
+
+    setActivePrizes(nextActivePrizes);
+
+    const patch = {
+      active_prizes: nextActivePrizes,
+    };
+
+    /*
+     * PrizeDashboard already uses cushion_since to order
+     * the cushion queue.
+     */
+    if (reward.id === 'cushion') {
+      patch.cushion_since = Date.now();
+    }
+
+    await persistPatch(patch);
+
+    return {
+      ...reward,
+      duplicate: false,
+      coins_awarded: 0,
+    };
+  };
+
+  const claimWinner = async () => {
+    if (!winner) return;
+
+    let result;
+
+    if (winner.type === 'character') {
+      result = await claimCharacter(
+        winner.char
+      );
+    } else {
+      result = await claimNormalReward(
+        winner.reward
+      );
+    }
+
+    /*
+     * Preserve old PrizeWheel onClaim behavior.
+     */
+    onClaim?.(result);
+
+    onClose?.();
+  };
+
+  const translateY = -offset;
+
+  const winnerIsDuplicate =
+    winner?.type === 'character' &&
+    unlockedCharacters.includes(
+      winner.char?.id
+    );
+
+  const renderTile = tile => {
+    if (tile.type === 'character') {
+      return (
+        <div
+          className="flex flex-col items-center justify-center"
+          style={{
+            height: ITEM_H - 8,
+          }}
+        >
+          <img
+            src={tile.char?.url}
+            alt=""
+            style={{
+              width: 90,
+              height: 90,
+              objectFit: 'cover',
+              borderRadius: 12,
+              border: '2px solid #fde68a',
+            }}
+          />
+
+          {tile.char?.name && (
+            <span className="text-xs font-bold text-gray-600 mt-0.5 truncate max-w-[180px]">
+              {tile.char.name}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    const reward = tile.reward;
+
+    return (
+      <div
+        className="flex flex-col items-center justify-center"
+        style={{
+          height: ITEM_H - 8,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 56,
+          }}
+        >
+          {reward?.emoji}
+        </span>
+
+        <span className="text-xs font-black text-gray-700 mt-1">
+          {reward?.label}
+        </span>
+      </div>
+    );
+  };
+
+  const renderWinner = () => {
+    if (winner.type === 'character') {
+      return (
+        <>
+          <img
+            src={winner.char?.url}
+            alt="character"
+            style={{
+              width: RESULT_H,
+              height: RESULT_H,
+            }}
+            className="rounded-2xl border-4 border-amber-300 shadow-lg object-cover"
+          />
+
+          {winnerIsDuplicate ? (
+            <>
+              <p className="text-xl font-black text-gray-800 text-center">
+                You already have this character!
+              </p>
+
+              <div className="bg-amber-100 border-2 border-amber-300 rounded-2xl px-5 py-3 text-center">
+                <div className="text-3xl font-black text-amber-700">
+                  🪙 +{DUPLICATE_CHARACTER_COINS}
+                </div>
+
+                <div className="text-xs font-bold text-amber-600 mt-1">
+                  Duplicate Character Bonus
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-black text-gray-800 text-center">
+                New character unlocked!
+              </p>
+
+              {winner.char?.name && (
+                <p className="text-sm font-bold text-amber-600">
+                  {winner.char.name}
+                </p>
+              )}
+            </>
+          )}
+        </>
+      );
+    }
+
+    const reward = winner.reward;
+
+    return (
+      <>
+        <div
+          style={{
+            width: RESULT_H,
+            height: RESULT_H,
+            background:
+              reward?.color || '#fde68a',
+          }}
+          className="rounded-2xl border-4 border-amber-300 shadow-lg flex items-center justify-center"
+        >
+          <span
+            style={{
+              fontSize: 100,
+            }}
+          >
+            {reward?.emoji}
+          </span>
         </div>
 
-        {!winner ? (
-          <button onClick={spin} disabled={spinning}
-            className={`w-full py-3 rounded-2xl font-black text-lg shadow-lg transition-all ${spinning ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-rose-500 text-white hover:bg-rose-600 active:scale-95'}`}>
-            {spinning ? '🌀 Spinning…' : '🎯 SPIN!'}
+        <p className="text-xl font-black text-gray-800 text-center">
+          {reward?.label}
+        </p>
+
+        {reward?.type === 'physical' && (
+          <p className="text-sm font-bold text-amber-600 text-center">
+            Show your teacher to claim your prize! 🎉
+          </p>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60"
+      onClick={e => {
+        if (
+          e.target === e.currentTarget &&
+          !spinning &&
+          !winner
+        ) {
+          onClose?.();
+        }
+      }}
+    >
+      <motion.div
+        initial={{
+          scale: 0.7,
+          opacity: 0,
+        }}
+        animate={{
+          scale: 1,
+          opacity: 1,
+        }}
+        className="bg-white rounded-3xl shadow-2xl p-6 flex flex-col items-center gap-3 mx-4 w-full max-w-sm relative max-h-[92vh] overflow-y-auto"
+      >
+        {!winner && (
+          <button
+            onClick={() => onClose?.()}
+            disabled={spinning}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 z-10 disabled:opacity-40"
+          >
+            <X className="w-4 h-4" />
           </button>
-        ) : (
-          <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="w-full flex flex-col items-center gap-3">
-            <div className="text-7xl">{winner.emoji}</div>
-            <p className="text-2xl font-black text-gray-800">{winner.label}</p>
-            {winner.oneTime && <p className="text-xs text-purple-600 font-bold bg-purple-50 rounded-full px-3 py-1">✨ One-time prize — claimed forever!</p>}
-            <button onClick={() => onClaim(winner)}
-              className="w-full py-3 rounded-2xl bg-green-500 text-white font-black text-lg shadow-lg hover:bg-green-600 active:scale-95">
-              🎉 Claim Prize!
-            </button>
-          </motion.div>
         )}
 
-        {!winner && !spinning && (
-          <button onClick={onClose} className="text-xs text-gray-400 font-bold hover:text-gray-600">Skip for now</button>
+        <h2 className="text-2xl font-black text-amber-600">
+          🎯 Reward Spin
+        </h2>
+
+        <p className="text-sm text-gray-500 font-bold text-center">
+          {freeSpin
+            ? 'You earned a FREE spin!'
+            : `Spend ${SPIN_COST} coins to spin!`}
+        </p>
+
+        {/* Coin progress */}
+        {studentData && (
+          <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2">
+            <div className="flex items-center justify-between">
+              <span className="font-black text-amber-800">
+                🪙 {coins} coins
+              </span>
+
+              <span className="text-xs font-black text-amber-600">
+                {Math.min(coins, SPIN_COST)}/{SPIN_COST}
+              </span>
+            </div>
+
+            <div className="mt-1.5 h-2.5 bg-amber-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-400 rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    (coins / SPIN_COST) * 100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {winner ? (
+          <motion.div
+            initial={{
+              scale: 0,
+              opacity: 0,
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1,
+            }}
+            className="w-full flex flex-col items-center gap-3"
+          >
+            {renderWinner()}
+
+            <button
+              onClick={claimWinner}
+              className="w-full py-3 rounded-2xl bg-green-500 text-white font-black text-lg shadow hover:bg-green-600 active:scale-95"
+            >
+              🎉 Claim Reward!
+            </button>
+          </motion.div>
+        ) : (
+          <>
+            {/* CharacterWheel-style vertical reel */}
+            <div
+              className="relative"
+              style={{
+                width: 240,
+              }}
+            >
+              {/* Winning-row pointer */}
+              <div
+                className="absolute z-20"
+                style={{
+                  top: ITEM_H + ITEM_H / 2,
+                  right: -6,
+                  transform:
+                    'translateY(-50%)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderTop:
+                      '12px solid transparent',
+                    borderBottom:
+                      '12px solid transparent',
+                    borderRight:
+                      '18px solid #ef4444',
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  height: WINDOW_H,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  borderRadius: 20,
+                  border:
+                    '4px solid #fcd34d',
+                  background:
+                    'rgba(252,211,77,0.08)',
+                  boxShadow:
+                    'inset 0 2px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                <div
+                  style={{
+                    transform: `translateY(${translateY}px)`,
+                    willChange: 'transform',
+                  }}
+                >
+                  {reel.map((tile, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        height: ITEM_H,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {renderTile(tile)}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Center winning row */}
+                <div
+                  className="absolute left-0 right-0 pointer-events-none"
+                  style={{
+                    top: ITEM_H,
+                    height: ITEM_H,
+                    boxShadow:
+                      'inset 0 0 0 3px #ef4444',
+                    borderRadius: 12,
+                  }}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={spin}
+              disabled={
+                spinning || !canAfford
+              }
+              className={`w-full py-3 rounded-2xl font-black text-lg shadow-lg transition ${
+                spinning
+                  ? 'bg-gray-200 text-gray-400'
+                  : canAfford
+                    ? 'bg-amber-500 text-white hover:bg-amber-600 active:scale-95'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              {spinning
+                ? '🌀 Spinning…'
+                : freeSpin
+                  ? '🎯 FREE SPIN!'
+                  : canAfford
+                    ? `🎯 SPIN (${SPIN_COST} 🪙)`
+                    : `Need ${SPIN_COST} 🪙`}
+            </button>
+
+            {!spinning &&
+              !freeSpin &&
+              coins < SPIN_COST && (
+                <p className="text-xs font-bold text-gray-400 text-center">
+                  Earn {SPIN_COST - coins} more coins for another spin.
+                </p>
+              )}
+
+            {!spinning && (
+              <button
+                onClick={() => onClose?.()}
+                className="text-xs text-gray-400 font-bold hover:text-gray-600"
+              >
+                Skip for now
+              </button>
+            )}
+          </>
         )}
       </motion.div>
     </div>
