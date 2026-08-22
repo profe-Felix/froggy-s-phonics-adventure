@@ -650,6 +650,7 @@ export default function LetterTracingCanvas({ letter, strokes, onComplete, onRes
           cursor: 'crosshair',
           touchAction: 'none'
         }}
+        onContextMenu={(e) => e.preventDefault()}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
