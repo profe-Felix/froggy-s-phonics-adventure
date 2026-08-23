@@ -535,21 +535,26 @@ function buildSyllableCloze(word) {
   return { type: 'syllable', display, missingToken: missingSyllable, syllables, missingIdx: idx, position, options };
 }
 
-const PTS_PER_STICKER = 100;
-const PHONICS_CORRECT_PER_POINT = 5;
+const SPIN_COST = 100;
+const PHONICS_CORRECT_PER_COIN = 5;
 
-function RouletteProgressMini({ totalPts, syllableCorrectCount }) {
-  const progress = totalPts % PTS_PER_STICKER;
-  const pct = (progress / PTS_PER_STICKER) * 100;
+function CoinProgressMini({ coins, syllableCorrectCount, onSpin }) {
+  const progress = Math.min(coins, SPIN_COST);
+  const pct = Math.min(100, (progress / SPIN_COST) * 100);
+  const canSpin = coins >= SPIN_COST;
 
   return (
     <div className="w-full max-w-lg bg-white/90 rounded-2xl shadow border-2 border-rose-200 px-4 py-3">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-black text-rose-600 uppercase">🎡 Prize Wheel Progress</span>
+        <span className="text-xs font-black text-rose-600 uppercase">
+          🎡 Prize Wheel Progress
+        </span>
+
         <span className="text-xs font-bold text-purple-600">
-          Syllables: {syllableCorrectCount}/{PHONICS_CORRECT_PER_POINT} = +1 pt
+          Syllables: {syllableCorrectCount}/{PHONICS_CORRECT_PER_COIN} = +1 🪙
         </span>
       </div>
+
       <div className="flex items-center gap-2">
         <div className="flex-1 h-4 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
           <div
@@ -557,10 +562,20 @@ function RouletteProgressMini({ totalPts, syllableCorrectCount }) {
             style={{ width: `${pct}%` }}
           />
         </div>
+
         <span className="text-sm font-black text-rose-700 whitespace-nowrap">
-          {progress}/{PTS_PER_STICKER}
+          {progress}/{SPIN_COST} 🪙
         </span>
       </div>
+
+      {canSpin && (
+        <button
+          onClick={onSpin}
+          className="mt-2 w-full py-2 rounded-xl bg-rose-500 text-white font-black text-sm shadow hover:bg-rose-600 active:scale-95"
+        >
+          🎡 Spend 100 coins to spin!
+        </button>
+      )}
     </div>
   );
 }
@@ -577,11 +592,13 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [syllableCorrectCount, setSyllableCorrectCount] = useState(0);
-  const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
   const [showWheel, setShowWheel] = useState(false);
-  const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
-  const [claimedSpins, setClaimedSpins] = useState(() => studentData?.sentence_prize_spins_claimed || 0);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(
+    () => studentData?.redeemed_prizes || []
+  );
   const [locked, setLocked] = useState(false);
+
+  const coins = Number(studentData?.coins || 0);
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
 
@@ -674,28 +691,44 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
         setSyllableCorrectCount(prev => {
           const next = prev + 1;
 
-          if (next >= PHONICS_CORRECT_PER_POINT) {
-            setTotalPts(prevTotal => {
-              const newTotal = prevTotal + 1;
+          if (next >= PHONICS_CORRECT_PER_COIN) {
+            if (studentData?.id) {
+              const newCoins =
+                Number(studentData?.coins || 0) + 1;
 
-              const availableSpins =
-                Math.floor(newTotal / PTS_PER_STICKER) - claimedSpins;
+              const rewardHistory =
+                Array.isArray(studentData?.reward_history)
+                  ? studentData.reward_history
+                  : [];
 
-              if (availableSpins > 0) {
-                setShowWheel(true);
+              const rewardEntry = {
+                type: 'phonics_practice',
+                amount: 1,
+                reason: 'five_correct_syllables',
+                awarded_at: new Date().toISOString(),
+              };
+
+              const patch = {
+                coins: newCoins,
+                reward_history: [
+                  ...rewardHistory,
+                  rewardEntry,
+                ],
+              };
+
+              if (onStudentPatch) {
+                onStudentPatch(patch);
+              } else {
+                base44.entities.Student.update(
+                  studentData.id,
+                  patch
+                ).catch(() => {});
               }
-
-              if (studentData?.id) {
-                const patch = { sentences_total_points: newTotal };
-                onStudentPatch?.(patch);
-                base44.entities.Student.update(studentData.id, patch).catch(() => {});
-              }
-
-              return newTotal;
-            });
+            }
 
             return 0;
           }
+
           return next;
         });
       }
@@ -706,71 +739,34 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
   const handleClaimPrize = (prize) => {
     setShowWheel(false);
 
-    const nextClaimedSpins = claimedSpins + 1;
-    setClaimedSpins(nextClaimedSpins);
-
-    const prizeEntry = {
-      id: prize.id,
-      type: prize.type || 'prize',
-      label: prize.label,
-      emoji: prize.emoji || (prize.type === 'character' ? '🧑' : '🎁'),
-      duplicate: !!prize.duplicate,
-      coins_awarded: prize.coins_awarded || 0,
-      source: 'phonics',
-      claimed_at: new Date().toISOString(),
-    };
-
-    const updatedPrizeHistory = [
-      ...(studentData?.prize_history || []),
-      prizeEntry,
-    ];
-
-    let updatedRedeemedPrizes = redeemedPrizes;
-
     if (
-      prize.oneTime &&
+      prize?.oneTime &&
       !redeemedPrizes.includes(prize.id)
     ) {
-      updatedRedeemedPrizes = [
+      const updated = [
         ...redeemedPrizes,
         prize.id,
       ];
 
-      setRedeemedPrizes(updatedRedeemedPrizes);
-    }
+      setRedeemedPrizes(updated);
 
-    if (studentData?.id) {
       const patch = {
-        sentence_prize_spins_claimed: nextClaimedSpins,
-        prize_history: updatedPrizeHistory,
-        redeemed_prizes: updatedRedeemedPrizes,
+        redeemed_prizes: updated,
       };
 
-      onStudentPatch?.(patch);
-
-      base44.entities.Student.update(
-        studentData.id,
-        patch
-      ).catch(() => {});
+      if (onStudentPatch) {
+        onStudentPatch(patch);
+      } else if (studentData?.id) {
+        base44.entities.Student.update(
+          studentData.id,
+          patch
+        ).catch(() => {});
+      }
     }
   };
 
   const handleCloseWheel = () => {
     setShowWheel(false);
-
-    const earnedSpins = Math.floor(totalPts / PTS_PER_STICKER);
-    const availableSpins = earnedSpins - claimedSpins;
-
-    if (availableSpins > 0) {
-      const nextClaimedSpins = claimedSpins + 1;
-      setClaimedSpins(nextClaimedSpins);
-
-      if (studentData?.id) {
-        const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
-        onStudentPatch?.(patch);
-        base44.entities.Student.update(studentData.id, patch).catch(() => {});
-      }
-    }
   };
   const positionLabel = cloze?.position === 'initial' ? '🔵 Initial' :
     cloze?.position === 'final' ? '🔴 Final' : '🟡 Middle';
@@ -805,22 +801,23 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
         </div>
       </div>
       {subMode === 'syllable' && (
-        <RouletteProgressMini
-          totalPts={totalPts}
+        <CoinProgressMini
+          coins={coins}
           syllableCorrectCount={syllableCorrectCount}
+          onSpin={() => setShowWheel(true)}
         />
       )}
 
       <AnimatePresence>
         {showWheel && (
           <PrizeWheel
-            key={`phonics-wheel-${totalPts}`}
+            key={`phonics-wheel-${coins}`}
             studentData={studentData}
             onStudentPatch={onStudentPatch}
             redeemedPrizes={redeemedPrizes}
             onClaim={handleClaimPrize}
             onClose={handleCloseWheel}
-            freeSpin={true}
+            freeSpin={false}
             source="phonics"
           />
         )}
