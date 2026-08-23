@@ -98,6 +98,13 @@ const GameCanvas = React.forwardRef(function GameCanvas({
     }, 900);
   };
 
+  // New round: release the caught-fly slot so the fresh flies render normally.
+  useEffect(() => {
+    setTargetFly(null);
+    setCapturedLetter(null);
+    setAnimationPhase('idle');
+  }, [options]);
+
   // Handle swallow or spit after answer is processed
   useEffect(() => {
     if (animationPhase === 'process' && showFeedback) {
@@ -106,8 +113,9 @@ const GameCanvas = React.forwardRef(function GameCanvas({
         dingSound.current?.play().catch(e => console.log('Ding sound failed'));
         setTimeout(() => {
           setAnimationPhase('idle');
-          setTargetFly(null);
-          setCapturedLetter(null);
+          // Leave targetFly/capturedLetter set so the caught fly stays
+          // hidden until the next round's options arrive (cleared by the
+          // options effect below).
         }, 800);
       } else {
         setAnimationPhase('spit');
@@ -197,7 +205,11 @@ const GameCanvas = React.forwardRef(function GameCanvas({
             { top: '18%', left: '38%' },
           ];
           const pos = positions[index] || { top: '20%', left: '50%' };
-          const isHidden = (targetFly === index && (animationPhase === 'extend' || animationPhase === 'retract' || animationPhase === 'process')) || isUsed;
+          // Keep the caught fly hidden from the catch through the swallow
+          // celebration until the next round's options arrive, so the caught
+          // letter never slides back into view before the reshuffle. The spit
+          // (wrong answer) case still re-shows the fly so it can be retried.
+          const isHidden = (targetFly === index && animationPhase !== 'spit') || isUsed;
 
           return (
             <motion.button

@@ -57,15 +57,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       targetPool = fallbackLearning;
     }
 
-    // Avoid throwing the same letter back in immediately. With small lesson
-    // target sets the same letter reappearing slides to a new spot and looks
-    // "thrown back in and shuffled." Pick a different target than the current
-    // round when the pool allows it, and keep it out of the distractors too.
-    const targetCandidates = targetPool.length > 1
-      ? targetPool.filter(l => l !== currentLetter)
-      : targetPool;
-    const finalTargetPool = targetCandidates.length ? targetCandidates : targetPool;
-    const targetLetter = finalTargetPool[Math.floor(Math.random() * finalTargetPool.length)];
+    const targetLetter = targetPool[Math.floor(Math.random() * targetPool.length)];
 
     // Confusing pairs to avoid
     const confusingPairs = language === 'en'
@@ -74,7 +66,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     const avoidLetters = confusingPairs[targetLetter] || [];
 
     const wrongOptions = ALL_LETTERS
-      .filter(l => l !== targetLetter && l !== currentLetter && !avoidLetters.includes(l))
+      .filter(l => l !== targetLetter && !avoidLetters.includes(l))
       .sort(() => Math.random() - 0.5)
       .slice(0, 3);
 
