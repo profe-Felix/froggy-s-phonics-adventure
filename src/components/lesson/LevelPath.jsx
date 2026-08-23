@@ -5,7 +5,7 @@ import { Lock, Star, Pencil, Save, X, Plus } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
 import CoinBadge from '@/components/game/CoinBadge';
 import CharacterDock from '@/components/game/CharacterDock';
-import CharacterWheel from '@/components/game/CharacterWheel';
+import PrizeWheel from '@/components/game/PrizeWheel';
 import { getCharacters } from '@/lib/characters';
 
 // Level-path homepage. A single background image is shown once (no repeat),
@@ -46,15 +46,38 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const [characters, setCharacters] = useState([]);
   const [wheelOpen, setWheelOpen] = useState(false);
   useEffect(() => { getCharacters().then(setCharacters); }, []);
-  const coins = studentData?.coins || 0;
+  const coins = Number(studentData?.coins || 0);
   const unlockedChars = studentData?.unlocked_characters || [];
-  const handleSpend = (c) => onStudentPatch?.({ coins: Math.max(0, coins - c) });
-  const handleUnlock = (id) => {
-    if (unlockedChars.includes(id)) return;
-    const next = [...unlockedChars, id];
-    onStudentPatch?.({ unlocked_characters: next, active_character: studentData?.active_character || id });
+  const [redeemedPrizes, setRedeemedPrizes] = useState(
+    () => studentData?.redeemed_prizes || []
+  );
+
+  const handleSetActiveChar = (id) =>
+    onStudentPatch?.({ active_character: id });
+
+  const handleClaimPrize = (prize) => {
+    setWheelOpen(false);
+
+    if (
+      prize?.oneTime &&
+      !redeemedPrizes.includes(prize.id)
+    ) {
+      const updated = [
+        ...redeemedPrizes,
+        prize.id,
+      ];
+
+      setRedeemedPrizes(updated);
+
+      onStudentPatch?.({
+        redeemed_prizes: updated,
+      });
+    }
   };
-  const handleSetActiveChar = (id) => onStudentPatch?.({ active_character: id });
+
+  const handleCloseWheel = () => {
+    setWheelOpen(false);
+  };
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -356,11 +379,15 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           <>
             <CharacterDock studentData={studentData} characters={characters} onSetActive={handleSetActiveChar} />
             {wheelOpen && (
-              <CharacterWheel
+              <PrizeWheel
+                key={`level-path-wheel-${coins}`}
                 studentData={studentData}
-                onSpend={handleSpend}
-                onUnlock={handleUnlock}
-                onClose={() => setWheelOpen(false)}
+                onStudentPatch={onStudentPatch}
+                redeemedPrizes={redeemedPrizes}
+                onClaim={handleClaimPrize}
+                onClose={handleCloseWheel}
+                freeSpin={false}
+                source="level-path"
               />
             )}
           </>
