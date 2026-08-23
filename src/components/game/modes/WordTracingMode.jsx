@@ -176,7 +176,7 @@ export default function WordTracingMode({
     }, 2200);
   };
 
-    const handleClaimPrize = (prize) => {
+  const handleClaimPrize = (prize) => {
     setShowWheel(false);
     setFreeSpinReady(false);
 
@@ -260,11 +260,25 @@ export default function WordTracingMode({
       {celebrate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-3xl shadow-2xl px-8 py-6 flex flex-col items-center gap-2">
-            <div className="text-4xl">🎉</div>
-            <div className="text-xl font-black text-slate-800">"{celebrate.word}" complete!</div>
+            <div className="text-4xl">
+              {celebrate.wordComplete ? '🎉' : '✏️'}
+            </div>
+
+            <div className="text-xl font-black text-slate-800">
+              {celebrate.wordComplete
+                ? `"${celebrate.word}" mastered!`
+                : `Practice "${celebrate.word}" again`}
+            </div>
+
             {celebrate.accuracy != null && (
               <div className={`text-sm font-bold ${celebrate.accuracy >= 80 ? 'text-green-600' : 'text-amber-600'}`}>
                 🎯 {celebrate.accuracy}% accuracy
+              </div>
+            )}
+
+            {!celebrate.wordComplete && (
+              <div className="text-sm font-bold text-amber-600">
+                Reach 80% accuracy to master this word.
               </div>
             )}
           </div>
