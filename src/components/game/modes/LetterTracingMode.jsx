@@ -71,14 +71,6 @@ const TRACING_STAGES = [
     repetitions: 3,
     showGuide: false,
   },
-  {
-    key: 'independent_small',
-    label: 'Independent Small',
-    shortLabel: 'Small',
-    sizeLevel: 3,
-    repetitions: 2,
-    showGuide: false,
-  },
 ];
 
 const SIZE_LEVELS = [
