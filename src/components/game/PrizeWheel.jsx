@@ -256,7 +256,7 @@ export default function PrizeWheel({
    */
   const persistPatch = async patch => {
     if (onStudentPatch) {
-      onStudentPatch(patch);
+      await onStudentPatch(patch);
       return;
     }
 
