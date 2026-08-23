@@ -1125,29 +1125,26 @@ function SentenceBuilder({ sentence, onComplete, onPlayAudio }) {
   );
 }
 
-// ── Sticker progress bar ────────────────────────────────────────────────────
-const PTS_PER_STICKER = 100;
-const MAX_PTS_PER_SENTENCE = 3; // Cap: students can't farm same sentence
+// ── Coin progress bar ───────────────────────────────────────────────────────
+const SPIN_COST = 100;
+const SENTENCE_COMPLETION_COINS = 4;
 
-function getSentencePointsForModule(moduleNumber) {
-  if (moduleNumber <= 2) return 2;
-  if (moduleNumber === 3) return 3;
-  if (moduleNumber === 4) return 4;
-  return 5;
-}
-
-function StickerProgressBar({ sessionPts, totalPts, claimedSpins }) {
-  const earnedSpins = Math.floor(totalPts / PTS_PER_STICKER);
-  const availableSpins = Math.max(0, earnedSpins - claimedSpins);
-  const progress = totalPts % PTS_PER_STICKER;
-  const pct = (progress / PTS_PER_STICKER) * 100;
+function CoinProgressBar({ sessionCoins, coins, onSpin }) {
+  const progress = Math.min(coins, SPIN_COST);
+  const pct = Math.min(100, (progress / SPIN_COST) * 100);
+  const canSpin = coins >= SPIN_COST;
 
   return (
     <div className="bg-white rounded-2xl border-2 border-rose-200 p-3 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-black text-rose-600 uppercase tracking-wide">⭐ Sentence Stars</span>
-        <span className="text-xs font-bold text-gray-500">+{sessionPts} pts today</span>
+        <span className="text-xs font-black text-rose-600 uppercase tracking-wide">
+          🪙 Spin Progress
+        </span>
+        <span className="text-xs font-bold text-gray-500">
+          +{sessionCoins} coins today
+        </span>
       </div>
+
       <div className="flex items-center gap-2">
         <div className="flex-1 h-4 rounded-full bg-rose-100 overflow-hidden border border-rose-200">
           <div
@@ -1155,14 +1152,19 @@ function StickerProgressBar({ sessionPts, totalPts, claimedSpins }) {
             style={{ width: `${pct}%` }}
           />
         </div>
+
         <span className="text-sm font-black text-rose-700 whitespace-nowrap">
-          {progress}/{PTS_PER_STICKER} 🎡
+          {progress}/{SPIN_COST} 🎡
         </span>
       </div>
-      {availableSpins > 0 && (
-        <p className="text-xs text-rose-500 font-bold">
-          {availableSpins} prize spin{availableSpins > 1 ? 's' : ''} available 🎡
-        </p>
+
+      {canSpin && (
+        <button
+          onClick={onSpin}
+          className="mt-1 w-full py-2 rounded-xl bg-rose-500 text-white font-black text-sm shadow hover:bg-rose-600 active:scale-95"
+        >
+          🎡 Spend 100 coins to spin!
+        </button>
       )}
     </div>
   );
@@ -1176,11 +1178,13 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
   const [phase, setPhase] = useState('write'); // 'write' | 'build'
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sessionPts, setSessionPts] = useState(0);
-  const [totalPts, setTotalPts] = useState(() => studentData?.sentences_total_points || 0);
+  const [sessionCoins, setSessionCoins] = useState(0);
   const [showWheel, setShowWheel] = useState(false);
-  const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
-  const [claimedSpins, setClaimedSpins] = useState(() => studentData?.sentence_prize_spins_claimed || 0);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(
+    () => studentData?.redeemed_prizes || []
+  );
+
+  const coins = Number(studentData?.coins || 0);
 
   useEffect(() => {
     const loadLists = async () => {
@@ -1255,10 +1259,8 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
     }
   };
 
-  const handleComplete = (wasCorrect = false) => {
-    // Only award points for fully correct answers
+  const handleComplete = async (wasCorrect = false) => {
     if (!wasCorrect) {
-      // Advance to next sentence without points
       if (currentIdx + 1 < sentences.length) {
         setCurrentIdx(i => i + 1);
         setPhase('write');
@@ -1267,46 +1269,81 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
         setCurrentIdx(0);
         setPhase('write');
       }
+
       return;
     }
 
-    // Check if this sentence was already completed this session (prevent farming)
-    const completedSentences = JSON.parse(sessionStorage.getItem('completedSentences') || '{}');
-    const sentenceKey = currentSentence.trim();
-    const timesCompleted = completedSentences[sentenceKey] || 0;
+    const sentenceKey =
+      currentItem?.id ||
+      currentSentence.trim();
 
-    // Award points only if under the cap (max 3 completions per sentence per session)
-    let ptsToAward = 0;
-    if (timesCompleted < MAX_PTS_PER_SENTENCE) {
-      ptsToAward = getSentencePointsForModule(selectedModule);
-      completedSentences[sentenceKey] = timesCompleted + 1;
-      sessionStorage.setItem('completedSentences', JSON.stringify(completedSentences));
-    }
+    const rewardKey =
+      `sentence:${sentenceKey}`;
 
-    const newTotal = totalPts + ptsToAward;
-    const newAvailableSpins = Math.floor(newTotal / PTS_PER_STICKER) - claimedSpins;
-    setTotalPts(newTotal);
-    if (ptsToAward > 0) {
-      setSessionPts(p => p + ptsToAward);
-    }
+    const rewardHistory =
+      Array.isArray(studentData?.reward_history)
+        ? studentData.reward_history
+        : [];
 
-    // Trigger prize wheel only if there is an unclaimed spin
-    if (newAvailableSpins > 0) {
-      setShowWheel(true);
-    }
+    const alreadyRewarded =
+      rewardHistory.some(
+        entry =>
+          entry?.type === 'sentence_completion' &&
+          entry?.reward_key === rewardKey
+      );
 
-    // Persist points to student record
-    if (studentData?.id && ptsToAward > 0) {
-      const patch = { sentences_total_points: newTotal };
-      onStudentPatch?.(patch);
-      base44.entities.Student.update(studentData.id, patch).catch(() => {});
+    if (
+      !alreadyRewarded &&
+      studentData?.id
+    ) {
+      const newCoins =
+        Number(studentData?.coins || 0) +
+        SENTENCE_COMPLETION_COINS;
+
+      const rewardEntry = {
+        type: 'sentence_completion',
+        reward_key: rewardKey,
+        amount: SENTENCE_COMPLETION_COINS,
+        sentence_id: currentItem?.id || null,
+        sentence: currentSentence,
+        module: selectedModule,
+        awarded_at: new Date().toISOString(),
+      };
+
+      const patch = {
+        coins: newCoins,
+        reward_history: [
+          ...rewardHistory,
+          rewardEntry,
+        ],
+      };
+
+      setSessionCoins(
+        value =>
+          value + SENTENCE_COMPLETION_COINS
+      );
+
+      if (onStudentPatch) {
+        await onStudentPatch(patch);
+      } else {
+        await base44.entities.Student.update(
+          studentData.id,
+          patch
+        );
+      }
     }
 
     if (currentIdx + 1 < sentences.length) {
       setCurrentIdx(i => i + 1);
       setPhase('write');
     } else {
-      setSentences(s => [...s].sort(() => Math.random() - 0.5));
+      setSentences(
+        s =>
+          [...s].sort(
+            () => Math.random() - 0.5
+          )
+      );
+
       setCurrentIdx(0);
       setPhase('write');
     }
@@ -1315,76 +1352,34 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
   const handleClaimPrize = (prize) => {
     setShowWheel(false);
 
-    const nextClaimedSpins = claimedSpins + 1;
-    setClaimedSpins(nextClaimedSpins);
-
-    const prizeEntry = {
-      id: prize.id,
-      type: prize.type || 'prize',
-      label: prize.label,
-      emoji: prize.emoji || (prize.type === 'character' ? '🧑' : '🎁'),
-      duplicate: !!prize.duplicate,
-      coins_awarded: prize.coins_awarded || 0,
-      source: 'sentences',
-      claimed_at: new Date().toISOString(),
-    };
-
-    const updatedPrizeHistory = [
-      ...(studentData?.prize_history || []),
-      prizeEntry,
-    ];
-
-    let updatedRedeemedPrizes = redeemedPrizes;
-
     if (
-      prize.oneTime &&
+      prize?.oneTime &&
       !redeemedPrizes.includes(prize.id)
     ) {
-      updatedRedeemedPrizes = [
+      const updated = [
         ...redeemedPrizes,
         prize.id,
       ];
 
-      setRedeemedPrizes(
-        updatedRedeemedPrizes
-      );
-    }
+      setRedeemedPrizes(updated);
 
-    if (studentData?.id) {
       const patch = {
-        sentence_prize_spins_claimed:
-          nextClaimedSpins,
-        prize_history:
-          updatedPrizeHistory,
-        redeemed_prizes:
-          updatedRedeemedPrizes,
+        redeemed_prizes: updated,
       };
 
-      onStudentPatch?.(patch);
-
-      base44.entities.Student.update(
-        studentData.id,
-        patch
-      ).catch(() => {});
+      if (onStudentPatch) {
+        onStudentPatch(patch);
+      } else if (studentData?.id) {
+        base44.entities.Student.update(
+          studentData.id,
+          patch
+        ).catch(() => {});
+      }
     }
   };
 
   const handleCloseWheel = () => {
     setShowWheel(false);
-
-    const earnedSpins = Math.floor(totalPts / PTS_PER_STICKER);
-    const availableSpins = earnedSpins - claimedSpins;
-
-    if (availableSpins > 0) {
-      const nextClaimedSpins = claimedSpins + 1;
-      setClaimedSpins(nextClaimedSpins);
-
-      if (studentData?.id) {
-        const patch = { sentence_prize_spins_claimed: nextClaimedSpins };
-        onStudentPatch?.(patch);
-        base44.entities.Student.update(studentData.id, patch).catch(() => {});
-      }
-    }
   };
 
   if (loading) {
@@ -1405,11 +1400,11 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
           <span className="text-sm text-gray-500 font-bold">{currentIdx + 1} / {sentences.length}</span>
         </div>
 
-        {/* Sticker progress */}
-        <StickerProgressBar
-          sessionPts={sessionPts}
-          totalPts={totalPts}
-          claimedSpins={claimedSpins}
+        {/* Coin progress */}
+        <CoinProgressBar
+          sessionCoins={sessionCoins}
+          coins={coins}
+          onSpin={() => setShowWheel(true)}
         />
 
         {/* Module selector */}
@@ -1428,13 +1423,13 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
         <AnimatePresence>
           {showWheel && (
             <PrizeWheel
-              key={`wheel-${totalPts}`}
+              key={`wheel-${coins}`}
               studentData={studentData}
               onStudentPatch={onStudentPatch}
               redeemedPrizes={redeemedPrizes}
               onClaim={handleClaimPrize}
               onClose={handleCloseWheel}
-              freeSpin={true}
+              freeSpin={false}
               source="sentences"
             />
           )}
