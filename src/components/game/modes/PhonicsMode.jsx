@@ -602,6 +602,28 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
   const audioRef = useRef(null);
   const lastWordRef = useRef(null);
 
+  // Keep reward values current even if the parent studentData prop has not
+  // finished re-rendering between two fast phonics rewards.
+  const coinBalanceRef = useRef(coins);
+  const rewardHistoryRef = useRef(
+    Array.isArray(studentData?.reward_history)
+      ? studentData.reward_history
+      : []
+  );
+
+  useEffect(() => {
+    coinBalanceRef.current =
+      Number(studentData?.coins || 0);
+
+    rewardHistoryRef.current =
+      Array.isArray(studentData?.reward_history)
+        ? studentData.reward_history
+        : [];
+  }, [
+    studentData?.coins,
+    studentData?.reward_history,
+  ]);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -694,12 +716,7 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
           if (next >= PHONICS_CORRECT_PER_COIN) {
             if (studentData?.id) {
               const newCoins =
-                Number(studentData?.coins || 0) + 1;
-
-              const rewardHistory =
-                Array.isArray(studentData?.reward_history)
-                  ? studentData.reward_history
-                  : [];
+                coinBalanceRef.current + 1;
 
               const rewardEntry = {
                 type: 'phonics_practice',
@@ -708,12 +725,19 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
                 awarded_at: new Date().toISOString(),
               };
 
+              const newRewardHistory = [
+                ...rewardHistoryRef.current,
+                rewardEntry,
+              ];
+
+              // Update the refs immediately, before waiting for React or
+              // Base44, so another reward cannot calculate from old values.
+              coinBalanceRef.current = newCoins;
+              rewardHistoryRef.current = newRewardHistory;
+
               const patch = {
                 coins: newCoins,
-                reward_history: [
-                  ...rewardHistory,
-                  rewardEntry,
-                ],
+                reward_history: newRewardHistory,
               };
 
               if (onStudentPatch) {
