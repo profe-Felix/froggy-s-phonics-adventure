@@ -132,6 +132,7 @@ function getRequiredForStage(progress) {
 export default function LetterTracingMode({
   studentData,
   onUpdateProgress,
+  onStudentPatch,
   targets,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -1105,9 +1106,13 @@ export default function LetterTracingMode({
         {showWheel && (
           <PrizeWheel
             key={`tracing-wheel-${studentKey}`}
+            studentData={studentData}
+            onStudentPatch={onStudentPatch}
             redeemedPrizes={redeemedPrizes}
             onClaim={handleClaimPrize}
             onClose={handleCloseWheel}
+            freeSpin={true}
+            source="tracing"
           />
         )}
       </div>
@@ -1335,9 +1340,13 @@ export default function LetterTracingMode({
 
           <PrizeWheel
             key={`tracing-wheel-${studentKey}`}
+            studentData={studentData}
+            onStudentPatch={onStudentPatch}
             redeemedPrizes={redeemedPrizes}
             onClaim={handleClaimPrize}
             onClose={handleCloseWheel}
+            freeSpin={true}
+            source="tracing"
           />
         </div>
       )}
