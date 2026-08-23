@@ -800,6 +800,10 @@ export default function LetterTracingMode({
         setTimeout(() => {
           setCelebrate(null);
           setShowWheel(true);
+          // Return to the letter grid so the student isn't left on the
+          // already-mastered final letter after the wheel closes.
+          setCurrentLetter(null);
+          setLastAccuracy(null);
         }, 1800);
 
         return;
