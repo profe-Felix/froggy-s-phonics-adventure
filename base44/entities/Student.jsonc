@@ -284,6 +284,40 @@
               "default": false
             }
           }
+        },
+        "letter_tracing": {
+          "type": "object",
+          "properties": {
+            "mastered_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "learning_items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "item_attempts": {
+              "type": "object"
+            },
+            "total_correct": {
+              "type": "integer"
+            },
+            "total_attempts": {
+              "type": "integer"
+            },
+            "unlocked": {
+              "type": "boolean",
+              "default": true
+            },
+            "stage_state": {
+              "type": "object",
+              "description": "Per-letter staged tracing progress (stageIndex, stageSuccesses, cleanStreak, repairReps, mistakes, totalSuccesses, totalAttempts, mastered). Restored on refresh so tracing progress survives."
+            }
+          }
         }
       }
     },
@@ -294,7 +328,9 @@
         "sight_words_easy",
         "sight_words_spelling",
         "spelling",
-        "case_matching"
+        "case_matching",
+        "letter_tracing",
+        "word_tracing"
       ],
       "default": "letter_sounds"
     }
