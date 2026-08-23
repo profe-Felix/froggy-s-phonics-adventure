@@ -13,14 +13,20 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
 
+  // Only auto-land on the first incomplete step ONCE (initial load). Without
+  // this guard, the effect re-fires every time `progress` changes — including
+  // when the student completes the current step — and yanks them to the next
+  // step before they ever see the "Step Complete" coin celebration.
+  const didInitialLandRef = useRef(false);
+
   // Filter out live_only steps — they only appear during teacher-led live lessons.
   const visibleSteps = steps
     .map((s, originalIndex) => ({ step: s, originalIndex }))
     .filter(({ step }) => step.live_scope !== 'live_only');
 
-  // Land on the first not-yet-completed step once progress loads.
   useEffect(() => {
-    if (!progress || !visibleSteps.length) return;
+    if (!progress || !visibleSteps.length || didInitialLandRef.current) return;
+    didInitialLandRef.current = true;
     const firstIncomplete = visibleSteps.findIndex(({ originalIndex }) => !completedSteps.includes(originalIndex));
     const target = firstIncomplete === -1 ? visibleSteps.length - 1 : firstIncomplete;
     setStepIdx(prev => prev !== target ? target : prev);

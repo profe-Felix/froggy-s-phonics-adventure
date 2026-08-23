@@ -168,6 +168,10 @@ export default function LetterTracingMode({
 
   const studentKey = studentData?.id || 'guest';
 
+  // Ensures the saved per-letter stage state is loaded from the student record
+  // only once, so a refresh restores tracing progress instead of resetting it.
+  const loadedStageStateRef = useRef(false);
+
   // ---------------------------------------------------------------------------
   // LOAD WAYPOINTS
   // ---------------------------------------------------------------------------
@@ -219,6 +223,52 @@ export default function LetterTracingMode({
       cancelled = true;
     };
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // RESTORE SAVED STAGE STATE
+  //
+  // Per-letter tracing progress (stage index, successes, clean streak, repair
+  // reps, mastery) is persisted to mode_progress.letter_tracing.stage_state.
+  // Reload it on mount so a refresh keeps the student where they left off
+  // instead of resetting every letter to "NOT STARTED".
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (loadedStageStateRef.current) return;
+
+    const saved =
+      studentData?.mode_progress?.letter_tracing
+        ?.stage_state;
+
+    if (!saved || typeof saved !== 'object') {
+      return;
+    }
+
+    loadedStageStateRef.current = true;
+
+    const restored = {};
+    const restoredCompleted = new Set();
+
+    for (const [letter, state] of Object.entries(
+      saved
+    )) {
+      if (!state || typeof state !== 'object')
+        continue;
+
+      restored[letter] = {
+        ...makeStageState(),
+        ...state,
+      };
+
+      if (state.mastered) {
+        restoredCompleted.add(letter);
+      }
+    }
+
+    if (Object.keys(restored).length) {
+      setLetterProgress(restored);
+      setCompletedLetters(restoredCompleted);
+    }
+  }, [studentData?.id, studentData?.mode_progress]);
 
   // ---------------------------------------------------------------------------
   // PRESERVE OLD PER-LETTER SCALE STORAGE
@@ -503,6 +553,9 @@ export default function LetterTracingMode({
           ),
 
         item_attempts: itemAttempts,
+
+        // Full per-letter stage state so a refresh restores progress.
+        stage_state: nextProgress,
       }
     );
   };
