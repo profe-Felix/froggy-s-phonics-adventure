@@ -6,7 +6,7 @@ import { ALL_PRIZES } from '@/components/game/PrizeWheel';
 
 const CLASS_NAMES_DEFAULT = ['Felix', 'Valero', 'Campos'];
 const CUSHION_LIMIT = 6;
-const PTS_PER_SPIN = 100;
+const COINS_PER_SPIN = 100;
 
 function PrizeBadge({ prize }) {
   return (
@@ -74,22 +74,21 @@ export default function PrizeDashboard() {
     qc.invalidateQueries({ queryKey: ['students-prizes'] });
   };
 
-  const giveEveryone80Points = async () => {
+  const giveEveryone80Coins = async () => {
     const ok = window.confirm(
-      'Set ALL currently filtered students to 80 sentence points and 0 claimed spins?'
+      'Set ALL currently filtered students to 80 coins?'
     );
 
     if (!ok) return;
 
     for (const student of filtered) {
       await base44.entities.Student.update(student.id, {
-        sentences_total_points: 80,
-        sentence_prize_spins_claimed: 0
+        coins: 80
       });
     }
 
     qc.invalidateQueries({ queryKey: ['students-prizes'] });
-    alert('Done. Students are now set to 80/100 points.');
+    alert('Done. Students are now set to 80/100 coins.');
   };
 
   // Students who have pending prizes (won but not yet marked active)
@@ -97,8 +96,8 @@ export default function PrizeDashboard() {
     (s.prize_history?.length > 0) ||
     (s.redeemed_prizes?.length > 0) ||
     (s.active_prizes?.length > 0) ||
-    (s.sentences_total_points || 0) > 0
-  ).sort((a, b) => (b.sentences_total_points || 0) - (a.sentences_total_points || 0));
+    (s.coins || 0) > 0
+  ).sort((a, b) => (b.coins || 0) - (a.coins || 0));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 p-6">
@@ -107,14 +106,14 @@ export default function PrizeDashboard() {
         <div className="flex items-center gap-4 mb-6">
           <Link to="/Dashboard" className="text-blue-600 hover:underline font-bold text-sm">← Dashboard</Link>
           <h1 className="text-2xl font-black text-rose-700 flex-1">🎡 Prize Dashboard</h1>
-          <span className="text-xs text-gray-500 font-bold bg-white rounded-full px-3 py-1 border">Every 100 pts = 1 spin</span>
+          <span className="text-xs text-gray-500 font-bold bg-white rounded-full px-3 py-1 border">Every 100 coins = 1 spin</span>
         </div>
         <div className="mb-4">
           <button
-            onClick={giveEveryone80Points}
+            onClick={giveEveryone80Coins}
             className="px-4 py-2 rounded-xl bg-orange-500 text-white font-black shadow hover:bg-orange-600 active:scale-95"
           >
-            🎁 Set filtered students to 80 pts
+            🎁 Set filtered students to 80 coins
           </button>
         </div>
         {/* Class filter */}
@@ -192,7 +191,7 @@ export default function PrizeDashboard() {
 
         {/* Per-student list */}
         <div className="bg-white rounded-2xl shadow border border-rose-100 p-5">
-          <h2 className="text-lg font-black text-gray-800 mb-3">👩‍🎓 Students — Points & Prizes</h2>
+          <h2 className="text-lg font-black text-gray-800 mb-3">👩‍🎓 Students — Coins & Prizes</h2>
           {isLoading ? (
             <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" /></div>
           ) : studentsWithPrizes.length === 0 ? (
@@ -200,9 +199,8 @@ export default function PrizeDashboard() {
           ) : (
             <div className="flex flex-col divide-y divide-gray-100">
               {studentsWithPrizes.map(s => {
-                const pts = s.sentences_total_points || 0;
-                const spins = s.sentence_prize_spins_claimed || 0;
-                const progress = pts % PTS_PER_SPIN;
+                const coins = Number(s.coins || 0);
+                const progress = Math.min(coins, COINS_PER_SPIN);
                 const activePrizes = s.active_prizes || [];
                 const redeemedPrizes = s.redeemed_prizes || [];
                 const prizeHistory = [...(s.prize_history || [])]
@@ -217,17 +215,21 @@ export default function PrizeDashboard() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-gray-800 text-sm">{s.name || `Student ${s.student_number}`}</span>
                         <span className="text-xs text-gray-400">({s.class_name})</span>
-                        <span className="text-xs font-black text-rose-600">⭐ {pts} pts</span>
-                        <span className="text-xs text-gray-400">
-                          {spins} spin{spins !== 1 ? 's' : ''} claimed
+                        <span className="text-xs font-black text-rose-600">
+                          🪙 {coins} coins
                         </span>
+                        {coins >= COINS_PER_SPIN && (
+                          <span className="text-xs font-black text-green-600">
+                            🎡 Spin ready!
+                          </span>
+                        )}
                       </div>
                       {/* Progress bar */}
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex-1 h-2 rounded-full bg-rose-100 overflow-hidden max-w-32">
-                          <div className="h-full bg-rose-400 rounded-full" style={{ width: `${(progress / PTS_PER_SPIN) * 100}%` }} />
+                          <div className="h-full bg-rose-400 rounded-full" style={{ width: `${(progress / COINS_PER_SPIN) * 100}%` }} />
                         </div>
-                        <span className="text-xs text-gray-400">{progress}/100</span>
+                        <span className="text-xs text-gray-400">{progress}/{COINS_PER_SPIN} coins</span>
                       </div>
                       {/* Prize history */}
                       {prizeHistory.length > 0 && (
