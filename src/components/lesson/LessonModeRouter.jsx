@@ -294,15 +294,12 @@ export default function LessonModeRouter({
       // Mastery:
       //   +8 coins
       //
-      // Letter tracing:
-      //   FREE SPIN handled inside LetterTracingMode
+      // Tracing:
+      //   FREE SPIN handled inside LetterTracingMode / WordTracingMode
       //   instead of coins.
-      //
-      // Word tracing remains on the normal lesson reward path until its
-      // reward UI is converted to the same tracing-free-spin behavior.
       // ---------------------------------------------------------------
 
-      if (isLetterTracing) {
+      if (isTracingMode) {
         return;
       }
 
@@ -323,7 +320,7 @@ export default function LessonModeRouter({
       stepIndex,
       totalSteps,
       markStepComplete,
-      isLetterTracing,
+      isTracingMode,
       comp.type,
       awardStepCoins,
     ]);
@@ -1041,8 +1038,14 @@ export default function LessonModeRouter({
             onUpdateProgress={
               wrappedUpdateProgress
             }
+            onStudentPatch={
+              onStudentPatch
+            }
             targets={
               step?.config?.targets
+            }
+            freeSpinEnabled={
+              !isReplayRun
             }
           />
         );
@@ -1122,14 +1125,14 @@ export default function LessonModeRouter({
                 </p>
 
                 {!isReplayRun &&
-                  isLetterTracing && (
+                  isTracingMode && (
                     <p className="text-violet-600 text-sm font-black mt-2">
                       🎡 Free spin earned!
                     </p>
                   )}
 
                 {!isReplayRun &&
-                  !isLetterTracing &&
+                  !isTracingMode &&
                   comp.type ===
                     'mastery' && (
                     <p className="text-amber-600 text-sm font-black mt-2">
@@ -1138,7 +1141,7 @@ export default function LessonModeRouter({
                   )}
 
                 {!isReplayRun &&
-                  !isLetterTracing &&
+                  !isTracingMode &&
                   comp.type !==
                     'mastery' && (
                     <p className="text-amber-600 text-sm font-black mt-2">
