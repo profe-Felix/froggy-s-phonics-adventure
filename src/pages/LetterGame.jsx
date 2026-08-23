@@ -378,15 +378,11 @@ export default function LetterGame() {
     try { await base44.entities.Student.update(studentData.id, patch); } catch {}
   };
 
-  // Award coins when a lesson is completed.
+  // Lesson rewards are now handled per step in LessonModeRouter.
+  // Keep this callback because GameHome still expects onLessonComplete,
+  // but completing the whole lesson no longer awards an extra 50 coins.
   const handleLessonComplete = async () => {
-    if (!studentData?.id) return;
-    const reward = 50;
-    const newCoins = (studentData.coins || 0) + reward;
-    setStudentData(prev => prev ? { ...prev, coins: newCoins } : prev);
-    queryClient.setQueryData(['students'], old => Array.isArray(old)
-      ? old.map(s => s.id === studentData.id ? { ...s, coins: newCoins } : s) : old);
-    try { await base44.entities.Student.update(studentData.id, { coins: newCoins }); } catch {}
+    return;
   };
 
   // --- Pet system ---
@@ -502,7 +498,7 @@ export default function LetterGame() {
         studentData={studentData}
         selectedStudent={selectedStudent}
         onUpdateProgress={handleUpdateProgress}
-        onStudentPatch={handleStudentPatch}
+        onStudentPatch={handlePersistPatch}
         onBack={() => {
           setActiveLessonStep(null);
           setActiveLesson(null);
@@ -550,6 +546,7 @@ export default function LetterGame() {
         <LetterTracingMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
+          onStudentPatch={handlePersistPatch}
         />
       )}
       {currentMode === 'number_hearing' && (
@@ -562,14 +559,14 @@ export default function LetterGame() {
         <PhonicsMode
           studentData={studentData}
           onBack={handleBackToModes}
-          onStudentPatch={handleStudentPatch}
+          onStudentPatch={handlePersistPatch}
         />
       )}
       {currentMode === 'sentences' && (
         <SentencesMode
           studentData={studentData}
           onBack={handleBackToModes}
-          onStudentPatch={handleStudentPatch}
+          onStudentPatch={handlePersistPatch}
         />
       )}
       {currentMode === 'spanish_reading' && (
