@@ -1320,8 +1320,11 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
 
     const prizeEntry = {
       id: prize.id,
+      type: prize.type || 'prize',
       label: prize.label,
-      emoji: prize.emoji,
+      emoji: prize.emoji || (prize.type === 'character' ? '🧑' : '🎁'),
+      duplicate: !!prize.duplicate,
+      coins_awarded: prize.coins_awarded || 0,
       source: 'sentences',
       claimed_at: new Date().toISOString(),
     };
@@ -1332,20 +1335,37 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
     ];
 
     let updatedRedeemedPrizes = redeemedPrizes;
-    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
-      updatedRedeemedPrizes = [...redeemedPrizes, prize.id];
-      setRedeemedPrizes(updatedRedeemedPrizes);
+
+    if (
+      prize.oneTime &&
+      !redeemedPrizes.includes(prize.id)
+    ) {
+      updatedRedeemedPrizes = [
+        ...redeemedPrizes,
+        prize.id,
+      ];
+
+      setRedeemedPrizes(
+        updatedRedeemedPrizes
+      );
     }
 
     if (studentData?.id) {
       const patch = {
-        sentence_prize_spins_claimed: nextClaimedSpins,
-        prize_history: updatedPrizeHistory,
-        redeemed_prizes: updatedRedeemedPrizes,
+        sentence_prize_spins_claimed:
+          nextClaimedSpins,
+        prize_history:
+          updatedPrizeHistory,
+        redeemed_prizes:
+          updatedRedeemedPrizes,
       };
 
       onStudentPatch?.(patch);
-      base44.entities.Student.update(studentData.id, patch).catch(() => {});
+
+      base44.entities.Student.update(
+        studentData.id,
+        patch
+      ).catch(() => {});
     }
   };
 
@@ -1409,9 +1429,13 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
           {showWheel && (
             <PrizeWheel
               key={`wheel-${totalPts}`}
+              studentData={studentData}
+              onStudentPatch={onStudentPatch}
               redeemedPrizes={redeemedPrizes}
               onClaim={handleClaimPrize}
               onClose={handleCloseWheel}
+              freeSpin={true}
+              source="sentences"
             />
           )}
         </AnimatePresence>
