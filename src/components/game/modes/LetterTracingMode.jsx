@@ -641,117 +641,116 @@ export default function LetterTracingMode({
     successfulTraceCountRef.current += 1;
     setStreak(s => s + 1);
 
+    // Decide mastery / stage-advance SYNCHRONOUSLY from the current state.
+    // The previous version set masteredThisTurn / advancedStage inside the
+    // setLetterProgress updater, which React runs lazily during render — so
+    // the side-effect checks below always saw false. The state update itself
+    // still landed (mastered: true), so the canvas remounted into a
+    // mastered-but-not-advanced state and the student got stuck on the final
+    // stage forever. Compute the decision up front so the side effects fire.
+    const current =
+      progressFor(letter);
+
+    if (current.mastered) {
+      // Already mastered (e.g. a late duplicate auto-advance). Nothing to do.
+      return;
+    }
+
+    const stage =
+      TRACING_STAGES[current.stageIndex];
+
+    const required =
+      stage.repetitions +
+      Math.min(
+        current.repairReps || 0,
+        MAX_REPAIR_REPS
+      );
+
+    const nextSuccesses =
+      (current.stageSuccesses || 0) + 1;
+
+    const nextClean =
+      (current.cleanStreak || 0) + 1;
+
+    const nextTotalSuccesses =
+      (current.totalSuccesses || 0) + 1;
+
+    const stagePassed =
+      nextSuccesses >= required &&
+      nextClean >= REQUIRED_CLEAN_STREAK;
+
     let masteredThisTurn = false;
     let advancedStage = false;
-    let nextStageIndex = 0;
+    let nextStageIndex = current.stageIndex;
+
+    let nextLetter;
+
+    if (!stagePassed) {
+      nextLetter = {
+        ...current,
+        stageSuccesses: nextSuccesses,
+        cleanStreak: nextClean,
+        totalSuccesses: nextTotalSuccesses,
+        totalAttempts:
+          (current.totalAttempts || 0) + 1,
+      };
+    } else if (
+      current.stageIndex <
+      TRACING_STAGES.length - 1
+    ) {
+      advancedStage = true;
+      nextStageIndex = current.stageIndex + 1;
+
+      nextLetter = {
+        ...current,
+        stageIndex: current.stageIndex + 1,
+        // New support/size stage starts fresh.
+        stageSuccesses: 0,
+        cleanStreak: 0,
+        repairReps: 0,
+        totalSuccesses: nextTotalSuccesses,
+        totalAttempts:
+          (current.totalAttempts || 0) + 1,
+      };
+    } else {
+      masteredThisTurn = true;
+      nextStageIndex = TRACING_STAGES.length;
+
+      nextLetter = {
+        ...current,
+        stageSuccesses: nextSuccesses,
+        cleanStreak: nextClean,
+        totalSuccesses: nextTotalSuccesses,
+        totalAttempts:
+          (current.totalAttempts || 0) + 1,
+        mastered: true,
+      };
+    }
+
+    const nextCompleted = new Set(completedLetters);
+
+    if (masteredThisTurn) {
+      nextCompleted.add(letter);
+    }
 
     setLetterProgress(prev => {
-      const current =
-        prev[letter] ||
-        makeStageState();
+      const prevLetter =
+        prev[letter] || makeStageState();
 
-      if (current.mastered) {
+      if (prevLetter.mastered) {
         return prev;
       }
 
-      const stage =
-        TRACING_STAGES[
-          current.stageIndex
-        ];
-
-      const required =
-        stage.repetitions +
-        Math.min(
-          current.repairReps || 0,
-          MAX_REPAIR_REPS
-        );
-
-      const nextSuccesses =
-        (current.stageSuccesses || 0) + 1;
-
-      const nextClean =
-        (current.cleanStreak || 0) + 1;
-
-      const nextTotalSuccesses =
-        (current.totalSuccesses || 0) + 1;
-
-      const stagePassed =
-        nextSuccesses >= required &&
-        nextClean >= REQUIRED_CLEAN_STREAK;
-
-      let nextLetter;
-
-      if (!stagePassed) {
-        nextLetter = {
-          ...current,
-          stageSuccesses: nextSuccesses,
-          cleanStreak: nextClean,
-          totalSuccesses:
-            nextTotalSuccesses,
-          totalAttempts:
-            (current.totalAttempts || 0) + 1,
-        };
-      } else if (
-        current.stageIndex <
-        TRACING_STAGES.length - 1
-      ) {
-        advancedStage = true;
-        nextStageIndex =
-          current.stageIndex + 1;
-
-        nextLetter = {
-          ...current,
-          stageIndex:
-            current.stageIndex + 1,
-
-          // New support/size stage starts fresh.
-          stageSuccesses: 0,
-          cleanStreak: 0,
-          repairReps: 0,
-
-          totalSuccesses:
-            nextTotalSuccesses,
-          totalAttempts:
-            (current.totalAttempts || 0) + 1,
-        };
-      } else {
-        masteredThisTurn = true;
-        nextStageIndex =
-          TRACING_STAGES.length;
-
-        nextLetter = {
-          ...current,
-          stageSuccesses:
-            nextSuccesses,
-          cleanStreak:
-            nextClean,
-          totalSuccesses:
-            nextTotalSuccesses,
-          totalAttempts:
-            (current.totalAttempts || 0) + 1,
-          mastered: true,
-        };
-      }
-
-      const next = {
+      return {
         ...prev,
         [letter]: nextLetter,
       };
-
-      const nextCompleted =
-        new Set(completedLetters);
-
-      if (masteredThisTurn) {
-        nextCompleted.add(letter);
-      }
-
-      reportProgress(
-        next,
-        nextCompleted
-      );
-
-      return next;
     });
+
+    reportProgress(
+      { ...letterProgress, [letter]: nextLetter },
+      nextCompleted
+    );
 
     if (masteredThisTurn) {
       const nextCompleted =
