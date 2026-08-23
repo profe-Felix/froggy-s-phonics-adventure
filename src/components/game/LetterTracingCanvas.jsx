@@ -786,7 +786,7 @@ export default function LetterTracingCanvas({
 
       <div
         ref={containerRef}
-        className="w-full overflow-x-auto overflow-y-hidden"
+        className="w-full max-w-3xl overflow-x-auto overflow-y-hidden"
         style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
       >
       <svg
@@ -799,7 +799,7 @@ export default function LetterTracingCanvas({
         }`}
         style={{
           display: 'block',
-          margin: '0 auto',
+          margin: copyCount <= 1 ? '0 auto' : '0',
           width: `${totalRenderW}px`,
           height: `${renderH}px`,
           cursor: 'crosshair',
