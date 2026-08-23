@@ -182,14 +182,18 @@ export default function LessonModeRouter({
           reward_history: newRewardHistory,
         };
 
-        // Keep the parent/student UI synchronized.
-        onStudentPatch?.(patch);
-
-        // Preserve the existing direct Base44 persistence behavior.
-        await base44.entities.Student.update(
-          studentData.id,
-          patch
-        );
+        // Prefer the parent persistence callback when available.
+        // LetterGame passes handlePersistPatch here, which updates both
+        // local state and Base44. Falling back to Base44 directly keeps
+        // this router safe if it is ever rendered without onStudentPatch.
+        if (onStudentPatch) {
+          await onStudentPatch(patch);
+        } else {
+          await base44.entities.Student.update(
+            studentData.id,
+            patch
+          );
+        }
       } catch (err) {
         coinBalanceRef.current =
           previousCoins;
