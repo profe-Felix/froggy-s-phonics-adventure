@@ -48,311 +48,1157 @@ export default function LessonModeRouter({
   liveMode = false,
 }) {
   const { progress, markStepComplete } = useLessonProgress(
-    selectedStudent?.number, selectedStudent?.class_name, lessonId
+    selectedStudent?.number,
+    selectedStudent?.class_name,
+    lessonId
   );
+
   const alreadyDone = (progress?.completed_steps || []).includes(stepIndex);
+
   const [done, setDone] = useState(alreadyDone);
-  // Once a step is complete (from a prior session or this one), replays no longer
-  // persist progress/points — students can keep playing just for fun.
-  const noPointsRef = useRef(alreadyDone);
-  // Suppresses the completion overlay from re-firing on "Play Again" so a replay
-  // doesn't instantly re-master after a single attempt.
+
+  // Remount the actual activity whenever the student deliberately starts
+  // another run. This clears local game/tracing state without changing the
+  // student's permanent lesson-completion record.
+  const [runKey, setRunKey] = useState(0);
+
+  // True only while completing a deliberate replay of an already-finished step.
+  const [isReplayRun, setIsReplayRun] = useState(false);
+
+  // Mastery replays use temporary fresh progress rather than lifetime mastery.
+  // This prevents an already-mastered activity from instantly paying replay
+  // coins when it opens.
+  const [replayProgress, setReplayProgress] = useState(null);
+
+  // Prevent the same run from completing multiple times.
   const completedOnceRef = useRef(alreadyDone);
-  const comp = step?.completion || { type: 'view', target: 1 };
-  // Tracing modes report completed traces through total_attempts, not
-  // mastered_items. Some lesson records were saved with completion.type =
-  // 'mastery', which made those steps impossible to finish (e.g. Master 8
-  // stayed at 0/8 even after 9 successful traces). Treat the target as the
-  // required number of completed traces for these modes.
-  const isTracingMode = step?.mode === 'letter_tracing' || step?.mode === 'word_tracing';
 
+  // Prevent duplicate reward writes.
   const rewardInFlightRef = useRef(false);
+  const rewardedThisRunRef = useRef(false);
 
-  const awardStepCoins = useCallback(async (amount, reason) => {
-    if (!studentData?.id || amount <= 0 || rewardInFlightRef.current) return;
+  // Local immediate balance so a second reward cannot calculate from stale
+  // studentData while React/Base44 is still updating.
+  const coinBalanceRef = useRef(
+    Number(studentData?.coins || 0)
+  );
 
-    rewardInFlightRef.current = true;
+  // Keep an immediate reward-history copy for the same reason.
+  const rewardHistoryRef = useRef(
+    Array.isArray(studentData?.reward_history)
+      ? studentData.reward_history
+      : []
+  );
 
-    try {
-      const currentCoins = Number(studentData?.coins || 0);
-      const newCoins = currentCoins + amount;
+  const comp = step?.completion || {
+    type: 'view',
+    target: 1,
+  };
 
-      const rewardEntry = {
-        type: 'lesson_reward',
-        amount,
-        reason,
-        lesson_id: lessonId,
-        step_index: stepIndex,
-        mode: step?.mode,
-        awarded_at: new Date().toISOString(),
-      };
+  const isLetterTracing =
+    step?.mode === 'letter_tracing';
 
-      const patch = {
-        coins: newCoins,
-        reward_history: [
-          ...(studentData?.reward_history || []),
+  const isWordTracing =
+    step?.mode === 'word_tracing';
+
+  const isTracingMode =
+    isLetterTracing || isWordTracing;
+
+  const isMastery =
+    comp.type === 'mastery' &&
+    !isTracingMode;
+
+  useEffect(() => {
+    coinBalanceRef.current =
+      Number(studentData?.coins || 0);
+  }, [studentData?.coins]);
+
+  useEffect(() => {
+    rewardHistoryRef.current =
+      Array.isArray(studentData?.reward_history)
+        ? studentData.reward_history
+        : [];
+  }, [studentData?.reward_history]);
+
+  // LessonProgress may load after this component first renders.
+  // If the backend says this step was previously completed, show the
+  // completion state unless the student is actively replaying it.
+  useEffect(() => {
+    if (!alreadyDone || isReplayRun) return;
+
+    completedOnceRef.current = true;
+    setDone(true);
+  }, [alreadyDone, isReplayRun]);
+
+  const awardStepCoins = useCallback(
+    async (amount, reason) => {
+      if (
+        !studentData?.id ||
+        amount <= 0 ||
+        rewardInFlightRef.current ||
+        rewardedThisRunRef.current
+      ) {
+        return;
+      }
+
+      rewardInFlightRef.current = true;
+      rewardedThisRunRef.current = true;
+
+      const previousCoins =
+        coinBalanceRef.current;
+
+      const previousHistory =
+        rewardHistoryRef.current;
+
+      try {
+        const newCoins =
+          previousCoins + amount;
+
+        const rewardEntry = {
+          type: 'lesson_reward',
+          amount,
+          reason,
+          lesson_id: lessonId,
+          step_index: stepIndex,
+          mode: step?.mode,
+          awarded_at: new Date().toISOString(),
+        };
+
+        const newRewardHistory = [
+          ...previousHistory,
           rewardEntry,
-        ],
+        ];
+
+        // Update refs immediately so another completion cannot calculate
+        // against old values.
+        coinBalanceRef.current =
+          newCoins;
+
+        rewardHistoryRef.current =
+          newRewardHistory;
+
+        const patch = {
+          coins: newCoins,
+          reward_history: newRewardHistory,
+        };
+
+        // Keep the parent/student UI synchronized.
+        onStudentPatch?.(patch);
+
+        // Preserve the existing direct Base44 persistence behavior.
+        await base44.entities.Student.update(
+          studentData.id,
+          patch
+        );
+      } catch (err) {
+        coinBalanceRef.current =
+          previousCoins;
+
+        rewardHistoryRef.current =
+          previousHistory;
+
+        // If the write failed, allow another genuine completion attempt
+        // to try the reward again.
+        rewardedThisRunRef.current =
+          false;
+
+        console.error(
+          `Could not award ${reason} coins:`,
+          err
+        );
+      } finally {
+        rewardInFlightRef.current =
+          false;
+      }
+    },
+    [
+      studentData?.id,
+      onStudentPatch,
+      lessonId,
+      stepIndex,
+      step?.mode,
+    ]
+  );
+
+  // Build completely fresh progress for a mastery replay.
+  //
+  // If the lesson explicitly names target items, those become the replay
+  // learning pool. Otherwise use the items already encountered in this mode.
+  const makeFreshReplayProgress =
+    useCallback(() => {
+      const oldProgress =
+        studentData?.mode_progress?.[
+          step?.mode
+        ] || {};
+
+      const configuredTargets =
+        step?.config?.targets ||
+        step?.config?.targetLetters ||
+        [];
+
+      const fallbackItems =
+        Array.from(
+          new Set([
+            ...(oldProgress?.learning_items || []),
+            ...(oldProgress?.mastered_items || []),
+          ])
+        );
+
+      const learningItems =
+        Array.isArray(configuredTargets) &&
+        configuredTargets.length > 0
+          ? configuredTargets
+          : fallbackItems;
+
+      return {
+        mastered_items: [],
+        learning_items: learningItems,
+        item_attempts: {},
+        total_correct: 0,
+        total_attempts: 0,
+        unlocked: true,
       };
+    }, [
+      studentData?.mode_progress,
+      step?.mode,
+      step?.config?.targets,
+      step?.config?.targetLetters,
+    ]);
 
-      onStudentPatch?.(patch);
+  const finishFirstRun =
+    useCallback(() => {
+      if (completedOnceRef.current) {
+        return;
+      }
 
-      await base44.entities.Student.update(
-        studentData.id,
-        patch
-      );
-    } catch (err) {
-      console.error('Could not award lesson coins:', err);
-    } finally {
-      rewardInFlightRef.current = false;
-    }
-  }, [
-    studentData,
-    onStudentPatch,
-    lessonId,
-    stepIndex,
-    step?.mode,
-  ]);
+      completedOnceRef.current =
+        true;
 
-  const maybeComplete = useCallback((progressData) => {
-    if (completedOnceRef.current) return;
-    // In live mode the teacher controls advancement — don't auto-complete or
-    // trap the student behind the "Step Complete" overlay.
-    if (liveMode) return;
-    let isDone = false;
-    if (isTracingMode) {
-      const need = comp.target && comp.target > 1 ? comp.target : 5;
-      isDone = (progressData?.total_attempts || 0) >= need;
-    } else if (comp.type === 'mastery') {
-      isDone = (progressData?.mastered_items?.length || 0) >= (comp.target || 1);
-    } else {
-      // view = a full round of participation (not a single tap), so kids play
-      // several letters before the step completes. Teachers can override via the
-      // step's completion.target (any value > 1 is honored).
-      const need = comp.target && comp.target > 1 ? comp.target : 5;
-      isDone = (progressData?.total_attempts || 0) >= need;
-    }
-    if (isDone) {
-      completedOnceRef.current = true;
-      noPointsRef.current = true;
       setDone(true);
-      markStepComplete(stepIndex, totalSteps);
 
-      // Reward economy:
+      markStepComplete(
+        stepIndex,
+        totalSteps
+      );
+
+      // ---------------------------------------------------------------
+      // FIRST-TIME REWARD ECONOMY
       //
-      // Completion/view:
-      //   first completion = 4 coins
+      // Completion / participation:
+      //   +4 coins
       //
       // Mastery:
-      //   first mastery = 8 coins
+      //   +8 coins
       //
       // Letter tracing:
-      //   first mastery = FREE SPIN handled inside LetterTracingMode,
-      //   so no coins are awarded here.
+      //   FREE SPIN handled inside LetterTracingMode
+      //   instead of coins.
       //
-      // Word tracing follows the normal mastery reward for now.
-      if (step?.mode === 'letter_tracing') {
-        // Free spin is awarded by LetterTracingMode.
-      } else if (comp.type === 'mastery') {
+      // Word tracing remains on the normal lesson reward path until its
+      // reward UI is converted to the same tracing-free-spin behavior.
+      // ---------------------------------------------------------------
+
+      if (isLetterTracing) {
+        return;
+      }
+
+      if (comp.type === 'mastery') {
         awardStepCoins(
           8,
           'first_mastery'
         );
-      } else {
+
+        return;
+      }
+
+      awardStepCoins(
+        4,
+        'first_completion'
+      );
+    }, [
+      stepIndex,
+      totalSteps,
+      markStepComplete,
+      isLetterTracing,
+      comp.type,
+      awardStepCoins,
+    ]);
+
+  const finishReplayRun =
+    useCallback(() => {
+      if (completedOnceRef.current) {
+        return;
+      }
+
+      completedOnceRef.current =
+        true;
+
+      setDone(true);
+
+      // ---------------------------------------------------------------
+      // REPLAY REWARD ECONOMY
+      //
+      // Ordinary completion:
+      //   0 coins
+      //
+      // Mastery:
+      //   +4 coins
+      //
+      // Tracing:
+      //   +8 coins
+      //
+      // LessonProgress is intentionally NOT changed again.
+      // ---------------------------------------------------------------
+
+      if (isTracingMode) {
+        awardStepCoins(
+          8,
+          'tracing_replay'
+        );
+
+        return;
+      }
+
+      if (comp.type === 'mastery') {
         awardStepCoins(
           4,
-          'first_completion'
+          'mastery_replay'
         );
       }
-    }
-  }, [
-    comp,
-    isTracingMode,
-    stepIndex,
-    totalSteps,
-    markStepComplete,
-    step?.mode,
-    awardStepCoins,
-  ]);
+    }, [
+      isTracingMode,
+      comp.type,
+      awardStepCoins,
+    ]);
 
-  // Auto-complete mastery steps the student already satisfied in a prior session
-  // so they don't have to re-answer questions just to unlock the next step.
+  const maybeComplete =
+    useCallback(
+      (progressData) => {
+        if (completedOnceRef.current) {
+          return;
+        }
+
+        // Teacher controls advancement in live mode.
+        // Do not auto-complete or award lesson-step rewards here.
+        if (liveMode) {
+          return;
+        }
+
+        let isDone = false;
+
+        if (isTracingMode) {
+          // LetterTracingMode now reports fully mastered target letters through
+          // total_attempts. WordTracingMode also reports its completion count
+          // through total_attempts.
+          const need =
+            comp.target &&
+            comp.target > 1
+              ? comp.target
+              : 5;
+
+          isDone =
+            (
+              progressData?.total_attempts ||
+              0
+            ) >= need;
+        } else if (
+          comp.type === 'mastery'
+        ) {
+          // During replay this comes from fresh temporary mastery state, so
+          // lifetime mastery cannot instantly satisfy the requirement.
+          isDone =
+            (
+              progressData
+                ?.mastered_items
+                ?.length ||
+              0
+            ) >=
+            (comp.target || 1);
+        } else {
+          // View/completion activities require a meaningful amount of
+          // participation unless the lesson explicitly provides a target.
+          const need =
+            comp.target &&
+            comp.target > 1
+              ? comp.target
+              : 5;
+
+          isDone =
+            (
+              progressData?.total_attempts ||
+              0
+            ) >= need;
+        }
+
+        if (!isDone) return;
+
+        if (isReplayRun) {
+          finishReplayRun();
+        } else {
+          finishFirstRun();
+        }
+      },
+      [
+        comp,
+        isTracingMode,
+        liveMode,
+        isReplayRun,
+        finishReplayRun,
+        finishFirstRun,
+      ]
+    );
+
+  // FIRST completion only:
+  // If the student already satisfied this mastery requirement elsewhere,
+  // allow that existing mastery to satisfy the lesson step.
+  //
+  // Never do this during replay. Replay mastery must be fresh work.
   useEffect(() => {
-    if (completedOnceRef.current) return;
-    if (comp.type !== 'mastery' || isTracingMode) return;
-    const mp = studentData?.mode_progress?.[step.mode];
-    const masteredCount = mp?.mastered_items?.length || 0;
-    if (masteredCount >= (comp.target || 1)) {
-      maybeComplete({ mastered_items: mp?.mastered_items || [] });
+    if (isReplayRun) return;
+
+    if (completedOnceRef.current) {
+      return;
     }
-  }, [studentData, step.mode, comp.type, comp.target, isTracingMode, maybeComplete]);
 
-  // progress-aware wrapper (also persists via the parent's onUpdateProgress).
-  // Suppressed once the step is complete so replays don't re-award points.
-  const wrappedUpdateProgress = useCallback((mode, progressData) => {
-    if (!noPointsRef.current && onUpdateProgress) onUpdateProgress(mode, progressData);
-    maybeComplete(progressData);
-  }, [onUpdateProgress, maybeComplete]);
-
-  // back wrapper: 'view' steps complete when the student finishes and returns
-  const wrappedBack = useCallback(() => {
-    if (!completedOnceRef.current && comp.type === 'view') {
-      completedOnceRef.current = true;
-      noPointsRef.current = true;
-      setDone(true);
-      markStepComplete(stepIndex, totalSteps);
+    if (
+      comp.type !== 'mastery' ||
+      isTracingMode
+    ) {
+      return;
     }
-    onBack?.();
-  }, [comp, stepIndex, totalSteps, markStepComplete, onBack]);
 
-  // Manual completion for open-ended activities that don't report progress.
-  const completeStep = useCallback(() => {
-    if (completedOnceRef.current) return;
+    const mp =
+      studentData?.mode_progress?.[
+        step.mode
+      ];
 
-    completedOnceRef.current = true;
-    noPointsRef.current = true;
-    setDone(true);
+    const masteredCount =
+      mp?.mastered_items?.length ||
+      0;
 
-    markStepComplete(
-      stepIndex,
-      totalSteps
-    );
-
-    awardStepCoins(
-      4,
-      'first_completion'
-    );
+    if (
+      masteredCount >=
+      (comp.target || 1)
+    ) {
+      maybeComplete({
+        mastered_items:
+          mp?.mastered_items ||
+          [],
+      });
+    }
   }, [
-    stepIndex,
-    totalSteps,
-    markStepComplete,
-    awardStepCoins,
+    studentData,
+    step.mode,
+    comp.type,
+    comp.target,
+    isTracingMode,
+    isReplayRun,
+    maybeComplete,
   ]);
 
-  const studentNumber = selectedStudent?.number;
-  const className = selectedStudent?.class_name;
+  // Progress wrapper.
+  //
+  // Normal run:
+  //   persist progress through the existing parent callback.
+  //
+  // Mastery replay:
+  //   keep progress local so previously mastered lifetime data does not count
+  //   and temporary replay state does not overwrite permanent mastery.
+  const wrappedUpdateProgress =
+    useCallback(
+      (mode, progressData) => {
+        if (
+          isReplayRun &&
+          comp.type === 'mastery' &&
+          !isTracingMode
+        ) {
+          setReplayProgress(
+            progressData
+          );
+        } else if (
+          onUpdateProgress
+        ) {
+          onUpdateProgress(
+            mode,
+            progressData
+          );
+        }
 
-  // Build a goal/progress label so the student knows what "done" means.
-  const isMastery = comp.type === 'mastery' && !isTracingMode;
-  const modeProgress = studentData?.mode_progress?.[step.mode];
-  const masteredCount = modeProgress?.mastered_items?.length || 0;
-  const attemptTarget = comp.target && comp.target > 1 ? comp.target : 5;
-  const attemptCount = modeProgress?.total_attempts || 0;
-  const goalText = isTracingMode
-    ? `✍️ Trace ${attemptTarget} times`
-    : isMastery
-      ? `🎯 Master ${comp.target} — ${Math.min(masteredCount, comp.target)}/${comp.target}`
-      : '★ Play once to finish';
-  const goalDone = isTracingMode ? done : (isMastery ? masteredCount >= comp.target : false);
+        maybeComplete(
+          progressData
+        );
+      },
+      [
+        isReplayRun,
+        comp.type,
+        isTracingMode,
+        onUpdateProgress,
+        maybeComplete,
+      ]
+    );
+
+  // A view-style step may complete when the student finishes and returns.
+  const wrappedBack =
+    useCallback(() => {
+      if (
+        !completedOnceRef.current &&
+        comp.type === 'view' &&
+        !liveMode
+      ) {
+        if (isReplayRun) {
+          finishReplayRun();
+        } else {
+          finishFirstRun();
+        }
+      }
+
+      onBack?.();
+    }, [
+      comp.type,
+      liveMode,
+      isReplayRun,
+      finishReplayRun,
+      finishFirstRun,
+      onBack,
+    ]);
+
+  // Open-ended activities call this directly when finished.
+  const completeStep =
+    useCallback(() => {
+      if (
+        completedOnceRef.current ||
+        liveMode
+      ) {
+        return;
+      }
+
+      if (isReplayRun) {
+        // Completion activities can be repeated for practice, but repeats
+        // intentionally award zero coins.
+        finishReplayRun();
+      } else {
+        finishFirstRun();
+      }
+    }, [
+      liveMode,
+      isReplayRun,
+      finishReplayRun,
+      finishFirstRun,
+    ]);
+
+  // Begin a genuine fresh replay.
+  const startReplay =
+    useCallback(() => {
+      rewardedThisRunRef.current =
+        false;
+
+      rewardInFlightRef.current =
+        false;
+
+      completedOnceRef.current =
+        false;
+
+      setDone(false);
+      setIsReplayRun(true);
+
+      if (
+        comp.type === 'mastery' &&
+        !isTracingMode
+      ) {
+        setReplayProgress(
+          makeFreshReplayProgress()
+        );
+      } else {
+        setReplayProgress(null);
+      }
+
+      // Remount the child activity so its internal score/current item/tracing
+      // state starts clean as well.
+      setRunKey(
+        key => key + 1
+      );
+    }, [
+      comp.type,
+      isTracingMode,
+      makeFreshReplayProgress,
+    ]);
+
+  const studentNumber =
+    selectedStudent?.number;
+
+  const className =
+    selectedStudent?.class_name;
+
+  // During a mastery replay, give the activity clean temporary mode_progress
+  // for this mode while preserving all other student fields.
+  const activityStudentData =
+    isReplayRun &&
+    comp.type === 'mastery' &&
+    !isTracingMode &&
+    replayProgress
+      ? {
+          ...studentData,
+          mode_progress: {
+            ...(studentData?.mode_progress || {}),
+            [step.mode]:
+              replayProgress,
+          },
+        }
+      : studentData;
+
+  const modeProgress =
+    isReplayRun &&
+    comp.type === 'mastery' &&
+    !isTracingMode
+      ? replayProgress
+      : studentData?.mode_progress?.[
+          step.mode
+        ];
+
+  const masteredCount =
+    modeProgress
+      ?.mastered_items
+      ?.length ||
+    0;
+
+  const attemptTarget =
+    comp.target &&
+    comp.target > 1
+      ? comp.target
+      : 5;
+
+  const goalText =
+    isTracingMode
+      ? isReplayRun
+        ? `✍️ Practice again — ${attemptTarget} to finish`
+        : `✍️ Trace ${attemptTarget} to finish`
+      : isMastery
+        ? isReplayRun
+          ? `🎯 Master again — ${Math.min(
+              masteredCount,
+              comp.target || 1
+            )}/${comp.target || 1}`
+          : `🎯 Master ${
+              comp.target || 1
+            } — ${Math.min(
+              masteredCount,
+              comp.target || 1
+            )}/${comp.target || 1}`
+        : isReplayRun
+          ? '★ Practice again'
+          : '★ Play once to finish';
+
+  const goalDone = done;
 
   function renderMode() {
     switch (step.mode) {
       case 'letter_sounds':
-        return <LetterSoundsMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
+        return (
+          <LetterSoundsMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            targets={
+              step?.config?.targets
+            }
+          />
+        );
+
       case 'sight_words_easy':
-        return <SightWordsEasyMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
+        return (
+          <SightWordsEasyMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            targets={
+              step?.config?.targets
+            }
+          />
+        );
+
       case 'sight_words_spelling':
-        return <SightWordsSpellingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} onBack={wrappedBack} />;
+        return (
+          <SightWordsSpellingMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            onBack={
+              wrappedBack
+            }
+          />
+        );
+
       case 'spelling':
-        return <SpellingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} onBack={wrappedBack} />;
+        return (
+          <SpellingMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            onBack={
+              wrappedBack
+            }
+          />
+        );
+
       case 'case_matching':
-        return <CaseMatchingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets || step?.config?.targetLetters} />;
+        return (
+          <CaseMatchingMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            targets={
+              step?.config?.targets ||
+              step?.config?.targetLetters
+            }
+          />
+        );
+
       case 'letter_tracing':
         return (
           <LetterTracingMode
-            studentData={studentData}
-            onUpdateProgress={wrappedUpdateProgress}
-            onStudentPatch={onStudentPatch}
-            targets={step?.config?.targets || step?.config?.targetLetters}
+            studentData={
+              studentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            onStudentPatch={
+              onStudentPatch
+            }
+            targets={
+              step?.config?.targets ||
+              step?.config?.targetLetters
+            }
+            freeSpinEnabled={
+              !isReplayRun
+            }
           />
         );
+
       case 'number_hearing':
-        return <NumberHearingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
+        return (
+          <NumberHearingMode
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+          />
+        );
+
       case 'phonics':
-        return <PhonicsMode studentData={studentData} onBack={wrappedBack} onStudentPatch={onStudentPatch} />;
+        return (
+          <PhonicsMode
+            studentData={
+              studentData
+            }
+            onBack={
+              wrappedBack
+            }
+            onStudentPatch={
+              onStudentPatch
+            }
+          />
+        );
+
       case 'sentences':
-        return <SentencesMode studentData={studentData} onBack={wrappedBack} onStudentPatch={onStudentPatch} />;
+        return (
+          <SentencesMode
+            studentData={
+              studentData
+            }
+            onBack={
+              wrappedBack
+            }
+            onStudentPatch={
+              onStudentPatch
+            }
+          />
+        );
+
       case 'spanish_reading':
-        return <SpanishReadingGame studentNumber={studentNumber} className={className} onBack={wrappedBack} />;
+        return (
+          <SpanishReadingGame
+            studentNumber={
+              studentNumber
+            }
+            className={
+              className
+            }
+            onBack={
+              wrappedBack
+            }
+          />
+        );
+
       case 'storybuilder':
-        return <StoryBuilder studentNumber={studentNumber} className={className} onBack={wrappedBack} />;
+        return (
+          <StoryBuilder
+            studentNumber={
+              studentNumber
+            }
+            className={
+              className
+            }
+            onBack={
+              wrappedBack
+            }
+          />
+        );
+
       case 'book_reading':
-        return <BookReading prefillClass={className} prefillNumber={studentNumber} onBack={wrappedBack} />;
+        return (
+          <BookReading
+            prefillClass={
+              className
+            }
+            prefillNumber={
+              studentNumber
+            }
+            onBack={
+              wrappedBack
+            }
+          />
+        );
+
       case 'letter_sort':
-        return <LetterSortStep onComplete={completeStep} presetId={step?.config?.preset} />;
+        return (
+          <LetterSortStep
+            onComplete={
+              completeStep
+            }
+            presetId={
+              step?.config?.preset
+            }
+          />
+        );
+
       case 'letter_recognition':
-        return <LetterRecognitionStep onComplete={completeStep} targets={step?.config?.targets} />;
+        return (
+          <LetterRecognitionStep
+            onComplete={
+              completeStep
+            }
+            targets={
+              step?.config?.targets
+            }
+          />
+        );
+
       case 'powerful_word':
-        return <PowerfulWordStep onComplete={completeStep} presetId={step?.config?.preset} />;
+        return (
+          <PowerfulWordStep
+            onComplete={
+              completeStep
+            }
+            presetId={
+              step?.config?.preset
+            }
+          />
+        );
+
       case 'syllable_train':
-        return <SyllableTrainStep onComplete={completeStep} />;
+        return (
+          <SyllableTrainStep
+            onComplete={
+              completeStep
+            }
+          />
+        );
+
       case 'syllable_blender':
-        return <SyllableBlenderStep onComplete={completeStep} />;
+        return (
+          <SyllableBlenderStep
+            onComplete={
+              completeStep
+            }
+          />
+        );
+
       case 'activities':
-        return <ActivitiesStep onComplete={completeStep} studentName={selectedStudent?.name || `Estudiante ${studentNumber || ''}`} stepConfig={step?.config} />;
+        return (
+          <ActivitiesStep
+            onComplete={
+              completeStep
+            }
+            studentName={
+              selectedStudent?.name ||
+              `Estudiante ${
+                studentNumber ||
+                ''
+              }`
+            }
+            stepConfig={
+              step?.config
+            }
+          />
+        );
+
       case 'word_builder':
-        return <WordBuilderStep onComplete={completeStep} studentNumber={studentNumber} className={className} presetId={step?.config?.preset} />;
+        return (
+          <WordBuilderStep
+            onComplete={
+              completeStep
+            }
+            studentNumber={
+              studentNumber
+            }
+            className={
+              className
+            }
+            presetId={
+              step?.config?.preset
+            }
+          />
+        );
+
       case 'fluency':
-        return <FluencyPracticeStep onComplete={completeStep} presetId={step?.config?.preset} studentNumber={studentNumber} className={className} />;
+        return (
+          <FluencyPracticeStep
+            onComplete={
+              completeStep
+            }
+            presetId={
+              step?.config?.preset
+            }
+            studentNumber={
+              studentNumber
+            }
+            className={
+              className
+            }
+          />
+        );
+
       case 'video':
-        return <VideoStep onComplete={completeStep} videoUrl={step?.config?.videoUrl} title={step.title} />;
+        return (
+          <VideoStep
+            onComplete={
+              completeStep
+            }
+            videoUrl={
+              step?.config?.videoUrl
+            }
+            title={
+              step.title
+            }
+          />
+        );
+
       case 'soundwall':
-        return <SoundWallStep onComplete={completeStep} stepConfig={step?.config} />;
+        return (
+          <SoundWallStep
+            onComplete={
+              completeStep
+            }
+            stepConfig={
+              step?.config
+            }
+          />
+        );
+
       case 'google_slides':
-        return <GoogleSlidesStep onComplete={completeStep} stepConfig={step?.config} title={step.title} />;
+        return (
+          <GoogleSlidesStep
+            onComplete={
+              completeStep
+            }
+            stepConfig={
+              step?.config
+            }
+            title={
+              step.title
+            }
+          />
+        );
+
       case 'word_tracing':
-        return <WordTracingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets} />;
+        return (
+          <WordTracingMode
+            studentData={
+              studentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            targets={
+              step?.config?.targets
+            }
+          />
+        );
+
       default:
-        return <div className="p-10 text-center text-gray-400">Unknown step type.</div>;
+        return (
+          <div className="p-10 text-center text-gray-400">
+            Unknown step type.
+          </div>
+        );
     }
   }
 
   return (
-    <div className={`relative flex flex-col ${stepperMode ? 'h-full' : 'h-screen'}`}>
-      {renderMode()}
+    <div
+      className={`relative flex flex-col ${
+        stepperMode
+          ? 'h-full'
+          : 'h-screen'
+      }`}
+    >
+      {/* A new runKey gives Play Again a genuinely fresh child component. */}
+      <React.Fragment
+        key={runKey}
+      >
+        {renderMode()}
+      </React.Fragment>
 
-      {/* Floating back-to-lesson button (hidden in stepper/live mode) */}
-      {!stepperMode && !liveMode && (
-        <Button
-          onClick={wrappedBack}
-          className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          Back to Lesson
-        </Button>
-      )}
+      {/* Floating back-to-lesson button — hidden in stepper/live modes. */}
+      {!stepperMode &&
+        !liveMode && (
+          <Button
+            onClick={
+              wrappedBack
+            }
+            className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
+          >
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Back to Lesson
+          </Button>
+        )}
 
       {/* Goal / progress chip */}
-      <div className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
-        goalDone ? 'bg-green-100 text-green-700' : 'bg-white/90 text-gray-700'
-      }`}>
+      <div
+        className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
+          goalDone
+            ? 'bg-green-100 text-green-700'
+            : isReplayRun
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-white/90 text-gray-700'
+        }`}
+      >
         {goalText}
       </div>
 
-      {/* Completion overlay (hidden in live mode — teacher drives advancement) */}
-      {done && !liveMode && (
-        <div className="absolute inset-0 z-[100] bg-black/40 flex items-center justify-center p-6">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center gap-4">
-            <span className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-              <Check className="w-9 h-9 text-green-600" strokeWidth={3} />
-            </span>
-            <div>
-              <h2 className="text-2xl font-black text-gray-800">Step Complete!</h2>
-              <p className="text-gray-500 text-sm mt-1">Great job on “{step.title}”.</p>
-            </div>
-            <div className="flex flex-col gap-2 w-full">
-              <Button onClick={() => setDone(false)} className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-lg px-8 py-3">
-                <RotateCcw className="w-5 h-5 mr-2" />
-                Play Again
-              </Button>
-              <Button onClick={stepperMode ? onNext : wrappedBack} className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5">
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                {stepperMode ? (isLast ? 'Finish' : 'Next Step') : 'Return to Lesson'}
-              </Button>
+      {/* Completion overlay — hidden in live mode because teacher drives pacing. */}
+      {done &&
+        !liveMode && (
+          <div className="absolute inset-0 z-[100] bg-black/40 flex items-center justify-center p-6">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center gap-4">
+              <span className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                <Check
+                  className="w-9 h-9 text-green-600"
+                  strokeWidth={3}
+                />
+              </span>
+
+              <div>
+                <h2 className="text-2xl font-black text-gray-800">
+                  {isReplayRun
+                    ? 'Practice Complete!'
+                    : 'Step Complete!'}
+                </h2>
+
+                <p className="text-gray-500 text-sm mt-1">
+                  Great job on “{step.title}”.
+                </p>
+
+                {!isReplayRun &&
+                  isLetterTracing && (
+                    <p className="text-violet-600 text-sm font-black mt-2">
+                      🎡 Free spin earned!
+                    </p>
+                  )}
+
+                {!isReplayRun &&
+                  !isLetterTracing &&
+                  comp.type ===
+                    'mastery' && (
+                    <p className="text-amber-600 text-sm font-black mt-2">
+                      🪙 +8 coins
+                    </p>
+                  )}
+
+                {!isReplayRun &&
+                  !isLetterTracing &&
+                  comp.type !==
+                    'mastery' && (
+                    <p className="text-amber-600 text-sm font-black mt-2">
+                      🪙 +4 coins
+                    </p>
+                  )}
+
+                {isReplayRun &&
+                  isTracingMode && (
+                    <p className="text-amber-600 text-sm font-black mt-2">
+                      🪙 +8 replay coins
+                    </p>
+                  )}
+
+                {isReplayRun &&
+                  !isTracingMode &&
+                  comp.type ===
+                    'mastery' && (
+                    <p className="text-amber-600 text-sm font-black mt-2">
+                      🪙 +4 replay coins
+                    </p>
+                  )}
+
+                {isReplayRun &&
+                  !isTracingMode &&
+                  comp.type !==
+                    'mastery' && (
+                    <p className="text-gray-400 text-xs font-bold mt-2">
+                      Practice replay — no additional coins
+                    </p>
+                  )}
+              </div>
+
+              <div className="flex flex-col gap-2 w-full">
+                <Button
+                  onClick={
+                    startReplay
+                  }
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-lg px-8 py-3"
+                >
+                  <RotateCcw className="w-5 h-5 mr-2" />
+                  Play Again
+                </Button>
+
+                <Button
+                  onClick={
+                    stepperMode
+                      ? onNext
+                      : wrappedBack
+                  }
+                  className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5"
+                >
+                  <ArrowLeft className="w-5 h-5 mr-2" />
+
+                  {stepperMode
+                    ? isLast
+                      ? 'Finish'
+                      : 'Next Step'
+                    : 'Return to Lesson'}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
