@@ -4,7 +4,7 @@ import { ALL_PETS } from './avatar/PETS_DATA';
 import { POINTS_PER_FRUIT, computeFruitProgress } from './FruitCollection';
 import { POINTS_PER_EMOJI, getEmojiForIndex } from './EmojiPrizeCelebration';
 
-const PTS_PER_STICKER = 100;
+const SPIN_COST = 100;
 
 /**
  * Condensed reward bar — replaces 4 separate badge components with a single
@@ -16,7 +16,7 @@ export default function RewardBar({
   pendingUnlocks,
   unlockedFruits,
   spellingTotalPoints,
-  sentencesTotalPoints,
+  coins,
   onOpenPets,
   onOpenFruits,
   onOpenSentences,
@@ -29,7 +29,7 @@ export default function RewardBar({
   const { progressToNext: fruitProgress } = computeFruitProgress(spellingTotalPoints);
   const fruitCount = unlockedFruits.length;
 
-  const sentenceProgress = (sentencesTotalPoints || 0) % PTS_PER_STICKER;
+  const spinProgress = Math.min(Number(coins || 0), SPIN_COST);
 
   const totalEmojiCount = Math.floor((spellingTotalPoints || 0) / POINTS_PER_EMOJI);
   const emojiProgress = (spellingTotalPoints || 0) % POINTS_PER_EMOJI;
@@ -83,11 +83,11 @@ export default function RewardBar({
         )}
       </Chip>
 
-      {/* Sentence prize chip */}
+      {/* Global coin / prize wheel chip */}
       <Chip
         onClick={onOpenSentences}
         bg="#fce7f3"
-        label={`${sentenceProgress}/${PTS_PER_STICKER}`}
+        label={`${spinProgress}/${SPIN_COST}`}
       >
         🎡
       </Chip>
