@@ -5,8 +5,15 @@ import WordTracingCanvas from '../WordTracingCanvas';
 import { getLanguage } from '@/lib/language';
 import { computeWordLayout } from '@/lib/tracingCore';
 import { base44 } from '@/api/base44Client';
+import PrizeWheel from '../PrizeWheel';
 
-export default function WordTracingMode({ studentData, onUpdateProgress, targets }) {
+export default function WordTracingMode({
+  studentData,
+  onUpdateProgress,
+  onStudentPatch,
+  targets,
+  freeSpinEnabled = true,
+}) {
   const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
   const [wordIndex, setWordIndex] = useState(0);
   const [traceKey, setTraceKey] = useState(0);
@@ -15,6 +22,20 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
   const [scrollLetterIndex, setScrollLetterIndex] = useState(0);
   const traceCountRef = useRef(0);
   const scrollRef = useRef(null);
+
+  // A word becomes mastered after completing its full 3-copy tracing run
+  // with at least 80% accuracy.
+  const [masteredWords, setMasteredWords] = useState(new Set());
+
+  // First full word-tracing mastery earns one free spin.
+  // LessonModeRouter disables this on a replay and awards 8 coins instead.
+  const [showWheel, setShowWheel] = useState(false);
+  const [freeSpinReady, setFreeSpinReady] = useState(false);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(
+    () => studentData?.redeemed_prizes || []
+  );
+
+  const freeSpinAwardedRef = useRef(false);
 
   const lang = getLanguage(studentData);
 
@@ -67,18 +88,123 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
 
   const handleWordComplete = (accuracy) => {
     traceCountRef.current += 1;
-    if (onUpdateProgress) {
-      onUpdateProgress('word_tracing', { total_attempts: traceCountRef.current });
+
+    const passed =
+      accuracy == null ||
+      accuracy >= 80;
+
+    const nextMastered =
+      new Set(masteredWords);
+
+    if (passed) {
+      nextMastered.add(currentWord);
+      setMasteredWords(nextMastered);
     }
-    setCelebrate({ wordComplete: true, word: currentWord, accuracy });
-    confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-    const nextWordIndex = (wordIndex + 1) % words.length;
+
+    if (onUpdateProgress) {
+      onUpdateProgress('word_tracing', {
+        mastered_items: Array.from(nextMastered),
+
+        // LessonModeRouter treats tracing total_attempts as the number
+        // of fully mastered targets, not raw tracing attempts.
+        total_attempts: nextMastered.size,
+
+        // Preserve the actual number of completed 3-copy word runs
+        // separately for analytics.
+        raw_trace_attempts: traceCountRef.current,
+
+        total_correct: nextMastered.size,
+
+        learning_items: words.filter(
+          word => !nextMastered.has(word)
+        ),
+      });
+    }
+
+    if (passed) {
+      setCelebrate({
+        wordComplete: true,
+        word: currentWord,
+        accuracy,
+      });
+
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+    } else {
+      setCelebrate({
+        wordComplete: false,
+        word: currentWord,
+        accuracy,
+      });
+    }
+
+    const allNowMastered =
+      words.length > 0 &&
+      words.every(
+        word => nextMastered.has(word)
+      );
+
+    if (
+      allNowMastered &&
+      freeSpinEnabled &&
+      !freeSpinAwardedRef.current
+    ) {
+      freeSpinAwardedRef.current = true;
+      setFreeSpinReady(true);
+
+      setTimeout(() => {
+        setCelebrate(null);
+        setShowWheel(true);
+      }, 2200);
+
+      return;
+    }
+
+    const nextWordIndex =
+      (wordIndex + 1) %
+      words.length;
+
     setTimeout(() => {
       setCelebrate(null);
       setWordIndex(nextWordIndex);
       setCurrentRep(1);
+      setScrollLetterIndex(0);
       setTraceKey(k => k + 1);
     }, 2200);
+  };
+
+    const handleClaimPrize = (prize) => {
+    setShowWheel(false);
+    setFreeSpinReady(false);
+
+    if (
+      prize?.oneTime &&
+      !redeemedPrizes.includes(prize.id)
+    ) {
+      const updated = [
+        ...redeemedPrizes,
+        prize.id,
+      ];
+
+      setRedeemedPrizes(updated);
+
+      if (studentData?.id) {
+        base44.entities.Student.update(
+          studentData.id,
+          {
+            redeemed_prizes: updated,
+          }
+        ).catch(() => {});
+      }
+    }
+  };
+
+  const handleCloseWheel = () => {
+    setShowWheel(false);
+    setFreeSpinReady(false);
   };
 
   if (!currentWord || !wordLetters.length) {
@@ -142,6 +268,34 @@ export default function WordTracingMode({ studentData, onUpdateProgress, targets
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* First full word-tracing mastery earns a free spin. */}
+      {showWheel && (
+        <div className="fixed inset-0 z-[150]">
+          <div className="absolute top-4 inset-x-0 z-[151] flex justify-center pointer-events-none">
+            <div className="bg-violet-600 text-white rounded-full px-6 py-2 font-black shadow-xl">
+              🎉 Word tracing complete — FREE SPIN! 🎡
+            </div>
+          </div>
+
+          <PrizeWheel
+            key={`word-tracing-wheel-${studentData?.id || 'guest'}`}
+            studentData={studentData}
+            onStudentPatch={onStudentPatch}
+            redeemedPrizes={redeemedPrizes}
+            onClaim={handleClaimPrize}
+            onClose={handleCloseWheel}
+            freeSpin={true}
+            source="word-tracing"
+          />
+        </div>
+      )}
+
+      {freeSpinReady && !showWheel && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-violet-600 text-white rounded-full px-5 py-2 font-black shadow-xl z-40">
+          🎡 Free spin earned!
         </div>
       )}
     </div>
