@@ -134,6 +134,7 @@ export default function LetterTracingMode({
   onUpdateProgress,
   onStudentPatch,
   targets,
+  freeSpinEnabled = true,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
 
@@ -790,6 +791,7 @@ export default function LetterTracingMode({
 
       if (
         allNowMastered &&
+        freeSpinEnabled &&
         !freeSpinAwardedRef.current
       ) {
         freeSpinAwardedRef.current = true;
@@ -1331,8 +1333,8 @@ export default function LetterTracingMode({
 
       {/* Free spin wheel after the entire tracing section */}
       {showWheel && (
-        <div className="fixed inset-0 z-[70]">
-          <div className="absolute top-4 inset-x-0 z-[71] flex justify-center pointer-events-none">
+        <div className="fixed inset-0 z-[150]">
+          <div className="absolute top-4 inset-x-0 z-[151] flex justify-center pointer-events-none">
             <div className="bg-violet-600 text-white rounded-full px-6 py-2 font-black shadow-xl">
               🎉 Tracing complete — FREE SPIN! 🎡
             </div>
