@@ -75,6 +75,8 @@ export default function LetterTracingCanvas({
   const replayRafRef = useRef(null);
   const fonemaAudioRef = useRef(null);
   const fonemaIntervalRef = useRef(null);
+  const successTimerRef = useRef(null);
+  const completedFiredRef = useRef(false);
   // Replay the letter sound every 3s while the pen is down — often enough to
   // reinforce the phoneme, not so often it becomes annoying. Stops on lift.
   const FONEMA_INTERVAL_MS = 2000;
@@ -132,6 +134,7 @@ export default function LetterTracingCanvas({
   // Cancel any in-flight replay animation when the component unmounts.
   useEffect(() => () => {
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
     stopFonema();
   }, []);
 
@@ -163,7 +166,25 @@ export default function LetterTracingCanvas({
     setAccuracy(null);
     setCoverageStats(null);
     strokeAccuraciesRef.current = [];
+    completedFiredRef.current = false;
+    if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
   }, [letter, safeActiveCopy]);
+
+  // Auto-advance: after a successful trace, automatically call onComplete so the
+  // next copy/stage starts without requiring the student to tap "Next". The
+  // student still sees their score briefly first. "Next →" remains an instant
+  // manual override; both paths are guarded so onComplete fires only once.
+  useEffect(() => {
+    if (status !== 'success' || completedFiredRef.current) return;
+    successTimerRef.current = setTimeout(() => {
+      completedFiredRef.current = true;
+      successTimerRef.current = null;
+      onComplete?.();
+    }, 800);
+    return () => {
+      if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
+    };
+  }, [status, onComplete]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -710,7 +731,12 @@ export default function LetterTracingCanvas({
               </div>
             )}
             <button
-              onClick={() => onComplete?.()}
+              onClick={() => {
+                if (completedFiredRef.current) return;
+                completedFiredRef.current = true;
+                if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
+                onComplete?.();
+              }}
               className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm px-4 py-1 rounded-full"
             >
               Next →
