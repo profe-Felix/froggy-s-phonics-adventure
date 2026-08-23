@@ -419,11 +419,29 @@ export default function LetterGame() {
     setStudentData({ ...studentData, active_pet: petId });
   };
 
+  // Persist the logged-in student's class + number into the URL so a refresh
+  // auto-logs them back in (the existing autoStudent logic reads ?number).
+  // Without this the number is lost on refresh and they land back on the
+  // number-login page even though we already know who they are.
+  useEffect(() => {
+    if (!selectedStudent || selectedStudent === 'loading_by_id') return;
+    const params = new URLSearchParams(window.location.search);
+    if (selectedStudent.class_name) params.set('class', selectedStudent.class_name);
+    if (selectedStudent.number) params.set('number', String(selectedStudent.number));
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  }, [selectedStudent]);
+
   const handleLogout = () => {
     setSelectedStudent(null);
     setStudentData(null);
     setCurrentMode(null);
-    // If class is locked via URL, skip class selection on logout
+    // Clear the persisted number so a refresh after logout goes back to the
+    // login page instead of straight back in as the previous student.
+    const params = new URLSearchParams(window.location.search);
+    params.delete('number');
+    params.delete('studentId');
+    const qs = params.toString();
+    window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
   };
 
   if (!selectedStudent) {
