@@ -36,6 +36,22 @@ export default function LetterTracingCanvas({
     CANVAS_W * copyCount +
     COPY_GAP * (copyCount - 1);
 
+  // Per-copy display width. A single copy is capped by both viewport height and
+  // width (so it never scrolls on its own). When repair practice adds extra
+  // copies we do NOT shrink them — the row scrolls horizontally instead, so
+  // completed copies move out of the way and the student keeps practicing at
+  // the same big size.
+  const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+  const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const _maxByHeight = Math.max(160, (_vh - 190) * (CANVAS_W / CANVAS_H));
+  const effectiveCopyWidth =
+    copyCount <= 1
+      ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)
+      : Math.min(renderWidth, _maxByHeight);
+  const totalRenderW =
+    effectiveCopyWidth * copyCount + COPY_GAP * (copyCount - 1);
+  const renderH = effectiveCopyWidth * (CANVAS_H / CANVAS_W);
+
   const scaleForCopy = useCallback(
     (pt, copyIndex = safeActiveCopy) => {
       const base = scaleFn(pt, CANVAS_W, CANVAS_H);
@@ -67,6 +83,7 @@ export default function LetterTracingCanvas({
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
+  const containerRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
   const [coverageStats, setCoverageStats] = useState(null); // debug: covered/total/progress for the thick-pen visualization
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
@@ -185,6 +202,25 @@ export default function LetterTracingCanvas({
       if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
     };
   }, [status, onComplete]);
+
+  // Keep the active practice copy centered when repair practice adds extra
+  // copies — completed copies scroll out to the left so the student stays on a
+  // full-size copy.
+  useEffect(() => {
+    const c = containerRef.current;
+    const svg = svgRef.current;
+    if (!c || !svg || copyCount <= 1) return;
+    const pitch = (svg.clientWidth + COPY_GAP) / copyCount;
+    const copyW = pitch - COPY_GAP;
+    const targetLeft = Math.max(
+      0,
+      Math.min(
+        c.scrollWidth - c.clientWidth,
+        safeActiveCopy * pitch + copyW / 2 - c.clientWidth / 2
+      )
+    );
+    c.scrollTo({ left: targetLeft, behavior: 'smooth' });
+  }, [safeActiveCopy, copyCount]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -748,6 +784,11 @@ export default function LetterTracingCanvas({
         )}
       </div>
 
+      <div
+        ref={containerRef}
+        className="w-full overflow-x-auto overflow-y-hidden"
+        style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
+      >
       <svg
         ref={svgRef}
         viewBox={`0 0 ${TOTAL_W} ${CANVAS_H}`}
@@ -757,10 +798,10 @@ export default function LetterTracingCanvas({
           'border-slate-200 bg-white'
         }`}
         style={{
-          width: `min(${renderWidth * copyCount + COPY_GAP * (copyCount - 1)}px, 96vw, calc((100dvh - 190px) * ${TOTAL_W / CANVAS_H}))`,
-          height: 'auto',
-          maxHeight: 'calc(100dvh - 190px)',
-          aspectRatio: `${TOTAL_W} / ${CANVAS_H}`,
+          display: 'block',
+          margin: '0 auto',
+          width: `${totalRenderW}px`,
+          height: `${renderH}px`,
           cursor: 'crosshair',
           touchAction: 'none',
           userSelect: 'none',
@@ -917,6 +958,7 @@ export default function LetterTracingCanvas({
           ); })()
         )}
       </svg>
+      </div>
 
       {debugCoverage && coverageStats && (
         <div className="text-xs font-mono leading-tight text-center">
