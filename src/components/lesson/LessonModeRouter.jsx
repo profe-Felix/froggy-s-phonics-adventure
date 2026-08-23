@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Check, RotateCcw } from 'lucide-react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
+import { base44 } from '@/api/base44Client';
 
 import LetterSoundsMode from '@/components/game/modes/LetterSoundsMode';
 import SightWordsEasyMode from '@/components/game/modes/SightWordsEasyMode';
@@ -65,6 +66,54 @@ export default function LessonModeRouter({
   // required number of completed traces for these modes.
   const isTracingMode = step?.mode === 'letter_tracing' || step?.mode === 'word_tracing';
 
+  const rewardInFlightRef = useRef(false);
+
+  const awardStepCoins = useCallback(async (amount, reason) => {
+    if (!studentData?.id || amount <= 0 || rewardInFlightRef.current) return;
+
+    rewardInFlightRef.current = true;
+
+    try {
+      const currentCoins = Number(studentData?.coins || 0);
+      const newCoins = currentCoins + amount;
+
+      const rewardEntry = {
+        type: 'lesson_reward',
+        amount,
+        reason,
+        lesson_id: lessonId,
+        step_index: stepIndex,
+        mode: step?.mode,
+        awarded_at: new Date().toISOString(),
+      };
+
+      const patch = {
+        coins: newCoins,
+        reward_history: [
+          ...(studentData?.reward_history || []),
+          rewardEntry,
+        ],
+      };
+
+      onStudentPatch?.(patch);
+
+      await base44.entities.Student.update(
+        studentData.id,
+        patch
+      );
+    } catch (err) {
+      console.error('Could not award lesson coins:', err);
+    } finally {
+      rewardInFlightRef.current = false;
+    }
+  }, [
+    studentData,
+    onStudentPatch,
+    lessonId,
+    stepIndex,
+    step?.mode,
+  ]);
+
   const maybeComplete = useCallback((progressData) => {
     if (completedOnceRef.current) return;
     // In live mode the teacher controls advancement — don't auto-complete or
@@ -88,8 +137,43 @@ export default function LessonModeRouter({
       noPointsRef.current = true;
       setDone(true);
       markStepComplete(stepIndex, totalSteps);
+
+      // Reward economy:
+      //
+      // Completion/view:
+      //   first completion = 4 coins
+      //
+      // Mastery:
+      //   first mastery = 8 coins
+      //
+      // Letter tracing:
+      //   first mastery = FREE SPIN handled inside LetterTracingMode,
+      //   so no coins are awarded here.
+      //
+      // Word tracing follows the normal mastery reward for now.
+      if (step?.mode === 'letter_tracing') {
+        // Free spin is awarded by LetterTracingMode.
+      } else if (comp.type === 'mastery') {
+        awardStepCoins(
+          8,
+          'first_mastery'
+        );
+      } else {
+        awardStepCoins(
+          4,
+          'first_completion'
+        );
+      }
     }
-  }, [comp, isTracingMode, stepIndex, totalSteps, markStepComplete]);
+  }, [
+    comp,
+    isTracingMode,
+    stepIndex,
+    totalSteps,
+    markStepComplete,
+    step?.mode,
+    awardStepCoins,
+  ]);
 
   // Auto-complete mastery steps the student already satisfied in a prior session
   // so they don't have to re-answer questions just to unlock the next step.
@@ -124,11 +208,26 @@ export default function LessonModeRouter({
   // Manual completion for open-ended activities that don't report progress.
   const completeStep = useCallback(() => {
     if (completedOnceRef.current) return;
+
     completedOnceRef.current = true;
     noPointsRef.current = true;
     setDone(true);
-    markStepComplete(stepIndex, totalSteps);
-  }, [stepIndex, totalSteps, markStepComplete]);
+
+    markStepComplete(
+      stepIndex,
+      totalSteps
+    );
+
+    awardStepCoins(
+      4,
+      'first_completion'
+    );
+  }, [
+    stepIndex,
+    totalSteps,
+    markStepComplete,
+    awardStepCoins,
+  ]);
 
   const studentNumber = selectedStudent?.number;
   const className = selectedStudent?.class_name;
@@ -159,7 +258,14 @@ export default function LessonModeRouter({
       case 'case_matching':
         return <CaseMatchingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets || step?.config?.targetLetters} />;
       case 'letter_tracing':
-        return <LetterTracingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} targets={step?.config?.targets || step?.config?.targetLetters} />;
+        return (
+          <LetterTracingMode
+            studentData={studentData}
+            onUpdateProgress={wrappedUpdateProgress}
+            onStudentPatch={onStudentPatch}
+            targets={step?.config?.targets || step?.config?.targetLetters}
+          />
+        );
       case 'number_hearing':
         return <NumberHearingMode studentData={studentData} onUpdateProgress={wrappedUpdateProgress} />;
       case 'phonics':
