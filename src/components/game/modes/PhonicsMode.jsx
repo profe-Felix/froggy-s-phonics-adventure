@@ -711,8 +711,11 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
 
     const prizeEntry = {
       id: prize.id,
+      type: prize.type || 'prize',
       label: prize.label,
-      emoji: prize.emoji,
+      emoji: prize.emoji || (prize.type === 'character' ? '🧑' : '🎁'),
+      duplicate: !!prize.duplicate,
+      coins_awarded: prize.coins_awarded || 0,
       source: 'phonics',
       claimed_at: new Date().toISOString(),
     };
@@ -723,8 +726,16 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
     ];
 
     let updatedRedeemedPrizes = redeemedPrizes;
-    if (prize.oneTime && !redeemedPrizes.includes(prize.id)) {
-      updatedRedeemedPrizes = [...redeemedPrizes, prize.id];
+
+    if (
+      prize.oneTime &&
+      !redeemedPrizes.includes(prize.id)
+    ) {
+      updatedRedeemedPrizes = [
+        ...redeemedPrizes,
+        prize.id,
+      ];
+
       setRedeemedPrizes(updatedRedeemedPrizes);
     }
 
@@ -736,7 +747,11 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
       };
 
       onStudentPatch?.(patch);
-      base44.entities.Student.update(studentData.id, patch).catch(() => {});
+
+      base44.entities.Student.update(
+        studentData.id,
+        patch
+      ).catch(() => {});
     }
   };
 
@@ -800,9 +815,13 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
         {showWheel && (
           <PrizeWheel
             key={`phonics-wheel-${totalPts}`}
+            studentData={studentData}
+            onStudentPatch={onStudentPatch}
             redeemedPrizes={redeemedPrizes}
             onClaim={handleClaimPrize}
             onClose={handleCloseWheel}
+            freeSpin={true}
+            source="phonics"
           />
         )}
       </AnimatePresence>
