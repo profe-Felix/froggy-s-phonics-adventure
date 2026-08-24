@@ -20,7 +20,10 @@ export default function FluencyTable() {
   const [loading, setLoading] = useState(true);
   const [joinCode, setJoinCode] = useState('');
   const [showQr, setShowQr] = useState(false);
-  const [lobbyPreset, setLobbyPreset] = useState(FLUENCY_PRESETS[0].id);
+  const presetParam = params.get('preset');
+  const [lobbyPreset, setLobbyPreset] = useState(
+    presetParam && FLUENCY_PRESETS.some((p) => p.id === presetParam) ? presetParam : FLUENCY_PRESETS[0].id
+  );
   const unsubRef = useRef(null);
 
   // Pull the real curriculum from Supabase Storage; fall back to local presets.
@@ -30,7 +33,10 @@ export default function FluencyTable() {
       .then((obj) => {
         if (!obj) return;
         const arr = Object.entries(obj).map(([id, p]) => ({ id, ...p }));
-        if (arr.length) setPresets(arr);
+        if (arr.length) {
+          setPresets(arr);
+          if (presetParam && arr.some((p) => p.id === presetParam)) setLobbyPreset(presetParam);
+        }
       })
       .catch(() => {});
   }, []);
