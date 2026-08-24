@@ -1,9 +1,14 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 
 /**
- * Shared laser tracker hook.
- * - On touch/stylus: always active (fading trail while moving, disappears on lift)
- * - On mouse: only active while mouse button is held down
+ * Shared laser tracker hook (Pointer Events API).
+ * - pen/touch (interactive whiteboards like Promethean/SMART): laser active
+ *   while the pointer is down (touching the surface).
+ * - mouse: laser active only while a button is held.
+ *
+ * Uses getCoalescedEvents() on pointermove so high-frequency stylus samples
+ * emitted between animation frames are all captured — this is what keeps the
+ * trail smooth on interactive whiteboards instead of one choppy point/frame.
  *
  * Returns:
  *   laserTrailPoints  — current fading trail for rendering
@@ -17,8 +22,8 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
   const recording = useRef(false);
   const recordStart = useRef(0);
   const fadeTimer = useRef(null);
-  const isTouch = useRef(false);
-  const mouseDown = useRef(false);
+  const pointerDown = useRef(false);
+  const pointerType = useRef('mouse'); // 'mouse' | 'pen' | 'touch'
   const [isActive, setIsActive] = useState(false);
 
   // Fade trail: each point fades out over 600ms
@@ -47,12 +52,11 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     }, FADE_MS);
   }, []);
 
-  const getRelativePos = useCallback((e, el) => {
+  const getRelativePos = useCallback((clientX, clientY, el) => {
     const rect = el.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
     return {
-      x: (src.clientX - rect.left) / rect.width,
-      y: (src.clientY - rect.top) / rect.height,
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
     };
   }, []);
 
@@ -61,62 +65,49 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     const el = containerRef?.current;
     if (!el) return;
 
-    const onTouchStart = (e) => {
-      isTouch.current = true;
+    const onPointerDown = (e) => {
+      pointerType.current = e.pointerType || 'mouse';
+      pointerDown.current = true;
       setIsActive(true);
-      const pos = getRelativePos(e, el);
+      const pos = getRelativePos(e.clientX, e.clientY, el);
       addPoint(pos.x, pos.y);
     };
 
-    const onTouchMove = (e) => {
-      if (!isTouch.current) return;
-      // Only prevent default if single touch (don't block pinch-zoom)
-      if (e.touches.length === 1) e.preventDefault();
-      else return;
-      setIsActive(true);
-      const pos = getRelativePos(e, el);
-      addPoint(pos.x, pos.y);
+    const onPointerMove = (e) => {
+      // mouse: only track while a button is held.
+      // pen/touch: track while the pointer is down (touching the surface).
+      if (!pointerDown.current) return;
+      if (pointerType.current === 'mouse' && e.buttons === 0) return;
+
+      // Capture every intermediate sample the board emitted since the last
+      // frame — this is the key to a smooth trail on Promethean/SMART boards,
+      // which fire pen events well above the display refresh rate.
+      const events =
+        typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length
+          ? e.getCoalescedEvents()
+          : [e];
+      for (const ev of events) {
+        const pos = getRelativePos(ev.clientX, ev.clientY, el);
+        addPoint(pos.x, pos.y);
+      }
     };
 
-    const onTouchEnd = () => {
-      isTouch.current = false;
-      // Trail fades naturally via timeout
-    };
-
-    const onMouseDown = (e) => {
-      if (isTouch.current) return;
-      mouseDown.current = true;
-      setIsActive(true);
-      const pos = getRelativePos(e, el);
-      addPoint(pos.x, pos.y);
-    };
-
-    const onMouseMove = (e) => {
-      if (!mouseDown.current || isTouch.current) return;
-      const pos = getRelativePos(e, el);
-      addPoint(pos.x, pos.y);
-    };
-
-    const onMouseUp = () => {
-      mouseDown.current = false;
+    const onPointerUp = () => {
+      pointerDown.current = false;
       setIsActive(false);
       setTrailPoints([]);
     };
 
-    el.addEventListener('touchstart', onTouchStart, { passive: false });
-    el.addEventListener('touchmove', onTouchMove, { passive: false });
-    el.addEventListener('touchend', onTouchEnd);
-    el.addEventListener('mousedown', onMouseDown);
-    el.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
 
     return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('mousedown', onMouseDown);
-      el.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       if (fadeTimer.current) clearTimeout(fadeTimer.current);
     };
   }, [enabled, containerRef, addPoint, getRelativePos]);
