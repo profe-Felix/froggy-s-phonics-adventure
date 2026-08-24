@@ -1,0 +1,72 @@
+{
+  "name": "LetterSortPreset",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Unique preset key (e.g. 'M4.L16.CF.A1' or a custom id). Lesson steps reference presets by this key."
+    },
+    "label": {
+      "type": "string",
+      "description": "Display label shown in the preset picker.",
+      "default": ""
+    },
+    "mode_key": {
+      "type": "string",
+      "description": "Letter Sort mode key (letters, syllables, rowsyll, ...) from presetConfig.MODES. Used to group/filter presets."
+    },
+    "config_data": {
+      "type": "string",
+      "description": "JSON-encoded preset config object (mode, syllables, words, per, ...). Consumed by configForPreset at runtime."
+    }
+  },
+  "required": [
+    "key",
+    "config_data"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

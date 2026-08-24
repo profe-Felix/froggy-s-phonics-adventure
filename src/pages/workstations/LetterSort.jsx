@@ -5,6 +5,7 @@ import { SB_URL } from '@/lib/supabaseStorage';
 import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
 import { buildConfig } from '@/lib/lettersort/rounds';
 import { MODES, presetModeKey } from '@/lib/lettersort/presetConfig';
+import { FIELDS, TOGGLES, paramOf } from '@/lib/lettersort/fields';
 
 // Letter Sort ("Clasificador de letras") — a faithful wrapper around the
 // original self-contained reference tool (hosted at /lettersort/index.html).
@@ -14,49 +15,6 @@ import { MODES, presetModeKey } from '@/lib/lettersort/presetConfig';
 const PRESETS_URL = `${SB_URL}/storage/v1/object/public/app-presets/lettersort/presets.json`;
 
 // MODES + presetModeKey live in @/lib/lettersort/presetConfig (shared with the lesson step).
-
-const FIELDS = {
-  letters: { label: 'Letras', type: 'text', ph: 'a, b, ch' },
-  syllables: { label: 'Sílabas', type: 'text', ph: 'ma, pa, sa' },
-  syllmatch: { label: 'Coincidencia', type: 'select', options: ['initial', 'any'] },
-  syllcmp: { label: 'Comparador', type: 'select', options: ['equals', 'contains', 'prefix', 'suffix'] },
-  counts: { label: 'Conteos', type: 'text', ph: '1-3 o 1,2,3' },
-  phonemes: { label: 'Sonidos', type: 'text', ph: '3-5' },
-  stress: { label: 'Posiciones', type: 'text', ph: '1,2,3' },
-  pool: { label: 'Pool de letras', type: 'text', ph: 'b, m, s, ch, ll, rr' },
-  per: { label: 'Cartas por columna', type: 'number', ph: '4' },
-  words: { label: 'Palabras', type: 'textarea', ph: 'lista separada por comas' },
-  rows: { label: 'Filas', type: 'textarea', ph: 'row: prompt~opción; ...  ·  rowsyll: palabra:init;palabra:final' },
-  rowsyll: { label: 'Columnas (rowsyll)', type: 'text', ph: 'ma,pa | sa,ta' },
-  groups: { label: 'Grupos', type: 'text', ph: 'n | ch | br' },
-  headers: { label: 'Encabezados', type: 'text', ph: 'perro,gato' },
-  answers: { label: 'Respuestas', type: 'text', ph: 'perro:collar,hueso|gato:leche,raton' },
-  headertype: { label: 'Tipo de encabezado', type: 'select', options: ['image', 'text'] },
-  cardtype: { label: 'Tipo de tarjeta', type: 'select', options: ['word', 'image'] },
-  match: { label: 'Coincidencia', type: 'select', options: ['syllable-start', 'contains', 'word-contains'] },
-  layout: { label: 'Disposición', type: 'select', options: ['side', 'top', 'vertical', 'horizontal'] },
-  direction: { label: 'Dirección', type: 'select', options: ['bottom-up', 'top-down', 'left-right', 'right-left'] },
-  bottom: { label: 'Etiqueta abajo', type: 'text', ph: 'menos' },
-  top: { label: 'Etiqueta arriba', type: 'text', ph: 'más' },
-  left: { label: 'Etiqueta izquierda', type: 'text', ph: 'menos' },
-  right: { label: 'Etiqueta derecha', type: 'text', ph: 'más' },
-  distractors: { label: 'Distractores', type: 'number', ph: '0' },
-  rowtitle: { label: 'Mostrar título', type: 'toggle', param: 'rowtitle' },
-  titles: { label: 'Títulos', type: 'text', ph: 'sí,no,maybe' },
-  riddle: { label: 'Adivinanza', type: 'text', ph: 'Texto|oculto|...' },
-  columns: { label: 'Columnas', type: 'text', ph: 'A,B' },
-  rowsGen: { label: 'Filas por columna', type: 'text', ph: '4', param: 'rows' },
-  slots: { label: 'Espacios', type: 'number', ph: '1' },
-  bg: { label: 'Imagen de fondo', type: 'text', ph: 'scene.jpg' },
-};
-
-const TOGGLES = [
-  { key: 'tilesonly', label: 'Solo palabras (sin imágenes)' },
-  { key: 'hidewords', label: 'Cubrir palabras (tocar para revelar)' },
-  { key: 'splitcards', label: 'Tarjetas divididas (palabra + imagen)' },
-  { key: 'hidetitle', label: 'Ocultar títulos de columna' },
-  { key: 'emoji', label: 'Etiquetas con emoji' },
-];
 
 // Local example presets for modes that have no curated preset in the remote
 // presets.json. Selecting one fills the fields (editable) and uses the raw-params
@@ -71,7 +29,7 @@ const LOCAL_EXAMPLES = {
   _ex_allisyll_masa: { label: 'Ejemplo · sílabas ma / sa', mode: 'allisyll', rows: 'mama,mapa,mano; salsa,sapo,sano', rowtitle: true, builtin: true },
 };
 
-function paramOf(fieldKey) { return FIELDS[fieldKey]?.param || fieldKey; }
+// paramOf imported from @/lib/lettersort/fields
 
 function buildQuery(modeKey, vals, remotePreset) {
   // Only remote presets go through ?preset=KEY. Builtins and manual config use

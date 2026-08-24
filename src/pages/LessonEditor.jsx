@@ -13,6 +13,8 @@ import ImagePicker from '@/components/lesson/ImagePicker';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
+import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
+import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -43,6 +45,8 @@ function blankLesson() {
 
 function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
+  const { list: letterSortList } = useLetterSortPresets();
+  const [lsEditor, setLsEditor] = useState(null);
 
   const [targetsText, setTargetsText] = useState(
     (step.config?.targets || []).join(', ')
@@ -93,7 +97,30 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
         </label>
       </div>
 
-      {getPresetList(step.mode).length > 0 && (
+      {step.mode === 'letter_sort' ? (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-600 font-bold">Preset
+            <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">— default —</option>
+              {letterSortList.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setLsEditor('new')} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Plus className="w-3 h-3" /> New preset</button>
+            {step.config?.preset && (
+              <button type="button" onClick={() => setLsEditor(step.config.preset)} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Settings className="w-3 h-3" /> Edit preset</button>
+            )}
+          </div>
+          {lsEditor && (
+            <LetterSortPresetEditor
+              presetKey={lsEditor === 'new' ? null : lsEditor}
+              onClose={() => setLsEditor(null)}
+              onSaved={(k) => update({ config: { ...step.config, preset: k } })}
+            />
+          )}
+        </div>
+      ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset
           <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
             className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
@@ -101,7 +128,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
             {getPresetList(step.mode).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-3 gap-2">
         <label className="text-xs text-gray-600 font-bold col-span-1">Emoji
