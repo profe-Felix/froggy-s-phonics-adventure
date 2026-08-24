@@ -21,6 +21,7 @@ export default function useAudioRecorder() {
   const timerRef = useRef(null);
   const blobRef = useRef(null);
   const recordingStartWallTimeRef = useRef(0);
+  const stopResolveRef = useRef(null);
 
   const [elapsed, setElapsed] = useState(0);
 
@@ -62,6 +63,11 @@ export default function useAudioRecorder() {
       setDurationMs(accumulatedRef.current);
       setState('stopped');
       streamRef.current?.getTracks().forEach(t => t.stop());
+      if (stopResolveRef.current) {
+        const resolve = stopResolveRef.current;
+        stopResolveRef.current = null;
+        resolve(blob);
+      }
     };
 
     mr.start(100);
@@ -91,14 +97,16 @@ export default function useAudioRecorder() {
   }, [tickTimer]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      if (mediaRecorderRef.current.state === 'paused') {
-        // Final accumulated is already saved
-      } else {
-        accumulatedRef.current += Date.now() - startTimeRef.current;
-      }
-      mediaRecorderRef.current.stop();
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state === 'inactive') return Promise.resolve();
+    if (mr.state === 'paused') {
+      // Final accumulated is already saved
+    } else {
+      accumulatedRef.current += Date.now() - startTimeRef.current;
     }
+    const p = new Promise((resolve) => { stopResolveRef.current = resolve; });
+    mr.stop();
+    return p;
   }, []);
 
   const reset = useCallback(() => {

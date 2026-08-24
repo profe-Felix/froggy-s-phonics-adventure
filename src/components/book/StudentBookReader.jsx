@@ -157,11 +157,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     await startRecording();
   };
 
-  const handleStop = () => {
-    stopRecording();
+  const handleStop = async () => {
     laserTracker.stopRecordingLaser();
-    // Auto-save immediately — no preview step
-    setTimeout(() => saveRecording(), 100);
+    // Wait for the recorder to finalize the blob before saving — otherwise
+    // the save can bail out (no blob yet) and leave "Saving…" stuck forever.
+    await stopRecording();
+    saveRecording();
   };
 
   // saveRecording saves for a given recKey (defaults to current)
@@ -222,10 +223,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const navigateTo = useCallback(async (newPage) => {
     const state = recStateRef.current;
     if (state === 'recording' || state === 'paused') {
-      stopRecording();
       laserTracker.stopRecordingLaser();
-      // small delay so the blob finalizes
-      await new Promise(r => setTimeout(r, 150));
+      await stopRecording();
     }
     if (recStateRef.current === 'stopped' || state === 'recording' || state === 'paused') {
       await saveRecording(recKey);
