@@ -15,7 +15,7 @@ import PhonicsMode from '@/components/game/modes/PhonicsMode';
 import SentencesMode from '@/components/game/modes/SentencesMode';
 import SpanishReadingGame from '@/components/game/spanishReading/SpanishReadingGame';
 import StoryBuilder from '@/pages/StoryBuilder';
-import BookReading from '@/pages/BookReading';
+import BookReadingStep from '@/components/lesson/modes/BookReadingStep';
 import LetterSortStep from '@/components/lesson/modes/LetterSortStep';
 import LetterRecognitionStep from '@/components/lesson/modes/LetterRecognitionStep';
 import PowerfulWordStep from '@/components/lesson/modes/PowerfulWordStep';
@@ -865,12 +865,15 @@ export default function LessonModeRouter({
 
       case 'book_reading':
         return (
-          <BookReading
-            prefillClass={
-              className
+          <BookReadingStep
+            stepConfig={
+              step?.config
             }
-            prefillNumber={
+            studentNumber={
               studentNumber
+            }
+            className={
+              className
             }
             onBack={
               wrappedBack

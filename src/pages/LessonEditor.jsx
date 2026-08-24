@@ -15,6 +15,7 @@ import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
+import BookPicker from '@/components/lesson/BookPicker';
 
 const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
 
@@ -43,7 +44,7 @@ function blankLesson() {
   };
 }
 
-function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
+function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
   const { list: letterSortList } = useLetterSortPresets();
   const [lsEditor, setLsEditor] = useState(null);
@@ -245,6 +246,16 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
           >
             In Google Slides: File → Share → Publish to web → Embed, then copy the embed link.
           </a>
+        </label>
+      )}
+
+      {step.mode === 'book_reading' && (
+        <label className="text-xs text-gray-600 font-bold">Book
+          <BookPicker
+            value={step.config?.bookId}
+            lessonClass={lessonClass}
+            onChange={(bookId, bookTitle) => update({ config: { ...step.config, bookId, bookTitle } })}
+          />
         </label>
       )}
 
@@ -528,6 +539,7 @@ export default function LessonEditor() {
           <div className="flex flex-col gap-2 mb-6">
             {steps.map((s, i) => (
               <StepEditor key={i} step={s} index={i} total={steps.length}
+                lessonClass={editing.class_name}
                 onChange={(next) => setSteps(steps.map((x, j) => j === i ? next : x))}
                 onRemove={() => setSteps(steps.filter((_, j) => j !== i))}
                 onMove={(dir) => moveStep(i, dir)}
