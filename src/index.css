@@ -85,6 +85,6 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Nunito', sans-serif;
+    font-family: 'Andika', sans-serif;
   }
 }
