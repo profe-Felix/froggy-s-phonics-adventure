@@ -45,20 +45,7 @@
     "session_date"
   ],
   "rls": {
-    "create": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        }
-      ]
-    },
+    "create": null,
     "read": {
       "$or": [
         {
