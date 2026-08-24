@@ -28,7 +28,7 @@ export default function FluencyTable() {
 
   // Pull the real curriculum from Supabase Storage; fall back to local presets.
   useEffect(() => {
-    fetch(SUPABASE_PRESETS_URL)
+    fetch(`${SUPABASE_PRESETS_URL}?t=${Date.now()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((obj) => {
         if (!obj) return;
