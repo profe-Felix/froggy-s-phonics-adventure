@@ -15,6 +15,11 @@ export const MIN_COVER_FRAC = 0.80;
 export const MAX_GAP = 20;
 export const START_TOL = 12;
 export const END_TOL = 12;
+// Dot strokes (the tittle on i/j) are tiny — a tap, not a drag. Give them a
+// wider start tolerance and detect them by total pixel length so the strict
+// drag/coverage/direction gates (meant for real strokes) can be skipped.
+export const DOT_HIT_RADIUS = 42;
+export const DOT_PIXEL_THRESHOLD = 14;
 
 export const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
@@ -104,6 +109,19 @@ export function coverageComplete(visited, denseLen) {
   const startCovered = sorted[0] <= START_TOL;
   const endCovered = denseLen - 1 - sorted[sorted.length - 1] <= END_TOL;
   return frac >= MIN_COVER_FRAC && maxGap <= MAX_GAP && startCovered && endCovered;
+}
+
+// A "dot stroke" is one whose ideal path is essentially a single point (the
+// tittle on a lowercase i or j). Its dense path is only a few px long, so a
+// tap — not a drag — is the correct gesture. The normal gates (direction,
+// wobble, forward-only coverage) unfairly reject a tap, so callers detect
+// dot strokes via this helper and accept a press-and-lift instead.
+export function isDotStroke(densePath) {
+  if (!densePath || !densePath.length) return false;
+  if (densePath.length === 1) return true;
+  let len = 0;
+  for (let i = 1; i < densePath.length; i++) len += dist(densePath[i], densePath[i - 1]);
+  return len < DOT_PIXEL_THRESHOLD;
 }
 
 // Multisensory fonema audio — files live in the Supabase "audio" bucket under

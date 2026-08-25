@@ -4,6 +4,7 @@ import {
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
+  isDotStroke, DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
@@ -140,6 +141,10 @@ export default function LetterTracingCanvas({
       : [];
   }, [strokes, strokeIndex, scaleActive]);
 
+  // Dot strokes (the tittle on i/j) are a tap, not a drag — handled with a
+  // forgiving press-and-lift instead of the strict drag/coverage gates.
+  const isDot = useMemo(() => isDotStroke(densePath), [densePath]);
+
   // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
   // student iPads mirror the teacher's pen in real time. Optional — no-op when
   // unset, so the standalone tracing game is unaffected.
@@ -265,8 +270,11 @@ export default function LetterTracingCanvas({
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
     const firstWp = scaleActive(currentStrokes[0]);
-    // Must start near the first waypoint of current stroke
-    if (waypointIndex === 0 && dist(pos, firstWp) > HIT_RADIUS * 1.8) {
+    // Must start near the first waypoint of current stroke. Dot strokes (the
+    // tittle on i/j) are tiny — use a wider, forgiving hit radius so a tap
+    // anywhere on the dot counts.
+    const startTol = isDot ? DOT_HIT_RADIUS : HIT_RADIUS * 1.8;
+    if (waypointIndex === 0 && dist(pos, firstWp) > startTol) {
       flashError();
       return;
     }
@@ -284,11 +292,26 @@ export default function LetterTracingCanvas({
     currentPathRef.current = [pos];
     setCurrentPath([pos]);
     playFonema();
+
+    // Dot strokes: a tap is the whole stroke. Pre-mark full coverage and set
+    // pending-complete so a simple press-and-lift commits the dot — no drag,
+    // direction, or coverage scan required (those are meant for real strokes
+    // and unfairly reject a single tap on the tittle).
+    if (isDot) {
+      for (let k = 0; k < densePath.length; k++) visitedRef.current.add(k);
+      pathProgressRef.current = densePath.length - 1;
+      pendingCompleteRef.current = true;
+      postCompleteTravelRef.current = 0;
+      setAwaitingLift(true);
+      setWaypointIndex(currentStrokes.length);
+    }
   }, [
     status,
     strokeIndex,
     waypointIndex,
     strokes,
+    isDot,
+    densePath,
     playFonema,
     scaleActive,
     flashError,

@@ -5,6 +5,7 @@ import {
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
+  isDotStroke, DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
@@ -103,6 +104,10 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
     return clean.length ? buildDensePath(clean, scaleWord) : [];
   }, [strokes, strokeIndex, scaleWord]);
+
+  // Dot strokes (the tittle on i/j) are a tap, not a drag — handled with a
+  // forgiving press-and-lift instead of the strict drag/coverage gates.
+  const isDot = useMemo(() => isDotStroke(densePath), [densePath]);
 
   // Auto-advance ~1.5s after the word is complete so the student sees their
   // score, then the parent moves to the next word/round.
@@ -206,7 +211,10 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
     const firstWp = scaleWord(currentStrokes[0]);
-    if (waypointIndex === 0 && dist(pos, firstWp) > HIT_RADIUS * 1.8) {
+    // Dot strokes (the tittle on i/j) are tiny — use a wider, forgiving hit
+    // radius so a tap anywhere on the dot counts.
+    const startTol = isDot ? DOT_HIT_RADIUS : HIT_RADIUS * 1.8;
+    if (waypointIndex === 0 && dist(pos, firstWp) > startTol) {
       flashError();
       return;
     }
@@ -220,7 +228,19 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     currentPathRef.current = [pos];
     setCurrentPath([pos]);
     playFonema();
-  }, [status, strokeIndex, waypointIndex, strokes, scaleWord, playFonema]);
+
+    // Dot strokes: a tap is the whole stroke. Pre-mark full coverage and set
+    // pending-complete so a simple press-and-lift commits the dot — no drag,
+    // direction, or coverage scan required (those unfairly reject a tap).
+    if (isDot) {
+      for (let k = 0; k < densePath.length; k++) visitedRef.current.add(k);
+      pathProgressRef.current = densePath.length - 1;
+      pendingCompleteRef.current = true;
+      postCompleteTravelRef.current = 0;
+      setAwaitingLift(true);
+      setWaypointIndex(currentStrokes.length);
+    }
+  }, [status, strokeIndex, waypointIndex, strokes, isDot, densePath, scaleWord, playFonema]);
 
   const handlePointerMove = useCallback((e) => {
     e.preventDefault();
