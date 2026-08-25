@@ -18,7 +18,8 @@ const SPANISH_EXTRA = ['ñ'];
 // -----------------------------------------------------------------------------
 // TRACING MASTERY SEQUENCE
 //
-// Support fades gradually while size decreases.
+// Three stages, three traces each = 9 successful traces per mastered letter.
+// Support fades: guided first, then independent at two smaller sizes.
 //
 // A stage does NOT advance simply because the student eventually gets enough
 // isolated successes. They must also finish with at least 2 clean traces in a
@@ -29,14 +30,7 @@ const SPANISH_EXTRA = ['ñ'];
 //   • adds one repair repetition to the current stage
 //   • repair repetitions are capped at +2 per stage
 //
-// Base repetitions:
-//   Guided Huge       3
-//   Independent Huge  4
-//   Independent Big   4
-//   Independent Med   3
-//   Independent Small 2
-//
-// Base total = 16 successful traces per mastered letter.
+// Base total = 9 successful traces per mastered letter.
 // -----------------------------------------------------------------------------
 const TRACING_STAGES = [
   {
@@ -48,19 +42,11 @@ const TRACING_STAGES = [
     showGuide: true,
   },
   {
-    key: 'independent_huge',
-    label: 'Independent Huge',
-    shortLabel: 'Huge',
-    sizeLevel: 0,
-    repetitions: 4,
-    showGuide: false,
-  },
-  {
     key: 'independent_big',
     label: 'Independent Big',
     shortLabel: 'Big',
     sizeLevel: 1,
-    repetitions: 4,
+    repetitions: 3,
     showGuide: false,
   },
   {

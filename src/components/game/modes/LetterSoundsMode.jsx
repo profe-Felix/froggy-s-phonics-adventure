@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
+import LetterTracingCanvas from '../LetterTracingCanvas';
+import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
@@ -12,6 +14,9 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [canAnswer, setCanAnswer] = useState(false);
+  // When set, a guided tracing canvas for the correct letter is shown over the
+  // game — extra practice + sound feedback after a miss.
+  const [traceLetter, setTraceLetter] = useState(null);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
   const audioTimeoutRef = useRef(null);
@@ -179,7 +184,18 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       unlocked: true
     });
 
-    if (!correct) return; // wait for retry or auto-advance handled by onRetry
+    if (!correct) {
+      // Instead of just retrying, pop a guided tracing canvas for the correct
+      // letter so the student gets handwriting + sound feedback before moving
+      // on. Falls back to the retry flow when no waypoints exist for the letter.
+      if (LETTER_WAYPOINTS[currentLetter]?.strokes?.length) {
+        setTimeout(() => {
+          setShowFeedback(false);
+          setTraceLetter(currentLetter);
+        }, 900);
+      }
+      return;
+    }
     setTimeout(() => {
       setShowFeedback(false);
       generateRound();
@@ -212,18 +228,62 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   };
 
   return (
-    <GameCanvas
-      currentLetter={currentLetter}
-      options={options}
-      onAnswer={handleAnswer}
-      score={score}
-      streak={streak}
-      onPlaySound={() => playSound(currentLetter)}
-      showFeedback={showFeedback}
-      isCorrect={isCorrect}
-      mode="catch"
-      canAnswer={canAnswer}
-      onRetry={handleRetry}
-    />
+    <>
+      <GameCanvas
+        currentLetter={currentLetter}
+        options={options}
+        onAnswer={handleAnswer}
+        score={score}
+        streak={streak}
+        onPlaySound={() => playSound(currentLetter)}
+        showFeedback={showFeedback}
+        isCorrect={isCorrect}
+        mode="catch"
+        canAnswer={canAnswer}
+        onRetry={handleRetry}
+      />
+
+      {/* Guided trace practice after a miss — reinforces the correct letter's
+          shape and sound, then continues to the next round. */}
+      {traceLetter && LETTER_WAYPOINTS[traceLetter]?.strokes?.length && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-md w-full flex flex-col items-center gap-2">
+            <div className="text-center">
+              <div className="text-lg font-bold text-slate-800">
+                Let's practice! ✏️
+              </div>
+              <div className="text-sm text-slate-500">
+                Trace the letter{' '}
+                <span className="font-black text-indigo-600">
+                  {traceLetter}
+                </span>
+              </div>
+            </div>
+
+            <LetterTracingCanvas
+              key={traceLetter}
+              letter={traceLetter}
+              strokes={LETTER_WAYPOINTS[traceLetter].strokes}
+              showGuide={true}
+              lang={language}
+              onComplete={() => {
+                setTraceLetter(null);
+                setTimeout(generateRound, 400);
+              }}
+            />
+
+            <button
+              onClick={() => {
+                setTraceLetter(null);
+                setTimeout(generateRound, 200);
+              }}
+              className="text-slate-400 hover:text-slate-700 text-sm underline"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
