@@ -414,14 +414,25 @@ export default function LessonModeRouter({
         let isDone = false;
 
         if (isTracingMode) {
-          // LetterTracingMode now reports fully mastered target letters through
-          // total_attempts. WordTracingMode also reports its completion count
-          // through total_attempts.
-          const need =
+          // LetterTracingMode reports fully mastered target letters through
+          // total_attempts. The need is capped at the actual number of
+          // traceable letters (mastered + learning) so that a lesson with
+          // fewer targets — or a teacher who sets target=6 but only
+          // configures 4 letters — can still complete when all are green.
+          const totalLetters =
+            (progressData?.mastered_items?.length || 0) +
+            (progressData?.learning_items?.length || 0);
+
+          const configuredNeed =
             comp.target &&
             comp.target > 1
               ? comp.target
               : 5;
+
+          const need =
+            totalLetters > 0
+              ? Math.min(configuredNeed, totalLetters)
+              : configuredNeed;
 
           isDone =
             (
@@ -487,10 +498,37 @@ export default function LessonModeRouter({
       return;
     }
 
-    if (
-      comp.type !== 'mastery' ||
-      isTracingMode
-    ) {
+    if (isTracingMode) {
+      // For tracing, check if all target letters are already mastered
+      // from a previous session. total_attempts = mastered count,
+      // need = mastered + learning (total traceable letters).
+      const mp =
+        studentData?.mode_progress?.[
+          step.mode
+        ];
+
+      const mastered =
+        mp?.mastered_items?.length || 0;
+
+      const learning =
+        mp?.learning_items?.length || 0;
+
+      const total = mastered + learning;
+
+      if (total > 0 && mastered >= total) {
+        maybeComplete({
+          mastered_items:
+            mp?.mastered_items || [],
+          learning_items:
+            mp?.learning_items || [],
+          total_attempts: mastered,
+        });
+      }
+
+      return;
+    }
+
+    if (comp.type !== 'mastery') {
       return;
     }
 
@@ -693,11 +731,34 @@ export default function LessonModeRouter({
       ?.length ||
     0;
 
-  const attemptTarget =
-    comp.target &&
-    comp.target > 1
+  // For tracing, cap the target at the actual number of traceable letters
+  // (from progress data or config) so the goal text and completion check
+  // never ask for more letters than exist.
+  const tracingTotal =
+    (modeProgress?.mastered_items?.length || 0) +
+    (modeProgress?.learning_items?.length || 0);
+
+  const tracingConfigTargets =
+    step?.config?.targets ||
+    step?.config?.targetLetters;
+
+  const tracingMax =
+    Math.max(
+      tracingTotal,
+      Array.isArray(tracingConfigTargets)
+        ? tracingConfigTargets.length
+        : 0
+    );
+
+  const configuredTarget =
+    comp.target && comp.target > 1
       ? comp.target
       : 5;
+
+  const attemptTarget =
+    isTracingMode && tracingMax > 0
+      ? Math.min(configuredTarget, tracingMax)
+      : configuredTarget;
 
   const isLetterSort = step?.mode === 'letter_sort';
   const letterSortAmount = isLetterSort
