@@ -20,10 +20,11 @@ const FONEMA_INTERVAL_MS = 2000;
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
-export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, onComplete, onAccuracy, onProgress }) {
+export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, repetitions: repCount, onComplete, onAccuracy, onProgress }) {
+  const REPS = repCount && repCount > 0 ? repCount : REPETITIONS;
   const layoutResult = useMemo(
-    () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP, PADDING, REPETITIONS, WORD_GAP),
-    [word, waypoints]
+    () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP, PADDING, REPS, WORD_GAP),
+    [word, waypoints, REPS]
   );
   const { letters: wordLetters, layout: letterLayout, totalW, wordLength, repetitions } = layoutResult;
 

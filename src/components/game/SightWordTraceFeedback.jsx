@@ -1,0 +1,180 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import WordTracingCanvas from './WordTracingCanvas';
+import { LETTER_WAYPOINTS } from '../data/letterWaypoints';
+import { scale, buildDensePath, fonemaUrl } from '@/lib/tracingCore';
+import { AUDIO_BASE, toAudioName, getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
+
+const W = 220;
+const H = 275;
+
+function playPhoneme(letter, lang) {
+  try {
+    const url = fonemaUrl(letter, lang);
+    const a = new Audio(url);
+    const trim = getSilenceStartSync(url);
+    if (trim > 0) {
+      a.addEventListener('loadedmetadata', () => { a.currentTime = trim; }, { once: true });
+    }
+    a.play().catch(() => {});
+    return a;
+  } catch {
+    return null;
+  }
+}
+
+function playWord(word, lang) {
+  try {
+    const url = `${AUDIO_BASE}/${lang}/words/${encodeURIComponent(toAudioName(word))}.mp3`;
+    const a = new Audio(url);
+    a.play().catch(() => {});
+    return a;
+  } catch {
+    return null;
+  }
+}
+
+// Animates drawing one letter's strokes while its phoneme plays, then onDone.
+function LetterReplay({ letter, lang, onDone }) {
+  const strokes = LETTER_WAYPOINTS[letter]?.strokes || [];
+  const [visibleStrokes, setVisibleStrokes] = useState([]);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const scaleFn = (pt) => scale(pt, W, H);
+    const dense = strokes.map(s => buildDensePath(s, scaleFn));
+    const total = dense.reduce((a, s) => a + s.length, 0);
+
+    // No geometry to animate (e.g. an unauthored letter) — show the letter and
+    // move on after a brief beat so the demo never gets stuck.
+    if (total === 0) {
+      const t = setTimeout(onDone, 500);
+      return () => clearTimeout(t);
+    }
+
+    const duration = Math.max(500, total * 11);
+    playPhoneme(letter, lang);
+    const start = performance.now();
+
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const count = Math.ceil(t * total);
+      const out = [];
+      let remaining = count;
+      for (const ds of dense) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, ds.length);
+        out.push(ds.slice(0, take));
+        remaining -= take;
+      }
+      setVisibleStrokes(out);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        rafRef.current = null;
+        setTimeout(onDone, 250);
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [letter]);
+
+  const pathD = (pts) => pts.length < 2 ? '' :
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="rounded-2xl border-4 border-sky-200 bg-white"
+      style={{ width: 200, height: 250 }}
+    >
+      <line x1="0" y1={0.10 * H} x2={W} y2={0.10 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+      <line x1="0" y1={0.367 * H} x2={W} y2={0.367 * H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
+      <line x1="0" y1={0.633 * H} x2={W} y2={0.633 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+      <line x1="0" y1={0.90 * H} x2={W} y2={0.90 * H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
+      {visibleStrokes.map((pts, i) => (
+        <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="10"
+          strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+      ))}
+    </svg>
+  );
+}
+
+// Two-phase miss feedback for sight words:
+//   1) Demo — animate each letter's stroke while playing its phoneme, then
+//      say the whole word (blend): /u/ /n/ -> "un".
+//   2) Try — the student traces the word themselves (guided) and gets an
+//      accuracy score, then the game continues.
+export default function SightWordTraceFeedback({ word, lang, onDone }) {
+  const letters = useMemo(() => (word || '').split(''), [word]);
+  const [phase, setPhase] = useState('demo');
+  const [demoIdx, setDemoIdx] = useState(0);
+
+  useEffect(() => {
+    letters.forEach(l => {
+      if (LETTER_WAYPOINTS[l]) preloadSilenceStart(fonemaUrl(l, lang));
+    });
+  }, [word, lang]);
+
+  const handleLetterDone = () => {
+    if (demoIdx + 1 < letters.length) {
+      setDemoIdx(demoIdx + 1);
+    } else {
+      // Blend: say the whole word, then hand off to the student.
+      playWord(word, lang);
+      setTimeout(() => setPhase('trace'), 1000);
+    }
+  };
+
+  if (!word) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-lg w-full flex flex-col items-center gap-3 max-h-[95vh] overflow-y-auto">
+        <div className="text-center">
+          <div className="text-lg font-bold text-slate-800">Let's practice! ✏️</div>
+          <div className="text-sm text-slate-500">
+            {phase === 'demo' ? 'Watch: ' : 'Now you trace: '}
+            <span className="font-black text-indigo-600">{word}</span>
+          </div>
+        </div>
+
+        {/* Word with the current demo letter highlighted */}
+        <div className="flex gap-1 text-3xl font-bold">
+          {letters.map((l, i) => (
+            <span
+              key={i}
+              className={
+                phase === 'demo' && i === demoIdx
+                  ? 'text-indigo-600 scale-125 transition-transform'
+                  : 'text-slate-400'
+              }
+            >
+              {l}
+            </span>
+          ))}
+        </div>
+
+        {phase === 'demo' ? (
+          <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} />
+        ) : (
+          <WordTracingCanvas
+            key={word}
+            word={word}
+            waypoints={LETTER_WAYPOINTS}
+            lang={lang}
+            renderWidth={360}
+            repetitions={1}
+            onComplete={() => setTimeout(onDone, 300)}
+          />
+        )}
+
+        <button
+          onClick={onDone}
+          className="text-slate-400 hover:text-slate-700 text-sm underline"
+        >
+          Skip
+        </button>
+      </div>
+    </div>
+  );
+}

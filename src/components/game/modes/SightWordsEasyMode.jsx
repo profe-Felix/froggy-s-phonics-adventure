@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
+import SightWordTraceFeedback from '../SightWordTraceFeedback';
+import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { SIGHT_WORDS_EASY, SIGHT_WORDS_EASY_EN } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
@@ -12,6 +14,9 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
   const [streak, setStreak] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  // When set, a guided trace-feedback overlay for the correct word is shown
+  // after a miss (phoneme-by-phoneme demo, then the student traces it).
+  const [traceWord, setTraceWord] = useState(null);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
 
@@ -176,6 +181,19 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
       unlocked: true
     });
 
+    if (!correct) {
+      // On a miss, pop a guided trace-feedback overlay for the correct word:
+      // animate each letter while playing its phoneme, blend to say the word,
+      // then let the student trace it. Falls back to the plain retry flow when
+      // the word contains a letter we have no waypoints for.
+      const canTrace = [...new Set(currentWord.split(''))].every(l => LETTER_WAYPOINTS[l]);
+      if (canTrace) {
+        setTimeout(() => setShowFeedback(false), 600);
+        setTimeout(() => setTraceWord(currentWord), 700);
+        return;
+      }
+    }
+
     setTimeout(() => {
       setShowFeedback(false);
       generateRound();
@@ -213,6 +231,17 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
         isCorrect={isCorrect}
         mode="catch"
       />
+
+      {traceWord && (
+        <SightWordTraceFeedback
+          word={traceWord}
+          lang={language}
+          onDone={() => {
+            setTraceWord(null);
+            generateRound();
+          }}
+        />
+      )}
     </>
   );
 }
