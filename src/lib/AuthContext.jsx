@@ -100,12 +100,14 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       
-      // If user auth fails, it might be an expired token
+      // A 401/403 here usually means a stale platform token left in localStorage
+      // (e.g. a teacher logged in on a shared device). This app is public for
+      // students, who sign in by class + number — not platform auth — so clear
+      // the stale token and continue as not-authenticated instead of bouncing
+      // them to the platform login page.
       if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
+        try { localStorage.removeItem('base44_access_token'); } catch {}
+        try { localStorage.removeItem('token'); } catch {}
       }
     }
   };

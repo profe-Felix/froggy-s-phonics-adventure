@@ -6,10 +6,9 @@ const SB_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co';
 // held as a backend secret so it never ships to the browser bundle.
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
+    // Public buckets listed with the anon key — no platform auth required,
+    // so students (class + number login, not platform auth) can use the
+    // workstation activities that resolve words from these buckets.
     // Allowlist of public buckets the app legitimately lists. Prevents a caller
     // from enumerating arbitrary buckets via a modified request body.
     const ALLOWED_BUCKETS = new Set([
