@@ -5,12 +5,16 @@ import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
+import { useCoinAward } from '@/hooks/useCoinAward';
 
-export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete, targets }) {
+export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete, onStudentPatch, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
   const [options, setOptions] = useState([]);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
+
+  // Streak milestones: +4 coins at 5 in a row, another +4 at 10 in a row.
+  const awardCoins = useCoinAward(studentData, onStudentPatch);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [canAnswer, setCanAnswer] = useState(false);
@@ -151,7 +155,12 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     if (correct) {
       letterStats.correct += 1;
       setScore(prev => prev + 1);
-      setStreak(prev => prev + 1);
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      // Bonus coins for hot streaks: 4 at 5 in a row, another 4 at 10.
+      if (newStreak === 5 || newStreak === 10) {
+        awardCoins(4);
+      }
     } else {
       setStreak(0);
     }

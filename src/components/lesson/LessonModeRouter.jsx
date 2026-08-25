@@ -702,6 +702,9 @@ export default function LessonModeRouter({
             onUpdateProgress={
               wrappedUpdateProgress
             }
+            onStudentPatch={
+              onStudentPatch
+            }
             targets={
               step?.config?.targets
             }

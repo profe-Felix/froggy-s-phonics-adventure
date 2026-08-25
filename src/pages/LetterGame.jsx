@@ -532,6 +532,7 @@ export default function LetterGame() {
         <LetterSoundsMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
+          onStudentPatch={handlePersistPatch}
         />
       )}
       {currentMode === 'sight_words_easy' && (

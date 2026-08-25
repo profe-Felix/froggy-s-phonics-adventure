@@ -6,6 +6,7 @@ import LetterTracingCanvas from '../LetterTracingCanvas';
 import PrizeWheel from '../PrizeWheel';
 import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
+import { useCoinAward } from '@/hooks/useCoinAward';
 
 const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
   .split('')
@@ -133,7 +134,7 @@ export default function LetterTracingMode({
   const [celebrate, setCelebrate] = useState(null);
   const [page, setPage] = useState(0);
 
-  // Free wheel spin after the whole tracing section is mastered.
+  // Character-wheel roll, shown when a letter set (e.g. {a, A}) is mastered.
   const [showWheel, setShowWheel] = useState(false);
   const [freeSpinReady, setFreeSpinReady] = useState(false);
 
@@ -141,7 +142,12 @@ export default function LetterTracingMode({
     () => studentData?.redeemed_prizes || []
   );
 
-  const freeSpinAwardedRef = useRef(false);
+  // Awards coins mid-game (perfect-stage bonus) without stale-balance races.
+  const awardCoins = useCoinAward(studentData, onStudentPatch);
+
+  // Tracks which letter sets (e.g. "a" = {a, A}) have already earned a wheel
+  // roll this session, so each set pays out exactly once.
+  const setSpinAwardedRef = useRef(new Set());
 
   // Counts actual successful traces for analytics.
   const successfulTraceCountRef = useRef(0);
@@ -783,6 +789,16 @@ export default function LetterTracingMode({
       nextCompleted
     );
 
+    // Perfect-stage bonus: completing any tracing stage with zero mistakes
+    // (no repair practice added) earns 4 coins. stagePassed covers both
+    // advancing a stage and mastering the final stage.
+    if (
+      stagePassed &&
+      (current.repairReps || 0) === 0
+    ) {
+      awardCoins(4);
+    }
+
     if (masteredThisTurn) {
       const nextCompleted =
         new Set(completedLetters);
@@ -811,31 +827,50 @@ export default function LetterTracingMode({
         origin: { y: 0.6 },
       });
 
-      const allNowMastered =
-        LETTERS.length > 0 &&
-        LETTERS.every(
-          l =>
-            nextCompleted.has(l) ||
-            l === letter
+      // A "letter set" is the uppercase + lowercase pair for one letter
+      // (e.g. {a, A} = set "a"). Each time a set becomes fully mastered,
+      // the student earns a character-wheel roll — so practicing two
+      // letters a day still gives a reward after each one instead of only
+      // at the very end of the whole section.
+      const setKey = letter.toLowerCase();
+      const setTargets = LETTERS.filter(
+        l => l.toLowerCase() === setKey
+      );
+      const setComplete =
+        setTargets.length > 0 &&
+        setTargets.every(
+          l => nextCompleted.has(l) || l === letter
         );
 
       if (
-        allNowMastered &&
+        setComplete &&
         freeSpinEnabled &&
-        !freeSpinAwardedRef.current
+        !setSpinAwardedRef.current.has(setKey)
       ) {
-        freeSpinAwardedRef.current = true;
+        setSpinAwardedRef.current.add(setKey);
+
+        setCelebrate({
+          type: 'mastered',
+          letter,
+          message: 'Letter set complete!',
+        });
+
+        confetti({
+          particleCount: 100,
+          spread: 75,
+          origin: { y: 0.6 },
+        });
 
         setFreeSpinReady(true);
 
         setTimeout(() => {
           setCelebrate(null);
           setShowWheel(true);
-          // Return to the letter grid so the student isn't left on the
-          // already-mastered final letter after the wheel closes.
+          // Return to the letter grid so the student picks the next set
+          // after the wheel closes.
           setCurrentLetter(null);
           setLastAccuracy(null);
-        }, 1800);
+        }, 1500);
 
         return;
       }
@@ -1023,8 +1058,8 @@ export default function LetterTracingMode({
 
             <span className="text-[11px] font-bold text-violet-500">
               {sectionProgress >= 100
-                ? '🎉 FREE SPIN!'
-                : 'Finish to earn a free spin'}
+                ? '🎉 All letters mastered!'
+                : 'Earn a roll for each letter set!'}
             </span>
           </div>
         </div>
@@ -1370,7 +1405,7 @@ export default function LetterTracingMode({
         <div className="fixed inset-0 z-[150]">
           <div className="absolute top-4 inset-x-0 z-[151] flex justify-center pointer-events-none">
             <div className="bg-violet-600 text-white rounded-full px-6 py-2 font-black shadow-xl">
-              🎉 Tracing complete — FREE SPIN! 🎡
+              🎉 Letter set complete — FREE ROLL! 🎡
             </div>
           </div>
 
@@ -1389,7 +1424,7 @@ export default function LetterTracingMode({
 
       {freeSpinReady && !showWheel && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-violet-600 text-white rounded-full px-5 py-2 font-black shadow-xl z-40">
-          🎡 Free spin earned!
+          🎡 Free roll earned!
         </div>
       )}
     </div>
