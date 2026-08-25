@@ -6,6 +6,7 @@ import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { getLanguage } from '@/lib/language';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 import { useCoinAward } from '@/hooks/useCoinAward';
+import { base44 } from '@/api/base44Client';
 
 export default function LetterSoundsMode({ studentData, onUpdateProgress, onComplete, onStudentPatch, targets }) {
   const [currentLetter, setCurrentLetter] = useState(null);
@@ -21,6 +22,36 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   // When set, a guided tracing canvas for the correct letter is shown over the
   // game — extra practice + sound feedback after a miss.
   const [traceLetter, setTraceLetter] = useState(null);
+
+  // DB-loaded waypoints override the static fallback so the trace popup uses
+  // the exact strokes the teacher authored in the tracing tool (which the
+  // lesson step also uses). Without this, the popup renders the stale static
+  // coordinates that don't match the current handwriting-line calibration.
+  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.LetterWaypoint.list()
+      .then((records) => {
+        if (cancelled || !Array.isArray(records) || !records.length) return;
+        setWaypoints((prev) => {
+          const merged = { ...prev };
+          for (const r of records) {
+            if (!r.letter || !r.strokes_data) continue;
+            try {
+              const strokes = JSON.parse(r.strokes_data);
+              if (Array.isArray(strokes) && strokes.length) {
+                merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
+              }
+            } catch {}
+          }
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
   const audioTimeoutRef = useRef(null);
@@ -197,7 +228,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       // Instead of just retrying, pop a guided tracing canvas for the correct
       // letter so the student gets handwriting + sound feedback before moving
       // on. Falls back to the retry flow when no waypoints exist for the letter.
-      if (LETTER_WAYPOINTS[currentLetter]?.strokes?.length) {
+      if (waypoints[currentLetter]?.strokes?.length) {
         setTimeout(() => {
           setShowFeedback(false);
           setTraceLetter(currentLetter);
@@ -254,7 +285,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
 
       {/* Guided trace practice after a miss — reinforces the correct letter's
           shape and sound, then continues to the next round. */}
-      {traceLetter && LETTER_WAYPOINTS[traceLetter]?.strokes?.length && (
+      {traceLetter && waypoints[traceLetter]?.strokes?.length && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl p-5 max-w-sm w-full flex flex-col items-center gap-3 max-h-[92vh] overflow-y-auto">
             <div className="text-center shrink-0">
@@ -272,7 +303,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
             <LetterTracingCanvas
               key={traceLetter}
               letter={traceLetter}
-              strokes={LETTER_WAYPOINTS[traceLetter].strokes}
+              strokes={waypoints[traceLetter].strokes}
               showGuide={true}
               lang={language}
               renderWidth={200}
