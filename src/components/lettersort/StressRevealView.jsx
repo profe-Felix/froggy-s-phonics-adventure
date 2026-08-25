@@ -7,7 +7,7 @@ const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
 
 // Stress-reveal mode: for each word, tap the syllable you think is stressed.
 // Verify highlights the correct (green) and wrong (red) picks.
-export default function StressRevealView({ round, config }) {
+export default function StressRevealView({ round, config, onRoundComplete }) {
   const [picks, setPicks] = useState({}); // cardId -> syllable index (0-based from left)
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
@@ -31,7 +31,10 @@ export default function StressRevealView({ round, config }) {
       if (picks[c.id] === correctIdx) correct++; else wrong++;
     });
     setScore({ correct, wrong }); setChecked(true);
-    if (wrong === 0) celebrate();
+    if (wrong === 0) {
+      celebrate();
+      onRoundComplete?.({ mistakes: 0 });
+    }
   }
 
   function newRound() { setPicks({}); setChecked(false); setScore({ correct: 0, wrong: 0 }); }

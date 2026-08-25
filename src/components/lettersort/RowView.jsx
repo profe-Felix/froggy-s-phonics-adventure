@@ -14,7 +14,7 @@ function shuffle(arr) {
 
 // Row modes (row, rowsyll): each row shows a prompt + a drop slot (1 card for
 // `row`, many for `rowsyll`). Drag cards from the rack into the matching row.
-export default function RowView({ round, config }) {
+export default function RowView({ round, config, onRoundComplete }) {
   const [rack, setRack] = useState([]);
   const [slots, setSlots] = useState({}); // rowIndex -> [card]
   const [locked, setLocked] = useState(new Set());
@@ -69,7 +69,10 @@ export default function RowView({ round, config }) {
         setBad((b) => { const n = new Set(b); toEject.forEach((e) => n.delete(e.card.id)); return n; });
       }, 350);
     }
-    if (toEject.length === 0 && newLocked.size === round.cards.length) celebrate();
+    if (toEject.length === 0 && newLocked.size === round.cards.length) {
+      celebrate();
+      onRoundComplete?.({ mistakes: score.wrong + wrong });
+    }
   }
 
   function newRound() {

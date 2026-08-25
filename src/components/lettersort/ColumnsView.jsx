@@ -15,7 +15,7 @@ function shuffle(arr) {
 
 // Column-group view: a rack of cards + N drop columns. Drag a card into a
 // column, hit "Verificar" to check; correct cards lock, wrong ones bounce back.
-export default function ColumnsView({ config, round, onNewRound }) {
+export default function ColumnsView({ config, round, onNewRound, onRoundComplete }) {
   const [rack, setRack] = useState([]);
   const [colCards, setColCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -97,7 +97,10 @@ export default function ColumnsView({ config, round, onNewRound }) {
       }, 350);
     }
     // celebrate when every card is locked
-    if (toEject.length === 0 && newLocked.size === round.cards.length) celebrate();
+    if (toEject.length === 0 && newLocked.size === round.cards.length) {
+      celebrate();
+      onRoundComplete?.({ mistakes: score.wrong + wrong });
+    }
   }
 
   function newRound() {

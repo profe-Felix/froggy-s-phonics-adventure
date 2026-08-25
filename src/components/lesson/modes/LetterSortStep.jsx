@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
 import { configForPreset } from '@/lib/lettersort/presetConfig';
 import { buildConfig } from '@/lib/lettersort/rounds';
@@ -12,6 +12,9 @@ const DEFAULT_VALS = { letters: 'a,e,i,o,u,m,p,s,t', per: 4 };
 
 export default function LetterSortStep({ onComplete, presetId }) {
   const { presets, isLoading } = useLetterSortPresets();
+  // Track the fewest mistakes across completed rounds so the step's coin
+  // reward reflects the student's best performance.
+  const [bestMistakes, setBestMistakes] = useState(null);
   const config = useMemo(() => {
     if (presetId && presets[presetId]) {
       const c = configForPreset(presets[presetId]);
@@ -31,9 +34,15 @@ export default function LetterSortStep({ onComplete, presetId }) {
   return (
     <div className="relative h-full flex flex-col bg-[#f7f8fc]">
       <div className="flex-1 min-h-0 overflow-auto">
-        <LetterSortActivity config={config} isTeacher={false} />
+        <LetterSortActivity
+          config={config}
+          isTeacher={false}
+          onRoundComplete={({ mistakes }) =>
+            setBestMistakes((prev) => (prev === null ? mistakes : Math.min(prev, mistakes)))
+          }
+        />
       </div>
-      <StepDoneBar onDone={onComplete} />
+      <StepDoneBar onDone={() => onComplete({ mistakes: bestMistakes === null ? 99 : bestMistakes })} />
     </div>
   );
 }

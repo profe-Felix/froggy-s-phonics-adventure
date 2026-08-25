@@ -16,7 +16,7 @@ function shuffle(arr) {
 // Continuum "sort" mode: order a set of cards along a single track. The teacher
 // supplies words in the correct order; `direction` decides whether the track
 // runs bottom-up/left-right (natural) or reversed.
-export default function ContinuumView({ round, config }) {
+export default function ContinuumView({ round, config, onRoundComplete }) {
   const vertical = round.direction === 'bottom-up' || round.direction === 'top-down';
   const reversed = round.direction === 'top-down' || round.direction === 'right-left';
   const expected = round.cards.map((c) => normalizeMarkers(c.coreRaw));
@@ -68,7 +68,10 @@ export default function ContinuumView({ round, config }) {
         setBad((b) => { const n = new Set(b); toEject.forEach((c) => n.delete(c.id)); return n; });
       }, 350);
     }
-    if (toEject.length === 0 && newLocked.size === round.cards.length) celebrate();
+    if (toEject.length === 0 && newLocked.size === round.cards.length) {
+      celebrate();
+      onRoundComplete?.({ mistakes: score.wrong + wrong });
+    }
   }
 
   function newRound() {

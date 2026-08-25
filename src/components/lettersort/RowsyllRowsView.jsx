@@ -15,7 +15,7 @@ function shuffle(arr) {
 // rowsyllcols "rowsyll" form: each syllable group is a ROW with a header image
 // (photo + syllable grid) and a drop zone. Drag the word cards ("Cartas") into
 // the row whose target syllables match the word.
-export default function RowsyllRowsView({ config, round }) {
+export default function RowsyllRowsView({ config, round, onRoundComplete }) {
   const [rack, setRack] = useState([]);
   const [rowCards, setRowCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -81,7 +81,10 @@ export default function RowsyllRowsView({ config, round }) {
         setBad((b) => { const n = new Set(b); toEject.forEach((e) => n.delete(e.card.id)); return n; });
       }, 350);
     }
-    if (toEject.length === 0 && newLocked.size === round.cards.length) celebrate();
+    if (toEject.length === 0 && newLocked.size === round.cards.length) {
+      celebrate();
+      onRoundComplete?.({ mistakes: score.wrong + wrong });
+    }
   }
 
   function newRound() {

@@ -19,7 +19,7 @@ function needsFullList(config) {
   return !w || w.length === 0;
 }
 
-export default function LetterSortActivity({ config }) {
+export default function LetterSortActivity({ config, onRoundComplete }) {
   const [imageFiles, setImageFiles] = useState(null);
   const [err, setErr] = useState('');
   const [warn, setWarn] = useState('');
@@ -87,12 +87,12 @@ export default function LetterSortActivity({ config }) {
 
   const view = (() => {
     switch (round.view) {
-      case 'columns': return <ColumnsView config={config} round={round} onNewRound={() => setRoundNonce((n) => n + 1)} />;
-      case 'rows': return <RowView round={round} config={config} />;
-      case 'continuum': return <ContinuumView round={round} config={config} />;
+      case 'columns': return <ColumnsView config={config} round={round} onNewRound={() => setRoundNonce((n) => n + 1)} onRoundComplete={onRoundComplete} />;
+      case 'rows': return <RowView round={round} config={config} onRoundComplete={onRoundComplete} />;
+      case 'continuum': return <ContinuumView round={round} config={config} onRoundComplete={onRoundComplete} />;
       case 'generate': return <GenerateView round={round} config={config} />;
-      case 'stressreveal': return <StressRevealView round={round} config={config} />;
-      case 'rowsyllrows': return <RowsyllRowsView round={round} config={config} />;
+      case 'stressreveal': return <StressRevealView round={round} config={config} onRoundComplete={onRoundComplete} />;
+      case 'rowsyllrows': return <RowsyllRowsView round={round} config={config} onRoundComplete={onRoundComplete} />;
       default: return <div className="p-6 text-slate-500">Modo no soportado.</div>;
     }
   })();
