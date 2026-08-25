@@ -1,5 +1,3 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-
 const SB_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co';
 
 // Lists a Supabase storage public bucket recursively, using the anon key

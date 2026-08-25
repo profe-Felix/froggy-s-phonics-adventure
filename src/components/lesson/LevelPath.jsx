@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { appParams } from '@/lib/app-params';
 import { Lock, Star, Pencil, Save, X, Plus } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
 import CoinBadge from '@/components/game/CoinBadge';
@@ -38,6 +39,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   // Who's logged in (to gate the teacher Edit mode).
   const { data: me } = useQuery({
     queryKey: ['me'],
+    enabled: !!appParams.token,
     queryFn: async () => { try { return await base44.auth.me(); } catch { return null; } },
   });
   const canEdit = me?.role === 'admin' || me?.role === 'teacher';
