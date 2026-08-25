@@ -28,6 +28,18 @@ export default function RowView({ round, config, onRoundComplete }) {
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
+  // Auto-verify when all cards have been placed into rows, so the round
+  // completes without requiring the student to tap "Verificar" — this ensures
+  // onRoundComplete fires (and coins are awarded) before they tap "Done".
+  useEffect(() => {
+    if (!round) return;
+    const placedCount = Object.values(slots).flat().length;
+    if (rack.length === 0 && placedCount > 0 && locked.size < round.cards.length) {
+      verify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rack.length]);
+
   function onDragEnd(res) {
     const { source, destination } = res;
     if (!destination) return;

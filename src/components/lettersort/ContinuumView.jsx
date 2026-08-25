@@ -33,6 +33,17 @@ export default function ContinuumView({ round, config, onRoundComplete }) {
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
+  // Auto-verify when all cards have been placed on the track, so the round
+  // completes without requiring the student to tap "Verificar" — this ensures
+  // onRoundComplete fires (and coins are awarded) before they tap "Done".
+  useEffect(() => {
+    if (!round) return;
+    if (rack.length === 0 && track.length > 0 && locked.size < round.cards.length) {
+      verify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rack.length]);
+
   function move(source, destination) {
     const fromRack = source === 'rack';
     const card = fromRack ? rack[source.index] : track[source.index];

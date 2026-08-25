@@ -34,6 +34,18 @@ export default function RowsyllRowsView({ config, round, onRoundComplete }) {
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
+  // Auto-verify when all cards have been placed into rows, so the round
+  // completes without requiring the student to tap "Verificar" — this ensures
+  // onRoundComplete fires (and coins are awarded) before they tap "Done".
+  useEffect(() => {
+    if (!round) return;
+    const placedCount = Object.values(rowCards).flat().length;
+    if (rack.length === 0 && placedCount > 0 && locked.size < round.cards.length) {
+      verify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rack.length]);
+
   if (!round) return <div className="p-6 text-slate-500">Configuración no válida.</div>;
 
   function removeCardFrom(container, id) { return container.filter((c) => c.id !== id); }
