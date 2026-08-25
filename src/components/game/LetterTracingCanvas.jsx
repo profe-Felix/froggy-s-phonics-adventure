@@ -145,6 +145,51 @@ export default function LetterTracingCanvas({
   // forgiving press-and-lift instead of the strict drag/coverage gates.
   const isDot = useMemo(() => isDotStroke(densePath), [densePath]);
 
+  // Long up-retrace detection (e.g. the 'p' descender climb). A retrace
+  // segment that runs back UP over a preceding DOWN segment longer than
+  // ~100px gets direction-gate softening: kids' pens naturally jitter
+  // downward during the long climb-back, and the strict reverse-direction
+  // gate would otherwise restart the stroke on a single jitter frame (the
+  // forward points all point up, so the turn-leave save fails). Short
+  // up-retraces (b: ~75px) and down-retraces (d) keep full strictness — only
+  // 'p' qualifies among the current letters. Wobble + forward-only coverage
+  // still reject off-path scribbling, so completion can't be faked.
+  const longUpRetraceIndices = useMemo(() => {
+    const set = new Set();
+    if (!densePath.length) return set;
+    const wp = strokes[strokeIndex];
+    if (!Array.isArray(wp) || wp.length < 2) return set;
+    const scaled = wp.map(scaleActive);
+    const segs = [];
+    let idx = 0;
+    for (let i = 0; i < scaled.length - 1; i++) {
+      const a = scaled[i], b = scaled[i + 1];
+      const len = dist(a, b);
+      const n = Math.max(1, Math.round(len / 3));
+      segs.push({
+        startIdx: idx, endIdx: idx + n, len,
+        dx: b.x - a.x, dy: b.y - a.y,
+        startX: a.x, startY: a.y, endX: b.x, endY: b.y,
+      });
+      idx += n;
+    }
+    const LONG = 100;
+    for (let i = 0; i < segs.length; i++) {
+      if (segs[i].len < LONG || segs[i].dy >= 0) continue; // long UP retrace only
+      for (let j = 0; j < i; j++) {
+        const startNearEnd = Math.hypot(segs[i].startX - segs[j].endX, segs[i].startY - segs[j].endY) < 20;
+        if (!startNearEnd) continue;
+        const iLen = segs[i].len || 1, jLen = segs[j].len || 1;
+        const dot = (segs[i].dx / iLen) * (segs[j].dx / jLen) + (segs[i].dy / iLen) * (segs[j].dy / jLen);
+        if (dot < -0.7) {
+          for (let k = segs[i].startIdx; k <= segs[i].endIdx && k < densePath.length; k++) set.add(k);
+          break;
+        }
+      }
+    }
+    return set;
+  }, [densePath, strokes, strokeIndex, scaleActive]);
+
   // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
   // student iPads mirror the teacher's pen in real time. Optional — no-op when
   // unset, so the standalone tracing game is unaffected.
@@ -526,9 +571,17 @@ export default function LetterTracingCanvas({
               }
             }
             if (!saved) {
-              flashError();
-              restartStroke();
-              return;
+              // Long up-retrace (p descender climb): tolerate reverse-direction
+              // jitter. The pen is climbing back over already-drawn geometry, so
+              // a momentary downward wobble is not a real reversal — restarting
+              // on it makes 'p' nearly untraceable. Coverage/wobble still bind.
+              if (longUpRetraceIndices.has(nearestIdx)) {
+                // allow without restarting
+              } else {
+                flashError();
+                restartStroke();
+                return;
+              }
             }
           }
         }
@@ -601,6 +654,7 @@ export default function LetterTracingCanvas({
     scaleActive,
     flashError,
     isDot,
+    longUpRetraceIndices,
   ]);
 
   const handlePointerUp = useCallback((e) => {
