@@ -247,8 +247,8 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
           shape and sound, then continues to the next round. */}
       {traceLetter && LETTER_WAYPOINTS[traceLetter]?.strokes?.length && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-md w-full flex flex-col items-center gap-2">
-            <div className="text-center">
+          <div className="bg-white rounded-3xl shadow-2xl p-5 max-w-sm w-full flex flex-col items-center gap-3 max-h-[92vh] overflow-y-auto">
+            <div className="text-center shrink-0">
               <div className="text-lg font-bold text-slate-800">
                 Let's practice! ✏️
               </div>
@@ -266,6 +266,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
               strokes={LETTER_WAYPOINTS[traceLetter].strokes}
               showGuide={true}
               lang={language}
+              renderWidth={200}
               onComplete={() => {
                 setTraceLetter(null);
                 setTimeout(generateRound, 400);
@@ -277,7 +278,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
                 setTraceLetter(null);
                 setTimeout(generateRound, 200);
               }}
-              className="text-slate-400 hover:text-slate-700 text-sm underline"
+              className="text-slate-400 hover:text-slate-700 text-sm underline shrink-0"
             >
               Skip
             </button>
