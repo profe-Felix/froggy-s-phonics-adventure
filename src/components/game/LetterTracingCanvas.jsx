@@ -147,18 +147,19 @@ export default function LetterTracingCanvas({
 
   // Long up-retrace detection (e.g. the 'p' descender climb). A retrace
   // segment that runs back UP over a preceding DOWN segment longer than
-  // ~100px gets direction-gate softening: kids' pens naturally jitter
-  // downward during the long climb-back, and the strict reverse-direction
-  // gate would otherwise restart the stroke on a single jitter frame (the
-  // forward points all point up, so the turn-leave save fails). Short
-  // up-retraces (b: ~75px) and down-retraces (d) keep full strictness — only
-  // 'p' qualifies among the current letters. Wobble + forward-only coverage
-  // still reject off-path scribbling, so completion can't be faked.
-  const longUpRetraceIndices = useMemo(() => {
-    const set = new Set();
-    if (!densePath.length) return set;
+  // ~100px is handled with a forgiving "corridor mode": progress advances by
+  // the pen's y-position along the stem, and direction jitter / wobble are
+  // tolerated, so the long climb-back doesn't restart on natural pen wobble
+  // (the strict forward-only + direction gates were built for short retraces
+  // like b's 75px climb and stall/restart on p's 150px climb). Short up-retraces
+  // (b) and down-retraces (d) keep full strictness — only 'p' qualifies among
+  // the current letters. The pen must still travel the corridor and reach the
+  // top to advance, and the bowl afterward uses normal strict validation, so
+  // completion can't be faked.
+  const longUpRetrace = useMemo(() => {
+    if (!densePath.length) return null;
     const wp = strokes[strokeIndex];
-    if (!Array.isArray(wp) || wp.length < 2) return set;
+    if (!Array.isArray(wp) || wp.length < 2) return null;
     const scaled = wp.map(scaleActive);
     const segs = [];
     let idx = 0;
@@ -182,12 +183,21 @@ export default function LetterTracingCanvas({
         const iLen = segs[i].len || 1, jLen = segs[j].len || 1;
         const dot = (segs[i].dx / iLen) * (segs[j].dx / jLen) + (segs[i].dy / iLen) * (segs[j].dy / jLen);
         if (dot < -0.7) {
-          for (let k = segs[i].startIdx; k <= segs[i].endIdx && k < densePath.length; k++) set.add(k);
-          break;
+          const indices = new Set();
+          const endIdx = Math.min(segs[i].endIdx, densePath.length - 1);
+          for (let k = segs[i].startIdx; k <= endIdx; k++) indices.add(k);
+          return {
+            indices,
+            x: (segs[i].startX + segs[i].endX) / 2,
+            yTop: Math.min(segs[i].startY, segs[i].endY),
+            yBottom: Math.max(segs[i].startY, segs[i].endY),
+            startIdx: segs[i].startIdx,
+            endIdx,
+          };
         }
       }
     }
-    return set;
+    return null;
   }, [densePath, strokes, strokeIndex, scaleActive]);
 
   // Broadcast live strokes to a parent (e.g. the live-lesson model panel) so
@@ -442,6 +452,52 @@ export default function LetterTracingCanvas({
     const moveDist = prev ? dist(pos, prev) : 0;
 
     if (densePath.length) {
+      // Long up-retrace corridor (e.g. 'p' descender climb): once the pen has
+      // reached the retrace portion of the path, switch to forgiving corridor
+      // mode. Progress advances by the pen's y-position along the stem, and
+      // direction jitter + wobble are tolerated — the strict forward-only +
+      // direction gates stall and restart on the long 150px climb. The pen
+      // must still travel up the corridor (pathProgress only follows the pen's
+      // y, never jumps ahead), and the bowl afterward uses normal strict
+      // validation, so completion can't be faked. Exits corridor mode once the
+      // top of the retrace is reached (pathProgress >= endIdx).
+      if (
+        longUpRetrace &&
+        !pendingCompleteRef.current &&
+        pathProgressRef.current >= longUpRetrace.startIdx &&
+        pathProgressRef.current < longUpRetrace.endIdx &&
+        pos.y >= longUpRetrace.yTop - 14 &&
+        pos.y <= longUpRetrace.yBottom + 14 &&
+        Math.abs(pos.x - longUpRetrace.x) <= WOBBLE_RADIUS
+      ) {
+        const { startIdx, endIdx } = longUpRetrace;
+        let bestIdx = startIdx, bestD = Infinity;
+        for (let k = startIdx; k <= endIdx && k < densePath.length; k++) {
+          const d = Math.abs(densePath[k].y - pos.y);
+          if (d < bestD) { bestD = d; bestIdx = k; }
+        }
+        if (bestIdx > pathProgressRef.current) pathProgressRef.current = bestIdx;
+        const covFrom = Math.max(startIdx, bestIdx - 3);
+        const covTo = Math.min(endIdx + 1, bestIdx + 4);
+        for (let k = covFrom; k < covTo; k++) visitedRef.current.add(k);
+        offTravelRef.current = 0;
+        if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
+          pendingCompleteRef.current = true;
+          postCompleteTravelRef.current = 0;
+          setAwaitingLift(true);
+          setWaypointIndex(currentStrokes.length);
+        }
+        currentPathRef.current = [...currentPathRef.current, pos];
+        setCurrentPath(currentPathRef.current);
+        if (!pendingCompleteRef.current) {
+          const nextWp = scaleActive(currentStrokes[waypointIndex]);
+          if (dist(pos, nextWp) < HIT_RADIUS) {
+            setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
+          }
+        }
+        return;
+      }
+
       // Nearest point on the densely-sampled ideal path. For retraced letters
       // (b, d, h, m, n, q, g…) the same geometry appears twice in the dense path
       // — the b stem is traversed down then back up, the a stem retraces the
@@ -571,17 +627,9 @@ export default function LetterTracingCanvas({
               }
             }
             if (!saved) {
-              // Long up-retrace (p descender climb): tolerate reverse-direction
-              // jitter. The pen is climbing back over already-drawn geometry, so
-              // a momentary downward wobble is not a real reversal — restarting
-              // on it makes 'p' nearly untraceable. Coverage/wobble still bind.
-              if (longUpRetraceIndices.has(nearestIdx)) {
-                // allow without restarting
-              } else {
-                flashError();
-                restartStroke();
-                return;
-              }
+              flashError();
+              restartStroke();
+              return;
             }
           }
         }
@@ -654,7 +702,7 @@ export default function LetterTracingCanvas({
     scaleActive,
     flashError,
     isDot,
-    longUpRetraceIndices,
+    longUpRetrace,
   ]);
 
   const handlePointerUp = useCallback((e) => {
