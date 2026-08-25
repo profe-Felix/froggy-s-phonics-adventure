@@ -9,7 +9,7 @@
     "lesson_number": {
       "type": "integer",
       "default": 1,
-      "description": "Order number for display (Lesson 1, 2, ...)"
+      "description": "Order number for display (Lesson 1, 2, ...). Set to 0 for guided practice lessons that are not on the level path."
     },
     "class_name": {
       "type": "string",
@@ -30,10 +30,11 @@
       "type": "string",
       "enum": [
         "class",
+        "guided",
         "side_quest"
       ],
       "default": "class",
-      "description": "class = shown on the main level path for the whole class. side_quest = assigned to specific students, appears in their Side Quests menu for small-group practice."
+      "description": "class = shown on the main level path for the whole class. guided = guided practice; not on the level path, available to all students from their Quests tab, and launchable as a live lesson. side_quest = assigned to specific students, appears in their Side Quests menu for small-group practice."
     },
     "assigned_students": {
       "type": "array",

@@ -415,7 +415,7 @@ export default function LessonEditor() {
     if (!editing.title?.trim()) return alert('Please give the lesson a title.');
     const payload = {
       title: editing.title.trim(),
-      lesson_number: editing.lesson_number || 1,
+      lesson_number: editing.assignment_type === 'guided' ? 0 : (editing.lesson_number || 1),
       class_name: editing.class_name || '',
       school_year: editing.school_year || ACTIVE_SCHOOL_YEAR,
       subtitle: editing.subtitle || '',
@@ -448,7 +448,7 @@ export default function LessonEditor() {
     await base44.entities.Lesson.create({
       ...payload,
       title: (l.title || 'Lesson') + ' (copy)',
-      lesson_number: maxNum + 1,
+      lesson_number: l.assignment_type === 'guided' ? 0 : maxNum + 1,
       steps: (l.steps || []).map((s) => ({ ...s })),
     });
     qc.invalidateQueries({ queryKey: ['all-lessons'] });
@@ -485,11 +485,17 @@ export default function LessonEditor() {
                   placeholder="e.g. Letter M"
                   className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
               </label>
-              <label className="text-xs text-gray-600 font-bold">Lesson number
-                <input type="number" min={1} value={editing.lesson_number}
-                  onChange={e => setEditing({ ...editing, lesson_number: parseInt(e.target.value) || 1 })}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
-              </label>
+              {(editing.assignment_type || 'class') !== 'guided' ? (
+                <label className="text-xs text-gray-600 font-bold">Lesson number
+                  <input type="number" min={1} value={editing.lesson_number || 1}
+                    onChange={e => setEditing({ ...editing, lesson_number: parseInt(e.target.value) || 1 })}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+                </label>
+              ) : (
+                <div className="text-xs text-gray-400 font-bold flex items-end pb-2">
+                  Not on the path — no number needed.
+                </div>
+              )}
             </div>
             <label className="text-xs text-gray-600 font-bold">Subtitle (shown to students)
               <input value={editing.subtitle} onChange={e => setEditing({ ...editing, subtitle: e.target.value })}
@@ -512,10 +518,17 @@ export default function LessonEditor() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
-            <label className="text-xs text-gray-600 font-bold flex items-center gap-2">
-              <input type="checkbox" checked={editing.assignment_type === 'side_quest'}
-                onChange={e => setEditing({ ...editing, assignment_type: e.target.checked ? 'side_quest' : 'class' })} />
-              Side quest (assign to specific students instead of whole class)
+            <label className="text-xs text-gray-600 font-bold">Lesson type
+              <select value={editing.assignment_type || 'class'}
+                onChange={e => {
+                  const t = e.target.value;
+                  setEditing({ ...editing, assignment_type: t, ...(t === 'guided' ? { lesson_number: 0 } : {}) });
+                }}
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                <option value="class">Path lesson (on the level path)</option>
+                <option value="guided">Guided practice (live or self-paced, not on the path)</option>
+                <option value="side_quest">Small group (assign to specific students)</option>
+              </select>
             </label>
             {editing.assignment_type === 'side_quest' && (
               <div>
@@ -525,6 +538,11 @@ export default function LessonEditor() {
                   onChange={(as) => setEditing({ ...editing, assigned_students: as })}
                 />
               </div>
+            )}
+            {editing.assignment_type === 'guided' && (
+              <p className="text-xs text-indigo-600 font-semibold">
+                Students find this in their Quests tab. You can launch it live from the Live Lesson page — it never appears on the level path.
+              </p>
             )}
           </div>
 
@@ -599,7 +617,9 @@ export default function LessonEditor() {
                 <div key={l.id} className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-xs font-bold text-indigo-500">Lesson {l.lesson_number}</p>
+                      <p className="text-xs font-bold text-indigo-500">
+                        {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : `Lesson ${l.lesson_number || ''}`}
+                      </p>
                       <h3 className="text-lg font-black text-gray-800">{l.title}</h3>
                       <p className="text-xs text-gray-500">{l.subtitle}</p>
                     </div>

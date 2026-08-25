@@ -330,7 +330,7 @@ export default function LiveLesson() {
                     key={l.id}
                     value={l.id}
                   >
-                    {l.title} ({(l.steps || []).length} steps)
+                    {l.title} · {l.assignment_type === 'guided' ? 'Guided' : l.assignment_type === 'side_quest' ? 'Small group' : 'Path'} · {(l.steps || []).length} steps
                   </option>
                 ))}
               </select>
