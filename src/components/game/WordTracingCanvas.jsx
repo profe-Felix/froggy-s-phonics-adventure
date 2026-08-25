@@ -173,7 +173,11 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       return next;
     });
     setCurrentPath([]);
-    strokeAccuraciesRef.current.push(strokeAccuracy(completedPath, densePath));
+    // A dot stroke has no shape to grade — any gesture that started on the
+    // tittle and lifted is a correct dot, so score it perfect. Otherwise the
+    // length/penalty math flags a short down-stroke as "rough" (amber <80%),
+    // breaking the clean streak needed to finish the word.
+    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
