@@ -1,7 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+
+// Module-level guard: prevents two components that share the same lesson key
+// (e.g. LessonMap + LessonStepper mounting at the same time) from both firing
+// a create and producing duplicate LessonProgress records.
+const creatingKeys = new Set();
 
 // Per-student, per-lesson progression state. Lazily creates a LessonProgress
 // record the first time a student opens a lesson. Shared via the react-query
@@ -15,6 +20,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 export function useLessonProgress(studentNumber, className, lessonId) {
   const qc = useQueryClient();
   const key = ['lesson-progress', String(studentNumber), className, lessonId];
+  const [createError, setCreateError] = useState(false);
 
   const { data: progress, isLoading } = useQuery({
     queryKey: key,
@@ -24,7 +30,13 @@ export function useLessonProgress(studentNumber, className, lessonId) {
         class_name: className,
         lesson_id: lessonId,
       });
-      return list[0] || null;
+      if (!list || list.length === 0) return null;
+      // If duplicates exist from a past race, keep the most recently updated
+      // record so the student's latest progress is what we track.
+      if (list.length === 1) return list[0];
+      return list.sort((a, b) =>
+        new Date(b.updated_date || b.created_date) - new Date(a.updated_date || a.created_date)
+      )[0];
     },
     enabled: !!lessonId && !!studentNumber,
     staleTime: 60000,
@@ -34,7 +46,11 @@ export function useLessonProgress(studentNumber, className, lessonId) {
   useEffect(() => {
     if (!lessonId || !studentNumber || isLoading) return;
     if (progress) return; // already exists
+    const keyStr = key.join('|');
+    if (creatingKeys.has(keyStr)) return; // another component is already creating
     let cancelled = false;
+    creatingKeys.add(keyStr);
+    setCreateError(false);
     (async () => {
       try {
         const created = await base44.entities.LessonProgress.create({
@@ -50,10 +66,20 @@ export function useLessonProgress(studentNumber, className, lessonId) {
       } catch (e) {
         // If the create lost a race (another tab/component made it), refetch.
         if (!cancelled) qc.invalidateQueries({ queryKey: key });
+        // If the refetch still finds nothing, surface the error so the UI can
+        // show a retry instead of a perpetual spinner.
+        if (!cancelled) setCreateError(true);
+      } finally {
+        creatingKeys.delete(keyStr);
       }
     })();
     return () => { cancelled = true; };
-  }, [progress, isLoading, lessonId, studentNumber, className]);
+  }, [progress, isLoading, lessonId, studentNumber, className]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const retry = () => {
+    setCreateError(false);
+    qc.invalidateQueries({ queryKey: key });
+  };
 
   const markStepComplete = async (stepIndex, totalSteps) => {
     if (!progress) return;
@@ -69,5 +95,5 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     qc.setQueryData(key, updated);
   };
 
-  return { progress, isLoading, markStepComplete };
+  return { progress, isLoading, markStepComplete, createError, retry };
 }

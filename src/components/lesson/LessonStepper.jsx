@@ -9,7 +9,7 @@ import LessonModeRouter from './LessonModeRouter';
 const NAVY = '#26264d';
 
 export default function LessonStepper({ studentData, selectedStudent, lesson, steps, lessonId, onBack, onLessonComplete, onUpdateProgress, onStudentPatch }) {
-  const { progress, isLoading } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
+  const { progress, isLoading, createError, retry } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
 
@@ -41,10 +41,27 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     }
   }, [allDone, lesson, onLessonComplete]);
 
-  if (isLoading || !progress) {
+  if (isLoading || (!progress && !createError)) {
     return (
       <div className="h-screen bg-[#dae2f3] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-white border-t-[#26264d] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!progress && createError) {
+    return (
+      <div className="h-screen bg-[#dae2f3] flex flex-col items-center justify-center gap-4">
+        <div className="text-5xl">🐸</div>
+        <p className="text-[#26264d] font-bold text-lg text-center px-6">
+          Oops! Something went wrong loading this lesson.
+        </p>
+        <button
+          onClick={retry}
+          className="px-6 py-3 rounded-full bg-[#26264d] text-white font-bold text-base shadow-lg active:scale-95"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
