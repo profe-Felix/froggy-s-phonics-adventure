@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
+import { useSortSensors } from '@/hooks/useSortSensors';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 
 const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
@@ -16,6 +17,7 @@ function shuffle(arr) {
 // (photo + syllable grid) and a drop zone. Drag the word cards ("Cartas") into
 // the row whose target syllables match the word.
 export default function RowsyllRowsView({ config, round, onRoundComplete }) {
+  const sensors = useSortSensors();
   const [rack, setRack] = useState([]);
   const [rowCards, setRowCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -112,7 +114,7 @@ export default function RowsyllRowsView({ config, round, onRoundComplete }) {
   const nothingPlaced = Object.values(rowCards).every((arr) => arr.length === 0);
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
+    <DragDropContext sensors={sensors} enableDefaultSensors={false} onDragEnd={onDragEnd}>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={verify} disabled={nothingPlaced} className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-40 shadow-sm">

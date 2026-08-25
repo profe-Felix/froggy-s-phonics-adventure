@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
+import { useSortSensors } from '@/hooks/useSortSensors';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 
 const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
@@ -15,6 +16,7 @@ function shuffle(arr) {
 // Row modes (row, rowsyll): each row shows a prompt + a drop slot (1 card for
 // `row`, many for `rowsyll`). Drag cards from the rack into the matching row.
 export default function RowView({ round, config, onRoundComplete }) {
+  const sensors = useSortSensors();
   const [rack, setRack] = useState([]);
   const [slots, setSlots] = useState({}); // rowIndex -> [card]
   const [locked, setLocked] = useState(new Set());
@@ -96,7 +98,7 @@ export default function RowView({ round, config, onRoundComplete }) {
   const nothingPlaced = Object.values(slots).every((a) => !a.length);
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
+    <DragDropContext sensors={sensors} enableDefaultSensors={false} onDragEnd={onDragEnd}>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={verify} disabled={nothingPlaced} className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-40 shadow-sm"><Check className="w-4 h-4" /> Verificar</button>

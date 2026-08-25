@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
+import { useSortSensors } from '@/hooks/useSortSensors';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 import { normalizeMarkers } from '@/lib/lettersort/phonics';
 
@@ -17,6 +18,7 @@ function shuffle(arr) {
 // supplies words in the correct order; `direction` decides whether the track
 // runs bottom-up/left-right (natural) or reversed.
 export default function ContinuumView({ round, config, onRoundComplete }) {
+  const sensors = useSortSensors();
   const vertical = round.direction === 'bottom-up' || round.direction === 'top-down';
   const reversed = round.direction === 'top-down' || round.direction === 'right-left';
   const expected = round.cards.map((c) => normalizeMarkers(c.coreRaw));
@@ -94,7 +96,7 @@ export default function ContinuumView({ round, config, onRoundComplete }) {
     : { start: reversed ? round.right : round.left, end: reversed ? round.left : round.right };
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
+    <DragDropContext sensors={sensors} enableDefaultSensors={false} onDragEnd={onDragEnd}>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={verify} disabled={!track.length} className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center gap-1.5 disabled:opacity-40 shadow-sm"><Check className="w-4 h-4" /> Verificar</button>

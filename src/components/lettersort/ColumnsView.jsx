@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
+import { useSortSensors } from '@/hooks/useSortSensors';
 import { classifyCard } from '@/lib/lettersort/rounds';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 
@@ -16,6 +17,7 @@ function shuffle(arr) {
 // Column-group view: a rack of cards + N drop columns. Drag a card into a
 // column, hit "Verificar" to check; correct cards lock, wrong ones bounce back.
 export default function ColumnsView({ config, round, onNewRound, onRoundComplete }) {
+  const sensors = useSortSensors();
   const [rack, setRack] = useState([]);
   const [colCards, setColCards] = useState({});
   const [locked, setLocked] = useState(new Set());
@@ -138,7 +140,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   const targetLetter = isNotPair ? (round.columns.find((c) => !c.key.startsWith('not-'))?.key || '') : '';
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
+    <DragDropContext sensors={sensors} enableDefaultSensors={false} onDragEnd={onDragEnd}>
       <div className="flex flex-col gap-3 p-3">
         {/* toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
