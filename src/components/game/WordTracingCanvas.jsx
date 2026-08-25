@@ -251,8 +251,11 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       // Track total travel distance after completion — circling back to close
       // an 'e' into an 'o', or going too far down past the baseline on a
       // non-descending letter like 'l', exceeds the budget and restarts.
+      // Dot strokes (the tittle on i/j) are exempt: a tap, short stroke, or
+      // little circle are all valid ways to make the dot, so any movement
+      // that started on the dot is accepted and commits on lift.
       const prevP = currentPathRef.current[currentPathRef.current.length - 1];
-      if (prevP) {
+      if (prevP && !isDot) {
         postCompleteTravelRef.current += dist(pos, prevP);
         if (postCompleteTravelRef.current > 70) {
           flashError();
@@ -376,7 +379,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
         setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, scaleWord]);
+  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, scaleWord, isDot]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();

@@ -371,8 +371,11 @@ export default function LetterTracingCanvas({
       // Track total travel distance after completion — circling back to close
       // an 'e' into an 'o', or going too far down past the baseline on a
       // non-descending letter like 'l', exceeds the budget and restarts.
+      // Dot strokes (the tittle on i/j) are exempt: a tap, short stroke, or
+      // little circle are all valid ways to make the dot, so any movement
+      // that started on the dot is accepted and commits on lift.
       const prevP = currentPathRef.current[currentPathRef.current.length - 1];
-      if (prevP) {
+      if (prevP && !isDot) {
         postCompleteTravelRef.current += dist(pos, prevP);
         if (postCompleteTravelRef.current > 70) {
           flashError();
@@ -593,6 +596,7 @@ export default function LetterTracingCanvas({
     debugCoverage,
     scaleActive,
     flashError,
+    isDot,
   ]);
 
   const handlePointerUp = useCallback((e) => {
