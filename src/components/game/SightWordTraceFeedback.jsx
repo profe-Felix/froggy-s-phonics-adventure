@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import WordTracingCanvas from './WordTracingCanvas';
 import { LETTER_WAYPOINTS } from '../data/letterWaypoints';
+import { base44 } from '@/api/base44Client';
 import { scale, buildDensePath, fonemaUrl } from '@/lib/tracingCore';
 import { AUDIO_BASE, toAudioName, getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
@@ -34,8 +35,8 @@ function playWord(word, lang) {
 }
 
 // Animates drawing one letter's strokes while its phoneme plays, then onDone.
-function LetterReplay({ letter, lang, onDone }) {
-  const strokes = LETTER_WAYPOINTS[letter]?.strokes || [];
+function LetterReplay({ letter, lang, onDone, waypoints }) {
+  const strokes = (waypoints || LETTER_WAYPOINTS)[letter]?.strokes || [];
   const [visibleStrokes, setVisibleStrokes] = useState([]);
   const rafRef = useRef(null);
 
@@ -108,12 +109,38 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
   const letters = useMemo(() => (word || '').split(''), [word]);
   const [phase, setPhase] = useState('demo');
   const [demoIdx, setDemoIdx] = useState(0);
+  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+
+  // Load teacher-authored waypoints from the database so the demo and student
+  // trace use the same calibrated paths as LetterTracingMode / WordTracingMode.
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.LetterWaypoint.list()
+      .then((records) => {
+        if (cancelled || !Array.isArray(records) || records.length === 0) return;
+        setWaypoints((prev) => {
+          const merged = { ...prev };
+          for (const r of records) {
+            if (!r.letter || !r.strokes_data) continue;
+            try {
+              const strokes = JSON.parse(r.strokes_data);
+              if (Array.isArray(strokes) && strokes.length) {
+                merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
+              }
+            } catch { /* ignore malformed */ }
+          }
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     letters.forEach(l => {
-      if (LETTER_WAYPOINTS[l]) preloadSilenceStart(fonemaUrl(l, lang));
+      if (waypoints[l]) preloadSilenceStart(fonemaUrl(l, lang));
     });
-  }, [word, lang]);
+  }, [word, lang, waypoints]);
 
   const handleLetterDone = () => {
     if (demoIdx + 1 < letters.length) {
@@ -155,12 +182,12 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
         </div>
 
         {phase === 'demo' ? (
-          <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} />
+          <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} waypoints={waypoints} />
         ) : (
           <WordTracingCanvas
             key={word}
             word={word}
-            waypoints={LETTER_WAYPOINTS}
+            waypoints={waypoints}
             lang={lang}
             renderWidth={360}
             repetitions={1}
