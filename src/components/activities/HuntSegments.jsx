@@ -7,7 +7,7 @@ const statusClass = (st) => st === 'correct' ? 'bg-green-200 text-green-800'
   : st === 'wrong' ? 'bg-red-200 text-red-700'
   : st === 'missed' ? 'bg-amber-200 text-amber-800' : '';
 
-export default function HuntSegments({ segments, marks = {}, onTap, interactive = false, isSpaceHunt = false }) {
+export default function HuntSegments({ segments, marks = {}, onTap, interactive = false, isSpaceHunt = false, letterHunt = false }) {
   const out = [];
   let wordSpans = [];
   let k = 0;
@@ -38,7 +38,7 @@ export default function HuntSegments({ segments, marks = {}, onTap, interactive 
           <span
             key={i}
             onClick={onTap ? () => onTap(seg) : undefined}
-            className={`${interactive ? 'cursor-pointer ' : ''}rounded px-1.5 py-0.5 leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
+            className={`${interactive ? 'cursor-pointer ' : ''}rounded ${letterHunt ? 'inline-block min-w-[1.1em] text-center px-2 py-1' : 'px-1.5 py-0.5'} leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
           >{seg.text}</span>
         );
       }

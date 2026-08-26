@@ -44,6 +44,9 @@ export default function HuntActivity({ config, studentName }) {
   const hunt = useMemo(() => buildHunt(config, current?.text || ''), [config, current]);
   const segments = hunt.segments;
   const correctCount = hunt.correctCount;
+  // Letter-level hunts (phoneme / digraph) get a much bigger font and uniform
+  // fat tap boxes so thin letters like "i" are as easy to hit as "m".
+  const letterHunt = hunt.type === 'phoneme' || hunt.type === 'digraph';
 
   useEffect(() => {
     if (!items.length) return;
@@ -188,13 +191,14 @@ export default function HuntActivity({ config, studentName }) {
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className="text-2xl sm:text-4xl font-bold text-slate-800 leading-loose">
+        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-5xl sm:text-6xl' : 'text-2xl sm:text-4xl'}`}>
           <HuntSegments
             segments={segments}
             marks={marks}
             onTap={tap}
             interactive={phase === 'recording' && !checked}
             isSpaceHunt={hunt.type === 'space'}
+            letterHunt={letterHunt}
           />
         </p>
         <button onClick={speak} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold">
