@@ -61,11 +61,11 @@ const TRACING_STAGES = [
 ];
 
 const SIZE_LEVELS = [
-  { w: 760, label: 'Huge' },
-  { w: 720, label: 'Big' },
-  { w: 680, label: 'Medium' },
-  { w: 640, label: 'Small' },
-  { w: 600, label: 'Muscle Memory' },
+  { w: 1100, label: 'Huge' },
+  { w: 1000, label: 'Big' },
+  { w: 900, label: 'Medium' },
+  { w: 800, label: 'Small' },
+  { w: 720, label: 'Muscle Memory' },
 ];
 
 const BASE_TRACES_PER_LETTER = TRACING_STAGES.reduce(

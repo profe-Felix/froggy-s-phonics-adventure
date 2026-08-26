@@ -8,6 +8,7 @@ import CoinBadge from '@/components/game/CoinBadge';
 import CharacterDock from '@/components/game/CharacterDock';
 import PrizeWheel from '@/components/game/PrizeWheel';
 import { getCharacters } from '@/lib/characters';
+import { useClassColors } from '@/hooks/useClassColors';
 
 // Level-path homepage. A single background image is shown once (no repeat),
 // sized to fill the container exactly. Level pucks are positioned by % over it.
@@ -35,6 +36,9 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const qc = useQueryClient();
+  const { colorFor } = useClassColors();
+  const classColor = colorFor(className);
+  const studentPhoto = studentData?.photo_url;
 
   // Who's logged in (to gate the teacher Edit mode).
   const { data: me } = useQuery({
@@ -264,8 +268,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           backgroundPosition: 'top center',
         }}
       >
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3">
+        {/* Top bar — padded below Safari's address bar via safe-area-inset */}
+        <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <button
             onClick={onLogout}
             className="px-4 py-1.5 rounded-full bg-white text-indigo-900 text-sm font-bold shadow"
@@ -299,8 +303,20 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
               </>
             )}
             <CoinBadge coins={coins} onClick={() => setWheelOpen(true)} />
-            <div className="px-4 py-1.5 rounded-full bg-white/90 text-indigo-900 text-sm font-black shadow">
-              {studentData?.name || `Student ${studentNumber}`}{className ? ` · ${className}` : ''}
+            <div
+              className="flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full shadow"
+              style={{ background: `linear-gradient(135deg, ${classColor.from}, ${classColor.to})` }}
+            >
+              {studentPhoto ? (
+                <img src={studentPhoto} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-white/80" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-white/30 flex items-center justify-center text-white text-sm font-black border-2 border-white/80">
+                  {studentNumber || '?'}
+                </div>
+              )}
+              <span className="text-white text-sm font-black drop-shadow">
+                {studentData?.name || `Student ${studentNumber}`}{className ? ` · ${className}` : ''}
+              </span>
             </div>
           </div>
         </div>

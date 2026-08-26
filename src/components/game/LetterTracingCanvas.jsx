@@ -44,7 +44,7 @@ export default function LetterTracingCanvas({
   // the same big size.
   const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
   const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const _maxByHeight = Math.max(160, (_vh - 190) * (CANVAS_W / CANVAS_H));
+  const _maxByHeight = Math.max(200, (_vh - 140) * (CANVAS_W / CANVAS_H));
   const effectiveCopyWidth =
     copyCount <= 1
       ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)

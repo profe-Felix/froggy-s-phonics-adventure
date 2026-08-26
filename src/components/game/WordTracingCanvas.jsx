@@ -9,8 +9,8 @@ import {
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 
-const X_SCALE = 480;
-const CANVAS_H = 600;
+const X_SCALE = 600;
+const CANVAS_H = 750;
 const LETTER_GAP = 20;
 const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
 const REPETITIONS = 3; // trace the word 3 times with spaces between
@@ -507,6 +507,14 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
     );
   }
 
+  // Compute explicit pixel dimensions so the SVG's rendered aspect ratio
+  // always matches the viewBox — fixes ink/guide misalignment caused by
+  // `height:auto` + a purged dynamic `aspect-[...]` Tailwind class.
+  const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const _maxByHeight = Math.max(200, (_vh - 140) * (totalW / CANVAS_H));
+  const effectiveWidth = Math.min(renderWidth, _maxByHeight);
+  const renderH = effectiveWidth * (CANVAS_H / totalW);
+
   return (
     <div className="flex flex-col items-center gap-3 select-none">
       {/* Status prompt */}
@@ -542,16 +550,15 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}
-        className={`rounded-2xl border-4 touch-none aspect-[${totalW}/${CANVAS_H}] ${
+        className={`rounded-2xl border-4 touch-none ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
         }`}
         style={{
-          width: `min(${renderWidth}px, calc((100dvh - 190px) * ${totalW / CANVAS_H}))`,
-          height: 'auto',
-          maxHeight: 'calc(100dvh - 190px)',
-          maxWidth: 'none',
+          display: 'block',
+          width: `${effectiveWidth}px`,
+          height: `${renderH}px`,
           cursor: 'crosshair',
           touchAction: 'none',
           userSelect: 'none',
