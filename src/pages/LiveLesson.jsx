@@ -181,6 +181,23 @@ export default function LiveLesson() {
         ? pickedStudents
         : [];
 
+    // Deactivate any leftover active sessions for this class so students
+    // auto-join THIS new lesson instead of a stale session from a previous one.
+    try {
+      const stale =
+        await base44.entities.LiveLessonSession.filter({
+          active: true,
+          class_name: className,
+        });
+      await Promise.all(
+        (stale || []).map(s =>
+          base44.entities.LiveLessonSession
+            .update(s.id, { active: false })
+            .catch(() => {})
+        )
+      );
+    } catch {}
+
     const created =
       await base44.entities.LiveLessonSession.create({
         code,

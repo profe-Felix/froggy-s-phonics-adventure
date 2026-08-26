@@ -83,20 +83,26 @@ export default function LetterGame() {
       const now = Date.now();
       const STALE_AFTER_MS = 90 * 1000;
 
-      return (sessions || []).filter(session => {
-        // Base44 automatically updates updated_date whenever the teacher
-        // heartbeat touches this session.
-        const lastUpdate =
-          session.updated_date ||
-          session.started_at;
+      return (sessions || [])
+        .filter(session => {
+          // Base44 automatically updates updated_date whenever the teacher
+          // heartbeat touches this session.
+          const lastUpdate =
+            session.updated_date ||
+            session.started_at;
 
-        if (!lastUpdate) return false;
+          if (!lastUpdate) return false;
 
-        const age =
-          now - new Date(lastUpdate).getTime();
+          const age =
+            now - new Date(lastUpdate).getTime();
 
-        return age < STALE_AFTER_MS;
-      });
+          return age < STALE_AFTER_MS;
+        })
+        .sort((a, b) => {
+          const ta = new Date(a.updated_date || a.started_at || 0).getTime();
+          const tb = new Date(b.updated_date || b.started_at || 0).getTime();
+          return tb - ta;
+        });
     },
 
     enabled: !!studentData,
