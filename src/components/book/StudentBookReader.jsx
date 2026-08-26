@@ -250,6 +250,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     setTimeout(() => {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
+        audioRef.current.load();
         audioRef.current.play().catch(() => {});
       }
     }, 50);
@@ -340,8 +341,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         position: 'fixed',
         inset: 0,
         width: '100vw',
-        height: isFullscreen ? '100dvh' : '100vh',
+        height: '100dvh',
         zIndex: isFullscreen ? 9999 : 'auto',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       {/* Header */}
@@ -371,7 +376,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       </div>
 
       {/* Page display — fixed height, contain-fit so nothing scrolls */}
-      <div className="flex-1 relative overflow-hidden" ref={containerRef} style={{ background: '#fff' }}>
+      <div className="flex-1 relative overflow-hidden no-select-text" ref={containerRef} style={{ background: '#fff' }}>
         {twoPerPage ? (
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>

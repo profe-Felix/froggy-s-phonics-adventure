@@ -88,3 +88,13 @@
     font-family: 'Andika', sans-serif;
   }
 }
+
+/* Disable text-selection / callout highlight on book reader pages so
+   touching the PDF to read doesn't trigger the blue highlight overlay. */
+.no-select-text,
+.no-select-text * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
