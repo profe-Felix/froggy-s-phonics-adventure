@@ -303,21 +303,6 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
               </>
             )}
             <CoinBadge coins={coins} onClick={() => setWheelOpen(true)} />
-            <div
-              className="flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full shadow"
-              style={{ background: `linear-gradient(135deg, ${classColor.from}, ${classColor.to})` }}
-            >
-              {studentPhoto ? (
-                <img src={studentPhoto} alt="" className="w-7 h-7 rounded-full object-cover border-2 border-white/80" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-white/30 flex items-center justify-center text-white text-sm font-black border-2 border-white/80">
-                  {studentNumber || '?'}
-                </div>
-              )}
-              <span className="text-white text-sm font-black drop-shadow">
-                {studentData?.name || `Student ${studentNumber}`}{className ? ` · ${className}` : ''}
-              </span>
-            </div>
           </div>
         </div>
 
