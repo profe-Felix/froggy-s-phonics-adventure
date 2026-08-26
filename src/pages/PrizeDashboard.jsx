@@ -17,6 +17,22 @@ function PrizeBadge({ prize }) {
   );
 }
 
+function StudentAvatar({ student, size = 40 }) {
+  if (student.photo_url) {
+    return (
+      <img src={student.photo_url} alt={student.name || `Student ${student.student_number}`}
+        className="rounded-full object-cover shrink-0 border-2 border-white shadow"
+        style={{ width: size, height: size }} />
+    );
+  }
+  return (
+    <div className="rounded-full bg-rose-500 text-white font-black flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.42 }}>
+      {student.student_number}
+    </div>
+  );
+}
+
 export default function PrizeDashboard() {
   const [selectedClass, setSelectedClass] = useState('All');
   const qc = useQueryClient();
@@ -71,6 +87,40 @@ export default function PrizeDashboard() {
     const newPrizes = (student.active_prizes || []).filter(p => p !== prizeId);
     const extra = prizeId === 'cushion' ? { cushion_since: null } : {};
     await base44.entities.Student.update(student.id, { active_prizes: newPrizes, ...extra });
+    qc.invalidateQueries({ queryKey: ['students-prizes'] });
+  };
+
+  // Mark one instance of a won prize as physically handed out, so the teacher
+  // doesn't give the same prize twice.
+  const markPrizeGiven = async (student, groupKey) => {
+    const prizeHistory = student.prize_history || [];
+    let marked = false;
+    const updated = prizeHistory.map(e => {
+      if (marked) return e;
+      const key = e.id || e.label || 'prize';
+      if (key === groupKey && !e.given) {
+        marked = true;
+        return { ...e, given: true, given_at: new Date().toISOString() };
+      }
+      return e;
+    });
+    if (!marked) return;
+    await base44.entities.Student.update(student.id, { prize_history: updated });
+    qc.invalidateQueries({ queryKey: ['students-prizes'] });
+  };
+
+  const undoPrizeGiven = async (student, groupKey) => {
+    const prizeHistory = student.prize_history || [];
+    let lastGivenIdx = -1;
+    prizeHistory.forEach((e, idx) => {
+      const key = e.id || e.label || 'prize';
+      if (key === groupKey && e.given) lastGivenIdx = idx;
+    });
+    if (lastGivenIdx === -1) return;
+    const updated = prizeHistory.map((e, idx) =>
+      idx === lastGivenIdx ? { ...e, given: false } : e
+    );
+    await base44.entities.Student.update(student.id, { prize_history: updated });
     qc.invalidateQueries({ queryKey: ['students-prizes'] });
   };
 
@@ -142,7 +192,7 @@ export default function PrizeDashboard() {
               {cushionHolders.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-2 bg-amber-50 border-2 border-amber-300 rounded-xl px-3 py-2">
                   <span className="text-xs font-black text-amber-600">#{i + 1}</span>
-                  <div className="w-8 h-8 rounded-full bg-amber-500 text-white font-black text-sm flex items-center justify-center">{s.student_number}</div>
+                  <StudentAvatar student={s} size={32} />
                   <span className="text-xs font-bold text-gray-700">
                     {s.name || `Student ${s.student_number}`}
                     <span className="text-gray-400 ml-1">({s.class_name})</span>
@@ -175,11 +225,12 @@ export default function PrizeDashboard() {
                   {holders.length === 0 ? (
                     <p className="text-xs text-gray-400">No current holders</p>
                   ) : (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {holders.map(s => (
-                        <span key={s.id} className="text-xs bg-white rounded-full px-2 py-0.5 border font-bold text-gray-700">
-                          #{s.student_number}
-                        </span>
+                        <div key={s.id} className="flex items-center gap-1 bg-white rounded-full pl-0.5 pr-2 py-0.5 border">
+                          <StudentAvatar student={s} size={22} />
+                          <span className="text-xs font-bold text-gray-700">{s.name || `#${s.student_number}`}</span>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -208,9 +259,7 @@ export default function PrizeDashboard() {
 
                 return (
                   <div key={s.id} className="py-3 flex flex-wrap items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-rose-500 text-white font-black text-lg flex items-center justify-center shrink-0">
-                      {s.student_number}
-                    </div>
+                    <StudentAvatar student={s} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-gray-800 text-sm">{s.name || `Student ${s.student_number}`}</span>
@@ -231,21 +280,41 @@ export default function PrizeDashboard() {
                         </div>
                         <span className="text-xs text-gray-400">{progress}/{COINS_PER_SPIN} coins</span>
                       </div>
-                      {/* Prize history */}
-                      {prizeHistory.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          <span className="text-xs text-gray-500 font-bold">Spun:</span>
-                          {prizeHistory.slice(0, 6).map((entry, idx) => (
-                            <span
-                              key={`${entry.id}-${entry.claimed_at || idx}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-pink-50 border border-pink-200 text-pink-700"
-                              title={entry.claimed_at ? new Date(entry.claimed_at).toLocaleString() : ''}
-                            >
-                              {entry.emoji || '🎁'} {entry.label || entry.id}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {/* Prize history — grouped with counts + give-out tracking */}
+                      {prizeHistory.length > 0 && (() => {
+                        const groups = {};
+                        prizeHistory.forEach(entry => {
+                          const key = entry.id || entry.label || 'prize';
+                          if (!groups[key]) groups[key] = { key, emoji: entry.emoji || '🎁', label: entry.label || entry.id, entries: [] };
+                          groups[key].entries.push(entry);
+                        });
+                        return (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <span className="text-xs text-gray-500 font-bold">Won:</span>
+                            {Object.values(groups).map(g => {
+                              const total = g.entries.length;
+                              const givenCount = g.entries.filter(e => e.given).length;
+                              const allGiven = givenCount >= total;
+                              return (
+                                <span key={g.key}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${allGiven ? 'bg-green-50 border-green-300 text-green-700' : 'bg-pink-50 border-pink-200 text-pink-700'}`}>
+                                  {g.emoji} {g.label}
+                                  {total > 1 && <span className="bg-white/70 rounded-full px-1 font-black">×{total}</span>}
+                                  {givenCount > 0 && <span className="text-green-600">✓{givenCount}</span>}
+                                  {!allGiven && (
+                                    <button onClick={() => markPrizeGiven(s, g.key)}
+                                      className="ml-0.5 px-1.5 rounded-full bg-green-500 text-white text-[10px] font-black hover:bg-green-600">✓ Given</button>
+                                  )}
+                                  {givenCount > 0 && (
+                                    <button onClick={() => undoPrizeGiven(s, g.key)}
+                                      className="ml-0.5 text-gray-400 hover:text-gray-600 text-[10px] font-bold">undo</button>
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                       {/* Active prizes */}
                       {activePrizes.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
