@@ -379,9 +379,12 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     setCurrentPath(currentPathRef.current);
 
     if (!pendingCompleteRef.current) {
-      const nextWp = scaleWord(currentStrokes[waypointIndex]);
-      if (dist(pos, nextWp) < HIT_RADIUS) {
-        setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
+      const nextPt = currentStrokes[waypointIndex];
+      if (nextPt) {
+        const nextWp = scaleWord(nextPt);
+        if (dist(pos, nextWp) < HIT_RADIUS) {
+          setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
+        }
       }
     }
   }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, scaleWord, isDot]);
