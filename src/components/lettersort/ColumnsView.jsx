@@ -188,7 +188,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
 
   return (
     <DragDropContext sensors={sensors} enableDefaultSensors={false} onDragEnd={onDragEnd}>
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-2 p-2">
         {/* toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -207,7 +207,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
         </div>
 
         {/* columns */}
-        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(130px, 1fr))` }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(110px, 1fr))` }}>
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
               <ColumnHeader col={col} config={config} isNotPair={isNotPair} targetLetter={targetLetter} />
@@ -217,7 +217,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                     ref={prov.innerRef}
                     {...prov.droppableProps}
                     data-droppable-id={col.key}
-                    className="flex flex-wrap gap-1.5 content-start p-2 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[120px] flex-1"
+                    className="flex flex-wrap gap-1 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[88px]"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
@@ -254,7 +254,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 ref={prov.innerRef}
                 {...prov.droppableProps}
                 data-droppable-id="rack"
-                className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[80px]"
+                className="flex flex-wrap gap-1 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[60px]"
               >
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
@@ -288,8 +288,8 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
   // image header (manualsort image / syllgroups headerimages) — always shown
   if (col.headerImg) {
     return (
-      <div className="flex items-center justify-center mb-1 h-24">
-        <img src={col.headerImg} alt={col.label} className="rounded-lg object-contain max-h-24 bg-slate-50" draggable={false} />
+      <div className="flex items-center justify-center mb-1 h-16">
+        <img src={col.headerImg} alt={col.label} className="rounded-lg object-contain max-h-16 bg-slate-50" draggable={false} />
       </div>
     );
   }
@@ -336,8 +336,8 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
     return <div className="h-10" />;
   }
   return (
-    <div className="flex justify-center mb-2">
-      <div className="px-5 py-1.5 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-lg text-center min-w-[3rem]">
+    <div className="flex justify-center mb-1.5">
+      <div className="px-3 py-1 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-sm text-center min-w-[3rem]">
         {col.display || col.label}
       </div>
     </div>

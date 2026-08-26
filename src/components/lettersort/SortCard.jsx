@@ -19,12 +19,12 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
     const showCover = hideWords && !revealed;
     return (
       <div
-        className={base + 'px-3 py-4 min-h-[96px] w-full cursor-grab active:cursor-grabbing'}
+        className={base + 'px-2 py-2 min-h-[64px] w-full cursor-grab active:cursor-grabbing'}
         onClick={onClick}
         role="button"
         tabIndex={0}
       >
-        <span className="font-bold text-2xl text-slate-800 text-center leading-tight">
+        <span className="font-bold text-xl text-slate-800 text-center leading-tight">
           {labelText || '\u00A0'}
         </span>
         {showCover && (
@@ -44,12 +44,12 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
   if (!card.imgUrl) {
     return (
       <div
-        className={base + 'px-3 py-4 min-h-[96px] w-full cursor-grab active:cursor-grabbing'}
+        className={base + 'px-2 py-2 min-h-[64px] w-full cursor-grab active:cursor-grabbing'}
         onClick={onClick}
         role="button"
         tabIndex={0}
       >
-        <span className="font-bold text-2xl text-slate-800 text-center leading-tight">
+        <span className="font-bold text-xl text-slate-800 text-center leading-tight">
           {labelText || '\u00A0'}
         </span>
       </div>
@@ -63,7 +63,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
       role="button"
       tabIndex={0}
     >
-      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-24 bg-slate-50" draggable={false} />
+      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-16 bg-slate-50" draggable={false} />
       {showCaption && (
         <div className="mt-1 text-center text-sm font-semibold text-slate-700 truncate w-full px-1">
           {labelText || '\u00A0'}
