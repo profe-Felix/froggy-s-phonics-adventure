@@ -10,7 +10,7 @@ import BookStudentGrid from './BookStudentGrid';
 import TeacherBookAnnotator from './TeacherBookAnnotator';
 import BackButton from '@/components/ui/BackButton';
 
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const CLASS_NAMES = ['Felix', 'Valero', 'Gutierrez', 'Schwarz'];
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
 export default function TeacherBookDashboard({ onBack }) {

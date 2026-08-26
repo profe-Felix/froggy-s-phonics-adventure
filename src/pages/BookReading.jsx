@@ -11,7 +11,7 @@ import BackButton from '@/components/ui/BackButton';
 
 const MODULES = ['All', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const CLASS_NAMES = ['Felix', 'Valero', 'Gutierrez', 'Schwarz'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 function StudentLogin({ onEnter, preselectedClass }) {
