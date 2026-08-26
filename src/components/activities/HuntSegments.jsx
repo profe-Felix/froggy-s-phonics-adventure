@@ -38,7 +38,7 @@ export default function HuntSegments({ segments, marks = {}, onTap, interactive 
           <span
             key={i}
             onClick={onTap ? () => onTap(seg) : undefined}
-            className={`${interactive ? 'cursor-pointer ' : ''}rounded ${letterHunt ? 'inline-block min-w-[1em] text-center px-0.5 py-1' : 'px-1.5 py-0.5'} leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
+            className={`${interactive ? 'cursor-pointer ' : ''}rounded ${letterHunt ? 'inline-block min-w-[0.9em] text-center px-px py-1' : 'px-1.5 py-0.5'} leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
           >{seg.text}</span>
         );
       }
