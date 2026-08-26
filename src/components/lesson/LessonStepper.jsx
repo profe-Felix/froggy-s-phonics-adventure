@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { X, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
+import { isTeacherModelStudent } from '@/lib/teacherModel';
 
 // Linear lesson flow: left dots show every step's status, right arrows move
 // prev/next. Hosts one step's activity at a time via LessonModeRouter.
@@ -70,11 +71,13 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
   const curOriginalIndex = cur?.originalIndex ?? 0;
   const curDone = completedSteps.includes(curOriginalIndex);
   const isLast = stepIdx >= visibleSteps.length - 1;
-  const canNext = curDone && !isLast;
+  // Teacher-model account (student 30) can advance without completing steps.
+  const modelStudent = isTeacherModelStudent(selectedStudent?.number);
+  const canNext = (curDone || modelStudent) && !isLast;
   const canPrev = stepIdx > 0;
 
   const goNext = () => {
-    if (!curDone) return;
+    if (!curDone && !modelStudent) return;
     if (isLast) { onBack?.(); return; }
     setStepIdx(i => i + 1);
   };
@@ -101,7 +104,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
           {visibleSteps.map(({ step: s, originalIndex }, i) => {
             const done = completedSteps.includes(originalIndex);
             const current = i === stepIdx;
-            const clickable = done || current;
+            const clickable = done || current || modelStudent;
             return (
               <button
                 key={i}

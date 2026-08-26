@@ -9,6 +9,7 @@ import CharacterDock from '@/components/game/CharacterDock';
 import PrizeWheel from '@/components/game/PrizeWheel';
 import { getCharacters } from '@/lib/characters';
 import { useClassColors } from '@/hooks/useClassColors';
+import { isTeacherModelStudent } from '@/lib/teacherModel';
 
 // Level-path homepage. A single background image is shown once (no repeat),
 // sized to fill the container exactly. Level pucks are positioned by % over it.
@@ -322,7 +323,9 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           const lesson = byNumber.get(n);
           const done = completedSet.has(n);
           const active = n === activeSlot;
-          const locked = !lesson || (!done && !active);
+          // Teacher-model account (student 30) bypasses the completion gate so
+          // every placed level is open and clickable for modeling.
+          const locked = !lesson || (!isTeacherModelStudent(studentNumber) && !done && !active);
           const pos = posFor(n);
           const isDrag = editing && String(dragSlot) === String(n);
           return (
