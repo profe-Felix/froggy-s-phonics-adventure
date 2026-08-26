@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
@@ -22,6 +22,9 @@ function genCode() {
 
 export default function LiveLesson() {
   const [session, setSession] = useState(null);
+  // Always-current session snapshot so the heartbeat interval reads live
+  // step/phase values instead of the stale ones captured at setup.
+  const sessionRef = useRef(session);
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');
@@ -82,6 +85,10 @@ export default function LiveLesson() {
 
   const { send, clear: clearBroadcast } = useLiveBroadcast(session?.id);
 
+  // Keep the ref in sync with the latest session state so the heartbeat
+  // interval always reads the current step/phase.
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
   // ------------------------------------------------------------
   // LIVE LESSON HEARTBEAT
   //
@@ -108,10 +115,12 @@ export default function LiveLesson() {
       if (cancelled) return;
 
       try {
-        await base44.entities.LiveLessonSession.update(session.id, {
+        const s = sessionRef.current;
+        if (!s?.id) return;
+        await base44.entities.LiveLessonSession.update(s.id, {
           active: true,
-          current_step: session.current_step ?? 0,
-          phase: session.phase || 'watch',
+          current_step: s.current_step ?? 0,
+          phase: s.phase || 'watch',
         });
       } catch {
         // Best effort only. A temporary network failure should
