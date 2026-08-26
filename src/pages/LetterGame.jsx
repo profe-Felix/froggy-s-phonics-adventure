@@ -24,7 +24,6 @@ import LessonMap from '../components/lesson/LessonMap';
 import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
 import LiveLessonStudent from '@/components/live/LiveLessonStudent';
-import { Radio } from 'lucide-react';
 import { useClassColors } from '@/hooks/useClassColors';
 
 export default function LetterGame() {
@@ -51,7 +50,6 @@ export default function LetterGame() {
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
-  const [liveBanner, setLiveBanner] = useState(null);
   const queryClient = useQueryClient();
   const { languageFor, configs } = useClassColors();
 
@@ -109,18 +107,17 @@ export default function LetterGame() {
   });
 
   useEffect(() => {
-    if (!activeLiveSessions.length) { setLiveBanner(null); return; }
+    if (!activeLiveSessions.length) return;
+    // Already in a live session — don't auto-join another.
+    if (liveSession) return;
     // QR deep-link: auto-join the matching session immediately.
     if (liveCode) {
       const qrMatch = activeLiveSessions.find(s => s.code === liveCode);
-      if (qrMatch && !liveSession) {
-        setLiveSession(qrMatch);
-        setLiveBanner(null);
-        return;
-      }
+      if (qrMatch) { setLiveSession(qrMatch); return; }
     }
-    // Class-page banner: find a session for this student's class where they're
-    // targeted (whole class = empty target_students, or explicitly listed).
+    // Auto-join: bring the student straight into any active session for their
+    // class (whole class = empty target_students, or explicitly listed) instead
+    // of showing a banner they have to tap.
     const classMatch = activeLiveSessions.find(s => {
       if (s.class_name !== selectedStudent?.class_name) return false;
       if (!s.target_students || s.target_students.length === 0) return true;
@@ -128,7 +125,7 @@ export default function LetterGame() {
         t => t.class_name === selectedStudent?.class_name && t.student_number === selectedStudent?.number
       );
     });
-    setLiveBanner(classMatch || null);
+    if (classMatch) setLiveSession(classMatch);
   }, [activeLiveSessions, liveCode, selectedStudent, liveSession]);
 
   // Direct load by student ID (from QR code)
@@ -474,20 +471,6 @@ export default function LetterGame() {
   if (!currentMode && !activeLessonStep) {
     return (
       <>
-        {liveBanner && (
-          <div className="fixed top-4 inset-x-0 z-[200] flex justify-center px-4 pointer-events-none">
-            <button
-              onClick={() => { setLiveSession(liveBanner); setLiveBanner(null); }}
-              className="pointer-events-auto bg-rose-500 text-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-3 animate-bounce hover:bg-rose-600"
-            >
-              <Radio className="w-6 h-6" />
-              <div className="text-left">
-                <div className="font-black text-sm">Your teacher started a Live Lesson!</div>
-                <div className="text-xs text-white/80">{liveBanner.lesson_title || 'Tap to join'}</div>
-              </div>
-            </button>
-          </div>
-        )}
         <GameHome
           studentData={studentData}
           selectedStudent={selectedStudent}
