@@ -63,7 +63,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
       role="button"
       tabIndex={0}
     >
-      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-28 bg-slate-50" draggable={false} />
+      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-24 bg-slate-50" draggable={false} />
       {showCaption && (
         <div className="mt-1 text-center text-sm font-semibold text-slate-700 truncate w-full px-1">
           {labelText || '\u00A0'}

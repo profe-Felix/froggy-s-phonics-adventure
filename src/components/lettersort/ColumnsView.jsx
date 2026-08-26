@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, RefreshCw } from 'lucide-react';
 import SortCard from './SortCard';
@@ -14,6 +14,20 @@ function shuffle(arr) {
   return a;
 }
 
+// Find which droppable column/rack contains a screen point. Used to place the
+// card where the finger actually is on drop, instead of where the dragged
+// card's center lands (which can straddle two columns).
+function findDropTarget(x, y) {
+  const els = document.querySelectorAll('[data-droppable-id]');
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+      return el.getAttribute('data-droppable-id');
+    }
+  }
+  return null;
+}
+
 // Column-group view: a rack of cards + N drop columns. Drag a card into a
 // column, hit "Verificar" to check; correct cards lock, wrong ones bounce back.
 export default function ColumnsView({ config, round, onNewRound, onRoundComplete }) {
@@ -23,6 +37,26 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   const [locked, setLocked] = useState(new Set());
   const [bad, setBad] = useState(new Set());
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
+
+  // Track the live pointer position so onDragEnd can place the card in the
+  // column the finger is actually over. @hello-pangea/dnd otherwise picks the
+  // drop target from the dragged card's center, so a wide card straddling two
+  // columns lands in the adjacent (wrong) column at an edge.
+  const lastPointerRef = useRef(null);
+  useEffect(() => {
+    const record = (e) => {
+      const t = e.touches ? e.touches[0] : e;
+      if (t && t.clientX != null) lastPointerRef.current = { x: t.clientX, y: t.clientY };
+    };
+    window.addEventListener('pointermove', record, { capture: true, passive: true });
+    window.addEventListener('touchmove', record, { capture: true, passive: true });
+    window.addEventListener('mousemove', record, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener('pointermove', record, { capture: true });
+      window.removeEventListener('touchmove', record, { capture: true });
+      window.removeEventListener('mousemove', record, { capture: true });
+    };
+  }, []);
 
   // (re)build when a new round is produced
   useEffect(() => {
@@ -59,7 +93,20 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   }
 
   function onDragEnd(res) {
-    const { source, destination } = res;
+    const { source } = res;
+    let destination = res.destination;
+    // Override dnd's drop target with the column under the finger so a wide
+    // card never falls into the adjacent column at an edge.
+    const pt = lastPointerRef.current;
+    if (pt) {
+      const ptrTarget = findDropTarget(pt.x, pt.y);
+      if (ptrTarget && ptrTarget !== source.droppableId) {
+        const container = ptrTarget === 'rack' ? rack : (colCards[ptrTarget] || []);
+        destination = { droppableId: ptrTarget, index: container.length };
+      } else if (!ptrTarget) {
+        destination = null;
+      }
+    }
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
@@ -113,7 +160,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     // celebrate when every card is locked
     if (toEject.length === 0 && newLocked.size === round.cards.length) {
       celebrate();
-      onRoundComplete?.({ mistakes: score.wrong + wrong });
+      onRoundComplete?.({ mistakes: score.wrong + wrong, correct: round.cards.length, wrong: score.wrong + wrong });
     }
   }
 
@@ -160,7 +207,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
         </div>
 
         {/* columns */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(140px, 1fr))` }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(130px, 1fr))` }}>
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
               <ColumnHeader col={col} config={config} isNotPair={isNotPair} targetLetter={targetLetter} />
@@ -169,12 +216,13 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                   <div
                     ref={prov.innerRef}
                     {...prov.droppableProps}
-                    className="flex flex-wrap gap-2 content-start p-2 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[160px] flex-1"
+                    data-droppable-id={col.key}
+                    className="flex flex-wrap gap-1.5 content-start p-2 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[120px] flex-1"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                         {(p) => (
-                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-28 shrink-0">
+                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-24 shrink-0">
                             <SortCard
                               card={card}
                               tilesOnly={config.tilesOnly}
@@ -205,12 +253,13 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
               <div
                 ref={prov.innerRef}
                 {...prov.droppableProps}
-                className="flex flex-wrap gap-2 p-3 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[120px]"
+                data-droppable-id="rack"
+                className="flex flex-wrap gap-1.5 p-3 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[80px]"
               >
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                     {(p) => (
-                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-28 shrink-0">
+                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-24 shrink-0">
                         <SortCard
                           card={card}
                           tilesOnly={config.tilesOnly}

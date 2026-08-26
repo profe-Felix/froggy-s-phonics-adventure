@@ -990,6 +990,12 @@ export default function LessonModeRouter({
             presetId={
               step?.config?.preset
             }
+            studentNumber={
+              studentNumber
+            }
+            studentClass={
+              className
+            }
           />
         );
 

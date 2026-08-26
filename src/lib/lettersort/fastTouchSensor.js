@@ -37,7 +37,7 @@ function bindEvents(el, bindings, sharedOptions) {
 
 function noop() {}
 
-function getHandleBindings({ cancel, completed, getPhase }) {
+function getHandleBindings({ cancel, completed, getPhase, startDragging }) {
   return [
     {
       eventName: 'touchmove',
@@ -45,9 +45,12 @@ function getHandleBindings({ cancel, completed, getPhase }) {
       fn: (event) => {
         const phase = getPhase();
         if (phase.type === 'PENDING') {
-          // Tolerate small movements during the pending phase instead of
-          // immediately cancelling. This prevents finger jitter from killing
-          // the drag on touch devices.
+          // Tolerate small movements (jitter) during the pending phase so a
+          // tap still counts as a tap. A deliberate movement past the
+          // tolerance starts the drag immediately so the card follows the
+          // finger — no long-press delay, so dragging feels instant, and a
+          // stationary press-and-lift never enters DRAGGING so its click is
+          // not blocked (the card's onClick audio still plays).
           const touch = event.touches[0];
           const dx = touch.clientX - phase.point.x;
           const dy = touch.clientY - phase.point.y;
@@ -56,8 +59,14 @@ function getHandleBindings({ cancel, completed, getPhase }) {
             event.preventDefault();
             return;
           }
-          // Large movement — cancel and allow native scrolling
-          cancel();
+          event.preventDefault();
+          startDragging();
+          const point = { x: touch.clientX, y: touch.clientY };
+          const drag = getPhase();
+          if (drag.type === 'DRAGGING') {
+            drag.hasMoved = true;
+            drag.actions.move(point);
+          }
           return;
         }
         if (phase.type !== 'DRAGGING') {
@@ -198,20 +207,6 @@ export function useFastTouchSensor(api) {
     if (phase.type === 'PENDING') phase.actions.abort();
   }, [stop]);
 
-  const bindCapturingEvents = useCallback(
-    function bindCapturingEvents() {
-      const options = { capture: true, passive: false };
-      const args = { cancel, completed: stop, getPhase };
-      const unbindTarget = bindEvents(window, getHandleBindings(args), options);
-      const unbindWindow = bindEvents(window, getWindowBindings(args), options);
-      unbindEventsRef.current = function unbindAll() {
-        unbindTarget();
-        unbindWindow();
-      };
-    },
-    [cancel, getPhase, stop]
-  );
-
   const startDragging = useCallback(
     function startDragging() {
       const phase = getPhase();
@@ -222,13 +217,30 @@ export function useFastTouchSensor(api) {
     [getPhase, setPhase]
   );
 
+  const bindCapturingEvents = useCallback(
+    function bindCapturingEvents() {
+      const options = { capture: true, passive: false };
+      const args = { cancel, completed: stop, getPhase, startDragging };
+      const unbindTarget = bindEvents(window, getHandleBindings(args), options);
+      const unbindWindow = bindEvents(window, getWindowBindings(args), options);
+      unbindEventsRef.current = function unbindAll() {
+        unbindTarget();
+        unbindWindow();
+      };
+    },
+    [cancel, getPhase, stop, startDragging]
+  );
+
   const startPendingDrag = useCallback(
     function startPendingDrag(actions, point) {
-      const longPressTimerId = setTimeout(startDragging, TIME_FOR_LONG_PRESS);
-      setPhase({ type: 'PENDING', point, actions, longPressTimerId });
+      // No long-press timer: a drag begins only when the finger deliberately
+      // moves past MOVE_TOLERANCE (see the touchmove handler). A stationary
+      // press-and-lift stays PENDING, so its click is not blocked and the
+      // card's tap-to-play audio fires.
+      setPhase({ type: 'PENDING', point, actions, longPressTimerId: null });
       bindCapturingEvents();
     },
-    [bindCapturingEvents, setPhase, startDragging]
+    [bindCapturingEvents, setPhase]
   );
 
   useLayoutEffect(
