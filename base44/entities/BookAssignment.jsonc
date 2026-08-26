@@ -85,39 +85,9 @@
     "class_name"
   ],
   "rls": {
-    "create": {
-      "user_condition": {
-        "role": "teacher"
-      }
-    },
-    "read": {},
-    "update": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        }
-      ]
-    },
-    "delete": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        }
-      ]
-    }
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
   }
 }
