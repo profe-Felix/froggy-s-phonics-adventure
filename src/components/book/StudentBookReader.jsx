@@ -148,12 +148,25 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
 
   const [uploading, setUploading] = useState(false);
   const [spreadRecording, setSpreadRecording] = useState(null);
+  // Track the most recently saved recording so the [recKey, sessions] effect
+  // doesn't overwrite it with null when the DB is eventually-consistent
+  // (the refetch right after save can return stale data, which cancels the
+  // in-progress audio load and makes the recording look gone).
+  const justSavedRef = useRef(null);
   const [showReplay, setShowReplay] = useState(false);
   const [replayLaserData, setReplayLaserData] = useState([]);
 
   useEffect(() => {
     const rec = getSpreadRecording(recKey);
-    setSpreadRecording(rec || null);
+    if (rec) {
+      setSpreadRecording(rec);
+    } else if (justSavedRef.current?.page === recKey) {
+      // DB hasn't propagated the save yet — keep the just-saved recording
+      // so the audio load isn't canceled and the recording stays visible.
+      setSpreadRecording(justSavedRef.current);
+    } else {
+      setSpreadRecording(null);
+    }
     setShowReplay(false);
   }, [recKey, sessions]);
 
@@ -293,6 +306,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         }
 
         setSpreadRecording(newRec);
+        justSavedRef.current = newRec;
         // Optimistically update the query cache so the recording is immediately
         // visible — refetch() can return stale data (DB eventual consistency),
         // and the [recKey, sessions] useEffect would then overwrite
@@ -311,7 +325,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           }
           return arr;
         });
-        await refetch();
+        // Fire-and-forget: awaiting refetch here can return stale data (DB
+        // eventual consistency) and overwrite the just-saved recording.
+        refetch();
       } catch (e) {
         console.error('Book recording save failed', e);
         toast({
