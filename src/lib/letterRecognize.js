@@ -949,6 +949,14 @@ function templateEndsDiagonal(t) {
   return v;
 }
 function drawingEndsDiagonal(drawn) { return drawn.some(strokeEndsDiagonal); }
+// The end-direction gate is built for the diagonal-KICK letters only — letters
+// whose taught pathway has a genuine diagonal EXIT stroke: the 'k' leg kick and
+// the 'v'/'w'/'x'/'y' arms. Other letters whose stroke happens to END with a
+// diagonal tangent (the 's' S-curve, the 'c' open arc, the 'e' loop tuck) are
+// NOT diagonal kicks — that tangent is an artifact of the curve, not structural
+// ink — so the gate must not fire on them. Restricting to this whitelist stops
+// the false "needs-diag-end" exclusions on curve/bowl letters.
+const DIAGONAL_KICK_LETTERS = new Set(['k', 'v', 'w', 'x', 'y', 'K', 'V', 'W', 'X', 'Y']);
 
 export function recognize(drawnStrokes, templates) {
   if (!drawnStrokes.length || !templates.length) return [];
@@ -1003,10 +1011,10 @@ export function recognize(drawnStrokes, templates) {
     // (k leg, v/w/x/y) cannot be the answer when NO drawn stroke ends diagonally
     // — the 'h' hump ends in a VERTICAL stem, not a kick. This is the robust
     // h→k discriminator (the 'k' leg ends diagonally; the 'h' stem ends vertical).
-    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
-    // read as diagonal — they have no genuine diagonal kick, so the end-direction
-    // gate (built for k/v/w/x/y exits) must not exclude them.
-    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // End-direction gate: only the diagonal-KICK letters (k, v, w, x, y) have a
+    // genuine diagonal exit. Curve/bowl letters (s, c, e…) whose stroke tangent
+    // happens to end diagonally are NOT kicks, so they are not excluded here.
+    if (!drawEndsDiag && DIAGONAL_KICK_LETTERS.has(t.letter)) { excluded = true; reason = 'needs-diag-end'; }
     // Zigzag-diagonal gate: 'z' is a ZIGZAG — two horizontal bars joined by a
     // straight DIAGONAL. An 'e' (a closed loop) and an 's' (an S-curve) have NO
     // diagonal — they contain no straight diagonal run — so they cannot be 'z':
@@ -1161,10 +1169,10 @@ export function shapeGuess(drawnStrokes, templates) {
     // End-direction gate (see recognize): the 'h' hump ends in a vertical stem,
     // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
     // end when no drawn stroke ends diagonally.
-    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
-    // read as diagonal — they have no genuine diagonal kick, so the end-direction
-    // gate (built for k/v/w/x/y exits) must not exclude them.
-    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // End-direction gate: only the diagonal-KICK letters (k, v, w, x, y) have a
+    // genuine diagonal exit. Curve/bowl letters (s, c, e…) whose stroke tangent
+    // happens to end diagonally are NOT kicks, so they are not excluded here.
+    if (!drawEndsDiag && DIAGONAL_KICK_LETTERS.has(t.letter)) { excluded = true; reason = 'needs-diag-end'; }
     // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
     // an 'e' loop or 's' curve has none — exclude 'z'.
     const isZ = t.letter === 'z' || t.letter === 'Z';
@@ -1466,10 +1474,10 @@ export function traceMatch(drawnStrokes, templates) {
     } else if (templateHasHorizontalRun(t)) {
       excluded = true; reason = 'needs-bar';
     }
-    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
-    // read as diagonal — they have no genuine diagonal kick, so the end-direction
-    // gate (built for k/v/w/x/y exits) must not exclude them.
-    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // End-direction gate: only the diagonal-KICK letters (k, v, w, x, y) have a
+    // genuine diagonal exit. Curve/bowl letters (s, c, e…) whose stroke tangent
+    // happens to end diagonally are NOT kicks, so they are not excluded here.
+    if (!drawEndsDiag && DIAGONAL_KICK_LETTERS.has(t.letter)) { excluded = true; reason = 'needs-diag-end'; }
     const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) { excluded = true; reason = 'needs-diag'; }
     if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) { excluded = true; reason = 'needs-2-bars'; }
