@@ -20,17 +20,17 @@ const MODES = [
     id: 'letter_sounds',
     title: 'Letter Sounds',
     description: 'Match letters to their sounds',
-    icon: '🔤',
+    icon: '🔊',
     color: 'from-blue-400 to-blue-600',
     alwaysUnlocked: true
   },
   {
     id: 'letter_tracing',
     title: 'Letter Tracing',
-    description: 'Trace letters the right way',
-    icon: '✏️',
+    description: 'Trace letters following the pathways',
+    icon: '⬇️✏️',
     color: 'from-violet-400 to-violet-600',
-    adminOnly: true
+    alwaysUnlocked: true
   },
   {
     id: 'sight_words_easy',

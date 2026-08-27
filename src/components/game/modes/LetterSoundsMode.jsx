@@ -287,7 +287,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
           shape and sound, then continues to the next round. */}
       {traceLetter && waypoints[traceLetter]?.strokes?.length && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-5 max-w-sm w-full flex flex-col items-center gap-3 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-5 max-w-2xl w-full flex flex-col items-center gap-3 max-h-[92vh] overflow-y-auto">
             <div className="text-center shrink-0">
               <div className="text-lg font-bold text-slate-800">
                 Let's practice! ✏️
@@ -306,7 +306,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
               strokes={waypoints[traceLetter].strokes}
               showGuide={true}
               lang={language}
-              renderWidth={200}
+              renderWidth={520}
               onComplete={() => {
                 setTraceLetter(null);
                 setTimeout(generateRound, 400);

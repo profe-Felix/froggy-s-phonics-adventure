@@ -11,7 +11,8 @@ import { BookOpen, PlayCircle } from 'lucide-react';
 // lesson's step grid (LessonMap). "Games" launches approved free-play modes,
 // "Books" opens the bookshelf, "Videos" is a placeholder for now.
 const FREE_MODES = [
-  { mode: 'letter_sounds', label: 'Letter Sounds', emoji: '🔤' },
+  { mode: 'letter_sounds', label: 'Letter Sounds', emoji: '🔊' },
+  { mode: 'letter_tracing', label: 'Letter Tracing', emoji: '⬇️✏️' },
   { mode: 'sight_words_easy', label: 'Sight Words', emoji: '👁️' },
   { mode: 'spelling', label: 'Spelling', emoji: '✏️' },
   { mode: 'case_matching', label: 'Upper & Lower', emoji: '🅰️' },

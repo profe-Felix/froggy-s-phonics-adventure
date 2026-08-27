@@ -43,6 +43,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const [status, setStatus] = useState('idle');
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false);
+  const [guideFlash, setGuideFlash] = useState(false);
   const svgRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null);
   const strokeAccuraciesRef = useRef([]);
@@ -97,6 +98,10 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
       };
       playOnce();
       fonemaIntervalRef.current = setInterval(playOnce, FONEMA_INTERVAL_MS);
+      // Briefly highlight the current letter's guide pathway so attention goes
+      // to the correct path, not the student's old messy drawn strokes.
+      setGuideFlash(true);
+      setTimeout(() => setGuideFlash(false), 800);
     } catch {}
   }, [currentLetter, lang, stopFonema]);
 
@@ -514,7 +519,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
   // always matches the viewBox — fixes ink/guide misalignment caused by
   // `height:auto` + a purged dynamic `aspect-[...]` Tailwind class.
   const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const _maxByHeight = Math.max(200, (_vh - 140) * (totalW / CANVAS_H));
+  const _maxByHeight = Math.max(200, (_vh - 30) * (totalW / CANVAS_H));
   const effectiveWidth = Math.min(renderWidth, _maxByHeight);
   const renderH = effectiveWidth * (CANVAS_H / totalW);
 
@@ -589,14 +594,14 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
             const color = isCompleted ? '#22c55e' :
                           isCurrent ? GUIDE_COLORS[si % GUIDE_COLORS.length] :
                           '#cbd5e1';
-            const opacity = isCompleted ? 0.4 : isCurrent ? 0.6 : 0.35;
+            const opacity = isCompleted ? 0.4 : isCurrent ? (guideFlash ? 0.95 : 0.6) : 0.35;
             return (
               <polyline
                 key={`${li}-${si}`}
                 points={stroke.map(p => { const s = scaleForLetter(p, li); return `${s.x},${s.y}`; }).join(' ')}
                 fill="none"
                 stroke={color}
-                strokeWidth="6"
+                strokeWidth={isCurrent && guideFlash ? 10 : 6}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}

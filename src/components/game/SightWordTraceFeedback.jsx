@@ -86,7 +86,7 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="rounded-2xl border-4 border-sky-200 bg-white"
-      style={{ width: 200, height: 250 }}
+      style={{ width: 360, height: 450 }}
     >
       <line x1="0" y1={0.10 * H} x2={W} y2={0.10 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
       <line x1="0" y1={0.367 * H} x2={W} y2={0.367 * H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
@@ -156,7 +156,7 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-lg w-full flex flex-col items-center gap-3 max-h-[95vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-2xl w-full flex flex-col items-center gap-3 max-h-[95vh] overflow-y-auto">
         <div className="text-center">
           <div className="text-lg font-bold text-slate-800">Let's practice! ✏️</div>
           <div className="text-sm text-slate-500">
@@ -189,7 +189,7 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
             word={word}
             waypoints={waypoints}
             lang={lang}
-            renderWidth={360}
+            renderWidth={600}
             repetitions={1}
             onComplete={() => setTimeout(onDone, 300)}
           />
