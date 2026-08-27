@@ -21,7 +21,10 @@ const GUIDES = [
 export default function MatchOverlap({ segment, templates }) {
   if (!segment || !segment.ranked || !segment.ranked.length || !segment.strokesPx || !templates || !templates.length) return null;
   const drawnPx = segment.strokesPx;
-  const top = segment.ranked.slice(0, 4);
+  // Only show candidates that PASSED the gates — excluded templates (e.g. an
+  // x-height 'e' rejected by the height gate vs ascender 'A'/'b') would otherwise
+  // render a misleading stretched-overlap at 0% confidence.
+  const top = segment.ranked.filter((r) => !r.excludedBy).slice(0, 4);
 
   return (
     <div className="w-full max-w-sm mt-3">
