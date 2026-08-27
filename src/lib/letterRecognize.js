@@ -984,10 +984,11 @@ export function recognize(drawnStrokes, templates) {
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
+    let reason = null;
     if (drawHasBar) {
-      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
-      if (!templateHasHorizontalRun(t)) excluded = true;
-      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) { excluded = true; reason = 'bar≠bowl'; }
+      if (!templateHasHorizontalRun(t)) { excluded = true; reason = 'bar:no-h-run'; }
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) { excluded = true; reason = 'low-bar'; }
     } else if (templateHasHorizontalRun(t)) {
       // Symmetric crossbar gate: a template whose taught pathway contains a
       // straight horizontal run (t/f crossbar, e middle bar, z bars) cannot be the
@@ -996,7 +997,7 @@ export function recognize(drawnStrokes, templates) {
       // must not read as 't' (stem + crossbar): the 't' crossbar is structural ink
       // the 'h' drawing simply lacks. Asymmetric: only absence is penalized, so a
       // real 't'/'e' (whose bar triggers drawHasBar) is never excluded.
-      excluded = true;
+      excluded = true; reason = 'needs-bar';
     }
     // End-direction gate: a template whose stroke ENDS in a diagonal kick/exit
     // (k leg, v/w/x/y) cannot be the answer when NO drawn stroke ends diagonally
@@ -1143,15 +1144,16 @@ export function shapeGuess(drawnStrokes, templates) {
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
+    let reason = null;
     if (drawHasBar) {
-      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
-      if (!templateHasHorizontalRun(t)) excluded = true;
-      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) { excluded = true; reason = 'bar≠bowl'; }
+      if (!templateHasHorizontalRun(t)) { excluded = true; reason = 'bar:no-h-run'; }
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) { excluded = true; reason = 'low-bar'; }
     } else if (templateHasHorizontalRun(t)) {
       // Symmetric crossbar gate (see recognize): a template with a horizontal
       // run (t/f/e/z) cannot be the SHAPE of a drawing with NO horizontal bar —
       // the crossbar ink is absent. Stops a 2-stroke 'h' reading as 't'.
-      excluded = true;
+      excluded = true; reason = 'needs-bar';
     }
     // End-direction gate (see recognize): the 'h' hump ends in a vertical stem,
     // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
