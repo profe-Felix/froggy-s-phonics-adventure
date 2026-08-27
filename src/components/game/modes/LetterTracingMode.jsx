@@ -16,6 +16,10 @@ const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
 // Uppercase/lowercase remain distinct when separate waypoint records exist.
 const SPANISH_EXTRA = ['ñ'];
 
+// Default letters enabled for free-play Letter Tracing. Teachers toggle this
+// set on/off from the Letter Tracing Authoring page as letters are learned.
+const DEFAULT_ENABLED_LETTERS = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
+
 // -----------------------------------------------------------------------------
 // TRACING MASTERY SEQUENCE
 //
@@ -117,6 +121,12 @@ export default function LetterTracingMode({
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
 
+  // Teacher-managed progression: which letters are enabled for free play.
+  // Lesson steps pass their own `targets` and bypass this.
+  const [enabledLetters, setEnabledLetters] = useState(
+    DEFAULT_ENABLED_LETTERS
+  );
+
   // Green letters only. A letter enters this set after completing every stage.
   const [completedLetters, setCompletedLetters] = useState(new Set());
 
@@ -217,6 +227,32 @@ export default function LetterTracingMode({
   }, []);
 
   // ---------------------------------------------------------------------------
+  // LOAD TEACHER-ENABLED LETTERS
+  //
+  // Free-play Letter Tracing only shows the letters the teacher has toggled on
+  // (progression). Lesson steps pass their own `targets` and skip this.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    base44.entities.TracingSettings.filter({ scope: 'default' })
+      .then((records) => {
+        if (cancelled || !records || !records.length) return;
+
+        const rec = records[0];
+
+        if (Array.isArray(rec.enabled_letters)) {
+          setEnabledLetters(rec.enabled_letters);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // RESTORE SAVED STAGE STATE
   //
   // Per-letter tracing progress (stage index, successes, clean streak, repair
@@ -299,12 +335,7 @@ export default function LetterTracingMode({
     const raw =
       targets && targets.length > 0
         ? targets
-        : [
-            ...BASE_LETTERS,
-            ...(lang === 'es'
-              ? SPANISH_EXTRA
-              : []),
-          ];
+        : enabledLetters;
 
     return Array.from(
       new Set(
@@ -313,7 +344,7 @@ export default function LetterTracingMode({
           .filter(Boolean)
       )
     ).filter(l => waypoints[l]);
-  }, [targets, lang, waypoints]);
+  }, [targets, lang, waypoints, enabledLetters]);
 
   const pageCount = Math.max(
     1,

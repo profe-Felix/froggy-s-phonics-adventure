@@ -1,0 +1,78 @@
+{
+  "name": "TracingSettings",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "type": "string",
+      "default": "default",
+      "description": "Singleton key. Always 'default' \u2014 one global tracing progression setting."
+    },
+    "enabled_letters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "o",
+        "O",
+        "i",
+        "I",
+        "a",
+        "A",
+        "u",
+        "U",
+        "e",
+        "E"
+      ],
+      "description": "Case-sensitive letters currently enabled for Letter Tracing free play. Teachers toggle these on/off from the Letter Tracing Authoring page as letters are learned. Lesson steps pass their own targets and bypass this."
+    }
+  },
+  "required": [
+    "scope"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@ import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
+import TracingLetterToggle from '@/components/tracing/TracingLetterToggle';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
@@ -166,6 +167,8 @@ export default function LetterTracingAuthoring() {
             </button>
           </div>
         </div>
+
+        <TracingLetterToggle />
 
         {/* Letter picker + case toggle + hint */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5">
