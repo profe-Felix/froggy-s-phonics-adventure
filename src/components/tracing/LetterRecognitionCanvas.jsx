@@ -540,16 +540,26 @@ export default function LetterRecognitionCanvas({ templates }) {
             </div>
           ) : null}
           {result.ranked && result.guessKind !== 'inferred' && result.ranked.length > 0 && (
-            <div className="space-y-1.5">
-              {result.ranked.slice(0, 5).map((r) => (
-                <div key={r.letter} className="flex items-center gap-2">
-                  <span className={`w-5 text-sm font-bold ${r === result.ranked[0] ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${r === result.ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold px-1">
+                <span className="w-5">L</span>
+                <span className="flex-1">match</span>
+                <span className="w-10 text-right">%</span>
+                <span className="w-12 text-right">dist↓</span>
+              </div>
+              <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                {result.ranked.map((r) => (
+                  <div key={r.letter} className="flex items-center gap-2">
+                    <span className={`w-5 text-sm font-bold ${r === result.ranked[0] ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${r === result.ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+                    </div>
+                    <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{r.confidence}%</span>
+                    <span className="w-12 text-right text-[10px] text-slate-400 tabular-nums">{isFinite(r.dist) ? r.dist.toFixed(2) : '∞'}</span>
                   </div>
-                  <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{r.confidence}%</span>
-                </div>
-              ))}
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 px-1">All saved letters, best (lowest dist) first. ∞ = excluded by a gate.</p>
             </div>
           )}
           <div className="text-sm font-bold text-slate-700 text-center">I see {result.strokeResults.length} stroke{result.strokeResults.length === 1 ? '' : 's'}:</div>
@@ -599,17 +609,19 @@ export default function LetterRecognitionCanvas({ templates }) {
           ) : (
             <div className="text-center text-slate-500 p-3">No match — draw a letter first.</div>
           )}
-          {result.ranked.filter((r) => r.confidence > 0).slice(0, 6).map((r, i) => (
-            <div key={r.letter} className="flex items-center gap-2">
-              <span className={`w-5 text-sm font-bold ${i === 0 ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
-              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+          <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+            {result.ranked.map((r, i) => (
+              <div key={r.letter} className="flex items-center gap-2">
+                <span className={`w-5 text-sm font-bold ${i === 0 ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+                </div>
+                <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums">
+                  {isFinite(r.dist) ? `${Math.round(r.coverage * 100)}% cov · ${Math.round(r.extra * 100)}% waste` : 'excluded'}
+                </span>
               </div>
-              <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums">
-                {Math.round(r.coverage * 100)}% cov · {Math.round(r.extra * 100)}% waste
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
           <MatchOverlap segment={{ strokesPx: result.strokesPx, ranked: result.ranked.slice(0, 4) }} templates={templates} />
         </div>
       )}
@@ -635,19 +647,29 @@ export default function LetterRecognitionCanvas({ templates }) {
                   {' '}— correct letter, but the taught stroke path wasn't followed.
                 </div>
               )}
-              <div className="mt-3 space-y-1.5">
-                {result.segments[0].ranked.map((r) => (
-                  <div key={r.letter} className="flex items-center gap-2">
-                    <span className={`w-5 text-sm font-bold ${r === result.segments[0].ranked[0] ? TIER_TEXT[tierOf(result.segments[0])] : 'text-slate-600'}`}>{r.letter}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${r === result.segments[0].ranked[0] ? TIER_BAR[tierOf(result.segments[0])] : 'bg-slate-300'}`}
-                        style={{ width: `${r.confidence}%` }}
-                      />
+              <div className="mt-3 space-y-1">
+                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold px-1">
+                  <span className="w-5">L</span>
+                  <span className="flex-1">match</span>
+                  <span className="w-10 text-right">%</span>
+                  <span className="w-12 text-right">dist↓</span>
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                  {result.segments[0].ranked.map((r) => (
+                    <div key={r.letter} className="flex items-center gap-2">
+                      <span className={`w-5 text-sm font-bold ${r === result.segments[0].ranked[0] ? TIER_TEXT[tierOf(result.segments[0])] : 'text-slate-600'}`}>{r.letter}</span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${r === result.segments[0].ranked[0] ? TIER_BAR[tierOf(result.segments[0])] : 'bg-slate-300'}`}
+                          style={{ width: `${r.confidence}%` }}
+                        />
+                      </div>
+                      <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{r.confidence}%</span>
+                      <span className="w-12 text-right text-[10px] text-slate-400 tabular-nums">{isFinite(r.dist) ? r.dist.toFixed(2) : '∞'}</span>
                     </div>
-                    <span className="w-8 text-right text-xs text-slate-400 tabular-nums">{r.confidence}%</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-400 px-1">All saved letters, best (lowest dist) first. ∞ = excluded by a gate.</p>
               </div>
               <MatchOverlap segment={result.segments[0]} templates={templates} />
             </>

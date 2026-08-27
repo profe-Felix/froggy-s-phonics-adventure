@@ -1012,9 +1012,10 @@ export function recognize(drawnStrokes, templates) {
     // diagonal run) is irrelevant — the gate never excludes 'h', only 'z', and
     // only when the drawing genuinely has no diagonal. A real 'z' drawing HAS a
     // diagonal so 'z' is never excluded by this gate.
+    const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
-    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
-    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
+    if (drawingHasBowl(drawn) && isZ) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
       letter: t.letter,
@@ -1156,9 +1157,10 @@ export function shapeGuess(drawnStrokes, templates) {
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
     // an 'e' loop or 's' curve has none — exclude 'z'.
+    const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
-    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
-    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
+    if (drawingHasBowl(drawn) && isZ) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
       letter: t.letter,
@@ -1452,10 +1454,11 @@ export function traceMatch(drawnStrokes, templates) {
       excluded = true;
     }
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
+    const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
-    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
+    if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
     if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) excluded = true;
-    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (drawingHasBowl(drawn) && isZ) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     let coverage = 0, extra = 0, score = -1;
     if (!excluded) {
