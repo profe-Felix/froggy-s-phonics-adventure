@@ -84,25 +84,46 @@ function classMismatch(a, b) {
 // but the LETTER BODY is x-height (i) or a descender (j); matching must group by
 // where the body sits, not where the dot floats. This is the "i and j are a bit
 // special" rule — their dots never count toward their height zone.
+// Dot-aware height class: ignore dot strokes (the i/j tittle) so a dotted
+// x-height letter isn't misread as an ascender. The dot floats at ascender height
+// but the LETTER BODY is x-height (i) or a descender (j); matching must group by
+// where the body sits, not where the dot floats. This is the "i and j are a bit
+// special" rule — their dots never count toward their height zone.
+// solidlyX flags a body drawn DEEP in the x-height band (well off the top line and
+// the baseline) — used to keep a clearly x-height letter (e) off tall/descender
+// templates (A, g) while still letting a borderline-short tall letter (a short
+// 'l' that didn't quite reach the top, a short-tail 'g') match its own template.
+const DEEP_X = 0.08;
 function heightClassOf(strokes) {
   let minY = Infinity, maxY = -Infinity, any = false;
   for (const s of strokes) {
     if (!s || isDotStroke(s)) continue;
     for (const p of s) { any = true; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
   }
-  if (!any) return { ascender: false, descender: false };
-  return { ascender: minY < ASC_TOP, descender: maxY > DESC_BOT };
+  if (!any) return { ascender: false, descender: false, solidlyX: false };
+  const ascender = minY < ASC_TOP;
+  const descender = maxY > DESC_BOT;
+  const solidlyX = !ascender && !descender && minY >= ASC_TOP + DEEP_X && maxY <= DESC_BOT - DEEP_X;
+  return { ascender, descender, solidlyX };
 }
-// Asymmetric HARD height exclusion: a drawing TALLER than the template (reaches
-// the top line, or drops below the baseline) cannot be the shorter template — R
-// is not shrunk to fit a lowercase a, g is not shrunk to a non-descender. The
-// REVERSE is allowed: a kid's short 'l' (ink never quite reached the top) is
-// still an 'l', and a short 'g' is still 'g' — the "wiggle room" for letters that
-// don't quite reach their guide line. Dots are ignored (heightClassOf) so i/j
-// group by their stem. This is the user's "stretch only to closest thin / match
-// only with same positioning" rule, made hard.
-function heightExcludes(dClass, tClass) {
-  return (dClass.ascender && !tClass.ascender) || (dClass.descender && !tClass.descender);
+// HARD height exclusion — the user's "stretch only to closest thin / match only
+// with same positioning" rule. Two directions:
+//   1. A drawing TALLER than the template (reaches the top line, or drops below
+//      the baseline) cannot be the shorter template — R is not shrunk to a
+//      lowercase a, a real descender isn't shrunk to a non-descender.
+//   2. A drawing SOLIDLY in the x-height band (deep, not borderline) cannot be a
+//      tall (ascender) or descender template — e is not stretched up to A or
+//      down to g.
+// The REVERSE of (1) stays allowed on purpose: a kid's short 'l' (ink never quite
+// reached the top) is borderline, NOT solidlyX, so it still matches 'l'; a
+// short-tail 'g' is borderline and still matches 'g'. That is the "wiggle room"
+// for letters that don't quite reach their guide line. Dots are ignored so i/j
+// group by their stem.
+function heightExcludes(d, t) {
+  if (d.ascender && !t.ascender) return true;
+  if (d.descender && !t.descender) return true;
+  if (d.solidlyX && (t.ascender || t.descender)) return true;
+  return false;
 }
 
 // Anisotropically map the drawing onto the template, scaled around their
@@ -768,6 +789,41 @@ function templateHasBowl(t) {
 function drawingIsZigzag(drawn) {
   return drawn.some((s) => !isDotStroke(s) && strokeKind(s) === 'zigzag');
 }
+// z is TWO horizontal bars on DIFFERENT rows joined by a diagonal. An 'e' has
+// only ONE horizontal bar (its crossbar); the rest is curve — so an 'e' registers
+// a false diagonal run (hasDiagonalRun) but does NOT have z's two-bar structure.
+// Requiring two bars on different rows for a zigzag template is the reliable
+// e→z fix: hasDiagonalRun fires falsely on the e's curve, but the e has no second
+// bar. A real 'z' has both bars, so it is never excluded.
+const Z_BAR_W_FRAC = 0.30;
+const Z_BAR_STRAIGHT = 0.12;
+const Z_BAR_ROW_GAP = 0.12;
+function drawingHasTwoBarsOnDifferentRows(drawnNorm) {
+  const pts = [];
+  for (const s of drawnNorm) if (s) for (const p of s) pts.push(p);
+  if (pts.length < 4) return false;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  const w = maxX - minX, h = maxY - minY;
+  if (w < 0.05 || h < 0.05) return false;
+  const bars = [];
+  let runDx = 0, runMinY = Infinity, runMaxY = -Infinity;
+  const flush = () => {
+    if (runDx >= Z_BAR_W_FRAC * w && (runMaxY - runMinY) <= Z_BAR_STRAIGHT * h) bars.push((runMinY + runMaxY) / 2);
+    runDx = 0; runMinY = Infinity; runMaxY = -Infinity;
+  };
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x, dy = pts[i].y - pts[i - 1].y;
+    if (Math.abs(dx) >= 4 * Math.abs(dy) && Math.abs(dx) > 0.004) {
+      runDx += Math.abs(dx);
+      if (pts[i].y < runMinY) runMinY = pts[i].y;
+      if (pts[i].y > runMaxY) runMaxY = pts[i].y;
+    } else flush();
+  }
+  flush();
+  for (let i = 0; i < bars.length; i++) for (let j = i + 1; j < bars.length; j++) if (Math.abs(bars[i] - bars[j]) >= Z_BAR_ROW_GAP) return true;
+  return false;
+}
 
 // --- DIAGONAL gate (the user's "diagonal line test") ---
 // A 'k' leg is a straight DIAGONAL run (down-right then down-left at ~45°). An
@@ -957,6 +1013,7 @@ export function recognize(drawnStrokes, templates) {
     // only when the drawing genuinely has no diagonal. A real 'z' drawing HAS a
     // diagonal so 'z' is never excluded by this gate.
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
     if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
@@ -1100,6 +1157,7 @@ export function shapeGuess(drawnStrokes, templates) {
     // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
     // an 'e' loop or 's' curve has none — exclude 'z'.
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
     if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
@@ -1395,6 +1453,7 @@ export function traceMatch(drawnStrokes, templates) {
     }
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (templateIsZigzag(t) && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
     if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) excluded = true;
     if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
