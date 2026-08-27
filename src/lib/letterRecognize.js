@@ -1015,13 +1015,15 @@ export function recognize(drawnStrokes, templates) {
     const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
     if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
-    if (drawingHasBowl(drawn) && isZ) excluded = true;
-    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
-    return {
-      letter: t.letter,
-      dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
-      confidence: 0,
-    };
+    if (drawingHasBowl(drawn) && isZ) { excluded = true; reason = 'bowl≠z'; }
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) { excluded = true; reason = 'zigzag≠bowl'; }
+    let dist = Infinity;
+    if (!excluded) {
+      if (!strokeCountAllowed(n, t.strokes.length, t.strokes)) { excluded = true; reason = `count ${n}/${t.strokes.length}`; }
+      else if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) { excluded = true; reason = 'height'; }
+      else { dist = letterDistance(drawn, dBox, t.strokes); if (!isFinite(dist)) { excluded = true; reason = 'start-y/angle'; dist = Infinity; } }
+    }
+    return { letter: t.letter, dist: excluded ? Infinity : dist, confidence: 0, excludedBy: excluded ? reason : null };
   });
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
@@ -1160,13 +1162,15 @@ export function shapeGuess(drawnStrokes, templates) {
     const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
     if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
-    if (drawingHasBowl(drawn) && isZ) excluded = true;
-    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
-    return {
-      letter: t.letter,
-      dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
-      confidence: 0,
-    };
+    if (drawingHasBowl(drawn) && isZ) { excluded = true; reason = 'bowl≠z'; }
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) { excluded = true; reason = 'zigzag≠bowl'; }
+    let dist = Infinity;
+    if (!excluded) {
+      if (!strokeCountAllowed(n, t.strokes.length, t.strokes)) { excluded = true; reason = `count ${n}/${t.strokes.length}`; }
+      else if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) { excluded = true; reason = 'height'; }
+      else dist = shapeDistance(drawn, dBox, t.strokes);
+    }
+    return { letter: t.letter, dist: excluded ? Infinity : dist, confidence: 0, excludedBy: excluded ? reason : null };
   });
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const finite = results.filter((r) => isFinite(r.dist));
@@ -1446,20 +1450,21 @@ export function traceMatch(drawnStrokes, templates) {
   const drawEndsDiag = drawingEndsDiagonal(drawn);
   const results = templates.map((t) => {
     let excluded = false;
+    let reason = null;
     if (drawHasBar) {
-      if (NO_CROSSBAR_BOWLS.has(t.letter)) excluded = true;
-      if (!templateHasHorizontalRun(t)) excluded = true;
-      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) excluded = true;
+      if (NO_CROSSBAR_BOWLS.has(t.letter)) { excluded = true; reason = 'bar≠bowl'; }
+      if (!templateHasHorizontalRun(t)) { excluded = true; reason = 'bar:no-h-run'; }
+      if (lowBar && NO_LOW_CROSSBAR.has(t.letter)) { excluded = true; reason = 'low-bar'; }
     } else if (templateHasHorizontalRun(t)) {
-      excluded = true;
+      excluded = true; reason = 'needs-bar';
     }
-    if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
+    if (!drawEndsDiag && templateEndsDiagonal(t)) { excluded = true; reason = 'needs-diag-end'; }
     const isZ = t.letter === 'z' || t.letter === 'Z';
-    if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
-    if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) excluded = true;
-    if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) excluded = true;
-    if (drawingHasBowl(drawn) && isZ) excluded = true;
-    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
+    if (templateIsZigzag(t) && !drawHasDiag) { excluded = true; reason = 'needs-diag'; }
+    if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) { excluded = true; reason = 'needs-2-bars'; }
+    if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) { excluded = true; reason = 'height'; }
+    if (drawingHasBowl(drawn) && isZ) { excluded = true; reason = 'bowl≠z'; }
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) { excluded = true; reason = 'zigzag≠bowl'; }
     let coverage = 0, extra = 0, score = -1;
     if (!excluded) {
       const tBox = bbox(t.strokes);
@@ -1476,7 +1481,7 @@ export function traceMatch(drawnStrokes, templates) {
         score = coverage - TRACE_EXTRA_W * extra;
       }
     }
-    return { letter: t.letter, score: Math.max(0, score), coverage, extra, dist: excluded ? Infinity : (1 - Math.max(0, score)), confidence: 0 };
+    return { letter: t.letter, score: Math.max(0, score), coverage, extra, dist: excluded ? Infinity : (1 - Math.max(0, score)), confidence: 0, excludedBy: excluded ? reason : null };
   });
   results.sort((a, b) => (isFinite(a.dist) ? a.dist : Infinity) - (isFinite(b.dist) ? b.dist : Infinity));
   const active = results.filter((r) => isFinite(r.dist) && r.score > 0);
