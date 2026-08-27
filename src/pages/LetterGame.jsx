@@ -45,7 +45,17 @@ export default function LetterGame() {
   const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
   const [directStudentId] = useState(urlStudentId);
   const [studentData, setStudentData] = useState(null);
-  const [currentMode, setCurrentMode] = useState(null);
+  // Resume the last activity after a refresh so students don't land back on the
+  // main menu (e.g. a refresh while reading a book returns to that book+page).
+  const [currentMode, setCurrentMode] = useState(() => {
+    try { return localStorage.getItem('lg:lastMode') || null; } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      if (currentMode) localStorage.setItem('lg:lastMode', currentMode);
+      else localStorage.removeItem('lg:lastMode');
+    } catch { /* private mode / quota — ignore */ }
+  }, [currentMode]);
   const [activeLessonStep, setActiveLessonStep] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(null);

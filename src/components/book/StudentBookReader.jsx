@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { ACTIVE_SCHOOL_YEAR, todayLocal } from '@/lib/schoolYear';
+import { useToast } from '@/components/ui/use-toast';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
@@ -10,8 +11,22 @@ import useLaserTracker from '@/hooks/useLaserTracker';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import BackButton from '@/components/ui/BackButton';
 
-function getToday() {
-  return new Date().toISOString().slice(0, 10);
+// localStorage key remembering the last book + page this student opened, so a
+// refresh (or re-entering Books from the game menu) drops them back on the
+// exact page they left instead of the bookshelf.
+const restoreKey = (className, studentNumber) => `br:last:${className}:${studentNumber}`;
+function readRestore(className, studentNumber) {
+  try { return JSON.parse(localStorage.getItem(restoreKey(className, studentNumber)) || 'null'); } catch { return null; }
+}
+function writeRestore(className, studentNumber, book, page) {
+  try {
+    localStorage.setItem(restoreKey(className, studentNumber), JSON.stringify({
+      bookId: book?.id, bookTitle: book?.title, page,
+    }));
+  } catch { /* ignore quota / private-mode errors */ }
+}
+function clearRestore(className, studentNumber) {
+  try { localStorage.removeItem(restoreKey(className, studentNumber)); } catch { /* ignore */ }
 }
 
 function spreadKey(page) {
@@ -65,16 +80,19 @@ function TeacherSpeakerIcon({ annotation, containerSize }) {
   );
 }
 
-export default function StudentBookReader({ book, studentNumber, className, onBack, showQrButton = false, onShowQR }) {
+export default function StudentBookReader({ book, studentNumber, className, onBack, showQrButton = false, onShowQR, initialPage }) {
   const qc = useQueryClient();
-  const [currentPage, setCurrentPage] = useState(1);
+  const { toast } = useToast();
+  const restoredPage = readRestore(className, studentNumber)?.page;
+  const startPage = (initialPage && initialPage >= 1 && initialPage <= (book.pdf_page_count || 1)) ? initialPage : (restoredPage || 1);
+  const [currentPage, setCurrentPage] = useState(startPage);
   const [twoPerPage, setTwoPerPage] = useState(false);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const audioRef = useRef(null);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
-  const today = getToday();
+  const today = todayLocal();
 
   const recKey = twoPerPage ? spreadKey(currentPage) : currentPage;
 
@@ -90,13 +108,17 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   });
 
   const session = sessions[0] || null;
-  const sessionRef = useRef(session);
-  useEffect(() => { sessionRef.current = session; }, [session]);
 
   const getSpreadRecording = useCallback((key) => {
     if (!session) return null;
     return (session.recordings || []).find(r => r.page === key) || null;
   }, [session]);
+
+  // Persist the current book + page so a refresh (or re-entering Books from the
+  // game menu) reopens on this exact page instead of the bookshelf.
+  useEffect(() => {
+    writeRestore(className, studentNumber, book, currentPage);
+  }, [className, studentNumber, book, currentPage]);
 
   const laserTracker = useLaserTracker({ containerRef, enabled: true });
 
@@ -110,7 +132,6 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     resumeRecording,
     stopRecording,
     reset: resetRecorder,
-    getBlob,
   } = useAudioRecorder();
 
   // Keep recState in a ref for use in navigation callbacks
@@ -159,76 +180,112 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
 
   const handleStop = async () => {
     laserTracker.stopRecordingLaser();
-    // Wait for the recorder to finalize the blob before saving — otherwise
-    // the save can bail out (no blob yet) and leave "Saving…" stuck forever.
-    await stopRecording();
-    saveRecording();
+    // stopRecording resolves with the finalized blob (see useAudioRecorder);
+    // awaiting it means the blob is ready before we save, so the save never
+    // bails on a missing blob and the "Saving…" state never gets stuck.
+    const blob = await stopRecording();
+    await saveRecording(blob, recKey);
   };
 
-  // saveRecording saves for a given recKey (defaults to current)
-  const saveRecording = useCallback(async (keyOverride) => {
-    const blob = getBlob();
+  // saveRecording uploads the audio and upserts the student's session for today.
+  // Robustness rules (this is the fix for "recordings don't save" + "gets stuck"):
+  //   • The blob is passed in explicitly (not read from a ref that may be stale).
+  //   • We re-query the existing session at save time instead of trusting a ref —
+  //     the old code created a DUPLICATE session whenever the post-save refetch
+  //     hadn't landed yet, fragmenting one student's recordings across many
+  //     sessions (18 sessions for one student was the symptom). The fresh query
+  //     guarantees a single session per student/book/day.
+  //   • try/catch/finally: any failure (upload, network, write) surfaces a toast
+  //     and ALWAYS resets the recorder + uploading flag, so the UI can never
+  //     freeze on "Saving…".
+  //   • A save-in-flight guard serializes concurrent saves (stop + quick nav).
+  const saveInFlightRef = useRef(null);
+  const saveRecording = useCallback(async (blob, keyOverride) => {
     if (!blob) return;
     const key = keyOverride ?? recKey;
-    setUploading(true);
-    const file = new File([blob], `book-read-p${key}-${Date.now()}.webm`, { type: 'audio/webm' });
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    const ld = laserTracker.getLaserData();
-    const newRec = {
-      page: key,
-      audio_url: file_url,
-      laser_data: ld,
-      recorded_at: new Date().toISOString(),
-      is_spread: twoPerPage,
+    const run = async () => {
+      setUploading(true);
+      try {
+        const file = new File([blob], `book-read-p${key}-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        const ld = laserTracker.getLaserData();
+        const newRec = {
+          page: key,
+          audio_url: file_url,
+          laser_data: ld,
+          recorded_at: new Date().toISOString(),
+          is_spread: twoPerPage,
+        };
+
+        // Fresh upsert: find this student's session for today before writing.
+        const existing = await base44.entities.BookReadingSession.filter({
+          book_id: book.id,
+          class_name: className,
+          student_number: studentNumber,
+          school_year: ACTIVE_SCHOOL_YEAR,
+          session_date: today,
+        });
+        const currentSession = existing[0] || null;
+        const prevRecs = currentSession?.recordings || [];
+        const filtered = twoPerPage
+          ? prevRecs.filter(r => r.page !== key && r.page !== key + 1)
+          : prevRecs.filter(r => r.page !== key);
+        const updatedRecs = [...filtered, newRec];
+        const newPages = twoPerPage
+          ? [key, key + 1 <= totalPages ? key + 1 : null].filter(Boolean)
+          : [key];
+        const updatedPages = Array.from(new Set([...(currentSession?.pages_completed || []), ...newPages]));
+
+        if (currentSession) {
+          await base44.entities.BookReadingSession.update(currentSession.id, {
+            recordings: updatedRecs,
+            pages_completed: updatedPages,
+            last_page: currentPage,
+          });
+        } else {
+          await base44.entities.BookReadingSession.create({
+            book_id: book.id,
+            class_name: className,
+            student_number: studentNumber,
+            school_year: ACTIVE_SCHOOL_YEAR,
+            session_date: today,
+            recordings: [newRec],
+            pages_completed: updatedPages,
+            last_page: currentPage,
+          });
+        }
+
+        setSpreadRecording(newRec);
+        await refetch();
+      } catch (e) {
+        console.error('Book recording save failed', e);
+        toast({
+          title: 'Recording not saved',
+          description: 'Please check the connection and try recording that page again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setUploading(false);
+        resetRecorder();
+        laserTracker.clearLaser();
+      }
     };
+    // Serialize: if a save is already running, wait for it before starting the next.
+    if (saveInFlightRef.current) { try { await saveInFlightRef.current; } catch { /* swallow; our own try/catch handles ours */ } }
+    saveInFlightRef.current = run();
+    try { await saveInFlightRef.current; } finally { saveInFlightRef.current = null; }
+  }, [recKey, twoPerPage, totalPages, currentPage, laserTracker, resetRecorder, refetch, book, className, studentNumber, today, toast]);
 
-    const currentSession = sessionRef.current;
-    const prevRecs = currentSession?.recordings || [];
-    const filtered = twoPerPage
-      ? prevRecs.filter(r => r.page !== key && r.page !== key + 1)
-      : prevRecs.filter(r => r.page !== key);
-    const updatedRecs = [...filtered, newRec];
-    const newPages = twoPerPage
-      ? [key, key + 1 <= totalPages ? key + 1 : null].filter(Boolean)
-      : [key];
-    const updatedPages = Array.from(new Set([...(currentSession?.pages_completed || []), ...newPages]));
-
-    if (currentSession) {
-      await base44.entities.BookReadingSession.update(currentSession.id, {
-        recordings: updatedRecs,
-        pages_completed: updatedPages,
-        last_page: currentPage,
-      });
-    } else {
-      await base44.entities.BookReadingSession.create({
-        book_id: book.id,
-        class_name: className,
-        student_number: studentNumber,
-        school_year: ACTIVE_SCHOOL_YEAR,
-        session_date: today,
-        recordings: [newRec],
-        pages_completed: updatedPages,
-        last_page: currentPage,
-      });
-    }
-
-    setSpreadRecording(newRec);
-    setUploading(false);
-    resetRecorder();
-    laserTracker.clearLaser();
-    refetch();
-  }, [getBlob, recKey, twoPerPage, totalPages, currentPage, laserTracker, resetRecorder, refetch, book, className, studentNumber, today]);
-
-  // Navigate to a new page — stop+save any active/stopped recording first
+  // Navigate to a new page — stop+save any active recording first, then persist
+  // the new page so a refresh returns here.
   const navigateTo = useCallback(async (newPage) => {
     const state = recStateRef.current;
+    let blob = null;
     if (state === 'recording' || state === 'paused') {
       laserTracker.stopRecordingLaser();
-      await stopRecording();
+      blob = await stopRecording();
     }
-    if (recStateRef.current === 'stopped' || state === 'recording' || state === 'paused') {
-      await saveRecording(recKey);
-    }
+    if (blob) await saveRecording(blob, recKey);
     setCurrentPage(newPage);
     setShowReplay(false);
   }, [saveRecording, recKey, stopRecording, laserTracker]);

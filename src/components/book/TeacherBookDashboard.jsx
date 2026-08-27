@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { ACTIVE_SCHOOL_YEAR, todayLocal } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
@@ -22,7 +22,7 @@ export default function TeacherBookDashboard({ onBack }) {
   const [newTitle, setNewTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [reviewDate, setReviewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reviewDate, setReviewDate] = useState(todayLocal());
   const [qrBook, setQrBook] = useState(null);
   const [qrBookClass, setQrBookClass] = useState('Felix');
 
