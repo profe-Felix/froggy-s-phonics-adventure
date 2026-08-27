@@ -96,6 +96,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
 
   const recKey = twoPerPage ? spreadKey(currentPage) : currentPage;
 
+  // Sort newest-first so if duplicate sessions exist (a known past bug), the
+  // newest one — which has the latest recording — is preferred.
   const { data: sessions = [], refetch } = useQuery({
     queryKey: ['book-sessions', book.id, studentNumber, today],
     queryFn: () => base44.entities.BookReadingSession.filter({
@@ -104,15 +106,21 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       student_number: studentNumber,
       school_year: ACTIVE_SCHOOL_YEAR,
       session_date: today,
-    }),
+    }, '-created_date'),
   });
 
-  const session = sessions[0] || null;
-
+  // Search ALL sessions for this page's recording — not just sessions[0]. Past
+  // duplicate-session bugs left many sessions per student/book/day, each with
+  // only one page's recording. Looking at just the first session meant a
+  // recording that was saved (it's in the DB) looked gone after refresh because
+  // the first session didn't have that page.
   const getSpreadRecording = useCallback((key) => {
-    if (!session) return null;
-    return (session.recordings || []).find(r => r.page === key) || null;
-  }, [session]);
+    for (const s of sessions) {
+      const rec = (s.recordings || []).find(r => r.page === key);
+      if (rec) return rec;
+    }
+    return null;
+  }, [sessions]);
 
   // Persist the current book + page so a refresh (or re-entering Books from the
   // game menu) reopens on this exact page instead of the bookshelf.
@@ -147,7 +155,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     const rec = getSpreadRecording(recKey);
     setSpreadRecording(rec || null);
     setShowReplay(false);
-  }, [recKey, session]);
+  }, [recKey, sessions]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -217,31 +225,53 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           is_spread: twoPerPage,
         };
 
-        // Fresh upsert: find this student's session for today before writing.
+        // Fresh upsert: find this student's session(s) for today before writing.
+        // A past bug created a NEW session per recording (the "existing" filter
+        // missed the prior session due to eventual consistency), fragmenting one
+        // student's recordings across many sessions. We now MERGE all of them:
+        // collect every recording from every session, dedupe by page (keep the
+        // latest), update the first session with the merged set, and delete the
+        // rest — collapsing duplicates back into a single session.
         const existing = await base44.entities.BookReadingSession.filter({
           book_id: book.id,
           class_name: className,
           student_number: studentNumber,
           school_year: ACTIVE_SCHOOL_YEAR,
           session_date: today,
-        });
-        const currentSession = existing[0] || null;
-        const prevRecs = currentSession?.recordings || [];
-        const filtered = twoPerPage
-          ? prevRecs.filter(r => r.page !== key && r.page !== key + 1)
-          : prevRecs.filter(r => r.page !== key);
-        const updatedRecs = [...filtered, newRec];
+        }, '-created_date');
+        // Merge recordings from all existing sessions, deduped by page (newest wins).
+        const recsByPage = new Map();
+        const allPages = new Set();
+        for (const s of existing) {
+          for (const r of (s.recordings || [])) {
+            const prev = recsByPage.get(r.page);
+            if (!prev || (r.recorded_at || '') > (prev.recorded_at || '')) recsByPage.set(r.page, r);
+          }
+          for (const p of (s.pages_completed || [])) allPages.add(p);
+        }
+        const primarySession = existing[0] || null;
+        const extraSessions = existing.slice(1);
+
+        // Replace the page being recorded (and its 2-up pair) with the new rec.
+        const pagesToReplace = twoPerPage ? [key, key + 1] : [key];
+        for (const p of pagesToReplace) recsByPage.delete(p);
+        recsByPage.set(key, newRec);
+        const updatedRecs = Array.from(recsByPage.values());
         const newPages = twoPerPage
           ? [key, key + 1 <= totalPages ? key + 1 : null].filter(Boolean)
           : [key];
-        const updatedPages = Array.from(new Set([...(currentSession?.pages_completed || []), ...newPages]));
+        const updatedPages = Array.from(new Set([...allPages, ...newPages]));
 
-        if (currentSession) {
-          await base44.entities.BookReadingSession.update(currentSession.id, {
+        if (primarySession) {
+          await base44.entities.BookReadingSession.update(primarySession.id, {
             recordings: updatedRecs,
             pages_completed: updatedPages,
             last_page: currentPage,
           });
+          // Delete duplicate sessions from the past bug.
+          for (const s of extraSessions) {
+            try { await base44.entities.BookReadingSession.delete(s.id); } catch { /* best-effort cleanup */ }
+          }
         } else {
           await base44.entities.BookReadingSession.create({
             book_id: book.id,
@@ -249,7 +279,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
             student_number: studentNumber,
             school_year: ACTIVE_SCHOOL_YEAR,
             session_date: today,
-            recordings: [newRec],
+            recordings: updatedRecs,
             pages_completed: updatedPages,
             last_page: currentPage,
           });
