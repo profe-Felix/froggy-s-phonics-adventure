@@ -1003,7 +1003,10 @@ export function recognize(drawnStrokes, templates) {
     // (k leg, v/w/x/y) cannot be the answer when NO drawn stroke ends diagonally
     // — the 'h' hump ends in a VERTICAL stem, not a kick. This is the robust
     // h→k discriminator (the 'k' leg ends diagonally; the 'h' stem ends vertical).
-    if (!drawEndsDiag && templateEndsDiagonal(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
+    // read as diagonal — they have no genuine diagonal kick, so the end-direction
+    // gate (built for k/v/w/x/y exits) must not exclude them.
+    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
     // Zigzag-diagonal gate: 'z' is a ZIGZAG — two horizontal bars joined by a
     // straight DIAGONAL. An 'e' (a closed loop) and an 's' (an S-curve) have NO
     // diagonal — they contain no straight diagonal run — so they cannot be 'z':
@@ -1158,7 +1161,10 @@ export function shapeGuess(drawnStrokes, templates) {
     // End-direction gate (see recognize): the 'h' hump ends in a vertical stem,
     // the 'k' leg ends in a diagonal kick — exclude templates needing a diagonal
     // end when no drawn stroke ends diagonally.
-    if (!drawEndsDiag && templateEndsDiagonal(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
+    // read as diagonal — they have no genuine diagonal kick, so the end-direction
+    // gate (built for k/v/w/x/y exits) must not exclude them.
+    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
     // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
     // an 'e' loop or 's' curve has none — exclude 'z'.
     const isZ = t.letter === 'z' || t.letter === 'Z';
@@ -1460,7 +1466,10 @@ export function traceMatch(drawnStrokes, templates) {
     } else if (templateHasHorizontalRun(t)) {
       excluded = true; reason = 'needs-bar';
     }
-    if (!drawEndsDiag && templateEndsDiagonal(t)) { excluded = true; reason = 'needs-diag-end'; }
+    // Bowl/loop letters (e, a, o, c…) close with a curved tuck whose tangent can
+    // read as diagonal — they have no genuine diagonal kick, so the end-direction
+    // gate (built for k/v/w/x/y exits) must not exclude them.
+    if (!drawEndsDiag && templateEndsDiagonal(t) && !templateHasBowl(t)) { excluded = true; reason = 'needs-diag-end'; }
     const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) { excluded = true; reason = 'needs-diag'; }
     if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) { excluded = true; reason = 'needs-2-bars'; }
