@@ -56,7 +56,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
   );
 }
 
-function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, directBookTitle, directBookId, initialPage }) {
+function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, directBookTitle, directBookId, initialPage, suppressAutoSelect }) {
   // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
 
@@ -68,18 +68,21 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
 
   // Auto-select book when a direct link is provided (URL title, restored id, or
   // the last-opened book). A directBookId takes priority (restored last book),
-  // then directBookTitle (QR/assignment deep-link).
+  // then directBookTitle (QR/assignment deep-link). Skipped when the student
+  // explicitly backed out of the reader (suppressAutoSelect) — otherwise the
+  // bookshelf would immediately re-open the same book from the URL `book` param.
   useEffect(() => {
-    if (books.length === 0) return;
-    if (directBookId) {
-      const match = books.find(b => b.id === directBookId);
-      if (match) { onSelectBook(match, initialPage); return; }
-    }
-    if (directBookTitle) {
-      const match = books.find(b => b.title?.toLowerCase().trim() === directBookTitle.toLowerCase().trim());
-      if (match) { onSelectBook(match, initialPage); return; }
-    }
-  }, [books, directBookId, directBookTitle, initialPage]);
+  if (suppressAutoSelect) return;
+  if (books.length === 0) return;
+  if (directBookId) {
+    const match = books.find(b => b.id === directBookId);
+    if (match) { onSelectBook(match, initialPage); return; }
+  }
+  if (directBookTitle) {
+    const match = books.find(b => b.title?.toLowerCase().trim() === directBookTitle.toLowerCase().trim());
+    if (match) { onSelectBook(match, initialPage); return; }
+  }
+  }, [books, directBookId, directBookTitle, initialPage, suppressAutoSelect]);
 
   // Sort by queue_order, then figure out which books the student can access
   const sortedBooks = [...books].sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0));
@@ -227,6 +230,10 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   const [autoResolved, setAutoResolved] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [qrClass, setQrClass] = useState('');
+  // When the student explicitly backs out of a book, set this to suppress the
+  // auto-select that would immediately re-open the same book from the URL `book`
+  // param. Without this, hitting back just bounces back into the reader.
+  const [suppressAutoSelect, setSuppressAutoSelect] = useState(false);
 
   // Restore the last student + book + page from localStorage so a refresh (or
   // re-entering Books from the game menu) drops the student back on the exact
@@ -286,7 +293,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
           studentNumber={studentInfo.number}
           className={studentInfo.className}
           initialPage={readerInitialPage}
-          onBack={() => { setSelectedBook(null); setReaderInitialPage(null); }}
+          onBack={() => { setSelectedBook(null); setReaderInitialPage(null); setSuppressAutoSelect(true); }}
           showQrButton={!!urlBook}
           onShowQR={() => setShowQR(true)}
         />
@@ -329,6 +336,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
           directBookTitle={urlBook}
           directBookId={restore?.bookId}
           initialPage={restore?.page}
+          suppressAutoSelect={suppressAutoSelect}
           onSelectBook={(b, page) => { setSelectedBook(b); if (page) setReaderInitialPage(page); }}
         />
       </div>

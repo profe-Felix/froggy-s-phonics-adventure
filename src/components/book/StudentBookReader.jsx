@@ -192,7 +192,14 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     // awaiting it means the blob is ready before we save, so the save never
     // bails on a missing blob and the "Saving…" state never gets stuck.
     const blob = await stopRecording();
-    await saveRecording(blob, recKey);
+    if (blob) {
+      await saveRecording(blob, recKey);
+    } else {
+      // No blob (recorder was already inactive / stream cut) — still reset so
+      // the UI doesn't freeze on "Saving…" forever.
+      resetRecorder();
+      laserTracker.clearLaser();
+    }
   };
 
   // saveRecording uploads the audio and upserts the student's session for today.
@@ -286,6 +293,24 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         }
 
         setSpreadRecording(newRec);
+        // Optimistically update the query cache so the recording is immediately
+        // visible — refetch() can return stale data (DB eventual consistency),
+        // and the [recKey, sessions] useEffect would then overwrite
+        // spreadRecording with null, making the recording look gone.
+        qc.setQueryData(['book-sessions', book.id, studentNumber, today], (old) => {
+          const arr = (old || []).slice();
+          if (arr.length === 0) {
+            arr.push({
+              id: primarySession?.id || 'temp',
+              book_id: book.id, class_name: className, student_number: studentNumber,
+              school_year: ACTIVE_SCHOOL_YEAR, session_date: today,
+              recordings: updatedRecs, pages_completed: updatedPages, last_page: currentPage,
+            });
+          } else {
+            arr[0] = { ...arr[0], recordings: updatedRecs, pages_completed: updatedPages, last_page: currentPage };
+          }
+          return arr;
+        });
         await refetch();
       } catch (e) {
         console.error('Book recording save failed', e);
@@ -314,11 +339,26 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     if (state === 'recording' || state === 'paused') {
       laserTracker.stopRecordingLaser();
       blob = await stopRecording();
+      if (!blob) resetRecorder(); // recorder was inactive — reset so UI doesn't freeze
     }
     if (blob) await saveRecording(blob, recKey);
     setCurrentPage(newPage);
     setShowReplay(false);
-  }, [saveRecording, recKey, stopRecording, laserTracker]);
+  }, [saveRecording, recKey, stopRecording, laserTracker, resetRecorder]);
+
+  // Exit the reader — stop+save any active recording first so the mic is
+  // released and the recording isn't lost. Without this, onBack just unmounted
+  // the component mid-recording, leaving the mic on and the audio unsaved.
+  const handleBack = useCallback(async () => {
+    const state = recStateRef.current;
+    if (state === 'recording' || state === 'paused') {
+      laserTracker.stopRecordingLaser();
+      const blob = await stopRecording();
+      if (blob) await saveRecording(blob, recKey);
+      else resetRecorder();
+    }
+    onBack();
+  }, [saveRecording, recKey, stopRecording, laserTracker, resetRecorder, onBack]);
 
   const step = twoPerPage ? 2 : 1;
   const canGoNext = currentPage + step - 1 < totalPages;
@@ -438,7 +478,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488', paddingTop: 'env(safe-area-inset-top)' }}>
-        <BackButton tone="teal" onClick={onBack} />
+        <BackButton tone="teal" onClick={handleBack} />
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold shrink-0">#{studentNumber}</span>
         <button onClick={handleToggle2Up}
