@@ -79,6 +79,32 @@ function classMismatch(a, b) {
   return (a.ascender && !b.ascender) || (a.descender && !b.descender);
 }
 
+// Dot-aware height class: ignore dot strokes (the i/j tittle) so a dotted
+// x-height letter isn't misread as an ascender. The dot floats at ascender height
+// but the LETTER BODY is x-height (i) or a descender (j); matching must group by
+// where the body sits, not where the dot floats. This is the "i and j are a bit
+// special" rule — their dots never count toward their height zone.
+function heightClassOf(strokes) {
+  let minY = Infinity, maxY = -Infinity, any = false;
+  for (const s of strokes) {
+    if (!s || isDotStroke(s)) continue;
+    for (const p of s) { any = true; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+  }
+  if (!any) return { ascender: false, descender: false };
+  return { ascender: minY < ASC_TOP, descender: maxY > DESC_BOT };
+}
+// Asymmetric HARD height exclusion: a drawing TALLER than the template (reaches
+// the top line, or drops below the baseline) cannot be the shorter template — R
+// is not shrunk to fit a lowercase a, g is not shrunk to a non-descender. The
+// REVERSE is allowed: a kid's short 'l' (ink never quite reached the top) is
+// still an 'l', and a short 'g' is still 'g' — the "wiggle room" for letters that
+// don't quite reach their guide line. Dots are ignored (heightClassOf) so i/j
+// group by their stem. This is the user's "stretch only to closest thin / match
+// only with same positioning" rule, made hard.
+function heightExcludes(dClass, tClass) {
+  return (dClass.ascender && !tClass.ascender) || (dClass.descender && !tClass.descender);
+}
+
 // Anisotropically map the drawing onto the template, scaled around their
 // CENTERS. x and y scale independently so a skinny letter widens and a squashed
 // letter stretches to the template's proportions. BUT the aspect distortion is
@@ -475,7 +501,6 @@ function scoreGrouping(aGroups, dGroups, dGroupStrokes, tmpl, n, m, dBox, tBox) 
   const costs = aGroups.map((g, j) => strokeDtw(g, tmpl[j]));
   let dist = costs.reduce((s, c) => s + c, 0) / costs.length;
   dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
-  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   for (let j = 0; j < m; j++) {
     const dk = fusedGroupKind(dGroupStrokes[j]);
     const tk = tmplKind(tmpl, j);
@@ -559,6 +584,7 @@ function pairCosts(drawn, dBox, tmpl) {
 // A single drawn stroke, or fewer strokes than the template, uses the ordered
 // un-fused match (with the dot-aware pairing) plus the stroke-count penalty.
 function letterDistance(drawn, dBox, tmpl) {
+  if (heightExcludes(heightClassOf(drawn), heightClassOf(tmpl))) return Infinity;
   const n = drawn.length, m = tmpl.length;
   const tBox = bbox(tmpl);
   if (n >= m && n > 1) {
@@ -583,7 +609,6 @@ function letterDistance(drawn, dBox, tmpl) {
   // unmatched strokes (extra or missing) cost a flat penalty each — this is what
   // keeps a 2-stroke 't' from collapsing into a 1-stroke 'l'.
   dist += STROKE_COUNT_PENALTY * Math.abs(n - m);
-  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   // Per-stroke structural + start-position deductions. A bowl is not a bent
   // chevron even if DTW warps them close (KIND_PENALTY), AND a stroke that begins
   // somewhere different from the taught path costs more.
@@ -725,6 +750,23 @@ function templateHasHorizontalRun(t) {
 function templateIsZigzag(t) {
   if (!t || !Array.isArray(t.strokes)) return false;
   return t.strokes.some((s, i) => tmplKind(t.strokes, i) === 'zigzag');
+}
+// A closed bowl loop (e, o, a, d, b, p, g, q) is never an open zigzag (z), and
+// vice versa. The structural-kind penalty alone wasn't enough to keep 'z' off a
+// well-drawn 'e' (a closed loop with a crossbar), so this is a hard exclusion —
+// the e→z fix.
+function drawingHasBowl(drawn) {
+  return drawn.some((s) => !isDotStroke(s) && strokeClassifyFull(s).kind === 'bowl');
+}
+const _bowlCache = new WeakMap();
+function templateHasBowl(t) {
+  if (_bowlCache.has(t)) return _bowlCache.get(t);
+  const v = (t.strokes || []).some((s) => !isDotStroke(s) && strokeClassifyFull(s).kind === 'bowl');
+  _bowlCache.set(t, v);
+  return v;
+}
+function drawingIsZigzag(drawn) {
+  return drawn.some((s) => !isDotStroke(s) && strokeKind(s) === 'zigzag');
 }
 
 // --- DIAGONAL gate (the user's "diagonal line test") ---
@@ -915,6 +957,8 @@ export function recognize(drawnStrokes, templates) {
     // only when the drawing genuinely has no diagonal. A real 'z' drawing HAS a
     // diagonal so 'z' is never excluded by this gate.
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? letterDistance(drawn, dBox, t.strokes) : Infinity),
@@ -1004,11 +1048,11 @@ function shapeStructPenalty(drawn, tmpl) {
   return pen;
 }
 function shapeDistance(drawn, dBox, tmpl) {
+  if (heightExcludes(heightClassOf(drawn), heightClassOf(tmpl))) return Infinity;
   const tBox = bbox(tmpl);
   const aligned = alignTo(drawn, dBox, tBox);
   let dist = chamfer(allPoints(aligned, SHAPE_R), allPoints(tmpl, SHAPE_R));
   dist += shapeStructPenalty(drawn, tmpl);
-  if (classMismatch(heightClass(dBox), heightClass(tBox))) dist += HEIGHT_CLASS_PENALTY;
   return dist;
 }
 // drawnStrokes: array of strokes in canvas px. templates: [{ letter, strokes }].
@@ -1056,6 +1100,8 @@ export function shapeGuess(drawnStrokes, templates) {
     // Zigzag-diagonal gate (see recognize): 'z' requires a diagonal connector;
     // an 'e' loop or 's' curve has none — exclude 'z'.
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     return {
       letter: t.letter,
       dist: excluded ? Infinity : (strokeCountAllowed(n, t.strokes.length, t.strokes) ? shapeDistance(drawn, dBox, t.strokes) : Infinity),
@@ -1349,6 +1395,9 @@ export function traceMatch(drawnStrokes, templates) {
     }
     if (!drawEndsDiag && templateEndsDiagonal(t)) excluded = true;
     if (templateIsZigzag(t) && !drawHasDiag) excluded = true;
+    if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) excluded = true;
+    if (drawingHasBowl(drawn) && templateIsZigzag(t)) excluded = true;
+    if (drawingIsZigzag(drawn) && templateHasBowl(t)) excluded = true;
     let coverage = 0, extra = 0, score = -1;
     if (!excluded) {
       const tBox = bbox(t.strokes);
