@@ -545,7 +545,7 @@ export default function LetterRecognitionCanvas({ templates }) {
                 <span className="w-5">L</span>
                 <span className="flex-1">match</span>
                 <span className="w-10 text-right">%</span>
-                <span className="w-12 text-right">dist↓</span>
+                <span className="w-24 text-right">dist / why excluded</span>
               </div>
               <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
                 {result.ranked.map((r) => (
@@ -555,13 +555,14 @@ export default function LetterRecognitionCanvas({ templates }) {
                       <div className={`h-full rounded-full ${r === result.ranked[0] ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
                     </div>
                     <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{r.confidence}%</span>
-                    <span className="w-12 text-right text-[10px] text-slate-400 tabular-nums">{isFinite(r.dist) ? r.dist.toFixed(2) : '∞'}</span>
+                    <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums truncate" title={r.excludedBy || ''}>{isFinite(r.dist) ? r.dist.toFixed(2) : (r.excludedBy || '∞')}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400 px-1">All saved letters, best (lowest dist) first. ∞ = excluded by a gate.</p>
+              <p className="text-[10px] text-slate-400 px-1">All saved letters, best first. Excluded letters show the gate that rejected them.</p>
             </div>
           )}
+          <MatchOverlap segment={{ strokesPx: strokes, ranked: result.ranked.slice(0, 4) }} templates={templates} />
           <div className="text-sm font-bold text-slate-700 text-center">I see {result.strokeResults.length} stroke{result.strokeResults.length === 1 ? '' : 's'}:</div>
           {result.strokeResults.map((s) => (
             <div key={s.idx} className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
@@ -616,8 +617,8 @@ export default function LetterRecognitionCanvas({ templates }) {
                 <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
                 </div>
-                <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums">
-                  {isFinite(r.dist) ? `${Math.round(r.coverage * 100)}% cov · ${Math.round(r.extra * 100)}% waste` : 'excluded'}
+                <span className="w-28 text-right text-[10px] text-slate-400 tabular-nums truncate" title={r.excludedBy || ''}>
+                  {isFinite(r.dist) ? `${Math.round(r.coverage * 100)}% cov · ${Math.round(r.extra * 100)}% waste` : (r.excludedBy || 'excluded')}
                 </span>
               </div>
             ))}
@@ -652,7 +653,7 @@ export default function LetterRecognitionCanvas({ templates }) {
                   <span className="w-5">L</span>
                   <span className="flex-1">match</span>
                   <span className="w-10 text-right">%</span>
-                  <span className="w-12 text-right">dist↓</span>
+                  <span className="w-24 text-right">dist / why excluded</span>
                 </div>
                 <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
                   {result.segments[0].ranked.map((r) => (
@@ -665,11 +666,11 @@ export default function LetterRecognitionCanvas({ templates }) {
                         />
                       </div>
                       <span className="w-10 text-right text-[10px] text-slate-400 tabular-nums">{r.confidence}%</span>
-                      <span className="w-12 text-right text-[10px] text-slate-400 tabular-nums">{isFinite(r.dist) ? r.dist.toFixed(2) : '∞'}</span>
+                      <span className="w-24 text-right text-[10px] text-slate-400 tabular-nums truncate" title={r.excludedBy || ''}>{isFinite(r.dist) ? r.dist.toFixed(2) : (r.excludedBy || '∞')}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-[10px] text-slate-400 px-1">All saved letters, best (lowest dist) first. ∞ = excluded by a gate.</p>
+                <p className="text-[10px] text-slate-400 px-1">All saved letters, best first. Excluded letters show the gate that rejected them.</p>
               </div>
               <MatchOverlap segment={result.segments[0]} templates={templates} />
             </>
