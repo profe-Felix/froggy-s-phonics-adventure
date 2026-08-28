@@ -81,7 +81,7 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [letter]);
+  }, [letter, strokes]);
 
   const pathD = (pts) => pts.length < 2 ? '' :
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
@@ -127,29 +127,36 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
   const [phase, setPhase] = useState('demo');
   const [demoIdx, setDemoIdx] = useState(0);
   const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+  // Don't render the demo until teacher-authored waypoints have loaded from the
+  // DB. Without this gate, LetterReplay starts animating with the hardcoded
+  // fallback waypoints (which look wrong/outdated), and its animation effect
+  // (deps: [letter]) never re-runs when the real waypoints arrive — so the
+  // student sees the wrong letter shapes for the entire demo.
+  const [waypointsLoaded, setWaypointsLoaded] = useState(false);
 
-  // Load teacher-authored waypoints from the database so the demo and student
-  // trace use the same calibrated paths as LetterTracingMode / WordTracingMode.
   useEffect(() => {
     let cancelled = false;
     base44.entities.LetterWaypoint.list()
       .then((records) => {
-        if (cancelled || !Array.isArray(records) || records.length === 0) return;
-        setWaypoints((prev) => {
-          const merged = { ...prev };
-          for (const r of records) {
-            if (!r.letter || !r.strokes_data) continue;
-            try {
-              const strokes = JSON.parse(r.strokes_data);
-              if (Array.isArray(strokes) && strokes.length) {
-                merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
-              }
-            } catch { /* ignore malformed */ }
-          }
-          return merged;
-        });
+        if (cancelled) return;
+        if (Array.isArray(records) && records.length > 0) {
+          setWaypoints((prev) => {
+            const merged = { ...prev };
+            for (const r of records) {
+              if (!r.letter || !r.strokes_data) continue;
+              try {
+                const strokes = JSON.parse(r.strokes_data);
+                if (Array.isArray(strokes) && strokes.length) {
+                  merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
+                }
+              } catch { /* ignore malformed */ }
+            }
+            return merged;
+          });
+        }
+        setWaypointsLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setWaypointsLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -199,7 +206,13 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
         </div>
 
         {phase === 'demo' ? (
-          <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} waypoints={waypoints} />
+          waypointsLoaded ? (
+            <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} waypoints={waypoints} />
+          ) : (
+            <div className="flex items-center justify-center" style={{ width: 360, height: 450 }}>
+              <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )
         ) : (
           <WordTracingCanvas
             key={word}
