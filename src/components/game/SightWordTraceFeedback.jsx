@@ -40,8 +40,12 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
   const [visibleStrokes, setVisibleStrokes] = useState([]);
   const rafRef = useRef(null);
 
+  // Shared scale function — used both by the animation effect and the guide
+  // path rendering so the full letter pathway and the animated stroke overlap
+  // perfectly.
+  const scaleFn = (pt) => scale(pt, W, H);
+
   useEffect(() => {
-    const scaleFn = (pt) => scale(pt, W, H);
     const dense = strokes.map(s => buildDensePath(s, scaleFn));
     const total = dense.reduce((a, s) => a + s.length, 0);
 
@@ -82,6 +86,13 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
   const pathD = (pts) => pts.length < 2 ? '' :
     pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
+  // Full letter pathway as a faint guide so the student can see the complete
+  // letter shape at all times — not just the partial stroke the animation has
+  // revealed so far. Without this, a partially-drawn 'e' (horizontal bar +
+  // incomplete curve) can look like an upside-down or garbled letter while the
+  // animation is in progress, even though the finished stroke is correct.
+  const fullGuidePaths = strokes.map(s => buildDensePath(s, scaleFn));
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -92,6 +103,12 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
       <line x1="0" y1={0.367 * H} x2={W} y2={0.367 * H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
       <line x1="0" y1={0.633 * H} x2={W} y2={0.633 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
       <line x1="0" y1={0.90 * H} x2={W} y2={0.90 * H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
+      {/* Full letter pathway — faint grey guide showing the complete letter shape */}
+      {fullGuidePaths.map((pts, i) => (
+        <path key={`guide-${i}`} d={pathD(pts)} fill="none" stroke="#cbd5e1"
+          strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+      ))}
+      {/* Animated stroke drawn on top of the guide */}
       {visibleStrokes.map((pts, i) => (
         <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="10"
           strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
