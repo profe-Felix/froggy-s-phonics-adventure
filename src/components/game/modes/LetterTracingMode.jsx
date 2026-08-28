@@ -584,6 +584,37 @@ export default function LetterTracingMode({
   };
 
   // ---------------------------------------------------------------------------
+  // RE-REPORT MASTERY ON RE-ENTRY
+  //
+  // When a student re-enters the lesson with all target letters already
+  // mastered from a previous session, the pre-existing-mastery check in
+  // LessonModeRouter uses saved mode_progress data — which can have stale
+  // learning_items (letters whose waypoints were removed or whose config
+  // changed). That inflates the "total" and the check fails, leaving the
+  // student stuck: all green, no Next button, and no way to re-trace.
+  //
+  // Re-report progress here using the actual LETTERS set (only traceable
+  // letters) so maybeComplete gets correct data and the step completes.
+  // ---------------------------------------------------------------------------
+  const reportedAllMasteredRef = useRef(false);
+
+  useEffect(() => {
+    if (!LETTERS.length || reportedAllMasteredRef.current) return;
+
+    const allMastered = LETTERS.every(
+      letter =>
+        completedLetters.has(letter) ||
+        letterProgress[letter]?.mastered
+    );
+
+    if (!allMastered) return;
+
+    reportedAllMasteredRef.current = true;
+    reportProgress(letterProgress, completedLetters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [LETTERS, completedLetters, letterProgress]);
+
+  // ---------------------------------------------------------------------------
   // ACCURACY
   // ---------------------------------------------------------------------------
   const handleAccuracy = (acc) => {
