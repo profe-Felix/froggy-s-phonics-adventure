@@ -66,10 +66,26 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     const el = containerRef?.current;
     if (!el) return;
 
+    // Prevent the browser from intercepting stylus/touch input for scrolling
+    // or gesture handling. Without this, Promethean/SMART boards fire
+    // pointercancel shortly after a stroke starts (when the browser detects a
+    // pan/scroll gesture), making the laser trail vanish mid-stroke. This is
+    // the root cause of "laser disappears shortly after stroke starts" on
+    // interactive whiteboards — the browser cancels the pointer to take over
+    // for scrolling, and the cancel handler clears the trail instantly.
+    const prevTouchAction = el.style.touchAction;
+    el.style.touchAction = 'none';
+
     const onPointerDown = (e) => {
       pointerType.current = e.pointerType || 'mouse';
       pointerDown.current = true;
       setIsActive(true);
+      // Capture the pointer so we keep receiving move events even if the
+      // stylus drifts outside the element bounds (common on interactive
+      // whiteboards where the projection area doesn't perfectly match the
+      // tracking surface). Without capture, pointermove stops firing once
+      // the pointer leaves the element.
+      try { el.setPointerCapture(e.pointerId); } catch { /* not supported */ }
       const pos = getRelativePos(e.clientX, e.clientY, el);
       addPoint(pos.x, pos.y);
     };
@@ -105,6 +121,7 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     window.addEventListener('pointercancel', onPointerUp);
 
     return () => {
+      el.style.touchAction = prevTouchAction;
       el.removeEventListener('pointerdown', onPointerDown);
       el.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
