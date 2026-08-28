@@ -77,9 +77,23 @@ export default function WordTracingMode({
     const lay = letterLayout[scrollLetterIndex];
     if (!lay) return;
     const containerW = scrollRef.current.clientWidth;
-    const target = Math.max(0, lay.offset + (lay.width || 360) / 2 - containerW / 2);
+    const letterLeft = lay.offset;
+    const letterWidth = lay.width || 360;
+    const letterCenter = letterLeft + letterWidth / 2;
+    // Try to center the letter in the container.
+    let target = letterCenter - containerW / 2;
+    // Never push the letter's left edge off-screen — keep at least 20px of
+    // left margin so the student can always reach the first waypoint. Without
+    // this, centering a wide letter in a narrow container (tablet) clips the
+    // left side, and since the SVG uses touch-action:none for tracing the
+    // student can't scroll back to reveal it — making the letter untracable.
+    target = Math.min(target, letterLeft - 20);
+    // Clamp to valid scroll range.
+    target = Math.max(0, target);
+    const maxScroll = Math.max(0, totalW - containerW);
+    target = Math.min(target, maxScroll);
     scrollRef.current.scrollTo({ left: target, behavior: 'smooth' });
-  }, [scrollLetterIndex, letterLayout]);
+  }, [scrollLetterIndex, letterLayout, totalW]);
 
   const handleProgress = ({ currentRep: rep, letterIndex: li }) => {
     setCurrentRep(rep);
