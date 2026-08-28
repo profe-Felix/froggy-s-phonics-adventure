@@ -46,44 +46,8 @@
   ],
   "rls": {
     "create": null,
-    "read": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        }
-      ]
-    },
-    "update": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "student"
-          }
-        }
-      ]
-    },
+    "read": null,
+    "update": null,
     "delete": {
       "$or": [
         {
