@@ -201,8 +201,18 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   // button-press while audio currentTime started after getUserMedia finished
   // (200-500ms later), putting the laser trail ahead of the audio.
   const handleStartRecord = async () => {
-    const started = await startRecording();
-    if (started) laserTracker.startRecordingLaser(getRecordingStartTime());
+    try {
+      const started = await startRecording();
+      if (started) laserTracker.startRecordingLaser(getRecordingStartTime());
+    } catch (e) {
+      // Mic permission denied or no mic available — show a friendly message
+      // instead of an unhandled rejection. The hook already reset to idle.
+      toast({
+        title: 'Microphone not available',
+        description: 'Please allow microphone access and try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   // Pause/resume must be applied to BOTH the audio recorder and the laser
