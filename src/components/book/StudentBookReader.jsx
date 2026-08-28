@@ -201,8 +201,8 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   // button-press while audio currentTime started after getUserMedia finished
   // (200-500ms later), putting the laser trail ahead of the audio.
   const handleStartRecord = async () => {
-    await startRecording();
-    laserTracker.startRecordingLaser(getRecordingStartTime());
+    const started = await startRecording();
+    if (started) laserTracker.startRecordingLaser(getRecordingStartTime());
   };
 
   // Pause/resume must be applied to BOTH the audio recorder and the laser
@@ -371,6 +371,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   // the new page so a refresh returns here.
   const navigateTo = useCallback(async (newPage) => {
     const state = recStateRef.current;
+    // Mic is still warming up — cancel the pending start so it doesn't
+    // create an orphaned recorder on the new page.
+    if (state === 'starting') {
+      resetRecorder();
+      laserTracker.clearLaser();
+    }
     let blob = null;
     if (state === 'recording' || state === 'paused') {
       laserTracker.stopRecordingLaser();
@@ -387,6 +393,12 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   // the component mid-recording, leaving the mic on and the audio unsaved.
   const handleBack = useCallback(async () => {
     const state = recStateRef.current;
+    // Mic is still warming up — cancel the pending start so the mic is
+    // released before leaving the reader.
+    if (state === 'starting') {
+      resetRecorder();
+      laserTracker.clearLaser();
+    }
     if (state === 'recording' || state === 'paused') {
       laserTracker.stopRecordingLaser();
       const blob = await stopRecording();
@@ -593,6 +605,15 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
               className="w-full py-1.5 rounded-lg font-black text-white text-sm"
               style={{ background: '#dc2626' }}>
               ⏺ Record Pg {twoPerPage && currentPage + 1 <= totalPages ? `${currentPage}–${currentPage + 1}` : currentPage}
+            </button>
+          )}
+
+          {/* STARTING — mic warming up (prevents double-tap) */}
+          {recState === 'starting' && (
+            <button disabled
+              className="w-full py-1.5 rounded-lg font-black text-white text-sm animate-pulse"
+              style={{ background: '#991b1b' }}>
+              🎤 Starting…
             </button>
           )}
 
