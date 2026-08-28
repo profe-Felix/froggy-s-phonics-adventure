@@ -140,6 +140,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     resumeRecording,
     stopRecording,
     reset: resetRecorder,
+    getRecordingStartTime,
   } = useAudioRecorder();
 
   // Keep recState in a ref for use in navigation callbacks
@@ -194,10 +195,29 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     });
   };
 
+  // Start audio FIRST, then align the laser clock to the audio recorder's
+  // actual start time (the wall-clock moment mr.start() was called). This
+  // eliminates the mic-warmup desync — previously the laser clock started at
+  // button-press while audio currentTime started after getUserMedia finished
+  // (200-500ms later), putting the laser trail ahead of the audio.
   const handleStartRecord = async () => {
-    laserTracker.startRecordingLaser();
     await startRecording();
+    laserTracker.startRecordingLaser(getRecordingStartTime());
   };
+
+  // Pause/resume must be applied to BOTH the audio recorder and the laser
+  // tracker so their clocks stay aligned through pauses. Without this, the
+  // laser clock counts wall-time through the pause while the audio file
+  // doesn't, drifting the trail behind the audio after each pause/resume.
+  const handlePause = useCallback(() => {
+    laserTracker.pauseRecordingLaser();
+    pauseRecording();
+  }, [laserTracker, pauseRecording]);
+
+  const handleResume = useCallback(() => {
+    resumeRecording();
+    laserTracker.resumeRecordingLaser();
+  }, [laserTracker, resumeRecording]);
 
   const handleStop = async () => {
     laserTracker.stopRecordingLaser();
@@ -601,7 +621,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           {recState === 'recording' && (
             <div className="flex items-center gap-1 w-full">
               <span className="text-red-300 font-black text-xs animate-pulse shrink-0">● {formatTime(elapsed)}</span>
-              <button onClick={pauseRecording} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#d97706' }}>⏸ Pause</button>
+              <button onClick={handlePause} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#d97706' }}>⏸ Pause</button>
               <button onClick={handleStop} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#dc2626' }}>⏹ Stop</button>
             </div>
           )}
@@ -610,7 +630,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           {recState === 'paused' && (
             <div className="flex items-center gap-1 w-full">
               <span className="text-gray-300 font-bold text-xs shrink-0">⏸ {formatTime(elapsed)}</span>
-              <button onClick={resumeRecording} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#0d9488' }}>▶ Resume</button>
+              <button onClick={handleResume} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#0d9488' }}>▶ Resume</button>
               <button onClick={handleStop} className="flex-1 py-1.5 rounded-lg font-bold text-white text-xs" style={{ background: '#dc2626' }}>⏹ Stop</button>
             </div>
           )}

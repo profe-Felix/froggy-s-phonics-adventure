@@ -21,6 +21,7 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
   const rawTrail = useRef([]); // timestamped points for recording
   const recording = useRef(false);
   const recordStart = useRef(0);
+  const pauseStart = useRef(0);
   const fadeTimer = useRef(null);
   const pointerDown = useRef(false);
   const pointerType = useRef('mouse'); // 'mouse' | 'pen' | 'touch'
@@ -112,10 +113,30 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     };
   }, [enabled, containerRef, addPoint, getRelativePos]);
 
-  const startRecordingLaser = useCallback(() => {
+  // Accept an optional startTime (wall-clock ms) from the audio recorder so the
+  // laser clock is aligned to the moment the audio actually started capturing —
+  // not the moment the Record button was pressed (which is before the mic
+  // finishes warming up via getUserMedia, often 200-500ms earlier).
+  const startRecordingLaser = useCallback((startTime) => {
     rawTrail.current = [];
-    recordStart.current = Date.now();
+    recordStart.current = startTime || Date.now();
+    pauseStart.current = 0;
     recording.current = true;
+  }, []);
+
+  const pauseRecordingLaser = useCallback(() => {
+    if (recording.current && !pauseStart.current) {
+      pauseStart.current = Date.now();
+    }
+  }, []);
+
+  const resumeRecordingLaser = useCallback(() => {
+    if (pauseStart.current) {
+      // Shift recordStart forward by the pause duration so laser t values
+      // skip the pause — matching how the audio file skips it too.
+      recordStart.current += Date.now() - pauseStart.current;
+      pauseStart.current = 0;
+    }
   }, []);
 
   const stopRecordingLaser = useCallback(() => {
@@ -136,6 +157,8 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     trailPoints,
     isActive,
     startRecordingLaser,
+    pauseRecordingLaser,
+    resumeRecordingLaser,
     stopRecordingLaser,
     getLaserData,
     clearLaser,
