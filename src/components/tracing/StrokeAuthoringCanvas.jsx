@@ -248,8 +248,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     // NOTE: drawingRef.current is already set to false by the caller (up)
     // before reaching here. Do NOT guard on it — that would skip the commit
     // for freehand strokes (the D/S/A paths return early and never call this).
-    if (currentRef.current.length > 1) {
-      // Store the stroke RAW as drawn. The ink-snap tools (Ease/Pin/Round) work
+    if (currentRef.current.length >= 1) {
+      // A single point is a dot stroke (the tittle on i/j) — commit it as-is.
+      // The ink-snap tools (Ease/Pin/Round) work
       // on these raw points — that's what centers them cleanly on the trace
       // image. The display smooths for preview only; saving is a pure scale of
       // these raw points, so reload shows identical pixels.
