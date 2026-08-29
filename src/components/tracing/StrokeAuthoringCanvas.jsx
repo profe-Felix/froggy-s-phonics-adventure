@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Undo2, Trash2, Image as ImageIcon, Move, X, Wand2, Magnet, Edit3 } from 'lucide-react';
-import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength, catmullRom } from './strokeMath';
+import { CANVAS_W, CANVAS_H, smoothPoints, pointAtLength, catmullRom, splinePathD } from './strokeMath';
 
 const STROKE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 
@@ -376,10 +376,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       e.preventDefault();
       const pos = getPos(e);
       const { strokeIdx, pointIdx } = dragRef.current;
-      const stroke = rawStrokes[strokeIdx] || [];
-      const neighbor = pointIdx > 0 ? stroke[pointIdx - 1] : (pointIdx < stroke.length - 1 ? stroke[pointIdx + 1] : null);
-      const p = autoCenter && inkMapRef.current ? snapToInk(pos, neighbor) : pos;
-      dragHandlePoint(strokeIdx, pointIdx, p);
+      // Edit mode: always follow the cursor exactly — no ink snapping.
+      // The user is fine-tuning a point, not tracing a line.
+      dragHandlePoint(strokeIdx, pointIdx, pos);
       return;
     }
     if (!drawingRef.current) return;
@@ -671,7 +670,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           return (
             <g key={i}>
-              <path d={pathD(sm)} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+              <path d={splinePathD(s)} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
               <Arrow pos={pointAtLength(sm, 0.4)} color={color} />
               <Arrow pos={pointAtLength(sm, 0.75)} color={color} />
               <circle cx={sm[0].x} cy={sm[0].y} r="10" fill={color} />
@@ -689,7 +688,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         )}
         {preview && preview.kind === 'curve' && (
           <g>
-            <path d={pathD(preview.spline)} fill="none" stroke="#6366f1" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
+            <path d={splinePathD([preview.start, ...preview.ctrls, preview.end])} fill="none" stroke="#6366f1" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
             <line x1={preview.start.x} y1={preview.start.y} x2={preview.end.x} y2={preview.end.y} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 5" opacity="0.5" />
             <circle cx={preview.start.x} cy={preview.start.y} r="6" fill="#22c55e" />
             <circle cx={preview.end.x} cy={preview.end.y} r="6" fill="#ef4444" />
