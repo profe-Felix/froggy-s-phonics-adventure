@@ -62,7 +62,11 @@ export default function LetterTracingAuthoring() {
   // student tracing game smooths these sparse waypoints via Catmull-Rom at
   // runtime (buildDensePath in tracingCore), so no densification is needed here.
   const normalized = useMemo(
-    () => rawStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))),
+    () => rawStrokes.map((s) => s.map((p) => ({
+      x: p.x / CANVAS_W,
+      y: p.y / CANVAS_H,
+      ...(p.corner ? { corner: true } : {}),
+    }))),
     [rawStrokes]
   );
 
@@ -82,7 +86,11 @@ export default function LetterTracingAuthoring() {
             // the skeleton control points so edit mode shows a manageable handle
             // set. New data is already sparse (the skeleton), so simplify is a no-op.
             const px = strokes.map((s) => {
-              const raw = s.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+              const raw = s.map((p) => ({
+                x: p.x * CANVAS_W,
+                y: p.y * CANVAS_H,
+                ...(p.corner ? { corner: true } : {}),
+              }));
               return raw.length > 16 ? simplify(raw, 3) : raw;
             });
             setRawStrokes(px);

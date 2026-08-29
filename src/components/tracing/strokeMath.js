@@ -115,10 +115,13 @@ export function splinePathD(points) {
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2] || p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
+    // A point flagged corner:true gets zero tangent → the curve goes straight
+    // in and out, producing a crisp turn. Only that point is affected; the
+    // rest of the stroke stays smooth. Set the flag manually in edit mode (C).
+    const c1x = p1.corner ? p1.x : p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.corner ? p1.y : p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.corner ? p2.x : p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.corner ? p2.y : p2.y - (p3.y - p1.y) / 6;
     d.push(`C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`);
   }
   return d.join(' ');

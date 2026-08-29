@@ -62,6 +62,7 @@ export default function LetterTracingCanvas({
       return {
         x: base.x + copyIndex * (CANVAS_W + COPY_GAP),
         y: base.y,
+        ...(pt.corner ? { corner: true } : {}),
       };
     },
     [safeActiveCopy]

@@ -72,6 +72,15 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   // a new point between its neighbors. Lets you fix a curve after committing.
   const [editMode, setEditMode] = useState(false);
   const dragRef = useRef(null); // { strokeIdx, pointIdx } while dragging
+  const [selectedHandle, setSelectedHandle] = useState(null); // { strokeIdx, pointIdx }
+  // Refs mirror the above so the global keydown handler (whose useEffect deps
+  // don't include them) always reads the current values instead of a stale
+  // closure. Without this, pressing C right after entering edit mode does
+  // nothing because the handler still sees editMode=false.
+  const editModeRef = useRef(editMode);
+  editModeRef.current = editMode;
+  const selectedHandleRef = useRef(selectedHandle);
+  selectedHandleRef.current = selectedHandle;
 
 
 
@@ -121,7 +130,22 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       if (k === 'd') dHeldRef.current = true;
       else if (k === 's') sHeldRef.current = true;
       else if (k === 'a') aHeldRef.current = true;
-      else if (k === 'e') { setEditMode(m => !m); gestureRef.current = null; setPreview(null); drawingRef.current = false; }
+      else if (k === 'e') { setEditMode(m => !m); gestureRef.current = null; setPreview(null); drawingRef.current = false; setSelectedHandle(null); }
+      else if (k === 'c') {
+        // Toggle corner flag on the selected edit-mode handle — makes the
+        // spline render a crisp turn at that point instead of rounding it.
+        if (editModeRef.current && selectedHandleRef.current) {
+          const { strokeIdx, pointIdx } = selectedHandleRef.current;
+          setRawStrokes(prev => {
+            const copy = prev.slice();
+            const stroke = copy[strokeIdx].slice();
+            const old = stroke[pointIdx];
+            stroke[pointIdx] = { ...old, corner: !old.corner };
+            copy[strokeIdx] = stroke;
+            return copy;
+          });
+        }
+      }
       else if (k === 'escape') {
         // cancel any active structured gesture
         gestureRef.current = null; setPreview(null); drawingRef.current = false;
@@ -303,7 +327,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     setRawStrokes(prev => {
       const copy = prev.slice();
       const stroke = copy[strokeIdx].slice();
-      stroke[pointIdx] = newPos;
+      const old = stroke[pointIdx];
+      // Preserve the corner flag when dragging — only the position changes.
+      stroke[pointIdx] = { x: newPos.x, y: newPos.y, ...(old.corner ? { corner: true } : {}) };
       copy[strokeIdx] = stroke;
       return copy;
     });
@@ -324,7 +350,8 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     // space does nothing, so you never accidentally create points.
     if (editMode) {
       const hit = findNearestHandle(pos, 22);
-      if (hit) { dragRef.current = hit; drawingRef.current = true; }
+      if (hit) { dragRef.current = hit; setSelectedHandle(hit); drawingRef.current = true; }
+      else setSelectedHandle(null);
       return;
     }
     // Adding a control point to an active curve (S still held): each tap bends it.
@@ -703,13 +730,28 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
           <path d={pathD(smoothPoints(current, 3))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         )}
 
-        {/* Edit-mode handles — every skeleton point the user placed */}
+        {/* Edit-mode handles — circles for smooth points, squares for corner
+            points (C key toggles). The selected handle gets a highlight ring. */}
         {editMode && rawStrokes.map((s, i) => {
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           const handles = getHandleIndices(s);
-          return handles.map((pi, j) => (
-            <circle key={`pt-${i}-${j}`} cx={s[pi].x} cy={s[pi].y} r="7" fill="white" stroke={color} strokeWidth="2.5" style={{ pointerEvents: 'all' }} />
-          ));
+          return handles.map((pi, j) => {
+            const p = s[pi];
+            const isCorner = !!p.corner;
+            const isSelected = selectedHandle && selectedHandle.strokeIdx === i && selectedHandle.pointIdx === pi;
+            return (
+              <g key={`pt-${i}-${j}`}>
+                {isSelected && <circle cx={p.x} cy={p.y} r="12" fill="none" stroke={color} strokeWidth="2" opacity="0.5" />}
+                {isCorner ? (
+                  <rect x={p.x - 6} y={p.y - 6} width="12" height="12" rx="1.5"
+                    fill={color} stroke="white" strokeWidth="2" style={{ pointerEvents: 'all' }} />
+                ) : (
+                  <circle cx={p.x} cy={p.y} r="7" fill="white" stroke={color}
+                    strokeWidth={isSelected ? '3.5' : '2.5'} style={{ pointerEvents: 'all' }} />
+                )}
+              </g>
+            );
+          });
         })}
       </svg>
 
@@ -824,7 +866,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
 
       <div className="flex gap-2">
         <button
-          onClick={() => { setEditMode(m => !m); gestureRef.current = null; setPreview(null); }}
+          onClick={() => { setEditMode(m => !m); gestureRef.current = null; setPreview(null); setSelectedHandle(null); }}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${
             editMode
               ? 'bg-amber-500 text-white border-amber-500'
@@ -854,7 +896,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         {bg && ' Toggle "Move image" to reposition the trace image.'}
         <br />Hold <b>D</b> = line (pen-down start, drag preview, pen-up commit). Hold <b>S</b> = curve (set start+end, then tap to add control points; release S to commit, auto-snaps to ink). Hold <b>A</b> to chain a segment onto the previous stroke. <b>Esc</b> cancels.
         <br />Toggle <b>Center on ink</b> to snap each point to the black line of your trace image as you draw.
-        <br />Press <b>E</b> or tap "Edit points" to fine-tune: drag any point to move it — only that point moves, the rest stay put. Dragged points snap to ink when "Center on ink" is on.
+        <br />Press <b>E</b> or tap "Edit points" to fine-tune: drag any point to move it — only that point moves, the rest stay put. Tap a handle to select it (shown with a ring), then press <b>C</b> to toggle it as a <b>corner point</b> (shown as a filled square) — the spline renders a crisp turn there instead of rounding it. Press <b>C</b> again to make it smooth.
       </p>
     </div>
   );
