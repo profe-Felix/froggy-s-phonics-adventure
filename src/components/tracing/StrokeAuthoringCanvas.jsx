@@ -281,11 +281,38 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   };
 
   // ---- Edit mode: handle-based fine-tuning ----
-  // Show every point as a handle so the user can grab and drag any point
-  // they drew. Dragging a handle re-interpolates the dense points between
-  // it and its neighbors so the curve follows smoothly. Tapping a segment
-  // between handles inserts a new point there.
-  const getHandleIndices = (stroke) => stroke.map((_, i) => i);
+  // Show only the "key" points — endpoints of straight segments and bend
+  // points of curves — using Ramer-Douglas-Peucker simplification. A
+  // straight D-line collapses to just its 2 endpoints (drag either and it
+  // stays straight); a curve shows only its main bend points so you can
+  // adjust the shape without wading through dozens of interpolated dots.
+  const rdpIndices = (pts, eps) => {
+    const n = pts.length;
+    if (n < 3) return pts.map((_, i) => i);
+    const perpDist = (i, a, b) => {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) return Math.hypot(pts[i].x - a.x, pts[i].y - a.y);
+      return Math.abs(dy * pts[i].x - dx * pts[i].y + b.x * a.y - b.y * a.x) / len;
+    };
+    const keep = new Array(n).fill(false);
+    keep[0] = keep[n - 1] = true;
+    const stack = [[0, n - 1]];
+    while (stack.length) {
+      const [s, e] = stack.pop();
+      let maxD = 0, maxI = s;
+      for (let i = s + 1; i < e; i++) {
+        const d = perpDist(i, pts[s], pts[e]);
+        if (d > maxD) { maxD = d; maxI = i; }
+      }
+      if (maxD > eps) {
+        keep[maxI] = true;
+        stack.push([s, maxI], [maxI, e]);
+      }
+    }
+    return keep.map((k, i) => k ? i : -1).filter(i => i >= 0);
+  };
+  const getHandleIndices = (stroke) => rdpIndices(stroke, 8);
   const findNearestHandle = (pos, threshold) => {
     let best = null, bestD = threshold;
     for (let si = 0; si < rawStrokes.length; si++) {
