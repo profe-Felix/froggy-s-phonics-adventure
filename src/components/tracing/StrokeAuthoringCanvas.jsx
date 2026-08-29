@@ -507,7 +507,22 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     if (gestureRef.current) {
       const g = gestureRef.current;
       if (g.type === 'line') {
-        if (dHeldRef.current) commitSegment([g.start, g.end]);
+        if (dHeldRef.current) {
+          // Interpolate dense points along the line before committing. Without
+          // this, a chained D-line appends only ONE point to the stroke, and the
+          // 3-point moving-average smoother averages it with its neighbors
+          // (e.g. the base of the c-curve and the bottom of the down-stroke),
+          // pulling it down to the baseline so the up-stroke visually disappears.
+          const dx = g.end.x - g.start.x, dy = g.end.y - g.start.y;
+          const dist = Math.hypot(dx, dy);
+          const N = Math.max(2, Math.round(dist / 4));
+          const dense = [];
+          for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            dense.push({ x: g.start.x + dx * t, y: g.start.y + dy * t });
+          }
+          commitSegment(dense);
+        }
         gestureRef.current = null; setPreview(null);
         return;
       }
