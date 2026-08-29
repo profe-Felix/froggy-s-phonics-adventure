@@ -408,23 +408,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
       return;
     }
-    // Edit mode: drag a handle, or tap a segment between handles to insert one.
+    // Edit mode: drag an existing handle. No auto-insert — tapping empty
+    // space does nothing, so you never accidentally create points.
     if (editMode) {
-      const hit = findNearestHandle(pos, 8);
-      if (hit) { dragRef.current = hit; drawingRef.current = true; return; }
-      const seg = findNearestHandleSegment(pos, 20);
-      if (seg) {
-        const newPt = autoCenter && inkMapRef.current ? snapToInk(seg.pos, null) : seg.pos;
-        setRawStrokes(prev => {
-          const copy = prev.slice();
-          const stroke = copy[seg.strokeIdx].slice();
-          stroke.splice(seg.insertAt, 0, newPt);
-          copy[seg.strokeIdx] = stroke;
-          return copy;
-        });
-        dragRef.current = { strokeIdx: seg.strokeIdx, pointIdx: seg.insertAt };
-        drawingRef.current = true;
-      }
+      const hit = findNearestHandle(pos, 22);
+      if (hit) { dragRef.current = hit; drawingRef.current = true; }
       return;
     }
     // Adding a control point to an active curve (S still held): each tap bends it.
