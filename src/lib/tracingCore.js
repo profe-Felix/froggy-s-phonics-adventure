@@ -32,12 +32,22 @@ export function scale(pt, w, h) {
   return { x: pt.x * w, y: pt.y * h };
 }
 
-// Densely sample a path by interpolating between waypoints at a fixed pixel
-// step. Takes a scale function so the same logic works for single-letter and
-// multi-letter (word) canvases with different coordinate transforms.
+// Densely sample a path through the waypoints. Sparse skeletons (≤12 control
+// points, the new authoring format) are smoothed via Catmull-Rom so the
+// student tracing path is a curve, not an angular polyline. Dense waypoints
+// (old saved data, 64+ points) use linear interpolation at a fixed pixel step
+// — identical to the previous behavior so existing letters validate the same.
+import { catmullRom } from '@/components/tracing/strokeMath';
+
 export function buildDensePath(waypoints, scaleFn, step = 3) {
   const pts = waypoints.map(scaleFn);
-  if (pts.length === 1) return [pts[0]];
+  if (pts.length <= 1) return pts.slice();
+  if (pts.length <= 12) {
+    let totalLen = 0;
+    for (let i = 1; i < pts.length; i++) totalLen += dist(pts[i], pts[i - 1]);
+    const samplesPerSeg = Math.max(16, Math.ceil(totalLen / (step * (pts.length - 1))));
+    return catmullRom(pts, samplesPerSeg);
+  }
   const dense = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i];

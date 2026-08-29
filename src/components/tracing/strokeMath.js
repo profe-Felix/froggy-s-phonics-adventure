@@ -101,6 +101,36 @@ export function catmullRom(points, samplesPerSegment = 16) {
   return out;
 }
 
+// Ramer-Douglas-Peucker simplification: keep only the points that matter
+// (max perpendicular deviation from the chord). Used to recover skeleton
+// control points from old dense saved waypoints so edit mode shows a
+// manageable handle set instead of 64+ points.
+export function simplify(pts, tolerance = 3) {
+  if (!pts || pts.length <= 2) return pts ? pts.slice() : [];
+  const perpDist = (p, a, b) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    return Math.abs(dy * p.x - dx * p.y + b.x * a.y - b.y * a.x) / len;
+  };
+  const stack = [[0, pts.length - 1]];
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  while (stack.length) {
+    const [s, e] = stack.pop();
+    let maxD = 0, idx = -1;
+    for (let i = s + 1; i < e; i++) {
+      const d = perpDist(pts[i], pts[s], pts[e]);
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (idx >= 0 && maxD >= tolerance) {
+      keep[idx] = true;
+      stack.push([s, idx], [idx, e]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
 // Return {x,y,angle} at a fraction (0-1) along a polyline — for arrowheads.
 export function pointAtLength(pts, frac) {
   if (!pts || pts.length < 2) return { x: 0, y: 0, angle: 0 };

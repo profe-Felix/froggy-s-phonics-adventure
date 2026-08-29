@@ -3,7 +3,7 @@ import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
-import { CANVAS_W, CANVAS_H, catmullRom } from '@/components/tracing/strokeMath';
+import { CANVAS_W, CANVAS_H, simplify } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 import TracingLetterToggle from '@/components/tracing/TracingLetterToggle';
@@ -57,13 +57,12 @@ export default function LetterTracingAuthoring() {
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
 
-  // rawStrokes stores the SKELETON (the control points the user placed).
-  // Densify via catmullRom before saving so the student tracing game gets
-  // smooth waypoints — the skeleton itself is too sparse for tracing.
+  // rawStrokes IS the skeleton (the control points the user placed). Save it
+  // directly — loading gives back the exact same points for editing. The
+  // student tracing game smooths these sparse waypoints via Catmull-Rom at
+  // runtime (buildDensePath in tracingCore), so no densification is needed here.
   const normalized = useMemo(
-    () => rawStrokes.map((s) =>
-      catmullRom(s, 16).map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))
-    ),
+    () => rawStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))),
     [rawStrokes]
   );
 
@@ -79,7 +78,13 @@ export default function LetterTracingAuthoring() {
         try {
           const strokes = JSON.parse(rec.strokes_data);
           if (Array.isArray(strokes) && strokes.length) {
-            const px = strokes.map((s) => s.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H })));
+            // Old saved data is dense (64+ catmullRom samples). Simplify back to
+            // the skeleton control points so edit mode shows a manageable handle
+            // set. New data is already sparse (the skeleton), so simplify is a no-op.
+            const px = strokes.map((s) => {
+              const raw = s.map((p) => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+              return raw.length > 16 ? simplify(raw, 3) : raw;
+            });
             setRawStrokes(px);
             setHint(rec.hint || '');
           }
