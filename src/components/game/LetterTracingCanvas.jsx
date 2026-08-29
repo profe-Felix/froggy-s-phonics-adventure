@@ -1055,7 +1055,7 @@ export default function LetterTracingCanvas({
         {/* Replay hint — animated demo of the current stroke's ideal path */}
         {replayPts.length > 1 && (
           <>
-            <path d={pathD(replayPts)} fill="none" stroke="#f59e0b" strokeWidth="10"
+            <path d={splinePathD(replayPts)} fill="none" stroke="#f59e0b" strokeWidth="10"
               strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
             <circle cx={replayPts[replayPts.length - 1].x}
               cy={replayPts[replayPts.length - 1].y} r="7" fill="#f59e0b" />
