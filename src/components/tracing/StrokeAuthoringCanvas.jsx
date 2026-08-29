@@ -245,8 +245,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   };
 
   const finishStroke = () => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
+    // NOTE: drawingRef.current is already set to false by the caller (up)
+    // before reaching here. Do NOT guard on it — that would skip the commit
+    // for freehand strokes (the D/S/A paths return early and never call this).
     if (currentRef.current.length > 1) {
       // Store the stroke RAW as drawn. The ink-snap tools (Ease/Pin/Round) work
       // on these raw points — that's what centers them cleanly on the trace
