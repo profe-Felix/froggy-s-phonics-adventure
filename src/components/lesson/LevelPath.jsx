@@ -386,7 +386,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
             <CharacterDock studentData={studentData} characters={characters} onSetActive={handleSetActiveChar} />
             {wheelOpen && (
               <PrizeWheel
-                key={`level-path-wheel-${coins}`}
+                key="level-path-wheel"
                 studentData={studentData}
                 onStudentPatch={onStudentPatch}
                 redeemedPrizes={redeemedPrizes}

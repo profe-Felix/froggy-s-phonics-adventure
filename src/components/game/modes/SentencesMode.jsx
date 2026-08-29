@@ -1423,7 +1423,7 @@ export default function SentencesMode({ studentData, onBack, onStudentPatch }) {
         <AnimatePresence>
           {showWheel && (
             <PrizeWheel
-              key={`wheel-${coins}`}
+              key="sentences-wheel"
               studentData={studentData}
               onStudentPatch={onStudentPatch}
               redeemedPrizes={redeemedPrizes}

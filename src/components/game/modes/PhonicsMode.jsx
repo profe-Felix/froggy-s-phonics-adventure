@@ -835,7 +835,7 @@ export default function PhonicsMode({ studentData, onBack, onStudentPatch }) {
       <AnimatePresence>
         {showWheel && (
           <PrizeWheel
-            key={`phonics-wheel-${coins}`}
+            key="phonics-wheel"
             studentData={studentData}
             onStudentPatch={onStudentPatch}
             redeemedPrizes={redeemedPrizes}
