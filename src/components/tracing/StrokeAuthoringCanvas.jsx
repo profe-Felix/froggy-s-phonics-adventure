@@ -22,6 +22,14 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   const currentRef = useRef([]);
   const drawingRef = useRef(false);
 
+  // rawStrokes ref kept in sync synchronously so the chain-start lookup in
+  // `down` always sees the latest committed stroke — even when a D-segment
+  // commit (pen-up) and the next D-segment start (pen-down) happen before
+  // React re-renders. Without this, chaining a second D line off the first
+  // one reads a stale rawStrokes and chains off the PREVIOUS stroke's end.
+  const rawStrokesRef = useRef(rawStrokes);
+  rawStrokesRef.current = rawStrokes;
+
   // Image display opacity + drag mode are local UI state (the image itself and
   // its transform live in the parent so they persist across the Snap↔Thin toggle).
   const [bgOpacity, setBgOpacity] = useState(0.4);
@@ -231,7 +239,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       // on these raw points — that's what centers them cleanly on the trace
       // image. The display smooths for preview only; saving is a pure scale of
       // these raw points, so reload shows identical pixels.
-      setRawStrokes((prev) => [...prev, currentRef.current.slice()]);
+      const newStroke = currentRef.current.slice();
+      setRawStrokes((prev) => [...prev, newStroke]);
+      rawStrokesRef.current = [...rawStrokesRef.current, newStroke];
     }
     currentRef.current = [];
     setCurrent([]);
@@ -249,15 +259,21 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   // stroke's endpoint when A is held, otherwise a fresh stroke.
   const commitSegment = (pts) => {
     if (!pts || pts.length < 2) return;
-    if (aHeldRef.current && rawStrokes.length > 0) {
+    if (aHeldRef.current && rawStrokesRef.current.length > 0) {
       const tail = pts.slice(1); // start equals the last point — skip duplicate
       setRawStrokes((prev) => {
         const copy = prev.slice();
         copy[copy.length - 1] = [...copy[copy.length - 1], ...tail];
         return copy;
       });
+      // Optimistically update the ref so the very next pen-down sees the new
+      // endpoint even before React re-renders.
+      const copy = rawStrokesRef.current.slice();
+      copy[copy.length - 1] = [...copy[copy.length - 1], ...tail];
+      rawStrokesRef.current = copy;
     } else {
       setRawStrokes((prev) => [...prev, pts]);
+      rawStrokesRef.current = [...rawStrokesRef.current, pts];
     }
   };
   // Snap a dense point list onto the ink centerline (perpendicular-slice), so a
@@ -413,8 +429,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       return;
     }
     // Chain: A held → the new segment starts at the previous stroke's endpoint.
-    const chainStart = (aHeldRef.current && rawStrokes.length > 0)
-      ? { ...rawStrokes[rawStrokes.length - 1][rawStrokes[rawStrokes.length - 1].length - 1] }
+    // Read from the ref (not the closure) so a just-committed D segment's end
+    // point is visible immediately — no stale-closure retrace to the old end.
+    const rs = rawStrokesRef.current;
+    const chainStart = (aHeldRef.current && rs.length > 0)
+      ? { ...rs[rs.length - 1][rs[rs.length - 1].length - 1] }
       : null;
     if (dHeldRef.current) {
       const start = chainStart || pos;
