@@ -14,13 +14,19 @@ const ITEMS = [
   { key: 'videos', label: 'Videos', Icon: PlayCircle },
 ];
 
-export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent }) {
+export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly }) {
   const { colorFor } = useClassColors();
   const className = selectedStudent?.class_name || '';
   const classColor = colorFor(className);
   const studentPhoto = studentData?.photo_url;
   const studentNumber = selectedStudent?.number;
   const displayName = studentData?.name || `Student ${studentNumber}`;
+
+  // Tracing-only classes (e.g. Schwarz) skip the level path and quests entirely —
+  // their lessons aren't built yet. Only Books / Games / Videos remain.
+  const items = isTracingOnly
+    ? ITEMS.filter(i => i.key !== 'lessons' && i.key !== 'sidequests')
+    : ITEMS;
 
   return (
     <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-3 rounded-3xl bg-[#1a1a2e] px-2 py-3 shadow-xl">
@@ -55,7 +61,7 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
         )}
       </div>
 
-      {ITEMS.map(({ key, label, Icon }) => {
+      {items.map(({ key, label, Icon }) => {
         const on = active === key;
         return (
           <button

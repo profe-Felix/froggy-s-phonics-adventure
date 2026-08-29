@@ -503,11 +503,19 @@ export default function LessonEditor() {
                 placeholder="e.g. Learn the letter M and practice saying words and sounds!"
                 className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <label className="text-xs text-gray-600 font-bold">Class
                 <select value={editing.class_name} onChange={e => setEditing({ ...editing, class_name: e.target.value })}
                   className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
                   {CLASSES.map(c => <option key={c} value={c}>{c || 'All classes'}</option>)}
+                </select>
+              </label>
+              <label className="text-xs text-gray-600 font-bold">Language
+                <select value={editing.language || ''} onChange={e => setEditing({ ...editing, language: e.target.value })}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                  <option value="">All languages</option>
+                  <option value="es">Spanish</option>
+                  <option value="en">English</option>
                 </select>
               </label>
               <label className="text-xs text-gray-600 font-bold flex items-center gap-2 mt-4">
@@ -630,6 +638,7 @@ export default function LessonEditor() {
                     <span>{done} steps</span>
                     <span>•</span>
                     <span>{l.class_name || 'All classes'}</span>
+                    {l.language && <span className="font-bold text-indigo-500">{l.language === 'es' ? '🇪🇸 ES' : '🇺🇸 EN'}</span>}
                   </div>
                   <div className="flex gap-2 mt-1">
                     <button onClick={() => setEditing({ ...l, steps: (l.steps || []).map(s => ({ ...s })) })}

@@ -138,7 +138,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
         )}
       </div>
 
-      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} />}
+      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} />}
     </div>
   );
 }

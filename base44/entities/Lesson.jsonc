@@ -16,6 +16,16 @@
       "default": "",
       "description": "Class this lesson is assigned to. Empty string = available to all classes."
     },
+    "language": {
+      "type": "string",
+      "enum": [
+        "",
+        "es",
+        "en"
+      ],
+      "default": "",
+      "description": "Content language for this lesson. Empty = all languages (shown to every student). 'es' = Spanish only. 'en' = English only. Lets teachers build language-specific lessons for classes like Schwarz."
+    },
     "school_year": {
       "type": "string",
       "description": "School year tag e.g. '26-27'. Empty = current/any.",
