@@ -73,18 +73,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   const [editMode, setEditMode] = useState(false);
   const dragRef = useRef(null); // { strokeIdx, pointIdx } while dragging
 
-  // When entering edit mode, upsample sparse strokes so handle dragging has
-  // enough intermediate dense points for smooth Catmull-Rom interpolation.
-  // Without this, short strokes (all points are handles) have no points
-  // between handles to curve.
-  useEffect(() => {
-    if (!editMode) return;
-    setRawStrokes(prev => prev.map(stroke => {
-      if (stroke.length >= 50) return stroke;
-      const up = catmullRom(stroke, 8);
-      return up.length > stroke.length ? up : stroke;
-    }));
-  }, [editMode]);
+
 
   // Writing guide lines — fixed at the confirmed positions (10/37/63/90).
   // Locked so they can't drift; align the trace image to them via Move/Scale.
@@ -754,6 +743,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         onPointerUp={up}
         onPointerCancel={up}
         onPointerLeave={up}
+        onContextMenu={(e) => e.preventDefault()}
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
       >
