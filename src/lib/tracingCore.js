@@ -37,16 +37,25 @@ export function scale(pt, w, h) {
 // student tracing path is a curve, not an angular polyline. Dense waypoints
 // (old saved data, 64+ points) use linear interpolation at a fixed pixel step
 // — identical to the previous behavior so existing letters validate the same.
-import { catmullRom } from '@/components/tracing/strokeMath';
+import { catmullRom, resample } from '@/components/tracing/strokeMath';
 
 export function buildDensePath(waypoints, scaleFn, step = 3) {
   const pts = waypoints.map(scaleFn);
   if (pts.length <= 1) return pts.slice();
   if (pts.length <= 12) {
+    // Generate a smooth curve through the control points, then resample to a
+    // fixed pixel step so coverage is proportional to actual path length.
+    // Without resampling, catmullRom gives every segment the same number of
+    // samples regardless of length — a short hook gets as many points as a
+    // long stem, so drawing just the hook can cover 80%+ of the path while
+    // the stem is never drawn. (This was the 'f' bug: the hook spanned 6 of
+    // 7 segments so it got 86% of the dense points; the stem was 1 segment
+    // with only 16, so the stroke validated as complete with only the hook.)
+    const smooth = catmullRom(pts, 24);
     let totalLen = 0;
-    for (let i = 1; i < pts.length; i++) totalLen += dist(pts[i], pts[i - 1]);
-    const samplesPerSeg = Math.max(16, Math.ceil(totalLen / (step * (pts.length - 1))));
-    return catmullRom(pts, samplesPerSeg);
+    for (let i = 1; i < smooth.length; i++) totalLen += dist(smooth[i], smooth[i - 1]);
+    const n = Math.max(2, Math.round(totalLen / step));
+    return resample(smooth, n);
   }
   const dense = [];
   for (let i = 0; i < pts.length - 1; i++) {
