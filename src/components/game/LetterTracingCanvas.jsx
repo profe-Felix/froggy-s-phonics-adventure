@@ -62,7 +62,7 @@ export default function LetterTracingCanvas({
       return {
         x: base.x + copyIndex * (CANVAS_W + COPY_GAP),
         y: base.y,
-        ...(pt.corner ? { corner: true } : {}),
+        ...(pt?.corner ? { corner: true } : {}),
       };
     },
     [safeActiveCopy]
@@ -161,8 +161,10 @@ export default function LetterTracingCanvas({
   // completion can't be faked.
   const longUpRetrace = useMemo(() => {
     if (!densePath.length) return null;
-    const wp = strokes[strokeIndex];
-    if (!Array.isArray(wp) || wp.length < 2) return null;
+    const wp = Array.isArray(strokes[strokeIndex])
+      ? strokes[strokeIndex].filter(p => p && p.x != null && p.y != null)
+      : [];
+    if (wp.length < 2) return null;
     const scaled = wp.map(scaleActive);
     const segs = [];
     let idx = 0;
