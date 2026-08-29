@@ -274,45 +274,18 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     return out;
   };
   const commitCurve = (g) => {
-    const ctrls = [g.start, ...g.ctrls, g.end];
-    let pts = catmullRom(ctrls, 16);
+    // Store the CONTROL POINTS (skeleton), not dense catmullRom samples.
+    // The display renders a smooth curve through them; edit mode shows
+    // exactly the points the user placed. Saving densifies via catmullRom.
+    let pts = [g.start, ...g.ctrls, g.end];
     if (autoCenter && inkMapRef.current) pts = snapCurveToInk(pts);
     commitSegment(pts);
   };
 
-  // ---- Edit mode: handle-based fine-tuning ----
-  // Show only the "key" points — endpoints of straight segments and bend
-  // points of curves — using Ramer-Douglas-Peucker simplification. A
-  // straight D-line collapses to just its 2 endpoints (drag either and it
-  // stays straight); a curve shows only its main bend points so you can
-  // adjust the shape without wading through dozens of interpolated dots.
-  const rdpIndices = (pts, eps) => {
-    const n = pts.length;
-    if (n < 3) return pts.map((_, i) => i);
-    const perpDist = (i, a, b) => {
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const len = Math.hypot(dx, dy);
-      if (len < 1e-6) return Math.hypot(pts[i].x - a.x, pts[i].y - a.y);
-      return Math.abs(dy * pts[i].x - dx * pts[i].y + b.x * a.y - b.y * a.x) / len;
-    };
-    const keep = new Array(n).fill(false);
-    keep[0] = keep[n - 1] = true;
-    const stack = [[0, n - 1]];
-    while (stack.length) {
-      const [s, e] = stack.pop();
-      let maxD = 0, maxI = s;
-      for (let i = s + 1; i < e; i++) {
-        const d = perpDist(i, pts[s], pts[e]);
-        if (d > maxD) { maxD = d; maxI = i; }
-      }
-      if (maxD > eps) {
-        keep[maxI] = true;
-        stack.push([s, maxI], [maxI, e]);
-      }
-    }
-    return keep.map((k, i) => k ? i : -1).filter(i => i >= 0);
-  };
-  const getHandleIndices = (stroke) => rdpIndices(stroke, 8);
+  // ---- Edit mode: the stroke IS the skeleton (the points the user placed).
+  // Every point is a handle — drag any one and only that point moves. The
+  // display re-renders a smooth catmullRom curve through the updated skeleton.
+  const getHandleIndices = (stroke) => stroke.map((_, i) => i);
   const findNearestHandle = (pos, threshold) => {
     let best = null, bestD = threshold;
     for (let si = 0; si < rawStrokes.length; si++) {
@@ -324,74 +297,13 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
     }
     return best;
   };
-  const findNearestHandleSegment = (pos, threshold) => {
-    let best = null, bestD = threshold;
-    for (let si = 0; si < rawStrokes.length; si++) {
-      const handles = getHandleIndices(rawStrokes[si]);
-      for (let k = 0; k < handles.length - 1; k++) {
-        const a = rawStrokes[si][handles[k]], b = rawStrokes[si][handles[k + 1]];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const len2 = dx * dx + dy * dy;
-        if (len2 < 1e-6) continue;
-        let t = ((pos.x - a.x) * dx + (pos.y - a.y) * dy) / len2;
-        t = Math.max(0, Math.min(1, t));
-        const px = a.x + t * dx, py = a.y + t * dy;
-        const d = Math.hypot(pos.x - px, pos.y - py);
-        if (d < bestD) { bestD = d; best = { strokeIdx: si, insertAt: Math.round(handles[k] + t * (handles[k + 1] - handles[k])), pos: { x: px, y: py } }; }
-      }
-    }
-    return best;
-  };
-  // Catmull-Rom interpolation for a single segment from p1 to p2, given the
-  // neighbor handles p0 (before p1) and p3 (after p2). Returns n interior points
-  // (excluding p1 and p2 themselves) so the curve stays smooth when a handle
-  // moves — linear interpolation would flatten it into a straight line.
-  const catmullInterior = (p0, p1, p2, p3, n) => {
-    const out = [];
-    for (let j = 1; j <= n; j++) {
-      const t = j / (n + 1), t2 = t * t, t3 = t2 * t;
-      out.push({
-        x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-        y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
-      });
-    }
-    return out;
-  };
-  // Move a handle and re-interpolate the dense points between it and its
-  // neighbor handles using Catmull-Rom, so the curve follows the handle
-  // smoothly instead of flattening into a straight line.
+  // Move a single skeleton point — nothing else moves. The display
+  // re-renders a smooth catmullRom curve through the updated skeleton.
   const dragHandlePoint = (strokeIdx, pointIdx, newPos) => {
     setRawStrokes(prev => {
       const copy = prev.slice();
       const stroke = copy[strokeIdx].slice();
-      const handles = getHandleIndices(stroke);
-      const hk = handles.indexOf(pointIdx);
       stroke[pointIdx] = newPos;
-      if (hk !== -1) {
-        const getH = (i) => {
-          if (i < 0) return stroke[handles[0]];
-          if (i >= handles.length) return stroke[handles[handles.length - 1]];
-          return stroke[handles[i]];
-        };
-        // Left segment: between handles[hk-1] and the dragged handle.
-        if (hk > 0) {
-          const pi = handles[hk - 1];
-          const n = pointIdx - pi - 1;
-          if (n > 0) {
-            const interp = catmullInterior(getH(hk - 2), stroke[pi], newPos, getH(hk + 1), n);
-            for (let i = 0; i < interp.length; i++) stroke[pi + 1 + i] = interp[i];
-          }
-        }
-        // Right segment: between the dragged handle and handles[hk+1].
-        if (hk < handles.length - 1) {
-          const ni = handles[hk + 1];
-          const n = ni - pointIdx - 1;
-          if (n > 0) {
-            const interp = catmullInterior(getH(hk - 1), newPos, stroke[ni], getH(hk + 2), n);
-            for (let i = 0; i < interp.length; i++) stroke[pointIdx + 1 + i] = interp[i];
-          }
-        }
-      }
       copy[strokeIdx] = stroke;
       return copy;
     });
@@ -502,20 +414,10 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
       const g = gestureRef.current;
       if (g.type === 'line') {
         if (dHeldRef.current) {
-          // Interpolate dense points along the line before committing. Without
-          // this, a chained D-line appends only ONE point to the stroke, and the
-          // 3-point moving-average smoother averages it with its neighbors
-          // (e.g. the base of the c-curve and the bottom of the down-stroke),
-          // pulling it down to the baseline so the up-stroke visually disappears.
-          const dx = g.end.x - g.start.x, dy = g.end.y - g.start.y;
-          const dist = Math.hypot(dx, dy);
-          const N = Math.max(2, Math.round(dist / 4));
-          const dense = [];
-          for (let i = 0; i <= N; i++) {
-            const t = i / N;
-            dense.push({ x: g.start.x + dx * t, y: g.start.y + dy * t });
-          }
-          commitSegment(dense);
+          // Store just the 2 endpoints — the skeleton. Display and save
+          // densify via catmullRom, so the line stays straight and the
+          // student gets smooth waypoints.
+          commitSegment([g.start, g.end]);
         }
         gestureRef.current = null; setPreview(null);
         return;
@@ -763,9 +665,9 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         <line x1="0" y1={lineBase * CANVAS_H} x2={CANVAS_W} y2={lineBase * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
         <line x1="0" y1={lineDesc * CANVAS_H} x2={CANVAS_W} y2={lineDesc * CANVAS_H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Smoothed strokes with direction arrows */}
+        {/* Smooth strokes (catmullRom through skeleton points) with direction arrows */}
         {rawStrokes.map((s, i) => {
-          const sm = smoothPoints(s, 3);
+          const sm = catmullRom(s, 16);
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           return (
             <g key={i}>
@@ -802,7 +704,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
           <path d={pathD(smoothPoints(current, 3))} fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
         )}
 
-        {/* Edit-mode handle points (simplified — ~12 per stroke, not every dense point) */}
+        {/* Edit-mode handles — every skeleton point the user placed */}
         {editMode && rawStrokes.map((s, i) => {
           const color = STROKE_COLORS[i % STROKE_COLORS.length];
           const handles = getHandleIndices(s);
@@ -953,7 +855,7 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
         {bg && ' Toggle "Move image" to reposition the trace image.'}
         <br />Hold <b>D</b> = line (pen-down start, drag preview, pen-up commit). Hold <b>S</b> = curve (set start+end, then tap to add control points; release S to commit, auto-snaps to ink). Hold <b>A</b> to chain a segment onto the previous stroke. <b>Esc</b> cancels.
         <br />Toggle <b>Center on ink</b> to snap each point to the black line of your trace image as you draw.
-        <br />Press <b>E</b> or tap "Edit points" to fine-tune: drag any point to move it, or tap a segment to insert a new point. Dragged points snap to ink when "Center on ink" is on.
+        <br />Press <b>E</b> or tap "Edit points" to fine-tune: drag any point to move it — only that point moves, the rest stay put. Dragged points snap to ink when "Center on ink" is on.
       </p>
     </div>
   );

@@ -3,7 +3,7 @@ import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
-import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
+import { CANVAS_W, CANVAS_H, catmullRom } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 import TracingLetterToggle from '@/components/tracing/TracingLetterToggle';
@@ -57,11 +57,13 @@ export default function LetterTracingAuthoring() {
   const chars = upper ? UPPER : LOWER;
   const target = upper ? letter.toUpperCase() : letter.toLowerCase();
 
-  // rawStrokes is already the normalized (saved) form — committed strokes are
-  // normalized in the canvas on lift. So the save/preview data is a pure
-  // scale to 0-1, never re-smoothed, which keeps reload pixel-identical.
+  // rawStrokes stores the SKELETON (the control points the user placed).
+  // Densify via catmullRom before saving so the student tracing game gets
+  // smooth waypoints — the skeleton itself is too sparse for tracing.
   const normalized = useMemo(
-    () => rawStrokes.map((s) => s.map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))),
+    () => rawStrokes.map((s) =>
+      catmullRom(s, 16).map((p) => ({ x: p.x / CANVAS_W, y: p.y / CANVAS_H }))
+    ),
     [rawStrokes]
   );
 
