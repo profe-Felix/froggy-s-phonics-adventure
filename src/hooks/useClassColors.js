@@ -42,6 +42,7 @@ export function useClassColors() {
   const languageFor = (cls) => byName[cls]?.language || 'es';
   const gradeFor = (cls) => byName[cls]?.grade || 'kinder';
   const tracingOnlyFor = (cls) => !!byName[cls]?.tracing_only;
+  const sharesBooksFromFor = (cls) => byName[cls]?.shares_books_from || [];
 
   // Classes grouped by grade, preserving storage order.
   const groupedClasses = () => {
@@ -64,5 +65,5 @@ export function useClassColors() {
     queryClient.invalidateQueries({ queryKey: ['class-colors'] });
   };
 
-  return { colorFor, languageFor, gradeFor, tracingOnlyFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading };
+  return { colorFor, languageFor, gradeFor, tracingOnlyFor, sharesBooksFromFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading };
 }

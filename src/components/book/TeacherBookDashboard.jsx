@@ -295,6 +295,35 @@ export default function TeacherBookDashboard({ onBack }) {
                     </p>
                   )}
                 </div>
+
+                {/* Individual assignment — empty = all students, non-empty = only those students */}
+                <div>
+                  <p className="text-teal-300 text-xs font-bold mb-1.5">👤 Assigned to (empty = all students):</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map(n => {
+                      const assigned = (b.assigned_students || []).includes(n);
+                      return (
+                        <button key={n}
+                          onClick={() => {
+                            const current = b.assigned_students || [];
+                            const next = assigned ? current.filter(s => s !== n) : [...current, n];
+                            updateBook.mutate({ id: b.id, data: { assigned_students: next } });
+                          }}
+                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${assigned ? 'bg-indigo-600 text-white' : 'text-teal-500 border border-teal-800 hover:border-teal-500'}`}>
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(b.assigned_students || []).length > 0 && (
+                    <button
+                      onClick={() => updateBook.mutate({ id: b.id, data: { assigned_students: [] } })}
+                      className="text-teal-400 text-xs font-bold mt-1 hover:text-white underline"
+                    >
+                      Clear (assign to all)
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 

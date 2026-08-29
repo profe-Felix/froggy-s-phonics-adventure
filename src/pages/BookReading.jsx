@@ -61,9 +61,27 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
 
+  // Fetch this class's active books PLUS books from linked classes
+  // (shares_books_from on ClassConfig). Lets e.g. Valero & Gutierrez see
+  // Felix's books without duplicating records.
   const { data: books = [], isLoading } = useQuery({
-    queryKey: ['books', className],
-    queryFn: () => base44.entities.BookAssignment.filter({ class_name: className, status: 'active' }),
+    queryKey: ['books-linked', className],
+    queryFn: async () => {
+      const configs = await base44.entities.ClassConfig.filter({ class_name: className });
+      const linkedFrom = configs[0]?.shares_books_from || [];
+      const sources = Array.from(new Set([className, ...linkedFrom]));
+      const results = await Promise.all(
+        sources.map(src => base44.entities.BookAssignment.filter({ class_name: src, status: 'active' }))
+      );
+      const seen = new Set();
+      const merged = [];
+      for (const list of results) {
+        for (const b of list) {
+          if (!seen.has(b.id)) { seen.add(b.id); merged.push(b); }
+        }
+      }
+      return merged;
+    },
     refetchInterval: 10000,
   });
 
@@ -85,8 +103,16 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   }
   }, [books, directBookId, directBookTitle, initialPage, suppressAutoSelect]);
 
-  // Sort by queue_order, then figure out which books the student can access
-  const sortedBooks = [...books].sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0));
+  // Sort by queue_order, then figure out which books the student can access.
+  // Individual assignment: if assigned_students is non-empty, only those
+  // students see the book. Empty = all students (default).
+  const sortedBooks = [...books]
+    .filter(b => {
+      const assigned = b.assigned_students;
+      if (!assigned || assigned.length === 0) return true;
+      return assigned.includes(studentNumber);
+    })
+    .sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0));
 
   // A student can read a book if:
   // - It has no queue_order set (legacy / unordered), OR

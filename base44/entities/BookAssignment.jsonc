@@ -78,6 +78,14 @@
       },
       "default": [],
       "description": "Student numbers who have mastered this book and can advance to next"
+    },
+    "assigned_students": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": [],
+      "description": "Specific student numbers who can see this book. Empty = all students in the class see it (default). Non-empty = only these students see it (for advanced-reader individual assignment)."
     }
   },
   "required": [

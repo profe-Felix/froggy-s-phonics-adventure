@@ -94,6 +94,18 @@ export default function ClassManager() {
                 />
                 Tracing only
               </label>
+              <select
+                value={cfg?.shares_books_from?.[0] || ''}
+                onChange={async (e) => {
+                  const src = e.target.value;
+                  if (cfg) await base44Update(cfg.id, { shares_books_from: src ? [src] : [] });
+                }}
+                className="px-2 py-1 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-600"
+                title="Share books from another class — students see that class's books too"
+              >
+                <option value="">📚 Own books</option>
+                {classList.filter(c => c !== cls).map(c => <option key={c} value={c}>📚 from {c}</option>)}
+              </select>
               <button
                 onClick={() => { if (window.confirm(`Remove class "${cls}"? Students are NOT deleted — only the class config.`)) removeClass(cls); }}
                 className="ml-auto p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"

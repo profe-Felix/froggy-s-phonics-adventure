@@ -51,6 +51,14 @@
       "type": "boolean",
       "default": false,
       "description": "If true, this class skips the level path and lands on the Games tab with only Letter Tracing available (no sound). Used for classes with a different letter-learning progression, e.g. Schwarz."
+    },
+    "shares_books_from": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Class names whose active books this class also sees in its bookshelf. e.g. ['Felix'] means this class sees all of Felix's active books in addition to its own. Used to share a book set across linked classes (e.g. Spanish classes) without duplicating book records."
     }
   },
   "required": [
