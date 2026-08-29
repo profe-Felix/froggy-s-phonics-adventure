@@ -281,21 +281,11 @@ export default function StrokeAuthoringCanvas({ rawStrokes, setRawStrokes, bg, b
   };
 
   // ---- Edit mode: handle-based fine-tuning ----
-  // Show a simplified set of "handles" (~12 per stroke) instead of every dense
-  // catmullRom sample, so the user can grab meaningful shape points. Dragging a
-  // handle re-interpolates the dense points between it and its neighbors, so the
-  // curve follows the handle smoothly. Tapping a segment between handles inserts
-  // a new handle there.
-  const HANDLES_PER_STROKE = 8;
-  const getHandleIndices = (stroke) => {
-    const n = stroke.length;
-    if (n <= HANDLES_PER_STROKE) return stroke.map((_, i) => i);
-    const step = Math.max(1, Math.floor((n - 1) / (HANDLES_PER_STROKE - 1)));
-    const idx = [0];
-    for (let i = step; i < n - 1; i += step) idx.push(i);
-    if (idx[idx.length - 1] !== n - 1) idx.push(n - 1);
-    return idx;
-  };
+  // Show every point as a handle so the user can grab and drag any point
+  // they drew. Dragging a handle re-interpolates the dense points between
+  // it and its neighbors so the curve follows smoothly. Tapping a segment
+  // between handles inserts a new point there.
+  const getHandleIndices = (stroke) => stroke.map((_, i) => i);
   const findNearestHandle = (pos, threshold) => {
     let best = null, bestD = threshold;
     for (let si = 0; si < rawStrokes.length; si++) {
