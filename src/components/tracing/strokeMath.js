@@ -102,31 +102,12 @@ export function catmullRom(points, samplesPerSegment = 16) {
 }
 
 // SVG path string through skeleton points using Catmull-Rom → cubic bezier
-// conversion. Produces a smooth curve through the control points using native
-// SVG C commands. Sharp corners (angle change > CORNER_THRESHOLD) are kept
-// crisp by zeroing the tangent at that point — so a horizontal bar meeting a
-// curve (like the 'e') stays straight then turns cleanly, instead of the
-// spline rounding the transition into a soft elbow.
-const CORNER_THRESHOLD = 35 * Math.PI / 180;
-
+// conversion. Produces a perfectly smooth curve through the control points
+// using native SVG C commands — no dense sampling, no angular segments.
 export function splinePathD(points) {
   if (!points || points.length < 2) return '';
   if (points.length === 2) {
     return `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
-  }
-  // Detect corner points: where the turn angle between incoming and outgoing
-  // segments exceeds the threshold, the spline would round it — flag it so
-  // we zero the tangent there and keep the corner crisp.
-  const isCorner = new Array(points.length).fill(false);
-  for (let i = 1; i < points.length - 1; i++) {
-    const p0 = points[i - 1], p1 = points[i], p2 = points[i + 1];
-    const v1x = p1.x - p0.x, v1y = p1.y - p0.y;
-    const v2x = p2.x - p1.x, v2y = p2.y - p1.y;
-    const l1 = Math.hypot(v1x, v1y), l2 = Math.hypot(v2x, v2y);
-    if (l1 < 1e-6 || l2 < 1e-6) continue;
-    const dot = (v1x * v2x + v1y * v2y) / (l1 * l2);
-    const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-    if (angle > CORNER_THRESHOLD) isCorner[i] = true;
   }
   const d = [`M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`];
   for (let i = 0; i < points.length - 1; i++) {
@@ -134,11 +115,10 @@ export function splinePathD(points) {
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2] || p2;
-    // Zero tangent at a corner point → curve goes straight in/out, crisp turn
-    const c1x = isCorner[i] ? p1.x : p1.x + (p2.x - p0.x) / 6;
-    const c1y = isCorner[i] ? p1.y : p1.y + (p2.y - p0.y) / 6;
-    const c2x = isCorner[i + 1] ? p2.x : p2.x - (p3.x - p1.x) / 6;
-    const c2y = isCorner[i + 1] ? p2.y : p2.y - (p3.y - p1.y) / 6;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
     d.push(`C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`);
   }
   return d.join(' ');
