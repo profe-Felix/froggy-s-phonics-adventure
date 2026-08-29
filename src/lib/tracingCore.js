@@ -14,7 +14,7 @@ export const COVERAGE_RADIUS = 22;
 export const MIN_COVER_FRAC = 0.80;
 export const MAX_GAP = 20;
 export const START_TOL = 12;
-export const END_TOL = 12;
+export const END_TOL = 4;
 // Dot strokes (the tittle on i/j) are tiny — a tap, not a drag. Give them a
 // wider start tolerance and detect them by total pixel length so the strict
 // drag/coverage/direction gates (meant for real strokes) can be skipped.
@@ -106,6 +106,10 @@ export function strokeAccuracy(drawnPts, idealDense, penalty = 30) {
     if (drawnLen > 0 && idealLen > 0) {
       const ratio = drawnLen / idealLen;
       if (ratio > 1.1) lengthFactor = 1.1 / ratio;
+      // Penalize SHORT strokes too — a clean trace that stops short of the
+      // end (a "floating" letter) shouldn't score 99%. Without this, only
+      // overly-long zigzags got penalized; a short clean stroke kept full marks.
+      else if (ratio < 0.9) lengthFactor = ratio / 0.9;
     }
   }
 
