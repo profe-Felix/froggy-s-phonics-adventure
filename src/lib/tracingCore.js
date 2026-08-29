@@ -32,31 +32,23 @@ export function scale(pt, w, h) {
   return { x: pt.x * w, y: pt.y * h };
 }
 
-// Densely sample a path through the waypoints. Sparse skeletons (≤12 control
-// points, the new authoring format) are smoothed via Catmull-Rom so the
-// student tracing path is a curve, not an angular polyline. Dense waypoints
-// (old saved data, 64+ points) use linear interpolation at a fixed pixel step
-// — identical to the previous behavior so existing letters validate the same.
-import { catmullRom, resample } from '@/components/tracing/strokeMath';
+// Densely sample a path through the waypoints at a fixed pixel step so
+// coverage is proportional to actual path length. Linear interpolation is
+// used for ALL skeletons (sparse and dense) because:
+//  1. It distributes points proportional to segment length — catmullRom
+//     gave every segment the same sample count, so a short hook could cover
+//     86% of the path while a long stem got 14% (the 'f' bug).
+//  2. It handles retraces correctly — catmullRom creates a smooth curve
+//     through turn-around points (e.g. the 'a' stem goes up then down),
+//     overshooting above the top and curving back, which distorts the path.
+//  3. Corner flags are preserved on control points so the "Show me" replay
+//     (which renders the dense path via splinePathD) still shows crisp turns.
+// The display layer (splinePathD / catmullRom in StrokeAuthoringCanvas)
+// handles smooth visual rendering separately from this validation path.
 
 export function buildDensePath(waypoints, scaleFn, step = 3) {
   const pts = waypoints.map(scaleFn);
   if (pts.length <= 1) return pts.slice();
-  if (pts.length <= 12) {
-    // Generate a smooth curve through the control points, then resample to a
-    // fixed pixel step so coverage is proportional to actual path length.
-    // Without resampling, catmullRom gives every segment the same number of
-    // samples regardless of length — a short hook gets as many points as a
-    // long stem, so drawing just the hook can cover 80%+ of the path while
-    // the stem is never drawn. (This was the 'f' bug: the hook spanned 6 of
-    // 7 segments so it got 86% of the dense points; the stem was 1 segment
-    // with only 16, so the stroke validated as complete with only the hook.)
-    const smooth = catmullRom(pts, 24);
-    let totalLen = 0;
-    for (let i = 1; i < smooth.length; i++) totalLen += dist(smooth[i], smooth[i - 1]);
-    const n = Math.max(2, Math.round(totalLen / step));
-    return resample(smooth, n);
-  }
   const dense = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i];
@@ -65,10 +57,17 @@ export function buildDensePath(waypoints, scaleFn, step = 3) {
     const n = Math.max(1, Math.round(segLen / step));
     for (let j = 0; j < n; j++) {
       const t = j / n;
-      dense.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      // Preserve corner flag on control points so splinePathD replay
+      // renders crisp turns at the right positions.
+      if (j === 0 && a.corner) p.corner = true;
+      dense.push(p);
     }
   }
-  dense.push(pts[pts.length - 1]);
+  const last = pts[pts.length - 1];
+  const lastP = { x: last.x, y: last.y };
+  if (last.corner) lastP.corner = true;
+  dense.push(lastP);
   return dense;
 }
 

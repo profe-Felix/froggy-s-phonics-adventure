@@ -390,6 +390,10 @@ export default function LetterTracingCanvas({
 
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
+    // Stop the fonema loop — the stroke was interrupted (error/restart), so
+    // the pen is no longer drawing. Without this the sound keeps replaying
+    // every 2s until the user lifts their finger.
+    stopFonema();
   };
 
   // Finalise the current stroke as completed and advance to the next one.
@@ -777,6 +781,7 @@ export default function LetterTracingCanvas({
 
   const reset = () => {
     stopReplay();
+    stopFonema();
     setStrokeIndex(0);
     setWaypointIndex(0);
     setDrawing(false);

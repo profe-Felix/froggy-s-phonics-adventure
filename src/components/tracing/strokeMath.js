@@ -87,7 +87,14 @@ export function catmullRom(points, samplesPerSegment = 16) {
   const pts = [points[0], ...points, points[points.length - 1]];
   const out = [];
   for (let i = 1; i < pts.length - 2; i++) {
-    const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2];
+    let p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2];
+    // Corner points: collapse the neighbor onto the corner so the tangent
+    // is zero → the curve goes straight in and out (matches splinePathD
+    // rendering). Without this, catmullRom creates a smooth bulge at every
+    // corner, adding extra arc length that skews the resampled point
+    // distribution — straight segments get fewer points than they should.
+    if (p1.corner) p0 = p1;
+    if (p2.corner) p3 = p2;
     const last = i === pts.length - 3;
     const n = last ? samplesPerSegment + 1 : samplesPerSegment;
     for (let j = 0; j < n; j++) {
