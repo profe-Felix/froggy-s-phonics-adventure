@@ -7,6 +7,7 @@ import {
   isDotStroke, DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
+import { splinePathD } from '@/components/tracing/strokeMath';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
@@ -977,13 +978,11 @@ export default function LetterTracingCanvas({
                   ? '#94a3b8'
                   : GUIDE_COLORS[si % GUIDE_COLORS.length];
 
+            const scaledPts = stroke.map((p) => scaleForCopy(p, copyIndex));
             return (
-              <polyline
+              <path
                 key={`${copyIndex}-${si}`}
-                points={stroke.map((p) => {
-                  const q = scaleForCopy(p, copyIndex);
-                  return `${q.x},${q.y}`;
-                }).join(' ')}
+                d={splinePathD(scaledPts)}
                 fill="none"
                 stroke={color}
                 strokeWidth="6"
