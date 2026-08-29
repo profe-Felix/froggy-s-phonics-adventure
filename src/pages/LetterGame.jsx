@@ -69,7 +69,7 @@ export default function LetterGame() {
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
   const queryClient = useQueryClient();
-  const { languageFor, configs } = useClassColors();
+  const { languageFor, configs, tracingOnlyFor } = useClassColors();
 
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
@@ -573,6 +573,7 @@ export default function LetterGame() {
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
           onStudentPatch={handlePersistPatch}
+          silent={tracingOnlyFor(studentData?.class_name)}
         />
       )}
       {currentMode === 'number_hearing' && (

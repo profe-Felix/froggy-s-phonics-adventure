@@ -118,6 +118,7 @@ export default function LetterTracingMode({
   onStudentPatch,
   targets,
   freeSpinEnabled = true,
+  silent = false,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
 
@@ -232,25 +233,35 @@ export default function LetterTracingMode({
   // Free-play Letter Tracing only shows the letters the teacher has toggled on
   // (progression). Lesson steps pass their own `targets` and skip this.
   // ---------------------------------------------------------------------------
+  // Load the enabled letters for this student's class. A per-class override
+  // (scope = class name) takes precedence; if none exists, fall back to the
+  // global default (scope = 'default'). This lets Schwarz have her own letter
+  // progression separate from the Spanish classes.
   useEffect(() => {
     let cancelled = false;
+    const cls = studentData?.class_name;
 
-    base44.entities.TracingSettings.filter({ scope: 'default' })
-      .then((records) => {
-        if (cancelled || !records || !records.length) return;
-
-        const rec = records[0];
-
-        if (Array.isArray(rec.enabled_letters)) {
-          setEnabledLetters(rec.enabled_letters);
+    const loadSettings = async () => {
+      try {
+        if (cls) {
+          const perClass = await base44.entities.TracingSettings.filter({ scope: cls });
+          if (cancelled) return;
+          if (perClass && perClass.length && Array.isArray(perClass[0].enabled_letters)) {
+            setEnabledLetters(perClass[0].enabled_letters);
+            return;
+          }
         }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
+        const def = await base44.entities.TracingSettings.filter({ scope: 'default' });
+        if (cancelled) return;
+        if (def && def.length && Array.isArray(def[0].enabled_letters)) {
+          setEnabledLetters(def[0].enabled_letters);
+        }
+      } catch {}
     };
-  }, []);
+
+    loadSettings();
+    return () => { cancelled = true; };
+  }, [studentData?.class_name]);
 
   // ---------------------------------------------------------------------------
   // RESTORE SAVED STAGE STATE
@@ -1415,6 +1426,7 @@ export default function LetterTracingMode({
         practiceCopies={practiceCopies}
         activeCopy={activeCopy}
         showGuide={currentStage.showGuide}
+        silent={silent}
         onMistake={() =>
           handleMistake(currentLetter)
         }

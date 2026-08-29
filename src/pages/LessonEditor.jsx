@@ -16,8 +16,7 @@ import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
-
-const CLASSES = ['', 'Felix', 'Valero', 'Campos'];
+import { useClassNames } from '@/hooks/useClassNames';
 
 function blankStep(mode = 'letter_sounds') {
   const m = MODE_BY_VALUE[mode];
@@ -368,6 +367,8 @@ export default function LessonEditor() {
   const { user } = useAuth();
   const canManage = user && (user.role === 'admin' || user.role === 'teacher');
   const qc = useQueryClient();
+  const { classList } = useClassNames();
+  const CLASSES = ['', ...classList];
   const [editing, setEditing] = useState(null); // lesson object being edited (new or existing)
   const [filterMode, setFilterMode] = useState('');
 

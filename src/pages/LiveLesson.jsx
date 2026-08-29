@@ -9,8 +9,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
-
-const CLASSES = ['Valero', 'Felix', 'Gutierrez', 'Schwarz', 'Campos', 'Mendez', 'Aguirre', 'Jimenez'];
+import { useClassNames } from '@/hooks/useClassNames';
 
 function genCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -25,6 +24,7 @@ export default function LiveLesson() {
   // Always-current session snapshot so the heartbeat interval reads live
   // step/phase values instead of the stale ones captured at setup.
   const sessionRef = useRef(session);
+  const { classList: CLASSES } = useClassNames();
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');

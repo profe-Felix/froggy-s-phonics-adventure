@@ -8,13 +8,14 @@ import StudentBookReader from '@/components/book/StudentBookReader';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
 import { QRCodeSVG } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
+import { useClassNames } from '@/hooks/useClassNames';
 
 const MODULES = ['All', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
-const CLASS_NAMES = ['Felix', 'Valero', 'Gutierrez', 'Schwarz'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
-function StudentLogin({ onEnter, preselectedClass }) {
+function StudentLogin({ onEnter, preselectedClass, classNames }) {
+  const CLASS_NAMES = classNames;
   const [className, setClassName] = useState(preselectedClass || null);
 
   if (!className) {
@@ -191,7 +192,8 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   );
 }
 
-function BookClassPicker({ title, onSelect }) {
+function BookClassPicker({ title, onSelect, classNames }) {
+  const CLASS_NAMES = classNames;
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#042f2e' }}>
       <div className="text-center">
@@ -218,6 +220,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   const urlClass = prefillClass || params.get('class');
   const urlNumber = prefillNumber || parseInt(params.get('number') || params.get('student'));
   const urlBook = params.get('book') || null; // book title deep-link
+  const { classList: CLASS_NAMES } = useClassNames();
 
   // Assignment-style link: has book name but no class/number
   const isBookLink = !!urlBook && !urlClass && !urlNumber;
@@ -265,7 +268,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
 
   // Book link flow: pick class first
   if (isBookLink && !pickedClass) {
-    return <BookClassPicker title={urlBook} onSelect={(c) => { setPickedClass(c); setRole('student'); }} />;
+    return <BookClassPicker title={urlBook} classNames={CLASS_NAMES} onSelect={(c) => { setPickedClass(c); setRole('student'); }} />;
   }
 
   // Book link flow: pick student number
@@ -279,6 +282,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number })}
           preselectedClass={pickedClass}
+          classNames={CLASS_NAMES}
         />
       </div>
     );
@@ -353,6 +357,7 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number })}
           preselectedClass={urlClass}
+          classNames={CLASS_NAMES}
         />
       </div>
     );

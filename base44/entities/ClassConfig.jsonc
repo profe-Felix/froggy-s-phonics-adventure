@@ -46,6 +46,11 @@
       ],
       "default": "es",
       "description": "Default content language for students in this class. New students inherit it at creation; literacy audio and word pools pull from this language on Supabase."
+    },
+    "tracing_only": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this class skips the level path and lands on the Games tab with only Letter Tracing available (no sound). Used for classes with a different letter-learning progression, e.g. Schwarz."
     }
   },
   "required": [

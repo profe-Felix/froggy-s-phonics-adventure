@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import StudentCard from '../components/dashboard/StudentCard';
 import StudentDetail from '../components/dashboard/StudentDetail';
 import ClassColorPicker from '../components/dashboard/ClassColorPicker';
+import ClassManager from '../components/dashboard/ClassManager';
 
 export default function Dashboard() {
   const [students, setStudents] = useState([]);
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [assignClass, setAssignClass] = useState('');
   const [renamingClass, setRenamingClass] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [showClassManager, setShowClassManager] = useState(false);
 
   useEffect(() => {
     loadStudents();
@@ -181,6 +183,12 @@ export default function Dashboard() {
                   📚 Book Reading
                 </Link>
                 <button
+                  onClick={() => setShowClassManager(v => !v)}
+                  className="text-sm text-amber-600 border border-amber-200 rounded-lg px-4 py-2 hover:bg-amber-50"
+                >
+                  🏫 Manage Classes
+                </button>
+                <button
                   onClick={loadStudents}
                   className="text-sm text-blue-600 border border-blue-200 rounded-lg px-4 py-2 hover:bg-blue-50"
                 >
@@ -194,6 +202,12 @@ export default function Dashboard() {
         {assignMode && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-sm text-blue-700">
             Select students below, enter a class letter, then click <strong>Assign</strong>.
+          </div>
+        )}
+
+        {showClassManager && (
+          <div className="mb-5">
+            <ClassManager />
           </div>
         )}
 

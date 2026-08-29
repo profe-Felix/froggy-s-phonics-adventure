@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import LevelPath from './LevelPath';
 import LevelSideNav from './LevelSideNav';
 import LessonMap from './LessonMap';
 import LessonStepper from './LessonStepper';
 import SideQuests from './SideQuests';
+import { useClassColors } from '@/hooks/useClassColors';
 import { BookOpen, PlayCircle } from 'lucide-react';
 
 // The student's home shell: a side nav (Lessons / Books / Games / Videos) plus
@@ -23,9 +24,24 @@ const FREE_MODES = [
 ];
 
 export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete }) {
-  const [section, setSection] = useState('lessons');
+  const { tracingOnlyFor } = useClassColors();
+  const isTracingOnly = tracingOnlyFor(studentData?.class_name);
+
+  // Tracing-only classes (e.g. Schwarz) skip the level path and land on the
+  // Games tab, which shows only Letter Tracing. Other tabs stay in the nav but
+  // render empty (Lessons/Quests/Videos) or the bookshelf (Books, which is
+  // empty until the teacher adds that class's own books).
+  const [section, setSection] = useState(() => isTracingOnly ? 'games' : 'lessons');
   const [openLesson, setOpenLesson] = useState(null);
   const [openSideQuest, setOpenSideQuest] = useState(null);
+
+  // Tracing-only classes get a single game: Letter Tracing.
+  const modes = useMemo(
+    () => isTracingOnly
+      ? [{ mode: 'letter_tracing', label: 'Letter Tracing', emoji: '✏️' }]
+      : FREE_MODES,
+    [isTracingOnly]
+  );
 
   const go = (s) => {
     if (s !== 'lessons') setOpenLesson(null);
@@ -86,7 +102,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
           <div className="h-full overflow-y-auto p-6">
             <h2 className="text-2xl font-black text-indigo-900 mb-4">Games</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl">
-              {FREE_MODES.map((m) => (
+              {modes.map((m) => (
                 <button
                   key={m.mode}
                   onClick={() => onPlayMode(m.mode)}

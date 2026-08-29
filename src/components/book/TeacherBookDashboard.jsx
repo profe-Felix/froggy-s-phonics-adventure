@@ -9,13 +9,14 @@ import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import BookStudentGrid from './BookStudentGrid';
 import TeacherBookAnnotator from './TeacherBookAnnotator';
 import BackButton from '@/components/ui/BackButton';
+import { useClassNames } from '@/hooks/useClassNames';
 
-const CLASS_NAMES = ['Felix', 'Valero', 'Gutierrez', 'Schwarz'];
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
 export default function TeacherBookDashboard({ onBack }) {
   const qc = useQueryClient();
-  const [className, setClassName] = useState('Felix');
+  const { classList: CLASS_NAMES } = useClassNames();
+  const [className, setClassName] = useState(CLASS_NAMES[0] || 'Felix');
   const [newModule, setNewModule] = useState('');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);

@@ -28,8 +28,8 @@ import { motion } from 'framer-motion';
 import StudentLoginShell from '../components/game/StudentLoginShell';
 import { useClassColors } from '@/hooks/useClassColors';
 import { ArrowLeft } from 'lucide-react';
+import { useClassNames } from '@/hooks/useClassNames';
 
-const CLASSES = ['Felix', 'Schwarz', 'Gutierrez', 'Valero', 'Mendez', 'Jimenez', 'Campos', 'Aguirre'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 export default function MathGames() {
@@ -37,6 +37,7 @@ export default function MathGames() {
   const mode = urlParams.get('mode');
   const classParam = urlParams.get('class');
 
+  const { classList: CLASSES } = useClassNames();
   const [selectedClass, setSelectedClass] = useState(classParam || null);
   const [studentNumber, setStudentNumber] = useState(null);
   const [gameMode, setGameMode] = useState(null); // null=tiles, 'bingo', 'numbers'

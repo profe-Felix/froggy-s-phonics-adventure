@@ -5,7 +5,12 @@
     "scope": {
       "type": "string",
       "default": "default",
-      "description": "Singleton key. Always 'default' \u2014 one global tracing progression setting."
+      "description": "Settings key. 'default' = the global fallback used by every class that has no override. A class name (e.g. 'Schwarz') = a per-class override that takes precedence over the default for that class."
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this setting belongs to. Empty = the global default. Set to a class name (e.g. 'Schwarz') for a per-class letter progression override."
     },
     "enabled_letters": {
       "type": "array",

@@ -9,11 +9,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { motion } from 'framer-motion';
+import { useClassNames } from '@/hooks/useClassNames';
 
-const CLASSES = ['Felix', 'Valero', 'Campos'];
 const TABS = ['✏️ Writing Samples', '👥 By Student', '🔴 Struggle Groups', '🎱 Bingo', '🧊 1 More/Less'];
 
 export default function MathDashboard() {
+  const { classList } = useClassNames();
+  const CLASSES = classList;
   const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
   const [activeTab, setActiveTab] = useState(0);
   const [filterNumber, setFilterNumber] = useState(null);

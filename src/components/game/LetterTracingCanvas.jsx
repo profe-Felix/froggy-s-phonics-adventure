@@ -26,6 +26,7 @@ export default function LetterTracingCanvas({
   showGuide = true,
   practiceCopies = 1,
   activeCopy = 0,
+  silent = false,
 }) {
   const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
@@ -216,9 +217,10 @@ export default function LetterTracingCanvas({
   }, []);
 
   // Preload fonema audio and detect silence start for instant playback.
+  // Skipped in silent mode (e.g. Schwarz tracing, which has no audio).
   useEffect(() => {
-    if (letter) preloadSilenceStart(fonemaUrl(letter, lang));
-  }, [letter, lang]);
+    if (letter && !silent) preloadSilenceStart(fonemaUrl(letter, lang));
+  }, [letter, lang, silent]);
 
   // Reset when letter changes
   useEffect(() => {
@@ -346,7 +348,7 @@ export default function LetterTracingCanvas({
     setStatus('tracing');
     currentPathRef.current = [pos];
     setCurrentPath([pos]);
-    playFonema();
+    if (!silent) playFonema();
 
     // Dot strokes: a tap is the whole stroke. Pre-mark full coverage and set
     // pending-complete so a simple press-and-lift commits the dot — no drag,
