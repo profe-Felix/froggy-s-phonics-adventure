@@ -985,6 +985,23 @@ export default function LetterTracingCanvas({
                   : GUIDE_COLORS[si % GUIDE_COLORS.length];
 
             const scaledPts = stroke.map((p) => scaleForCopy(p, copyIndex));
+            const opacity = isPastCopy ? 0.42 : isFutureCopy ? 0.25 : isPastStroke ? 0.5 : 0.6;
+            // A single-point stroke is a dot (the tittle on i/j). splinePathD
+            // returns '' for < 2 points, so render it as a filled circle.
+            if (scaledPts.length === 1) {
+              const p = scaledPts[0];
+              return (
+                <circle
+                  key={`${copyIndex}-${si}`}
+                  cx={p.x}
+                  cy={p.y}
+                  r="6"
+                  fill={color}
+                  opacity={opacity}
+                  pointerEvents="none"
+                />
+              );
+            }
             return (
               <path
                 key={`${copyIndex}-${si}`}
@@ -994,15 +1011,7 @@ export default function LetterTracingCanvas({
                 strokeWidth="6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={
-                  isPastCopy
-                    ? 0.42
-                    : isFutureCopy
-                      ? 0.25
-                      : isPastStroke
-                        ? 0.5
-                        : 0.6
-                }
+                opacity={opacity}
                 pointerEvents="none"
               />
             );
