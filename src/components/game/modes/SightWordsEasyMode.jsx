@@ -144,7 +144,7 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
       setPhase('catch');
     }
 
-    if (phase === 'catch' || (!useMastered && hasLearning)) {
+    if (!useMastered) {
       // Set up catch options
       const targetIndex = SIGHT_WORDS.indexOf(targetWord);
       const windowSize = 10;
