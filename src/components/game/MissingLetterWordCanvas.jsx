@@ -38,10 +38,13 @@ export default function MissingLetterWordCanvas({
       const hasWp = wp && Array.isArray(wp.strokes) && wp.strokes.length > 0;
       let minX = Infinity, maxX = -Infinity;
       if (hasWp) {
+        // Only use points at or above the baseline (y <= 0.633) for horizontal
+        // bounds, so descender tails (j curving left, q curving right) don't
+        // create gaps — they naturally extend under adjacent letters.
         for (const stroke of wp.strokes) {
           if (!Array.isArray(stroke)) continue;
           for (const p of stroke) {
-            if (p && p.x != null) {
+            if (p && p.x != null && p.y <= 0.633) {
               if (p.x < minX) minX = p.x;
               if (p.x > maxX) maxX = p.x;
             }
@@ -598,13 +601,13 @@ export default function MissingLetterWordCanvas({
 
         {/* Drawn paths (completed strokes for the target letter) */}
         {drawnPaths.map((pts, i) => (
-          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="12"
+          <path key={i} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="16"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         ))}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="16"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
