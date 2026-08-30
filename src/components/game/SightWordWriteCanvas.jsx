@@ -68,6 +68,33 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
     };
   };
 
+  // Commit the current stroke to the strokes array. Called from both the
+  // SVG's onPointerUp and a global window pointerup listener — the fallback
+  // ensures strokes are never lost when pointerup fires outside the SVG
+  // (common on mobile where setPointerCapture can silently fail).
+  // Only uses refs + stable setters, so a plain function is safe.
+  const commitStroke = () => {
+    if (!drawingRef.current) return;
+    if (currentRef.current.length >= 1) {
+      setStrokes((prev) => [...prev, currentRef.current.slice()]);
+    }
+    currentRef.current = [];
+    setCurrent([]);
+    drawingRef.current = false;
+  };
+
+  // Global pointerup fallback — catches the stroke even when the pointerup
+  // event fires on a different element than the SVG.
+  useEffect(() => {
+    const handler = () => commitStroke();
+    window.addEventListener('pointerup', handler, { capture: true });
+    window.addEventListener('pointercancel', handler, { capture: true });
+    return () => {
+      window.removeEventListener('pointerup', handler, { capture: true });
+      window.removeEventListener('pointercancel', handler, { capture: true });
+    };
+  }, []);
+
   const down = (e) => {
     e.preventDefault();
     if (e.button != null && e.button !== 0) return;
@@ -76,7 +103,7 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
     currentRef.current = [pos];
     setCurrent([pos]);
     drawingRef.current = true;
-    setResult(null);
+    if (result) setResult(null);
   };
 
   const move = (e) => {
@@ -92,12 +119,7 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
   const up = (e) => {
     e.preventDefault();
     try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
-    if (drawingRef.current && currentRef.current.length >= 1) {
-      setStrokes((prev) => [...prev, currentRef.current.slice()]);
-    }
-    currentRef.current = [];
-    setCurrent([]);
-    drawingRef.current = false;
+    commitStroke();
   };
 
   const clear = () => {
