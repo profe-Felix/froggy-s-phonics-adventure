@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
-import { Save, Check, RotateCcw, Play } from 'lucide-react';
+import { Save, Check, RotateCcw, Play, ImagePlus, X } from 'lucide-react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375;
@@ -23,6 +23,8 @@ export default function NumberComposer({ target, onSaved }) {
 
   const [digitStrokes, setDigitStrokes] = useState({});
   const [spacing, setSpacing] = useState(0.04);
+  const [bg, setBg] = useState('');
+  const [bgOpacity, setBgOpacity] = useState(0.45);
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -183,6 +185,11 @@ export default function NumberComposer({ target, onSaved }) {
         <svg viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
           className="rounded-2xl border-4 border-slate-200 bg-white"
           style={{ width: '100%', maxWidth: 360, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}>
+          {/* Reference image (behind everything) */}
+          {bg && (
+            <image href={bg} x="0" y="0" width={CANVAS_W} height={CANVAS_H}
+              preserveAspectRatio="xMidYMid meet" opacity={bgOpacity} pointerEvents="none" />
+          )}
           {/* Writing lines */}
           <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
           <line x1="0" y1={0.367 * CANVAS_H} x2={CANVAS_W} y2={0.367 * CANVAS_H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
@@ -201,6 +208,44 @@ export default function NumberComposer({ target, onSaved }) {
           </label>
           <p className="text-xs text-slate-400 text-center">
             Gap is measured between the ink edges, not the canvas boxes.
+          </p>
+        </div>
+
+        {/* Reference image to match spacing against */}
+        <div className="w-full max-w-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase">Trace image</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 cursor-pointer">
+                <ImagePlus className="w-3.5 h-3.5" /> {bg ? 'Change' : 'Add image'}
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setBg(reader.result);
+                    reader.readAsDataURL(f);
+                    e.target.value = '';
+                  }} />
+              </label>
+              {bg && (
+                <button onClick={() => setBg('')}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100">
+                  <X className="w-3.5 h-3.5" /> Clear
+                </button>
+              )}
+            </div>
+          </div>
+          {bg && (
+            <label className="block">
+              <span className="text-xs text-slate-400">Image opacity</span>
+              <input type="range" min="0.1" max="0.9" step="0.05" value={bgOpacity}
+                onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
+                className="w-full accent-indigo-600" />
+            </label>
+          )}
+          <p className="text-xs text-slate-400 text-center">
+            Upload a picture of the number to line up the digits and set the spacing.
           </p>
         </div>
       </div>
