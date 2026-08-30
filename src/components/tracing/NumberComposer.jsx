@@ -58,6 +58,34 @@ export default function NumberComposer({ target, onSaved }) {
     return () => { cancelled = true; };
   }, [tensKey, onesKey]);
 
+  // Restore the saved spacing for this number. The composed strokes are saved
+  // with the spacing baked into the coordinates, so the gap between the tens
+  // ink's right edge and the ones ink's left edge IS the slider value. Without
+  // this, reopening a number resets the slider to the default and the digits
+  // look "too close" again even though the saved strokes still have the gap.
+  useEffect(() => {
+    if (!digitStrokes[tensKey] || !digitStrokes[onesKey]) return;
+    let cancelled = false;
+    base44.entities.LetterWaypoint.filter({ letter: target })
+      .then((recs) => {
+        if (cancelled || !recs || !recs.length) return;
+        try {
+          const strokes = JSON.parse(recs[0].strokes_data);
+          if (!Array.isArray(strokes) || !strokes.length) return;
+          const tensCount = (digitStrokes[tensKey] || []).length;
+          if (!tensCount) return;
+          const tb = inkBounds(strokes.slice(0, tensCount));
+          const ob = inkBounds(strokes.slice(tensCount));
+          if (tb && ob && ob.minX > tb.maxX) {
+            const gap = +(ob.minX - tb.maxX).toFixed(4);
+            if (gap >= 0 && gap <= 0.5) setSpacing(gap);
+          }
+        } catch {}
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [target, digitStrokes, tensKey, onesKey]);
+
   // Ink bounding box (minX/maxX) of a digit's authored strokes, in normalized 0-1.
   const inkBounds = (strokes) => {
     if (!strokes) return null;
@@ -145,9 +173,10 @@ export default function NumberComposer({ target, onSaved }) {
   const reset = () => setSpacing(0.04);
   const ready = tensInk && onesInk;
 
-  // Load an uploaded image file, capture its aspect ratio, and fit it to the
-  // canvas height (centered) — same model as the letter authoring canvas so the
-  // teacher only drags to position, never resizes by hand.
+  // Auto-zoom the uploaded image to fill the canvas, same default as the
+  // letter authoring canvas (16.3× canvas height) — the teacher pans with Move
+  // and fine-tunes with Scale, never starts at a tiny 1× fit.
+  const DEFAULT_BG_SCALE = 16.3;
   const loadTraceImage = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -156,11 +185,10 @@ export default function NumberComposer({ target, onSaved }) {
       const img = new Image();
       img.onload = () => {
         const aspect = img.width / img.height || 1;
-        const scale = 1; // fit to canvas height (dispH = CANVAS_H)
-        const dh = CANVAS_H * scale;
+        const dh = CANVAS_H * DEFAULT_BG_SCALE;
         const dw = dh * aspect;
         setBg({ url, img, aspect });
-        setBgScale(scale);
+        setBgScale(DEFAULT_BG_SCALE);
         setBgX((CANVAS_W - dw) / 2);
         setBgY((CANVAS_H - dh) / 2);
       };
@@ -274,7 +302,7 @@ export default function NumberComposer({ target, onSaved }) {
         <div className="w-full max-w-sm space-y-1">
           <label className="block">
             <span className="text-xs font-semibold text-slate-500 uppercase">Spacing between digits</span>
-            <input type="range" min="0" max="0.15" step="0.005" value={spacing}
+            <input type="range" min="0" max="0.30" step="0.005" value={spacing}
               onChange={(e) => setSpacing(parseFloat(e.target.value))}
               className="w-full accent-indigo-600" />
           </label>
