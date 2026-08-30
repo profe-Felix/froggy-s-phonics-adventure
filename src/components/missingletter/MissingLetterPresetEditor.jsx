@@ -128,7 +128,7 @@ export default function MissingLetterPresetEditor({ presetKey, onClose, onSaved 
               >
                 <option value="emoji">Emoji</option>
                 <option value="upload">Upload image</option>
-                <option value="random">Random (Letter Sort bucket)</option>
+                <option value="random">Auto from word (Letter Sort bucket)</option>
               </select>
               <button onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
             </div>
@@ -141,7 +141,7 @@ export default function MissingLetterPresetEditor({ presetKey, onClose, onSaved 
                 <ImagePicker value={it.image_url} onChange={(url) => updateItem(i, { image_url: url })} />
               )}
               {it.image_source === 'random' && (
-                <span className="text-[10px] text-gray-400">Image auto-resolved from the word in the Letter Sort bucket.</span>
+                <span className="text-[10px] text-gray-400">Image looked up by the word's filename in the Letter Sort bucket (e.g. anillo → anillo_pic.jpg). Add the word above; no image upload needed.</span>
               )}
               <label className="text-[10px] font-bold text-gray-500 ml-auto">Bank (override)
                 <input
