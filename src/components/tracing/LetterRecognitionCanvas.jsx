@@ -321,13 +321,25 @@ export default function LetterRecognitionCanvas({ templates }) {
         return;
       }
       if (mode === 'trace') {
-        // Join ALL the ink into one cloud (order/direction don't matter) and, for
-        // each saved letter, trace its taught pathway through that cloud. The
-        // best letter is the one whose path the ink actually covers with the
-        // least waste — a clean 'o' ring beats a giant filled-in circle, because
-        // the fill covers the ring (coverage 100%) but the interior is all waste.
-        const ranked = traceMatch(strokes, templates);
-        setResult({ mode: 'trace', ranked, guessLetter: ranked[0] ? ranked[0].letter : null, strokesPx: strokes });
+        // Segment the ink into letter groups first (segmentByRecognition
+        // already keeps i/j dots with their stems via the dot-above-shaft rule),
+        // then trace-match each group separately. This lets the trace mode
+        // recognize multi-letter words — each letter's taught pathway is traced
+        // through its own ink cloud, not the whole word's.
+        const groups = segmentByRecognition(strokes, spaceGap, templates);
+        const segments = groups.map((g) => {
+          const ranked = traceMatch(g, templates);
+          const top = ranked[0] || null;
+          return {
+            letter: top ? top.letter : '?',
+            confidence: top ? top.confidence : 0,
+            coverage: top ? top.coverage : 0,
+            extra: top ? top.extra : 0,
+            ranked,
+            strokesPx: g,
+          };
+        });
+        setResult({ mode: 'trace', segments, word: segments.map((s) => s.letter).join(''), strokesPx: strokes });
         setGuessing(false);
         return;
       }
@@ -467,7 +479,7 @@ export default function LetterRecognitionCanvas({ templates }) {
         </button>
       </div>
 
-      {mode === 'letter' && (
+      {(mode === 'letter' || mode === 'trace') && (
         <>
           {/* Segmentation mode toggle */}
           <div className="flex gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
@@ -596,34 +608,58 @@ export default function LetterRecognitionCanvas({ templates }) {
 
       {result && result.mode === 'trace' && (
         <div className="w-full max-w-sm text-left space-y-2">
-          {result.guessLetter ? (
-            <div className="p-3 rounded-xl bg-indigo-50 border-2 border-indigo-300 text-center">
-              <div className="text-sm font-semibold text-slate-600">Best trace match</div>
-              <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.guessLetter}</div>
-              <div className="text-xs text-slate-500 leading-snug">
-                {Math.round(result.ranked[0].coverage * 100)}% of the letter's path was traced · {Math.round(result.ranked[0].extra * 100)}% waste ink
+          {result.segments.length === 1 && result.segments[0].letter !== '?' ? (
+            <>
+              <div className="p-3 rounded-xl bg-indigo-50 border-2 border-indigo-300 text-center">
+                <div className="text-sm font-semibold text-slate-600">Best trace match</div>
+                <div className="text-4xl font-bold text-indigo-600 leading-tight my-0.5">{result.segments[0].letter}</div>
+                <div className="text-xs text-slate-500 leading-snug">
+                  {Math.round(result.segments[0].coverage * 100)}% of the letter's path was traced · {Math.round(result.segments[0].extra * 100)}% waste ink
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  All your ink was treated as one shape; each letter's taught pathway was traced through it.
+                </div>
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">
-                All your ink was treated as one shape; each letter's taught pathway was traced through it.
+              <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                {result.segments[0].ranked.map((r, i) => (
+                  <div key={r.letter} className="flex items-center gap-2">
+                    <span className={`w-5 text-sm font-bold ${i === 0 ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
+                    </div>
+                    <span className="w-28 text-right text-[10px] text-slate-400 tabular-nums truncate" title={r.excludedBy || ''}>
+                      {isFinite(r.dist) ? `${Math.round(r.coverage * 100)}% cov · ${Math.round(r.extra * 100)}% waste` : (r.excludedBy || 'excluded')}
+                    </span>
+                  </div>
+                ))}
               </div>
-            </div>
+              <MatchOverlap segment={{ strokesPx: result.segments[0].strokesPx, ranked: result.segments[0].ranked.slice(0, 4) }} templates={templates} />
+            </>
+          ) : result.segments.length > 1 ? (
+            <>
+              <div className="text-lg font-bold text-slate-700 text-center">
+                I think you wrote: <span className="text-2xl tracking-wider text-indigo-600">{result.word}</span>
+              </div>
+              <div className="space-y-2 text-left">
+                {result.segments.map((seg, i) => (
+                  <div key={i}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-14 text-xs text-slate-500">Letter {i + 1}</span>
+                      <span className="w-5 text-lg font-bold text-indigo-600">{seg.letter}</span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-indigo-500" style={{ width: `${seg.confidence}%` }} />
+                      </div>
+                      <span className="w-20 text-right text-[10px] text-slate-400 tabular-nums">
+                        {Math.round(seg.coverage * 100)}% cov · {Math.round(seg.extra * 100)}% waste
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center text-slate-500 p-3">No match — draw a letter first.</div>
           )}
-          <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-            {result.ranked.map((r, i) => (
-              <div key={r.letter} className="flex items-center gap-2">
-                <span className={`w-5 text-sm font-bold ${i === 0 ? 'text-indigo-600' : 'text-slate-600'}`}>{r.letter}</span>
-                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${i === 0 ? 'bg-indigo-500' : 'bg-slate-300'}`} style={{ width: `${r.confidence}%` }} />
-                </div>
-                <span className="w-28 text-right text-[10px] text-slate-400 tabular-nums truncate" title={r.excludedBy || ''}>
-                  {isFinite(r.dist) ? `${Math.round(r.coverage * 100)}% cov · ${Math.round(r.extra * 100)}% waste` : (r.excludedBy || 'excluded')}
-                </span>
-              </div>
-            ))}
-          </div>
-          <MatchOverlap segment={{ strokesPx: result.strokesPx, ranked: result.ranked.slice(0, 4) }} templates={templates} />
         </div>
       )}
 
