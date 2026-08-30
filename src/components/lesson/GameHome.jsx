@@ -15,12 +15,8 @@ const FREE_MODES = [
   { mode: 'letter_sounds', label: 'Letter Sounds', emoji: '🔊' },
   { mode: 'letter_tracing', label: 'Letter Tracing', emoji: '⬇️✏️' },
   { mode: 'sight_words_easy', label: 'Sight Words', emoji: '👁️' },
-  { mode: 'spelling', label: 'Spelling', emoji: '✏️' },
-  { mode: 'case_matching', label: 'Upper & Lower', emoji: '🅰️' },
-  { mode: 'spanish_reading', label: 'Read Aloud', emoji: '📖' },
-  { mode: 'storybuilder', label: 'Story Builder', emoji: '🦊' },
-  { mode: 'book_reading', label: 'Books', emoji: '📚' },
-  { mode: 'number_hearing', label: 'Numbers', emoji: '🔢' },
+  { mode: 'missing_letter', label: 'Missing Letter', emoji: '🔤' },
+  { mode: 'syllable_count', label: 'Counting Syllables', emoji: '👏' },
 ];
 
 export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete }) {

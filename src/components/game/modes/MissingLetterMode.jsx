@@ -7,6 +7,7 @@ import { resolveImageForWord } from '@/lib/lettersort/storage';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
+import { generateMissingLetterItems } from '@/lib/missingLetterFreePlay';
 import { Volume2, RotateCcw, Check, Trophy } from 'lucide-react';
 
 const IMG_BUCKET = 'lettersort-images';
@@ -56,14 +57,30 @@ export default function MissingLetterMode({
   const lang = getLanguage(studentData);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
 
-  // Load preset. Standalone (no presetId) falls back to the first preset found.
+  // Load preset. Standalone (no presetId) generates items from the student's
+  // mastered letter sounds using the Letter Sort image bucket.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (!presetId) {
+          // Free play: build items from mastered letter sounds.
+          const mastered = studentData?.mode_progress?.letter_sounds?.mastered_items || [];
+          const its = await generateMissingLetterItems(mastered);
+          if (cancelled || !its.length) return;
+          const shuffled = its.slice();
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          if (!cancelled) {
+            setItems(shuffled);
+            setDefaultBank(['a', 'e', 'i', 'o', 'u']);
+          }
+          return;
+        }
         let recs = [];
-        if (presetId) recs = await base44.entities.MissingLetterPreset.filter({ key: presetId });
-        else recs = await base44.entities.MissingLetterPreset.list('-updated_date', 50);
+        recs = await base44.entities.MissingLetterPreset.filter({ key: presetId });
         if (cancelled || !recs.length) return;
         const r = recs[0];
         let its = [];
@@ -83,7 +100,7 @@ export default function MissingLetterMode({
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [presetId]);
+  }, [presetId, studentData]);
 
   // Load waypoints from DB (merge over static fallback) so tracing uses the
   // exact strokes the teacher authored.

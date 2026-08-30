@@ -15,6 +15,7 @@ import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import MissingLetterMode from '../components/game/modes/MissingLetterMode';
+import SyllableCountMode from '../components/game/modes/SyllableCountMode';
 import StoryBuilder from '../pages/StoryBuilder';
 import BookReading from '../pages/BookReading';
 import { Button } from "@/components/ui/button";
@@ -249,7 +250,7 @@ export default function LetterGame() {
             },
             sight_words_easy: {
               mastered_items: [],
-              learning_items: ['el', 'la', 'un'],
+              learning_items: ['el'],
               item_attempts: {},
               total_correct: 0,
               total_attempts: 0,
@@ -620,6 +621,13 @@ export default function LetterGame() {
       )}
       {currentMode === 'missing_letter' && (
         <MissingLetterMode
+          studentData={studentData}
+          onUpdateProgress={handleUpdateProgress}
+          onStudentPatch={handlePersistPatch}
+        />
+      )}
+      {currentMode === 'syllable_count' && (
+        <SyllableCountMode
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
           onStudentPatch={handlePersistPatch}
