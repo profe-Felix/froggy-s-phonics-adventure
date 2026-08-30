@@ -284,86 +284,101 @@ export default function MissingLetterMode({
         <span className="text-xs font-bold text-gray-400">✅ {completed}</span>
       </div>
 
-      {phase === 'tracing' ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 pb-4 overflow-y-auto">
-          <p className="text-sm font-bold text-gray-500">Now trace the letter <span className="text-indigo-600 uppercase">{correctLetter}</span></p>
-          {hasWaypoints ? (
-            <LetterTracingCanvas
-              key={`${correctLetter}-${idx}`}
-              letter={correctLetter}
-              strokes={wp.strokes}
-              onComplete={handleTraced}
-              lang={lang}
-              showGuide
-              silent={silent}
-              renderWidth={260}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-10">
-              <p className="text-sm text-gray-500">No tracing path found for “{correctLetter}”.</p>
-              <button onClick={handleTraced} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-full">Skip →</button>
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 pb-4 overflow-y-auto">
+        {/* picture + word — always visible; the blank becomes the tracing canvas */}
+        <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl">
+          <div className="flex flex-col items-center gap-2 shrink-0">
+            <div className={`bg-white rounded-3xl shadow-md border-2 border-indigo-100 flex items-center justify-center ${phase === 'tracing' ? 'px-4 py-3 min-h-32 min-w-32' : 'px-6 py-4 min-h-44 min-w-44'}`}>
+              {picture}
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
-          {/* picture + word */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-6 w-full max-w-2xl">
-            <div className="flex flex-col items-center gap-2">
-              <div className="bg-white rounded-3xl shadow-md border-2 border-indigo-100 px-6 py-4 flex items-center justify-center min-h-44 min-w-44">
-                {picture}
-              </div>
-              <button
-                onClick={playWord}
-                className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
-              >
-                <Volume2 className="w-4 h-4" /> Hear it
-              </button>
-            </div>
-
-            <div className="flex items-center gap-1 flex-wrap justify-center">
-              {item.position === 'initial' && (
-                <BlankSlot
-                  ref={blankRef}
-                  placed={placed}
-                  wrong={wrong}
-                  correctLetter={correctLetter}
-                />
-              )}
-              {displayLetters.map((c, i) => (
-                <span key={i} className="text-6xl md:text-7xl font-black text-gray-700 lowercase">{c}</span>
-              ))}
-              {item.position === 'final' && (
-                <BlankSlot
-                  ref={blankRef}
-                  placed={placed}
-                  wrong={wrong}
-                  correctLetter={correctLetter}
-                />
-              )}
-            </div>
+            <button
+              onClick={playWord}
+              className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
+            >
+              <Volume2 className="w-4 h-4" /> Hear it
+            </button>
           </div>
 
-          {/* letter bank */}
-          <div className="flex flex-wrap gap-3 justify-center mt-2 max-w-xl">
-            {bank.map((letter, i) => (
-              <button
-                key={`${letter}-${i}`}
-                onPointerDown={(e) => onTileDown(e, letter)}
-                onPointerMove={onTileMove}
-                onPointerUp={onTileUp}
-                onPointerCancel={onTileUp}
-                disabled={phase !== 'choose'}
-                className="w-14 h-14 rounded-2xl bg-white shadow-md border-2 border-indigo-100 text-3xl font-black text-indigo-600 lowercase flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-40"
-                style={{ touchAction: 'none' }}
-              >
-                {letter}
-              </button>
+          <div className="flex items-center gap-1 flex-wrap justify-center">
+            {item.position === 'initial' && (
+              phase === 'tracing' && hasWaypoints ? (
+                <LetterTracingCanvas
+                  key={`${correctLetter}-${idx}`}
+                  letter={correctLetter}
+                  strokes={wp.strokes}
+                  onComplete={handleTraced}
+                  lang={lang}
+                  showGuide
+                  silent={silent}
+                  renderWidth={210}
+                />
+              ) : (
+                <BlankSlot
+                  ref={blankRef}
+                  placed={placed}
+                  wrong={wrong}
+                  correctLetter={correctLetter}
+                />
+              )
+            )}
+            {displayLetters.map((c, i) => (
+              <span key={i} className={`font-black text-gray-700 lowercase ${phase === 'tracing' ? 'text-4xl md:text-5xl' : 'text-6xl md:text-7xl'}`}>{c}</span>
             ))}
+            {item.position === 'final' && (
+              phase === 'tracing' && hasWaypoints ? (
+                <LetterTracingCanvas
+                  key={`${correctLetter}-${idx}`}
+                  letter={correctLetter}
+                  strokes={wp.strokes}
+                  onComplete={handleTraced}
+                  lang={lang}
+                  showGuide
+                  silent={silent}
+                  renderWidth={210}
+                />
+              ) : (
+                <BlankSlot
+                  ref={blankRef}
+                  placed={placed}
+                  wrong={wrong}
+                  correctLetter={correctLetter}
+                />
+              )
+            )}
           </div>
-          <p className="text-xs text-gray-400">Drag a letter to the empty box — or tap it.</p>
         </div>
-      )}
+
+        {/* letter bank — only during choose */}
+        {phase === 'choose' && (
+          <>
+            <div className="flex flex-wrap gap-3 justify-center mt-2 max-w-xl">
+              {bank.map((letter, i) => (
+                <button
+                  key={`${letter}-${i}`}
+                  onPointerDown={(e) => onTileDown(e, letter)}
+                  onPointerMove={onTileMove}
+                  onPointerUp={onTileUp}
+                  onPointerCancel={onTileUp}
+                  disabled={phase !== 'choose'}
+                  className="w-14 h-14 rounded-2xl bg-white shadow-md border-2 border-indigo-100 text-3xl font-black text-indigo-600 lowercase flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-40"
+                  style={{ touchAction: 'none' }}
+                >
+                  {letter}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400">Drag a letter to the empty box — or tap it.</p>
+          </>
+        )}
+
+        {/* no waypoints fallback — show skip button below */}
+        {phase === 'tracing' && !hasWaypoints && (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <p className="text-sm text-gray-500">No tracing path found for “{correctLetter}”.</p>
+            <button onClick={handleTraced} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-full">Skip →</button>
+          </div>
+        )}
+      </div>
 
       {/* floating drag ghost */}
       {drag && (
