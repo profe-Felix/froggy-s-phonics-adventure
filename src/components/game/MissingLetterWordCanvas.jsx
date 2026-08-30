@@ -568,7 +568,7 @@ export default function MissingLetterWordCanvas({
               }
               return (
                 <path key={`pre-${li}-${si}`} d={splinePathD(scaled)} fill="none" stroke="#22c55e"
-                  strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" pointerEvents="none" />
+                  strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" pointerEvents="none" />
               );
             });
           }
