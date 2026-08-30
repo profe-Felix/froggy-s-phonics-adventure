@@ -3,7 +3,7 @@ import { Copy, Check, Play, RotateCcw, Save, Sparkles, ListChecks } from 'lucide
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
-import { CANVAS_W, CANVAS_H, simplify } from '@/components/tracing/strokeMath';
+import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
 
@@ -88,17 +88,17 @@ export default function LetterTracingAuthoring() {
         try {
           const strokes = JSON.parse(rec.strokes_data);
           if (Array.isArray(strokes) && strokes.length) {
-            // Old saved data is dense (64+ catmullRom samples). Simplify back to
-            // the skeleton control points so edit mode shows a manageable handle
-            // set. New data is already sparse (the skeleton), so simplify is a no-op.
-            const px = strokes.map((s) => {
-              const raw = s.map((p) => ({
-                x: p.x * CANVAS_W,
-                y: p.y * CANVAS_H,
-                ...(p.corner ? { corner: true } : {}),
-              }));
-              return raw.length > 16 ? simplify(raw, 3) : raw;
-            });
+            // Load the exact skeleton points the user placed — no simplification.
+            // Earlier this ran RDP (simplify) on strokes with >16 points, which
+            // silently dropped control points the user had intentionally placed
+            // close together on curves, so re-editing showed fewer handles than
+            // the first edit. Saves already store the sparse skeleton, so the
+            // loaded points are exactly what was authored.
+            const px = strokes.map((s) => s.map((p) => ({
+              x: p.x * CANVAS_W,
+              y: p.y * CANVAS_H,
+              ...(p.corner ? { corner: true } : {}),
+            })));
             setRawStrokes(px);
             setHint(rec.hint || '');
           }
