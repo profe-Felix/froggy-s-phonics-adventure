@@ -173,16 +173,9 @@ export default function MissingLetterWordCanvas({
     if (targetLetter && !silent) preloadSilenceStart(fonemaUrl(targetLetter, lang));
   }, [targetLetter, lang, silent]);
 
-  // Auto-advance after success so the next word starts without a tap.
-  useEffect(() => {
-    if (status !== 'success' || completedFiredRef.current) return;
-    successTimerRef.current = setTimeout(() => {
-      completedFiredRef.current = true;
-      successTimerRef.current = null;
-      onComplete?.();
-    }, 800);
-    return () => { if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; } };
-  }, [status, onComplete]);
+  // No auto-advance — the student taps "Next →" when ready. Auto-advance
+  // caused a double-advance bug (skipping words) and didn't give kids time
+  // to see their completed work.
 
   const getPos = (e) => {
     const svg = svgRef.current;
