@@ -57,6 +57,12 @@ export default function MissingLetterMode({
   const lang = getLanguage(studentData);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
 
+  // Stable key for free-play item generation — only the mastered letter
+  // sounds matter, not coin/progress updates that also change studentData.
+  // Without this, earning coins on "Next →" would regenerate the word list
+  // and skip the student ahead.
+  const masteredKey = (studentData?.mode_progress?.letter_sounds?.mastered_items || []).join(',');
+
   // Load preset. Standalone (no presetId) generates items from the student's
   // mastered letter sounds using the Letter Sort image bucket.
   useEffect(() => {
@@ -100,7 +106,7 @@ export default function MissingLetterMode({
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [presetId, studentData]);
+  }, [presetId, masteredKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load waypoints from DB (merge over static fallback) so tracing uses the
   // exact strokes the teacher authored.
