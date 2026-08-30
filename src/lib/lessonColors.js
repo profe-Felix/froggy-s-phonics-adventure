@@ -42,6 +42,7 @@ export const MODE_OPTIONS = [
   { value: 'soundwall',               label: 'Sound Wall',          emoji: '👄', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'google_slides',           label: 'Google Slides',       emoji: '📊', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'word_tracing',             label: 'Word Tracing',        emoji: '✍️', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'missing_letter',            label: 'Missing Letter',      emoji: '🔤', defaultCompletion: 'view',    defaultTarget: 1 },
 ];
 
 export const MODE_BY_VALUE = Object.fromEntries(MODE_OPTIONS.map(m => [m.value, m]));

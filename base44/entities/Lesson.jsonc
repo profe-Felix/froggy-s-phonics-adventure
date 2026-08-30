@@ -93,7 +93,8 @@
               "video",
               "soundwall",
               "google_slides",
-              "word_tracing"
+              "word_tracing",
+              "missing_letter"
             ],
             "description": "Which existing activity this step launches"
           },

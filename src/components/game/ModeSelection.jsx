@@ -103,6 +103,14 @@ const MODES = [
     icon: '📖',
     color: 'from-teal-400 to-teal-600',
     alwaysUnlocked: true
+  },
+  {
+    id: 'missing_letter',
+    title: 'Missing Letter',
+    description: 'Drag the letter, then trace it!',
+    icon: '🔤',
+    color: 'from-fuchsia-400 to-purple-600',
+    alwaysUnlocked: true
   }
 ];
 

@@ -14,6 +14,7 @@ import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
 import SentencesMode from '../components/game/modes/SentencesMode';
+import MissingLetterMode from '../components/game/modes/MissingLetterMode';
 import StoryBuilder from '../pages/StoryBuilder';
 import BookReading from '../pages/BookReading';
 import { Button } from "@/components/ui/button";
@@ -615,6 +616,13 @@ export default function LetterGame() {
           prefillClass={selectedStudent?.class_name}
           prefillNumber={selectedStudent?.number}
           onBack={handleBackToModes}
+        />
+      )}
+      {currentMode === 'missing_letter' && (
+        <MissingLetterMode
+          studentData={studentData}
+          onUpdateProgress={handleUpdateProgress}
+          onStudentPatch={handlePersistPatch}
         />
       )}
 

@@ -15,6 +15,8 @@ import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
+import { useMissingLetterPresets } from '@/hooks/useMissingLetterPresets';
+import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -46,7 +48,9 @@ function blankLesson() {
 function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
   const { list: letterSortList } = useLetterSortPresets();
+  const { list: missingLetterList } = useMissingLetterPresets();
   const [lsEditor, setLsEditor] = useState(null);
+  const [mlEditor, setMlEditor] = useState(null);
 
   const [targetsText, setTargetsText] = useState(
     (step.config?.targets || []).join(', ')
@@ -116,6 +120,29 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
             <LetterSortPresetEditor
               presetKey={lsEditor === 'new' ? null : lsEditor}
               onClose={() => setLsEditor(null)}
+              onSaved={(k) => update({ config: { ...step.config, preset: k } })}
+            />
+          )}
+        </div>
+      ) : step.mode === 'missing_letter' ? (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-600 font-bold">Preset
+            <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">— pick a word set —</option>
+              {missingLetterList.map(p => <option key={p.id} value={p.id}>{p.label} ({p.itemCount})</option>)}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setMlEditor('new')} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Plus className="w-3 h-3" /> New preset</button>
+            {step.config?.preset && (
+              <button type="button" onClick={() => setMlEditor(step.config.preset)} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Settings className="w-3 h-3" /> Edit preset</button>
+            )}
+          </div>
+          {mlEditor && (
+            <MissingLetterPresetEditor
+              presetKey={mlEditor === 'new' ? null : mlEditor}
+              onClose={() => setMlEditor(null)}
               onSaved={(k) => update({ config: { ...step.config, preset: k } })}
             />
           )}

@@ -1,0 +1,74 @@
+{
+  "name": "MissingLetterPreset",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Unique preset key. Lesson steps reference presets by this key."
+    },
+    "label": {
+      "type": "string",
+      "default": "",
+      "description": "Display label shown in the preset picker."
+    },
+    "items_data": {
+      "type": "string",
+      "description": "JSON array of items: { word, position: 'initial'|'final', image_source: 'upload'|'emoji'|'random', image_url, emoji, bank: [letters] }. The missing letter is derived from the word + position.",
+      "default": "[]"
+    },
+    "default_bank": {
+      "type": "string",
+      "description": "JSON array of default letter-bank letters used when an item has no explicit bank (e.g. [\"a\",\"e\",\"i\",\"o\",\"u\"]).",
+      "default": "[]"
+    }
+  },
+  "required": [
+    "key",
+    "items_data"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

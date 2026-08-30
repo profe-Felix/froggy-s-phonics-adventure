@@ -28,6 +28,7 @@ import VideoStep from '@/components/lesson/modes/VideoStep';
 import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
 import WordTracingMode from '@/components/game/modes/WordTracingMode';
+import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -1155,6 +1156,27 @@ export default function LessonModeRouter({
             }
             freeSpinEnabled={
               !isReplayRun
+            }
+          />
+        );
+
+      case 'missing_letter':
+        return (
+          <MissingLetterStep
+            presetId={
+              step?.config?.preset
+            }
+            studentData={
+              activityStudentData
+            }
+            onUpdateProgress={
+              wrappedUpdateProgress
+            }
+            onStudentPatch={
+              onStudentPatch
+            }
+            onComplete={
+              completeStep
             }
           />
         );
