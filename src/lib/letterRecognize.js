@@ -254,7 +254,7 @@ function bboxMaxDim(s) {
   for (const p of s) { if (p.x < mnX) mnX = p.x; if (p.x > mxX) mxX = p.x; if (p.y < mnY) mnY = p.y; if (p.y > mxY) mxY = p.y; }
   return Math.max(mxX - mnX, mxY - mnY);
 }
-function isDotStroke(s) { return !s || s.length <= 2 || bboxMaxDim(s) < DOT_SIZE; }
+function isDotStroke(s) { return !s || s.length <= 1 || bboxMaxDim(s) < DOT_SIZE; }
 
 // --- Gate A: stroke-count parity for multi-stroke templates ---
 // A multi-stroke template (m >= 2: f, i, j, k, t, x, y, ñ) can only be the
@@ -1401,8 +1401,73 @@ export function overlapAlignment(drawnStrokes, template) {
 // did the ink actually trace?" using coverage minus waste instead of average
 // nearest distance.
 const TRACE_R = 0.05;          // normalized pen-ink half-width — a template point counts as covered when ink sits within this. Tight (not the 0.07 blanket) so a clean 'o' ring does NOT also cover the 'a' stem that sits just inside the ring — the stem's middle is farther than this from the ring, so 'a' coverage stays < 100% and 'o' wins for an 'o'.
-const TRACE_EXTRA_W = 0.9;     // how strongly waste ink drags the score down; 0.9 → a half-waste drawing loses ~45% of its score, enough that a giant filled-in circle (lots of interior waste) scores well below a clean ring
+const TRACE_EXTRA_W = 1.2;     // how strongly waste ink drags the score down — raised from 0.9 so a stem on a bowl (a vs o) is a strong enough waste penalty to flip the winner
 const TRACE_SOFTMAX_T = 0.08;  // softmax temperature over the score → confidence
+const TRACE_STRUCT_W = 1.0;    // weight of the structural penalty (missing kinds, tail check) in the trace score — high enough that a tailed bowl (a) beats a tailless bowl (o) by the stem penalty
+
+// Trace-specific height exclusion: RELAX the solidlyX rule. The strict
+// heightExcludes blocks a short 'l' (drawn in the x-height band, solidlyX)
+// from matching the 'l' template (an ascender) — so a kid's short 'l' reads
+// as '0' or 'o' instead. In the trace mode (which asks "did the ink trace the
+// pathway?") a short vertical should still match 'l' with lower coverage; the
+// height exclusion should only block a TALL drawing from matching a SHORT
+// template (a tall 'l' is not an 'a'), not the reverse.
+function traceHeightExcludes(d, t) {
+  if (d.ascender && !t.ascender) return true;
+  if (d.descender && !t.descender) return true;
+  return false;
+}
+// Structural penalty for the trace mode. Reuses shapeStructPenalty (missing
+// template kinds, dot presence, hump count) and adds a TAIL check: a bowl with
+// a tail (a/d/g/q/p) has a stem a tailless bowl (o) lacks. If the drawing has
+// a tailed bowl and the template doesn't, the drawing has structural ink (the
+// stem) the template's pathway doesn't include — penalize so 'a' beats 'o'.
+// Also checks the reverse: a template with a tailed bowl when the drawing has
+// none (the template requires a stem the ink lacks).
+// Detect a straight VERTICAL STEM (a sustained vertical run) in normalized ink.
+// This is the robust "the bar should make a win" signal for a vs o: an 'a' has a
+// vertical stem that 'o' simply lacks, regardless of whether the stroke
+// classifies as 'bowl' or 'curve'. A circle's top/bottom arcs have only brief
+// vertical tangents (well under the threshold), so 'o' registers no stem.
+const STEM_RUN = 0.15;
+function hasVerticalStem(strokesNorm) {
+  for (const s of strokesNorm) {
+    if (!s || s.length < 2 || isDotStroke(s)) continue;
+    let best = 0, run = 0;
+    for (let i = 1; i < s.length; i++) {
+      const dx = s[i].x - s[i - 1].x, dy = s[i].y - s[i - 1].y;
+      if (Math.abs(dy) > 0.003 && Math.abs(dy) >= 5 * Math.abs(dx)) {
+        run += Math.abs(dy);
+        if (run > best) best = run;
+      } else {
+        run = 0;
+      }
+    }
+    if (best >= STEM_RUN) return true;
+  }
+  return false;
+}
+function traceStructPenalty(drawn, tmpl) {
+  let pen = shapeStructPenalty(drawn, tmpl);
+  const hasTail = (strokes) => strokes.some((s) => {
+    if (!s || isDotStroke(s)) return false;
+    const c = strokeClassifyFull(s);
+    return c.kind === 'bowl' && c.bowl && c.bowl.tailFrac > 0.12;
+  });
+  const dHasTail = hasTail(drawn);
+  const tHasTail = hasTail(tmpl);
+  if (dHasTail && !tHasTail) pen += KIND_PENALTY;
+  if (tHasTail && !dHasTail) pen += KIND_PENALTY;
+  // Vertical-stem check: a drawing with a straight vertical stem (a, d, l, t…)
+  // should not match a template without one (o, c, e, s…). This is the robust
+  // a-vs-o discriminator — it fires even when the 'a' stroke classifies as
+  // 'curve' instead of 'bowl', which the tail check above misses.
+  const dHasStem = hasVerticalStem(drawn);
+  const tHasStem = hasVerticalStem(tmpl);
+  if (dHasStem && !tHasStem) pen += KIND_PENALTY;
+  if (tHasStem && !dHasStem) pen += KIND_PENALTY;
+  return pen;
+}
 // Densely sample a template's taught pathway at a fixed normalized step.
 function denseTemplatePoints(tmplStrokes, step = 0.012) {
   const out = [];
@@ -1481,7 +1546,7 @@ export function traceMatch(drawnStrokes, templates) {
     const isZ = t.letter === 'z' || t.letter === 'Z';
     if (templateIsZigzag(t) && !drawHasDiag) { excluded = true; reason = 'needs-diag'; }
     if (isZ && !drawingHasTwoBarsOnDifferentRows(drawn)) { excluded = true; reason = 'needs-2-bars'; }
-    if (heightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) { excluded = true; reason = 'height'; }
+    if (traceHeightExcludes(heightClassOf(drawn), heightClassOf(t.strokes))) { excluded = true; reason = 'height'; }
     if (drawingHasBowl(drawn) && isZ) { excluded = true; reason = 'bowl≠z'; }
     if (drawingIsZigzag(drawn) && templateHasBowl(t)) { excluded = true; reason = 'zigzag≠bowl'; }
     let coverage = 0, extra = 0, score = -1;
@@ -1497,7 +1562,7 @@ export function traceMatch(drawnStrokes, templates) {
         let waste = 0;
         for (const ip of ink) if (traceNearest(ip, tPts) > TRACE_R) waste++;
         extra = ink.length ? waste / ink.length : 0;
-        score = coverage - TRACE_EXTRA_W * extra;
+        score = coverage - TRACE_EXTRA_W * extra - TRACE_STRUCT_W * traceStructPenalty(drawn, t.strokes);
       }
     }
     return { letter: t.letter, score: Math.max(0, score), coverage, extra, dist: excluded ? Infinity : (1 - Math.max(0, score)), confidence: 0, excludedBy: excluded ? reason : null };
