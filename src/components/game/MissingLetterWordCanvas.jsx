@@ -11,10 +11,10 @@ import { splinePathD } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 600;
 const CANVAS_H = 750;
-const LETTER_GAP = 14;
+const LETTER_GAP = 40;
 const PADDING = 30;
-const TEXT_FONT_SIZE = 500;
-const TEXT_LETTER_WIDTH = 260;
+const TEXT_FONT_SIZE = 520;
+const TEXT_LETTER_WIDTH = 300;
 const FONEMA_INTERVAL_MS = 2000;
 
 // Renders the whole word on one canvas so it reads as a cohesive unit (no
@@ -568,7 +568,7 @@ export default function MissingLetterWordCanvas({
               }
               return (
                 <path key={`pre-${li}-${si}`} d={splinePathD(scaled)} fill="none" stroke="#22c55e"
-                  strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" pointerEvents="none" />
+                  strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" pointerEvents="none" />
               );
             });
           }
@@ -576,7 +576,7 @@ export default function MissingLetterWordCanvas({
           return (
             <text key={`pre-${li}`} x={lay.offset + lay.width / 2} y={0.633 * CANVAS_H}
               textAnchor="middle" dominantBaseline="alphabetic"
-              fontSize={TEXT_FONT_SIZE} fill="#22c55e" opacity="0.5"
+              fontSize={TEXT_FONT_SIZE} fill="#22c55e" opacity="0.75"
               fontFamily="'Edu NSW ACT Foundation', 'Andika', sans-serif"
               pointerEvents="none">{lay.ch}</text>
           );
