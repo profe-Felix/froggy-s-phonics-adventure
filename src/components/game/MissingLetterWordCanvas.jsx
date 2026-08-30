@@ -69,6 +69,7 @@ export default function MissingLetterWordCanvas({
 
   // Scale a normalized point for the target letter into canvas coordinates.
   const scaleTarget = useCallback((pt) => {
+    if (!pt || pt.x == null || pt.y == null) return { x: 0, y: 0 };
     const lay = layout[targetLayoutIdx];
     if (!lay) return { x: 0, y: 0 };
     return {
@@ -79,11 +80,14 @@ export default function MissingLetterWordCanvas({
   }, [layout, targetLayoutIdx]);
 
   // Scale for any letter slot (for rendering non-target guide paths).
-  const scaleForLetter = useCallback((pt, lay) => ({
-    x: lay.offset + (pt.x - lay.minX) * X_SCALE,
-    y: pt.y * CANVAS_H,
-    ...(pt?.corner ? { corner: true } : {}),
-  }), []);
+  const scaleForLetter = useCallback((pt, lay) => {
+    if (!pt || pt.x == null || pt.y == null || !lay) return { x: 0, y: 0 };
+    return {
+      x: lay.offset + (pt.x - lay.minX) * X_SCALE,
+      y: pt.y * CANVAS_H,
+      ...(pt?.corner ? { corner: true } : {}),
+    };
+  }, []);
 
   // ---- tracing state (target letter only) ----
   const [strokeIndex, setStrokeIndex] = useState(0);
