@@ -79,6 +79,7 @@ export default function MissingLetterWordCanvas({
   const scaleForLetter = useCallback((pt, lay) => ({
     x: lay.offset + (pt.x - lay.minX) * X_SCALE,
     y: pt.y * CANVAS_H,
+    ...(pt?.corner ? { corner: true } : {}),
   }), []);
 
   // ---- tracing state (target letter only) ----
@@ -568,7 +569,7 @@ export default function MissingLetterWordCanvas({
               }
               return (
                 <path key={`pre-${li}-${si}`} d={splinePathD(scaled)} fill="none" stroke="#22c55e"
-                  strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" pointerEvents="none" />
+                  strokeWidth="16" strokeLinecap="round" strokeLinejoin="miter" opacity="0.75" pointerEvents="none" />
               );
             });
           }
