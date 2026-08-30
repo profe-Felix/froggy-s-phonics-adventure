@@ -5,6 +5,7 @@ import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
+import NumberComposer from '@/components/tracing/NumberComposer';
 import { base44 } from '@/api/base44Client';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
@@ -62,6 +63,9 @@ export default function LetterTracingAuthoring() {
   // target is the exact character clicked — Spanish (ñ/Ñ) and numbers are
   // case-sensitive and independent of the letters case toggle.
   const target = letter;
+  // Two-digit numbers (10-20) are composed from the authored single digits,
+  // not freehand-drawn — show the composer instead of the drawing canvas.
+  const isTwoDigit = isNumbers && target.length === 2;
 
   // rawStrokes IS the skeleton (the control points the user placed). Save it
   // directly — loading gives back the exact same points for editing. The
@@ -292,6 +296,9 @@ export default function LetterTracingAuthoring() {
           </label>
         </div>
 
+        {isTwoDigit ? (
+          <NumberComposer target={target} />
+        ) : (
         <div className="grid md:grid-cols-2 gap-5 items-start">
           {/* Drawing canvas */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
@@ -400,6 +407,7 @@ export default function LetterTracingAuthoring() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
