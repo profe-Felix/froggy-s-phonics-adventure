@@ -75,8 +75,12 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
   // Only uses refs + stable setters, so a plain function is safe.
   const commitStroke = () => {
     if (!drawingRef.current) return;
-    if (currentRef.current.length >= 1) {
-      setStrokes((prev) => [...prev, currentRef.current.slice()]);
+    // Capture stroke points BEFORE clearing the ref — the setStrokes
+    // functional update runs later (during render), by which point
+    // currentRef.current would already be [], committing an empty stroke.
+    const stroke = currentRef.current.slice();
+    if (stroke.length >= 1) {
+      setStrokes((prev) => [...prev, stroke]);
     }
     currentRef.current = [];
     setCurrent([]);
