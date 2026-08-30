@@ -17,6 +17,10 @@ export default function LetterSortStep({ onComplete, presetId, studentNumber, st
   // Track the fewest mistakes across completed rounds so the step's coin
   // reward reflects the student's best performance.
   const [bestMistakes, setBestMistakes] = useState(null);
+  // Best first-try correct count + total cards — drives the coin formula
+  // Math.round((firstTryCorrect / total) * 10).
+  const [bestFirstTryCorrect, setBestFirstTryCorrect] = useState(null);
+  const [totalCards, setTotalCards] = useState(null);
   // Most recent completed-round result, used to gate "Done" and show feedback.
   const [lastResult, setLastResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -51,7 +55,13 @@ export default function LetterSortStep({ onComplete, presetId, studentNumber, st
   };
 
   const handleFinish = () => {
-    onComplete({ mistakes: bestMistakes === null ? 99 : bestMistakes });
+    const total = totalCards ?? 0;
+    const firstTryCorrect = bestFirstTryCorrect ?? 0;
+    onComplete({
+      mistakes: bestMistakes === null ? 99 : bestMistakes,
+      firstTryCorrect,
+      total,
+    });
   };
 
   return (
@@ -78,8 +88,13 @@ export default function LetterSortStep({ onComplete, presetId, studentNumber, st
         <LetterSortActivity
           config={config}
           isTeacher={false}
-          onRoundComplete={({ mistakes, correct, wrong }) => {
+          onRoundComplete={({ mistakes, correct, wrong, firstTryCorrect, total }) => {
             setBestMistakes((prev) => (prev === null ? mistakes : Math.min(prev, mistakes)));
+            setBestFirstTryCorrect((prev) => {
+              const cur = firstTryCorrect ?? 0;
+              return prev === null ? cur : Math.max(prev, cur);
+            });
+            setTotalCards((prev) => prev ?? total ?? null);
             setLastResult({ mistakes: mistakes ?? 0, correct: correct ?? 0, wrong: wrong ?? 0 });
             setFeedback(null);
           }}

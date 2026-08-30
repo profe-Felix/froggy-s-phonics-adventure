@@ -58,9 +58,10 @@ export default function LessonModeRouter({
 
   const [done, setDone] = useState(alreadyDone);
 
-  // For letter_sort: the mistake count from the student's best round, used to
-  // tier the coin reward (0 mistakes = 8 coins, ≤3 = 4, else 2).
+  // For letter_sort: first-try correct + total from the student's best round,
+  // used to compute the coin reward: Math.round((firstTryCorrect / total) * 10).
   const [letterSortMistakes, setLetterSortMistakes] = useState(0);
+  const [letterSortFirstTry, setLetterSortFirstTry] = useState({ correct: 0, total: 0 });
 
   // Remount the actual activity whenever the student deliberately starts
   // another run. This clears local game/tracing state without changing the
@@ -312,15 +313,16 @@ export default function LessonModeRouter({
       }
 
       if (step?.mode === 'letter_sort') {
-        const mistakes = meta?.mistakes ?? 0;
-        const amount = mistakes === 0 ? 8 : mistakes <= 3 ? 4 : 2;
+        const total = meta?.total || letterSortFirstTry.total || 0;
+        const firstTryCorrect = meta?.firstTryCorrect ?? letterSortFirstTry.correct ?? 0;
+        const amount = total > 0 ? Math.max(1, Math.round((firstTryCorrect / total) * 10)) : 0;
         awardStepCoins(amount, 'letter_sort');
         return;
       }
 
       if (comp.type === 'mastery') {
         awardStepCoins(
-          8,
+          10,
           'first_mastery'
         );
 
@@ -379,19 +381,24 @@ export default function LessonModeRouter({
         return;
       }
 
+      // Replaying with a new set awards a flat 5 coins for any activity.
       if (step?.mode === 'letter_sort') {
-        const mistakes = meta?.mistakes ?? 0;
-        const amount = mistakes === 0 ? 8 : mistakes <= 3 ? 4 : 2;
-        awardStepCoins(amount, 'letter_sort_replay');
+        awardStepCoins(5, 'letter_sort_replay');
+        return;
+      }
+
+      if (isTracingMode) {
+        awardStepCoins(5, 'tracing_replay');
         return;
       }
 
       if (comp.type === 'mastery') {
-        awardStepCoins(
-          4,
-          'mastery_replay'
-        );
+        awardStepCoins(5, 'mastery_replay');
+        return;
       }
+
+      // View/completion replays: 5 coins too, to motivate replaying different games.
+      awardStepCoins(5, 'completion_replay');
     }, [
       isTracingMode,
       comp.type,
@@ -645,8 +652,9 @@ export default function LessonModeRouter({
         return;
       }
 
-      if (step?.mode === 'letter_sort' && meta?.mistakes != null) {
-        setLetterSortMistakes(meta.mistakes);
+      if (step?.mode === 'letter_sort') {
+        if (meta?.mistakes != null) setLetterSortMistakes(meta.mistakes);
+        if (meta?.total) setLetterSortFirstTry({ correct: meta.firstTryCorrect ?? 0, total: meta.total });
       }
 
       if (isReplayRun) {
@@ -770,7 +778,9 @@ export default function LessonModeRouter({
 
   const isLetterSort = step?.mode === 'letter_sort';
   const letterSortAmount = isLetterSort
-    ? (letterSortMistakes === 0 ? 8 : letterSortMistakes <= 3 ? 4 : 2)
+    ? Math.max(1, Math.round(
+        (letterSortFirstTry.correct / (letterSortFirstTry.total || 1)) * 10
+      ))
     : 0;
 
   const goalText =
@@ -1274,7 +1284,7 @@ export default function LessonModeRouter({
                   comp.type ===
                     'mastery' && (
                     <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +8 coins
+                      🪙 +10 coins
                     </p>
                   )}
 
@@ -1298,7 +1308,7 @@ export default function LessonModeRouter({
                 {isReplayRun &&
                   isTracingMode && (
                     <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +8 replay coins
+                      🪙 +5 replay coins
                     </p>
                   )}
 
@@ -1307,7 +1317,7 @@ export default function LessonModeRouter({
                   comp.type ===
                     'mastery' && !isLetterSort && (
                     <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +4 replay coins
+                      🪙 +5 replay coins
                     </p>
                   )}
 
@@ -1315,7 +1325,7 @@ export default function LessonModeRouter({
                   !isTracingMode &&
                   isLetterSort && (
                     <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +{letterSortAmount} replay coins
+                      🪙 +5 replay coins
                     </p>
                   )}
 
@@ -1323,8 +1333,8 @@ export default function LessonModeRouter({
                   !isTracingMode &&
                   comp.type !==
                     'mastery' && !isLetterSort && (
-                    <p className="text-gray-400 text-xs font-bold mt-2">
-                      Practice replay — no additional coins
+                    <p className="text-amber-600 text-sm font-black mt-2">
+                      🪙 +5 replay coins
                     </p>
                   )}
               </div>

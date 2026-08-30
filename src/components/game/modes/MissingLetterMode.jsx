@@ -51,6 +51,9 @@ export default function MissingLetterMode({
   const [mistakes, setMistakes] = useState(0);
   const [completed, setCompleted] = useState(0);
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
+  // Accuracy of the current word's trace (from MissingLetterWordCanvas).
+  // >= 80 = green → 4 coins, < 80 = yellow → 2 coins.
+  const [traceAccuracy, setTraceAccuracy] = useState(null);
 
   const dragRef = useRef(null);
   const blankRef = useRef(null);
@@ -228,10 +231,13 @@ export default function MissingLetterMode({
   };
 
   const handleTraced = useCallback(() => {
-    // One item completed.
+    // One item completed. Award 4 coins for a green trace (accuracy >= 80),
+    // 2 coins for a yellow/amber trace (accuracy < 80).
     const newCompleted = completed + 1;
     setCompleted(newCompleted);
-    awardCoins(2, 'missing_letter');
+    const isGreen = traceAccuracy == null || traceAccuracy >= 80;
+    awardCoins(isGreen ? 4 : 2);
+    setTraceAccuracy(null);
     onUpdateProgress?.('missing_letter', {
       total_attempts: newCompleted,
       total_correct: newCompleted,
@@ -244,7 +250,7 @@ export default function MissingLetterMode({
     } else {
       setIdx(idx + 1);
     }
-  }, [completed, idx, items.length, mistakes, awardCoins, onUpdateProgress, onComplete]);
+  }, [completed, idx, items.length, mistakes, awardCoins, onUpdateProgress, onComplete, traceAccuracy]);
 
   const restart = () => {
     setIdx(0);
@@ -336,6 +342,7 @@ export default function MissingLetterMode({
                 targetIndex={item.position === 'final' ? item.word.length - 1 : 0}
                 waypoints={waypoints}
                 onComplete={handleTraced}
+                onAccuracy={setTraceAccuracy}
                 lang={lang}
                 silent={silent}
                 renderWidth={500}

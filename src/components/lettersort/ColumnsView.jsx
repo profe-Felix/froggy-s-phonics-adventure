@@ -38,6 +38,10 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   const [bad, setBad] = useState(new Set());
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
 
+  // Tracks how many cards were correct on the very first verify pass — used
+  // for the coin formula: Math.round((firstTryCorrect / total) * 10).
+  const firstVerifyCorrectRef = useRef(null);
+
   // Track the live pointer position so onDragEnd can place the card in the
   // column the finger is actually over. @hello-pangea/dnd otherwise picks the
   // drop target from the dragged card's center, so a wide card straddling two
@@ -68,6 +72,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     setLocked(new Set());
     setBad(new Set());
     setScore({ correct: 0, wrong: 0 });
+    firstVerifyCorrectRef.current = null;
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
@@ -143,6 +148,10 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     }
     setLocked(newLocked);
     setScore((s) => ({ correct: s.correct + correct, wrong: s.wrong + wrong }));
+    // Record first-try correct count (only on the very first verify pass).
+    if (firstVerifyCorrectRef.current === null) {
+      firstVerifyCorrectRef.current = correct;
+    }
     // flash bad, then bounce back to rack
     if (toEject.length) {
       const badIds = new Set(toEject.map((e) => e.card.id));
@@ -160,16 +169,22 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     // celebrate when every card is locked
     if (toEject.length === 0 && newLocked.size === round.cards.length) {
       celebrate();
-      onRoundComplete?.({ mistakes: score.wrong + wrong, correct: round.cards.length, wrong: score.wrong + wrong });
+      const firstTryCorrect = firstVerifyCorrectRef.current ?? round.cards.length;
+      onRoundComplete?.({
+        mistakes: score.wrong + wrong,
+        correct: round.cards.length,
+        wrong: score.wrong + wrong,
+        firstTryCorrect,
+        total: round.cards.length,
+      });
     }
   }
 
   function newRound() {
-    // For "letra inicial al azar" (randinit), Nuevo rebuilds the round so a new
-    // random initial-letter category is chosen. The parent swaps in a new
-    // `round`, which the effect below re-initializes from. Other modes keep the
-    // existing behavior (reshuffle the current cards).
-    if (config.mode === 'randinit' && onNewRound) { onNewRound(); return; }
+    // "Nuevo" always rebuilds the round with a fresh set of images so students
+    // can't memorize the same cards. The parent swaps in a new `round` (via
+    // roundNonce), which the effect below re-initializes from.
+    if (onNewRound) { onNewRound(); return; }
     setRack(shuffle(round.cards));
     const fresh = {};
     round.columns.forEach((c) => { fresh[c.key] = []; });
@@ -177,6 +192,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     setLocked(new Set());
     setBad(new Set());
     setScore({ correct: 0, wrong: 0 });
+    firstVerifyCorrectRef.current = null;
   }
 
   const allPlaced = Object.values(colCards).flat().length + rack.length === round.cards.length;
