@@ -23,7 +23,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
         role="button"
         tabIndex={0}
       >
-        <span className="font-bold text-xl text-slate-800 text-center leading-tight break-words">
+        <span className={`font-bold text-slate-800 text-center leading-tight break-words ${labelText.length > 8 ? 'text-sm' : labelText.length > 6 ? 'text-base' : 'text-xl'}`}>
           {labelText || '\u00A0'}
         </span>
         {showCover && (
