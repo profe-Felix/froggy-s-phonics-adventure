@@ -412,6 +412,13 @@ export default function LessonModeRouter({
           return;
         }
 
+        // missing_letter calls onComplete directly when ALL words are traced.
+        // Do not auto-complete from per-word progress updates — that would
+        // end the step after the default target (5) instead of all items.
+        if (step?.mode === 'missing_letter') {
+          return;
+        }
+
         let isDone = false;
 
         if (isTracingMode) {

@@ -71,7 +71,13 @@ export default function MissingLetterMode({
         let db = ['a', 'e', 'i', 'o', 'u'];
         try { const p = JSON.parse(r.default_bank || '[]'); if (Array.isArray(p) && p.length) db = p; } catch {}
         if (!cancelled) {
-          setItems(its);
+          // Shuffle the items so the word order isn't predictable on replay.
+          const shuffled = its.slice();
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          setItems(shuffled);
           setDefaultBank(db);
         }
       } catch {}
