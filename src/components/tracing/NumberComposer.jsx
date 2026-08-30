@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { splinePathD } from '@/components/tracing/strokeMath';
-import { Save, Check, RotateCcw } from 'lucide-react';
+import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
+import { Save, Check, RotateCcw, Play } from 'lucide-react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375;
@@ -22,6 +23,7 @@ export default function NumberComposer({ target, onSaved }) {
 
   const [digitStrokes, setDigitStrokes] = useState({});
   const [spacing, setSpacing] = useState(0.04);
+  const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -201,6 +203,35 @@ export default function NumberComposer({ target, onSaved }) {
             Gap is measured between the ink edges, not the canvas boxes.
           </p>
         </div>
+      </div>
+
+      {/* Student preview — trace the composed number like a student would */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Student preview</h2>
+          <button
+            onClick={() => setPreviewing((p) => !p)}
+            disabled={!ready || !composedStrokes.length}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Play className="w-4 h-4" /> {previewing ? 'Hide' : 'Preview'}
+          </button>
+        </div>
+        {previewing && ready && composedStrokes.length > 0 ? (
+          <div className="flex justify-center bg-gradient-to-b from-purple-400 to-indigo-600 rounded-xl p-4">
+            <LetterTracingCanvas
+              key={target + JSON.stringify(composedStrokes)}
+              letter={target}
+              strokes={composedStrokes}
+              onComplete={() => {}}
+              onReset={() => {}}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400 text-center py-6">
+            {ready ? 'Press Preview to trace your number like a student would.' : 'Author both digits first, then preview.'}
+          </p>
+        )}
       </div>
 
       {saveError && <p className="text-xs text-red-600 mt-2 text-center">{saveError}</p>}
