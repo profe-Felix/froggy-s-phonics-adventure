@@ -20,6 +20,7 @@ import PrizeDashboard from './pages/PrizeDashboard';
 import BookReading from './pages/BookReading';
 import StoryBuilder from './pages/StoryBuilder';
 import LetterTracingAuthoring from './pages/LetterTracingAuthoring';
+import LetterTracingProgression from './pages/LetterTracingProgression';
 import LessonEditor from './pages/LessonEditor';
 import TeacherHub from './pages/TeacherHub';
 import Workstations from './pages/Workstations';
@@ -101,6 +102,7 @@ const AuthenticatedApp = () => {
       <Route path="/BookReading" element={<BookReading />} />
       <Route path="/StoryBuilder" element={<StoryBuilder />} />
       <Route path="/LetterTracingAuthoring" element={<LetterTracingAuthoring />} />
+      <Route path="/LetterTracingProgression" element={<LetterTracingProgression />} />
       <Route path="/LessonEditor" element={<LessonEditor />} />
       <Route path="/TeacherHub" element={<TeacherHub />} />
       <Route path="/Workstations" element={<Workstations />} />

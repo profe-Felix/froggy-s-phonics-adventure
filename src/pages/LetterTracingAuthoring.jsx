@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Copy, Check, Play, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { Copy, Check, Play, RotateCcw, Save, Sparkles, ListChecks } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StrokeAuthoringCanvas from '@/components/tracing/StrokeAuthoringCanvas';
 import TraceThinCanvas from '@/components/tracing/TraceThinCanvas';
 import { CANVAS_W, CANVAS_H, simplify } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import { base44 } from '@/api/base44Client';
-import TracingLetterToggle from '@/components/tracing/TracingLetterToggle';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
+const SPANISH = ['ñ', 'Ñ'];
+const NUMBERS = Array.from({ length: 21 }, (_, i) => String(i));
 
 export default function LetterTracingAuthoring() {
   const [upper, setUpper] = useState(false);
@@ -26,6 +27,8 @@ export default function LetterTracingAuthoring() {
   // 'thin' = draw-then-trace-thin (draw a thick guide, shrink it to a thin
   // line, then trace over it with the pen held to that line).
   const [authorMode, setAuthorMode] = useState('snap');
+  // Picker category: 'letters' (with case toggle) or 'numbers' (0-20).
+  const [pickerCategory, setPickerCategory] = useState('letters');
 
   // Shared trace image + transform — lives here so it persists when toggling
   // between "Snap to ink" and "Trace thin" (no re-inserting the image).
@@ -54,8 +57,11 @@ export default function LetterTracingAuthoring() {
     return () => URL.revokeObjectURL(sharedBg.url);
   }, [sharedBg]);
 
-  const chars = upper ? UPPER : LOWER;
-  const target = upper ? letter.toUpperCase() : letter.toLowerCase();
+  const isNumbers = pickerCategory === 'numbers';
+  const chars = isNumbers ? NUMBERS : (upper ? UPPER : LOWER);
+  // target is the exact character clicked — Spanish (ñ/Ñ) and numbers are
+  // case-sensitive and independent of the letters case toggle.
+  const target = letter;
 
   // rawStrokes IS the skeleton (the control points the user placed). Save it
   // directly — loading gives back the exact same points for editing. The
@@ -153,7 +159,7 @@ export default function LetterTracingAuthoring() {
   };
 
   const pickLetter = (c) => {
-    setLetter(c.toLowerCase());
+    setLetter(c);
     setRawStrokes([]);
     setPreviewing(false);
     setSharedBg(null);
@@ -169,6 +175,12 @@ export default function LetterTracingAuthoring() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              to="/LetterTracingProgression"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+            >
+              <ListChecks className="w-4 h-4" /> Progression
+            </Link>
+            <Link
               to="/LetterRecognition"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
             >
@@ -183,22 +195,54 @@ export default function LetterTracingAuthoring() {
           </div>
         </div>
 
-        <TracingLetterToggle />
-
-        {/* Letter picker + case toggle + hint */}
+        {/* Character picker + category toggle + hint */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Letter</h2>
-            <button
-              onClick={() => setUpper((u) => !u)}
-              className={`px-3 py-1 rounded-full text-sm font-bold border transition ${
-                upper
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              {upper ? 'UPPERCASE' : 'lowercase'}
-            </button>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
+              {isNumbers ? 'Number' : 'Letter'}
+            </h2>
+            <div className="flex items-center gap-2">
+              {/* Category toggle: Letters vs Numbers */}
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+                <button
+                  onClick={() => setPickerCategory('letters')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                    !isNumbers ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Letters
+                </button>
+                <button
+                  onClick={() => setPickerCategory('numbers')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
+                    isNumbers ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Numbers
+                </button>
+              </div>
+              {/* Case toggle — only for letters */}
+              {!isNumbers && (
+                <button
+                  onClick={() => setUpper((u) => {
+                    const next = !u;
+                    // Flip the current letter's case to match the new toggle,
+                    // so the highlight follows when switching between cases.
+                    if (letter.length === 1 && /[a-z]/i.test(letter)) {
+                      setLetter(next ? letter.toUpperCase() : letter.toLowerCase());
+                    }
+                    return next;
+                  })}
+                  className={`px-3 py-1 rounded-full text-sm font-bold border transition ${
+                    upper
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {upper ? 'UPPERCASE' : 'lowercase'}
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-9 sm:grid-cols-13 gap-1.5 mb-4">
             {chars.map((c) => (
@@ -215,6 +259,27 @@ export default function LetterTracingAuthoring() {
               </button>
             ))}
           </div>
+          {/* Spanish letters row — only in letters mode */}
+            {!isNumbers && (
+              <div className="mb-4">
+                <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Spanish</div>
+                <div className="grid grid-cols-9 sm:grid-cols-13 gap-1.5">
+                  {SPANISH.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => pickLetter(c)}
+                      className={`h-10 rounded-lg font-bold text-lg transition active:scale-95 ${
+                        target === c
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           <label className="block">
             <span className="text-xs font-semibold text-slate-500 uppercase">Hint (spoken to the student)</span>
             <input

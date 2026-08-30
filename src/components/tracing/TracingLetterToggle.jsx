@@ -5,6 +5,10 @@ import { useClassNames } from '@/hooks/useClassNames';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
+// Spanish-only letters, shown in their own row so they're easy to find.
+const SPANISH = ['ñ', 'Ñ'];
+// Numbers 0-20 available as tracing targets alongside letters.
+const NUMBERS = Array.from({ length: 21 }, (_, i) => String(i));
 
 // Matches the entity default — shown until a saved record overrides it.
 const DEFAULT_ENABLED = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
@@ -256,6 +260,14 @@ export default function TracingLetterToggle() {
         <div>
           <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Uppercase</div>
           {renderGrid(UPPER)}
+        </div>
+        <div>
+          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Spanish</div>
+          {renderGrid(SPANISH)}
+        </div>
+        <div>
+          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Numbers</div>
+          {renderGrid(NUMBERS)}
         </div>
       </div>
 

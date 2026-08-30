@@ -261,8 +261,20 @@ export const LETTER_WAYPOINTS = {
     ],
     hint: 'Pull down, push up, curve forward, pull down. Lift. Wave the tilde on top'
   },
+  // Ñ — uppercase Spanish letter. Uppercase N body (pull down, slant up,
+  // pull down) with the tilde waved above the topline. Teachers can refine
+  // the strokes from the authoring page.
+  Ñ: {
+    strokes: [
+      [{ x: 0.33, y: 0.10 }, { x: 0.33, y: 0.72 },
+       { x: 0.67, y: 0.10 }, { x: 0.67, y: 0.72 }],
+      [...arc(0.41, 0.04, 0.07, 0.04, 180, 360, 6),
+       ...arc(0.55, 0.04, 0.07, 0.04, 180, 0, 6)],
+    ],
+    hint: 'Pull down, slant up, pull down. Lift. Wave the tilde on top'
+  },
 };
 
-export const TRACING_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
+export const TRACING_LETTERS = 'abcdefghijklmnopqrstuvwxyzñ'
   .split('')
   .filter(l => LETTER_WAYPOINTS[l]);

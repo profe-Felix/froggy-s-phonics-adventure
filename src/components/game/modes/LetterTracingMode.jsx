@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { Sparkles } from 'lucide-react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
+import { NUMBER_WAYPOINTS } from '../../data/numberWaypoints';
 import LetterTracingCanvas from '../LetterTracingCanvas';
 import PrizeWheel from '../PrizeWheel';
 import { base44 } from '@/api/base44Client';
@@ -14,7 +15,7 @@ const BASE_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
 
 // ñ is a Spanish-only letter; English students never see it.
 // Uppercase/lowercase remain distinct when separate waypoint records exist.
-const SPANISH_EXTRA = ['ñ'];
+const SPANISH_EXTRA = ['ñ', 'Ñ'];
 
 // Default letters enabled for free-play Letter Tracing. Teachers toggle this
 // set on/off from the Letter Tracing Authoring page as letters are learned.
@@ -132,7 +133,10 @@ export default function LetterTracingMode({
   const [completedLetters, setCompletedLetters] = useState(new Set());
 
   const [streak, setStreak] = useState(0);
-  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+  const [waypoints, setWaypoints] = useState({
+    ...LETTER_WAYPOINTS,
+    ...NUMBER_WAYPOINTS,
+  });
 
   // Kept for compatibility with the previous tracing system and persisted
   // per-device size data. The staged system now controls the actual size.
