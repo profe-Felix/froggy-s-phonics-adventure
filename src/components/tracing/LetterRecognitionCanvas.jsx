@@ -51,7 +51,7 @@ function splitGroup(g, templates) {
   if (allConfident && !hasDot) return g.map((s) => [s]);
   return [g];
 }
-function segmentByRecognition(strokes, touchPx, templates) {
+export function segmentByRecognition(strokes, touchPx, templates) {
   const groups = clusterByTouch(strokes, touchPx);
   const out = [];
   const arcLenPx = (s) => { let L = 0; for (let i = 1; i < s.length; i++) L += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return L; };

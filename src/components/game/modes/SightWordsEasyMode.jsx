@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SightWordTraceFeedback from '../SightWordTraceFeedback';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
-import SpellingWriteStep from '../SpellingWriteStep';
+import SightWordWriteCanvas from '../SightWordWriteCanvas';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { SIGHT_WORDS_EASY, SIGHT_WORDS_EASY_EN } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
@@ -105,10 +105,18 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
   const buildLetterOptions = (word) => {
     const wordLetters = word.split('');
     const wordLetterSet = new Set(wordLetters);
-    const distractors = DISTRACTOR_LETTERS
-      .filter(l => !wordLetterSet.has(l))
+    // Collect letters from the sight-word pool so distractors are letters the
+    // student has seen in other words — more meaningful than random letters.
+    const sightWordLetters = new Set();
+    for (const w of SIGHT_WORDS) for (const l of w) sightWordLetters.add(l);
+    // Always include extra vowels as distractors (vowels are the hardest to
+    // distinguish and the most common confusion in early spelling).
+    const VOWELS = 'aeiou';
+    const distractorPool = [...new Set([...VOWELS.split(''), ...sightWordLetters])]
+      .filter(l => !wordLetterSet.has(l));
+    const distractors = distractorPool
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.max(2, 6 - wordLetterSet.size));
+      .slice(0, Math.max(3, 7 - wordLetterSet.size));
     return [...wordLetters, ...distractors]
       .sort(() => Math.random() - 0.5)
       .map((letter, i) => ({ letter, id: `opt-${i}-${Math.random().toString(36).slice(2)}` }));
@@ -299,11 +307,10 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
           </div>
         </div>
         <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
-          <SpellingWriteStep
+          <SightWordWriteCanvas
             word={currentWord}
             onDone={handleWriteDone}
             onPlaySound={() => playSound(currentWord)}
-            wide={false}
           />
         </div>
       </div>
