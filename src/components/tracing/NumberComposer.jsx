@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
-import { Save, Check, RotateCcw, Play, ImagePlus, X } from 'lucide-react';
+import { Save, Check, RotateCcw, Play, ImagePlus, X, Move } from 'lucide-react';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375;
@@ -23,8 +23,14 @@ export default function NumberComposer({ target, onSaved }) {
 
   const [digitStrokes, setDigitStrokes] = useState({});
   const [spacing, setSpacing] = useState(0.04);
-  const [bg, setBg] = useState('');
+  const [bg, setBg] = useState(null); // { url, img, aspect }
+  const [bgScale, setBgScale] = useState(1);
+  const [bgX, setBgX] = useState(0);
+  const [bgY, setBgY] = useState(0);
   const [bgOpacity, setBgOpacity] = useState(0.45);
+  const [moveMode, setMoveMode] = useState(false);
+  const moveStartRef = useRef(null);
+  const svgRef = useRef(null);
   const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -139,6 +145,63 @@ export default function NumberComposer({ target, onSaved }) {
   const reset = () => setSpacing(0.04);
   const ready = tensInk && onesInk;
 
+  // Load an uploaded image file, capture its aspect ratio, and fit it to the
+  // canvas height (centered) — same model as the letter authoring canvas so the
+  // teacher only drags to position, never resizes by hand.
+  const loadTraceImage = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result;
+      const img = new Image();
+      img.onload = () => {
+        const aspect = img.width / img.height || 1;
+        const scale = 1; // fit to canvas height (dispH = CANVAS_H)
+        const dh = CANVAS_H * scale;
+        const dw = dh * aspect;
+        setBg({ url, img, aspect });
+        setBgScale(scale);
+        setBgX((CANVAS_W - dw) / 2);
+        setBgY((CANVAS_H - dh) / 2);
+      };
+      img.src = url;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const getPos = (e) => {
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (CANVAS_W / rect.width),
+      y: (e.clientY - rect.top) * (CANVAS_H / rect.height),
+    };
+  };
+
+  const onPointerDown = (e) => {
+    if (!moveMode || !bg) return;
+    e.preventDefault();
+    try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
+    const pos = getPos(e);
+    moveStartRef.current = { x: pos.x, y: pos.y, bgX, bgY };
+  };
+  const onPointerMove = (e) => {
+    if (!moveMode || !moveStartRef.current || !bg) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    const s = moveStartRef.current;
+    setBgX(s.bgX + (pos.x - s.x));
+    setBgY(s.bgY + (pos.y - s.y));
+  };
+  const onPointerUp = (e) => {
+    if (!moveMode) return;
+    moveStartRef.current = null;
+    try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
+  };
+
+  const dispH = CANVAS_H * bgScale;
+  const dispW = dispH * (bg?.aspect || 1);
+
   const renderDigit = (strokes, offX, color) => {
     if (!strokes || !layout) return null;
     return strokes.map((stroke, si) => {
@@ -182,13 +245,22 @@ export default function NumberComposer({ target, onSaved }) {
       )}
 
       <div className="flex flex-col items-center gap-3">
-        <svg viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-          className="rounded-2xl border-4 border-slate-200 bg-white"
-          style={{ width: '100%', maxWidth: 360, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}>
-          {/* Reference image (behind everything) */}
+        <svg ref={svgRef} viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+          className="rounded-2xl border-4 border-slate-200 bg-white touch-none"
+          style={{
+            width: '100%', maxWidth: 360, aspectRatio: `${CANVAS_W}/${CANVAS_H}`,
+            cursor: moveMode && bg ? 'move' : 'default', touchAction: 'none',
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {/* Reference image (behind everything) — drag with Move to position */}
           {bg && (
-            <image href={bg} x="0" y="0" width={CANVAS_W} height={CANVAS_H}
-              preserveAspectRatio="xMidYMid meet" opacity={bgOpacity} pointerEvents="none" />
+            <image href={bg.url} x={bgX} y={bgY} width={dispW} height={dispH}
+              opacity={bgOpacity} pointerEvents="none" />
           )}
           {/* Writing lines */}
           <line x1="0" y1={0.10 * CANVAS_H} x2={CANVAS_W} y2={0.10 * CANVAS_H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
@@ -219,33 +291,53 @@ export default function NumberComposer({ target, onSaved }) {
               <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50 cursor-pointer">
                 <ImagePlus className="w-3.5 h-3.5" /> {bg ? 'Change' : 'Add image'}
                 <input type="file" accept="image/*" className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    const reader = new FileReader();
-                    reader.onload = () => setBg(reader.result);
-                    reader.readAsDataURL(f);
-                    e.target.value = '';
-                  }} />
+                  onChange={(e) => { loadTraceImage(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
               {bg && (
-                <button onClick={() => setBg('')}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100">
-                  <X className="w-3.5 h-3.5" /> Clear
-                </button>
+                <>
+                  <button onClick={() => setMoveMode((m) => !m)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border ${
+                      moveMode
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
+                    }`}>
+                    <Move className="w-3.5 h-3.5" /> {moveMode ? 'Dragging' : 'Move'}
+                  </button>
+                  <button onClick={() => { setBg(null); setMoveMode(false); }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-white text-slate-500 border border-slate-200 hover:bg-slate-100">
+                    <X className="w-3.5 h-3.5" /> Clear
+                  </button>
+                </>
               )}
             </div>
           </div>
           {bg && (
-            <label className="block">
-              <span className="text-xs text-slate-400">Image opacity</span>
-              <input type="range" min="0.1" max="0.9" step="0.05" value={bgOpacity}
-                onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
-                className="w-full accent-indigo-600" />
-            </label>
+            <>
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="w-14 shrink-0">Scale</span>
+                <input type="range" min="0.2" max="40" step="0.1" value={bgScale}
+                  onChange={(e) => {
+                    const ns = parseFloat(e.target.value);
+                    const dh = CANVAS_H * ns;
+                    const dw = dh * (bg?.aspect || 1);
+                    setBgScale(ns);
+                    setBgX((CANVAS_W - dw) / 2);
+                    setBgY((CANVAS_H - dh) / 2);
+                  }}
+                  className="flex-1 accent-indigo-600" />
+                <span className="w-10 text-right tabular-nums">{bgScale.toFixed(2)}×</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="w-14 shrink-0">Opacity</span>
+                <input type="range" min="0.1" max="1" step="0.05" value={bgOpacity}
+                  onChange={(e) => setBgOpacity(parseFloat(e.target.value))}
+                  className="flex-1 accent-indigo-600" />
+                <span className="w-10 text-right tabular-nums">{Math.round(bgOpacity * 100)}%</span>
+              </label>
+            </>
           )}
           <p className="text-xs text-slate-400 text-center">
-            Upload a picture of the number to line up the digits and set the spacing.
+            Upload a picture of the number, then use Move to drag it into place and Scale to fit.
           </p>
         </div>
       </div>
