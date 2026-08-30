@@ -3,6 +3,7 @@ import { MODES, presetModeKey } from '@/lib/lettersort/presetConfig';
 import { FIELDS, TOGGLES, paramOf } from '@/lib/lettersort/fields';
 import { base44 } from '@/api/base44Client';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
+import TtsWordGenerator from './TtsWordGenerator';
 
 // Load a preset config into editor field values, scoped to the given mode's
 // fields so config keys like `rows` don't collide between row and generate modes.
@@ -66,6 +67,7 @@ export default function LetterSortPresetEditor({ presetKey, onClose, onSaved }) 
   const [key, setKey] = useState(presetKey || '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [ttsLang, setTtsLang] = useState('es');
 
   const mode = MODES.find((m) => m.key === modeKey);
   const setField = (k, v) => setVals((p) => ({ ...p, [k]: v }));
@@ -170,6 +172,20 @@ export default function LetterSortPresetEditor({ presetKey, onClose, onSaved }) 
               );
             })}
           </div>
+
+          {mode?.fields.includes('words') && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-gray-600">TTS language</label>
+                <select value={ttsLang} onChange={(e) => setTtsLang(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white">
+                  <option value="es">Spanish</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <TtsWordGenerator words={vals.words || ''} lang={ttsLang} />
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3 items-center">
             {TOGGLES.map((t) => (
