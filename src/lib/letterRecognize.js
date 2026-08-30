@@ -1405,22 +1405,20 @@ const TRACE_EXTRA_W = 1.2;     // how strongly waste ink drags the score down �
 const TRACE_SOFTMAX_T = 0.08;  // softmax temperature over the score → confidence
 const TRACE_STRUCT_W = 1.0;    // weight of the structural penalty (missing kinds, tail check) in the trace score — high enough that a tailed bowl (a) beats a tailless bowl (o) by the stem penalty
 
-// Trace-specific height exclusion: RELAX the solidlyX rule. The strict
-// heightExcludes blocks a short 'l' (drawn in the x-height band, solidlyX)
-// from matching the 'l' template (an ascender) — so a kid's short 'l' reads
-// as '0' or 'o' instead. In the trace mode (which asks "did the ink trace the
-// pathway?") a short vertical should still match 'l' with lower coverage; the
-// height exclusion should only block a TALL drawing from matching a SHORT
-// template (a tall 'l' is not an 'a'), not the reverse.
+// STRICT height-zone exclusion for trace mode (the user's "only match those
+// height letters" rule). A drawing may only match a template in the SAME height
+// zone: x-height (o,a,c,e…) matches x-height, ascender (l,t,b,d…) matches
+// ascender, descender (g,j,p,q,y) matches descender, full-height (0,8) matches
+// full-height. This is BIDIRECTIONAL — an ascender-only 'l' cannot match a
+// full-height '0' (the '0' has a descender zone 'l' lacks), and an x-height 'o'
+// cannot match a full-height '0' either. Dots are ignored (i/j group by stem).
 function traceHeightExcludes(d, t) {
-  if (d.ascender && !t.ascender) return true;
-  if (d.descender && !t.descender) return true;
+  if (d.ascender !== t.ascender) return true;
+  if (d.descender !== t.descender) return true;
   return false;
 }
-// Soft height-mismatch penalty (NOT a hard exclude — a short 'l' still needs to
-// match the tall 'l' template). Applied to the trace score so a tall template
-// (C, 8) can't beat the correct short letter (a) even when anisotropic stretch
-// makes the bowl cover the tall template's curve.
+// Soft height-mismatch penalty — kept for borderline cases that pass the hard
+// exclusion but still have some height drift.
 const HEIGHT_MISMATCH_PEN = 0.35;
 function heightMismatchPenalty(d, t) {
   let pen = 0;
