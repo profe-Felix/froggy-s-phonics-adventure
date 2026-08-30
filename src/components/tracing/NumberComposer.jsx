@@ -315,7 +315,7 @@ export default function NumberComposer({ target, onSaved }) {
             <>
               <label className="flex items-center gap-2 text-xs text-slate-600">
                 <span className="w-14 shrink-0">Scale</span>
-                <input type="range" min="0.2" max="40" step="0.1" value={bgScale}
+                <input type="range" min="0.2" max="80" step="0.1" value={bgScale}
                   onChange={(e) => {
                     const ns = parseFloat(e.target.value);
                     const dh = CANVAS_H * ns;
