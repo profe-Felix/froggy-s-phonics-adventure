@@ -1417,6 +1417,19 @@ function traceHeightExcludes(d, t) {
   if (d.descender && !t.descender) return true;
   return false;
 }
+// Soft height-mismatch penalty (NOT a hard exclude — a short 'l' still needs to
+// match the tall 'l' template). Applied to the trace score so a tall template
+// (C, 8) can't beat the correct short letter (a) even when anisotropic stretch
+// makes the bowl cover the tall template's curve.
+const HEIGHT_MISMATCH_PEN = 0.35;
+function heightMismatchPenalty(d, t) {
+  let pen = 0;
+  if (d.ascender && !t.ascender) pen += HEIGHT_MISMATCH_PEN;
+  if (t.ascender && !d.ascender) pen += HEIGHT_MISMATCH_PEN;
+  if (d.descender && !t.descender) pen += HEIGHT_MISMATCH_PEN;
+  if (t.descender && !d.descender) pen += HEIGHT_MISMATCH_PEN;
+  return pen;
+}
 // Structural penalty for the trace mode. Reuses shapeStructPenalty (missing
 // template kinds, dot presence, hump count) and adds a TAIL check: a bowl with
 // a tail (a/d/g/q/p) has a stem a tailless bowl (o) lacks. If the drawing has
@@ -1429,7 +1442,25 @@ function traceHeightExcludes(d, t) {
 // vertical stem that 'o' simply lacks, regardless of whether the stroke
 // classifies as 'bowl' or 'curve'. A circle's top/bottom arcs have only brief
 // vertical tangents (well under the threshold), so 'o' registers no stem.
-const STEM_RUN = 0.15;
+const STEM_PENALTY = 0.30; // vertical-stem mismatch — high enough that an 'a' with a stem beats 'o' by the stem alone
+const STRETCH_TOL = 0.5;   // stretch up to 50% is free (a small 'o' can match a larger 'o' template); beyond that, penalize
+const STRETCH_W = 2.0;     // penalty per unit stretch beyond tolerance
+const STEM_RUN = 0.10;
+// Detect a CLOSED LOOP — the stroke's start and end meet (an 'o', 'a' bowl, or
+// 'p' bowl). An 'o' drawing should NOT match an open 'c' template: the 'c'
+// pathway is a subset of the circle, so coverage is 100%, but the 'c' is open
+// while the 'o' is closed. This is the o-vs-c discriminator.
+function isClosedLoop(strokesNorm) {
+  for (const s of strokesNorm) {
+    if (!s || s.length < 6 || isDotStroke(s)) continue;
+    const start = s[0], end = s[s.length - 1];
+    let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    for (const p of s) { if (p.x < mnx) mnx = p.x; if (p.x > mxx) mxx = p.x; if (p.y < mny) mny = p.y; if (p.y > mxy) mxy = p.y; }
+    const diag = Math.hypot(mxx - mnx, mxy - mny);
+    if (diag > 0.05 && Math.hypot(start.x - end.x, start.y - end.y) < diag * 0.15) return true;
+  }
+  return false;
+}
 function hasVerticalStem(strokesNorm) {
   for (const s of strokesNorm) {
     if (!s || s.length < 2 || isDotStroke(s)) continue;
@@ -1464,8 +1495,15 @@ function traceStructPenalty(drawn, tmpl) {
   // 'curve' instead of 'bowl', which the tail check above misses.
   const dHasStem = hasVerticalStem(drawn);
   const tHasStem = hasVerticalStem(tmpl);
-  if (dHasStem && !tHasStem) pen += KIND_PENALTY;
-  if (tHasStem && !dHasStem) pen += KIND_PENALTY;
+  if (dHasStem && !tHasStem) pen += STEM_PENALTY;
+  if (tHasStem && !dHasStem) pen += STEM_PENALTY;
+  // Closed-loop check: a closed-loop drawing ('o') should not match an open
+  // template ('c') — the 'c' pathway is a subset of the circle, so coverage
+  // is 100% without this penalty.
+  const dClosed = isClosedLoop(drawn);
+  const tClosed = isClosedLoop(tmpl);
+  if (dClosed && !tClosed) pen += STEM_PENALTY;
+  if (tClosed && !dClosed) pen += STEM_PENALTY;
   return pen;
 }
 // Densely sample a template's taught pathway at a fixed normalized step.
@@ -1553,6 +1591,15 @@ export function traceMatch(drawnStrokes, templates) {
     if (!excluded) {
       const tBox = bbox(t.strokes);
       const aligned = alignTo(drawn, dBox, tBox);
+      // Compute the actual Y/X scale after ASP_CAP capping — a template that
+      // needs a big stretch (e.g. '8' full-height vs an 'a' half-height) is a
+      // bad match even if the stretched bowl happens to cover the top loop.
+      let rsx = dBox.w > 1e-4 ? tBox.w / dBox.w : 1;
+      let rsy = dBox.h > 1e-4 ? tBox.h / dBox.h : 1;
+      if (rsy > rsx * ASP_CAP) rsy = rsx * ASP_CAP;
+      else if (rsx > rsy * ASP_CAP) rsx = rsy * ASP_CAP;
+      const stretch = Math.max(Math.max(rsx, 1 / rsx), Math.max(rsy, 1 / rsy));
+      const stretchPenalty = Math.max(0, stretch - (1 + STRETCH_TOL)) * STRETCH_W;
       const ink = inkCloud(aligned);
       const tPts = denseTemplatePoints(t.strokes);
       if (ink.length && tPts.length) {
@@ -1562,7 +1609,8 @@ export function traceMatch(drawnStrokes, templates) {
         let waste = 0;
         for (const ip of ink) if (traceNearest(ip, tPts) > TRACE_R) waste++;
         extra = ink.length ? waste / ink.length : 0;
-        score = coverage - TRACE_EXTRA_W * extra - TRACE_STRUCT_W * traceStructPenalty(drawn, t.strokes);
+        const hPen = heightMismatchPenalty(heightClassOf(drawn), heightClassOf(t.strokes));
+        score = coverage - TRACE_EXTRA_W * extra - TRACE_STRUCT_W * traceStructPenalty(drawn, t.strokes) - stretchPenalty - hPen;
       }
     }
     return { letter: t.letter, score: Math.max(0, score), coverage, extra, dist: excluded ? Infinity : (1 - Math.max(0, score)), confidence: 0, excludedBy: excluded ? reason : null };
