@@ -39,7 +39,7 @@ function inferClassicMode(v) {
 }
 
 const LABELS = {
-  is: (L) => `Empieza con /${L}/`,
+  is: (L) => `/${L}/`,
   not: (L) => `No empieza con /${L}/`,
   emojiIs: (L) => `👍 Sílaba con /${L}/`,
   emojiNot: (L) => `👎 Sílaba sin /${L}/`,

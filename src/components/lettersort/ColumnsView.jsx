@@ -337,7 +337,7 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
   }
   return (
     <div className="flex justify-center mb-1.5">
-      <div className="px-3 py-1 rounded-lg bg-indigo-100 text-indigo-800 font-bold text-sm text-center min-w-[3rem]">
+      <div className="px-4 py-2 rounded-lg bg-indigo-100 text-indigo-800 font-black text-2xl text-center min-w-[3rem]">
         {col.display || col.label}
       </div>
     </div>
