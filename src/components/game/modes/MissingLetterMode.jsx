@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, forwardRef } from 'r
 import { base44 } from '@/api/base44Client';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { NUMBER_WAYPOINTS } from '../../data/numberWaypoints';
-import LetterTracingCanvas from '../LetterTracingCanvas';
+import MissingLetterWordCanvas from '../MissingLetterWordCanvas';
 import { resolveImageForWord } from '@/lib/lettersort/storage';
 import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 import { getLanguage } from '@/lib/language';
@@ -300,50 +300,39 @@ export default function MissingLetterMode({
           </div>
 
           <div className="flex items-center gap-1 flex-wrap justify-center">
-            {item.position === 'initial' && (
-              phase === 'tracing' && hasWaypoints ? (
-                <LetterTracingCanvas
-                  key={`${correctLetter}-${idx}`}
-                  letter={correctLetter}
-                  strokes={wp.strokes}
-                  onComplete={handleTraced}
-                  lang={lang}
-                  showGuide
-                  silent={silent}
-                  renderWidth={210}
-                />
-              ) : (
-                <BlankSlot
-                  ref={blankRef}
-                  placed={placed}
-                  wrong={wrong}
-                  correctLetter={correctLetter}
-                />
-              )
-            )}
-            {displayLetters.map((c, i) => (
-              <span key={i} className={`font-black text-gray-700 lowercase ${phase === 'tracing' ? 'text-4xl md:text-5xl' : 'text-6xl md:text-7xl'}`}>{c}</span>
-            ))}
-            {item.position === 'final' && (
-              phase === 'tracing' && hasWaypoints ? (
-                <LetterTracingCanvas
-                  key={`${correctLetter}-${idx}`}
-                  letter={correctLetter}
-                  strokes={wp.strokes}
-                  onComplete={handleTraced}
-                  lang={lang}
-                  showGuide
-                  silent={silent}
-                  renderWidth={210}
-                />
-              ) : (
-                <BlankSlot
-                  ref={blankRef}
-                  placed={placed}
-                  wrong={wrong}
-                  correctLetter={correctLetter}
-                />
-              )
+            {phase === 'tracing' && hasWaypoints ? (
+              <MissingLetterWordCanvas
+                key={`${correctLetter}-${idx}`}
+                word={item.word}
+                targetIndex={item.position === 'final' ? item.word.length - 1 : 0}
+                waypoints={waypoints}
+                onComplete={handleTraced}
+                lang={lang}
+                silent={silent}
+                renderWidth={500}
+              />
+            ) : (
+              <>
+                {item.position === 'initial' && (
+                  <BlankSlot
+                    ref={blankRef}
+                    placed={placed}
+                    wrong={wrong}
+                    correctLetter={correctLetter}
+                  />
+                )}
+                {displayLetters.map((c, i) => (
+                  <span key={i} className="font-black text-gray-700 lowercase text-6xl md:text-7xl">{c}</span>
+                ))}
+                {item.position === 'final' && (
+                  <BlankSlot
+                    ref={blankRef}
+                    placed={placed}
+                    wrong={wrong}
+                    correctLetter={correctLetter}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
