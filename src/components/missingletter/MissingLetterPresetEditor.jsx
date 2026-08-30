@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { X, Plus, Trash2, Save, Loader2 } from 'lucide-react';
 import ImagePicker from '@/components/lesson/ImagePicker';
+import BucketWordSuggestions from './BucketWordSuggestions';
 
 // Teacher editor for a Missing Letter preset. Each item is a word with a
 // missing initial or final letter, a picture (uploaded image, emoji, or a
@@ -34,6 +35,10 @@ export default function MissingLetterPresetEditor({ presetKey, onClose, onSaved 
   const updateItem = (i, patch) => setItems((prev) => prev.map((it, j) => (j === i ? { ...it, ...patch } : it)));
   const addItem = () => setItems((prev) => [...prev, { word: '', position: 'initial', image_source: 'emoji', emoji: '', image_url: '', bank: [] }]);
   const removeItem = (i) => setItems((prev) => prev.filter((_, j) => j !== i));
+  // Add a bucket-suggested word: image auto-resolves from the Letter Sort
+  // bucket (image_source='random'), so no upload is needed.
+  const addSuggested = (word, position) => setItems((prev) => [...prev, { word, position, image_source: 'random', emoji: '', image_url: '', bank: [] }]);
+  const existingWords = new Set(items.map((it) => (it.word || '').trim().toLowerCase()));
 
   const save = async () => {
     setErr('');
@@ -102,6 +107,12 @@ export default function MissingLetterPresetEditor({ presetKey, onClose, onSaved 
           <Plus className="w-3 h-3" /> Add word
         </button>
       </div>
+
+      <BucketWordSuggestions
+        bucket="lettersort-images"
+        existingWords={existingWords}
+        onAdd={addSuggested}
+      />
 
       <div className="flex flex-col gap-2 max-h-80 overflow-y-auto">
         {items.map((it, i) => (
