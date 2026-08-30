@@ -106,18 +106,16 @@ export default function NumberComposer({ target, onSaved }) {
   const tensInk = useMemo(() => inkBounds(digitStrokes[tensKey]), [digitStrokes, tensKey]);
   const onesInk = useMemo(() => inkBounds(digitStrokes[onesKey]), [digitStrokes, onesKey]);
 
-  // Auto-scale uniformly so both digits + spacing fit, capped at 1.0 (never
-  // upscale beyond the authored size). y is scaled around the baseline so
-  // digits stay anchored to it as they shrink.
+  // Spacing changes ONLY the gap between the two digits — both stay at full
+  // authored size (s = 1.0). The pair is centered as a unit; if the gap makes
+  // the total wider than the canvas it overflows symmetrically (the teacher
+  // sees that and backs the slider off), but the digits never shrink.
   const layout = useMemo(() => {
     if (!tensInk || !onesInk) return null;
-    const totalInkW = tensInk.w + onesInk.w;
-    const s = totalInkW > 0
-      ? Math.min(1.0, (1 - 2 * PAD - spacing) / totalInkW)
-      : 1.0;
-    const contentW = totalInkW * s + spacing;
+    const s = 1.0;
+    const contentW = tensInk.w + onesInk.w + spacing;
     const leftPad = (1 - contentW) / 2;
-    const offsetY = BASELINE * (1 - s);
+    const offsetY = 0;
     const tensOffX = leftPad - tensInk.minX * s;
     const onesOffX = leftPad + tensInk.w * s + spacing - onesInk.minX * s;
     return { s, offsetY, tensOffX, onesOffX };
