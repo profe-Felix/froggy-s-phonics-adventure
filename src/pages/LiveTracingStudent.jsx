@@ -105,7 +105,6 @@ export default function LiveTracingStudent() {
         <CheckCircle2 className="w-16 h-16 text-green-500" />
         <h2 className="text-2xl font-black text-gray-800">All done! 🎉</h2>
         <p className="text-gray-500">Your teacher ended the session.</p>
-        <Link to="/" className="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600">Back to Home</Link>
       </div>
     );
   }
