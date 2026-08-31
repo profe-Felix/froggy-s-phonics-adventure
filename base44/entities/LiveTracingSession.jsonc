@@ -1,0 +1,94 @@
+{
+  "name": "LiveTracingSession",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Short join code students enter or scan via QR"
+    },
+    "letters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Letters the teacher selected for this session (lowercase)."
+    },
+    "current_letter": {
+      "type": "string",
+      "default": "",
+      "description": "Letter the teacher is currently modeling / students are tracing."
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "watch",
+        "try"
+      ],
+      "default": "watch",
+      "description": "watch = teacher models, students mirror the live ink. try = students trace the current letter on their own device."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "False once the teacher ends the session. Students return to the join screen."
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the session started"
+    },
+    "broadcast_state": {
+      "type": "object",
+      "description": "Live mirror of the teacher's pen during the watch phase (same shape as TracingModelCanvas sends: {type:'tracing', letter, guideStrokes, currentPath, drawnPaths, status, accuracy}).",
+      "default": {}
+    }
+  },
+  "required": [
+    "code"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

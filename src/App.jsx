@@ -34,6 +34,8 @@ import Activities from './pages/Activities';
 import ActivityPresets from './pages/ActivityPresets';
 import LetterRecognition from './pages/LetterRecognition';
 import LiveLesson from './pages/LiveLesson';
+import LiveTracing from './pages/LiveTracing';
+import LiveTracingStudent from './pages/LiveTracingStudent';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -116,6 +118,8 @@ const AuthenticatedApp = () => {
       <Route path="/ActivityPresets" element={<ActivityPresets />} />
       <Route path="/LetterRecognition" element={<LetterRecognition />} />
       <Route path="/LiveLesson" element={<LiveLesson />} />
+      <Route path="/LiveTracing" element={<LiveTracing />} />
+      <Route path="/LiveTracingStudent" element={<LiveTracingStudent />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

@@ -22,15 +22,15 @@ export default function TracingMirrorCanvas({ broadcast }) {
   // fall back to the cached guide when a frame doesn't carry it.
   const guideCacheRef = useRef({});
   useEffect(() => {
-    if (has && letter && broadcast.guideStrokes) {
+    if (has && letter && broadcast?.guideStrokes) {
       guideCacheRef.current[letter] = broadcast.guideStrokes;
     }
-  }, [has, letter, broadcast.guideStrokes]);
-  const guideStrokes = has ? (broadcast.guideStrokes || guideCacheRef.current[letter] || []) : [];
-  const drawnPaths = has ? (broadcast.drawnPaths || []) : [];
-  const currentPath = has ? (broadcast.currentPath || []) : [];
-  const status = has ? broadcast.status : null;
-  const accuracy = has ? broadcast.accuracy : null;
+  }, [has, letter, broadcast?.guideStrokes]);
+  const guideStrokes = has ? (broadcast?.guideStrokes || guideCacheRef.current[letter] || []) : [];
+  const drawnPaths = has ? (broadcast?.drawnPaths || []) : [];
+  const currentPath = has ? (broadcast?.currentPath || []) : [];
+  const status = has ? broadcast?.status : null;
+  const accuracy = has ? broadcast?.accuracy : null;
 
   return (
     <div className="flex flex-col gap-3 p-4 max-w-md mx-auto w-full">

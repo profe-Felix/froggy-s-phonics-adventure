@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users, PenLine } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
@@ -331,6 +331,14 @@ export default function LiveLesson() {
               <Radio className="w-7 h-7 text-rose-500" />
               Live Lesson
             </h1>
+
+            <Link
+              to="/LiveTracing"
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100"
+            >
+              <PenLine className="w-4 h-4" />
+              Standalone Tracing
+            </Link>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 space-y-5">
