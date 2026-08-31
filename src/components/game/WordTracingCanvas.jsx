@@ -58,15 +58,29 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   // Scale a normalized point into this letter's cell within the word canvas.
   // Scale a normalized point into the current letter's position within the
   // word canvas, shifted so the letter's leftmost ink point sits at its offset.
+  // Per-letter y-shift so each letter sits on the baseline (non-descenders) or
+  // aligns its body top to the midline (descenders). Waypoint data is often
+  // authored a hair above/below the guide lines; without this snap the letters
+  // float visibly in the larger word canvas.
+  const BASELINE_Y = 0.633;
+  const MIDLINE_Y = 0.367;
+  const DESC_THRESHOLD = 0.68; // maxY above this → descender (tail below baseline)
+  const letterYShift = useCallback((li) => {
+    const lay = letterLayout[li];
+    if (!lay || lay.maxY == null) return 0;
+    if (lay.maxY > DESC_THRESHOLD) return (MIDLINE_Y - lay.minY) * CANVAS_H; // descender: align body top to midline
+    return (BASELINE_Y - lay.maxY) * CANVAS_H; // non-descender: sit on baseline
+  }, [letterLayout]);
+
   const scaleWord = useCallback((pt) => {
     const lay = letterLayout[letterIndex];
     const baseX = lay ? lay.offset : 0;
     const minX = lay ? lay.minX : 0;
     return {
       x: baseX + (pt.x - minX) * X_SCALE,
-      y: pt.y * CANVAS_H,
+      y: pt.y * CANVAS_H + letterYShift(letterIndex),
     };
-  }, [letterIndex, letterLayout]);
+  }, [letterIndex, letterLayout, letterYShift]);
 
   // Scale for any letter (used for guide-path rendering across all letters).
   const scaleForLetter = useCallback((pt, li) => {
@@ -75,10 +89,10 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     const minX = lay ? lay.minX : 0;
     return {
       x: baseX + (pt.x - minX) * X_SCALE,
-      y: pt.y * CANVAS_H,
+      y: pt.y * CANVAS_H + letterYShift(li),
       ...(pt.corner ? { corner: true } : {}),
     };
-  }, [letterLayout]);
+  }, [letterLayout, letterYShift]);
 
   const stopFonema = useCallback(() => {
     if (fonemaIntervalRef.current) { clearInterval(fonemaIntervalRef.current); fonemaIntervalRef.current = null; }
