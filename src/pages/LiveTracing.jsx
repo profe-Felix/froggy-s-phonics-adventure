@@ -88,12 +88,6 @@ export default function LiveTracing() {
       if (existing?.length) code = genCode();
     } catch {}
 
-    // Deactivate any leftover standalone tracing sessions.
-    try {
-      const stale = await base44.entities.LiveTracingSession.filter({ active: true });
-      await Promise.all((stale || []).map(s => base44.entities.LiveTracingSession.update(s.id, { active: false }).catch(() => {})));
-    } catch {}
-
     // Each picked lowercase letter generates both its lowercase and
       // uppercase form, so students practice both cases.
     const letters = picked.flatMap(l => [l, l.toUpperCase()]);
