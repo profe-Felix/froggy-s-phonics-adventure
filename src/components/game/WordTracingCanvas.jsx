@@ -76,6 +76,7 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     return {
       x: baseX + (pt.x - minX) * X_SCALE,
       y: pt.y * CANVAS_H,
+      ...(pt.corner ? { corner: true } : {}),
     };
   }, [letterLayout]);
 
