@@ -12,7 +12,7 @@ import { splinePathD } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 600;
 const CANVAS_H = 750;
-const LETTER_GAP = 20;
+const LETTER_GAP = 45;
 const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
 const REPETITIONS = 3; // trace the word 3 times with spaces between
 const WORD_GAP = 80; // px space between word repetitions (like a real word space)
@@ -617,7 +617,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
                 d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
                 fill="none"
                 stroke={color}
-                strokeWidth={isCurrent && guideFlash ? 28 : 24}
+                strokeWidth={isCurrent && guideFlash ? 20 : 16}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}
@@ -629,14 +629,14 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         {/* Drawn paths — all letters' completed strokes */}
         {Object.entries(drawnPathsByLetter).map(([li, paths]) =>
           paths.map((pts, i) => (
-            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="24"
+            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="16"
               strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
           ))
         )}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="24"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="16"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
