@@ -1,0 +1,27 @@
+{
+  "name": "LiveTracingPreset",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Preset name e.g. 'Schwarz'. Unique key teachers use to recall a saved letter selection."
+    },
+    "letters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Saved lowercase letter selection. Uppercase forms are auto-generated at session start."
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

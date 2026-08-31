@@ -29,8 +29,29 @@ export default function LiveTracing() {
   const [letterProgress, setLetterProgress] = useState({});
   const [completedLetters, setCompletedLetters] = useState(new Set());
   const waypoints = useMergedWaypoints();
+  const [presets, setPresets] = useState([]);
+  const [saveName, setSaveName] = useState('');
 
   useEffect(() => { sessionRef.current = session; }, [session]);
+
+  // Load saved selections. If a ?session=Name param is present, auto-apply it.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const list = await base44.entities.LiveTracingPreset.list('-updated_date', 100);
+        if (!alive) return;
+        setPresets(list || []);
+        const urlParams = new URLSearchParams(window.location.search);
+        const wanted = (urlParams.get('session') || '').trim();
+        if (wanted) {
+          const match = (list || []).find(p => p.name.toLowerCase() === wanted.toLowerCase());
+          if (match?.letters?.length) setPicked(match.letters);
+        }
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, []);
 
   // Real-time subscription to the active session.
   useEffect(() => {
@@ -157,6 +178,56 @@ export default function LiveTracing() {
                 ))}
               </div>
               <p className="text-xs text-gray-400 mt-2">{picked.length} letter(s) selected</p>
+            </div>
+
+            {(presets.length > 0) && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Saved selections</label>
+                <div className="flex flex-wrap gap-2">
+                  {presets.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setPicked(p.letters || []); setSaveName(p.name); }}
+                      className="px-3 h-9 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Save this selection for next time</label>
+              <div className="flex gap-2">
+                <input
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  placeholder="e.g. Schwarz"
+                  className="flex-1 h-10 px-3 rounded-lg border border-indigo-200 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <Button
+                  onClick={async () => {
+                    const name = saveName.trim();
+                    if (!name || !picked.length) return;
+                    try {
+                      const existing = presets.find(p => p.name.toLowerCase() === name.toLowerCase());
+                      if (existing) {
+                        const updated = await base44.entities.LiveTracingPreset.update(existing.id, { letters: picked });
+                        setPresets(prev => prev.map(p => p.id === existing.id ? { ...p, letters: picked } : p));
+                      } else {
+                        const created = await base44.entities.LiveTracingPreset.create({ name, letters: picked });
+                        setPresets(prev => [created, ...prev]);
+                      }
+                    } catch {}
+                  }}
+                  disabled={!saveName.trim() || !picked.length}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+                >
+                  Save
+                </Button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Open with <code>?session={saveName.trim() || 'Name'}</code> in the URL to auto-load.</p>
             </div>
 
             <Button
