@@ -608,16 +608,16 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
             const isCompleted = li < letterIndex;
             const isCurrent = li === letterIndex;
             const color = isCompleted ? '#22c55e' :
-                          isCurrent ? GUIDE_COLORS[si % GUIDE_COLORS.length] :
+                          isCurrent ? '#A78BFA' :
                           '#cbd5e1';
-            const opacity = isCompleted ? 0.4 : isCurrent ? (guideFlash ? 0.95 : 0.6) : 0.35;
+            const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.6) : 0.4;
             return (
               <path
                 key={`${li}-${si}`}
                 d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
                 fill="none"
                 stroke={color}
-                strokeWidth={isCurrent && guideFlash ? 20 : 16}
+                strokeWidth={isCurrent && guideFlash ? 10 : 6}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}
@@ -629,15 +629,15 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         {/* Drawn paths — all letters' completed strokes */}
         {Object.entries(drawnPathsByLetter).map(([li, paths]) =>
           paths.map((pts, i) => (
-            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="16"
-              strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#22c55e" strokeWidth="12"
+              strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
           ))
         )}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="16"
-            strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+          <path d={pathD(currentPath)} fill="none" stroke="#22c55e" strokeWidth="12"
+            strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
         )}
 
         {/* Moving direction guide — "Pac-Man pellets" that stay just ahead
@@ -678,7 +678,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
 
         {/* Start dot — at the current stroke's first waypoint */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
-          (() => { const dc = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length]; return (
+          (() => { const dc = '#A78BFA'; return (
             <>
               <circle cx={nextWp.x} cy={nextWp.y} r="18" fill={dc} opacity="0.15">
                 <animate attributeName="r" values="14;22;14" dur="1s" repeatCount="indefinite" />
