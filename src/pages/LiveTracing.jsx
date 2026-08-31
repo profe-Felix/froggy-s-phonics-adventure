@@ -3,9 +3,10 @@ import { base44 } from '@/api/base44Client';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Unlock, X, Radio, Users, PenLine } from 'lucide-react';
-import { useLiveTracingBroadcast } from '@/hooks/useLiveTracingBroadcast';
-import TracingModelCanvas from '@/components/live/TracingModelCanvas';
+import { ArrowLeft, X, Radio, Users, PenLine } from 'lucide-react';
+import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
+import LiveTracingGrid from '@/components/live/LiveTracingGrid';
+import LiveTracingProgression from '@/components/live/LiveTracingProgression';
 
 const ALL_LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const SPANISH_EXTRA = ['ñ'];
@@ -22,9 +23,12 @@ export default function LiveTracing() {
   const [session, setSession] = useState(null);
   const sessionRef = useRef(session);
   const [picked, setPicked] = useState(['o', 'i', 'a']);
-  const [currentLetter, setCurrentLetter] = useState('o');
   const [starting, setStarting] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [activeLetter, setActiveLetter] = useState(null);
+  const [letterProgress, setLetterProgress] = useState({});
+  const [completedLetters, setCompletedLetters] = useState(new Set());
+  const waypoints = useMergedWaypoints();
 
   useEffect(() => { sessionRef.current = session; }, [session]);
 
@@ -57,11 +61,7 @@ export default function LiveTracing() {
       try {
         const s = sessionRef.current;
         if (!s?.id) return;
-        await base44.entities.LiveTracingSession.update(s.id, {
-          active: true,
-          phase: s.phase || 'watch',
-          current_letter: s.current_letter || '',
-        });
+        await base44.entities.LiveTracingSession.update(s.id, { active: true });
       } catch {}
     };
     heartbeat();
@@ -74,8 +74,6 @@ export default function LiveTracing() {
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [session?.id, session?.active]);
-
-  const { send, clear: clearBroadcast } = useLiveTracingBroadcast(session?.id);
 
   const toggleLetter = (l) => {
     setPicked(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
@@ -103,13 +101,12 @@ export default function LiveTracing() {
       code,
       letters,
       current_letter: picked[0],
-      phase: 'watch',
+      phase: 'try',
       active: true,
       started_at: new Date().toISOString(),
       broadcast_state: {},
     });
     setSession(created);
-    setCurrentLetter(picked[0]);
     setStarting(false);
   };
 
@@ -119,21 +116,13 @@ export default function LiveTracing() {
     try { await base44.entities.LiveTracingSession.update(session.id, patch); } catch {}
   };
 
-  const pickLetter = (l) => {
-    setCurrentLetter(l);
-    clearBroadcast();
-    updateSession({ current_letter: l, phase: 'watch' });
-  };
-
-  const setPhase = (p) => {
-    if (p === 'try') clearBroadcast();
-    updateSession({ phase: p });
-  };
-
   const endSession = async () => {
     await updateSession({ active: false });
     setSession(null);
     setShowQR(false);
+    setActiveLetter(null);
+    setLetterProgress({});
+    setCompletedLetters(new Set());
   };
 
   // ---------- SETUP SCREEN ----------
@@ -191,9 +180,8 @@ export default function LiveTracing() {
   }
 
   // ---------- LIVE CONTROL SCREEN ----------
-  const phase = session.phase || 'watch';
-  const isLocked = phase === 'watch';
   const joinUrl = `${window.location.origin}/LiveTracingStudent?code=${session.code}`;
+  const letters = (session.letters || []).filter(l => waypoints[l]);
 
   return (
     <div className="h-screen flex flex-col bg-slate-900 text-white overflow-hidden">
@@ -213,18 +201,6 @@ export default function LiveTracing() {
             <Users className="w-4 h-4" /> Join
           </button>
           <button
-            onClick={() => setPhase(isLocked ? 'try' : 'watch')}
-            className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border transition ${
-              isLocked
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                : 'bg-green-500/20 text-green-300 border-green-500/40 hover:bg-green-500/30'
-            }`}
-            title={isLocked ? 'Students locked — tap to release' : 'Students released — tap to lock'}
-          >
-            {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-            {isLocked ? 'Locked' : 'Released'}
-          </button>
-          <button
             onClick={endSession}
             className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-red-500/90 hover:bg-red-500 text-white"
           >
@@ -233,39 +209,31 @@ export default function LiveTracing() {
         </div>
       </div>
 
-      {/* Letter picker — visible in both phases */}
-      <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800 shrink-0">
-        <div className="flex flex-wrap gap-2 justify-center max-w-3xl mx-auto">
-          {session.letters?.map(l => (
-            <button
-              key={l}
-              onClick={() => pickLetter(l)}
-              className={`h-11 w-11 rounded-lg font-bold text-xl transition ${
-                currentLetter === l
-                  ? 'bg-indigo-600 text-white ring-2 ring-indigo-300'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main area */}
-      <div className="flex-1 min-h-0 overflow-auto bg-slate-900">
-        {isLocked ? (
-          <TracingModelCanvas
-            key={currentLetter}
-            step={{ config: { targets: [currentLetter] } }}
-            send={send}
-          />
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="text-9xl font-black text-indigo-400">{currentLetter.toUpperCase()}</div>
-            <div className="text-lg font-bold text-slate-300">Students are tracing this letter on their own devices.</div>
-            <div className="text-xs text-slate-500">Tap a letter above to switch · tap “Locked” to model it again.</div>
+      {/* Body — same grid + staged progression as students, so the teacher can model */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {activeLetter ? (
+          <div className="pt-4 pb-8 flex flex-col items-center bg-slate-50 min-h-full">
+            <LiveTracingProgression
+              key={activeLetter}
+              letter={activeLetter}
+              letterData={waypoints[activeLetter]}
+              lang="es"
+              silent
+              initialProgress={letterProgress[activeLetter]}
+              onProgressChange={(p) => {
+                setLetterProgress(prev => ({ ...prev, [activeLetter]: p }));
+                if (p.mastered) setCompletedLetters(prev => new Set(prev).add(activeLetter));
+              }}
+              onBack={() => setActiveLetter(null)}
+            />
           </div>
+        ) : (
+          <LiveTracingGrid
+            letters={letters}
+            letterProgress={letterProgress}
+            completedLetters={completedLetters}
+            onPick={setActiveLetter}
+          />
         )}
       </div>
 
