@@ -10,7 +10,7 @@ import TracingModelCanvas from './TracingModelCanvas';
 import LetterSoundsModelCanvas from './LetterSoundsModelCanvas';
 import SoundWallModelCanvas from './SoundWallModelCanvas';
 import GoogleSlidesModelPanel from './GoogleSlidesModelPanel';
-import { Eye } from 'lucide-react';
+import Student30Preview from './Student30Preview';
 
 // Teacher's side: renders the model panel for the current step so the teacher
 // can drive/preview the activity during the "I do" phase. Video, Elkonin
@@ -21,7 +21,7 @@ function parseItems(text) {
   return String(text || '').split(/\n/).map(s => s.trim()).filter(Boolean).map(t => ({ text: t }));
 }
 
-export default function TeacherModelPanel({ step, send }) {
+export default function TeacherModelPanel({ step, stepIndex, send, className, lesson }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
 
   const { config, activity } = useMemo(() => {
@@ -80,20 +80,8 @@ export default function TeacherModelPanel({ step, send }) {
     if (mode === 'text_hunt') {
       return <HuntModelPanel items={activity.items || []} huntType={config?.huntType || 'phoneme'} target={config?.target || ''} send={send} />;
     }
-    return <ModelOnBoardPlaceholder step={step} />;
+    return <Student30Preview step={step} stepIndex={stepIndex} lesson={lesson} className={className} />;
   }
 
-  return <ModelOnBoardPlaceholder step={step} />;
-}
-
-function ModelOnBoardPlaceholder({ step }) {
-  return (
-    <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-300 p-8 text-center">
-      <Eye className="w-12 h-12 opacity-50" />
-      <p className="text-lg font-bold text-slate-200">Model "{step?.title}" on the board</p>
-      <p className="text-sm text-slate-400 max-w-md">
-        Run this activity on your main screen for the class. Live iPad mirroring for this activity type is coming soon — students see a "watch the board" message for now.
-      </p>
-    </div>
-  );
+  return <Student30Preview step={step} stepIndex={stepIndex} lesson={lesson} className={className} />;
 }

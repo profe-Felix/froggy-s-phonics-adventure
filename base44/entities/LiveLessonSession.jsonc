@@ -44,7 +44,7 @@
     "current_step": {
       "type": "integer",
       "default": 0,
-      "description": "Index of the step the teacher is currently on. All joined students are locked here."
+      "description": "Index of the step the teacher is currently on. In 'stay' mode all joined students are locked here. In 'lesson' mode this is the floor students can't fall behind."
     },
     "phase": {
       "type": "string",
@@ -53,7 +53,16 @@
         "try"
       ],
       "default": "watch",
-      "description": "watch = teacher models (I do), students see a live mirror of the teacher's screen. try = released to interact with the activity themselves (we do / you do)."
+      "description": "watch = teacher models (I do), students see a live mirror of the teacher's screen. try = released to interact with the activity themselves (we do / you do). Only meaningful in 'stay' release mode."
+    },
+    "release_mode": {
+      "type": "string",
+      "enum": [
+        "stay",
+        "lesson"
+      ],
+      "default": "stay",
+      "description": "stay = everyone stays on the teacher's current step (together). lesson = students work through the steps in order at their own pace; the teacher's current_step is a floor they can't fall behind, and the teacher can advance it even if some aren't done."
     },
     "active": {
       "type": "boolean",

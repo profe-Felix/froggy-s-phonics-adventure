@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users, PenLine } from 'lucide-react';
+import { ArrowLeft, Lock, Unlock, ChevronLeft, ChevronRight, X, Radio, Users, PenLine, Footprints, LayoutGrid, MonitorPlay } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
@@ -31,6 +31,7 @@ export default function LiveLesson() {
   const [pickedStudents, setPickedStudents] = useState([]);
   const [starting, setStarting] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons-all-live'],
@@ -121,6 +122,7 @@ export default function LiveLesson() {
           active: true,
           current_step: s.current_step ?? 0,
           phase: s.phase || 'watch',
+          release_mode: s.release_mode || 'stay',
         });
       } catch {
         // Best effort only. A temporary network failure should
@@ -208,6 +210,7 @@ export default function LiveLesson() {
         target_students: target,
         current_step: 0,
         phase: 'watch',
+        release_mode: 'stay',
         active: true,
         started_at: new Date().toISOString(),
         joined_students: [],
@@ -272,6 +275,13 @@ export default function LiveLesson() {
     updateSession({
       phase: p,
     });
+  };
+
+  const setReleaseMode = (m) => {
+    // Lesson mode releases students to work independently, so there's no
+    // broadcast to mirror. Together mode locks them on the teacher's step.
+    if (m === 'lesson') clearBroadcast();
+    updateSession({ release_mode: m });
   };
 
   const endSession = async () => {
@@ -499,6 +509,9 @@ export default function LiveLesson() {
   const isLocked =
     phase === 'watch';
 
+  const releaseMode =
+    session.release_mode || 'stay';
+
   return (
     <div className="h-screen flex flex-col bg-slate-900 text-white overflow-hidden">
 
@@ -534,33 +547,86 @@ export default function LiveLesson() {
             Join
           </button>
 
+          {/* Release mode: Together (everyone on my step) vs Own pace (students
+              work through steps in order, my step is a floor). */}
           <button
             onClick={() =>
-              setPhase(
-                isLocked
-                  ? 'try'
-                  : 'watch'
+              setReleaseMode(
+                releaseMode === 'lesson'
+                  ? 'stay'
+                  : 'lesson'
               )
             }
             className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border transition ${
-              isLocked
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                : 'bg-green-500/20 text-green-300 border-green-500/40 hover:bg-green-500/30'
+              releaseMode === 'lesson'
+                ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 hover:bg-violet-500/30'
+                : 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
             }`}
             title={
-              isLocked
-                ? 'Students locked — tap to release'
-                : 'Students released — tap to lock'
+              releaseMode === 'lesson'
+                ? 'Students work at their own pace — tap to bring everyone together'
+                : 'Everyone stays on your step — tap to release to their own pace'
             }
           >
-            {isLocked
-              ? <Lock className="w-4 h-4" />
-              : <Unlock className="w-4 h-4" />
+            {releaseMode === 'lesson'
+              ? <Footprints className="w-4 h-4" />
+              : <Users className="w-4 h-4" />
             }
 
-            {isLocked
-              ? 'Locked'
-              : 'Released'}
+            {releaseMode === 'lesson'
+              ? 'Own pace'
+              : 'Together'}
+          </button>
+
+          {/* Lock/unlock only applies in Together mode — in Own pace students
+              are always working independently. */}
+          {releaseMode === 'stay' && (
+            <button
+              onClick={() =>
+                setPhase(
+                  isLocked
+                    ? 'try'
+                    : 'watch'
+                )
+              }
+              className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border transition ${
+                isLocked
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  : 'bg-green-500/20 text-green-300 border-green-500/40 hover:bg-green-500/30'
+              }`}
+              title={
+                isLocked
+                  ? 'Students locked — tap to release'
+                  : 'Students released — tap to lock'
+              }
+            >
+              {isLocked
+                ? <Lock className="w-4 h-4" />
+                : <Unlock className="w-4 h-4" />
+              }
+
+              {isLocked
+                ? 'Locked'
+                : 'Released'}
+            </button>
+          )}
+
+          {/* Toggle between the model (student 30 / broadcast) and the live
+              class dashboard so the teacher can monitor student work. */}
+          <button
+            onClick={() =>
+              setShowDashboard(v => !v)
+            }
+            className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700"
+            title={showDashboard ? 'Show the model' : 'Show class dashboard'}
+          >
+            {showDashboard
+              ? <MonitorPlay className="w-4 h-4" />
+              : <LayoutGrid className="w-4 h-4" />
+            }
+            {showDashboard
+              ? 'Model'
+              : 'Dashboard'}
           </button>
 
           <button
@@ -577,14 +643,17 @@ export default function LiveLesson() {
       {/* Main modeling area */}
       <div className="flex-1 min-h-0 overflow-auto bg-slate-900">
 
-        {phase === 'watch' ? (
-          <TeacherModelPanel
-            step={currentStep}
-            send={send}
-          />
-        ) : (
+        {showDashboard ? (
           <TryDashboard
             session={session}
+          />
+        ) : (
+          <TeacherModelPanel
+            step={currentStep}
+            stepIndex={session.current_step || 0}
+            send={send}
+            className={session.class_name}
+            lesson={selectedLesson}
           />
         )}
 

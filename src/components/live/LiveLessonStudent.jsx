@@ -5,7 +5,8 @@ import LessonModeRouter from '@/components/lesson/LessonModeRouter';
 import StudentMirrorPanel from './StudentMirrorPanel';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import { useLiveStudentReporter } from '@/hooks/useLiveStudentWork';
-import { Eye, Lock, Unlock, CheckCircle2, Radio } from 'lucide-react';
+import { useLessonProgress } from '@/hooks/useLessonProgress';
+import { Eye, Lock, Unlock, CheckCircle2, Radio, Footprints } from 'lucide-react';
 
 // Student view for a live guided lesson. Subscribes to the teacher's session
 // and renders the current step. When phase=watch, students are locked (watching
@@ -83,9 +84,23 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const steps = lesson?.steps || [];
-  const stepIndex = localSession?.current_step || 0;
-  const currentStep = steps[stepIndex];
+  const teacherStep = localSession?.current_step || 0;
   const phase = localSession?.phase || 'watch';
+  const releaseMode = localSession?.release_mode || 'stay';
+  const isLesson = releaseMode === 'lesson';
+
+  // In 'lesson' mode students progress through steps in order at their own
+  // pace; the teacher's current_step is a floor they can't fall behind.
+  const { progress: lessonProgress } = useLessonProgress(
+    selectedStudent?.number,
+    selectedStudent?.class_name,
+    lesson?.id
+  );
+
+  const stepIndex = isLesson
+    ? Math.max(lessonProgress?.current_step || 0, teacherStep)
+    : teacherStep;
+  const currentStep = steps[stepIndex];
 
   // Live mirror of the teacher's screen during the "watch" phase.
   const { broadcast, refresh: refreshBroadcast } = useLiveBroadcast(session?.id);
@@ -100,7 +115,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     currentStep,
     stepIndex,
     studentData,
-    phase === 'try'
+    phase === 'try' || isLesson
   );
 
   if (!lesson) {
@@ -120,6 +135,33 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
         <button onClick={onExit} className="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600">
           Back to Home
         </button>
+      </div>
+    );
+  }
+
+  // ---------- LESSON MODE (own pace) — always working, independent step ----------
+  if (isLesson) {
+    return (
+      <div className="relative min-h-screen bg-slate-50">
+        <div className="fixed top-0 inset-x-0 bg-violet-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
+          <Footprints className="w-4 h-4" /> Work at your own pace — step {stepIndex + 1} of {steps.length}
+        </div>
+        <div className="pt-10">
+          <LessonModeRouter
+            key={stepIndex}
+            step={currentStep}
+            stepIndex={stepIndex}
+            lessonId={lesson.id}
+            totalSteps={steps.length}
+            studentData={studentData}
+            selectedStudent={selectedStudent}
+            onUpdateProgress={onUpdateProgress}
+            onStudentPatch={onStudentPatch}
+            onBack={() => {}}
+            stepperMode
+            onNext={() => {}}
+          />
+        </div>
       </div>
     );
   }
