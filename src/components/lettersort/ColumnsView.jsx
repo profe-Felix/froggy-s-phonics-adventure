@@ -41,6 +41,9 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   // Tracks how many cards were correct on the very first verify pass — used
   // for the coin formula: Math.round((firstTryCorrect / total) * 10).
   const firstVerifyCorrectRef = useRef(null);
+  // Auto-verify-on-drop tracking (pictureless covered words only — hideWords mode).
+  const autoFirstTryRef = useRef(new Set()); // card IDs locked on first try (no bounce)
+  const autoBouncedRef = useRef(new Set());  // card IDs that bounced at least once
 
   // Track the live pointer position so onDragEnd can place the card in the
   // column the finger is actually over. @hello-pangea/dnd otherwise picks the
@@ -73,6 +76,8 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
     setBad(new Set());
     setScore({ correct: 0, wrong: 0 });
     firstVerifyCorrectRef.current = null;
+    autoFirstTryRef.current = new Set();
+    autoBouncedRef.current = new Set();
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
@@ -80,7 +85,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
   // completes without requiring the student to tap "Verificar" — this ensures
   // onRoundComplete fires (and coins are awarded) before they tap "Done".
   useEffect(() => {
-    if (!round) return;
+    if (!round || config.hideWords) return;
     const placedCount = Object.values(colCards).flat().length;
     if (rack.length === 0 && placedCount > 0 && locked.size < round.cards.length) {
       verify();
@@ -129,6 +134,42 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
       setRack((prev) => addCardTo(prev, card, destination.index));
     } else {
       setColCards((prev) => ({ ...prev, [destination.droppableId]: addCardTo(prev[destination.droppableId], card, destination.index) }));
+    }
+
+    // Auto-verify on drop — ONLY for pictureless covered words (hideWords mode).
+    // Each card is checked the instant it's dropped: correct → lock + flip to
+    // reveal the word so the student confirms it starts with the right letter;
+    // wrong → flash red, then bounce back to the rack so they can try again.
+    if (config.hideWords && destination.droppableId !== 'rack') {
+      const col = round.columns.find((c) => c.key === destination.droppableId);
+      if (col && classifyCard(card, col)) {
+        setLocked((prev) => new Set([...prev, card.id]));
+        if (!autoBouncedRef.current.has(card.id)) autoFirstTryRef.current.add(card.id);
+        setScore((s) => ({ ...s, correct: s.correct + 1 }));
+        const newLockedCount = locked.size + 1;
+        if (newLockedCount >= round.cards.length) {
+          celebrate();
+          onRoundComplete?.({
+            mistakes: autoBouncedRef.current.size,
+            correct: round.cards.length,
+            wrong: autoBouncedRef.current.size,
+            firstTryCorrect: autoFirstTryRef.current.size,
+            total: round.cards.length,
+          });
+        }
+      } else {
+        autoBouncedRef.current.add(card.id);
+        setBad((prev) => new Set([...prev, card.id]));
+        setScore((s) => ({ ...s, wrong: s.wrong + 1 }));
+        setTimeout(() => {
+          setColCards((prev) => ({
+            ...prev,
+            [destination.droppableId]: removeCardFrom(prev[destination.droppableId] || [], card.id),
+          }));
+          setRack((prev) => [...prev, card]);
+          setBad((prev) => { const n = new Set(prev); n.delete(card.id); return n; });
+        }, 700);
+      }
     }
   }
 

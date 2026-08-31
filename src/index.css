@@ -98,3 +98,15 @@
   -webkit-touch-callout: none !important;
   -webkit-tap-highlight-color: transparent !important;
 }
+
+/* Card flip animation — plays when a covered word card is locked (correctly
+   placed) so the student sees the word reveal like a flipped flashcard. */
+@keyframes card-flip {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); }
+  100% { transform: rotateY(0deg); }
+}
+.animate-card-flip {
+  animation: card-flip 0.45s ease-in-out;
+  perspective: 600px;
+}

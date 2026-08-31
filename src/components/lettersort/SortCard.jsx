@@ -18,7 +18,8 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
     const showCover = hideWords && !locked;
     return (
       <div
-        className={base + 'overflow-hidden px-2 py-2 min-h-[64px] w-full cursor-grab active:cursor-grabbing'}
+        className={base + 'overflow-hidden px-2 py-2 min-h-[64px] w-full cursor-grab active:cursor-grabbing ' + (locked && hideWords ? 'animate-card-flip' : '')}
+        style={locked && hideWords ? { transformStyle: 'preserve-3d' } : undefined}
         onClick={onClick}
         role="button"
         tabIndex={0}
