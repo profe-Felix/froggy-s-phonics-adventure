@@ -603,7 +603,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
                 d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
                 fill="none"
                 stroke={color}
-                strokeWidth={isCurrent && guideFlash ? 10 : 6}
+                strokeWidth={isCurrent && guideFlash ? 20 : 12}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}
@@ -615,14 +615,14 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         {/* Drawn paths — all letters' completed strokes */}
         {Object.entries(drawnPathsByLetter).map(([li, paths]) =>
           paths.map((pts, i) => (
-            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="12"
+            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="24"
               strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
           ))
         )}
 
         {/* Current drawing path */}
         {currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="12"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="24"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         )}
 
