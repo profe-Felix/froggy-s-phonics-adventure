@@ -8,6 +8,7 @@ import {
   isDotStroke, DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
+import { splinePathD } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 600;
 const CANVAS_H = 750;
@@ -596,9 +597,9 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
                           '#cbd5e1';
             const opacity = isCompleted ? 0.4 : isCurrent ? (guideFlash ? 0.95 : 0.6) : 0.35;
             return (
-              <polyline
+              <path
                 key={`${li}-${si}`}
-                points={stroke.map(p => { const s = scaleForLetter(p, li); return `${s.x},${s.y}`; }).join(' ')}
+                d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
                 fill="none"
                 stroke={color}
                 strokeWidth={isCurrent && guideFlash ? 10 : 6}
