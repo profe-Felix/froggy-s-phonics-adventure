@@ -161,6 +161,7 @@ export default function LiveTracingStudent() {
             letter={activeLetter}
             letterData={waypoints[activeLetter]}
             lang="es"
+            silent
             initialProgress={letterProgress[activeLetter]}
             onProgressChange={(p) => {
               setLetterProgress(prev => ({ ...prev, [activeLetter]: p }));
