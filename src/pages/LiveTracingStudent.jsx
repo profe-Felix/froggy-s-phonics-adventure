@@ -5,7 +5,7 @@ import { Lock, Unlock, CheckCircle2, Radio, PenLine } from 'lucide-react';
 import { useLiveTracingBroadcast } from '@/hooks/useLiveTracingBroadcast';
 import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 import TracingMirrorCanvas from '@/components/live/TracingMirrorCanvas';
-import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
+import LiveTracingProgression from '@/components/live/LiveTracingProgression';
 
 // Student side of a standalone live tracing session. Joins by code (from a
 // QR deep link ?code=XXXX) — no class number or login required. Watches the
@@ -113,7 +113,8 @@ export default function LiveTracingStudent() {
 
   const phase = session.phase || 'watch';
   const letter = session.current_letter || '';
-  const guideStrokes = letter ? waypoints[letter]?.strokes : null;
+  const letterData = letter ? waypoints[letter] : null;
+  const guideStrokes = letterData?.strokes || null;
 
   // ---------- WATCH PHASE — live mirror of the teacher's pen ----------
   if (phase === 'watch') {
@@ -140,23 +141,16 @@ export default function LiveTracingStudent() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative min-h-screen bg-slate-50">
       <div className="fixed top-0 inset-x-0 bg-green-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
         <Unlock className="w-4 h-4" /> Trace the letter on your iPad!
       </div>
-      <div className="pt-12 flex flex-col items-center">
-        <div className="text-center mb-2">
-          <span className="text-5xl font-black text-indigo-500">{letter.toUpperCase()}</span>
-        </div>
-        <LetterTracingCanvas
+      <div className="pt-12 pb-6 flex flex-col items-center">
+        <LiveTracingProgression
           key={letter}
           letter={letter}
+          letterData={letterData}
           lang="es"
-          strokes={guideStrokes}
-          renderWidth={360}
-          onComplete={() => {}}
-          onAccuracy={() => {}}
-          onReset={() => {}}
         />
       </div>
     </div>
