@@ -6,6 +6,11 @@
       "type": "string",
       "description": "Preset name e.g. 'Schwarz'. Unique key teachers use to recall a saved letter selection."
     },
+    "code": {
+      "type": "string",
+      "default": "",
+      "description": "Short join code tied to this preset (the sanitized name when short, or a random 4-char code for long names). Used as the LiveTracingSession code so the QR stays consistent across sessions."
+    },
     "letters": {
       "type": "array",
       "items": {

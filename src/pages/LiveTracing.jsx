@@ -31,6 +31,8 @@ export default function LiveTracing() {
   const waypoints = useMergedWaypoints();
   const [presets, setPresets] = useState([]);
   const [saveName, setSaveName] = useState('');
+  const [presetCode, setPresetCode] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => { sessionRef.current = session; }, [session]);
 
@@ -46,7 +48,7 @@ export default function LiveTracing() {
         const wanted = (urlParams.get('session') || '').trim();
         if (wanted) {
           const match = (list || []).find(p => p.name.toLowerCase() === wanted.toLowerCase());
-          if (match?.letters?.length) { setPicked(match.letters); setSaveName(match.name); }
+          if (match?.letters?.length) { setPicked(match.letters); setSaveName(match.name); setPresetCode(match.code || ''); }
         }
       } catch {}
     })();
@@ -103,25 +105,18 @@ export default function LiveTracing() {
   const startSession = async () => {
     if (!picked.length) return;
     setStarting(true);
-    // If a saved selection name is set, use it (sanitized) as the join code so
-    // the QR stays the same every time the teacher reuses that selection.
-    // Otherwise fall back to a random 4-char code.
-    let code;
-    const named = saveName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-    if (named) {
-      code = named;
-      // End any prior active session using this same code so only one is live.
-      try {
-        const prior = await base44.entities.LiveTracingSession.filter({ code, active: true });
-        await Promise.all((prior || []).map(s => base44.entities.LiveTracingSession.update(s.id, { active: false }).catch(() => {})));
-      } catch {}
-    } else {
-      code = genCode();
-      try {
-        const existing = await base44.entities.LiveTracingSession.filter({ code, active: true });
-        if (existing?.length) code = genCode();
-      } catch {}
+    // Use the preset's tied short code for a consistent QR; fall back to the
+    // sanitized name (when short enough) or a random one-off code.
+    let code = presetCode;
+    if (!code) {
+      const named = saveName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      code = named || genCode();
     }
+    // End any prior active session using this same code so only one is live.
+    try {
+      const prior = await base44.entities.LiveTracingSession.filter({ code, active: true });
+      await Promise.all((prior || []).map(s => base44.entities.LiveTracingSession.update(s.id, { active: false }).catch(() => {})));
+    } catch {}
 
     // Each picked lowercase letter generates both its lowercase and
       // uppercase form, so students practice both cases.
@@ -194,29 +189,12 @@ export default function LiveTracing() {
               <p className="text-xs text-gray-400 mt-2">{picked.length} letter(s) selected</p>
             </div>
 
-            {(presets.length > 0) && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Saved selections</label>
-                <div className="flex flex-wrap gap-2">
-                  {presets.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => { setPicked(p.letters || []); setSaveName(p.name); }}
-                      className="px-3 h-9 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Save this selection for next time</label>
               <div className="flex gap-2">
                 <input
                   value={saveName}
-                  onChange={e => setSaveName(e.target.value)}
+                  onChange={e => { setSaveName(e.target.value); setPresetCode(''); }}
                   placeholder="e.g. Schwarz"
                   className="flex-1 h-10 px-3 rounded-lg border border-indigo-200 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
@@ -224,15 +202,21 @@ export default function LiveTracing() {
                   onClick={async () => {
                     const name = saveName.trim();
                     if (!name || !picked.length) return;
+                    // Short names use the sanitized name as the code; long names
+                    // get a random 4-char code tied to the preset for a stable QR.
+                    const sanitized = name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+                    const generated = sanitized.length > 0 && sanitized.length <= 8 ? sanitized : genCode();
                     try {
                       const existing = presets.find(p => p.name.toLowerCase() === name.toLowerCase());
+                      const useCode = existing?.code || generated;
                       if (existing) {
-                        const updated = await base44.entities.LiveTracingPreset.update(existing.id, { letters: picked });
+                        await base44.entities.LiveTracingPreset.update(existing.id, { letters: picked });
                         setPresets(prev => prev.map(p => p.id === existing.id ? { ...p, letters: picked } : p));
                       } else {
-                        const created = await base44.entities.LiveTracingPreset.create({ name, letters: picked });
+                        const created = await base44.entities.LiveTracingPreset.create({ name, letters: picked, code: useCode });
                         setPresets(prev => [created, ...prev]);
                       }
+                      setPresetCode(useCode);
                     } catch {}
                   }}
                   disabled={!saveName.trim() || !picked.length}
@@ -241,7 +225,31 @@ export default function LiveTracing() {
                   Save
                 </Button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Saving also locks the join code to <code>{saveName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0,10) || 'NAME'}</code> so the QR stays the same every time.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Saving ties a join code to this name so the QR stays the same every time. Long names get a short code.
+                {presetCode && <> Join code: <code className="text-indigo-600">{presetCode}</code></>}
+              </p>
+              {saveName.trim() && (
+                <div className="mt-2">
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Saved URL — copy to reopen this selection</label>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={`${window.location.origin}/LiveTracing?session=${encodeURIComponent(saveName.trim())}`}
+                      className="flex-1 h-9 px-2 rounded-lg border border-slate-200 text-xs text-slate-500 bg-slate-50 font-mono"
+                    />
+                    <Button
+                      onClick={() => {
+                        const url = `${window.location.origin}/LiveTracing?session=${encodeURIComponent(saveName.trim())}`;
+                        navigator.clipboard?.writeText(url)?.then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+                      }}
+                      className="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold"
+                    >
+                      {copied ? 'Copied!' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button
