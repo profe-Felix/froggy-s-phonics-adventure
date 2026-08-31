@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from '../GameCanvas';
 import SightWordTraceFeedback from '../SightWordTraceFeedback';
 import SpellingBuildArea, { countCorrectLetters } from '../SpellingBuildArea';
-import SightWordWriteCanvas from '../SightWordWriteCanvas';
+import WordTracingCanvas from '../WordTracingCanvas';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { SIGHT_WORDS_EASY, SIGHT_WORDS_EASY_EN } from '../../data/sightWords';
 import { base44 } from '@/api/base44Client';
@@ -24,8 +24,32 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [traceWord, setTraceWord] = useState(null);
+  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
+
+  // Load teacher-authored waypoints from the DB so the word tracing canvas
+  // uses the same templates the tracing canvas teaches.
+  useEffect(() => {
+    let cancelled = false;
+    base44.entities.LetterWaypoint.list()
+      .then((records) => {
+        if (cancelled || !Array.isArray(records) || !records.length) return;
+        setWaypoints((prev) => {
+          const merged = { ...prev };
+          for (const r of records) {
+            if (!r.letter || !r.strokes_data) continue;
+            try {
+              const s = JSON.parse(r.strokes_data);
+            if (Array.isArray(s) && s.length) merged[r.letter] = { strokes: s, hint: r.hint || '' };
+            } catch { /* ignore */ }
+          }
+          return merged;
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Phase: 'catch' (learning words) | 'build' | 'write' (mastered words)
   const [phase, setPhase] = useState('catch');
@@ -305,12 +329,19 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
           <div className="bg-white/90 rounded-xl px-4 py-2 font-black text-indigo-700">
             ✍️ Write: {currentWord}
           </div>
+          <button onClick={() => playSound(currentWord)}
+            className="ml-auto shrink-0 w-10 h-10 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center text-lg">
+            🔊
+          </button>
         </div>
         <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
-          <SightWordWriteCanvas
+          <WordTracingCanvas
             word={currentWord}
-            onDone={handleWriteDone}
-            onPlaySound={() => playSound(currentWord)}
+            waypoints={waypoints}
+            lang={language}
+            renderWidth={400}
+            repetitions={1}
+            onComplete={handleWriteDone}
           />
         </div>
       </div>
