@@ -12,7 +12,7 @@
         "type": "string"
       },
       "default": [],
-      "description": "Letters the teacher selected for this session (lowercase)."
+      "description": "Letters the teacher selected for this session (lowercase and uppercase forms)."
     },
     "current_letter": {
       "type": "string",
@@ -47,48 +47,9 @@
     "code"
   ],
   "rls": {
-    "create": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        }
-      ]
-    },
-    "read": {},
-    "update": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        }
-      ]
-    },
-    "delete": {
-      "$or": [
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        },
-        {
-          "user_condition": {
-            "role": "teacher"
-          }
-        }
-      ]
-    }
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
   }
 }
