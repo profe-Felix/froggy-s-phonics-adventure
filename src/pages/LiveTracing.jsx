@@ -46,7 +46,7 @@ export default function LiveTracing() {
         const wanted = (urlParams.get('session') || '').trim();
         if (wanted) {
           const match = (list || []).find(p => p.name.toLowerCase() === wanted.toLowerCase());
-          if (match?.letters?.length) setPicked(match.letters);
+          if (match?.letters?.length) { setPicked(match.letters); setSaveName(match.name); }
         }
       } catch {}
     })();
@@ -103,11 +103,25 @@ export default function LiveTracing() {
   const startSession = async () => {
     if (!picked.length) return;
     setStarting(true);
-    let code = genCode();
-    try {
-      const existing = await base44.entities.LiveTracingSession.filter({ code, active: true });
-      if (existing?.length) code = genCode();
-    } catch {}
+    // If a saved selection name is set, use it (sanitized) as the join code so
+    // the QR stays the same every time the teacher reuses that selection.
+    // Otherwise fall back to a random 4-char code.
+    let code;
+    const named = saveName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    if (named) {
+      code = named;
+      // End any prior active session using this same code so only one is live.
+      try {
+        const prior = await base44.entities.LiveTracingSession.filter({ code, active: true });
+        await Promise.all((prior || []).map(s => base44.entities.LiveTracingSession.update(s.id, { active: false }).catch(() => {})));
+      } catch {}
+    } else {
+      code = genCode();
+      try {
+        const existing = await base44.entities.LiveTracingSession.filter({ code, active: true });
+        if (existing?.length) code = genCode();
+      } catch {}
+    }
 
     // Each picked lowercase letter generates both its lowercase and
       // uppercase form, so students practice both cases.
@@ -227,7 +241,7 @@ export default function LiveTracing() {
                   Save
                 </Button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Open with <code>?session={saveName.trim() || 'Name'}</code> in the URL to auto-load.</p>
+              <p className="text-xs text-gray-400 mt-1">Saving also locks the join code to <code>{saveName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0,10) || 'NAME'}</code> so the QR stays the same every time.</p>
             </div>
 
             <Button
