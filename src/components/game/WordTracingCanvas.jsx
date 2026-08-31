@@ -617,7 +617,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
                 d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
                 fill="none"
                 stroke={color}
-                strokeWidth={isCurrent && guideFlash ? 20 : 12}
+                strokeWidth={isCurrent && guideFlash ? 28 : 24}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 opacity={opacity}
