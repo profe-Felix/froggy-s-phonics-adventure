@@ -6,6 +6,7 @@ import { useLiveTracingBroadcast } from '@/hooks/useLiveTracingBroadcast';
 import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 import TracingMirrorCanvas from '@/components/live/TracingMirrorCanvas';
 import LiveTracingProgression from '@/components/live/LiveTracingProgression';
+import LiveTracingGrid from '@/components/live/LiveTracingGrid';
 
 // Student side of a standalone live tracing session. Joins by code (from a
 // QR deep link ?code=XXXX) — no class number or login required. Watches the
@@ -18,6 +19,9 @@ export default function LiveTracingStudent() {
   const [session, setSession] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [ended, setEnded] = useState(false);
+  const [activeLetter, setActiveLetter] = useState(null);
+  const [letterProgress, setLetterProgress] = useState({});
+  const [completedLetters, setCompletedLetters] = useState(new Set());
   const waypoints = useMergedWaypoints();
 
   // Resolve the session by code, then subscribe for live updates. Reset all
@@ -27,6 +31,9 @@ export default function LiveTracingStudent() {
     setSession(null);
     setNotFound(false);
     setEnded(false);
+    setActiveLetter(null);
+    setLetterProgress({});
+    setCompletedLetters(new Set());
     if (!code) { setNotFound(true); return; }
     let alive = true;
     const resolve = async () => {
@@ -112,9 +119,6 @@ export default function LiveTracingStudent() {
   }
 
   const phase = session.phase || 'watch';
-  const letter = session.current_letter || '';
-  const letterData = letter ? waypoints[letter] : null;
-  const guideStrokes = letterData?.strokes || null;
 
   // ---------- WATCH PHASE — live mirror of the teacher's pen ----------
   if (phase === 'watch') {
@@ -130,29 +134,52 @@ export default function LiveTracingStudent() {
     );
   }
 
-  // ---------- TRY PHASE — student traces the current letter ----------
-  if (!letter || !guideStrokes) {
+  // ---------- TRY PHASE — full Letter Tracing game from the session letters ----------
+  const letters = Array.isArray(session.letters)
+    ? session.letters.filter(l => waypoints[l])
+    : [];
+
+  if (!letters.length) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 p-8 text-center">
         <PenLine className="w-16 h-16 text-indigo-400" />
-        <p className="text-gray-500">Waiting for your teacher to pick a letter…</p>
+        <p className="text-gray-500">Waiting for your teacher to set letters…</p>
       </div>
     );
   }
 
+  // Tracing a specific letter — staged progression.
+  if (activeLetter) {
+    return (
+      <div className="relative min-h-screen bg-slate-50">
+        <div className="fixed top-0 inset-x-0 bg-green-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
+          <Unlock className="w-4 h-4" /> Trace the letter on your iPad!
+        </div>
+        <div className="pt-12 pb-6 flex flex-col items-center">
+          <LiveTracingProgression
+            key={activeLetter}
+            letter={activeLetter}
+            letterData={waypoints[activeLetter]}
+            lang="es"
+            initialProgress={letterProgress[activeLetter]}
+            onProgressChange={(p) => {
+              setLetterProgress(prev => ({ ...prev, [activeLetter]: p }));
+              if (p.mastered) setCompletedLetters(prev => new Set(prev).add(activeLetter));
+            }}
+            onBack={() => setActiveLetter(null)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Letter selection grid — generated from the teacher's session letters.
   return (
-    <div className="relative min-h-screen bg-slate-50">
-      <div className="fixed top-0 inset-x-0 bg-green-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
-        <Unlock className="w-4 h-4" /> Trace the letter on your iPad!
-      </div>
-      <div className="pt-12 pb-6 flex flex-col items-center">
-        <LiveTracingProgression
-          key={letter}
-          letter={letter}
-          letterData={letterData}
-          lang="es"
-        />
-      </div>
-    </div>
+    <LiveTracingGrid
+      letters={letters}
+      letterProgress={letterProgress}
+      completedLetters={completedLetters}
+      onPick={setActiveLetter}
+    />
   );
 }

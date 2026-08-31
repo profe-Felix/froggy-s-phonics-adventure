@@ -1,66 +1,39 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
+import {
+  TRACING_STAGES, SIZE_LEVELS, REQUIRED_CLEAN_STREAK, MAX_REPAIR_REPS,
+  makeStageState, getStage, getRequiredForStage,
+} from '@/lib/tracingStages';
 
-// ---------------------------------------------------------------------------
-// TRACING MASTERY SEQUENCE — identical to the Letter Tracing game.
-// Three stages, three traces each = 9 successful traces to master a letter.
-// Support fades: guided first, then independent at two smaller sizes.
+// Staged tracing progression for one letter during a live session — identical
+// stages/rules to the Letter Tracing game (Guided Huge → Independent Big →
+// Independent Medium, 3 traces each, clean-streak + repair-practice logic).
 //
-// A stage advances only when the student finishes the required copies AND has
-// at least 2 clean traces in a row. Each mistake resets the clean streak and
-// adds one repair repetition (capped at +2 per stage).
-//
-// This component is self-contained / in-memory only — no student record, no
-// coins, no prize wheel. The teacher controls which letter is active; the
+// Self-contained but reports progress up so the parent grid stays in sync, and
+// restores from `initialProgress` when re-entering a letter mid-session. The
 // parent remounts via `key={letter}` so every new letter starts at stage 0.
-// ---------------------------------------------------------------------------
-
-const TRACING_STAGES = [
-  { key: 'guided_huge', label: 'Guided Huge', shortLabel: 'Guided', sizeLevel: 0, repetitions: 3, showGuide: true },
-  { key: 'independent_big', label: 'Independent Big', shortLabel: 'Big', sizeLevel: 1, repetitions: 3, showGuide: false },
-  { key: 'independent_medium', label: 'Independent Medium', shortLabel: 'Medium', sizeLevel: 2, repetitions: 3, showGuide: false },
-];
-
-const SIZE_LEVELS = [
-  { w: 1100, label: 'Huge' },
-  { w: 1000, label: 'Big' },
-  { w: 900, label: 'Medium' },
-  { w: 800, label: 'Small' },
-  { w: 720, label: 'Muscle Memory' },
-];
-
-const REQUIRED_CLEAN_STREAK = 2;
-const MAX_REPAIR_REPS = 2;
-
-function makeStageState() {
-  return {
-    stageIndex: 0,
-    stageSuccesses: 0,
-    cleanStreak: 0,
-    repairReps: 0,
-    mistakes: 0,
-    totalSuccesses: 0,
-    totalAttempts: 0,
-    mastered: false,
-  };
-}
-
-function getStage(p) {
-  return TRACING_STAGES[Math.min(Math.max(p?.stageIndex || 0, 0), TRACING_STAGES.length - 1)];
-}
-
-function getRequiredForStage(p) {
-  const s = getStage(p);
-  return s.repetitions + Math.min(p?.repairReps || 0, MAX_REPAIR_REPS);
-}
-
-export default function LiveTracingProgression({ letter, letterData, lang = 'es', silent = false }) {
-  const [progress, setProgress] = useState(makeStageState);
+export default function LiveTracingProgression({
+  letter,
+  letterData,
+  lang = 'es',
+  silent = false,
+  initialProgress,
+  onProgressChange,
+  onBack,
+}) {
+  const [progress, setProgress] = useState(
+    () => initialProgress ? { ...makeStageState(), ...initialProgress } : makeStageState()
+  );
   const [lastAccuracy, setLastAccuracy] = useState(null);
   const [celebrate, setCelebrate] = useState(null);
   const [traceKey, setTraceKey] = useState(0);
+
+  // Report progress up whenever it changes so the parent grid stays in sync.
+  useEffect(() => {
+    onProgressChange?.(progress);
+  }, [progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const strokes = letterData?.strokes;
 
@@ -77,7 +50,6 @@ export default function LiveTracingProgression({ letter, letterData, lang = 'es'
     return Math.min(targetWidth, Math.max(320, availableWidth));
   }, [stage.sizeLevel]);
 
-  // Mistake — wrong start, direction error, drift, incomplete lift, etc.
   const handleMistake = () => {
     setProgress(prev => {
       if (prev.mastered) return prev;
@@ -91,8 +63,6 @@ export default function LiveTracingProgression({ letter, letterData, lang = 'es'
     });
   };
 
-  // Successful copy — advance stage / mastery using the same rules as the
-  // Letter Tracing game. Reads current state synchronously so side effects fire.
   const handleComplete = () => {
     const acc = lastAccuracy;
 
@@ -166,6 +136,9 @@ export default function LiveTracingProgression({ letter, letterData, lang = 'es'
     if (masteredThisTurn) {
       setCelebrate({ type: 'mastered', letter, message: 'Letter mastered!' });
       confetti({ particleCount: 100, spread: 75, origin: { y: 0.6 } });
+      // Return to the grid after the celebration so the student picks the
+      // next letter.
+      setTimeout(() => { onBack?.(); }, 2000);
       return;
     }
 
@@ -196,6 +169,7 @@ export default function LiveTracingProgression({ letter, letterData, lang = 'es'
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
         <div className="text-4xl">✏️</div>
         <p>No tracing path is available for {letter}.</p>
+        <button onClick={onBack} className="px-4 py-2 bg-indigo-500 text-white rounded-xl font-bold">← Back</button>
       </div>
     );
   }
@@ -204,6 +178,9 @@ export default function LiveTracingProgression({ letter, letterData, lang = 'es'
     <div className="flex flex-col items-center gap-2 w-full">
       {/* Header */}
       <div className="flex items-center justify-between w-full max-w-3xl px-1">
+        <button onClick={onBack} className="text-slate-500 hover:text-slate-800 text-sm font-bold">
+          ← All letters
+        </button>
         <div className="flex flex-col items-center leading-tight">
           <div className="text-slate-800 font-black text-2xl">{letter}</div>
           <div className="text-[11px] text-slate-400 font-bold">{stage.label}</div>
