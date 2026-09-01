@@ -948,9 +948,13 @@ export default function LetterTracingCanvas({
 
   return (
     <div className={fillHeight ? `flex flex-col h-full w-full select-none` : "flex flex-col items-center gap-3 select-none"}>
-      {/* Status prompt — only reserves space when there's a message to show,
-          so the canvas sits higher when idle (no wasted "Start at the dot" row). */}
-      <div className="min-h-0 flex items-center justify-center">
+      {/* Status prompt — fixed height is reserved ALWAYS. Previously this row
+          collapsed to 0px when idle, so the moment the "Lift your finger!"
+          banner appeared at stroke-end the canvas height dropped, the
+          ResizeObserver resized the SVG, and the coordinate mapping shifted
+          mid-stroke — visibly shrinking the canvas and corrupting the stroke.
+          Reserving the height up front means no layout change at completion. */}
+      <div className="h-8 shrink-0 flex items-center justify-center">
         {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
