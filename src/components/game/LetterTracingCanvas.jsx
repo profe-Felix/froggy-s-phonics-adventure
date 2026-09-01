@@ -547,7 +547,9 @@ export default function LetterTracingCanvas({
         const covTo = Math.min(endIdx + 1, bestIdx + 4);
         for (let k = covFrom; k < covTo; k++) visitedRef.current.add(k);
         offTravelRef.current = 0;
-        if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
+        const _endPt = densePath[densePath.length - 1];
+        const _penAtEnd = dist(pos, _endPt) <= 10 || pathProgressRef.current >= densePath.length - 1;
+        if (_penAtEnd && coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
           pendingCompleteRef.current = true;
           postCompleteTravelRef.current = 0;
           setAwaitingLift(true);
@@ -737,7 +739,26 @@ export default function LetterTracingCanvas({
       // near the end — otherwise a self-adjacent letter (u's right-down sits
       // beside its right-up and its curve) passes, because the thick pen marks
       // the end region from neighboring strokes the pen never actually drew.
-      if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
+      // "Lift your finger!" must not fire until the pen has PHYSICALLY reached
+      // the end of the ideal path (the base of the line). Coverage can mark the
+      // end point from COVERAGE_RADIUS (~22px) away, which fired the message
+      // prematurely and cut students off before they reached the base — the
+      // ink stopped appending the moment the message showed. Require the pen
+      // to be within a small distance of the actual last dense point so the
+      // student draws all the way down before being asked to lift.
+      // "Lift your finger!" must not fire until the pen has PHYSICALLY reached
+      // the end of the ideal path (the base of the line). Coverage can mark the
+      // end point from COVERAGE_RADIUS (~22px) away, which fired the message
+      // prematurely and cut students off before they reached the base — the
+      // ink stopped appending the moment the message showed. Require the pen
+      // to be within a small distance of the actual last dense point (near
+      // the end) OR the pen's nearest point to BE the last point (at/past the
+      // end from a fast stroke) so the student draws all the way down before
+      // being asked to lift, while still catching overshoot to prevent
+      // trailing ink.
+      const _endPt = densePath[densePath.length - 1];
+      const _penAtEnd = dist(pos, _endPt) <= 10 || pathProgressRef.current >= densePath.length - 1;
+      if (_penAtEnd && coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
         pendingCompleteRef.current = true;
         postCompleteTravelRef.current = 0;
         setAwaitingLift(true);
