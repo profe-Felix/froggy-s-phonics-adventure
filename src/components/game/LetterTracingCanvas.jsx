@@ -1065,15 +1065,17 @@ export default function LetterTracingCanvas({
       >
         {/* Guide letter removed until suitable font is found */}
 
-        {/* Primary writing lines — equal-zone spacing (matches authoring) */}
+        {/* Primary writing lines — equal-zone spacing (matches authoring).
+            vector-effect=non-scaling-stroke keeps lines visible at every size
+            tier (Huge through Paper) instead of thinning to sub-pixel. */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
-          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.367 * CANVAS_H} x2={TOTAL_W} y2={0.367 * CANVAS_H}
-          stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
+          stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.633 * CANVAS_H} x2={TOTAL_W} y2={0.633 * CANVAS_H}
-          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.90 * CANVAS_H} x2={TOTAL_W} y2={0.90 * CANVAS_H}
-          stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
+          stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Practice row. Earlier copies are completed, the active copy
             uses the normal stroke colors, and upcoming copies stay faint. */}
