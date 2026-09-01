@@ -11,9 +11,10 @@ const ZB_TARGET_PX = 31;
 
 const CURRENT_SCALES = [
   { label: 'Huge', scale: 1.0 },
-  { label: 'Big', scale: 0.69 },
-  { label: 'Medium', scale: 0.47 },
-  { label: 'Small', scale: 0.32 },
+  { label: 'Big', scale: 0.74 },
+  { label: 'Medium', scale: 0.55 },
+  { label: 'Small', scale: 0.40 },
+  { label: 'Tiny', scale: 0.30 },
   { label: 'Paper', scale: 0.22 },
 ];
 

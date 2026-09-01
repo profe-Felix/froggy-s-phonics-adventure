@@ -36,16 +36,17 @@ const PHASES = [
 
 const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
-  { w: 690, label: 'Big' },
-  { w: 470, label: 'Medium' },
-  { w: 320, label: 'Small' },
+  { w: 740, label: 'Big' },
+  { w: 550, label: 'Medium' },
+  { w: 400, label: 'Small' },
+  { w: 300, label: 'Tiny' },
   { w: 220, label: 'Paper' },
 ];
 
 // Visual scale applied to the canvas in fillHeight mode so each size level
 // renders visibly smaller. Geometric progression from 1.0 → 0.22 (each tier
-// ~68.5% of the previous), easing kids down to real lined-paper size on iPad.
-const SIZE_SCALES = [1.0, 0.69, 0.47, 0.32, 0.22];
+// ~74% of the previous), easing kids down to real lined-paper size on iPad.
+const SIZE_SCALES = [1.0, 0.74, 0.55, 0.40, 0.30, 0.22];
 
 const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;

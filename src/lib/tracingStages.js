@@ -10,9 +10,10 @@ export const TRACING_STAGES = [
 
 export const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
-  { w: 690, label: 'Big' },
-  { w: 470, label: 'Medium' },
-  { w: 320, label: 'Small' },
+  { w: 740, label: 'Big' },
+  { w: 550, label: 'Medium' },
+  { w: 400, label: 'Small' },
+  { w: 300, label: 'Tiny' },
   { w: 220, label: 'Paper' },
 ];
 
