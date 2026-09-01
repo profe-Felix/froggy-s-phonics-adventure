@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import {
   dist, scale as scaleFn, buildDensePath, strokeAccuracy, coverageComplete,
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
@@ -263,7 +263,14 @@ export default function LetterTracingCanvas({
   }, [letter, lang, silent]);
 
   // Measure the SVG's container so fillHeight mode can size it responsively.
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the size is measured and applied BEFORE
+  // the browser paints. The canvas remounts on every stroke completion (traceKey
+  // increments in the parent), and fitSize starts as null on a fresh mount —
+  // with useEffect the first paint used the wrong (renderWidth-based) size and
+  // the ResizeObserver only corrected it after paint, so every completed stroke
+  // produced a visible shrink-flash. useLayoutEffect sets fitSize synchronously
+  // before paint, so the remounted canvas paints at the correct fill size.
+  useLayoutEffect(() => {
     if (!fillHeight) return;
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -345,12 +352,23 @@ export default function LetterTracingCanvas({
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
 
-    const scaleX = TOTAL_W / rect.width;
-    const scaleY = CANVAS_H / rect.height;
+    // The SVG has a 4px border. getBoundingClientRect returns the BORDER box, but
+    // the viewBox maps to the CONTENT box (inside the border). Mapping with
+    // rect.width/rect.left put the pen ~2-3px off the ink — small, but
+    // cumulative with the remount shrink it made tracing feel misaligned.
+    // clientLeft/clientTop give the border width; clientWidth/clientHeight give
+    // the content size, so the pen maps exactly where the ink renders.
+    const borderX = svg.clientLeft || 0;
+    const borderY = svg.clientTop || 0;
+    const contentW = svg.clientWidth || (rect.width - borderX * 2);
+    const contentH = svg.clientHeight || (rect.height - borderY * 2);
+
+    const scaleX = TOTAL_W / contentW;
+    const scaleY = CANVAS_H / contentH;
 
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left - borderX) * scaleX,
+      y: (e.clientY - rect.top - borderY) * scaleY,
     };
   };
 
