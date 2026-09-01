@@ -74,7 +74,7 @@ export default function LetterTracingCanvas({
       let w = fitW;
       let h = w / _aspect;
       if (h > fitH) { h = fitH; w = h * _aspect; }
-      effectiveCopyWidth = Math.max(200, w);
+      effectiveCopyWidth = Math.max(80, w);
       renderH = effectiveCopyWidth / _aspect;
     } else {
       // Multiple copies (repair practice): fit to the container's HEIGHT so the

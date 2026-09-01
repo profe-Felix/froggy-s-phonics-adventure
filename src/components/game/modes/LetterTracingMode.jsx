@@ -36,15 +36,16 @@ const PHASES = [
 
 const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
-  { w: 780, label: 'Big' },
-  { w: 600, label: 'Medium' },
-  { w: 460, label: 'Small' },
-  { w: 340, label: 'Paper' },
+  { w: 730, label: 'Big' },
+  { w: 540, label: 'Medium' },
+  { w: 400, label: 'Small' },
+  { w: 290, label: 'Paper' },
 ];
 
 // Visual scale applied to the canvas in fillHeight mode so each size level
-// renders visibly smaller (Huge fills the area, Big ~82%, Medium ~68%).
-const SIZE_SCALES = [1.0, 0.78, 0.60, 0.46, 0.34];
+// renders visibly smaller. Geometric progression from 1.0 → 0.29 (each tier
+// ~73% of the previous), calibrated so Paper matches real lined paper on iPad.
+const SIZE_SCALES = [1.0, 0.73, 0.54, 0.40, 0.29];
 
 const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;
