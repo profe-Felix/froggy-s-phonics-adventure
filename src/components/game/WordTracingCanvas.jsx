@@ -587,7 +587,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         )}
       </div>
 
-      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "flex items-center justify-center"}>
+      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "flex items-center justify-start"}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}
