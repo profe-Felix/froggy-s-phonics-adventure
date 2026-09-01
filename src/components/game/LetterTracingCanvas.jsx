@@ -1021,7 +1021,7 @@ export default function LetterTracingCanvas({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${TOTAL_W} ${CANVAS_H}`}
-        className={`rounded-2xl border-4 touch-none ${
+        className={`rounded-2xl border-4 touch-none shrink-0 ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
