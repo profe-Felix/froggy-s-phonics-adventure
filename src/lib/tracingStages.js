@@ -10,10 +10,10 @@ export const TRACING_STAGES = [
 
 export const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
-  { w: 730, label: 'Big' },
-  { w: 540, label: 'Medium' },
-  { w: 400, label: 'Small' },
-  { w: 290, label: 'Paper' },
+  { w: 690, label: 'Big' },
+  { w: 470, label: 'Medium' },
+  { w: 320, label: 'Small' },
+  { w: 220, label: 'Paper' },
 ];
 
 export const REQUIRED_CLEAN_STREAK = 2;

@@ -11,16 +11,16 @@ const ZB_TARGET_PX = 31;
 
 const CURRENT_SCALES = [
   { label: 'Huge', scale: 1.0 },
-  { label: 'Big', scale: 0.73 },
-  { label: 'Medium', scale: 0.54 },
-  { label: 'Small', scale: 0.40 },
-  { label: 'Paper', scale: 0.29 },
+  { label: 'Big', scale: 0.69 },
+  { label: 'Medium', scale: 0.47 },
+  { label: 'Small', scale: 0.32 },
+  { label: 'Paper', scale: 0.22 },
 ];
 
 const SAMPLE_LETTERS = ['a', 'h', 'p', 'o', 'e'];
 
 export default function TracingSizePreview() {
-  const [scale, setScale] = useState(0.29);
+  const [scale, setScale] = useState(0.22);
   const [letter, setLetter] = useState('a');
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const containerRef = useRef(null);
