@@ -66,11 +66,11 @@ const TRACING_STAGES = [
 ];
 
 const SIZE_LEVELS = [
-  { w: 1100, label: 'Huge' },
-  { w: 1000, label: 'Big' },
-  { w: 900, label: 'Medium' },
-  { w: 800, label: 'Small' },
-  { w: 720, label: 'Muscle Memory' },
+  { w: 1000, label: 'Huge' },
+  { w: 760, label: 'Big' },
+  { w: 640, label: 'Medium' },
+  { w: 540, label: 'Small' },
+  { w: 460, label: 'Muscle Memory' },
 ];
 
 const BASE_TRACES_PER_LETTER = TRACING_STAGES.reduce(
@@ -148,6 +148,7 @@ export default function LetterTracingMode({
   const [lastAccuracy, setLastAccuracy] = useState(null);
   const [celebrate, setCelebrate] = useState(null);
   const [page, setPage] = useState(0);
+  const [redoMode, setRedoMode] = useState(false);
 
   // Character-wheel roll, shown when a letter set (e.g. {a, A}) is mastered.
   const [showWheel, setShowWheel] = useState(false);
@@ -388,10 +389,13 @@ export default function LetterTracingMode({
   const sizeLevelFor = (letter) =>
     stageFor(letter).sizeLevel;
 
-  const renderWidthFor = (letter) => {
+  const renderWidthFor = (letter, sizeLevelOverride) => {
+    const lvl =
+      sizeLevelOverride != null
+        ? sizeLevelOverride
+        : sizeLevelFor(letter);
     const targetWidth =
-      SIZE_LEVELS[sizeLevelFor(letter)]?.w ||
-      SIZE_LEVELS[0].w;
+      SIZE_LEVELS[lvl]?.w || SIZE_LEVELS[0].w;
 
     const viewportWidth =
       typeof window !== 'undefined'
@@ -643,6 +647,14 @@ export default function LetterTracingMode({
   // wrong start, direction error, excessive drift, incomplete lift, etc.
   // ---------------------------------------------------------------------------
   const handleMistake = (letter) => {
+    // Redo is free practice — no repair tracking.
+    if (
+      redoMode &&
+      (completedLetters.has(letter) ||
+        progressFor(letter).mastered)
+    ) {
+      return;
+    }
     attemptCountRef.current += 1;
     setStreak(0);
 
@@ -693,6 +705,24 @@ export default function LetterTracingMode({
   // ---------------------------------------------------------------------------
   const handleComplete = (letter) => {
     const acc = lastAccuracy;
+
+    // Redo mode: free practice at a smaller size. No mastery/progress
+    // changes, no wheel — just celebrate and offer another trace.
+    if (
+      redoMode &&
+      (completedLetters.has(letter) ||
+        progressFor(letter).mastered)
+    ) {
+      setCelebrate({
+        type: 'repair',
+        letter,
+        message: '✏️ Nice! Trace it again, smaller.',
+      });
+      setTimeout(() => setCelebrate(null), 1200);
+      setLastAccuracy(null);
+      setTraceKey(k => k + 1);
+      return;
+    }
 
     attemptCountRef.current += 1;
 
@@ -1169,8 +1199,18 @@ export default function LetterTracingMode({
               <button
                 key={letter}
                 onClick={() => {
-                  if (done) return;
+                  if (done) {
+                    // Mastered letters reopen as free "redo" practice at a
+                    // smaller size — no mastery/wheel changes, just writing
+                    // smaller to build muscle memory.
+                    setRedoMode(true);
+                    setCurrentLetter(letter);
+                    setLastAccuracy(null);
+                    setTraceKey(k => k + 1);
+                    return;
+                  }
 
+                  setRedoMode(false);
                   setCurrentLetter(letter);
                   setLastAccuracy(null);
                   setTraceKey(k => k + 1);
@@ -1189,7 +1229,7 @@ export default function LetterTracingMode({
 
                 {done ? (
                   <span className="text-[9px] font-black">
-                    ✓ MASTERED
+                    ✓ REDO
                   </span>
                 ) : started ? (
                   <span className="text-[9px] font-black">
@@ -1299,13 +1339,25 @@ export default function LetterTracingMode({
   const currentProgress =
     progressFor(currentLetter);
 
-  const currentStage =
-    getStage(currentProgress);
+  const redoing =
+    redoMode &&
+    (completedLetters.has(currentLetter) ||
+      currentProgress.mastered);
 
-  const currentRequired =
-    getRequiredForStage(
-      currentProgress
-    );
+  const currentStage = redoing
+    ? {
+        key: 'redo',
+        label: 'Redo — Small',
+        shortLabel: 'Redo',
+        sizeLevel: 3,
+        repetitions: 1,
+        showGuide: false,
+      }
+    : getStage(currentProgress);
+
+  const currentRequired = redoing
+    ? 1
+    : getRequiredForStage(currentProgress);
 
   // Number of copies shown on the current handwriting line.
   //
@@ -1313,10 +1365,12 @@ export default function LetterTracingMode({
   const practiceCopies =
     currentRequired;
 
-  const activeCopy = Math.min(
-    currentProgress.stageSuccesses || 0,
-    Math.max(0, practiceCopies - 1)
-  );
+  const activeCopy = redoing
+    ? 0
+    : Math.min(
+        currentProgress.stageSuccesses || 0,
+        Math.max(0, practiceCopies - 1)
+      );
 
   const sizeLabel =
     SIZE_LEVELS[
@@ -1328,9 +1382,10 @@ export default function LetterTracingMode({
       {/* Header */}
       <div className="flex items-center justify-between w-full max-w-3xl">
         <button
-          onClick={() =>
-            setCurrentLetter(null)
-          }
+          onClick={() => {
+            setRedoMode(false);
+            setCurrentLetter(null);
+          }}
           className="text-slate-500 hover:text-slate-800 text-sm font-bold"
         >
           ← All letters
@@ -1383,35 +1438,43 @@ export default function LetterTracingMode({
           {sizeLabel}
         </div>
 
-        <div className="bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1 text-xs font-bold text-indigo-700">
-          Trace{' '}
-          {Math.min(
-            currentProgress.stageSuccesses + 1,
-            currentRequired
-          )}{' '}
-          of {currentRequired}
-        </div>
-
-        <div
-          className={`rounded-full px-3 py-1 text-xs font-bold border ${
-            currentProgress.cleanStreak >=
-            REQUIRED_CLEAN_STREAK
-              ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
-          }`}
-        >
-          Clean streak:{' '}
-          {Math.min(
-            currentProgress.cleanStreak,
-            REQUIRED_CLEAN_STREAK
-          )}
-          /{REQUIRED_CLEAN_STREAK}
-        </div>
-
-        {currentProgress.repairReps > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-full px-3 py-1 text-xs font-bold text-amber-700">
-            +{currentProgress.repairReps} repair practice
+        {redoing ? (
+          <div className="bg-violet-50 border border-violet-200 rounded-full px-3 py-1 text-xs font-bold text-violet-700">
+            ↻ Redo — writing smaller
           </div>
+        ) : (
+          <>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1 text-xs font-bold text-indigo-700">
+              Trace{' '}
+              {Math.min(
+                currentProgress.stageSuccesses + 1,
+                currentRequired
+              )}{' '}
+              of {currentRequired}
+            </div>
+
+            <div
+              className={`rounded-full px-3 py-1 text-xs font-bold border ${
+                currentProgress.cleanStreak >=
+                REQUIRED_CLEAN_STREAK
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-500'
+              }`}
+            >
+              Clean streak:{' '}
+              {Math.min(
+                currentProgress.cleanStreak,
+                REQUIRED_CLEAN_STREAK
+              )}
+              /{REQUIRED_CLEAN_STREAK}
+            </div>
+
+            {currentProgress.repairReps > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-full px-3 py-1 text-xs font-bold text-amber-700">
+                +{currentProgress.repairReps} repair practice
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1422,11 +1485,14 @@ export default function LetterTracingMode({
       )}
 
       <LetterTracingCanvas
-        key={`${traceKey}-${currentLetter}-${currentProgress.stageIndex}-${activeCopy}-${practiceCopies}`}
+        key={`${traceKey}-${currentLetter}-${currentProgress.stageIndex}-${activeCopy}-${practiceCopies}-${redoing}`}
         letter={currentLetter}
         lang={lang}
         strokes={letterData.strokes}
-        renderWidth={renderWidthFor(currentLetter)}
+        renderWidth={renderWidthFor(
+          currentLetter,
+          redoing ? 3 : undefined
+        )}
         practiceCopies={practiceCopies}
         activeCopy={activeCopy}
         showGuide={currentStage.showGuide}

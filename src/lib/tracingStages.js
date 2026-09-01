@@ -9,11 +9,11 @@ export const TRACING_STAGES = [
 ];
 
 export const SIZE_LEVELS = [
-  { w: 1100, label: 'Huge' },
-  { w: 1000, label: 'Big' },
-  { w: 900, label: 'Medium' },
-  { w: 800, label: 'Small' },
-  { w: 720, label: 'Muscle Memory' },
+  { w: 1000, label: 'Huge' },
+  { w: 760, label: 'Big' },
+  { w: 640, label: 'Medium' },
+  { w: 540, label: 'Small' },
+  { w: 460, label: 'Muscle Memory' },
 ];
 
 export const REQUIRED_CLEAN_STREAK = 2;

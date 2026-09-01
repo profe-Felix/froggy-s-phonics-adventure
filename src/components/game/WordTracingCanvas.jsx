@@ -21,7 +21,7 @@ const FONEMA_INTERVAL_MS = 2000;
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
-export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, repetitions: repCount, onComplete, onAccuracy, onProgress }) {
+export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, repetitions: repCount, fillHeight = false, onComplete, onAccuracy, onProgress }) {
   const REPS = repCount && repCount > 0 ? repCount : REPETITIONS;
   const layoutResult = useMemo(
     () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP, PADDING, REPS, WORD_GAP),
@@ -46,6 +46,8 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   const [awaitingLift, setAwaitingLift] = useState(false);
   const [guideFlash, setGuideFlash] = useState(false);
   const svgRef = useRef(null);
+  const fitRef = useRef(null);
+  const [fitSize, setFitSize] = useState(null);
   const [accuracy, setAccuracy] = useState(null);
   const strokeAccuraciesRef = useRef([]);
   const fonemaAudioRef = useRef(null);
@@ -136,6 +138,21 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
   }, [letterIndex, wordLength, repetitions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { stopFonema(); }, [stopFonema]);
+
+  // Measure the SVG's container so fillHeight mode can size it responsively.
+  useEffect(() => {
+    if (!fillHeight) return;
+    const el = fitRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setFitSize({ width: r.width, height: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fillHeight]);
 
   // Preload fonema audio and detect silence start for instant playback.
   useEffect(() => {
@@ -519,17 +536,29 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
   }
 
   // Compute explicit pixel dimensions so the SVG's rendered aspect ratio
-  // always matches the viewBox — fixes ink/guide misalignment caused by
-  // `height:auto` + a purged dynamic `aspect-[...]` Tailwind class.
-  const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const _maxByHeight = Math.max(200, (_vh - 30) * (totalW / CANVAS_H));
-  const effectiveWidth = Math.min(renderWidth, _maxByHeight);
-  const renderH = effectiveWidth * (CANVAS_H / totalW);
+  // always matches the viewBox. When fillHeight is set, the SVG fills its
+  // measured container (responsive); otherwise it uses the legacy fixed
+  // renderWidth capped by viewport height.
+  const _aspect = totalW / CANVAS_H;
+  let effectiveWidth;
+  let renderH;
+  if (fillHeight && fitSize) {
+    let w = fitSize.width;
+    let h = w / _aspect;
+    if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
+    effectiveWidth = Math.max(200, w);
+    renderH = effectiveWidth / _aspect;
+  } else {
+    const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const _maxByHeight = Math.max(200, (_vh - 30) * _aspect);
+    effectiveWidth = Math.min(renderWidth, _maxByHeight);
+    renderH = effectiveWidth / _aspect;
+  }
 
   return (
-    <div className="flex flex-col items-center gap-3 select-none">
+    <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt */}
-      <div className="h-8 flex items-center justify-center">
+      <div className="h-8 shrink-0 flex items-center justify-center">
         {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
@@ -558,6 +587,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         )}
       </div>
 
+      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "flex items-center justify-center"}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}
@@ -678,8 +708,9 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
           ); })()
         )}
       </svg>
+      </div>
 
-      <div className="flex items-center gap-4">
+      <div className={fillHeight ? "shrink-0 flex items-center justify-center gap-4 pb-1" : "flex items-center gap-4"}>
         <button
           onClick={reset}
           className="text-slate-400 hover:text-slate-700 text-sm underline"

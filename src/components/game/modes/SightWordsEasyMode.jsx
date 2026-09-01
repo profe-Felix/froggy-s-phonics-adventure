@@ -320,8 +320,8 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
   // ---- write phase render ----
   if (phase === 'write') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col items-center p-4 gap-4">
-        <div className="w-full max-w-lg flex items-center gap-2">
+      <div className="h-screen bg-gradient-to-b from-sky-300 via-sky-200 to-green-200 flex flex-col p-3 gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => generateRound()}
             className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold bg-white/90 text-gray-700 border border-gray-300 hover:bg-white shadow">
             <ArrowLeft className="w-4 h-4" /> Skip
@@ -334,13 +334,14 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
             🔊
           </button>
         </div>
-        <div className="w-full max-w-lg bg-white/90 rounded-3xl shadow-2xl p-6">
+        <div className="flex-1 min-h-0 bg-white/90 rounded-3xl shadow-2xl p-2 sm:p-3">
           <WordTracingCanvas
             word={currentWord}
             waypoints={waypoints}
             lang={language}
-            renderWidth={400}
+            renderWidth={1000}
             repetitions={1}
+            fillHeight
             onComplete={handleWriteDone}
           />
         </div>

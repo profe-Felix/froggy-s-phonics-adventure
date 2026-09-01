@@ -180,8 +180,8 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-2xl w-full flex flex-col items-center gap-3 max-h-[95vh] overflow-y-auto">
-        <div className="text-center">
+      <div className="bg-white rounded-3xl shadow-2xl p-4 max-w-4xl w-full flex flex-col gap-2 max-h-[95vh] min-h-[480px]">
+        <div className="text-center shrink-0">
           <div className="text-lg font-bold text-slate-800">Let's practice! ✏️</div>
           <div className="text-sm text-slate-500">
             {phase === 'demo' ? 'Watch: ' : 'Now you trace: '}
@@ -190,7 +190,7 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
         </div>
 
         {/* Word with the current demo letter highlighted */}
-        <div className="flex gap-1 text-3xl font-bold">
+        <div className="flex gap-1 text-3xl font-bold justify-center shrink-0">
           {letters.map((l, i) => (
             <span
               key={i}
@@ -205,29 +205,32 @@ export default function SightWordTraceFeedback({ word, lang, onDone }) {
           ))}
         </div>
 
-        {phase === 'demo' ? (
-          waypointsLoaded ? (
-            <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} waypoints={waypoints} />
+        <div className="flex-1 min-h-0 flex items-center justify-center overflow-y-auto">
+          {phase === 'demo' ? (
+            waypointsLoaded ? (
+              <LetterReplay key={demoIdx} letter={letters[demoIdx]} lang={lang} onDone={handleLetterDone} waypoints={waypoints} />
+            ) : (
+              <div className="flex items-center justify-center" style={{ width: 360, height: 450 }}>
+                <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )
           ) : (
-            <div className="flex items-center justify-center" style={{ width: 360, height: 450 }}>
-              <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )
-        ) : (
-          <WordTracingCanvas
-            key={word}
-            word={word}
-            waypoints={waypoints}
-            lang={lang}
-            renderWidth={600}
-            repetitions={1}
-            onComplete={() => setTimeout(onDone, 300)}
-          />
-        )}
+            <WordTracingCanvas
+              key={word}
+              word={word}
+              waypoints={waypoints}
+              lang={lang}
+              renderWidth={1000}
+              repetitions={1}
+              fillHeight
+              onComplete={() => setTimeout(onDone, 300)}
+            />
+          )}
+        </div>
 
         <button
           onClick={onDone}
-          className="text-slate-400 hover:text-slate-700 text-sm underline"
+          className="text-slate-400 hover:text-slate-700 text-sm underline shrink-0"
         >
           Skip
         </button>
