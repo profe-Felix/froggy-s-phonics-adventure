@@ -66,8 +66,13 @@ export default function WordTracingMode({
     .map(w => w.toLowerCase().trim())
     .filter(Boolean);
 
+  // IMPORTANT: these layout params MUST match WordTracingCanvas's internal
+  // constants (X_SCALE=600, LETTER_GAP=45, PADDING=30, REPETITIONS=3,
+  // WORD_GAP=80). The auto-scroll below uses this layout to center the current
+  // letter; if the gap differs from the canvas, the scroll targets the wrong
+  // x-position and clips the letter being traced.
   const currentWord = words[wordIndex] || '';
-  const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 600, 20, 30, 3, 80);
+  const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 600, 45, 30, 3, 80);
 
   // Auto-scroll the tracing canvas so the current letter is always centered and
   // large enough for accurate tracing. The canvas renders at full width inside a

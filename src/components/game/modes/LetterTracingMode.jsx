@@ -1378,100 +1378,80 @@ export default function LetterTracingMode({
     ]?.label || currentStage.label;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-3 px-3 gap-2">
-      {/* Header */}
-      <div className="flex items-center justify-between w-full max-w-3xl">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
+      {/* Compact header — back, letter+stage, guided badge, and mission progress
+          all on one row so the canvas gets maximum vertical space. */}
+      <div className="flex items-center justify-between w-full max-w-3xl gap-2">
         <button
           onClick={() => {
             setRedoMode(false);
             setCurrentLetter(null);
           }}
-          className="text-slate-500 hover:text-slate-800 text-sm font-bold"
+          className="text-slate-500 hover:text-slate-800 text-xs font-bold whitespace-nowrap"
         >
           ← All letters
         </button>
 
-        <div className="flex flex-col items-center leading-tight">
-          <div className="text-slate-800 font-black text-2xl">
+        <div className="flex items-center gap-2">
+          <div className="text-slate-800 font-black text-xl leading-none">
             {currentLetter}
           </div>
-
-          <div className="text-[11px] text-slate-400 font-bold">
+          <div className="text-[11px] text-slate-400 font-bold leading-none">
             {currentStage.label}
           </div>
+          <div
+            className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${
+              currentStage.showGuide
+                ? 'text-amber-700 bg-amber-50 border-amber-200'
+                : 'text-indigo-700 bg-indigo-50 border-indigo-100'
+            }`}
+          >
+            {currentStage.showGuide ? '● Guided' : '✍️ Your turn'}
+          </div>
         </div>
 
-        <div
-          className={`text-xs font-bold rounded-full px-3 py-1 border ${
-            currentStage.showGuide
-              ? 'text-amber-700 bg-amber-50 border-amber-200'
-              : 'text-indigo-700 bg-indigo-50 border-indigo-100'
-          }`}
-        >
-          {currentStage.showGuide
-            ? '● Guided'
-            : '✍️ Your turn'}
-        </div>
-      </div>
-
-      {/* Whole mission progress */}
-      <div className="w-full max-w-3xl">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-3 rounded-full bg-violet-100 overflow-hidden border border-violet-200">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-20 h-2.5 rounded-full bg-violet-100 overflow-hidden border border-violet-200">
             <div
               className="h-full bg-violet-500 rounded-full transition-all duration-500"
-              style={{
-                width: `${sectionProgress}%`,
-              }}
+              style={{ width: `${sectionProgress}%` }}
             />
           </div>
-
-          <span className="text-xs font-black text-violet-600 whitespace-nowrap">
-            {sectionProgress}% → 🎡
+          <span className="text-[11px] font-black text-violet-600 whitespace-nowrap">
+            {sectionProgress}%
           </span>
         </div>
       </div>
 
-      {/* Current stage status */}
-      <div className="flex items-center gap-2 flex-wrap justify-center">
-        <div className="bg-white border border-slate-200 rounded-full px-3 py-1 text-xs font-bold text-slate-600">
+      {/* Compact stage status — single tight row of small pills */}
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        <div className="bg-white border border-slate-200 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-600">
           {sizeLabel}
         </div>
 
         {redoing ? (
-          <div className="bg-violet-50 border border-violet-200 rounded-full px-3 py-1 text-xs font-bold text-violet-700">
-            ↻ Redo — writing smaller
+          <div className="bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5 text-[11px] font-bold text-violet-700">
+            ↻ Redo
           </div>
         ) : (
           <>
-            <div className="bg-indigo-50 border border-indigo-100 rounded-full px-3 py-1 text-xs font-bold text-indigo-700">
-              Trace{' '}
-              {Math.min(
-                currentProgress.stageSuccesses + 1,
-                currentRequired
-              )}{' '}
-              of {currentRequired}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 text-[11px] font-bold text-indigo-700">
+              Trace {Math.min(currentProgress.stageSuccesses + 1, currentRequired)}/{currentRequired}
             </div>
 
             <div
-              className={`rounded-full px-3 py-1 text-xs font-bold border ${
-                currentProgress.cleanStreak >=
-                REQUIRED_CLEAN_STREAK
+              className={`rounded-full px-2 py-0.5 text-[11px] font-bold border ${
+                currentProgress.cleanStreak >= REQUIRED_CLEAN_STREAK
                   ? 'bg-green-50 border-green-200 text-green-700'
                   : 'bg-slate-50 border-slate-200 text-slate-500'
               }`}
             >
-              Clean streak:{' '}
-              {Math.min(
-                currentProgress.cleanStreak,
-                REQUIRED_CLEAN_STREAK
-              )}
-              /{REQUIRED_CLEAN_STREAK}
+              Streak {Math.min(currentProgress.cleanStreak, REQUIRED_CLEAN_STREAK)}/{REQUIRED_CLEAN_STREAK}
             </div>
 
             {currentProgress.repairReps > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-full px-3 py-1 text-xs font-bold text-amber-700">
-                +{currentProgress.repairReps} repair practice
+              <div className="bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                +{currentProgress.repairReps} repair
               </div>
             )}
           </>
@@ -1479,7 +1459,7 @@ export default function LetterTracingMode({
       </div>
 
       {letterData.hint && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-1.5 text-indigo-700 text-sm text-center max-w-lg">
+        <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1 text-indigo-700 text-xs text-center max-w-lg">
           {letterData.hint}
         </div>
       )}

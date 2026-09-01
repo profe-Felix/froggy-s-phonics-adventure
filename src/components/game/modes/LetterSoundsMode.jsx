@@ -224,16 +224,15 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       unlocked: true
     });
 
-    if (!correct) {
-      // Instead of just retrying, pop a guided tracing canvas for the correct
-      // letter so the student gets handwriting + sound feedback before moving
-      // on. Falls back to the retry flow when no waypoints exist for the letter.
-      if (waypoints[currentLetter]?.strokes?.length) {
-        setTimeout(() => {
-          setShowFeedback(false);
-          setTraceLetter(currentLetter);
-        }, 900);
-      }
+    // Always drill letter formation — students trace the letter after EVERY
+    // answer (right or wrong) so handwriting is reinforced alongside
+    // recognition, not only after a miss. Falls back to the next round when
+    // no waypoints exist for the letter.
+    if (waypoints[currentLetter]?.strokes?.length) {
+      setTimeout(() => {
+        setShowFeedback(false);
+        setTraceLetter(currentLetter);
+      }, correct ? 700 : 900);
       return;
     }
     setTimeout(() => {
@@ -286,18 +285,24 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
       {/* Guided trace practice after a miss — reinforces the correct letter's
           shape and sound, then continues to the next round. */}
       {traceLetter && waypoints[traceLetter]?.strokes?.length && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-5 w-full max-w-3xl h-[92vh] flex flex-col items-center gap-2">
-            <div className="text-center shrink-0">
-              <div className="text-lg font-bold text-slate-800">
-                Let's practice! ✏️
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-2 sm:p-3 w-full max-w-3xl h-[94vh] flex flex-col items-center gap-1">
+            {/* Minimal header — just the letter, no extra instructional text, so
+                the tracing canvas fills nearly the whole popup. */}
+            <div className="flex items-center justify-between w-full shrink-0 px-1">
+              <button
+                onClick={() => {
+                  setTraceLetter(null);
+                  setTimeout(generateRound, 200);
+                }}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+              >
+                ✕
+              </button>
+              <div className="text-slate-800 font-black text-xl">
+                {traceLetter}
               </div>
-              <div className="text-sm text-slate-500">
-                Trace the letter{' '}
-                <span className="font-black text-indigo-600">
-                  {traceLetter}
-                </span>
-              </div>
+              <div className="w-8" />
             </div>
 
             <div className="flex-1 min-h-0 w-full flex items-center justify-center">

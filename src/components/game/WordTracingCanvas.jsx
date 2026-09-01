@@ -580,11 +580,6 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
             )}
           </div>
         )}
-        {status === 'idle' && waypointIndex === 0 && !drawing && (
-          <div className="text-slate-400 text-sm">
-            Start at the ● dot · Word {Math.floor(letterIndex / wordLength) + 1} of {repetitions}: <span className="font-bold text-indigo-500">{currentLetter?.toUpperCase()}</span>
-          </div>
-        )}
       </div>
 
       <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "flex items-center justify-start"}>

@@ -949,8 +949,9 @@ export default function LetterTracingCanvas({
 
   return (
     <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
-      {/* Status prompt */}
-      <div className="h-8 flex items-center justify-center">
+      {/* Status prompt — only reserves space when there's a message to show,
+          so the canvas sits higher when idle (no wasted "Start at the dot" row). */}
+      <div className="min-h-0 flex items-center justify-center">
         {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
@@ -986,9 +987,6 @@ export default function LetterTracingCanvas({
               Next →
             </button>
           </div>
-        )}
-        {status === 'idle' && strokeIndex === 0 && waypointIndex === 0 && (
-          <div className="text-slate-400 text-sm">Start at the ● dot</div>
         )}
       </div>
 
