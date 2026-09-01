@@ -24,7 +24,7 @@ const FONEMA_INTERVAL_MS = 2000;
 // LetterTracingCanvas / WordTracingCanvas.
 export default function MissingLetterWordCanvas({
   word, targetIndex, waypoints, lang = 'es', renderWidth = 500,
-  onComplete, onAccuracy, silent = false,
+  onComplete, onAccuracy, silent = false, fillHeight = false,
 }) {
   // ---- layout: position each letter by its real ink bounds ----
   const { layout, totalW, targetLayoutIdx } = useMemo(() => {
@@ -105,6 +105,8 @@ export default function MissingLetterWordCanvas({
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false);
   const svgRef = useRef(null);
+  const fitRef = useRef(null);
+  const [fitSize, setFitSize] = useState(null);
   const [accuracy, setAccuracy] = useState(null);
   const strokeAccuraciesRef = useRef([]);
   const fonemaAudioRef = useRef(null);
@@ -172,6 +174,21 @@ export default function MissingLetterWordCanvas({
   useEffect(() => {
     if (targetLetter && !silent) preloadSilenceStart(fonemaUrl(targetLetter, lang));
   }, [targetLetter, lang, silent]);
+
+  // Measure the SVG's container so fillHeight mode can size it responsively.
+  useEffect(() => {
+    if (!fillHeight) return;
+    const el = fitRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setFitSize({ width: r.width, height: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fillHeight]);
 
   // No auto-advance — the student taps "Next →" when ready. Auto-advance
   // caused a double-advance bug (skipping words) and didn't give kids time
@@ -481,15 +498,21 @@ export default function MissingLetterWordCanvas({
     );
   }
 
-  const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const _maxByHeight = Math.max(200, (_vh - 30) * (totalW / CANVAS_H));
-  const effectiveWidth = Math.min(renderWidth, _maxByHeight);
-  const renderH = effectiveWidth * (CANVAS_H / totalW);
+  let effectiveWidth, renderH;
+  if (fillHeight && fitSize) {
+    renderH = fitSize.height;
+    effectiveWidth = renderH * (totalW / CANVAS_H);
+  } else {
+    const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const _maxByHeight = Math.max(200, (_vh - 30) * (totalW / CANVAS_H));
+    effectiveWidth = Math.min(renderWidth, _maxByHeight);
+    renderH = effectiveWidth * (CANVAS_H / totalW);
+  }
 
   return (
-    <div className="flex flex-col items-center gap-3 select-none">
+    <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt */}
-      <div className="h-8 flex items-center justify-center">
+      <div className="h-8 shrink-0 flex items-center justify-center">
         {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
@@ -527,10 +550,11 @@ export default function MissingLetterWordCanvas({
         )}
       </div>
 
+      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-start overflow-x-auto overflow-y-hidden" : "flex items-center justify-center"}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}
-        className={`rounded-2xl border-4 touch-none ${
+        className={`rounded-2xl border-4 touch-none shrink-0 ${
           errorFlash ? 'border-red-400 bg-red-50' :
           isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           'border-slate-200 bg-white'
@@ -636,10 +660,13 @@ export default function MissingLetterWordCanvas({
           ); })()
         )}
       </svg>
+      </div>
 
-      <button onClick={reset} className="text-slate-400 hover:text-slate-700 text-sm underline">
-        Start over
-      </button>
+      <div className={fillHeight ? "shrink-0 flex items-center justify-center pb-1" : "flex items-center justify-center"}>
+        <button onClick={reset} className="text-slate-400 hover:text-slate-700 text-sm underline">
+          Start over
+        </button>
+      </div>
     </div>
   );
 }

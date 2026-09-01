@@ -306,6 +306,25 @@ export default function MissingLetterMode({
     return <span className="text-5xl">❓</span>;
   })();
 
+  // Compact version for the tracing layout — small enough to sit on a single
+  // row above the canvas without stealing vertical space from the letters.
+  const compactPicture = (() => {
+    if (!item) return null;
+    if (item.image_source === 'emoji') {
+      return <span className="text-4xl leading-none select-none">{item.emoji || '❓'}</span>;
+    }
+    if (item.image_source === 'upload' && item.image_url) {
+      return <img src={item.image_url} alt={item.word} className="max-h-20 max-w-20 rounded-xl object-contain" />;
+    }
+    if (item.image_source === 'random') {
+      const url = imageCache[idx];
+      return url
+        ? <img src={url} alt={item.word} className="max-h-20 max-w-20 rounded-xl object-contain" />
+        : <div className="h-20 w-20 rounded-xl bg-indigo-100 animate-pulse" />;
+    }
+    return <span className="text-3xl">❓</span>;
+  })();
+
   return (
     <div
       className="relative h-full flex flex-col bg-gradient-to-b from-sky-50 to-indigo-50 select-none"
@@ -319,23 +338,24 @@ export default function MissingLetterMode({
         <span className="text-xs font-bold text-gray-400">✅ {completed}</span>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 pb-4 overflow-y-auto">
-        {/* picture + word — always visible; the blank becomes the tracing canvas */}
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl">
-          <div className="flex flex-col items-center gap-2 shrink-0">
-            <div className={`bg-white rounded-3xl shadow-md border-2 border-indigo-100 flex items-center justify-center ${phase === 'tracing' ? 'px-4 py-3 min-h-32 min-w-32' : 'px-6 py-4 min-h-44 min-w-44'}`}>
-              {picture}
+      <div className={`flex-1 flex flex-col gap-4 px-4 pb-4 ${phase === 'tracing' && hasWaypoints ? 'overflow-hidden' : 'items-center justify-center overflow-y-auto'}`}>
+        {phase === 'tracing' && hasWaypoints ? (
+          /* Tracing phase: compact image on top, canvas fills the rest.
+             Stacking gives the canvas the full width and height so letters
+             stay tall even for long words like "mantequilla". */
+          <div className="flex flex-col items-center gap-2 w-full flex-1 self-stretch max-w-4xl min-h-0">
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="bg-white rounded-2xl shadow-md border-2 border-indigo-100 px-3 py-2 flex items-center justify-center">
+                {compactPicture}
+              </div>
+              <button
+                onClick={playWord}
+                className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
+              >
+                <Volume2 className="w-4 h-4" /> Hear it
+              </button>
             </div>
-            <button
-              onClick={playWord}
-              className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
-            >
-              <Volume2 className="w-4 h-4" /> Hear it
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1 flex-wrap justify-center">
-            {phase === 'tracing' && hasWaypoints ? (
+            <div className="flex-1 min-h-0 w-full">
               <MissingLetterWordCanvas
                 key={`${correctLetter}-${idx}`}
                 word={item.word}
@@ -345,33 +365,47 @@ export default function MissingLetterMode({
                 onAccuracy={setTraceAccuracy}
                 lang={lang}
                 silent={silent}
-                renderWidth={500}
+                fillHeight
               />
-            ) : (
-              <>
-                {item.position === 'initial' && (
-                  <BlankSlot
-                    ref={blankRef}
-                    placed={placed}
-                    wrong={wrong}
-                    correctLetter={correctLetter}
-                  />
-                )}
-                {displayLetters.map((c, i) => (
-                  <span key={i} className="font-black text-gray-700 lowercase text-6xl md:text-7xl">{c}</span>
-                ))}
-                {item.position === 'final' && (
-                  <BlankSlot
-                    ref={blankRef}
-                    placed={placed}
-                    wrong={wrong}
-                    correctLetter={correctLetter}
-                  />
-                )}
-              </>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Choose phase: image on left, blank slots on right (side-by-side). */
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl">
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <div className="bg-white rounded-3xl shadow-md border-2 border-indigo-100 flex items-center justify-center px-6 py-4 min-h-44 min-w-44">
+                {picture}
+              </div>
+              <button
+                onClick={playWord}
+                className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
+              >
+                <Volume2 className="w-4 h-4" /> Hear it
+              </button>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap justify-center">
+              {item.position === 'initial' && (
+                <BlankSlot
+                  ref={blankRef}
+                  placed={placed}
+                  wrong={wrong}
+                  correctLetter={correctLetter}
+                />
+              )}
+              {displayLetters.map((c, i) => (
+                <span key={i} className="font-black text-gray-700 lowercase text-6xl md:text-7xl">{c}</span>
+              ))}
+              {item.position === 'final' && (
+                <BlankSlot
+                  ref={blankRef}
+                  placed={placed}
+                  wrong={wrong}
+                  correctLetter={correctLetter}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* letter bank — only during choose */}
         {phase === 'choose' && (
