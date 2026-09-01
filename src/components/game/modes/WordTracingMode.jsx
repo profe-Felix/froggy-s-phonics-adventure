@@ -243,11 +243,11 @@ export default function WordTracingMode({
 
   return (
     <div className="h-full bg-slate-50 flex flex-col items-center py-4 px-4 gap-3">
-      {/* Word + repetition indicator */}
-      <div className="flex flex-col items-center gap-2 shrink-0">
+      {/* Word + repetition indicator — one compact row so the canvas stays tall */}
+      <div className="flex items-center justify-center gap-3 shrink-0">
         <div className="flex items-end gap-0.5">
           {currentWord.split('').map((ch, i) => (
-            <span key={i} className={`text-3xl font-bold ${waypoints[ch] ? 'text-slate-700' : 'text-slate-300'}`}>
+            <span key={i} className={`text-2xl font-bold leading-none ${waypoints[ch] ? 'text-slate-700' : 'text-slate-300'}`}>
               {ch}
             </span>
           ))}

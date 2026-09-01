@@ -227,11 +227,16 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
     // Always drill letter formation — students trace the letter after EVERY
     // answer (right or wrong) so handwriting is reinforced alongside
     // recognition, not only after a miss. Falls back to the next round when
-    // no waypoints exist for the letter.
-    if (waypoints[currentLetter]?.strokes?.length) {
+    // no waypoints exist for the letter. Trace the letter in the CASE the
+    // student saw on the correct option (e.g. capital 'U' when the fly showed
+    // 'U'), falling back to the lowercase form when that case has no waypoints.
+    const correctOpt = options.find(o => o.letter === currentLetter);
+    const displayCase = correctOpt?.display || currentLetter;
+    const traceCase = waypoints[displayCase]?.strokes?.length ? displayCase : currentLetter;
+    if (waypoints[traceCase]?.strokes?.length) {
       setTimeout(() => {
         setShowFeedback(false);
-        setTraceLetter(currentLetter);
+        setTraceLetter(traceCase);
       }, correct ? 700 : 900);
       return;
     }
