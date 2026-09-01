@@ -1378,10 +1378,10 @@ export default function LetterTracingMode({
     ]?.label || currentStage.label;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
+    <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
       {/* Compact header — back, letter+stage, guided badge, and mission progress
           all on one row so the canvas gets maximum vertical space. */}
-      <div className="flex items-center justify-between w-full max-w-3xl gap-2">
+      <div className="flex items-center justify-between w-full max-w-3xl gap-2 shrink-0">
         <button
           onClick={() => {
             setRedoMode(false);
@@ -1424,7 +1424,7 @@ export default function LetterTracingMode({
       </div>
 
       {/* Compact stage status — single tight row of small pills */}
-      <div className="flex items-center gap-1.5 flex-wrap justify-center">
+      <div className="flex items-center gap-1.5 flex-wrap justify-center shrink-0">
         <div className="bg-white border border-slate-200 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-600">
           {sizeLabel}
         </div>
@@ -1459,33 +1459,36 @@ export default function LetterTracingMode({
       </div>
 
       {letterData.hint && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1 text-indigo-700 text-xs text-center max-w-lg">
+        <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1 text-indigo-700 text-xs text-center max-w-lg shrink-0">
           {letterData.hint}
         </div>
       )}
 
-      <LetterTracingCanvas
-        key={`${traceKey}-${currentLetter}-${currentProgress.stageIndex}-${activeCopy}-${practiceCopies}-${redoing}`}
-        letter={currentLetter}
-        lang={lang}
-        strokes={letterData.strokes}
-        renderWidth={renderWidthFor(
-          currentLetter,
-          redoing ? 3 : undefined
-        )}
-        practiceCopies={practiceCopies}
-        activeCopy={activeCopy}
-        showGuide={currentStage.showGuide}
-        silent={silent}
-        onMistake={() =>
-          handleMistake(currentLetter)
-        }
-        onComplete={() =>
-          handleComplete(currentLetter)
-        }
-        onAccuracy={handleAccuracy}
-        onReset={() => {}}
-      />
+      <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex items-center justify-center">
+        <LetterTracingCanvas
+          key={`${traceKey}-${currentLetter}-${currentProgress.stageIndex}-${activeCopy}-${practiceCopies}-${redoing}`}
+          letter={currentLetter}
+          lang={lang}
+          strokes={letterData.strokes}
+          renderWidth={renderWidthFor(
+            currentLetter,
+            redoing ? 3 : undefined
+          )}
+          practiceCopies={practiceCopies}
+          activeCopy={activeCopy}
+          showGuide={currentStage.showGuide}
+          silent={silent}
+          fillHeight
+          onMistake={() =>
+            handleMistake(currentLetter)
+          }
+          onComplete={() =>
+            handleComplete(currentLetter)
+          }
+          onAccuracy={handleAccuracy}
+          onReset={() => {}}
+        />
+      </div>
 
       {/* Stage/mastery celebration */}
       {celebrate && (

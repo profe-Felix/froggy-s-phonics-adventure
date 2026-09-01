@@ -56,12 +56,22 @@ export default function LetterTracingCanvas({
   const _aspect = CANVAS_W / CANVAS_H;
   let effectiveCopyWidth;
   let renderH;
-  if (fillHeight && fitSize && copyCount <= 1) {
-    let w = fitSize.width;
-    let h = w / _aspect;
-    if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
-    effectiveCopyWidth = Math.max(200, w);
-    renderH = effectiveCopyWidth / _aspect;
+  if (fillHeight && fitSize) {
+    if (copyCount <= 1) {
+      // Single copy: fit within both width and height (centered, no scroll).
+      let w = fitSize.width;
+      let h = w / _aspect;
+      if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
+      effectiveCopyWidth = Math.max(200, w);
+      renderH = effectiveCopyWidth / _aspect;
+    } else {
+      // Multiple copies (repair practice): fit to the container's HEIGHT so the
+      // row is never vertically clipped. Copies extend horizontally and the
+      // scroll container pans — each copy stays large instead of shrinking the
+      // whole row to fit the width.
+      renderH = fitSize.height;
+      effectiveCopyWidth = Math.max(200, renderH * _aspect);
+    }
   } else {
     const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
     const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
@@ -948,7 +958,7 @@ export default function LetterTracingCanvas({
   }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   return (
-    <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
+    <div className={fillHeight ? `flex flex-col h-full ${copyCount > 1 ? 'w-max' : 'w-full'} select-none` : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt — only reserves space when there's a message to show,
           so the canvas sits higher when idle (no wasted "Start at the dot" row). */}
       <div className="min-h-0 flex items-center justify-center">
@@ -992,7 +1002,7 @@ export default function LetterTracingCanvas({
 
       <div
         ref={fillHeight ? fitRef : containerRef}
-        className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
+        className={fillHeight ? `flex-1 min-h-0 flex items-center ${copyCount > 1 ? 'justify-start' : 'justify-center'} w-full` : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
         style={fillHeight ? undefined : { scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
       >
       <svg
