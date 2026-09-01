@@ -99,16 +99,17 @@ export default function LetterTracingMode({
   const reportedAllMasteredRef = useRef(false);
   const studentKey = studentData?.id || 'guest';
 
-  // ?traceSize=0|1|2 forces a size for visual testing on iPad (e.g. student 30).
-  // When set, every letter opens at that size with guided dots and no progress
-  // is saved — purely for checking how each size looks.
-  const forcedSize = useMemo(() => {
+  // Size override for visual testing (e.g. checking sizes on iPad as student
+  // 30). When set, every letter opens at that size with guided dots and no
+  // progress is saved. Initialized from ?traceSize=0|1|2 if present; toggled
+  // via the preview buttons on the grid screen.
+  const [forcedSize, setForcedSize] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const v = parseInt(params.get('traceSize'), 10);
       return v >= 0 && v < SIZES.length ? v : null;
     } catch { return null; }
-  }, []);
+  });
 
   // Block pinch-to-zoom on iOS.
   useEffect(() => {
@@ -719,6 +720,34 @@ export default function LetterTracingMode({
         )}
 
         <p className="text-slate-400 text-xs">Yellow = practicing · Green = mastered</p>
+
+        {/* Size preview toggle — lets a teacher check how each size looks
+            (e.g. on iPad as student 30). Tap a size to force every letter to
+            open at that size with guided dots; tap Normal to exit. */}
+        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+          <span className="text-[11px] font-bold text-slate-400">🔍 Preview size:</span>
+          {SIZES.map((s, i) => (
+            <button
+              key={s.key}
+              onClick={() => setForcedSize(forcedSize === i ? null : i)}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                forcedSize === i
+                  ? 'bg-amber-500 text-white border-amber-600'
+                  : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+          {forcedSize != null && (
+            <button
+              onClick={() => setForcedSize(null)}
+              className="px-2 py-0.5 rounded-full text-[11px] font-bold border bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+            >
+              Normal
+            </button>
+          )}
+        </div>
 
         {showWheel && (
           <PrizeWheel
