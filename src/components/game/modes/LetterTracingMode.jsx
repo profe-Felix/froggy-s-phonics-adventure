@@ -210,8 +210,17 @@ export default function LetterTracingMode({
       if (!s || typeof s !== 'object') continue;
 
       if (s.fullyMastered || s.mastered) {
-        restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: SIZES.length - 1, sizesCompleted: SIZES.length };
-        restoredCompleted.add(letter);
+        // Old mastery from a previous (5-tier) system is no longer valid under
+        // the new 6-tier system — nobody could have completed all 6 sizes yet.
+        // Only keep mastery if sizesCompleted actually covers all current tiers;
+        // otherwise demote to Big (second size) and restart guided tracing.
+        const completed = s.sizesCompleted || 0;
+        if (completed >= SIZES.length) {
+          restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: SIZES.length - 1, sizesCompleted: SIZES.length };
+          restoredCompleted.add(letter);
+        } else {
+          restored[letter] = { ...makeLetterState(), sizeLevel: 1, phase: 'guided', sizesCompleted: completed };
+        }
       } else if (s.phase || s.sizeLevel != null) {
         // Already new format — restore as-is.
         restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
@@ -236,7 +245,9 @@ export default function LetterTracingMode({
     }
 
     if (typeof savedGlobal === 'number' && savedGlobal > 0) {
-      setGlobalSizeIndex(Math.min(savedGlobal, SIZES.length - 1));
+      // Cap at Big (second size) — nobody could have progressed past this
+      // under the new 6-tier system yet.
+      setGlobalSizeIndex(Math.min(1, savedGlobal));
     }
   }, [studentData?.id, studentData?.mode_progress]);
 
@@ -278,7 +289,7 @@ export default function LetterTracingMode({
   const getRequired = (letter) => {
     const p = progressFor(letter);
     const phase = PHASES.find(ph => ph.key === p.phase) || PHASES[0];
-    return phase.reps + Math.min(p.repairReps, MAX_REPAIR_REPS);
+    return phase.reps;
   };
 
   const renderWidthFor = (sizeLevel) => {
@@ -466,10 +477,13 @@ export default function LetterTracingMode({
     if (current.fullyMastered) return;
 
     const phase = PHASES.find(p => p.key === current.phase) || PHASES[0];
-    const required = phase.reps + Math.min(current.repairReps, MAX_REPAIR_REPS);
+    const required = phase.reps;
     const nextSuccesses = current.phaseSuccesses + 1;
     const nextClean = current.cleanStreak + 1;
-    const phasePassed = nextSuccesses >= required && nextClean >= REQUIRED_CLEAN_STREAK;
+    // 5 green traces masters the phase — no clean-streak gate. Yellow traces
+    // don't count toward the 5 (they don't increment phaseSuccesses). A 2-clean
+    // streak at completion earns bonus coins instead of being required.
+    const phasePassed = nextSuccesses >= required;
 
     let nextLetter = {
       ...current,
@@ -566,6 +580,10 @@ export default function LetterTracingMode({
     reportProgress(finalProgress, nextCompleted, nextGlobalSize);
 
     if (phasePassed && (current.repairReps || 0) === 0) awardCoins(2);
+    // Bonus coins for ending the phase on a 2-clean streak (both the last
+    // trace and the one before were green). Not required to advance — just
+    // rewards clean handwriting.
+    if (phasePassed && nextClean >= REQUIRED_CLEAN_STREAK) awardCoins(3);
 
     // ── Per-set-per-size spin ──
     // When both letters in a set (e.g. 'a' + 'A') finish the same size,
