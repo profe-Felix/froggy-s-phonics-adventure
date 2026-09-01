@@ -24,7 +24,6 @@ export default function TracingSizePreview() {
   const [letter, setLetter] = useState('a');
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const containerRef = useRef(null);
-  const [svgH, setSvgH] = useState(200);
 
   // Load DB waypoints (same merge logic as the real game)
   useEffect(() => {
@@ -48,24 +47,28 @@ export default function TracingSizePreview() {
     return () => { cancelled = true; };
   }, []);
 
-  // Measure the actual rendered SVG height for an accurate x-height readout
+  // Measure the container so we can compute renderWidth from the scale.
+  // LetterTracingCanvas clamps fillHeight width to ≥200px, which blocks
+  // small scale values — so we use renderWidth (no fillHeight) instead.
+  const [containerH, setContainerH] = useState(500);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const measure = () => {
-      const svg = container.querySelector('svg');
-      if (svg) {
-        const r = svg.getBoundingClientRect();
-        if (r.height > 0) setSvgH(r.height);
-      }
+      const r = container.getBoundingClientRect();
+      if (r.height > 0) setContainerH(r.height);
     };
     measure();
-    const t = setTimeout(measure, 200);
     const ro = new ResizeObserver(measure);
     ro.observe(container);
-    return () => { clearTimeout(t); ro.disconnect(); };
-  }, [scale, letter]);
+    return () => ro.disconnect();
+  }, []);
 
+  // Canvas is 300×375 (4:5). Max width = container height × aspect ratio.
+  const maxRenderW = containerH * (300 / 375);
+  const renderWidth = Math.max(60, maxRenderW * scale);
+  // x-height = 0.266 of SVG height; SVG height = renderWidth × (375/300)
+  const svgH = renderWidth * (375 / 300);
   const xHeightPx = Math.round(svgH * X_HEIGHT_FRAC);
   const letterData = waypoints[letter];
   const strokes = letterData?.strokes;
@@ -100,8 +103,7 @@ export default function TracingSizePreview() {
             key={letter}
             letter={letter}
             strokes={strokes}
-            fillHeight
-            sizeScale={scale}
+            renderWidth={renderWidth}
             silent
             showGuide
             onComplete={() => {}}
