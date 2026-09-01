@@ -21,27 +21,30 @@ const SIZES = [
   { key: 'huge', label: 'Huge', sizeLevel: 0 },
   { key: 'big', label: 'Big', sizeLevel: 1 },
   { key: 'medium', label: 'Medium', sizeLevel: 2 },
+  { key: 'small', label: 'Small', sizeLevel: 3 },
+  { key: 'paper', label: 'Paper', sizeLevel: 4 },
 ];
 
 // PHASES — at each size, letters first trace with guide dots (guided), then
 // without (practice). Both phases must be completed to master the size.
 // 3 guided + 2 practice = 5 traces per size · 3 sizes = 15 total to master.
 const PHASES = [
-  { key: 'guided', label: 'Guided', reps: 3, showGuide: true },
-  { key: 'practice', label: 'Practice', reps: 2, showGuide: false },
+  { key: 'guided', label: 'Guided', reps: 5, showGuide: true },
+  { key: 'practice', label: 'Practice', reps: 5, showGuide: false },
+  { key: 'more', label: 'More', reps: 5, showGuide: false },
 ];
 
 const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
-  { w: 760, label: 'Big' },
-  { w: 640, label: 'Medium' },
-  { w: 540, label: 'Small' },
-  { w: 460, label: 'Muscle Memory' },
+  { w: 780, label: 'Big' },
+  { w: 600, label: 'Medium' },
+  { w: 460, label: 'Small' },
+  { w: 340, label: 'Paper' },
 ];
 
 // Visual scale applied to the canvas in fillHeight mode so each size level
 // renders visibly smaller (Huge fills the area, Big ~82%, Medium ~68%).
-const SIZE_SCALES = [1.0, 0.82, 0.68, 0.56, 0.48];
+const SIZE_SCALES = [1.0, 0.78, 0.60, 0.46, 0.34];
 
 const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;
@@ -49,17 +52,18 @@ const PAGE_SIZE = 10;
 
 function makeLetterState() {
   return {
-    sizeLevel: 0,       // 0=Huge, 1=Big, 2=Medium (per-letter; new letters start at 0)
-    phase: 'guided',    // 'guided' | 'practice'
+    sizeLevel: 0,       // 0=Huge, 1=Big, 2=Medium, 3=Small, 4=Paper
+    phase: 'guided',    // 'guided' | 'practice' | 'more'
     phaseSuccesses: 0,
     cleanStreak: 0,
     repairReps: 0,
     mistakes: 0,
     totalSuccesses: 0,
     totalAttempts: 0,
-    doneAtSize: false,  // completed both phases at the current size
+    doneAtSize: false,  // completed all phases at the current size
     fullyMastered: false,
-    isNew: false,       // true for letters added after the cohort already advanced
+    isNew: false,
+    sizesCompleted: 0,  // how many sizes finished (drives per-set-per-size spins)
   };
 }
 
@@ -93,6 +97,7 @@ export default function LetterTracingMode({
 
   const awardCoins = useCoinAward(studentData, onStudentPatch);
   const setSpinAwardedRef = useRef(new Set());
+  const setSizeSpinAwardedRef = useRef(new Set()); // per-set-per-size: "a:0", "a:1", ...
   const successfulTraceCountRef = useRef(0);
   const attemptCountRef = useRef(0);
   const loadedStateRef = useRef(false);
@@ -203,15 +208,13 @@ export default function LetterTracingMode({
       if (!s || typeof s !== 'object') continue;
 
       if (s.fullyMastered || s.mastered) {
-        restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: SIZES.length - 1 };
+        restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: SIZES.length - 1, sizesCompleted: SIZES.length };
         restoredCompleted.add(letter);
       } else if (s.phase || s.sizeLevel != null) {
         // Already new format — restore as-is.
-        restored[letter] = { ...makeLetterState(), ...s };
+        restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
       } else {
-        // Old per-letter stage format → migrate. Preserve the size level
-        // (old stageIndex ≈ new sizeLevel); reset to the guided phase so the
-        // student redoing the new guided+practice sequence at that size.
+        // Old per-letter stage format → migrate.
         const oldStage = Math.min(s.stageIndex || 0, SIZES.length - 1);
         restored[letter] = { ...makeLetterState(), sizeLevel: oldStage, phase: 'guided' };
       }
@@ -351,6 +354,31 @@ export default function LetterTracingMode({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [LETTERS, completedLetters, letterProgress]);
 
+  // Initialize set+size spin tracking — mark already-completed set+size
+  // combos as awarded so existing mastered students don't get retroactive spins.
+  const spinInitRef = useRef(false);
+  useEffect(() => {
+    if (spinInitRef.current || !loadedStateRef.current || !LETTERS.length) return;
+    spinInitRef.current = true;
+    const sets = {};
+    for (const l of LETTERS) {
+      const lower = l.toLowerCase();
+      if (!sets[lower]) sets[lower] = [];
+      sets[lower].push(l);
+    }
+    for (const [lower, setLetters] of Object.entries(sets)) {
+      if (setLetters.length < 2) continue;
+      for (let si = 0; si < SIZES.length; si++) {
+        const allDone = setLetters.every(l => {
+          const p = letterProgress[l] || makeLetterState();
+          return (p.sizesCompleted || 0) > si || p.fullyMastered;
+        });
+        if (allDone) setSizeSpinAwardedRef.current.add(`${lower}:${si}`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [LETTERS, letterProgress]);
+
   const handleAccuracy = (acc) => setLastAccuracy(acc);
 
   // ---------------------------------------------------------------------------
@@ -459,19 +487,24 @@ export default function LetterTracingMode({
 
     if (phasePassed) {
       if (current.phase === 'guided') {
-        // Guided done → switch to practice phase.
+        // Guided done → practice.
         finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'practice' } };
         phaseAdvanced = true;
+      } else if (current.phase === 'practice') {
+        // Practice done → more.
+        finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'more' } };
+        phaseAdvanced = true;
       } else {
-        // Practice done → doneAtSize.
-        const doneLetter = { ...nextLetter, doneAtSize: true };
+        // 'more' done → doneAtSize.
+        const completedSizeIdx = current.isNew ? current.sizeLevel : globalSizeIndex;
+        const doneLetter = { ...nextLetter, doneAtSize: true, sizesCompleted: Math.max(current.sizesCompleted || 0, completedSizeIdx + 1) };
         finalProgress = { ...nextProgress, [letter]: doneLetter };
 
         if (doneLetter.isNew) {
           // New letter: advance independently through sizes until it catches up.
           const nextSize = doneLetter.sizeLevel + 1;
           if (nextSize > SIZES.length - 1) {
-            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, fullyMastered: true } };
+            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, fullyMastered: true, sizesCompleted: SIZES.length } };
           } else if (nextSize >= globalSizeIndex) {
             // Caught up to the cohort — join it at the new size.
             finalProgress = { ...finalProgress, [letter]: { ...doneLetter, sizeLevel: nextSize, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false, isNew: false } };
@@ -495,7 +528,7 @@ export default function LetterTracingMode({
               for (const l of LETTERS) {
                 const lp = nextProgress[l] || makeLetterState();
                 if (lp.isNew) finalProgress[l] = lp;
-                else finalProgress[l] = { ...lp, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false };
+                else finalProgress[l] = { ...lp, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false, sizesCompleted: Math.max(lp.sizesCompleted || 0, globalSizeIndex + 1) };
               }
             } else {
               // Final size done for the cohort — mark non-new as fullyMastered.
@@ -503,7 +536,7 @@ export default function LetterTracingMode({
               for (const l of LETTERS) {
                 const lp = nextProgress[l] || makeLetterState();
                 if (lp.isNew) finalProgress[l] = lp;
-                else finalProgress[l] = { ...lp, fullyMastered: true };
+                else finalProgress[l] = { ...lp, fullyMastered: true, sizesCompleted: SIZES.length };
               }
             }
           } else {
@@ -531,6 +564,31 @@ export default function LetterTracingMode({
     reportProgress(finalProgress, nextCompleted, nextGlobalSize);
 
     if (phasePassed && (current.repairReps || 0) === 0) awardCoins(2);
+
+    // ── Per-set-per-size spin ──
+    // When both letters in a set (e.g. 'a' + 'A') finish the same size,
+    // the student earns a wheel roll. One roll per set per size.
+    if (freeSpinEnabled && phasePassed && current.phase === 'more') {
+      const lower = letter.toLowerCase();
+      const setLetters = LETTERS.filter(l => l.toLowerCase() === lower);
+      if (setLetters.length >= 2) {
+        for (let si = 0; si < SIZES.length; si++) {
+          const spinKey = `${lower}:${si}`;
+          if (setSizeSpinAwardedRef.current.has(spinKey)) continue;
+          const allDone = setLetters.every(l => {
+            const p = finalProgress[l] || makeLetterState();
+            return (p.sizesCompleted || 0) > si || p.fullyMastered;
+          });
+          if (allDone) {
+            setSizeSpinAwardedRef.current.add(spinKey);
+            setCelebrate({ type: 'mastered', letter, message: `${SIZES[si].label} ${lower.toUpperCase()}${lower} complete!` });
+            confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+            setTimeout(() => { setCelebrate(null); setShowWheel(true); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
+            return;
+          }
+        }
+      }
+    }
 
     // Celebrate.
     if (allMastered) {
@@ -787,7 +845,7 @@ export default function LetterTracingMode({
   const currentSizeLevel = forcedSize != null
     ? forcedSize
     : redoing && letterMastered
-      ? 3  // Small redo size for mastered letters
+      ? SIZES.length - 1  // Paper redo size for mastered letters
       : effectiveSize(currentLetter);
 
   const currentPhase = forcedSize != null

@@ -22,6 +22,7 @@ export default function WordTracingMode({
   const [scrollLetterIndex, setScrollLetterIndex] = useState(0);
   const traceCountRef = useRef(0);
   const scrollRef = useRef(null);
+  const prevWordRef = useRef(null);
 
   // A word becomes mastered after completing its full 3-copy tracing run
   // with at least 80% accuracy.
@@ -74,35 +75,48 @@ export default function WordTracingMode({
   const currentWord = words[wordIndex] || '';
   const { totalW, letters: wordLetters, layout: letterLayout } = computeWordLayout(currentWord, waypoints, 600, 45, 30, 3, 80);
 
-  // Auto-scroll the tracing canvas so the current letter is always centered and
-  // large enough for accurate tracing. The canvas renders at full width inside a
-  // scroll container; students never scroll manually (touch is captured for drawing).
+  // Auto-scroll: on word change, instantly jump to the start (no smooth
+  // animation from the end of the previous word). On letter advance, only
+  // scroll when the current letter is about to go off the right edge — so
+  // fast writers can trace multiple letters without waiting for the scroll
+  // to catch up. The scroll is smooth from the current position.
   useEffect(() => {
     if (!scrollRef.current) return;
+
+    // Word changed → instant reset to start.
+    if (prevWordRef.current !== currentWord) {
+      prevWordRef.current = currentWord;
+      scrollRef.current.scrollTo({ left: 0, behavior: 'auto' });
+      return;
+    }
+
     const lay = letterLayout[scrollLetterIndex];
     if (!lay) return;
     const containerW = scrollRef.current.clientWidth;
-    // The SVG now renders at a height that fits the container, so its rendered
-    // width is NOT the viewBox totalW — scale letter positions from viewBox
-    // coords to rendered px before scrolling, or the scroll targets the wrong
-    // x-position and clips the letter being traced.
     const svg = scrollRef.current.querySelector('svg');
     const renderedW = svg ? svg.getBoundingClientRect().width : totalW;
     const scale = renderedW / totalW;
     const letterLeft = lay.offset * scale;
     const letterWidth = (lay.width || 360) * scale;
+    const letterRight = letterLeft + letterWidth;
+    const currentScroll = scrollRef.current.scrollLeft;
+    const viewportRight = currentScroll + containerW;
+
+    // Only scroll if the letter's right edge is past 75% of the viewport
+    // (about to go off-screen) or the letter's left edge is scrolled past.
+    // This lets students write multiple letters without the scroll moving.
+    if (letterRight <= viewportRight - containerW * 0.25 && letterLeft >= currentScroll) {
+      return;
+    }
+
     const letterCenter = letterLeft + letterWidth / 2;
-    // Try to center the letter in the container.
     let target = letterCenter - containerW / 2;
-    // Never push the letter's left edge off-screen — keep at least 20px of
-    // left margin so the student can always reach the first waypoint.
     target = Math.min(target, letterLeft - 20);
-    // Clamp to valid scroll range.
     target = Math.max(0, target);
     const maxScroll = Math.max(0, renderedW - containerW);
     target = Math.min(target, maxScroll);
     scrollRef.current.scrollTo({ left: target, behavior: 'smooth' });
-  }, [scrollLetterIndex, letterLayout, totalW]);
+  }, [scrollLetterIndex, letterLayout, totalW, currentWord]);
 
   const handleProgress = ({ currentRep: rep, letterIndex: li }) => {
     setCurrentRep(rep);

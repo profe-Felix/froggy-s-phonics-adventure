@@ -338,7 +338,9 @@ export default function LetterTracingCanvas({
 
   // Keep the active practice copy centered when repair practice adds extra
   // copies — completed copies scroll out to the left so the student stays on a
-  // full-size copy.
+  // full-size copy. On first render (after remount) jump instantly to avoid
+  // the visible smooth-scroll from 0 to the target.
+  const firstScrollRef = useRef(true);
   useEffect(() => {
     const c = wrapRef.current;
     const svg = svgRef.current;
@@ -352,7 +354,8 @@ export default function LetterTracingCanvas({
         safeActiveCopy * pitch + copyW / 2 - c.clientWidth / 2
       )
     );
-    c.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    c.scrollTo({ left: targetLeft, behavior: firstScrollRef.current ? 'auto' : 'smooth' });
+    firstScrollRef.current = false;
   }, [safeActiveCopy, copyCount]);
 
   const getPos = (e) => {
