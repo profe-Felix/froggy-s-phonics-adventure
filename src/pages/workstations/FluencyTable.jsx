@@ -27,8 +27,11 @@ export default function FluencyTable() {
   const unsubRef = useRef(null);
 
   // Pull the real curriculum from Supabase Storage; fall back to local presets.
+  // Abort after 3s so a slow/hanging fetch doesn't disrupt the page late.
   useEffect(() => {
-    fetch(`${SUPABASE_PRESETS_URL}?t=${Date.now()}`)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    fetch(`${SUPABASE_PRESETS_URL}?t=${Date.now()}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((obj) => {
         if (!obj) return;
@@ -39,6 +42,7 @@ export default function FluencyTable() {
         }
       })
       .catch(() => {});
+    return () => { clearTimeout(timeout); controller.abort(); };
   }, []);
 
   useEffect(() => () => { if (unsubRef.current) unsubRef.current(); }, []);

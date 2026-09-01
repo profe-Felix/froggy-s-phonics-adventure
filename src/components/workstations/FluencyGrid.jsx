@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 // FluencyGrid — renders the shared table as rows, each with a play triangle.
 // The sweep is driven locally from the shared `sweepStartAt` timestamp so every
@@ -32,22 +32,30 @@ export default function FluencyGrid({ preset, seed, activeRow, sweepStartAt, onP
 
   const [sweepIdx, setSweepIdx] = useState(-1);
 
+  // Ref so the sweep reads the latest cols/sweep_ms without re-firing when
+  // the preset object reference changes (e.g. when the Supabase presets fetch
+  // resolves and replaces the presets array). Previously `preset` was in the
+  // effect's dependency array, so a late fetch would cancel an in-progress
+  // sweep and restart it from the current elapsed time — halfway down the row.
+  const presetRef = useRef(preset);
+  presetRef.current = preset;
+
   useEffect(() => {
     if (!sweepStartAt) { setSweepIdx(-1); return; }
     const start = new Date(sweepStartAt).getTime();
-    const cols = preset.cols;
+    const { cols, sweep_ms } = presetRef.current;
     const rowStart = activeRow * cols;
     let raf;
     const tick = () => {
       const elapsed = Date.now() - start;
-      const cell = rowStart + Math.floor(elapsed / preset.sweep_ms);
+      const cell = rowStart + Math.floor(elapsed / sweep_ms);
       if (cell >= rowStart + cols) { setSweepIdx(-1); return; }
       setSweepIdx(cell);
       raf = requestAnimationFrame(tick);
     };
     tick();
     return () => cancelAnimationFrame(raf);
-  }, [sweepStartAt, activeRow, preset]);
+  }, [sweepStartAt, activeRow]);
 
   return (
     <div className="flex flex-col gap-2 w-full max-w-5xl mx-auto">
