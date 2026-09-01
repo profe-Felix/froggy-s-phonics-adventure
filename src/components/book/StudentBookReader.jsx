@@ -602,9 +602,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
       {/* Single combined bottom bar */}
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5" style={{ background: '#0f3d3a', borderTop: '1px solid #0d9488' }}>
 
-        {/* Prev button */}
+        {/* Prev button — large rounded rectangle for easy tapping by kids */}
         <button onClick={goPrev} disabled={!canGoPrev || uploading}
-          className="shrink-0 px-3 py-1.5 rounded-lg font-bold text-white text-sm disabled:opacity-30"
+          className="shrink-0 w-16 h-12 rounded-2xl flex items-center justify-center font-bold text-white text-3xl leading-none disabled:opacity-30 active:scale-95 transition-transform"
           style={{ background: '#0f766e' }}>‹</button>
 
         {/* Center: recording controls */}
@@ -677,9 +677,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
         {/* Page counter */}
         <span className="text-teal-400 text-xs font-bold shrink-0 px-1">{pageLabel}</span>
 
-        {/* Next button */}
+        {/* Next button — large rounded rectangle for easy tapping by kids */}
         <button onClick={goNext} disabled={!canGoNext || uploading}
-          className="shrink-0 px-3 py-1.5 rounded-lg font-bold text-white text-sm disabled:opacity-30"
+          className="shrink-0 w-16 h-12 rounded-2xl flex items-center justify-center font-bold text-white text-3xl leading-none disabled:opacity-30 active:scale-95 transition-transform"
           style={{ background: '#0f766e' }}>›</button>
       </div>
     </div>

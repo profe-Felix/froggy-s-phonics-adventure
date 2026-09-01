@@ -44,6 +44,11 @@ export default function TeacherBookDashboard({ onBack }) {
     onSuccess: () => qc.invalidateQueries(['books-all', className]),
   });
 
+  const deleteBook = useMutation({
+    mutationFn: (id) => base44.entities.BookAssignment.delete(id),
+    onSuccess: () => { qc.invalidateQueries(['books-all', className]); qc.invalidateQueries(['books-shared']); setSelectedBook(null); },
+  });
+
   const extractPageCount = async (file) => {
     try {
       const pdfjsLib = await import('pdfjs-dist');
@@ -188,6 +193,13 @@ export default function TeacherBookDashboard({ onBack }) {
                       'bg-gray-700 text-gray-300 hover:bg-teal-800 hover:text-teal-100'
                     }`}>
                     {b.status}
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Remove "${b.title}" from class ${className}? This unassigns it from this class's library.`)) deleteBook.mutate(b.id); }}
+                    className="px-2 py-1 rounded-full text-xs font-bold bg-red-900 text-red-200 hover:bg-red-700 transition-all hover:scale-105"
+                    title="Unassign this book from this class"
+                  >
+                    🗑
                   </button>
                 </div>
               </motion.div>

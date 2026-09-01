@@ -73,11 +73,17 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
       const results = await Promise.all(
         sources.map(src => base44.entities.BookAssignment.filter({ class_name: src, status: 'active' }))
       );
+      // Dedupe by normalized TITLE, not just id. "Add to my class" and manual
+      // sync create separate BookAssignment records (different ids) with the
+      // same title — dedupe-by-id left both visible. The class's own books are
+      // fetched first (className is first in sources), so the local copy wins
+      // over a shared-from copy.
       const seen = new Set();
       const merged = [];
       for (const list of results) {
         for (const b of list) {
-          if (!seen.has(b.id)) { seen.add(b.id); merged.push(b); }
+          const key = (b.title || '').toLowerCase().trim();
+          if (key && !seen.has(key)) { seen.add(key); merged.push(b); }
         }
       }
       return merged;
@@ -264,11 +270,19 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   // param. Without this, hitting back just bounces back into the reader.
   const [suppressAutoSelect, setSuppressAutoSelect] = useState(false);
 
-  // Restore the last student + book + page from localStorage so a refresh (or
-  // re-entering Books from the game menu) drops the student back on the exact
-  // page they left, instead of the bookshelf. Priority: URL params (deep link)
-  // > localStorage restore.
+  // Only restore the last book+page on a page REFRESH (F5/reload) so students
+  // don't waste time navigating back after an accidental refresh. On a fresh
+  // entry (from the game menu) the library pops up instead. URL deep-links
+  // (?book=) still auto-open regardless.
+  const isPageReload = (() => {
+    try {
+      const nav = performance.getEntriesByType('navigation')[0];
+      if (nav) return nav.type === 'reload';
+    } catch { /* ignore */ }
+    return performance.navigation?.type === 1;
+  })();
   const restore = (() => {
+    if (!isPageReload) return null;
     try {
       const raw = localStorage.getItem(`br:last:${urlClass || ''}:${urlNumber || ''}`);
       if (raw && urlClass && !isNaN(urlNumber)) return JSON.parse(raw);
