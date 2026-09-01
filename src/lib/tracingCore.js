@@ -20,6 +20,11 @@ export const END_TOL = 4;
 // drag/coverage/direction gates (meant for real strokes) can be skipped.
 export const DOT_HIT_RADIUS = 42;
 export const DOT_PIXEL_THRESHOLD = 14;
+// How far the pen may travel past the end of the ideal path before the stroke
+// restarts. The "Lift your finger!" message shows as soon as the end is reached,
+// but the stroke CONTINUES so the student learns to stop on their own; going
+// past this budget (into the descender zone) restarts the stroke.
+export const POST_COMPLETE_BUDGET = 40;
 
 export const GUIDE_COLORS = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
 

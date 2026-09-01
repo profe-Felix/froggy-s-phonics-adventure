@@ -4,7 +4,7 @@ import {
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, MIN_COVER_FRAC,
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS, fonemaUrl,
-  isDotStroke, DOT_HIT_RADIUS,
+  isDotStroke, DOT_HIT_RADIUS, POST_COMPLETE_BUDGET,
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 import { splinePathD } from '@/components/tracing/strokeMath';
@@ -29,6 +29,7 @@ export default function LetterTracingCanvas({
   activeCopy = 0,
   silent = false,
   fillHeight = false,
+  sizeScale = 1,
 }) {
   const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
@@ -62,11 +63,17 @@ export default function LetterTracingCanvas({
   let effectiveCopyWidth;
   let renderH;
   if (fillHeight && fitSize) {
+    // Scale the available area by sizeScale so each size level (Huge/Big/
+    // Medium) renders visibly smaller instead of always filling the whole
+    // container. Without this, fillHeight ignored renderWidth and every size
+    // looked identical.
+    const fitW = fitSize.width * sizeScale;
+    const fitH = fitSize.height * sizeScale;
     if (copyCount <= 1) {
       // Single copy: fit within both width and height (centered, no scroll).
-      let w = fitSize.width;
+      let w = fitW;
       let h = w / _aspect;
-      if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
+      if (h > fitH) { h = fitH; w = h * _aspect; }
       effectiveCopyWidth = Math.max(200, w);
       renderH = effectiveCopyWidth / _aspect;
     } else {
@@ -74,7 +81,7 @@ export default function LetterTracingCanvas({
       // row is never vertically clipped. Copies extend horizontally and the
       // scroll container pans — each copy stays large instead of shrinking the
       // whole row to fit the width.
-      renderH = fitSize.height;
+      renderH = fitH;
       effectiveCopyWidth = Math.max(200, renderH * _aspect);
     }
   } else {
@@ -504,18 +511,25 @@ export default function LetterTracingCanvas({
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
-    // Once the end of the ideal path is reached, the stroke is complete.
-    // Nothing should happen until pen lift — do NOT append the finger's
-    // continued movement to the drawn path (that trailing ink was the
-    // "unwanted stroke" after the end), and do NOT reject on overshoot. The
-    // pen just waits for lift, then the completed path commits as-is.
-    if (pendingCompleteRef.current) {
-      return;
-    }
     const prev = currentPathRef.current[currentPathRef.current.length - 1];
     const currentStrokes = strokes[strokeIndex];
     if (!currentStrokes) return;
     const moveDist = prev ? dist(pos, prev) : 0;
+    // Once the end of the ideal path is reached, "Lift your finger!" is shown
+    // — but the stroke CONTINUES so the student finishes and lifts on their
+    // own (not cut off). Track how far past the end they travel; going too
+    // far into the descender zone restarts the stroke, teaching them to stop
+    // at the baseline instead of overshooting.
+    if (pendingCompleteRef.current) {
+      postCompleteTravelRef.current += moveDist;
+      currentPathRef.current = [...currentPathRef.current, pos];
+      setCurrentPath(currentPathRef.current);
+      if (postCompleteTravelRef.current > POST_COMPLETE_BUDGET) {
+        flashError();
+        restartStroke();
+      }
+      return;
+    }
 
     if (densePath.length) {
       // Long up-retrace corridor (e.g. 'p' descender climb): once the pen has
@@ -547,9 +561,7 @@ export default function LetterTracingCanvas({
         const covTo = Math.min(endIdx + 1, bestIdx + 4);
         for (let k = covFrom; k < covTo; k++) visitedRef.current.add(k);
         offTravelRef.current = 0;
-        const _endPt = densePath[densePath.length - 1];
-        const _penAtEnd = dist(pos, _endPt) <= 10 || pathProgressRef.current >= densePath.length - 1;
-        if (_penAtEnd && coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
+        if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
           pendingCompleteRef.current = true;
           postCompleteTravelRef.current = 0;
           setAwaitingLift(true);
@@ -739,26 +751,10 @@ export default function LetterTracingCanvas({
       // near the end — otherwise a self-adjacent letter (u's right-down sits
       // beside its right-up and its curve) passes, because the thick pen marks
       // the end region from neighboring strokes the pen never actually drew.
-      // "Lift your finger!" must not fire until the pen has PHYSICALLY reached
-      // the end of the ideal path (the base of the line). Coverage can mark the
-      // end point from COVERAGE_RADIUS (~22px) away, which fired the message
-      // prematurely and cut students off before they reached the base — the
-      // ink stopped appending the moment the message showed. Require the pen
-      // to be within a small distance of the actual last dense point so the
-      // student draws all the way down before being asked to lift.
-      // "Lift your finger!" must not fire until the pen has PHYSICALLY reached
-      // the end of the ideal path (the base of the line). Coverage can mark the
-      // end point from COVERAGE_RADIUS (~22px) away, which fired the message
-      // prematurely and cut students off before they reached the base — the
-      // ink stopped appending the moment the message showed. Require the pen
-      // to be within a small distance of the actual last dense point (near
-      // the end) OR the pen's nearest point to BE the last point (at/past the
-      // end from a fast stroke) so the student draws all the way down before
-      // being asked to lift, while still catching overshoot to prevent
-      // trailing ink.
-      const _endPt = densePath[densePath.length - 1];
-      const _penAtEnd = dist(pos, _endPt) <= 10 || pathProgressRef.current >= densePath.length - 1;
-      if (_penAtEnd && coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
+      // When coverage + pathProgress reach the end, show "Lift your finger!"
+      // as a hint — but the stroke CONTINUES (handled above) so the student
+      // lifts on their own; going too far past the end restarts the stroke.
+      if (coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL) {
         pendingCompleteRef.current = true;
         postCompleteTravelRef.current = 0;
         setAwaitingLift(true);

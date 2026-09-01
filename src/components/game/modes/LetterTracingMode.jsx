@@ -73,6 +73,11 @@ const SIZE_LEVELS = [
   { w: 460, label: 'Muscle Memory' },
 ];
 
+// Visual scale applied to the canvas in fillHeight mode so each size level
+// renders visibly smaller (Huge fills the area, Big ~82%, Medium ~68%).
+// Without this, fillHeight ignored renderWidth and every size looked identical.
+const SIZE_SCALES = [1.0, 0.82, 0.68, 0.56, 0.48];
+
 const BASE_TRACES_PER_LETTER = TRACING_STAGES.reduce(
   (sum, stage) => sum + stage.repetitions,
   0
@@ -91,6 +96,7 @@ function makeStageState() {
     mistakes: 0,
     totalSuccesses: 0,
     totalAttempts: 0,
+    stageDone: false,
     mastered: false,
   };
 }
@@ -122,6 +128,13 @@ export default function LetterTracingMode({
   silent = false,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
+
+  // GLOBAL SIZE PROGRESSION
+  // All letters practice at the same size level (Huge → Big → Medium). The
+  // size only advances once EVERY letter is mastered at the current size, so
+  // the whole class moves down through the sizes together instead of each
+  // letter shrinking independently.
+  const [globalStageIndex, setGlobalStageIndex] = useState(0);
 
   // Teacher-managed progression: which letters are enabled for free play.
   // Lesson steps pass their own `targets` and bypass this.
@@ -337,6 +350,30 @@ export default function LetterTracingMode({
     if (Object.keys(restored).length) {
       setLetterProgress(restored);
       setCompletedLetters(restoredCompleted);
+
+      // MIGRATION: students who mastered letters under the old per-letter
+      // stage system have mastered:true but no saved global_stage_index. If
+      // every restored letter is mastered, place them at the final size level
+      // so the progress bar reads 100% and redo uses the small size.
+      const allOldMastered = Object.values(
+        restored
+      ).every(p => p.mastered);
+
+      if (allOldMastered) {
+        setGlobalStageIndex(
+          TRACING_STAGES.length - 1
+        );
+      }
+    }
+
+    // Restore the global size level so a refresh keeps the student at the
+    // size they reached instead of dropping back to Huge.
+    const savedStage =
+      studentData?.mode_progress?.letter_tracing?.global_stage_index;
+    if (typeof savedStage === 'number' && savedStage > 0) {
+      setGlobalStageIndex(
+        Math.min(savedStage, TRACING_STAGES.length - 1)
+      );
     }
   }, [studentData?.id, studentData?.mode_progress]);
 
@@ -409,17 +446,23 @@ export default function LetterTracingMode({
   const progressFor = (letter) =>
     letterProgress[letter] || makeStageState();
 
-  const stageFor = (letter) =>
-    getStage(progressFor(letter));
+  // The whole section shares one stage (size level). All letters practice at
+  // this size until every letter is mastered at it, then it advances.
+  const globalStage =
+    TRACING_STAGES[
+      Math.min(globalStageIndex, TRACING_STAGES.length - 1)
+    ];
+
+  const stageFor = (letter) => globalStage;
 
   const sizeLevelFor = (letter) =>
-    stageFor(letter).sizeLevel;
+    globalStage.sizeLevel;
 
   const renderWidthFor = (letter, sizeLevelOverride) => {
     const lvl =
       sizeLevelOverride != null
         ? sizeLevelOverride
-        : sizeLevelFor(letter);
+        : globalStage.sizeLevel;
     const targetWidth =
       SIZE_LEVELS[lvl]?.w || SIZE_LEVELS[0].w;
 
@@ -481,67 +524,51 @@ export default function LetterTracingMode({
     const p = progressFor(letter);
 
     return (
-      p.stageIndex > 0 ||
       p.stageSuccesses > 0 ||
       p.totalSuccesses > 0 ||
-      p.mistakes > 0
+      p.mistakes > 0 ||
+      p.stageDone
     );
   };
 
   // ---------------------------------------------------------------------------
   // SECTION PROGRESS BAR
   // ---------------------------------------------------------------------------
+  // Whole-section progress: each global size level is worth an equal slice of
+  // the bar; within the current level, the fraction of letters done at this
+  // size fills the rest. All letters advance through the sizes together.
   const sectionProgress = useMemo(() => {
     if (!LETTERS.length) return 0;
 
-    let earned = 0;
-    let possible = 0;
+    const stageFraction =
+      globalStageIndex / TRACING_STAGES.length;
 
-    for (const letter of LETTERS) {
-      const p =
-        letterProgress[letter] ||
-        makeStageState();
+    const doneAtStage = LETTERS.filter(
+      letter => {
+        const p =
+          letterProgress[letter] ||
+          makeStageState();
 
-      if (p.mastered) {
-        earned += TRACING_STAGES.length;
-        possible += TRACING_STAGES.length;
-        continue;
+        return p.mastered || p.stageDone;
       }
+    ).length;
 
-      possible += TRACING_STAGES.length;
-
-      earned += p.stageIndex;
-
-      const stage =
-        TRACING_STAGES[p.stageIndex];
-
-      if (stage) {
-        const need =
-          stage.repetitions +
-          Math.min(
-            p.repairReps || 0,
-            MAX_REPAIR_REPS
-          );
-
-        earned += Math.min(
-          1,
-          (p.stageSuccesses || 0) /
-            Math.max(1, need)
-        );
-      }
-    }
+    const stagePortion =
+      doneAtStage /
+      LETTERS.length /
+      TRACING_STAGES.length;
 
     return Math.max(
       0,
       Math.min(
         100,
         Math.round(
-          (earned / Math.max(1, possible)) *
+          (stageFraction + stagePortion) *
             100
         )
       )
     );
-  }, [LETTERS, letterProgress]);
+  }, [LETTERS, letterProgress, globalStageIndex]);
 
   const masteredCount = LETTERS.filter(
     letter =>
@@ -564,7 +591,8 @@ export default function LetterTracingMode({
   // ---------------------------------------------------------------------------
   const reportProgress = (
     nextProgress,
-    nextCompletedLetters
+    nextCompletedLetters,
+    stageIndex = globalStageIndex
   ) => {
     if (!onUpdateProgress) return;
 
@@ -588,7 +616,7 @@ export default function LetterTracingMode({
         stage:
           p.mastered
             ? TRACING_STAGES.length
-            : p.stageIndex || 0,
+            : stageIndex,
         clean_streak:
           p.cleanStreak || 0,
         mistakes:
@@ -624,6 +652,9 @@ export default function LetterTracingMode({
 
         // Full per-letter stage state so a refresh restores progress.
         stage_state: nextProgress,
+
+        // Global size level all letters are currently practicing at.
+        global_stage_index: stageIndex,
       }
     );
   };
@@ -719,7 +750,8 @@ export default function LetterTracingMode({
 
       reportProgress(
         next,
-        completedLetters
+        completedLetters,
+        globalStageIndex
       );
 
       return next;
@@ -737,12 +769,19 @@ export default function LetterTracingMode({
     if (
       redoMode &&
       (completedLetters.has(letter) ||
-        progressFor(letter).mastered)
+        progressFor(letter).mastered ||
+        progressFor(letter).stageDone)
     ) {
+      const isMastered =
+        completedLetters.has(letter) ||
+        progressFor(letter).mastered;
+
       setCelebrate({
         type: 'repair',
         letter,
-        message: '✏️ Nice! Trace it again, smaller.',
+        message: isMastered
+          ? '✏️ Nice! Trace it again, smaller.'
+          : '✏️ Nice! Free practice.',
       });
       setTimeout(() => setCelebrate(null), 1200);
       setLastAccuracy(null);
@@ -811,23 +850,19 @@ export default function LetterTracingMode({
     successfulTraceCountRef.current += 1;
     setStreak(s => s + 1);
 
-    // Decide mastery / stage-advance SYNCHRONOUSLY from the current state.
-    // The previous version set masteredThisTurn / advancedStage inside the
-    // setLetterProgress updater, which React runs lazily during render — so
-    // the side-effect checks below always saw false. The state update itself
-    // still landed (mastered: true), so the canvas remounted into a
-    // mastered-but-not-advanced state and the student got stuck on the final
-    // stage forever. Compute the decision up front so the side effects fire.
-    const current =
-      progressFor(letter);
+    // GLOBAL SIZE PROGRESSION
+    // All letters share one size level. A letter that passes the required
+    // traces + clean streak is "done at this size" (stageDone). Only when
+    // EVERY letter is stageDone does the global size advance — and every
+    // letter resets to practice at the new, smaller size together.
+    const current = progressFor(letter);
 
     if (current.mastered) {
       // Already mastered (e.g. a late duplicate auto-advance). Nothing to do.
       return;
     }
 
-    const stage =
-      TRACING_STAGES[current.stageIndex];
+    const stage = globalStage;
 
     const required =
       stage.repetitions +
@@ -849,13 +884,11 @@ export default function LetterTracingMode({
       nextSuccesses >= required &&
       nextClean >= REQUIRED_CLEAN_STREAK;
 
-    let masteredThisTurn = false;
-    let advancedStage = false;
-    let nextStageIndex = current.stageIndex;
-
     let nextLetter;
 
-    if (!stagePassed) {
+    if (stagePassed) {
+      // Letter completed the current global size. Mark it done at this size.
+      // It's only fully mastered if this is the final size level.
       nextLetter = {
         ...current,
         stageSuccesses: nextSuccesses,
@@ -863,29 +896,12 @@ export default function LetterTracingMode({
         totalSuccesses: nextTotalSuccesses,
         totalAttempts:
           (current.totalAttempts || 0) + 1,
-      };
-    } else if (
-      current.stageIndex <
-      TRACING_STAGES.length - 1
-    ) {
-      advancedStage = true;
-      nextStageIndex = current.stageIndex + 1;
-
-      nextLetter = {
-        ...current,
-        stageIndex: current.stageIndex + 1,
-        // New support/size stage starts fresh.
-        stageSuccesses: 0,
-        cleanStreak: 0,
-        repairReps: 0,
-        totalSuccesses: nextTotalSuccesses,
-        totalAttempts:
-          (current.totalAttempts || 0) + 1,
+        stageDone: true,
+        mastered:
+          globalStageIndex >=
+          TRACING_STAGES.length - 1,
       };
     } else {
-      masteredThisTurn = true;
-      nextStageIndex = TRACING_STAGES.length;
-
       nextLetter = {
         ...current,
         stageSuccesses: nextSuccesses,
@@ -893,38 +909,79 @@ export default function LetterTracingMode({
         totalSuccesses: nextTotalSuccesses,
         totalAttempts:
           (current.totalAttempts || 0) + 1,
-        mastered: true,
       };
     }
+
+    const nextProgress = {
+      ...letterProgress,
+      [letter]: nextLetter,
+    };
+
+    // Check if EVERY letter is now done at the current global size.
+    const allStageDone = LETTERS.every(
+      l => nextProgress[l]?.stageDone
+    );
+
+    let nextGlobalStage = globalStageIndex;
+    let advancedGlobal = false;
+    let allMastered = false;
+    let finalProgress = nextProgress;
+
+    if (allStageDone) {
+      if (
+        globalStageIndex <
+        TRACING_STAGES.length - 1
+      ) {
+        // Advance the global size level. Every letter resets its stage
+        // progress to practice at the new, smaller size.
+        nextGlobalStage = globalStageIndex + 1;
+        advancedGlobal = true;
+        finalProgress = {};
+
+        for (const l of LETTERS) {
+          finalProgress[l] = {
+            ...nextProgress[l],
+            stageSuccesses: 0,
+            cleanStreak: 0,
+            repairReps: 0,
+            stageDone: false,
+          };
+        }
+      } else {
+        // Final size level complete for every letter — all mastered.
+        allMastered = true;
+        finalProgress = {};
+
+        for (const l of LETTERS) {
+          finalProgress[l] = {
+            ...nextProgress[l],
+            mastered: true,
+          };
+        }
+      }
+    }
+
+    setLetterProgress(finalProgress);
+    setGlobalStageIndex(nextGlobalStage);
 
     const nextCompleted = new Set(completedLetters);
 
-    if (masteredThisTurn) {
-      nextCompleted.add(letter);
-    }
-
-    setLetterProgress(prev => {
-      const prevLetter =
-        prev[letter] || makeStageState();
-
-      if (prevLetter.mastered) {
-        return prev;
+    if (allMastered) {
+      for (const l of LETTERS) {
+        nextCompleted.add(l);
       }
 
-      return {
-        ...prev,
-        [letter]: nextLetter,
-      };
-    });
+      setCompletedLetters(nextCompleted);
+    }
 
     reportProgress(
-      { ...letterProgress, [letter]: nextLetter },
-      nextCompleted
+      finalProgress,
+      nextCompleted,
+      nextGlobalStage
     );
 
-    // Perfect-stage bonus: completing any tracing stage with zero mistakes
-    // (no repair practice added) earns 4 coins. stagePassed covers both
-    // advancing a stage and mastering the final stage.
+    // Perfect-stage bonus: completing a size level with zero mistakes (no
+    // repair practice added) earns 4 coins.
     if (
       stagePassed &&
       (current.repairReps || 0) === 0
@@ -932,26 +989,11 @@ export default function LetterTracingMode({
       awardCoins(4);
     }
 
-    if (masteredThisTurn) {
-      const nextCompleted =
-        new Set(completedLetters);
-
-      nextCompleted.add(letter);
-
-      setCompletedLetters(
-        nextCompleted
-      );
-
-      persistLevels({
-        ...letterLevels,
-        [letter]:
-          TRACING_STAGES.length,
-      });
-
+    if (allMastered) {
       setCelebrate({
         type: 'mastered',
         letter,
-        message: 'Letter mastered!',
+        message: 'All letters mastered!',
       });
 
       confetti({
@@ -960,11 +1002,8 @@ export default function LetterTracingMode({
         origin: { y: 0.6 },
       });
 
-      // A "letter set" is the uppercase + lowercase pair for one letter
-      // (e.g. {a, A} = set "a"). Each time a set becomes fully mastered,
-      // the student earns a character-wheel roll — so practicing two
-      // letters a day still gives a reward after each one instead of only
-      // at the very end of the whole section.
+      // A "letter set" is the uppercase + lowercase pair (e.g. {a, A}).
+      // Each time a set becomes fully mastered the student earns a wheel roll.
       const setKey = letter.toLowerCase();
       const setTargets = LETTERS.filter(
         l => l.toLowerCase() === setKey
@@ -982,25 +1021,11 @@ export default function LetterTracingMode({
       ) {
         setSpinAwardedRef.current.add(setKey);
 
-        setCelebrate({
-          type: 'mastered',
-          letter,
-          message: 'Letter set complete!',
-        });
-
-        confetti({
-          particleCount: 100,
-          spread: 75,
-          origin: { y: 0.6 },
-        });
-
         setFreeSpinReady(true);
 
         setTimeout(() => {
           setCelebrate(null);
           setShowWheel(true);
-          // Return to the letter grid so the student picks the next set
-          // after the wheel closes.
           setCurrentLetter(null);
           setLastAccuracy(null);
         }, 1500);
@@ -1008,55 +1033,18 @@ export default function LetterTracingMode({
         return;
       }
 
-      // Move to the next unfinished target.
-      const currentIndex =
-        LETTERS.indexOf(letter);
-
-      let nextLetter = null;
-
-      for (
-        let offset = 1;
-        offset <= LETTERS.length;
-        offset++
-      ) {
-        const candidate =
-          LETTERS[
-            (currentIndex + offset) %
-              LETTERS.length
-          ];
-
-        if (
-          !nextCompleted.has(candidate)
-        ) {
-          nextLetter = candidate;
-          break;
-        }
-      }
-
       setTimeout(() => {
         setCelebrate(null);
-
-        if (nextLetter) {
-          setCurrentLetter(nextLetter);
-          setLastAccuracy(null);
-          setTraceKey(k => k + 1);
-        } else {
-          setCurrentLetter(null);
-        }
+        setCurrentLetter(null);
+        setLastAccuracy(null);
       }, 1500);
 
       return;
     }
 
-    if (advancedStage) {
+    if (advancedGlobal) {
       const nextStage =
-        TRACING_STAGES[nextStageIndex];
-
-      persistLevels({
-        ...letterLevels,
-        [letter]:
-          nextStage?.sizeLevel || 0,
-      });
+        TRACING_STAGES[nextGlobalStage];
 
       setCelebrate({
         type: 'stage',
@@ -1067,11 +1055,37 @@ export default function LetterTracingMode({
             : `${nextStage.label} — no dots`,
       });
 
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        origin: { y: 0.6 },
+      });
+
       setTimeout(() => {
         setCelebrate(null);
         setLastAccuracy(null);
-        setTraceKey(k => k + 1);
-      }, 900);
+        // Return to the grid so the student sees all letters reset at the
+        // new smaller size.
+        setCurrentLetter(null);
+      }, 1200);
+
+      return;
+    }
+
+    if (stagePassed) {
+      // Letter done at this size, but other letters still need work. Go back
+      // to the grid so the student picks the next unfinished letter.
+      setCelebrate({
+        type: 'stage',
+        letter,
+        message: `${letter} done at ${stage.label}!`,
+      });
+
+      setTimeout(() => {
+        setCelebrate(null);
+        setLastAccuracy(null);
+        setCurrentLetter(null);
+      }, 1000);
 
       return;
     }
@@ -1208,12 +1222,17 @@ export default function LetterTracingMode({
             const p =
               progressFor(letter);
 
-            const stage =
-              getStage(p);
+            const stage = globalStage;
 
+            // Fully mastered = completed every size level (green, redo smaller).
             const done =
               completedLetters.has(letter) ||
               p.mastered;
+
+            // Done at the current size but waiting for the rest of the
+            // letters to finish before the size advances (blue checkmark).
+            const doneAtSize =
+              !done && p.stageDone;
 
             const started =
               hasStarted(letter);
@@ -1236,6 +1255,16 @@ export default function LetterTracingMode({
                     return;
                   }
 
+                  if (doneAtSize) {
+                    // Done at this size but waiting for the rest — free
+                    // practice at the current size, no progress changes.
+                    setRedoMode(true);
+                    setCurrentLetter(letter);
+                    setLastAccuracy(null);
+                    setTraceKey(k => k + 1);
+                    return;
+                  }
+
                   setRedoMode(false);
                   setCurrentLetter(letter);
                   setLastAccuracy(null);
@@ -1244,9 +1273,11 @@ export default function LetterTracingMode({
                 className={`h-16 rounded-xl font-bold shadow-sm transition-transform active:scale-95 flex flex-col items-center justify-center border ${
                   done
                     ? 'bg-green-500 border-green-600 text-white'
-                    : started
-                      ? 'bg-yellow-100 border-yellow-400 text-yellow-900 hover:bg-yellow-200'
-                      : 'bg-white text-indigo-700 border-indigo-100 hover:bg-indigo-50'
+                    : doneAtSize
+                      ? 'bg-sky-100 border-sky-300 text-sky-900 hover:bg-sky-200'
+                      : started
+                        ? 'bg-yellow-100 border-yellow-400 text-yellow-900 hover:bg-yellow-200'
+                        : 'bg-white text-indigo-700 border-indigo-100 hover:bg-indigo-50'
                 }`}
               >
                 <span className="text-xl">
@@ -1256,6 +1287,10 @@ export default function LetterTracingMode({
                 {done ? (
                   <span className="text-[9px] font-black">
                     ✓ REDO
+                  </span>
+                ) : doneAtSize ? (
+                  <span className="text-[9px] font-black">
+                    ✓ Done
                   </span>
                 ) : started ? (
                   <span className="text-[9px] font-black">
@@ -1365,21 +1400,32 @@ export default function LetterTracingMode({
   const currentProgress =
     progressFor(currentLetter);
 
+  const letterMastered =
+    completedLetters.has(currentLetter) ||
+    currentProgress.mastered;
+
+  // Redo applies to both fully-mastered letters (practice smaller) and
+  // letters done at the current size (free practice at the current size
+  // while waiting for the rest to finish).
   const redoing =
     redoMode &&
-    (completedLetters.has(currentLetter) ||
-      currentProgress.mastered);
+    (letterMastered || currentProgress.stageDone);
 
   const currentStage = redoing
-    ? {
-        key: 'redo',
-        label: 'Redo — Small',
-        shortLabel: 'Redo',
-        sizeLevel: 3,
-        repetitions: 1,
-        showGuide: false,
-      }
-    : getStage(currentProgress);
+    ? letterMastered
+      ? {
+          key: 'redo',
+          label: 'Redo — Small',
+          shortLabel: 'Redo',
+          sizeLevel: 3,
+          repetitions: 1,
+          showGuide: false,
+        }
+      : {
+          ...globalStage,
+          label: `${globalStage.label} — Practice`,
+        }
+    : globalStage;
 
   const currentRequired = redoing
     ? 1
@@ -1402,6 +1448,11 @@ export default function LetterTracingMode({
     SIZE_LEVELS[
       currentStage.sizeLevel
     ]?.label || currentStage.label;
+
+  // Visual canvas scale per size level so Huge/Big/Medium render visibly
+  // different. Mastered-redo shrinks further (sizeLevel 3).
+  const sizeScale =
+    SIZE_SCALES[currentStage.sizeLevel] ?? 1;
 
   return (
     <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
@@ -1492,19 +1543,20 @@ export default function LetterTracingMode({
 
       <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex items-center justify-center">
         <LetterTracingCanvas
-          key={`${traceKey}-${currentLetter}-${currentProgress.stageIndex}-${activeCopy}-${practiceCopies}-${redoing}`}
+          key={`${traceKey}-${currentLetter}-${globalStageIndex}-${activeCopy}-${practiceCopies}-${redoing}`}
           letter={currentLetter}
           lang={lang}
           strokes={letterData.strokes}
           renderWidth={renderWidthFor(
             currentLetter,
-            redoing ? 3 : undefined
+            redoing && letterMastered ? 3 : undefined
           )}
           practiceCopies={practiceCopies}
           activeCopy={activeCopy}
           showGuide={currentStage.showGuide}
           silent={silent}
           fillHeight
+          sizeScale={sizeScale}
           onMistake={() =>
             handleMistake(currentLetter)
           }
