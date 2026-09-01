@@ -543,11 +543,13 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
   let effectiveWidth;
   let renderH;
   if (fillHeight && fitSize) {
-    let w = fitSize.width;
-    let h = w / _aspect;
-    if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
-    effectiveWidth = Math.max(200, w);
-    renderH = effectiveWidth / _aspect;
+    // Fit the SVG to the container's HEIGHT so the word canvas is tall enough
+    // to trace but never vertically clipped. The width is proportional
+    // (renderH * aspect) and overflows horizontally — the scroll container
+    // pans to the current letter. This keeps each letter large instead of
+    // shrinking the whole word to fit the width.
+    renderH = fitSize.height;
+    effectiveWidth = renderH * _aspect;
   } else {
     const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
     const _maxByHeight = Math.max(200, (_vh - 30) * _aspect);
@@ -556,7 +558,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
   }
 
   return (
-    <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
+    <div className={fillHeight ? "flex flex-col h-full w-max select-none" : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt */}
       <div className="h-8 shrink-0 flex items-center justify-center">
         {awaitingLift && (
@@ -582,7 +584,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         )}
       </div>
 
-      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "flex items-center justify-start"}>
+      <div ref={fitRef} className={fillHeight ? "flex-1 min-h-0 flex items-center justify-start" : "flex items-center justify-start"}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}

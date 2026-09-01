@@ -82,20 +82,24 @@ export default function WordTracingMode({
     const lay = letterLayout[scrollLetterIndex];
     if (!lay) return;
     const containerW = scrollRef.current.clientWidth;
-    const letterLeft = lay.offset;
-    const letterWidth = lay.width || 360;
+    // The SVG now renders at a height that fits the container, so its rendered
+    // width is NOT the viewBox totalW — scale letter positions from viewBox
+    // coords to rendered px before scrolling, or the scroll targets the wrong
+    // x-position and clips the letter being traced.
+    const svg = scrollRef.current.querySelector('svg');
+    const renderedW = svg ? svg.getBoundingClientRect().width : totalW;
+    const scale = renderedW / totalW;
+    const letterLeft = lay.offset * scale;
+    const letterWidth = (lay.width || 360) * scale;
     const letterCenter = letterLeft + letterWidth / 2;
     // Try to center the letter in the container.
     let target = letterCenter - containerW / 2;
     // Never push the letter's left edge off-screen — keep at least 20px of
-    // left margin so the student can always reach the first waypoint. Without
-    // this, centering a wide letter in a narrow container (tablet) clips the
-    // left side, and since the SVG uses touch-action:none for tracing the
-    // student can't scroll back to reveal it — making the letter untracable.
+    // left margin so the student can always reach the first waypoint.
     target = Math.min(target, letterLeft - 20);
     // Clamp to valid scroll range.
     target = Math.max(0, target);
-    const maxScroll = Math.max(0, totalW - containerW);
+    const maxScroll = Math.max(0, renderedW - containerW);
     target = Math.min(target, maxScroll);
     scrollRef.current.scrollTo({ left: target, behavior: 'smooth' });
   }, [scrollLetterIndex, letterLayout, totalW]);
@@ -238,9 +242,9 @@ export default function WordTracingMode({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-4 px-4 gap-3">
+    <div className="h-full bg-slate-50 flex flex-col items-center py-4 px-4 gap-3">
       {/* Word + repetition indicator */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2 shrink-0">
         <div className="flex items-end gap-0.5">
           {currentWord.split('').map((ch, i) => (
             <span key={i} className={`text-3xl font-bold ${waypoints[ch] ? 'text-slate-700' : 'text-slate-300'}`}>
@@ -263,13 +267,14 @@ export default function WordTracingMode({
       {/* Word tracing canvas — 3 repetitions with spaces on one connected canvas.
           Rendered at full width inside a horizontally scrollable container so each
           letter is large; auto-scrolls to the current letter. */}
-      <div ref={scrollRef} className="w-full overflow-x-auto overflow-y-hidden pb-2 -mx-2 px-2">
+      <div ref={scrollRef} className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden pb-2 -mx-2 px-2">
         <WordTracingCanvas
           key={traceKey}
           word={currentWord}
           waypoints={waypoints}
           lang={lang}
           renderWidth={totalW}
+          fillHeight
           onComplete={handleWordComplete}
           onProgress={handleProgress}
         />
