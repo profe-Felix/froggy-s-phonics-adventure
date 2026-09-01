@@ -28,6 +28,7 @@ export default function LetterTracingCanvas({
   practiceCopies = 1,
   activeCopy = 0,
   silent = false,
+  fillHeight = false,
 }) {
   const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
@@ -44,16 +45,35 @@ export default function LetterTracingCanvas({
   // copies we do NOT shrink them — the row scrolls horizontally instead, so
   // completed copies move out of the way and the student keeps practicing at
   // the same big size.
-  const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
-  const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const _maxByHeight = Math.max(200, (_vh - 30) * (CANVAS_W / CANVAS_H));
-  const effectiveCopyWidth =
-    copyCount <= 1
-      ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)
-      : Math.min(renderWidth, _maxByHeight);
+  // Measured container size for fillHeight mode (declared here, before the
+  // dimension calc below, to avoid a temporal-dead-zone reference).
+  const fitRef = useRef(null);
+  const [fitSize, setFitSize] = useState(null);
+
+  // When fillHeight is set (e.g. the Letter Sounds feedback popup) the SVG
+  // fills its measured container so the writing area stays as big as possible,
+  // instead of using a fixed renderWidth that leaves the canvas small.
+  const _aspect = CANVAS_W / CANVAS_H;
+  let effectiveCopyWidth;
+  let renderH;
+  if (fillHeight && fitSize && copyCount <= 1) {
+    let w = fitSize.width;
+    let h = w / _aspect;
+    if (h > fitSize.height) { h = fitSize.height; w = h * _aspect; }
+    effectiveCopyWidth = Math.max(200, w);
+    renderH = effectiveCopyWidth / _aspect;
+  } else {
+    const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const _maxByHeight = Math.max(200, (_vh - 30) * _aspect);
+    effectiveCopyWidth =
+      copyCount <= 1
+        ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)
+        : Math.min(renderWidth, _maxByHeight);
+    renderH = effectiveCopyWidth * (CANVAS_H / CANVAS_W);
+  }
   const totalRenderW =
     effectiveCopyWidth * copyCount + COPY_GAP * (copyCount - 1);
-  const renderH = effectiveCopyWidth * (CANVAS_H / CANVAS_W);
 
   const scaleForCopy = useCallback(
     (pt, copyIndex = safeActiveCopy) => {
@@ -93,6 +113,8 @@ export default function LetterTracingCanvas({
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
   const [replaying, setReplaying] = useState(false);
   const [replayPts, setReplayPts] = useState([]);
+  const [replayDash, setReplayDash] = useState(null);
+  const [replayProgress, setReplayProgress] = useState(0);
   const replayRafRef = useRef(null);
   const fonemaAudioRef = useRef(null);
   const fonemaIntervalRef = useRef(null);
@@ -226,6 +248,21 @@ export default function LetterTracingCanvas({
     if (letter && !silent) preloadSilenceStart(fonemaUrl(letter, lang));
   }, [letter, lang, silent]);
 
+  // Measure the SVG's container so fillHeight mode can size it responsively.
+  useEffect(() => {
+    if (!fillHeight) return;
+    const el = fitRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setFitSize({ width: r.width, height: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fillHeight]);
+
   // Reset when letter changes
   useEffect(() => {
     stopFonema();
@@ -246,6 +283,8 @@ export default function LetterTracingCanvas({
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
+    setReplayDash(null);
+    setReplayProgress(0);
     setAccuracy(null);
     setCoverageStats(null);
     strokeAccuraciesRef.current = [];
@@ -755,27 +794,52 @@ export default function LetterTracingCanvas({
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
+    setReplayDash(null);
+    setReplayProgress(0);
   };
 
   const startReplay = () => {
     if (drawing || status === 'success') return;
     const wp = strokes[strokeIndex];
     if (!wp || wp.length < 2) return;
-    const refPath = buildDensePath(wp, scaleActive);
+    // Render the demo as a single smooth spline through the SPARSE waypoints
+    // (same path as the guide strokes) and reveal it with stroke-dashoffset.
+    // The old approach sliced the densely-sampled path and ran splinePathD on
+    // hundreds of 3px-spaced points, which produced a visible jagged wiggle.
+    const fullD = splinePathD(wp.map(scaleActive));
+    if (!fullD) return;
+    let len = 0;
+    const svg = svgRef.current;
+    if (svg) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const m = document.createElementNS(ns, 'path');
+      m.setAttribute('d', fullD);
+      m.style.visibility = 'hidden';
+      svg.appendChild(m);
+      try { len = m.getTotalLength() || 0; } catch {}
+      svg.removeChild(m);
+    }
+    if (len <= 0) return;
     if (replayRafRef.current) cancelAnimationFrame(replayRafRef.current);
     setReplaying(true);
     setReplayPts([]);
-    const duration = 700 + refPath.length * 5; // ms — longer paths take a touch longer
+    setReplayDash({ d: fullD, len });
+    setReplayProgress(0);
+    const duration = 700 + len * 2.2; // ms — longer paths take a touch longer
     const startTs = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - startTs) / duration);
-      const count = Math.max(1, Math.ceil(t * refPath.length));
-      setReplayPts(refPath.slice(0, count));
+      setReplayProgress(t);
       if (t < 1) {
         replayRafRef.current = requestAnimationFrame(tick);
       } else {
         replayRafRef.current = null;
-        setReplaying(false);
+        // Leave the full stroke visible briefly, then clear.
+        setTimeout(() => {
+          setReplaying(false);
+          setReplayDash(null);
+          setReplayProgress(0);
+        }, 350);
       }
     };
     replayRafRef.current = requestAnimationFrame(tick);
@@ -884,7 +948,7 @@ export default function LetterTracingCanvas({
   }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   return (
-    <div className="flex flex-col items-center gap-3 select-none">
+    <div className={fillHeight ? "flex flex-col h-full w-full select-none" : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt */}
       <div className="h-8 flex items-center justify-center">
         {awaitingLift && (
@@ -929,9 +993,9 @@ export default function LetterTracingCanvas({
       </div>
 
       <div
-        ref={containerRef}
-        className="w-full max-w-3xl overflow-x-auto overflow-y-hidden"
-        style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
+        ref={fillHeight ? fitRef : containerRef}
+        className={fillHeight ? "flex-1 min-h-0 flex items-center justify-center w-full" : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
+        style={fillHeight ? undefined : { scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
       >
       <svg
         ref={svgRef}
@@ -1068,13 +1132,24 @@ export default function LetterTracingCanvas({
           </g>
         )}
 
-        {/* Replay hint — animated demo of the current stroke's ideal path */}
-        {replayPts.length > 1 && (
+        {/* Replay hint — animated demo of the current stroke's ideal path.
+            A single smooth spline (through the sparse waypoints, same as the
+            guide strokes) revealed via stroke-dashoffset, so the demo is
+            perfectly smooth with no jagged wiggle from dense-point sampling. */}
+        {replaying && replayDash && (
           <>
-            <path d={splinePathD(replayPts)} fill="none" stroke="#f59e0b" strokeWidth="10"
-              strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-            <circle cx={replayPts[replayPts.length - 1].x}
-              cy={replayPts[replayPts.length - 1].y} r="7" fill="#f59e0b" />
+            <path d={replayDash.d} fill="none" stroke="#f59e0b" strokeWidth="10"
+              strokeLinecap="round" strokeLinejoin="round" opacity="0.9"
+              strokeDasharray={replayDash.len}
+              strokeDashoffset={replayDash.len * (1 - replayProgress)} />
+            {(() => {
+              const idx = Math.min(
+                densePath.length - 1,
+                Math.floor(replayProgress * densePath.length)
+              );
+              const p = densePath[idx];
+              return p ? <circle cx={p.x} cy={p.y} r="7" fill="#f59e0b" /> : null;
+            })()}
           </>
         )}
 
@@ -1121,7 +1196,7 @@ export default function LetterTracingCanvas({
         </div>
       )}
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         {!isSuccess && showGuide && (
           <button
             onClick={startReplay}

@@ -287,7 +287,7 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
           shape and sound, then continues to the next round. */}
       {traceLetter && waypoints[traceLetter]?.strokes?.length && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-5 max-w-2xl w-full flex flex-col items-center gap-3 max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-4 sm:p-5 w-full max-w-3xl h-[92vh] flex flex-col items-center gap-2">
             <div className="text-center shrink-0">
               <div className="text-lg font-bold text-slate-800">
                 Let's practice! ✏️
@@ -300,28 +300,20 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
               </div>
             </div>
 
-            <LetterTracingCanvas
-              key={traceLetter}
-              letter={traceLetter}
-              strokes={waypoints[traceLetter].strokes}
-              showGuide={true}
-              lang={language}
-              renderWidth={520}
-              onComplete={() => {
-                setTraceLetter(null);
-                setTimeout(generateRound, 400);
-              }}
-            />
-
-            <button
-              onClick={() => {
-                setTraceLetter(null);
-                setTimeout(generateRound, 200);
-              }}
-              className="text-slate-400 hover:text-slate-700 text-sm underline shrink-0"
-            >
-              Skip
-            </button>
+            <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+              <LetterTracingCanvas
+                key={traceLetter}
+                letter={traceLetter}
+                strokes={waypoints[traceLetter].strokes}
+                showGuide={true}
+                lang={language}
+                fillHeight
+                onComplete={() => {
+                  setTraceLetter(null);
+                  setTimeout(generateRound, 400);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
