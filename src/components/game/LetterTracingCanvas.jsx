@@ -47,7 +47,12 @@ export default function LetterTracingCanvas({
   // the same big size.
   // Measured container size for fillHeight mode (declared here, before the
   // dimension calc below, to avoid a temporal-dead-zone reference).
-  const fitRef = useRef(null);
+  // A single ref for the SVG wrapper — used both to measure the available
+  // area (fillHeight sizing) AND to drive the auto-scroll to the active copy.
+  // Previously fitRef (measure) and containerRef (scroll) were separate, and
+  // in fillHeight mode only fitRef was attached — so the auto-scroll effect
+  // had a null container and never panned to the next copy.
+  const wrapRef = useRef(null);
   const [fitSize, setFitSize] = useState(null);
 
   // When fillHeight is set (e.g. the Letter Sounds feedback popup) the SVG
@@ -117,7 +122,6 @@ export default function LetterTracingCanvas({
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
-  const containerRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
   const [coverageStats, setCoverageStats] = useState(null); // debug: covered/total/progress for the thick-pen visualization
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
@@ -261,7 +265,7 @@ export default function LetterTracingCanvas({
   // Measure the SVG's container so fillHeight mode can size it responsively.
   useEffect(() => {
     if (!fillHeight) return;
-    const el = fitRef.current;
+    const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const measure = () => {
       const r = el.getBoundingClientRect();
@@ -322,7 +326,7 @@ export default function LetterTracingCanvas({
   // copies — completed copies scroll out to the left so the student stays on a
   // full-size copy.
   useEffect(() => {
-    const c = containerRef.current;
+    const c = wrapRef.current;
     const svg = svgRef.current;
     if (!c || !svg || copyCount <= 1) return;
     const pitch = (svg.clientWidth + COPY_GAP) / copyCount;
@@ -482,27 +486,12 @@ export default function LetterTracingCanvas({
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
-    // Once the end of the ideal path is reached, just track the finger until
-    // lift — don't penalise the natural loop-back/overshoot at a stroke's end.
+    // Once the end of the ideal path is reached, the stroke is complete.
+    // Nothing should happen until pen lift — do NOT append the finger's
+    // continued movement to the drawn path (that trailing ink was the
+    // "unwanted stroke" after the end), and do NOT reject on overshoot. The
+    // pen just waits for lift, then the completed path commits as-is.
     if (pendingCompleteRef.current) {
-      // After reaching the end, only a small natural overshoot is allowed.
-      // Track total travel distance after completion — circling back to close
-      // an 'e' into an 'o', or going too far down past the baseline on a
-      // non-descending letter like 'l', exceeds the budget and restarts.
-      // Dot strokes (the tittle on i/j) are exempt: a tap, short stroke, or
-      // little circle are all valid ways to make the dot, so any movement
-      // that started on the dot is accepted and commits on lift.
-      const prevP = currentPathRef.current[currentPathRef.current.length - 1];
-      if (prevP && !isDot) {
-        postCompleteTravelRef.current += dist(pos, prevP);
-        if (postCompleteTravelRef.current > 70) {
-          flashError();
-          restartStroke();
-          return;
-        }
-      }
-      currentPathRef.current = [...currentPathRef.current, pos];
-      setCurrentPath(currentPathRef.current);
       return;
     }
     const prev = currentPathRef.current[currentPathRef.current.length - 1];
@@ -958,7 +947,7 @@ export default function LetterTracingCanvas({
   }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   return (
-    <div className={fillHeight ? `flex flex-col h-full ${copyCount > 1 ? 'w-max' : 'w-full'} select-none` : "flex flex-col items-center gap-3 select-none"}>
+    <div className={fillHeight ? `flex flex-col h-full w-full select-none` : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt — only reserves space when there's a message to show,
           so the canvas sits higher when idle (no wasted "Start at the dot" row). */}
       <div className="min-h-0 flex items-center justify-center">
@@ -1001,9 +990,11 @@ export default function LetterTracingCanvas({
       </div>
 
       <div
-        ref={fillHeight ? fitRef : containerRef}
-        className={fillHeight ? `flex-1 min-h-0 flex items-center ${copyCount > 1 ? 'justify-start' : 'justify-center'} w-full` : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
-        style={fillHeight ? undefined : { scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
+        ref={wrapRef}
+        className={fillHeight
+          ? `flex-1 min-h-0 flex items-center ${copyCount > 1 ? 'justify-start overflow-x-auto overflow-y-hidden' : 'justify-center'} w-full`
+          : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
+        style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
       >
       <svg
         ref={svgRef}

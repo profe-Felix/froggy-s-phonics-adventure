@@ -181,6 +181,32 @@ export default function LetterTracingMode({
   const loadedStageStateRef = useRef(false);
 
   // ---------------------------------------------------------------------------
+  // BLOCK PINCH-TO-ZOOM ON iOS
+  //
+  // The viewport meta sets user-scalable=no, but iOS Safari ignores that for
+  // accessibility and still allows a two-finger pinch to zoom the page. While
+  // the student is in Letter Tracing we cancel the gesture events (and any
+  // multi-touch move) at the document level so an accidental two-finger
+  // touch on the canvas can't zoom or pan the screen mid-stroke.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault();
+    const blockMultiTouch = (e) => {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+    };
+    document.addEventListener('gesturestart', prevent);
+    document.addEventListener('gesturechange', prevent);
+    document.addEventListener('gestureend', prevent);
+    document.addEventListener('touchmove', blockMultiTouch, { passive: false });
+    return () => {
+      document.removeEventListener('gesturestart', prevent);
+      document.removeEventListener('gesturechange', prevent);
+      document.removeEventListener('gestureend', prevent);
+      document.removeEventListener('touchmove', blockMultiTouch);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // LOAD WAYPOINTS
   // ---------------------------------------------------------------------------
   useEffect(() => {
