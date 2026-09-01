@@ -47,25 +47,10 @@ export default function LetterGame() {
   const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
   const [directStudentId] = useState(urlStudentId);
   const [studentData, setStudentData] = useState(null);
-  // Resume the last activity after a refresh so students don't land back on the
-  // main menu (e.g. a refresh while reading a book returns to that book+page).
-  // Resume the last activity after a refresh so students don't land back on the
-  // main menu. EXCEPT book_reading — that has its own restore mechanism (the
-  // br:last: key in BookReading.jsx) and should never auto-resume on login,
-  // otherwise students who exit a QR book scan and come back get sent straight
-  // to the book reader instead of the main menu / level path.
-  const [currentMode, setCurrentMode] = useState(() => {
-    try {
-      const m = localStorage.getItem('lg:lastMode');
-      return m && m !== 'book_reading' ? m : null;
-    } catch { return null; }
-  });
-  useEffect(() => {
-    try {
-      if (currentMode && currentMode !== 'book_reading') localStorage.setItem('lg:lastMode', currentMode);
-      else localStorage.removeItem('lg:lastMode');
-    } catch { /* private mode / quota — ignore */ }
-  }, [currentMode]);
+  // Always start on the path homescreen (GameHome) when a student logs in.
+  // Previously this restored the last mode from localStorage, which sent
+  // students straight back into a game instead of the level path.
+  const [currentMode, setCurrentMode] = useState(null);
   const [activeLessonStep, setActiveLessonStep] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
