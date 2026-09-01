@@ -219,6 +219,14 @@ export default function LetterTracingMode({
     if (Object.keys(restored).length) {
       setLetterProgress(restored);
       setCompletedLetters(restoredCompleted);
+
+      // If every restored letter is fully mastered, the cohort has finished
+      // all sizes — place the global size at the final level so the progress
+      // bar reads 100% and redo uses the small size.
+      const allMastered = Object.values(restored).every(p => p.fullyMastered);
+      if (allMastered) {
+        setGlobalSizeIndex(SIZES.length - 1);
+      }
     }
 
     if (typeof savedGlobal === 'number' && savedGlobal > 0) {
