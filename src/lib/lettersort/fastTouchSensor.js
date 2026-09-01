@@ -19,7 +19,6 @@ import { useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 
 const IDLE = { type: 'IDLE' };
 const TIME_FOR_LONG_PRESS = 50;
-const FORCE_PRESS_THRESHOLD = 0.15;
 const MOVE_TOLERANCE = 10; // px — small movements during PENDING are tolerated
 
 function bindEvents(el, bindings, sharedOptions) {
@@ -101,30 +100,6 @@ function getHandleBindings({ cancel, completed, getPhase, startDragging }) {
         }
         event.preventDefault();
         cancel();
-      },
-    },
-    {
-      eventName: 'touchforcechange',
-      fn: (event) => {
-        const phase = getPhase();
-        const touch = event.touches[0];
-        if (!touch) return;
-        const isForcePress = touch.force >= FORCE_PRESS_THRESHOLD;
-        if (!isForcePress) return;
-        const shouldRespect = phase.actions.shouldRespectForcePress();
-        if (phase.type === 'PENDING') {
-          if (shouldRespect) cancel();
-          return;
-        }
-        if (shouldRespect) {
-          if (phase.hasMoved) {
-            event.preventDefault();
-            return;
-          }
-          cancel();
-          return;
-        }
-        event.preventDefault();
       },
     },
     {

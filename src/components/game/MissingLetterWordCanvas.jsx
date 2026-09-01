@@ -197,11 +197,22 @@ export default function MissingLetterWordCanvas({
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    const scaleX = totalW / rect.width;
-    const scaleY = CANVAS_H / rect.height;
+    // The SVG has a 4px border. getBoundingClientRect returns the BORDER box,
+    // but the viewBox maps to the CONTENT box (inside the border). Using
+    // rect.width put the pen off the ink — and the error scaled with the
+    // viewBox size, so it was worse for longer words (wider SVG → larger
+    // absolute offset). clientLeft/clientTop give the border width;
+    // clientWidth/clientHeight give the content size, so the pen maps
+    // exactly where the ink renders.
+    const borderX = svg.clientLeft || 0;
+    const borderY = svg.clientTop || 0;
+    const contentW = svg.clientWidth || (rect.width - borderX * 2);
+    const contentH = svg.clientHeight || (rect.height - borderY * 2);
+    const scaleX = totalW / contentW;
+    const scaleY = CANVAS_H / contentH;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (e.clientX - rect.left - borderX) * scaleX,
+      y: (e.clientY - rect.top - borderY) * scaleY,
     };
   };
 
@@ -561,6 +572,7 @@ export default function MissingLetterWordCanvas({
         }`}
         style={{
           display: 'block',
+          margin: '0 auto',
           width: `${effectiveWidth}px`,
           height: `${renderH}px`,
           cursor: 'crosshair',
@@ -593,7 +605,7 @@ export default function MissingLetterWordCanvas({
               }
               return (
                 <path key={`pre-${li}-${si}`} d={splinePathD(scaled)} fill="none" stroke="#22c55e"
-                  strokeWidth="16" strokeLinecap="round" strokeLinejoin="miter" opacity="0.75" pointerEvents="none" />
+                  strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" pointerEvents="none" />
               );
             });
           }
