@@ -36,6 +36,7 @@ import LetterRecognition from './pages/LetterRecognition';
 import LiveLesson from './pages/LiveLesson';
 import LiveTracing from './pages/LiveTracing';
 import LiveTracingStudent from './pages/LiveTracingStudent';
+import TracingSizePreview from './pages/TracingSizePreview';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -120,6 +121,7 @@ const AuthenticatedApp = () => {
       <Route path="/LiveLesson" element={<LiveLesson />} />
       <Route path="/LiveTracing" element={<LiveTracing />} />
       <Route path="/LiveTracingStudent" element={<LiveTracingStudent />} />
+      <Route path="/TracingSizePreview" element={<TracingSizePreview />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
