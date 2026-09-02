@@ -50,9 +50,9 @@ const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;
 const PAGE_SIZE = 10;
 
-// New students start at Big (index 1) instead of Huge (index 0) — Huge is
-// too large for beginners who are already used to writing smaller.
-const STARTING_SIZE_INDEX = 1;
+// New students start at Medium (index 2) instead of Huge (index 0) — gets
+// them writing at a smaller, more practical size right from the start.
+const STARTING_SIZE_INDEX = 2;
 
 function makeLetterState() {
   return {
