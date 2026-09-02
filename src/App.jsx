@@ -127,6 +127,7 @@ const AuthenticatedApp = () => {
       <Route path="/TracingSizePreview" element={<TracingSizePreview />} />
       <Route path="/DictationDashboard" element={<DictationDashboard />} />
       <Route path="/DictationStudent" element={<DictationStudent />} />
+      <Route path="/TracingReview" element={<TracingReview />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
