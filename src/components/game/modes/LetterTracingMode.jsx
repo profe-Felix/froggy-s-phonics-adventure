@@ -203,6 +203,11 @@ export default function LetterTracingMode({
   // Restore saved state (with migration from the old per-letter stage model).
   useEffect(() => {
     if (loadedStateRef.current) return;
+    // Don't lock the loaded flag until the real student record is present.
+    // If this component mounts before studentData is fetched, returning here
+    // (without setting the flag) lets the effect re-run once the data arrives,
+    // so the saved size is restored instead of silently reverting to Huge.
+    if (!studentData?.id) return;
     const saved = studentData?.mode_progress?.letter_tracing?.stage_state;
     const savedGlobal = studentData?.mode_progress?.letter_tracing?.global_size_index
       ?? studentData?.mode_progress?.letter_tracing?.global_stage_index;
