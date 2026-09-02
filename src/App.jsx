@@ -37,6 +37,8 @@ import LiveLesson from './pages/LiveLesson';
 import LiveTracing from './pages/LiveTracing';
 import LiveTracingStudent from './pages/LiveTracingStudent';
 import TracingSizePreview from './pages/TracingSizePreview';
+import DictationDashboard from './pages/DictationDashboard';
+import DictationStudent from './pages/DictationStudent';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -122,6 +124,8 @@ const AuthenticatedApp = () => {
       <Route path="/LiveTracing" element={<LiveTracing />} />
       <Route path="/LiveTracingStudent" element={<LiveTracingStudent />} />
       <Route path="/TracingSizePreview" element={<TracingSizePreview />} />
+      <Route path="/DictationDashboard" element={<DictationDashboard />} />
+      <Route path="/DictationStudent" element={<DictationStudent />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

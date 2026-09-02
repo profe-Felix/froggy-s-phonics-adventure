@@ -1,0 +1,83 @@
+{
+  "name": "DictationAssignment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Assignment name shown to teacher and students"
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this assignment is for. Empty = all classes."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "closed"
+      ],
+      "default": "draft",
+      "description": "Only 'active' assignments show up for students."
+    },
+    "prompt_text": {
+      "type": "string",
+      "default": "",
+      "description": "Optional text shown to students as a reminder of what to write (e.g. 'e, a, o'). The teacher dictates verbally; this is just a visual prompt."
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

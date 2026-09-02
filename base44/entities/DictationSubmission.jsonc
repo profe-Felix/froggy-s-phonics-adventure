@@ -1,0 +1,57 @@
+{
+  "name": "DictationSubmission",
+  "type": "object",
+  "properties": {
+    "assignment_id": {
+      "type": "string",
+      "description": "ID of the DictationAssignment this submission belongs to"
+    },
+    "student_number": {
+      "type": "integer",
+      "description": "Student number (1-30)"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class the student belongs to"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
+    },
+    "strokes_data": {
+      "type": "string",
+      "default": "{}",
+      "description": "JSON object: { strokes, history, canvasWidth, canvasHeight, normalized }. Strokes are normalized 0-1 so they render at any size."
+    },
+    "stroke_count": {
+      "type": "integer",
+      "default": 0,
+      "description": "Number of visible strokes (for quick display without parsing JSON)."
+    }
+  },
+  "required": [
+    "assignment_id",
+    "student_number",
+    "class_name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
