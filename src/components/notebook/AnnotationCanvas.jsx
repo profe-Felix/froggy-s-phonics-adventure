@@ -1,4 +1,5 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef, useState } from 'react';
+import { smoothPoints } from '@/components/tracing/strokeMath';
 const MAX_UNDO_ACTIONS = 50;
 // Pen/eraser sizes are authored for a ~1200px-wide notebook page. We scale the
 // effective line width by the current canvas width / this reference, so the same
@@ -37,21 +38,27 @@ function drawStroke(ctx, s, w, h) {
     ctx.globalAlpha = 1;
   }
 
-  const pts = s.pts.map(p => ({ x: p.x * w, y: p.y * h }));
+  // Multi-pass moving-average smoothing (same as letter tracing) then
+  // Catmull-Rom → cubic bezier curves for perfectly smooth ink.
+  const rawPts = s.pts.map(p => ({ x: p.x * w, y: p.y * h }));
+  const pts = rawPts.length >= 3 ? smoothPoints(rawPts, 3) : rawPts;
   ctx.beginPath();
   if (pts.length <= 2) {
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   } else {
-    // Smooth using quadratic curves through midpoints — eliminates the
-    // jagged stair-step effect of straight lineTo segments.
     ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length - 1; i++) {
-      const midX = (pts[i].x + pts[i + 1].x) / 2;
-      const midY = (pts[i].y + pts[i + 1].y) / 2;
-      ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+      const c1x = p1.x + (p2.x - p0.x) / 6;
+      const c1y = p1.y + (p2.y - p0.y) / 6;
+      const c2x = p2.x - (p3.x - p1.x) / 6;
+      const c2y = p2.y - (p3.y - p1.y) / 6;
+      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, p2.x, p2.y);
     }
-    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
   }
   ctx.stroke();
   ctx.restore();
