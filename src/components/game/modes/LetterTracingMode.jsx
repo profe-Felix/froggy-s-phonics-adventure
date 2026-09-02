@@ -58,7 +58,7 @@ const STARTING_SIZE_INDEX = 2;
 function makeLetterState() {
   return {
     sizeLevel: STARTING_SIZE_INDEX,  // 0=Huge, 1=Big, 2=Medium, 3=Small, 4=Tiny, 5=Paper
-    phase: 'guided',    // 'guided' | 'practice' | 'more'
+    phase: 'guided',    // 'guided' | 'practice'
     phaseSuccesses: 0,
     cleanStreak: 0,
     repairReps: 0,
@@ -67,8 +67,9 @@ function makeLetterState() {
     totalAttempts: 0,
     doneAtSize: false,  // completed all phases at the current size
     fullyMastered: false,
+    pendingReview: false,  // finished all sizes — waiting for teacher to review + approve
     isNew: false,
-    sizesCompleted: 0,  // how many sizes finished (drives per-set-per-size spins)
+    sizesCompleted: 0,  // how many sizes finished
   };
 }
 
@@ -388,6 +389,9 @@ export default function LetterTracingMode({
       stage_state: nextProgress,
       global_stage_index: sizeIdx,
       global_size_index: sizeIdx,
+      // Preserve teacher-awarded set spins so student-side progress
+      // reports don't wipe the tracking that prevents double-awarding.
+      set_spins_awarded: studentData?.mode_progress?.letter_tracing?.set_spins_awarded || [],
     });
   };
 
@@ -568,7 +572,10 @@ export default function LetterTracingMode({
           // New letter: advance independently through sizes until it catches up.
           const nextSize = doneLetter.sizeLevel + 1;
           if (nextSize > SIZES.length - 1) {
-            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, fullyMastered: true, sizesCompleted: SIZES.length } };
+            // All sizes done — don't auto-master. Mark pending review so
+            // the teacher can check the dot-only playback before granting
+            // mastery (and the set-completion roll that comes with it).
+            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, pendingReview: true, sizesCompleted: SIZES.length } };
           } else if (nextSize >= globalSizeIndex) {
             // Caught up to the cohort — join it at the new size.
             finalProgress = { ...finalProgress, [letter]: { ...doneLetter, sizeLevel: nextSize, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false, isNew: false } };
@@ -595,12 +602,14 @@ export default function LetterTracingMode({
                 else finalProgress[l] = { ...lp, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false, sizesCompleted: Math.max(lp.sizesCompleted || 0, globalSizeIndex + 1) };
               }
             } else {
-              // Final size done for the cohort — mark non-new as fullyMastered.
+              // Final size done for the cohort — don't auto-master. Mark
+              // pending review so the teacher checks the dot-only playback
+              // before granting mastery + the set-completion roll.
               finalProgress = {};
               for (const l of LETTERS) {
                 const lp = nextProgress[l] || makeLetterState();
                 if (lp.isNew) finalProgress[l] = lp;
-                else finalProgress[l] = { ...lp, fullyMastered: true, sizesCompleted: SIZES.length };
+                else finalProgress[l] = { ...lp, pendingReview: true, sizesCompleted: SIZES.length };
               }
             }
           } else {
@@ -633,47 +642,23 @@ export default function LetterTracingMode({
     // rewards clean handwriting.
     if (phasePassed && nextClean >= REQUIRED_CLEAN_STREAK) awardCoins(3);
 
-    // ── Per-set-per-size spin ──
-    // When both letters in a set (e.g. 'a' + 'A') finish the same size,
-    // the student earns a wheel roll. One roll per set per size.
-    if (freeSpinEnabled && phasePassed && current.phase === 'practice') {
-      const lower = letter.toLowerCase();
-      const setLetters = LETTERS.filter(l => l.toLowerCase() === lower);
-      if (setLetters.length >= 2) {
-        for (let si = 0; si < SIZES.length; si++) {
-          const spinKey = `${lower}:${si}`;
-          if (setSizeSpinAwardedRef.current.has(spinKey)) continue;
-          const allDone = setLetters.every(l => {
-            const p = finalProgress[l] || makeLetterState();
-            return (p.sizesCompleted || 0) > si || p.fullyMastered;
-          });
-          if (allDone) {
-            setSizeSpinAwardedRef.current.add(spinKey);
-            spinEarnedRef.current = true;
-            setCelebrate({ type: 'mastered', letter, message: `${SIZES[si].label} ${lower.toUpperCase()}${lower} complete!` });
-            confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-            setTimeout(() => { setCelebrate(null); setShowWheel(true); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
-            return;
-          }
-        }
-      }
-    }
-
     // Celebrate.
+    // Mastery is no longer granted on completion — the student's letter
+    // goes to "pending review" and the teacher checks the dot-only
+    // playback before approving. Rolls are banked by the teacher's
+    // Approve action when the set is complete, not here.
     if (allMastered) {
       setCelebrate({ type: 'mastered', letter, message: 'All letters mastered!' });
       confetti({ particleCount: 100, spread: 75, origin: { y: 0.6 } });
-      const setKey = letter.toLowerCase();
-      const setTargets = LETTERS.filter(l => l.toLowerCase() === setKey);
-      const setComplete = setTargets.length > 0 && setTargets.every(l => nextCompleted.has(l) || l === letter);
-      if (setComplete && freeSpinEnabled && !setSpinAwardedRef.current.has(setKey)) {
-        setSpinAwardedRef.current.add(setKey);
-        spinEarnedRef.current = true;
-        setFreeSpinReady(true);
-        setTimeout(() => { setCelebrate(null); setShowWheel(true); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
-        return;
-      }
       setTimeout(() => { setCelebrate(null); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
+      return;
+    }
+
+    // Current letter just finished all sizes → waiting for teacher review.
+    if (finalProgress[letter]?.pendingReview) {
+      setCelebrate({ type: 'mastered', letter, message: 'Done! Waiting for teacher review.' });
+      confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+      setTimeout(() => { setCelebrate(null); setCurrentLetter(null); setLastAccuracy(null); }, 2000);
       return;
     }
 
@@ -795,7 +780,8 @@ export default function LetterTracingMode({
           {paged.map(letter => {
             const p = progressFor(letter);
             const done = completedLetters.has(letter) || p.fullyMastered;
-            const doneAtSize = !done && p.doneAtSize;
+            const pending = p.pendingReview;
+            const doneAtSize = !done && !pending && p.doneAtSize;
             const started = hasStarted(letter);
             const phase = currentPhaseInfo(letter);
             const required = getRequired(letter);
@@ -811,7 +797,7 @@ export default function LetterTracingMode({
                     setTraceKey(k => k + 1);
                     return;
                   }
-                  if (done || doneAtSize) {
+                  if (done || doneAtSize || pending) {
                     setRedoMode(true);
                     setRedoSuccesses(0);
                     setCurrentLetter(letter);
@@ -827,16 +813,20 @@ export default function LetterTracingMode({
                 className={`h-16 w-full rounded-xl font-bold shadow-sm transition-transform active:scale-95 flex flex-col items-center justify-center border ${
                   done
                     ? 'bg-green-500 border-green-600 text-white'
-                    : doneAtSize
-                      ? 'bg-sky-100 border-sky-300 text-sky-900 hover:bg-sky-200'
-                      : started
-                        ? 'bg-yellow-100 border-yellow-400 text-yellow-900 hover:bg-yellow-200'
-                        : 'bg-white text-indigo-700 border-indigo-100 hover:bg-indigo-50'
+                    : pending
+                      ? 'bg-violet-100 border-violet-400 text-violet-900 hover:bg-violet-200'
+                      : doneAtSize
+                        ? 'bg-sky-100 border-sky-300 text-sky-900 hover:bg-sky-200'
+                        : started
+                          ? 'bg-yellow-100 border-yellow-400 text-yellow-900 hover:bg-yellow-200'
+                          : 'bg-white text-indigo-700 border-indigo-100 hover:bg-indigo-50'
                 }`}
               >
                 <span className="text-xl">{letter}</span>
                 {done ? (
                   <span className="text-[9px] font-black">✓ REDO</span>
+                ) : pending ? (
+                  <span className="text-[9px] font-black">⏳ REVIEW</span>
                 ) : doneAtSize ? (
                   <span className="text-[9px] font-black">✓ Done</span>
                 ) : started ? (

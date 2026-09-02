@@ -110,10 +110,94 @@ export default function TracingReview() {
     const state = student.mode_progress?.letter_tracing?.stage_state?.[letter];
     if (!state) return { status: 'not_started', label: '—', color: 'bg-slate-100 text-slate-400' };
     if (state.fullyMastered) return { status: 'mastered', label: '✓ Mastered', color: 'bg-green-100 text-green-700 border-green-300' };
+    if (state.pendingReview) return { status: 'pending', label: '⏳ Pending Review', color: 'bg-violet-100 text-violet-700 border-violet-300' };
     if (state.doneAtSize) return { status: 'done_size', label: '✓ Done', color: 'bg-sky-100 text-sky-700 border-sky-300' };
     if (state.phase === 'guided') return { status: 'guided', label: 'Guided', color: 'bg-amber-100 text-amber-700 border-amber-300' };
     if (state.phase === 'practice') return { status: 'practice', label: 'Practice', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' };
     return { status: 'started', label: 'Started', color: 'bg-indigo-100 text-indigo-700 border-indigo-300' };
+  };
+
+  // Teacher approves a pending-review letter → grants mastery. If the
+  // approval completes the letter set (e.g. both 'a' and 'A' mastered),
+  // banks a wheel roll so the student can claim it from the home screen.
+  const handleApprove = async (student) => {
+    const stageState = { ...(student.mode_progress?.letter_tracing?.stage_state || {}) };
+    const letterState = stageState[selectedLetter];
+    if (!letterState?.pendingReview) return;
+
+    stageState[selectedLetter] = {
+      ...letterState,
+      pendingReview: false,
+      fullyMastered: true,
+    };
+
+    let masteredItems = (student.mode_progress?.letter_tracing?.mastered_items || []).filter(l => l !== selectedLetter);
+    masteredItems.push(selectedLetter);
+
+    // Check if this approval completes the letter set (lower + upper).
+    const lower = selectedLetter.toLowerCase();
+    const setLetters = enabledLetters.filter(l => l.toLowerCase() === lower);
+    let setComplete = false;
+    if (setLetters.length >= 2) {
+      setComplete = setLetters.every(l =>
+        l === selectedLetter || stageState[l]?.fullyMastered
+      );
+    }
+
+    const setSpinsAwarded = (student.mode_progress?.letter_tracing?.set_spins_awarded || []).filter(s => s !== lower);
+
+    const updates = {
+      mode_progress: {
+        ...student.mode_progress,
+        letter_tracing: {
+          ...student.mode_progress?.letter_tracing,
+          stage_state: stageState,
+          mastered_items: masteredItems,
+          set_spins_awarded: setComplete ? [...setSpinsAwarded, lower] : setSpinsAwarded,
+        },
+      },
+    };
+
+    // Bank a spin only when the set is newly complete.
+    if (setComplete && !setSpinsAwarded.includes(lower)) {
+      updates.banked_spins = (student.banked_spins || 0) + 1;
+    }
+
+    await base44.entities.Student.update(student.id, updates);
+    queryClient.invalidateQueries({ queryKey: ['students', selectedClass] });
+  };
+
+  // Teacher rejects a pending-review letter → resets to practice phase
+  // at the current size so the student tries again.
+  const handleReject = async (student) => {
+    const stageState = { ...(student.mode_progress?.letter_tracing?.stage_state || {}) };
+    const letterState = stageState[selectedLetter];
+    if (!letterState) return;
+
+    stageState[selectedLetter] = {
+      ...letterState,
+      pendingReview: false,
+      fullyMastered: false,
+      doneAtSize: false,
+      phase: 'practice',
+      phaseSuccesses: 0,
+      cleanStreak: 0,
+      repairReps: 0,
+    };
+
+    const masteredItems = (student.mode_progress?.letter_tracing?.mastered_items || []).filter(l => l !== selectedLetter);
+
+    await base44.entities.Student.update(student.id, {
+      mode_progress: {
+        ...student.mode_progress,
+        letter_tracing: {
+          ...student.mode_progress?.letter_tracing,
+          stage_state: stageState,
+          mastered_items: masteredItems,
+        },
+      },
+    });
+    queryClient.invalidateQueries({ queryKey: ['students', selectedClass] });
   };
 
   return (
@@ -217,9 +301,13 @@ export default function TracingReview() {
                   <button
                     onClick={() => setReplayStudent(s.student_number)}
                     disabled={dotOnlyCount === 0}
-                    className="text-indigo-600 hover:text-indigo-800 disabled:opacity-30 text-xs font-bold flex items-center gap-1"
+                    className={`text-xs font-bold flex items-center gap-1 disabled:opacity-30 ${
+                      info.status === 'pending'
+                        ? 'bg-violet-500 hover:bg-violet-600 text-white px-2 py-1 rounded-lg'
+                        : 'text-indigo-600 hover:text-indigo-800'
+                    }`}
                   >
-                    <Eye className="w-3.5 h-3.5" /> {dotOnlyCount > 0 ? 'View' : 'None'}
+                    <Eye className="w-3.5 h-3.5" /> {info.status === 'pending' ? 'Review' : dotOnlyCount > 0 ? 'View' : 'None'}
                   </button>
                 </div>
                 <div className="col-span-2">
@@ -242,6 +330,20 @@ export default function TracingReview() {
           studentNumber={replayStudent}
           className={selectedClass}
           letter={selectedLetter}
+          pendingReview={(() => {
+            const s = students.find(x => x.student_number === replayStudent);
+            return !!s?.mode_progress?.letter_tracing?.stage_state?.[selectedLetter]?.pendingReview;
+          })()}
+          onApprove={() => {
+            const s = students.find(x => x.student_number === replayStudent);
+            if (s) handleApprove(s);
+            setReplayStudent(null);
+          }}
+          onReject={() => {
+            const s = students.find(x => x.student_number === replayStudent);
+            if (s) handleReject(s);
+            setReplayStudent(null);
+          }}
           onClose={() => setReplayStudent(null)}
         />
       )}
