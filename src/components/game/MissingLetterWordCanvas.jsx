@@ -197,17 +197,16 @@ export default function MissingLetterWordCanvas({
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-    // The SVG has a 4px border. getBoundingClientRect returns the BORDER box,
-    // but the viewBox maps to the CONTENT box (inside the border). Using
-    // rect.width put the pen off the ink — and the error scaled with the
-    // viewBox size, so it was worse for longer words (wider SVG → larger
-    // absolute offset). clientLeft/clientTop give the border width;
-    // clientWidth/clientHeight give the content size, so the pen maps
-    // exactly where the ink renders.
-    const borderX = svg.clientLeft || 0;
-    const borderY = svg.clientTop || 0;
-    const contentW = svg.clientWidth || (rect.width - borderX * 2);
-    const contentH = svg.clientHeight || (rect.height - borderY * 2);
+    // getComputedStyle gives the actual border width on ALL browsers.
+    // clientLeft/clientTop return 0 on SVG elements in some browsers (Firefox,
+    // some Promethean board browsers), which made the pen ink appear offset
+    // from the stylus. getBoundingClientRect gives the border-box; subtracting
+    // the computed border yields the content box that the viewBox maps to.
+    const cs = window.getComputedStyle(svg);
+    const borderX = parseFloat(cs.borderLeftWidth) || 0;
+    const borderY = parseFloat(cs.borderTopWidth) || 0;
+    const contentW = rect.width - borderX * 2;
+    const contentH = rect.height - borderY * 2;
     const scaleX = totalW / contentW;
     const scaleY = CANVAS_H / contentH;
     return {

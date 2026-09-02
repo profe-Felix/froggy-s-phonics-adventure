@@ -94,8 +94,13 @@ export default function LetterTracingCanvas({
         : Math.min(renderWidth, _maxByHeight);
     renderH = effectiveCopyWidth * (CANVAS_H / CANVAS_W);
   }
+  // Scale COPY_GAP from viewBox units to CSS pixels so the rendered SVG's
+  // aspect ratio matches the viewBox exactly. Without this, the gap is the
+  // same px count in both spaces, preserveAspectRatio letterboxes multi-copy
+  // layouts, and the coordinate mapping drifts offset from the stylus.
+  const renderGap = COPY_GAP * (effectiveCopyWidth / CANVAS_W);
   const totalRenderW =
-    effectiveCopyWidth * copyCount + COPY_GAP * (copyCount - 1);
+    effectiveCopyWidth * copyCount + renderGap * (copyCount - 1);
 
   const scaleForCopy = useCallback(
     (pt, copyIndex = safeActiveCopy) => {
@@ -130,7 +135,6 @@ export default function LetterTracingCanvas({
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
-  const [debugDownPos, setDebugDownPos] = useState(null); // visual marker at last touch position for diagnosing coordinate issues
   const [coverageStats, setCoverageStats] = useState(null); // debug: covered/total/progress for the thick-pen visualization
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
   const [replaying, setReplaying] = useState(false);
@@ -369,21 +373,20 @@ export default function LetterTracingCanvas({
   const getPos = (e) => {
     const svg = svgRef.current;
     const rect = svg.getBoundingClientRect();
-
-    // The SVG has a 4px border. getBoundingClientRect returns the BORDER box, but
-    // the viewBox maps to the CONTENT box (inside the border). Mapping with
-    // rect.width/rect.left put the pen ~2-3px off the ink — small, but
-    // cumulative with the remount shrink it made tracing feel misaligned.
-    // clientLeft/clientTop give the border width; clientWidth/clientHeight give
-    // the content size, so the pen maps exactly where the ink renders.
-    const borderX = svg.clientLeft || 0;
-    const borderY = svg.clientTop || 0;
-    const contentW = svg.clientWidth || (rect.width - borderX * 2);
-    const contentH = svg.clientHeight || (rect.height - borderY * 2);
-
+    // getComputedStyle gives the actual border width on ALL browsers.
+    // clientLeft/clientTop return 0 on SVG elements in some browsers (Firefox,
+    // some Promethean board browsers), which made the pen ink appear offset
+    // from the stylus — "ink off to the right" — because the border wasn't
+    // subtracted and the content size was wrong. getBoundingClientRect gives
+    // the border-box; subtracting the computed border yields the content box
+    // that the viewBox maps to.
+    const cs = window.getComputedStyle(svg);
+    const borderX = parseFloat(cs.borderLeftWidth) || 0;
+    const borderY = parseFloat(cs.borderTopWidth) || 0;
+    const contentW = rect.width - borderX * 2;
+    const contentH = rect.height - borderY * 2;
     const scaleX = TOTAL_W / contentW;
     const scaleY = CANVAS_H / contentH;
-
     return {
       x: (e.clientX - rect.left - borderX) * scaleX,
       y: (e.clientY - rect.top - borderY) * scaleY,
@@ -420,10 +423,6 @@ export default function LetterTracingCanvas({
     // (Wacom/Promethean) and iPad/PC/touch all draw reliably here.
     if (!fromTouch) { try { svgRef.current.setPointerCapture(e.pointerId); } catch {} }
     const pos = getPos(e);
-    // Show a visual marker at the calculated touch position so coordinate
-    // mapping issues on graphics tablets / whiteboards are visible.
-    setDebugDownPos(pos);
-    setTimeout(() => setDebugDownPos(null), 2000);
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
     // Must start near the beginning of the current stroke. Check against
@@ -1265,12 +1264,6 @@ export default function LetterTracingCanvas({
             strokeWidth="1.5" opacity="0.7" />
         )}
 
-        {/* Debug: red ring at the calculated touch position — helps diagnose
-            coordinate mapping issues on graphics tablets / whiteboards. */}
-        {debugDownPos && (
-          <circle cx={debugDownPos.x} cy={debugDownPos.y} r="12" fill="none"
-            stroke="#ef4444" strokeWidth="3" opacity="0.7" pointerEvents="none" />
-        )}
         {/* Start dot — color matches the current stroke's guide (teacher authoring palette) */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           (() => { const dc = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length]; return (
