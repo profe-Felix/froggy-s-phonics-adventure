@@ -141,6 +141,13 @@ export default function LetterTracingCanvas({
   const fonemaIntervalRef = useRef(null);
   const successTimerRef = useRef(null);
   const completedFiredRef = useRef(false);
+  // Touch fallback for interactive whiteboards (Promethean) whose drivers
+  // don't synthesize Pointer Events from touch. When a stroke is started by
+  // pointer, usingPointerRef is true and touch events skip; when started by
+  // touch, usingTouchRef is true and pointer events skip — preventing
+  // double-processing on browsers that fire both.
+  const usingPointerRef = useRef(false);
+  const usingTouchRef = useRef(false);
   // Replay the letter sound every 3s while the pen is down — often enough to
   // reinforce the phoneme, not so often it becomes annoying. Stops on lift.
   const FONEMA_INTERVAL_MS = 2000;
@@ -399,15 +406,18 @@ export default function LetterTracingCanvas({
     safeActiveCopy,
   ]);
 
-  const handlePointerDown = useCallback((e) => {
+  const handlePointerDown = useCallback((e, fromTouch = false) => {
     e.preventDefault();
+    if (!fromTouch && usingTouchRef.current) return; // touch is handling this stroke
+    if (fromTouch) usingTouchRef.current = true;
+    else usingPointerRef.current = true;
     if (e.button != null && e.button !== 0) return; // left mouse / touch / pen only
     if (status === 'success') return;
     // Pointer Events unify mouse, touch, and pen. setPointerCapture keeps events
     // flowing to the canvas even if the pen/finger/cursor leaves it mid-stroke —
     // the same model the authoring canvas uses, so graphics-tablet pens
     // (Wacom/Promethean) and iPad/PC/touch all draw reliably here.
-    try { svgRef.current.setPointerCapture(e.pointerId); } catch {}
+    if (!fromTouch) { try { svgRef.current.setPointerCapture(e.pointerId); } catch {} }
     const pos = getPos(e);
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
@@ -510,9 +520,10 @@ export default function LetterTracingCanvas({
     }
   };
 
-  const handlePointerMove = useCallback((e) => {
+  const handlePointerMove = useCallback((e, fromTouch = false) => {
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
+    if (!fromTouch && usingTouchRef.current) return; // touch is handling this stroke
     const pos = getPos(e);
     const prev = currentPathRef.current[currentPathRef.current.length - 1];
     const currentStrokes = strokes[strokeIndex];
@@ -791,9 +802,11 @@ export default function LetterTracingCanvas({
     longUpRetrace,
   ]);
 
-  const handlePointerUp = useCallback((e) => {
+  const handlePointerUp = useCallback((e, fromTouch = false) => {
     e.preventDefault();
-    try { svgRef.current.releasePointerCapture(e.pointerId); } catch {}
+    if (!fromTouch) { try { svgRef.current.releasePointerCapture(e.pointerId); } catch {} }
+    usingPointerRef.current = false;
+    usingTouchRef.current = false;
     if (!drawing) return;
     setDrawing(false);
     stopFonema();
@@ -826,6 +839,30 @@ export default function LetterTracingCanvas({
     flashError,
     stopFonema,
   ]);
+
+  // Touch fallback for interactive whiteboards (Promethean) whose drivers
+  // don't synthesize Pointer Events from touch. Routes the first touch
+  // through the same pointer handlers so tracing works on any display.
+  const handleTouchStart = useCallback((e) => {
+    if (usingPointerRef.current) return; // pointer events are handling this
+    e.preventDefault();
+    const t = e.touches[0];
+    if (!t) return;
+    handlePointerDown({ preventDefault() {}, button: 0, pointerId: 0, clientX: t.clientX, clientY: t.clientY }, true);
+  }, [handlePointerDown]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (usingPointerRef.current) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    if (!t) return;
+    handlePointerMove({ preventDefault() {}, clientX: t.clientX, clientY: t.clientY }, true);
+  }, [handlePointerMove]);
+
+  const handleTouchEnd = useCallback((e) => {
+    e.preventDefault();
+    handlePointerUp({ preventDefault() {}, pointerId: 0 }, true);
+  }, [handlePointerUp]);
 
   const stopReplay = () => {
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
@@ -1062,6 +1099,10 @@ export default function LetterTracingCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         {/* Guide letter removed until suitable font is found */}
 
