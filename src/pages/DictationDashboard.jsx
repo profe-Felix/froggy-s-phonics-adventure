@@ -13,7 +13,7 @@ export default function DictationDashboard({ onBack }) {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
-  const [shareAll, setShareAll] = useState(true);
+  const [sharedClasses, setSharedClasses] = useState([]);
   const [replaySubmission, setReplaySubmission] = useState(null);
 
   const { data: classConfigs = [] } = useQuery({
@@ -185,31 +185,49 @@ export default function DictationDashboard({ onBack }) {
               placeholder="Optional prompt text (e.g. 'e, a, o') — shown to students"
               className="px-3 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm"
             />
-            <label className="flex items-center gap-2 text-sm text-slate-600 font-bold">
-              <input
-                type="checkbox"
-                checked={shareAll}
-                onChange={(e) => setShareAll(e.target.checked)}
-                className="w-4 h-4 accent-indigo-600"
-              />
-              Share with all {selectedGrade === 'first' ? '1st Grade' : 'Kinder'} classes
-              <span className="text-xs text-slate-400 font-normal">
-                ({classesByGrade(selectedGrade).join(', ')})
-              </span>
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-slate-600 font-bold">Also share with:</p>
+              <div className="flex flex-wrap gap-2">
+                {classesByGrade(selectedGrade)
+                  .filter((c) => c !== className)
+                  .map((c) => {
+                    const checked = sharedClasses.includes(c);
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() =>
+                          setSharedClasses((prev) =>
+                            prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                          )
+                        }
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition ${
+                          checked
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {checked ? '✓ ' : ''}{c}
+                      </button>
+                    );
+                  })}
+              </div>
+              <p className="text-xs text-slate-400">
+                Uncheck classes that don't do this content (e.g. Schwarz for Spanish).
+              </p>
+            </div>
             <button
               onClick={() => {
                 if (!newTitle.trim()) return alert('Please enter a title');
                 createAssignment.mutate({
                   title: newTitle.trim(),
                   class_name: className,
-                  shared_classes: shareAll
-                    ? classesByGrade(selectedGrade).filter((c) => c !== className)
-                    : [],
+                  shared_classes: sharedClasses,
                   school_year: ACTIVE_SCHOOL_YEAR,
                   status: 'draft',
                   prompt_text: newPrompt.trim(),
                 });
+                setSharedClasses([]);
               }}
               className="py-2 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 text-sm"
             >
