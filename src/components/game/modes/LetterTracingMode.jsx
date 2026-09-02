@@ -8,6 +8,7 @@ import PrizeWheel from '../PrizeWheel';
 import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
+import FreehandReplayModal from '@/components/tracing/FreehandReplayModal';
 
 const DEFAULT_ENABLED_LETTERS = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
 
@@ -98,6 +99,7 @@ export default function LetterTracingMode({
   const [freeSpinReady, setFreeSpinReady] = useState(false);
   const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
   const [traceKey, setTraceKey] = useState(0);
+  const [replayLetter, setReplayLetter] = useState(null);
 
   const awardCoins = useCoinAward(studentData, onStudentPatch);
   const spinEarnedRef = useRef(false);
@@ -113,9 +115,9 @@ export default function LetterTracingMode({
   // through guided → practice → more at each size. Everyone else gets 5.
   const isTestStudent = studentData?.student_number === 30;
   const PHASES = useMemo(() => [
-    { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 5, showGuide: true },
-    { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 5, showGuide: false },
-    { key: 'more', label: 'More', reps: isTestStudent ? 1 : 5, showGuide: false },
+    { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 6, showGuide: true },
+    { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 6, showGuide: false },
+    { key: 'more', label: 'More', reps: isTestStudent ? 1 : 6, showGuide: true },
   ], [isTestStudent]);
 
   // Size override for visual testing (e.g. checking sizes on iPad as student
@@ -475,8 +477,13 @@ export default function LetterTracingMode({
 
     attemptCountRef.current += 1;
 
+    // Freehand reps (dot-only / freehand) have no accuracy gate — any
+    // attempt is accepted. Only trace reps can be "rough" (amber < 80%).
+    const comp = progressFor(letter);
+    const wasFreehand = comp.phase !== 'guided' && (comp.phaseSuccesses % 2 === 1);
+
     // Rough trace (< 80%): repair practice, don't advance.
-    if (acc != null && acc < 80) {
+    if (!wasFreehand && acc != null && acc < 80) {
       setStreak(0);
       setLetterProgress(prev => {
         const current = prev[letter] || makeLetterState();
@@ -679,7 +686,8 @@ export default function LetterTracingMode({
     }
 
     if (phaseAdvanced) {
-      setCelebrate({ type: 'stage', letter, message: 'Practice — no dots!' });
+      const msg = current.phase === 'guided' ? 'Practice — trace & dot!' : 'More — trace & freehand!';
+      setCelebrate({ type: 'stage', letter, message: msg });
       setTimeout(() => { setCelebrate(null); setLastAccuracy(null); setTraceKey(k => k + 1); }, 1000);
       return;
     }
@@ -780,8 +788,8 @@ export default function LetterTracingMode({
             const required = getRequired(letter);
             const sizeLabel = SIZES[effectiveSize(letter)]?.label || 'Huge';
             return (
+              <div key={letter} className="relative">
               <button
-                key={letter}
                 onClick={() => {
                   if (forcedSize != null) {
                     setRedoMode(false);
@@ -802,7 +810,7 @@ export default function LetterTracingMode({
                   setLastAccuracy(null);
                   setTraceKey(k => k + 1);
                 }}
-                className={`h-16 rounded-xl font-bold shadow-sm transition-transform active:scale-95 flex flex-col items-center justify-center border ${
+                className={`h-16 w-full rounded-xl font-bold shadow-sm transition-transform active:scale-95 flex flex-col items-center justify-center border ${
                   done
                     ? 'bg-green-500 border-green-600 text-white'
                     : doneAtSize
@@ -825,6 +833,12 @@ export default function LetterTracingMode({
                   <span className="text-[9px] font-bold opacity-60">NOT STARTED</span>
                 )}
               </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setReplayLetter(letter); }}
+                className="absolute top-0.5 right-0.5 text-[9px] text-slate-400 hover:text-indigo-600 bg-white/80 rounded-full w-4 h-4 flex items-center justify-center leading-none z-10"
+                title="Replay freehand"
+              >▶</button>
+              </div>
             );
           })}
         </div>
@@ -849,6 +863,15 @@ export default function LetterTracingMode({
             onClose={handleCloseWheel}
             freeSpin={true}
             source="tracing"
+          />
+        )}
+
+        {replayLetter && (
+          <FreehandReplayModal
+            studentNumber={studentData?.student_number}
+            className={studentData?.class_name}
+            letter={replayLetter}
+            onClose={() => setReplayLetter(null)}
           />
         )}
       </div>
@@ -886,12 +909,43 @@ export default function LetterTracingMode({
       ? { key: 'redo', label: letterMastered ? 'Redo — Small' : 'Practice', reps: 1, showGuide: false }
       : currentPhaseInfo(currentLetter);
 
+  // Sub-mode within alternating phases: 'practice' alternates trace → dot-only,
+  // 'more' alternates trace → freehand. Even phaseSuccesses = trace, odd = scaffold.
+  const subMode = (redoing || forcedSize != null)
+    ? 'trace'
+    : (currentProgress.phase === 'practice' && currentProgress.phaseSuccesses % 2 === 1)
+      ? 'dot_only'
+      : (currentProgress.phase === 'more' && currentProgress.phaseSuccesses % 2 === 1)
+        ? 'freehand'
+        : 'trace';
+  const isFreehand = subMode === 'dot_only' || subMode === 'freehand';
+  const isDotOnly = subMode === 'dot_only';
+  const isAlternatingPhase = !redoing && forcedSize == null && (currentProgress.phase === 'practice' || currentProgress.phase === 'more');
+
   const currentRequired = (redoing || forcedSize != null) ? 1 : getRequired(currentLetter);
-  const practiceCopies = currentRequired;
-  const activeCopy = (redoing || forcedSize != null) ? 0 : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1));
+  const practiceCopies = (redoing || forcedSize != null || isAlternatingPhase) ? 1 : currentRequired;
+  const activeCopy = (redoing || forcedSize != null || isAlternatingPhase) ? 0 : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1));
   const sizeLabel = SIZE_LEVELS[currentSizeLevel]?.label || currentPhase.label;
   const sizeScale = SIZE_SCALES[currentSizeLevel] ?? 1;
-  const showGuide = forcedSize != null ? true : currentPhase.showGuide;
+  const showGuide = forcedSize != null ? true : isFreehand ? false : currentPhase.showGuide;
+
+  // Save freehand strokes (dot-only / freehand) for teacher replay.
+  const saveFreehandStrokes = (rawStrokes) => {
+    if (!studentData?.student_number || !studentData?.class_name || !currentLetter) return;
+    const normalized = rawStrokes.map(stroke =>
+      stroke.map(p => ({ x: p.x / 300, y: p.y / 375 }))
+    );
+    base44.entities.TracingSample.create({
+      student_number: studentData.student_number,
+      class_name: studentData.class_name,
+      school_year: studentData.school_year || '',
+      letter: currentLetter,
+      phase: currentProgress.phase,
+      mode: isDotOnly ? 'dot_only' : 'freehand',
+      strokes_data: JSON.stringify(normalized),
+      size_label: SIZE_LEVELS[currentSizeLevel]?.label || '',
+    }).catch(() => {});
+  };
   const stageLabel = forcedSize != null
     ? `Preview — ${SIZES[forcedSize].label}`
     : redoing
@@ -910,8 +964,8 @@ export default function LetterTracingMode({
         <div className="flex items-center gap-2">
           <div className="text-slate-800 font-black text-xl leading-none">{currentLetter}</div>
           <div className="text-[11px] text-slate-400 font-bold leading-none">{stageLabel}</div>
-          <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${showGuide ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-indigo-700 bg-indigo-50 border-indigo-100'}`}>
-            {showGuide ? '● Guided' : '✍️ Your turn'}
+          <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${isFreehand ? (isDotOnly ? 'text-violet-700 bg-violet-50 border-violet-200' : 'text-pink-700 bg-pink-50 border-pink-200') : showGuide ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-indigo-700 bg-indigo-50 border-indigo-100'}`}>
+            {isFreehand ? (isDotOnly ? '● Dot only' : '✍️ Freehand') : showGuide ? '● Guided' : '✍️ Your turn'}
           </div>
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
@@ -931,7 +985,7 @@ export default function LetterTracingMode({
         ) : (
           <>
             <div className="bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 text-[11px] font-bold text-indigo-700">
-              Trace {Math.min(currentProgress.phaseSuccesses + 1, currentRequired)}/{currentRequired}
+              {isFreehand ? 'Write' : 'Trace'} {Math.min(currentProgress.phaseSuccesses + 1, currentRequired)}/{currentRequired}
             </div>
             <div className={`rounded-full px-2 py-0.5 text-[11px] font-bold border ${currentProgress.cleanStreak >= REQUIRED_CLEAN_STREAK ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
               Streak {Math.min(currentProgress.cleanStreak, REQUIRED_CLEAN_STREAK)}/{REQUIRED_CLEAN_STREAK}
@@ -951,7 +1005,7 @@ export default function LetterTracingMode({
 
       <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex items-center justify-center">
         <LetterTracingCanvas
-          key={`${traceKey}-${currentLetter}-${currentSizeLevel}-${activeCopy}-${practiceCopies}-${redoing}-${forcedSize ?? ''}`}
+          key={`${traceKey}-${currentLetter}-${currentSizeLevel}-${activeCopy}-${practiceCopies}-${redoing}-${forcedSize ?? ''}-${subMode}`}
           letter={currentLetter}
           lang={lang}
           strokes={letterData.strokes}
@@ -959,6 +1013,9 @@ export default function LetterTracingMode({
           practiceCopies={practiceCopies}
           activeCopy={activeCopy}
           showGuide={showGuide}
+          freehandMode={isFreehand}
+          dotOnly={isDotOnly}
+          onFreehandStrokes={saveFreehandStrokes}
           silent={silent}
           fillHeight
           sizeScale={sizeScale}

@@ -30,6 +30,9 @@ export default function LetterTracingCanvas({
   silent = false,
   fillHeight = false,
   sizeScale = 1,
+  freehandMode = false,
+  dotOnly = false,
+  onFreehandStrokes,
 }) {
   const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
@@ -441,7 +444,7 @@ export default function LetterTracingCanvas({
     // the first 30% of the dense path (not just the first waypoint) with a
     // generous tolerance — more forgiving for graphics tablets and
     // interactive whiteboards where coordinate mapping may differ.
-    if (waypointIndex === 0) {
+    if (!freehandMode && waypointIndex === 0) {
       const startTol = isDot ? DOT_HIT_RADIUS : WOBBLE_RADIUS;
       const checkEnd = isDot ? 1 : Math.max(8, Math.floor(densePath.length * 0.3));
       let minD = Infinity;
@@ -490,6 +493,7 @@ export default function LetterTracingCanvas({
     playFonema,
     scaleActive,
     flashError,
+    freehandMode,
   ]);
 
   // Reset the current (in-progress) stroke without touching completed ones.
@@ -565,6 +569,13 @@ export default function LetterTracingCanvas({
         flashError();
         restartStroke();
       }
+      return;
+    }
+
+    // Freehand mode (dot-only / freehand): no path validation — just draw.
+    if (freehandMode) {
+      currentPathRef.current = [...currentPathRef.current, pos];
+      setCurrentPath(currentPathRef.current);
       return;
     }
 
@@ -823,6 +834,7 @@ export default function LetterTracingCanvas({
     flashError,
     isDot,
     longUpRetrace,
+    freehandMode,
   ]);
 
   const handlePointerUp = useCallback((e, fromTouch = false) => {
@@ -836,6 +848,19 @@ export default function LetterTracingCanvas({
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
     setReplayPts([]);
+
+    // Freehand mode: accept any stroke, add to drawnPaths, stay ready for more.
+    if (freehandMode) {
+      const completedPath = [...currentPathRef.current];
+      currentPathRef.current = [];
+      if (completedPath.length > 1) {
+        setDrawnPaths(prev => [...prev, completedPath]);
+      }
+      setCurrentPath([]);
+      setDrawing(false);
+      setStatus('idle');
+      return;
+    }
 
     // A stroke is valid only if the pen covered almost all of the ideal path
     // with no large skipped gap and actually reached both the start and the
@@ -861,6 +886,7 @@ export default function LetterTracingCanvas({
     onAccuracy,
     flashError,
     stopFonema,
+    freehandMode,
   ]);
 
   // Touch fallback for interactive whiteboards (Promethean) whose drivers
@@ -1053,6 +1079,18 @@ export default function LetterTracingCanvas({
           mid-stroke — visibly shrinking the canvas and corrupting the stroke.
           Reserving the height up front means no layout change at completion. */}
       <div className="h-8 shrink-0 flex items-center justify-center">
+        {freehandMode && drawnPaths.length > 0 && status !== 'success' && (
+          <button
+            onClick={() => {
+              onFreehandStrokes?.(drawnPaths);
+              setAccuracy(null);
+              setStatus('success');
+            }}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-5 py-1.5 rounded-full shadow-md"
+          >
+            ✓ Done
+          </button>
+        )}
         {awaitingLift && (
           <div className="bg-yellow-100 border border-yellow-400 rounded-full px-4 py-1 text-yellow-800 font-bold text-sm animate-bounce">
             ✋ Lift your finger!
@@ -1142,8 +1180,10 @@ export default function LetterTracingCanvas({
           stroke="#fca5a5" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Practice row. Earlier copies are completed, the active copy
-            uses the normal stroke colors, and upcoming copies stay faint. */}
-        {Array.from({ length: copyCount }, (_, copyIndex) =>
+            uses the normal stroke colors, and upcoming copies stay faint.
+            Hidden in freehand mode (dot-only / freehand) — the student
+            writes without seeing the guide path. */}
+        {!freehandMode && Array.from({ length: copyCount }, (_, copyIndex) =>
           strokes.map((stroke, si) => {
             const isPastCopy = copyIndex < safeActiveCopy;
             const isFutureCopy = copyIndex > safeActiveCopy;
@@ -1276,8 +1316,9 @@ export default function LetterTracingCanvas({
             strokeWidth="1.5" opacity="0.7" />
         )}
 
-        {/* Start dot — color matches the current stroke's guide (teacher authoring palette) */}
-        {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
+        {/* Start dot — color matches the current stroke's guide (teacher authoring palette).
+            In freehand mode, only shown for dotOnly (not for completely freehand). */}
+        {(!freehandMode || dotOnly) && nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           (() => { const dc = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length]; return (
           <>
             <circle cx={nextWp.x} cy={nextWp.y} r="18" fill={dc} opacity="0.15">

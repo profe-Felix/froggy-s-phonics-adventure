@@ -1,0 +1,73 @@
+{
+  "name": "TracingSample",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer",
+      "description": "Student number"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class the student belongs to"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'"
+    },
+    "letter": {
+      "type": "string",
+      "description": "Letter that was written freehand"
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "practice",
+        "more"
+      ],
+      "description": "Which phase the sample is from"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "dot_only",
+        "freehand"
+      ],
+      "description": "dot_only = student had a starting dot, freehand = completely blank"
+    },
+    "strokes_data": {
+      "type": "string",
+      "default": "[]",
+      "description": "JSON array of strokes, each stroke is an array of {x, y} points normalized 0-1"
+    },
+    "size_label": {
+      "type": "string",
+      "default": "",
+      "description": "Size level label when the sample was taken (e.g. Medium)"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name",
+    "letter"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
