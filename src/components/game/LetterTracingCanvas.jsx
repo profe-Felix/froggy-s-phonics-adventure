@@ -1069,13 +1069,13 @@ export default function LetterTracingCanvas({
             vector-effect=non-scaling-stroke keeps lines visible at every size
             tier (Huge through Paper) instead of thinning to sub-pixel. */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
-          stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" vectorEffect="non-scaling-stroke" />
+          stroke="#93c5fd" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.367 * CANVAS_H} x2={TOTAL_W} y2={0.367 * CANVAS_H}
-          stroke="#000000" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" vectorEffect="non-scaling-stroke" />
+          stroke="#000000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.633 * CANVAS_H} x2={TOTAL_W} y2={0.633 * CANVAS_H}
-          stroke="#16a34a" strokeWidth="1.5" opacity="0.7" vectorEffect="non-scaling-stroke" />
+          stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.90 * CANVAS_H} x2={TOTAL_W} y2={0.90 * CANVAS_H}
-          stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
+          stroke="#fca5a5" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Practice row. Earlier copies are completed, the active copy
             uses the normal stroke colors, and upcoming copies stay faint. */}

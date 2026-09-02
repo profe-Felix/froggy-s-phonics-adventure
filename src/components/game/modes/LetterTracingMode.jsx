@@ -50,9 +50,13 @@ const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;
 const PAGE_SIZE = 10;
 
+// New students start at Big (index 1) instead of Huge (index 0) — Huge is
+// too large for beginners who are already used to writing smaller.
+const STARTING_SIZE_INDEX = 1;
+
 function makeLetterState() {
   return {
-    sizeLevel: 0,       // 0=Huge, 1=Big, 2=Medium, 3=Small, 4=Paper
+    sizeLevel: STARTING_SIZE_INDEX,  // 0=Huge, 1=Big, 2=Medium, 3=Small, 4=Tiny, 5=Paper
     phase: 'guided',    // 'guided' | 'practice' | 'more'
     phaseSuccesses: 0,
     cleanStreak: 0,
@@ -79,7 +83,7 @@ export default function LetterTracingMode({
 
   // Cohort size — shared by all non-new letters. Advances only when every
   // non-new letter has mastered (guided + practice) at the current size.
-  const [globalSizeIndex, setGlobalSizeIndex] = useState(0);
+  const [globalSizeIndex, setGlobalSizeIndex] = useState(STARTING_SIZE_INDEX);
 
   const [enabledLetters, setEnabledLetters] = useState(DEFAULT_ENABLED_LETTERS);
   const [completedLetters, setCompletedLetters] = useState(new Set());
@@ -284,7 +288,7 @@ export default function LetterTracingMode({
       const next = { ...prev };
       for (const l of LETTERS) {
         if (!next[l]) {
-          next[l] = { ...makeLetterState(), isNew: globalSizeIndex > 0 };
+          next[l] = { ...makeLetterState(), isNew: globalSizeIndex > STARTING_SIZE_INDEX };
           changed = true;
         }
       }
