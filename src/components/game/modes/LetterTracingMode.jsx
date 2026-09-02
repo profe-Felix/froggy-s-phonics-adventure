@@ -96,6 +96,7 @@ export default function LetterTracingMode({
   const [traceKey, setTraceKey] = useState(0);
 
   const awardCoins = useCoinAward(studentData, onStudentPatch);
+  const spinEarnedRef = useRef(false);
   const setSpinAwardedRef = useRef(new Set());
   const setSizeSpinAwardedRef = useRef(new Set()); // per-set-per-size: "a:0", "a:1", ...
   const successfulTraceCountRef = useRef(0);
@@ -252,9 +253,19 @@ export default function LetterTracingMode({
     }
 
     if (typeof savedGlobal === 'number' && savedGlobal > 0) {
-      // Cap at Big (second size) — nobody could have progressed past this
-      // under the new 6-tier system yet.
-      setGlobalSizeIndex(Math.min(1, savedGlobal));
+      setGlobalSizeIndex(Math.min(SIZES.length - 1, savedGlobal));
+    } else if (Object.keys(restored).length) {
+      // Fallback: derive global size from the minimum sizesCompleted across
+      // non-new, non-mastered letters. Fixes data saved before
+      // global_size_index was added to the schema — the cohort size equals
+      // the fewest sizes any letter has completed.
+      const nonNew = Object.values(restored).filter(p => !p.isNew && !p.fullyMastered);
+      if (nonNew.length) {
+        const minCompleted = Math.min(...nonNew.map(p => p.sizesCompleted || 0));
+        if (minCompleted > 0 && minCompleted < SIZES.length) {
+          setGlobalSizeIndex(minCompleted);
+        }
+      }
     }
   }, [studentData?.id, studentData?.mode_progress]);
 
@@ -608,6 +619,7 @@ export default function LetterTracingMode({
           });
           if (allDone) {
             setSizeSpinAwardedRef.current.add(spinKey);
+            spinEarnedRef.current = true;
             setCelebrate({ type: 'mastered', letter, message: `${SIZES[si].label} ${lower.toUpperCase()}${lower} complete!` });
             confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
             setTimeout(() => { setCelebrate(null); setShowWheel(true); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
@@ -626,6 +638,7 @@ export default function LetterTracingMode({
       const setComplete = setTargets.length > 0 && setTargets.every(l => nextCompleted.has(l) || l === letter);
       if (setComplete && freeSpinEnabled && !setSpinAwardedRef.current.has(setKey)) {
         setSpinAwardedRef.current.add(setKey);
+        spinEarnedRef.current = true;
         setFreeSpinReady(true);
         setTimeout(() => { setCelebrate(null); setShowWheel(true); setCurrentLetter(null); setLastAccuracy(null); }, 1500);
         return;
@@ -678,6 +691,7 @@ export default function LetterTracingMode({
   const handleClaimPrize = (prize) => {
     setShowWheel(false);
     setFreeSpinReady(false);
+    spinEarnedRef.current = false;
     if (prize?.oneTime && !redeemedPrizes.includes(prize.id)) {
       const updated = [...redeemedPrizes, prize.id];
       setRedeemedPrizes(updated);
@@ -687,7 +701,17 @@ export default function LetterTracingMode({
     }
   };
 
-  const handleCloseWheel = () => { setShowWheel(false); setFreeSpinReady(false); };
+  const handleCloseWheel = () => {
+    setShowWheel(false);
+    setFreeSpinReady(false);
+    // The free spin was earned but not claimed — bank it so the student
+    // can claim it later from the home screen.
+    if (spinEarnedRef.current && studentData?.id) {
+      const banked = (studentData.banked_spins || 0) + 1;
+      onStudentPatch?.({ banked_spins: banked });
+    }
+    spinEarnedRef.current = false;
+  };
 
   if (!LETTERS.length) {
     return (

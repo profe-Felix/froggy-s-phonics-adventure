@@ -52,6 +52,11 @@
       "description": "Unified coin balance \u2014 earned from lessons, mastered skills, games, and reading; spent to spin the character wheel.",
       "default": 0
     },
+    "banked_spins": {
+      "type": "integer",
+      "description": "Free spins earned (e.g. from tracing) but not yet claimed. Students can claim them from the home screen wheel.",
+      "default": 0
+    },
     "unlocked_characters": {
       "type": "array",
       "items": {
@@ -316,6 +321,16 @@
             "stage_state": {
               "type": "object",
               "description": "Per-letter staged tracing progress (stageIndex, stageSuccesses, cleanStreak, repairReps, mistakes, totalSuccesses, totalAttempts, mastered). Restored on refresh so tracing progress survives."
+            },
+            "global_size_index": {
+              "type": "integer",
+              "description": "Current cohort size index (0=Huge through 5=Paper). Saved so tracing progress survives refresh.",
+              "default": 0
+            },
+            "global_stage_index": {
+              "type": "integer",
+              "description": "Alias for global_size_index (legacy compatibility).",
+              "default": 0
             }
           }
         }

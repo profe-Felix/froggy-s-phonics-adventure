@@ -52,6 +52,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   // Character collection + coin state for the dock / wheel.
   const [characters, setCharacters] = useState([]);
   const [wheelOpen, setWheelOpen] = useState(false);
+  const [wheelFreeSpin, setWheelFreeSpin] = useState(false);
   useEffect(() => { getCharacters().then(setCharacters); }, []);
   const coins = Number(studentData?.coins || 0);
   const unlockedChars = studentData?.unlocked_characters || [];
@@ -64,6 +65,13 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
 
   const handleClaimPrize = (prize) => {
     setWheelOpen(false);
+
+    // If this was a banked free spin, it's now used up.
+    if (wheelFreeSpin && studentData?.id) {
+      const banked = Math.max(0, (studentData.banked_spins || 0) - 1);
+      onStudentPatch?.({ banked_spins: banked });
+    }
+    setWheelFreeSpin(false);
 
     if (
       prize?.oneTime &&
@@ -84,6 +92,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
 
   const handleCloseWheel = () => {
     setWheelOpen(false);
+    setWheelFreeSpin(false);
   };
 
   const { data: lessons = [] } = useQuery({
@@ -303,7 +312,15 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
                 </button>
               </>
             )}
-            <CoinBadge coins={coins} onClick={() => setWheelOpen(true)} />
+            <CoinBadge coins={coins} onClick={() => { setWheelFreeSpin(false); setWheelOpen(true); }} />
+            {(studentData?.banked_spins || 0) > 0 && (
+              <button
+                onClick={() => { setWheelFreeSpin(true); setWheelOpen(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-400 text-white text-sm font-bold shadow animate-pulse"
+              >
+                🎟️ {studentData.banked_spins} free spin{studentData.banked_spins !== 1 ? 's' : ''}
+              </button>
+            )}
           </div>
         </div>
 
@@ -392,7 +409,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
                 redeemedPrizes={redeemedPrizes}
                 onClaim={handleClaimPrize}
                 onClose={handleCloseWheel}
-                freeSpin={false}
+                freeSpin={wheelFreeSpin}
                 source="level-path"
               />
             )}
