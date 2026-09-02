@@ -267,6 +267,11 @@ export default function PrizeDashboard() {
                         <span className="text-xs font-black text-rose-600">
                           🪙 {coins} coins
                         </span>
+                        {prizeHistory.length > 0 && (
+                          <span className="text-xs font-black text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 border border-amber-300">
+                            🎁 {prizeHistory.length} prize{prizeHistory.length !== 1 ? 's' : ''} won
+                          </span>
+                        )}
                         {coins >= COINS_PER_SPIN && (
                           <span className="text-xs font-black text-green-600">
                             🎡 Spin ready!
@@ -299,8 +304,8 @@ export default function PrizeDashboard() {
                                 <span key={g.key}
                                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${allGiven ? 'bg-green-50 border-green-300 text-green-700' : 'bg-pink-50 border-pink-200 text-pink-700'}`}>
                                   {g.emoji} {g.label}
-                                  {total > 1 && <span className="bg-white/70 rounded-full px-1 font-black">×{total}</span>}
-                                  {givenCount > 0 && <span className="text-green-600">✓{givenCount}</span>}
+                                  {total > 1 && <span className="bg-amber-400 text-white rounded-full px-1.5 font-black text-[11px]">×{total}</span>}
+                                  {givenCount > 0 && <span className="text-green-600 font-black">✓{givenCount}</span>}
                                   {!allGiven && (
                                     <button onClick={() => markPrizeGiven(s, g.key)}
                                       className="ml-0.5 px-1.5 rounded-full bg-green-500 text-white text-[10px] font-black hover:bg-green-600">✓ Given</button>

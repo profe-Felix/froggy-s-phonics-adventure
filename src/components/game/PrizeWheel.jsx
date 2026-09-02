@@ -516,6 +516,31 @@ export default function PrizeWheel({
     }
 
     /*
+     * Record every claim in prize_history so the teacher dashboard
+     * can show counts and track give-out status.
+     */
+    const historyEntry = {
+      id: result.id,
+      label: result.label,
+      emoji:
+        winner.type === 'character'
+          ? '🧑'
+          : winner.reward?.emoji || '🎁',
+      type: result.type,
+      claimed_at: new Date().toISOString(),
+      given: false,
+    };
+
+    const nextHistory = [
+      ...(studentData?.prize_history || []),
+      historyEntry,
+    ];
+
+    await persistPatch({
+      prize_history: nextHistory,
+    });
+
+    /*
      * Preserve old PrizeWheel onClaim behavior.
      */
     onClaim?.(result);
