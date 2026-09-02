@@ -81,9 +81,9 @@ function Shell({ subtitle, children, loading }) {
   );
 }
 
-export default function DictationLogin({ onStart }) {
+export default function DictationLogin({ onStart, initialClass }) {
   const [selectedGrade, setSelectedGrade] = useState(null);
-  const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedClass, setSelectedClass] = useState(initialClass || null);
   const [selectedNumber, setSelectedNumber] = useState(null);
   const { colorFor, groupedClasses, loading } = useClassColors();
   const groups = groupedClasses();

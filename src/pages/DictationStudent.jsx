@@ -60,5 +60,5 @@ export default function DictationStudent() {
     );
   }
 
-  return <DictationLogin onStart={setSession} />;
+  return <DictationLogin onStart={setSession} initialClass={params.get('class')} />;
 }
