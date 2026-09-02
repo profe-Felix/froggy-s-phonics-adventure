@@ -9,6 +9,7 @@ import DictationReplay from '@/components/dictation/DictationReplay';
 export default function DictationDashboard({ onBack }) {
   const qc = useQueryClient();
   const [className, setClassName] = useState(null);
+  const [selectedGrade, setSelectedGrade] = useState(null);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
@@ -19,6 +20,8 @@ export default function DictationDashboard({ onBack }) {
     queryFn: () => base44.entities.ClassConfig.list(),
   });
   const classNames = classConfigs.map((c) => c.class_name).filter(Boolean);
+  const classesByGrade = (grade) =>
+    classConfigs.filter((c) => c.class_name && (c.grade || 'kinder') === grade).map((c) => c.class_name);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['dictation-assignments', className],
@@ -71,25 +74,30 @@ export default function DictationDashboard({ onBack }) {
     submissionByNumber[s.student_number] = s;
   }
 
-  // Class picker gate
-  if (!className) {
+  // Grade picker gate
+  if (!selectedGrade) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6 bg-slate-50">
         <div className="text-center">
           <div className="text-5xl mb-3">📝</div>
           <h1 className="text-2xl font-black text-slate-800 mb-1">Dictation</h1>
-          <p className="text-slate-500 text-sm">Select your class to continue</p>
+          <p className="text-slate-500 text-sm">Choose your grade!</p>
         </div>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          {classNames.map((c) => (
-            <button
-              key={c}
-              onClick={() => setClassName(c)}
-              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl bg-indigo-600 hover:bg-indigo-700 border-2 border-indigo-400"
-            >
-              {c}
-            </button>
-          ))}
+        <div className="flex gap-4 w-full max-w-md">
+          <button
+            onClick={() => setSelectedGrade('kinder')}
+            className="flex-1 py-8 rounded-2xl text-2xl font-black text-white shadow-xl bg-indigo-600 hover:bg-indigo-700 border-2 border-indigo-400 flex flex-col items-center gap-2"
+          >
+            <span className="text-4xl">🅺</span>
+            Kinder
+          </button>
+          <button
+            onClick={() => setSelectedGrade('first')}
+            className="flex-1 py-8 rounded-2xl text-2xl font-black text-white shadow-xl bg-violet-600 hover:bg-violet-700 border-2 border-violet-400 flex flex-col items-center gap-2"
+          >
+            <span className="text-4xl">1️⃣</span>
+            1st Grade
+          </button>
         </div>
         {onBack && (
           <button onClick={onBack} className="text-slate-500 hover:text-slate-800 font-bold text-sm">
@@ -100,10 +108,46 @@ export default function DictationDashboard({ onBack }) {
     );
   }
 
+  // Class picker gate (for the selected grade)
+  if (!className) {
+    const gradeClasses = classesByGrade(selectedGrade);
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6 bg-slate-50">
+        <div className="text-center">
+          <div className="text-5xl mb-3">📝</div>
+          <h1 className="text-2xl font-black text-slate-800 mb-1">Dictation</h1>
+          <p className="text-slate-500 text-sm">
+            {selectedGrade === 'kinder' ? 'Kinder' : '1st Grade'} — choose your class!
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          {gradeClasses.map((c) => (
+            <button
+              key={c}
+              onClick={() => setClassName(c)}
+              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl bg-indigo-600 hover:bg-indigo-700 border-2 border-indigo-400"
+            >
+              {c}
+            </button>
+          ))}
+          {gradeClasses.length === 0 && (
+            <p className="text-slate-400 text-center text-sm py-4">No classes for this grade yet.</p>
+          )}
+        </div>
+        <button
+          onClick={() => setSelectedGrade(null)}
+          className="text-slate-500 hover:text-slate-800 font-bold text-sm"
+        >
+          ← Back to grades
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
-        {onBack && <BackButton tone="indigo" onClick={onBack} />}
+        <BackButton tone="indigo" onClick={() => { setClassName(null); setSelectedAssignment(null); }} />
         <h1 className="text-lg font-black text-slate-800 flex-1">📝 Dictation</h1>
         <select
           value={className}
