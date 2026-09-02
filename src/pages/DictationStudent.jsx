@@ -47,7 +47,7 @@ export default function DictationStudent() {
             {session.class_name} · #{session.studentNumber}
           </span>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 min-h-0">
           <DictationCanvas
             assignmentId={session.assignmentId}
             studentNumber={session.studentNumber}

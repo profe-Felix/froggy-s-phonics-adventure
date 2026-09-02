@@ -3,7 +3,6 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
 import { base44 } from '@/api/base44Client';
 
-const LINE_HEIGHT = 140;
 const LINE_COUNT = 6;
 const MAX_PAGE_WIDTH = 740;
 
@@ -15,22 +14,30 @@ export default function DictationCanvas({
   promptText,
 }) {
   const canvasRef = useRef(null);
-  const scrollRef = useRef(null);
+  const containerRef = useRef(null);
   const [tool, setTool] = useState('pen');
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
+  const [pageHeight, setPageHeight] = useState(600);
   const [saved, setSaved] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
   const submissionId = useRef(null);
 
-  const pageHeight = LINE_HEIGHT * LINE_COUNT;
-
-  // Fit page width to viewport on smaller screens
+  // Measure the container and fit the sheet to fill it — no scrolling.
   useEffect(() => {
-    const update = () => setPageWidth(Math.min(MAX_PAGE_WIDTH, window.innerWidth - 32));
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.min(MAX_PAGE_WIDTH, Math.max(280, r.width - 24));
+      const h = Math.max(200, r.height - 24);
+      setPageWidth(w);
+      setPageHeight(h);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Load existing submission
@@ -111,14 +118,16 @@ export default function DictationCanvas({
   );
 
   return (
-    <div className="flex flex-col items-center gap-3 py-4 px-2">
+    <div className="flex flex-col h-full">
       {promptText && (
-        <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl px-5 py-2.5 text-indigo-800 font-bold text-lg text-center">
-          ✏️ Write: {promptText}
+        <div className="shrink-0 px-4 pt-3">
+          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl px-5 py-2.5 text-indigo-800 font-bold text-lg text-center">
+            ✏️ Write: {promptText}
+          </div>
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap justify-center">
+      <div className="shrink-0 flex items-center gap-2 flex-wrap justify-center px-4 py-3">
         {toolBtn(tool === 'pen', () => setTool('pen'), '✏️', 'Pen')}
         {toolBtn(tool === 'eraser_object', () => setTool('eraser_object'), '🧹', 'Erase')}
         {toolBtn(false, () => canvasRef.current?.undo(), '↩️', 'Undo')}
@@ -136,11 +145,10 @@ export default function DictationCanvas({
       </div>
 
       <div
-        ref={scrollRef}
-        className="overflow-auto rounded-xl shadow-lg bg-white"
-        style={{ maxHeight: '70vh', width: pageWidth, height: Math.min(pageHeight, window.innerHeight * 0.7) }}
+        ref={containerRef}
+        className="flex-1 min-h-0 flex items-center justify-center overflow-hidden px-2 pb-2"
       >
-        <div className="relative" style={{ width: pageWidth, height: pageHeight }}>
+        <div className="relative rounded-xl shadow-lg bg-white" style={{ width: pageWidth, height: pageHeight }}>
           <LinedPaper width={pageWidth} height={pageHeight} lineCount={LINE_COUNT} />
           <AnnotationCanvas
             ref={canvasRef}
@@ -151,12 +159,11 @@ export default function DictationCanvas({
             tool={tool}
             mode="draw"
             onStrokeEnd={handleStrokeEnd}
-            scrollContainerRef={scrollRef}
           />
         </div>
       </div>
 
-      <div className="text-xs font-bold text-slate-400">
+      <div className="shrink-0 text-center text-xs font-bold text-slate-400 pb-2">
         {!loaded ? 'Loading…' : saved ? '✓ Saved' : 'Saving…'}
       </div>
     </div>

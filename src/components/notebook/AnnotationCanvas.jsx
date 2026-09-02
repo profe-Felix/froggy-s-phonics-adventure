@@ -37,13 +37,21 @@ function drawStroke(ctx, s, w, h) {
     ctx.globalAlpha = 1;
   }
 
+  const pts = s.pts.map(p => ({ x: p.x * w, y: p.y * h }));
   ctx.beginPath();
-  for (let i = 0; i < s.pts.length; i++) {
-    const p = s.pts[i];
-    const px = p.x * w;
-    const py = p.y * h;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  if (pts.length <= 2) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  } else {
+    // Smooth using quadratic curves through midpoints — eliminates the
+    // jagged stair-step effect of straight lineTo segments.
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const midX = (pts[i].x + pts[i + 1].x) / 2;
+      const midY = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
   }
   ctx.stroke();
   ctx.restore();

@@ -1,50 +1,34 @@
 /**
  * LinedPaper — SVG background rendering kindergarten writing lines.
- * Each line has: top (ascender), midline (dashed), baseline (solid), and
- * the next line's top acts as the descender line. Proportions match the
- * Zaner-Bloser handwriting model used by the tracing canvas:
- *   midline  = 0.367 of line height
- *   baseline = 0.633 of line height
- *   x-height = 0.266 of line height
+ * Matches the LetterTracingCanvas line style exactly:
+ *   - Light blue (#93c5fd) ascender, midline, and baseline
+ *   - Pink (#fca5a5) descender line (dashed)
+ *   - Proportions: ascender 0.10, midline 0.367, baseline 0.633, descender 0.90
+ *   - Same stroke widths, dash patterns, and opacities as the tracing canvas
  */
 export default function LinedPaper({ width, height, lineCount = 6 }) {
   const lh = height / lineCount;
-  const midlineY = lh * 0.367;
-  const baselineY = lh * 0.633;
 
   const rows = [];
   for (let i = 0; i < lineCount; i++) {
     const yTop = i * lh;
     rows.push(
       <g key={i}>
-        {/* Top line (ascender) — light */}
-        <line x1={0} y1={yTop} x2={width} y2={yTop} stroke="#cbd5e1" strokeWidth={1} />
-        {/* Midline (dashed) */}
-        <line
-          x1={0}
-          y1={yTop + midlineY}
-          x2={width}
-          y2={yTop + midlineY}
-          stroke="#60a5fa"
-          strokeWidth={1.5}
-          strokeDasharray="6 4"
-        />
-        {/* Baseline (solid, darker) */}
-        <line
-          x1={0}
-          y1={yTop + baselineY}
-          x2={width}
-          y2={yTop + baselineY}
-          stroke="#334155"
-          strokeWidth={2}
-        />
+        {/* Ascender line — solid light blue */}
+        <line x1={0} y1={yTop + lh * 0.10} x2={width} y2={yTop + lh * 0.10}
+          stroke="#93c5fd" strokeWidth={1.5} opacity={0.7} />
+        {/* Midline — dashed light blue */}
+        <line x1={0} y1={yTop + lh * 0.367} x2={width} y2={yTop + lh * 0.367}
+          stroke="#93c5fd" strokeWidth={1} strokeDasharray="8 6" opacity={0.7} />
+        {/* Baseline — solid light blue */}
+        <line x1={0} y1={yTop + lh * 0.633} x2={width} y2={yTop + lh * 0.633}
+          stroke="#93c5fd" strokeWidth={1.5} opacity={0.7} />
+        {/* Descender line — dashed pink */}
+        <line x1={0} y1={yTop + lh * 0.90} x2={width} y2={yTop + lh * 0.90}
+          stroke="#fca5a5" strokeWidth={1.5} strokeDasharray="6 6" opacity={0.85} />
       </g>
     );
   }
-  // Bottom line (final descender)
-  rows.push(
-    <line key="bottom" x1={0} y1={height} x2={width} y2={height} stroke="#cbd5e1" strokeWidth={1} />
-  );
 
   return (
     <svg
