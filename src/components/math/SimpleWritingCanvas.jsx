@@ -104,8 +104,8 @@ export default function SimpleWritingCanvas({ onDone }) {
     ctx.fillStyle = '#f8fbff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawLine(18, '#aac4e0', null, 1);
-    drawLine(50, '#aac4e0', [6, 4], 1);
-    drawLine(82, '#3b82f6', null, 1.5);
+    drawLine(50, '#000000', [6, 4], 1);
+    drawLine(82, '#16a34a', null, 1.5);
     drawLine(100, '#aac4e0', null, 1);
     // redraw strokes
     ctx.lineWidth = 6;
@@ -137,8 +137,8 @@ export default function SimpleWritingCanvas({ onDone }) {
         style={{ width: 150, height: 110, background: '#f8fbff', borderColor: done ? '#6366f1' : '#c7d2fe' }}>
         <svg className="absolute inset-0 pointer-events-none" width="150" height="110">
           <line x1="0" y1="18"  x2="150" y2="18"  stroke="#aac4e0" strokeWidth="1" />
-          <line x1="0" y1="50"  x2="150" y2="50"  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
-          <line x1="0" y1="82" x2="150" y2="82" stroke="#3b82f6" strokeWidth="1.5" />
+          <line x1="0" y1="50"  x2="150" y2="50"  stroke="#000000" strokeWidth="1" strokeDasharray="6,4" />
+          <line x1="0" y1="82" x2="150" y2="82" stroke="#16a34a" strokeWidth="1.5" />
           <line x1="0" y1="100" x2="150" y2="100" stroke="#aac4e0" strokeWidth="1" />
         </svg>
         <canvas

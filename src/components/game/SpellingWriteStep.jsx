@@ -111,8 +111,8 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
     [0,1,2].forEach(row => {
       const top = row*rowH+rowH*0.04, mid = row*rowH+rowH*0.40, base = row*rowH+rowH*0.74;
       ctx.save(); ctx.strokeStyle='#b0c4de'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,top); ctx.lineTo(w,top); ctx.stroke();
-      ctx.setLineDash([8,5]); ctx.beginPath(); ctx.moveTo(0,mid); ctx.lineTo(w,mid); ctx.stroke(); ctx.setLineDash([]);
-      ctx.strokeStyle='#3b82f6'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(0,base); ctx.lineTo(w,base); ctx.stroke(); ctx.restore();
+      ctx.strokeStyle='#000000'; ctx.setLineDash([8,5]); ctx.beginPath(); ctx.moveTo(0,mid); ctx.lineTo(w,mid); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle='#16a34a'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(0,base); ctx.lineTo(w,base); ctx.stroke(); ctx.restore();
     });
     ctx.putImageData(imageData, 0, 0);
     const penStrokes = allStrokes.current.filter(s => !s.eraser).map(s => s.points);
@@ -200,8 +200,8 @@ export default function SpellingWriteStep({ word, onDone, onPlaySound, wide = fa
                 return (
                   <g key={row}>
                     <line x1="0" y1={top} x2="100" y2={top} stroke="#b0c4de" strokeWidth="0.4" />
-                    <line x1="0" y1={mid} x2="100" y2={mid} stroke="#b0c4de" strokeWidth="0.4" strokeDasharray="2,1.5" />
-                    <line x1="0" y1={base} x2="100" y2={base} stroke="#3b82f6" strokeWidth="0.6" />
+                    <line x1="0" y1={mid} x2="100" y2={mid} stroke="#000000" strokeWidth="0.4" strokeDasharray="2,1.5" />
+                    <line x1="0" y1={base} x2="100" y2={base} stroke="#16a34a" strokeWidth="0.6" />
                   </g>
                 );
               })}

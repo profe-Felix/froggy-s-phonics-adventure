@@ -17,12 +17,12 @@ export default function LinedPaper({ width, height, lineCount = 6 }) {
         {/* Ascender line — solid blue */}
         <line x1={0} y1={yTop + lh * 0.10} x2={width} y2={yTop + lh * 0.10}
           stroke="#2563eb" strokeWidth={2.5} opacity={0.9} />
-        {/* Midline — dashed blue (thicker) */}
+        {/* Midline — dashed black */}
         <line x1={0} y1={yTop + lh * 0.367} x2={width} y2={yTop + lh * 0.367}
-          stroke="#2563eb" strokeWidth={1.8} strokeDasharray="12 8" opacity={0.9} />
-        {/* Baseline — solid blue */}
+          stroke="#000000" strokeWidth={1.8} strokeDasharray="12 8" opacity={0.9} />
+        {/* Baseline — solid green */}
         <line x1={0} y1={yTop + lh * 0.633} x2={width} y2={yTop + lh * 0.633}
-          stroke="#2563eb" strokeWidth={2.5} opacity={0.9} />
+          stroke="#16a34a" strokeWidth={2.5} opacity={0.9} />
         {/* Descender line — solid pink */}
         <line x1={0} y1={yTop + lh * 0.90} x2={width} y2={yTop + lh * 0.90}
           stroke="#db2777" strokeWidth={2.5} opacity={0.95} />

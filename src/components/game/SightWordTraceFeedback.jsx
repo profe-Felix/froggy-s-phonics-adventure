@@ -100,8 +100,8 @@ function LetterReplay({ letter, lang, onDone, waypoints }) {
       style={{ width: 360, height: 450 }}
     >
       <line x1="0" y1={0.10 * H} x2={W} y2={0.10 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
-      <line x1="0" y1={0.367 * H} x2={W} y2={0.367 * H} stroke="#93c5fd" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
-      <line x1="0" y1={0.633 * H} x2={W} y2={0.633 * H} stroke="#93c5fd" strokeWidth="1.5" opacity="0.7" />
+      <line x1="0" y1={0.367 * H} x2={W} y2={0.367 * H} stroke="#000000" strokeWidth="1" strokeDasharray="8 6" opacity="0.7" />
+      <line x1="0" y1={0.633 * H} x2={W} y2={0.633 * H} stroke="#16a34a" strokeWidth="1.5" opacity="0.7" />
       <line x1="0" y1={0.90 * H} x2={W} y2={0.90 * H} stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
       {/* Full letter pathway — faint grey guide showing the complete letter shape */}
       {fullGuidePaths.map((pts, i) => (

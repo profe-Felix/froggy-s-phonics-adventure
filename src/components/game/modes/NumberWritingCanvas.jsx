@@ -116,8 +116,8 @@ export default function NumberWritingCanvas({ number, studentNumber, className, 
             return (
               <g key={set}>
                 <line x1="0" y1={top}  x2="280" y2={top}  stroke="#aac4e0" strokeWidth="1" />
-                <line x1="0" y1={mid}  x2="280" y2={mid}  stroke="#aac4e0" strokeWidth="1" strokeDasharray="6,4" />
-                <line x1="0" y1={base} x2="280" y2={base} stroke="#3b82f6" strokeWidth="1.5" />
+                <line x1="0" y1={mid}  x2="280" y2={mid}  stroke="#000000" strokeWidth="1" strokeDasharray="6,4" />
+                <line x1="0" y1={base} x2="280" y2={base} stroke="#16a34a" strokeWidth="1.5" />
                 <line x1="0" y1={desc} x2="280" y2={desc} stroke="#aac4e0" strokeWidth="1" />
               </g>
             );
