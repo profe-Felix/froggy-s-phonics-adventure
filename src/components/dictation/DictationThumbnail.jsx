@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import LinedPaper from './LinedPaper';
 
-const LINE_COUNT = 6;
+const LINE_COUNT = 4;
 const THUMB_W = 200;
-const PAGE_ASPECT = (140 * LINE_COUNT) / 740;
+const PAGE_ASPECT = (150 * LINE_COUNT) / 740;
 
 function drawStrokes(canvas, strokesData, w, h) {
   if (!canvas) return;
