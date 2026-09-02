@@ -17,15 +17,15 @@ export default function LinedPaper({ width, height, lineCount = 6 }) {
         {/* Ascender line — solid light blue */}
         <line x1={0} y1={yTop + lh * 0.10} x2={width} y2={yTop + lh * 0.10}
           stroke="#93c5fd" strokeWidth={1.5} opacity={0.7} />
-        {/* Midline — dashed light blue */}
+        {/* Midline — dashed light blue (thin) */}
         <line x1={0} y1={yTop + lh * 0.367} x2={width} y2={yTop + lh * 0.367}
-          stroke="#93c5fd" strokeWidth={1} strokeDasharray="8 6" opacity={0.7} />
+          stroke="#93c5fd" strokeWidth={0.5} strokeDasharray="8 6" opacity={0.7} />
         {/* Baseline — solid light blue */}
         <line x1={0} y1={yTop + lh * 0.633} x2={width} y2={yTop + lh * 0.633}
           stroke="#93c5fd" strokeWidth={1.5} opacity={0.7} />
-        {/* Descender line — dashed pink */}
+        {/* Descender line — solid pink */}
         <line x1={0} y1={yTop + lh * 0.90} x2={width} y2={yTop + lh * 0.90}
-          stroke="#fca5a5" strokeWidth={1.5} strokeDasharray="6 6" opacity={0.85} />
+          stroke="#fca5a5" strokeWidth={1.5} opacity={0.85} />
       </g>
     );
   }

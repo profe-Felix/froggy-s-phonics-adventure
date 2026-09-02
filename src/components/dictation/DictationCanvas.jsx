@@ -3,7 +3,9 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
 import { base44 } from '@/api/base44Client';
 
-const LINE_COUNT = 6;
+// Target line height matches the letter-tracing "Big" feel — big enough for
+// comfortable kindergarten handwriting. We stack only as many lines as fit.
+const TARGET_LINE_HEIGHT = 150;
 const MAX_PAGE_WIDTH = 740;
 
 export default function DictationCanvas({
@@ -30,7 +32,9 @@ export default function DictationCanvas({
     const measure = () => {
       const r = el.getBoundingClientRect();
       const w = Math.min(MAX_PAGE_WIDTH, Math.max(280, r.width - 24));
-      const h = Math.max(200, r.height - 24);
+      const availH = Math.max(200, r.height - 24);
+      const count = Math.max(1, Math.floor(availH / TARGET_LINE_HEIGHT));
+      const h = count * TARGET_LINE_HEIGHT;
       setPageWidth(w);
       setPageHeight(h);
     };
@@ -118,7 +122,7 @@ export default function DictationCanvas({
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {promptText && (
         <div className="shrink-0 px-4 pt-3">
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl px-5 py-2.5 text-indigo-800 font-bold text-lg text-center">
@@ -149,7 +153,7 @@ export default function DictationCanvas({
         className="flex-1 min-h-0 flex items-center justify-center overflow-hidden px-2 pb-2"
       >
         <div className="relative rounded-xl shadow-lg bg-white" style={{ width: pageWidth, height: pageHeight }}>
-          <LinedPaper width={pageWidth} height={pageHeight} lineCount={LINE_COUNT} />
+          <LinedPaper width={pageWidth} height={pageHeight} lineCount={Math.max(1, Math.round(pageHeight / TARGET_LINE_HEIGHT))} />
           <AnnotationCanvas
             ref={canvasRef}
             width={pageWidth}
