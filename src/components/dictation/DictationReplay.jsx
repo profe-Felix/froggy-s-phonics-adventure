@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import LinedPaper from './LinedPaper';
 
-const LINE_HEIGHT = 140;
-const LINE_COUNT = 6;
+// Match the thumbnail + student canvas: 4 lines at the "Big" 150px feel.
+const LINE_HEIGHT = 150;
+const LINE_COUNT = 4;
 const PAGE_ASPECT = (LINE_HEIGHT * LINE_COUNT) / 740; // height/width
 
 function setupCanvas(canvas, w, h) {
