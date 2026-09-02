@@ -22,7 +22,8 @@ const SIZES = [
   { key: 'big', label: 'Big', sizeLevel: 1 },
   { key: 'medium', label: 'Medium', sizeLevel: 2 },
   { key: 'small', label: 'Small', sizeLevel: 3 },
-  { key: 'paper', label: 'Paper', sizeLevel: 4 },
+  { key: 'tiny', label: 'Tiny', sizeLevel: 4 },
+  { key: 'paper', label: 'Paper', sizeLevel: 5 },
 ];
 
 // PHASES — at each size, letters first trace with guide dots (guided), then
