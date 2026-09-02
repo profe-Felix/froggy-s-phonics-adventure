@@ -1322,6 +1322,28 @@ export default function LetterTracingCanvas({
             strokeWidth="1.5" opacity="0.7" />
         )}
 
+        {/* Starting dots on future copies — small markers showing where each
+            letter begins so students can see the starting point of upcoming
+            copies while practicing. Shown in guided and dot-only modes. */}
+        {(!freehandMode || dotOnly) && Array.from({ length: copyCount }, (_, copyIndex) => {
+          if (copyIndex <= safeActiveCopy) return null;
+          const firstStroke = strokes[0];
+          if (!firstStroke || !firstStroke.length) return null;
+          const p = scaleForCopy(firstStroke[0], copyIndex);
+          const dc = GUIDE_COLORS[0];
+          return (
+            <circle
+              key={`future-start-${copyIndex}`}
+              cx={p.x}
+              cy={p.y}
+              r="7"
+              fill={dc}
+              opacity="0.35"
+              pointerEvents="none"
+            />
+          );
+        })}
+
         {/* Start dot — color matches the current stroke's guide (teacher authoring palette).
             In freehand mode, only shown for dotOnly (not for completely freehand). */}
         {(!freehandMode || dotOnly) && nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
