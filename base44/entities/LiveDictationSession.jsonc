@@ -1,0 +1,82 @@
+{
+  "name": "LiveDictationSession",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class this live dictation session is broadcasting to. Students in this class are forced into the assignment."
+    },
+    "assignment_id": {
+      "type": "string",
+      "description": "ID of the DictationAssignment being broadcast live"
+    },
+    "assignment_title": {
+      "type": "string",
+      "default": "",
+      "description": "Cached assignment title for display"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "False once the teacher ends the session. Students are freed back to their normal login."
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the live session started"
+    }
+  },
+  "required": [
+    "class_name",
+    "assignment_id"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { QRCodeSVG } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
 import DictationThumbnail from '@/components/dictation/DictationThumbnail';
 import DictationReplay from '@/components/dictation/DictationReplay';
@@ -71,6 +72,42 @@ export default function DictationDashboard({ onBack }) {
     mutationFn: ({ id, data }) => base44.entities.DictationAssignment.update(id, data),
     onSuccess: () => qc.invalidateQueries(['dictation-assignments-all', ACTIVE_SCHOOL_YEAR]),
   });
+
+  // Live dictation sessions — one active session per class at a time.
+  const { data: liveSessions = [] } = useQuery({
+    queryKey: ['live-dictation-sessions', ACTIVE_SCHOOL_YEAR],
+    queryFn: () =>
+      base44.entities.LiveDictationSession.filter({
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      }),
+    enabled: !!className,
+    refetchInterval: 3000,
+  });
+  const liveForClass = liveSessions.find((s) => s.class_name === className);
+  const [showQr, setShowQr] = useState(false);
+
+  const startLive = async (assignment) => {
+    // End any existing live session for this class first.
+    if (liveForClass) {
+      await base44.entities.LiveDictationSession.update(liveForClass.id, { active: false });
+    }
+    await base44.entities.LiveDictationSession.create({
+      class_name: className,
+      assignment_id: assignment.id,
+      assignment_title: assignment.title,
+      school_year: ACTIVE_SCHOOL_YEAR,
+      active: true,
+      started_at: new Date().toISOString(),
+    });
+    qc.invalidateQueries(['live-dictation-sessions', ACTIVE_SCHOOL_YEAR]);
+  };
+
+  const stopLive = async () => {
+    if (!liveForClass) return;
+    await base44.entities.LiveDictationSession.update(liveForClass.id, { active: false });
+    qc.invalidateQueries(['live-dictation-sessions', ACTIVE_SCHOOL_YEAR]);
+  };
 
   const submissionByNumber = {};
   for (const s of submissions) {
@@ -278,6 +315,28 @@ export default function DictationDashboard({ onBack }) {
                     {s}
                   </button>
                 ))}
+                {liveForClass?.assignment_id === a.id ? (
+                  <button
+                    onClick={stopLive}
+                    className="px-3 py-1 rounded-full text-xs font-bold text-white bg-red-600 hover:bg-red-700 animate-pulse"
+                  >
+                    ⏹ Stop Live
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => startLive(a)}
+                    className="px-3 py-1 rounded-full text-xs font-bold text-white bg-rose-500 hover:bg-rose-600"
+                  >
+                    🔴 Go Live
+                  </button>
+                )}
+                <button
+                  onClick={() => { setShowQr(a.id); }}
+                  className="px-2 py-1 rounded-full text-xs font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50"
+                  title="Show QR for students to join"
+                >
+                  📱
+                </button>
                 <button
                   onClick={async () => {
                     if (!confirm(`Delete "${a.title}"?`)) return;
@@ -335,6 +394,26 @@ export default function DictationDashboard({ onBack }) {
           </div>
         )}
       </div>
+
+      {showQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowQr(null)}>
+          <div className="bg-white rounded-3xl p-6 flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <p className="font-black text-slate-800 text-lg">Scan to join Dictation</p>
+            <p className="text-sm text-slate-500">Class: <strong>{className}</strong></p>
+            <QRCodeSVG
+              value={`${window.location.origin}/DictationStudent?class=${encodeURIComponent(className)}`}
+              size={220}
+              level="M"
+            />
+            <p className="text-xs text-slate-400 text-center max-w-xs">
+              Students scan this, pick their number, and they're brought straight into the live dictation.
+            </p>
+            <button onClick={() => setShowQr(null)} className="mt-1 px-4 py-2 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 text-sm">
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {replaySubmission && (
         <DictationReplay submission={replaySubmission} onClose={() => setReplaySubmission(null)} />

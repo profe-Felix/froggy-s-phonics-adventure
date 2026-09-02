@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Pencil } from 'lucide-react';
@@ -110,6 +110,33 @@ export default function DictationLogin({ onStart, initialClass }) {
   const assignments = allActiveAssignments.filter(
     (a) => a.class_name === selectedClass || (a.shared_classes || []).includes(selectedClass)
   );
+
+  // Live dictation session — when the teacher starts one for this class,
+  // students are forced into it immediately (no assignment picker).
+  const { data: liveSession } = useQuery({
+    queryKey: ['live-dictation', selectedClass, ACTIVE_SCHOOL_YEAR],
+    queryFn: () =>
+      base44.entities.LiveDictationSession.filter({
+        class_name: selectedClass,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      }),
+    enabled: !!selectedClass,
+    refetchInterval: 3000,
+  });
+  const activeLive = Array.isArray(liveSession) && liveSession.length > 0 ? liveSession[0] : null;
+
+  // Auto-join the live session as soon as the student has picked their number.
+  useEffect(() => {
+    if (!activeLive || !selectedClass || !selectedNumber) return;
+    onStart({
+      class_name: selectedClass,
+      studentNumber: selectedNumber,
+      assignmentId: activeLive.assignment_id,
+      assignmentTitle: activeLive.assignment_title || '',
+      promptText: '',
+    });
+  }, [activeLive, selectedClass, selectedNumber]);
 
   // ── Step 3: Assignment cards ──
   if (selectedClass && selectedNumber) {

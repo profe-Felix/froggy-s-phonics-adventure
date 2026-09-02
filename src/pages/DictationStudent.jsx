@@ -25,6 +25,29 @@ export default function DictationStudent() {
     enabled: !!session?.assignmentId,
   });
 
+  // Live session monitoring — if the student was forced in via a live
+  // session, poll for its end and free the student back to the login screen.
+  const urlClass = params.get('class');
+  const { data: liveSessions = [] } = useQuery({
+    queryKey: ['live-dictation-student', urlClass, ACTIVE_SCHOOL_YEAR],
+    queryFn: () =>
+      base44.entities.LiveDictationSession.filter({
+        class_name: urlClass,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      }),
+    enabled: !!session && !!urlClass,
+    refetchInterval: 3000,
+  });
+  const liveActive = Array.isArray(liveSessions) && liveSessions.length > 0;
+
+  // If the student is in a session but the live session has ended, free them.
+  useEffect(() => {
+    if (session && !liveActive && urlClass && !params.get('assignment')) {
+      setSession(null);
+    }
+  }, [session, liveActive, urlClass]);
+
   useEffect(() => {
     if (!session?.class_name || !session?.studentNumber) return;
     base44.entities.Student
