@@ -1,0 +1,73 @@
+{
+  "name": "TracingLock",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class this lock applies to. Students in this class are forced into the locked letter."
+    },
+    "letter": {
+      "type": "string",
+      "description": "Letter students are locked to (case-sensitive, e.g. 'o' or 'O')."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "False once the teacher unlocks. Students return to normal mode selection."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    }
+  },
+  "required": [
+    "class_name",
+    "letter"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

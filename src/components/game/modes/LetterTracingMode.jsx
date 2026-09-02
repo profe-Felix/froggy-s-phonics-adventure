@@ -79,6 +79,7 @@ export default function LetterTracingMode({
   targets,
   freeSpinEnabled = true,
   silent = false,
+  locked = false,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
 
@@ -100,6 +101,7 @@ export default function LetterTracingMode({
   const [redeemedPrizes, setRedeemedPrizes] = useState(() => studentData?.redeemed_prizes || []);
   const [traceKey, setTraceKey] = useState(0);
   const [replayLetter, setReplayLetter] = useState(null);
+  const [redoSuccesses, setRedoSuccesses] = useState(0);
 
   const awardCoins = useCoinAward(studentData, onStudentPatch);
   const spinEarnedRef = useRef(false);
@@ -117,7 +119,6 @@ export default function LetterTracingMode({
   const PHASES = useMemo(() => [
     { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 6, showGuide: true },
     { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 6, showGuide: false },
-    { key: 'more', label: 'More', reps: isTestStudent ? 1 : 6, showGuide: true },
   ], [isTestStudent]);
 
   // Size override for visual testing (e.g. checking sizes on iPad as student
@@ -241,8 +242,14 @@ export default function LetterTracingMode({
           restored[letter] = { ...makeLetterState(), sizeLevel: 1, phase: 'guided', sizesCompleted: completed };
         }
       } else if (s.phase || s.sizeLevel != null) {
-        // Already new format — restore as-is.
-        restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
+        // Migrate: 'more' phase was removed. If a student was in 'more',
+        // they had completed guided + practice, so mark them doneAtSize
+        // for the current size and reset to guided for the next size.
+        if (s.phase === 'more') {
+          restored[letter] = { ...makeLetterState(), ...s, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, doneAtSize: true, sizesCompleted: s.sizesCompleted || 0 };
+        } else {
+          restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
+        }
       } else {
         // Old per-letter stage format → migrate.
         const oldStage = Math.min(s.stageIndex || 0, SIZES.length - 1);
@@ -462,14 +469,25 @@ export default function LetterTracingMode({
       return;
     }
 
-    // Redo mode: free practice, no progress changes.
+    // Redo mode: 5 reps of alternating trace/dot-only, no progress saved.
     if (redoMode && (completedLetters.has(letter) || progressFor(letter).fullyMastered || progressFor(letter).doneAtSize)) {
-      const isMastered = completedLetters.has(letter) || progressFor(letter).fullyMastered;
-      setCelebrate({
-        type: 'repair', letter,
-        message: isMastered ? '✏️ Nice! Trace it again, smaller.' : '✏️ Nice! Free practice.',
-      });
-      setTimeout(() => setCelebrate(null), 1200);
+      const isDotRep = redoSuccesses % 2 === 1;
+      // Rough trace (< 80%): retry the same copy.
+      if (!isDotRep && acc != null && acc < 80) {
+        setCelebrate({ type: 'repair', letter, message: 'Almost! Try again.' });
+        setTimeout(() => setCelebrate(null), 1000);
+        setLastAccuracy(null);
+        setTraceKey(k => k + 1);
+        return;
+      }
+      const nextSuccess = redoSuccesses + 1;
+      if (nextSuccess >= 5) {
+        setCelebrate({ type: 'mastered', letter, message: 'Great practice!' });
+        confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        setTimeout(() => { setCelebrate(null); setCurrentLetter(null); setRedoMode(false); setRedoSuccesses(0); setLastAccuracy(null); }, 1500);
+        return;
+      }
+      setRedoSuccesses(nextSuccess);
       setLastAccuracy(null);
       setTraceKey(k => k + 1);
       return;
@@ -477,13 +495,13 @@ export default function LetterTracingMode({
 
     attemptCountRef.current += 1;
 
-    // Freehand reps (dot-only / freehand) have no accuracy gate — any
-    // attempt is accepted. Only trace reps can be "rough" (amber < 80%).
+    // Dot-only reps have no accuracy gate — any attempt is accepted.
+    // Only trace reps can be "rough" (amber < 80%).
     const comp = progressFor(letter);
-    const wasFreehand = comp.phase !== 'guided' && (comp.phaseSuccesses % 2 === 1);
+    const wasDotOnly = comp.phase === 'practice' && (comp.phaseSuccesses % 2 === 1);
 
     // Rough trace (< 80%): repair practice, don't advance.
-    if (!wasFreehand && acc != null && acc < 80) {
+    if (!wasDotOnly && acc != null && acc < 80) {
       setStreak(0);
       setLetterProgress(prev => {
         const current = prev[letter] || makeLetterState();
@@ -540,12 +558,8 @@ export default function LetterTracingMode({
         // Guided done → practice.
         finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'practice' } };
         phaseAdvanced = true;
-      } else if (current.phase === 'practice') {
-        // Practice done → more.
-        finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'more' } };
-        phaseAdvanced = true;
       } else {
-        // 'more' done → doneAtSize.
+        // Practice done → doneAtSize.
         const completedSizeIdx = current.isNew ? current.sizeLevel : globalSizeIndex;
         const doneLetter = { ...nextLetter, doneAtSize: true, sizesCompleted: Math.max(current.sizesCompleted || 0, completedSizeIdx + 1) };
         finalProgress = { ...nextProgress, [letter]: doneLetter };
@@ -622,7 +636,7 @@ export default function LetterTracingMode({
     // ── Per-set-per-size spin ──
     // When both letters in a set (e.g. 'a' + 'A') finish the same size,
     // the student earns a wheel roll. One roll per set per size.
-    if (freeSpinEnabled && phasePassed && current.phase === 'more') {
+    if (freeSpinEnabled && phasePassed && current.phase === 'practice') {
       const lower = letter.toLowerCase();
       const setLetters = LETTERS.filter(l => l.toLowerCase() === lower);
       if (setLetters.length >= 2) {
@@ -686,8 +700,7 @@ export default function LetterTracingMode({
     }
 
     if (phaseAdvanced) {
-      const msg = current.phase === 'guided' ? 'Practice — trace & dot!' : 'More — trace & freehand!';
-      setCelebrate({ type: 'stage', letter, message: msg });
+      setCelebrate({ type: 'stage', letter, message: 'Practice — trace & dot!' });
       setTimeout(() => { setCelebrate(null); setLastAccuracy(null); setTraceKey(k => k + 1); }, 1000);
       return;
     }
@@ -800,6 +813,7 @@ export default function LetterTracingMode({
                   }
                   if (done || doneAtSize) {
                     setRedoMode(true);
+                    setRedoSuccesses(0);
                     setCurrentLetter(letter);
                     setLastAccuracy(null);
                     setTraceKey(k => k + 1);
@@ -899,32 +913,30 @@ export default function LetterTracingMode({
 
   const currentSizeLevel = forcedSize != null
     ? forcedSize
-    : redoing && letterMastered
-      ? SIZES.length - 1  // Paper redo size for mastered letters
-      : effectiveSize(currentLetter);
+    : effectiveSize(currentLetter);
 
   const currentPhase = forcedSize != null
     ? PHASES[0]
     : redoing
-      ? { key: 'redo', label: letterMastered ? 'Redo — Small' : 'Practice', reps: 1, showGuide: false }
+      ? { key: 'redo', label: 'Practice', reps: 5, showGuide: false }
       : currentPhaseInfo(currentLetter);
 
-  // Sub-mode within alternating phases: 'practice' alternates trace → dot-only,
-  // 'more' alternates trace → freehand. Even phaseSuccesses = trace, odd = scaffold.
-  const subMode = (redoing || forcedSize != null)
-    ? 'trace'
-    : (currentProgress.phase === 'practice' && currentProgress.phaseSuccesses % 2 === 1)
-      ? 'dot_only'
-      : (currentProgress.phase === 'more' && currentProgress.phaseSuccesses % 2 === 1)
-        ? 'freehand'
+  // Sub-mode within the practice phase: alternates trace → dot-only.
+  // Even phaseSuccesses = trace (with guide), odd = dot-only (starting dot only).
+  const subMode = (redoing && forcedSize == null)
+    ? (redoSuccesses % 2 === 1 ? 'dot_only' : 'trace')
+    : forcedSize != null
+      ? 'trace'
+      : (currentProgress.phase === 'practice' && currentProgress.phaseSuccesses % 2 === 1)
+        ? 'dot_only'
         : 'trace';
-  const isFreehand = subMode === 'dot_only' || subMode === 'freehand';
   const isDotOnly = subMode === 'dot_only';
-  const isAlternatingPhase = !redoing && forcedSize == null && (currentProgress.phase === 'practice' || currentProgress.phase === 'more');
+  const isFreehand = isDotOnly; // dot-only uses freehand drawing (no path validation)
+  const isAlternatingPhase = !redoing && forcedSize == null && currentProgress.phase === 'practice';
 
-  const currentRequired = (redoing || forcedSize != null) ? 1 : getRequired(currentLetter);
-  const practiceCopies = (redoing || forcedSize != null) ? 1 : currentRequired;
-  const activeCopy = (redoing || forcedSize != null) ? 0 : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1));
+  const currentRequired = forcedSize != null ? 1 : (redoing ? 5 : getRequired(currentLetter));
+  const practiceCopies = currentRequired;
+  const activeCopy = forcedSize != null ? 0 : (redoing ? redoSuccesses : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1)));
   const sizeLabel = SIZE_LEVELS[currentSizeLevel]?.label || currentPhase.label;
   const sizeScale = SIZE_SCALES[currentSizeLevel] ?? 1;
   const showGuide = forcedSize != null ? true : isFreehand ? false : currentPhase.showGuide;
@@ -945,7 +957,7 @@ export default function LetterTracingMode({
       school_year: studentData.school_year || '',
       letter: currentLetter,
       phase: currentProgress.phase,
-      mode: isDotOnly ? 'dot_only' : 'freehand',
+      mode: 'dot_only',
       strokes_data: JSON.stringify(normalized),
       size_label: SIZE_LEVELS[currentSizeLevel]?.label || '',
     }).catch(() => {});
@@ -960,16 +972,16 @@ export default function LetterTracingMode({
     <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
       <div className="flex items-center justify-between w-full max-w-3xl gap-2 shrink-0">
         <button
-          onClick={() => { setRedoMode(false); setCurrentLetter(null); }}
+          onClick={() => { setRedoMode(false); setCurrentLetter(null); setRedoSuccesses(0); }}
           className="text-slate-500 hover:text-slate-800 text-xs font-bold whitespace-nowrap"
         >
-          ← All letters
+          {locked ? '🔒 Locked' : '← All letters'}
         </button>
         <div className="flex items-center gap-2">
           <div className="text-slate-800 font-black text-xl leading-none">{currentLetter}</div>
           <div className="text-[11px] text-slate-400 font-bold leading-none">{stageLabel}</div>
           <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${isFreehand ? (isDotOnly ? 'text-violet-700 bg-violet-50 border-violet-200' : 'text-pink-700 bg-pink-50 border-pink-200') : showGuide ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-indigo-700 bg-indigo-50 border-indigo-100'}`}>
-            {isFreehand ? (isDotOnly ? '● Dot only' : '✍️ Freehand') : showGuide ? '● Guided' : '✍️ Your turn'}
+            {isDotOnly ? '● Dot only' : showGuide ? '● Guided' : '✍️ Your turn'}
           </div>
         </div>
         <div className="flex items-center gap-1.5 min-w-0">
@@ -989,7 +1001,7 @@ export default function LetterTracingMode({
         ) : (
           <>
             <div className="bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 text-[11px] font-bold text-indigo-700">
-              {isFreehand ? 'Write' : 'Trace'} {Math.min(currentProgress.phaseSuccesses + 1, currentRequired)}/{currentRequired}
+              {isDotOnly ? 'Write' : 'Trace'} {Math.min(redoing ? redoSuccesses + 1 : currentProgress.phaseSuccesses + 1, currentRequired)}/{currentRequired}
             </div>
             <div className={`rounded-full px-2 py-0.5 text-[11px] font-bold border ${currentProgress.cleanStreak >= REQUIRED_CLEAN_STREAK ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
               Streak {Math.min(currentProgress.cleanStreak, REQUIRED_CLEAN_STREAK)}/{REQUIRED_CLEAN_STREAK}

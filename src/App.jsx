@@ -39,6 +39,7 @@ import LiveTracingStudent from './pages/LiveTracingStudent';
 import TracingSizePreview from './pages/TracingSizePreview';
 import DictationDashboard from './pages/DictationDashboard';
 import DictationStudent from './pages/DictationStudent';
+import TracingReview from './pages/TracingReview';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 

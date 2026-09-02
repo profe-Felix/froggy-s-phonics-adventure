@@ -132,6 +132,20 @@ export default function LetterGame() {
     refetchInterval: 3000,
   });
 
+  // Detect active tracing lock for this student's class. When locked, the
+  // student is forced into Letter Tracing with only the locked letter and
+  // can't navigate to other games until the teacher unlocks.
+  const { data: tracingLocks = [] } = useQuery({
+    queryKey: ['tracing-lock', selectedStudent?.class_name],
+    queryFn: () => base44.entities.TracingLock.filter({
+      class_name: selectedStudent?.class_name,
+      active: true,
+    }),
+    enabled: !!studentData && !!selectedStudent?.class_name,
+    refetchInterval: 3000,
+  });
+  const activeTracingLock = tracingLocks[0];
+
   useEffect(() => {
     if (!activeDictationSessions.length) return;
     if (liveSession) return; // don't interrupt an active live lesson
@@ -140,6 +154,16 @@ export default function LetterGame() {
     const url = `/DictationStudent?assignment=${encodeURIComponent(s.assignment_id)}&class=${encodeURIComponent(s.class_name)}&student=${selectedStudent?.number}`;
     window.location.href = url;
   }, [activeDictationSessions, liveSession, selectedStudent]);
+
+  // Force the student into Letter Tracing when a tracing lock is active for
+  // their class. The lock takes priority over normal mode selection but not
+  // over live lessons or live dictation (those are teacher-driven).
+  useEffect(() => {
+    if (!activeTracingLock || liveSession || activeDictationSessions.length) return;
+    if (currentMode !== 'letter_tracing') {
+      setCurrentMode('letter_tracing');
+    }
+  }, [activeTracingLock, liveSession, activeDictationSessions, currentMode]);
 
   useEffect(() => {
     if (!activeLiveSessions.length) return;
@@ -585,6 +609,8 @@ export default function LetterGame() {
           onUpdateProgress={handleUpdateProgress}
           onStudentPatch={handlePersistPatch}
           silent={tracingOnlyFor(studentData?.class_name)}
+          targets={activeTracingLock ? [activeTracingLock.letter] : undefined}
+          locked={!!activeTracingLock}
         />
       )}
       {currentMode === 'number_hearing' && (
@@ -643,7 +669,7 @@ export default function LetterGame() {
         />
       )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && !activeTracingLock && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
