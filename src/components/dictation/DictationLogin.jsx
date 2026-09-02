@@ -98,16 +98,18 @@ export default function DictationLogin({ onStart }) {
     classStudents.filter((s) => s.photo_url).map((s) => [s.student_number, s.photo_url])
   );
 
-  const { data: assignments = [] } = useQuery({
-    queryKey: ['dictation-assignments', selectedClass],
+  const { data: allActiveAssignments = [] } = useQuery({
+    queryKey: ['dictation-assignments-active', ACTIVE_SCHOOL_YEAR],
     queryFn: () =>
       base44.entities.DictationAssignment.filter({
-        class_name: selectedClass,
         school_year: ACTIVE_SCHOOL_YEAR,
         status: 'active',
       }),
     enabled: !!selectedClass,
   });
+  const assignments = allActiveAssignments.filter(
+    (a) => a.class_name === selectedClass || (a.shared_classes || []).includes(selectedClass)
+  );
 
   // ── Step 3: Assignment cards ──
   if (selectedClass && selectedNumber) {

@@ -13,6 +13,7 @@ export default function DictationDashboard({ onBack }) {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newPrompt, setNewPrompt] = useState('');
+  const [shareAll, setShareAll] = useState(true);
   const [replaySubmission, setReplaySubmission] = useState(null);
 
   const { data: classConfigs = [] } = useQuery({
@@ -23,16 +24,18 @@ export default function DictationDashboard({ onBack }) {
   const classesByGrade = (grade) =>
     classConfigs.filter((c) => c.class_name && (c.grade || 'kinder') === grade).map((c) => c.class_name);
 
-  const { data: assignments = [] } = useQuery({
-    queryKey: ['dictation-assignments', className],
+  const { data: allAssignments = [] } = useQuery({
+    queryKey: ['dictation-assignments-all', ACTIVE_SCHOOL_YEAR],
     queryFn: () =>
       base44.entities.DictationAssignment.filter({
-        class_name: className,
         school_year: ACTIVE_SCHOOL_YEAR,
       }),
     enabled: !!className,
     refetchInterval: 10000,
   });
+  const assignments = allAssignments.filter(
+    (a) => a.class_name === className || (a.shared_classes || []).includes(className)
+  );
 
   const { data: students = [] } = useQuery({
     queryKey: ['students', className],
@@ -58,7 +61,7 @@ export default function DictationDashboard({ onBack }) {
   const createAssignment = useMutation({
     mutationFn: (data) => base44.entities.DictationAssignment.create(data),
     onSuccess: () => {
-      qc.invalidateQueries(['dictation-assignments', className]);
+      qc.invalidateQueries(['dictation-assignments-all', ACTIVE_SCHOOL_YEAR]);
       setNewTitle('');
       setNewPrompt('');
     },
@@ -66,7 +69,7 @@ export default function DictationDashboard({ onBack }) {
 
   const updateAssignment = useMutation({
     mutationFn: ({ id, data }) => base44.entities.DictationAssignment.update(id, data),
-    onSuccess: () => qc.invalidateQueries(['dictation-assignments', className]),
+    onSuccess: () => qc.invalidateQueries(['dictation-assignments-all', ACTIVE_SCHOOL_YEAR]),
   });
 
   const submissionByNumber = {};
@@ -182,12 +185,27 @@ export default function DictationDashboard({ onBack }) {
               placeholder="Optional prompt text (e.g. 'e, a, o') — shown to students"
               className="px-3 py-2 rounded-xl border border-slate-200 text-slate-700 text-sm"
             />
+            <label className="flex items-center gap-2 text-sm text-slate-600 font-bold">
+              <input
+                type="checkbox"
+                checked={shareAll}
+                onChange={(e) => setShareAll(e.target.checked)}
+                className="w-4 h-4 accent-indigo-600"
+              />
+              Share with all {selectedGrade === 'first' ? '1st Grade' : 'Kinder'} classes
+              <span className="text-xs text-slate-400 font-normal">
+                ({classesByGrade(selectedGrade).join(', ')})
+              </span>
+            </label>
             <button
               onClick={() => {
                 if (!newTitle.trim()) return alert('Please enter a title');
                 createAssignment.mutate({
                   title: newTitle.trim(),
                   class_name: className,
+                  shared_classes: shareAll
+                    ? classesByGrade(selectedGrade).filter((c) => c !== className)
+                    : [],
                   school_year: ACTIVE_SCHOOL_YEAR,
                   status: 'draft',
                   prompt_text: newPrompt.trim(),
@@ -247,7 +265,7 @@ export default function DictationDashboard({ onBack }) {
                     if (!confirm(`Delete "${a.title}"?`)) return;
                     await base44.entities.DictationAssignment.delete(a.id);
                     if (selectedAssignment?.id === a.id) setSelectedAssignment(null);
-                    qc.invalidateQueries(['dictation-assignments', className]);
+                    qc.invalidateQueries(['dictation-assignments-all', ACTIVE_SCHOOL_YEAR]);
                   }}
                   className="px-2 py-1 rounded-full text-xs font-bold text-red-500 border border-red-200 hover:bg-red-50"
                 >

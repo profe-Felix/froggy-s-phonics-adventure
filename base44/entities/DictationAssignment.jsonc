@@ -9,7 +9,15 @@
     "class_name": {
       "type": "string",
       "default": "",
-      "description": "Class this assignment is for. Empty = all classes."
+      "description": "Primary class this assignment is for. Empty = all classes."
+    },
+    "shared_classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Other classes this assignment is shared with. A student in class X sees this assignment when class_name === X OR shared_classes includes X. Lets a teacher create once and share across all their grade-level classes."
     },
     "school_year": {
       "type": "string",
