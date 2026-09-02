@@ -923,8 +923,8 @@ export default function LetterTracingMode({
   const isAlternatingPhase = !redoing && forcedSize == null && (currentProgress.phase === 'practice' || currentProgress.phase === 'more');
 
   const currentRequired = (redoing || forcedSize != null) ? 1 : getRequired(currentLetter);
-  const practiceCopies = (redoing || forcedSize != null || isAlternatingPhase) ? 1 : currentRequired;
-  const activeCopy = (redoing || forcedSize != null || isAlternatingPhase) ? 0 : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1));
+  const practiceCopies = (redoing || forcedSize != null) ? 1 : currentRequired;
+  const activeCopy = (redoing || forcedSize != null) ? 0 : Math.min(currentProgress.phaseSuccesses, Math.max(0, practiceCopies - 1));
   const sizeLabel = SIZE_LEVELS[currentSizeLevel]?.label || currentPhase.label;
   const sizeScale = SIZE_SCALES[currentSizeLevel] ?? 1;
   const showGuide = forcedSize != null ? true : isFreehand ? false : currentPhase.showGuide;

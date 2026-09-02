@@ -1183,12 +1183,18 @@ export default function LetterTracingCanvas({
             uses the normal stroke colors, and upcoming copies stay faint.
             Hidden in freehand mode (dot-only / freehand) — the student
             writes without seeing the guide path. */}
-        {!freehandMode && Array.from({ length: copyCount }, (_, copyIndex) =>
+        {Array.from({ length: copyCount }, (_, copyIndex) =>
           strokes.map((stroke, si) => {
             const isPastCopy = copyIndex < safeActiveCopy;
             const isFutureCopy = copyIndex > safeActiveCopy;
             const isPastStroke =
               copyIndex === safeActiveCopy && si < strokeIndex;
+
+            // In freehand mode (dot-only / freehand), only show guide strokes
+            // for PAST copies — the completed letters stay visible as a visual
+            // reference of where the letter should sit. The active and future
+            // copies are blank so the student writes independently.
+            if (freehandMode && !isPastCopy) return null;
 
             const color =
               isPastCopy || isPastStroke
