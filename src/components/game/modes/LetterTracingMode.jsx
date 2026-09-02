@@ -28,11 +28,8 @@ const SIZES = [
 // PHASES — at each size, letters first trace with guide dots (guided), then
 // without (practice). Both phases must be completed to master the size.
 // 3 guided + 2 practice = 5 traces per size · 3 sizes = 15 total to master.
-const PHASES = [
-  { key: 'guided', label: 'Guided', reps: 5, showGuide: true },
-  { key: 'practice', label: 'Practice', reps: 5, showGuide: false },
-  { key: 'more', label: 'More', reps: 5, showGuide: false },
-];
+// PHASES moved inside the component — reps depend on whether this is the test
+// student (student 30), who gets 1 rep per phase for fast progression testing.
 
 const SIZE_LEVELS = [
   { w: 1000, label: 'Huge' },
@@ -105,6 +102,15 @@ export default function LetterTracingMode({
   const loadedStateRef = useRef(false);
   const reportedAllMasteredRef = useRef(false);
   const studentKey = studentData?.id || 'guest';
+
+  // Student 30 is the teacher's test account — 1 rep per phase so they can zip
+  // through guided → practice → more at each size. Everyone else gets 5.
+  const isTestStudent = studentData?.student_number === 30;
+  const PHASES = useMemo(() => [
+    { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 5, showGuide: true },
+    { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 5, showGuide: false },
+    { key: 'more', label: 'More', reps: isTestStudent ? 1 : 5, showGuide: false },
+  ], [isTestStudent]);
 
   // Size override for visual testing (e.g. checking sizes on iPad as student
   // 30). When set, every letter opens at that size with guided dots and no
@@ -798,34 +804,6 @@ export default function LetterTracingMode({
         )}
 
         <p className="text-slate-400 text-xs">Yellow = practicing · Green = mastered</p>
-
-        {/* Size preview toggle — lets a teacher check how each size looks
-            (e.g. on iPad as student 30). Tap a size to force every letter to
-            open at that size with guided dots; tap Normal to exit. */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-center">
-          <span className="text-[11px] font-bold text-slate-400">🔍 Preview size:</span>
-          {SIZES.map((s, i) => (
-            <button
-              key={s.key}
-              onClick={() => setForcedSize(forcedSize === i ? null : i)}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
-                forcedSize === i
-                  ? 'bg-amber-500 text-white border-amber-600'
-                  : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-          {forcedSize != null && (
-            <button
-              onClick={() => setForcedSize(null)}
-              className="px-2 py-0.5 rounded-full text-[11px] font-bold border bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-            >
-              Normal
-            </button>
-          )}
-        </div>
 
         {showWheel && (
           <PrizeWheel
