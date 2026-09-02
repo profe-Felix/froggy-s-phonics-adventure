@@ -372,14 +372,26 @@ export default function LetterTracingCanvas({
 
   const getPos = (e) => {
     const svg = svgRef.current;
+    // Use the browser's native coordinate transformation. getScreenCTM()
+    // accounts for preserveAspectRatio letterboxing, borders, padding, and
+    // sub-pixel rounding automatically — the manual rect-based math used
+    // separate scaleX/scaleY, but preserveAspectRatio uses a UNIFORM scale
+    // with letterboxing, so when the SVG's CSS aspect ratio didn't exactly
+    // match the viewBox ratio the ink drifted offset from the stylus.
+    // This is the canonical W3C method and works on every browser including
+    // Promethean boards, Firefox, and Safari.
+    try {
+      const ctm = svg.getScreenCTM();
+      if (ctm) {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const svgP = pt.matrixTransform(ctm.inverse());
+        return { x: svgP.x, y: svgP.y };
+      }
+    } catch {}
+    // Fallback: manual calculation (rare browsers without getScreenCTM)
     const rect = svg.getBoundingClientRect();
-    // getComputedStyle gives the actual border width on ALL browsers.
-    // clientLeft/clientTop return 0 on SVG elements in some browsers (Firefox,
-    // some Promethean board browsers), which made the pen ink appear offset
-    // from the stylus — "ink off to the right" — because the border wasn't
-    // subtracted and the content size was wrong. getBoundingClientRect gives
-    // the border-box; subtracting the computed border yields the content box
-    // that the viewBox maps to.
     const cs = window.getComputedStyle(svg);
     const borderX = parseFloat(cs.borderLeftWidth) || 0;
     const borderY = parseFloat(cs.borderTopWidth) || 0;
