@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import LinedPaper from './LinedPaper';
+import { smoothPoints } from '@/components/tracing/strokeMath';
 
 // Match the thumbnail + student canvas: 4 lines at the "Big" 150px feel.
 const LINE_HEIGHT = 150;
@@ -80,6 +81,35 @@ function applyStrokeStyle(ctx, s, widthScale) {
   }
 }
 
+// Draw a smooth Catmull-Rom → cubic bezier path through pts (same approach
+// as AnnotationCanvas / the student dictation canvas) so replay ink matches
+// the student-side smoothness instead of jagged segment-by-segment lines.
+function drawSmoothPath(ctx, pts) {
+  if (!pts || pts.length === 0) return;
+  if (pts.length === 1) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    ctx.lineTo(pts[0].x + 0.01, pts[0].y + 0.01);
+    return;
+  }
+  const smoothed = pts.length >= 3 ? smoothPoints(pts, 3) : pts;
+  ctx.moveTo(smoothed[0].x, smoothed[0].y);
+  if (smoothed.length === 2) {
+    ctx.lineTo(smoothed[1].x, smoothed[1].y);
+    return;
+  }
+  for (let i = 0; i < smoothed.length - 1; i++) {
+    const p0 = smoothed[i - 1] || smoothed[i];
+    const p1 = smoothed[i];
+    const p2 = smoothed[i + 1];
+    const p3 = smoothed[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, p2.x, p2.y);
+  }
+}
+
 function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
   const c = ctx.canvas;
   ctx.save();
@@ -102,24 +132,31 @@ function renderToFrame(ctx, timeline, upTo, sx, sy, widthScale = 1) {
     }
   }
 
+  // Group revealed points by stroke so each stroke is drawn as one smooth
+  // path instead of independent jagged segments.
+  const strokePoints = new Map();
   for (let idx = 0; idx < upTo && idx < timeline.length; idx++) {
     if (idx <= lastClearIndex) continue;
     const { type, s, i } = timeline[idx];
     if (type === 'clear_page' || type === 'eraser_object') continue;
     if (s.id && hiddenStrokeIds.has(s.id)) continue;
 
+    let pts = strokePoints.get(s);
+    if (!pts) { pts = []; strokePoints.set(s, pts); }
+    if (type === 'dot') {
+      pts.push({ x: s.pts[0].x * sx, y: s.pts[0].y * sy });
+    } else if (s.pts[i - 1] && s.pts[i]) {
+      if (pts.length === 0) pts.push({ x: s.pts[i - 1].x * sx, y: s.pts[i - 1].y * sy });
+      pts.push({ x: s.pts[i].x * sx, y: s.pts[i].y * sy });
+    }
+  }
+
+  for (const [s, pts] of strokePoints) {
+    if (pts.length === 0) continue;
     ctx.save();
     ctx.beginPath();
     applyStrokeStyle(ctx, s, widthScale);
-
-    if (type === 'dot') {
-      const p = s.pts[0];
-      ctx.moveTo(p.x * sx, p.y * sy);
-      ctx.lineTo(p.x * sx + 0.01, p.y * sy + 0.01);
-    } else if (s.pts[i - 1] && s.pts[i]) {
-      ctx.moveTo(s.pts[i - 1].x * sx, s.pts[i - 1].y * sy);
-      ctx.lineTo(s.pts[i].x * sx, s.pts[i].y * sy);
-    }
+    drawSmoothPath(ctx, pts);
     ctx.stroke();
     ctx.restore();
   }
