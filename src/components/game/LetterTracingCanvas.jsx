@@ -130,6 +130,7 @@ export default function LetterTracingCanvas({
   const [awaitingLift, setAwaitingLift] = useState(false); // true once the last waypoint is hit, while still holding
   const svgRef = useRef(null);
   const [accuracy, setAccuracy] = useState(null); // overall letter accuracy 0–100
+  const [debugDownPos, setDebugDownPos] = useState(null); // visual marker at last touch position for diagnosing coordinate issues
   const [coverageStats, setCoverageStats] = useState(null); // debug: covered/total/progress for the thick-pen visualization
   const strokeAccuraciesRef = useRef([]); // per-stroke scores, averaged on completion
   const [replaying, setReplaying] = useState(false);
@@ -419,16 +420,27 @@ export default function LetterTracingCanvas({
     // (Wacom/Promethean) and iPad/PC/touch all draw reliably here.
     if (!fromTouch) { try { svgRef.current.setPointerCapture(e.pointerId); } catch {} }
     const pos = getPos(e);
+    // Show a visual marker at the calculated touch position so coordinate
+    // mapping issues on graphics tablets / whiteboards are visible.
+    setDebugDownPos(pos);
+    setTimeout(() => setDebugDownPos(null), 2000);
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
-    const firstWp = scaleActive(currentStrokes[0]);
-    // Must start near the first waypoint of current stroke. Dot strokes (the
-    // tittle on i/j) are tiny — use a wider, forgiving hit radius so a tap
-    // anywhere on the dot counts.
-    const startTol = isDot ? DOT_HIT_RADIUS : HIT_RADIUS * 1.8;
-    if (waypointIndex === 0 && dist(pos, firstWp) > startTol) {
-      flashError();
-      return;
+    // Must start near the beginning of the current stroke. Check against
+    // the first 30% of the dense path (not just the first waypoint) with a
+    // generous tolerance — more forgiving for graphics tablets and
+    // interactive whiteboards where coordinate mapping may differ.
+    if (waypointIndex === 0) {
+      const startTol = isDot ? DOT_HIT_RADIUS : WOBBLE_RADIUS;
+      const checkEnd = isDot ? 1 : Math.max(8, Math.floor(densePath.length * 0.3));
+      let minD = Infinity;
+      for (let i = 0; i < checkEnd && i < densePath.length; i++) {
+        minD = Math.min(minD, dist(pos, densePath[i]));
+      }
+      if (minD > startTol) {
+        flashError();
+        return;
+      }
     }
     if (replayRafRef.current) { cancelAnimationFrame(replayRafRef.current); replayRafRef.current = null; }
     setReplaying(false);
@@ -1253,6 +1265,12 @@ export default function LetterTracingCanvas({
             strokeWidth="1.5" opacity="0.7" />
         )}
 
+        {/* Debug: red ring at the calculated touch position — helps diagnose
+            coordinate mapping issues on graphics tablets / whiteboards. */}
+        {debugDownPos && (
+          <circle cx={debugDownPos.x} cy={debugDownPos.y} r="12" fill="none"
+            stroke="#ef4444" strokeWidth="3" opacity="0.7" pointerEvents="none" />
+        )}
         {/* Start dot — color matches the current stroke's guide (teacher authoring palette) */}
         {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
           (() => { const dc = GUIDE_COLORS[strokeIndex % GUIDE_COLORS.length]; return (
