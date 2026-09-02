@@ -1006,6 +1006,23 @@ export default function LetterTracingCanvas({
   // completion followed it; accuracy measures how cleanly.
   const isAmber = isSuccess && accuracy != null && accuracy < 80;
 
+  // Minimum ink requirement for freehand/dot-only submissions. Prevents the
+  // laziest attempt (tap the starting dot and move on). The student must draw
+  // at least this much ink before the "Done" button appears, so every saved
+  // record has enough strokes for the teacher to assess.
+  const MIN_INK_LENGTH = 40; // SVG units (~13% of the 300-wide copy)
+  const totalInkLength = useMemo(() =>
+    drawnPaths.reduce((sum, path) => {
+      let len = 0;
+      for (let i = 1; i < path.length; i++) {
+        len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+      }
+      return sum + len;
+    }, 0),
+    [drawnPaths]
+  );
+  const hasEnoughInk = totalInkLength >= MIN_INK_LENGTH;
+
   // Moving "Pac-Man pellet" guide dots.
   // While the student is tracing, show only a few points AHEAD of their
   // current progress. Because these come directly from densePath, they follow
@@ -1079,7 +1096,12 @@ export default function LetterTracingCanvas({
           mid-stroke — visibly shrinking the canvas and corrupting the stroke.
           Reserving the height up front means no layout change at completion. */}
       <div className="h-8 shrink-0 flex items-center justify-center">
-        {freehandMode && drawnPaths.length > 0 && status !== 'success' && (
+        {freehandMode && status !== 'success' && drawnPaths.length > 0 && !hasEnoughInk && (
+          <div className="bg-amber-50 border border-amber-200 rounded-full px-4 py-1 text-amber-700 font-bold text-sm">
+            ✏️ Keep writing the letter…
+          </div>
+        )}
+        {freehandMode && status !== 'success' && hasEnoughInk && (
           <button
             onClick={() => {
               onFreehandStrokes?.(drawnPaths);

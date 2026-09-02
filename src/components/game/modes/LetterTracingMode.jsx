@@ -932,8 +932,12 @@ export default function LetterTracingMode({
   // Save freehand strokes (dot-only / freehand) for teacher replay.
   const saveFreehandStrokes = (rawStrokes) => {
     if (!studentData?.student_number || !studentData?.class_name || !currentLetter) return;
+    // drawnPaths are in SVG viewBox coordinates which include the copy offset
+    // (copyIndex * (CANVAS_W + COPY_GAP)). Subtract the active copy's offset
+    // before normalizing to 0-1 so the replay renders correctly.
+    const copyOffset = activeCopy * (300 + 24);
     const normalized = rawStrokes.map(stroke =>
-      stroke.map(p => ({ x: p.x / 300, y: p.y / 375 }))
+      stroke.map(p => ({ x: (p.x - copyOffset) / 300, y: p.y / 375 }))
     );
     base44.entities.TracingSample.create({
       student_number: studentData.student_number,
