@@ -7,6 +7,10 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassColors } from '@/hooks/useClassColors';
 
 const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
+const GRADE_STYLES = {
+  kinder: { from: '#818cf8', to: '#6366f1', emoji: '🅺' },
+  first: { from: '#c084fc', to: '#a855f7', emoji: '1️⃣' },
+};
 const NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 const BUBBLES = [
@@ -78,6 +82,7 @@ function Shell({ subtitle, children, loading }) {
 }
 
 export default function DictationLogin({ onStart }) {
+  const [selectedGrade, setSelectedGrade] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedNumber, setSelectedNumber] = useState(null);
   const { colorFor, groupedClasses, loading } = useClassColors();
@@ -204,46 +209,92 @@ export default function DictationLogin({ onStart }) {
     );
   }
 
-  // ── Step 1: Class tiles ──
-  return (
-    <Shell subtitle="Choose your class!" loading={!selectedClass && loading}>
-      {noClasses ? (
-        <div className="text-center py-10 text-slate-400">
-          <p className="text-lg font-semibold">No classes set up yet.</p>
-          <p className="text-sm mt-1">Ask your teacher to set up classes in the dashboard first.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-6">
-          {['kinder', 'first'].map((grade) =>
-            groups[grade]?.length ? (
-              <div key={grade}>
-                <h2 className="text-center text-slate-500 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                  {groups[grade].map((cls, i) => {
-                    const c = colorFor(cls);
-                    return (
-                      <motion.button
-                        key={cls}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.05 }}
-                        whileHover={{ scale: 1.06 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setSelectedClass(cls)}
-                        className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
-                        style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
-                      >
-                        <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">📝</span>
-                        <span className="relative z-10">{cls}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null
-          )}
-        </div>
-      )}
-    </Shell>
-  );
+  // ── Step 1a: Grade tiles ──
+  if (!selectedGrade) {
+    const availableGrades = ['kinder', 'first'].filter((g) => groups[g]?.length);
+    return (
+      <Shell subtitle="Choose your grade!" loading={loading}>
+        {noClasses ? (
+          <div className="text-center py-10 text-slate-400">
+            <p className="text-lg font-semibold">No classes set up yet.</p>
+            <p className="text-sm mt-1">Ask your teacher to set up classes in the dashboard first.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-md mx-auto">
+            {availableGrades.map((grade, i) => {
+              const g = GRADE_STYLES[grade];
+              return (
+                <motion.button
+                  key={grade}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.08 }}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelectedGrade(grade)}
+                  className="group relative aspect-[4/2] rounded-3xl text-white font-extrabold text-2xl sm:text-3xl shadow-xl ring-2 ring-white/40 flex items-center justify-center gap-3"
+                  style={{ backgroundImage: `linear-gradient(to bottom right, ${g.from}, ${g.to})` }}
+                >
+                  <span className="text-3xl sm:text-4xl">{g.emoji}</span>
+                  <span className="relative z-10">{GRADE_LABELS[grade]}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </Shell>
+    );
+  }
+
+  // ── Step 1b: Class tiles for the selected grade ──
+  if (!selectedClass) {
+    const gradeClasses = groups[selectedGrade] || [];
+    return (
+      <Shell
+        subtitle={
+          <span className="inline-flex items-center gap-2">
+            <button
+              onClick={() => setSelectedGrade(null)}
+              className="text-slate-400 hover:text-slate-600 transition"
+              aria-label="back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            {GRADE_LABELS[selectedGrade]} — choose your class!
+          </span>
+        }
+      >
+        {gradeClasses.length === 0 ? (
+          <div className="text-center py-10 text-slate-400">
+            <p className="text-lg font-semibold">No classes in {GRADE_LABELS[selectedGrade]} yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {gradeClasses.map((cls, i) => {
+              const c = colorFor(cls);
+              return (
+                <motion.button
+                  key={cls}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelectedClass(cls)}
+                  className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
+                  style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+                >
+                  <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">📝</span>
+                  <span className="relative z-10">{cls}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </Shell>
+    );
+  }
+
+  // Step 2/3 handled above
+  return null;
 }

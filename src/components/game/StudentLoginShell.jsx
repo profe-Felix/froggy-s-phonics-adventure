@@ -42,15 +42,17 @@ export default function StudentLoginShell({
         ))}
       </div>
 
-      {/* toggle to the other subject */}
-      <div className="fixed top-4 right-4 z-50">
-        <button
-          onClick={() => navigate(toggleTo)}
-          className={`bg-white/90 hover:bg-white ${toggleTextClass} font-bold text-sm px-5 py-2.5 rounded-full shadow-lg border ${toggleBorderClass} transition-all hover:scale-105`}
-        >
-          {toggleEmoji} {toggleLabel} →
-        </button>
-      </div>
+      {/* toggle to the other subject (only when provided) */}
+      {toggleTo && (
+        <div className="fixed top-4 right-4 z-50">
+          <button
+            onClick={() => navigate(toggleTo)}
+            className={`bg-white/90 hover:bg-white ${toggleTextClass} font-bold text-sm px-5 py-2.5 rounded-full shadow-lg border ${toggleBorderClass} transition-all hover:scale-105`}
+          >
+            {toggleEmoji} {toggleLabel} →
+          </button>
+        </div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.96 }}

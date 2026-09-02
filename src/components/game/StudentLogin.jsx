@@ -47,11 +47,6 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
       titleFrom="#16a34a"
       titleTo="#10b981"
       subtitle={subtitle}
-      toggleTo="/MathGames"
-      toggleLabel="Math Games"
-      toggleEmoji="🧮"
-      toggleTextClass="text-indigo-700"
-      toggleBorderClass="border-indigo-200"
       loading={!selectedClass && loading}
     >
       {!selectedClass ? (
