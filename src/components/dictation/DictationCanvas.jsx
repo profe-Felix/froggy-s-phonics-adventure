@@ -7,7 +7,7 @@ import { base44 } from '@/api/base44Client';
 // the dashboard thumbnails. Line height shrinks to fit shorter screens (iPad)
 // but never exceeds the comfortable 150px "Big" feel on taller screens.
 const FIXED_LINE_COUNT = 4;
-const MAX_LINE_HEIGHT = 150;
+const MAX_LINE_HEIGHT = 180;
 const MAX_PAGE_WIDTH = 740;
 
 export default function DictationCanvas({
@@ -34,9 +34,7 @@ export default function DictationCanvas({
     const measure = () => {
       const r = el.getBoundingClientRect();
       const w = Math.min(MAX_PAGE_WIDTH, Math.max(280, r.width - 24));
-      const availH = Math.max(200, r.height - 24);
-      const lh = Math.min(MAX_LINE_HEIGHT, availH / FIXED_LINE_COUNT);
-      const h = lh * FIXED_LINE_COUNT;
+      const h = MAX_LINE_HEIGHT * FIXED_LINE_COUNT;
       setPageWidth(w);
       setPageHeight(h);
     };
@@ -152,7 +150,7 @@ export default function DictationCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 flex items-center justify-center overflow-hidden px-2 pb-2"
+        className="flex-1 min-h-0 flex justify-center overflow-y-auto overflow-x-hidden px-2 pb-2"
       >
         <div className="relative rounded-xl shadow-lg bg-white" style={{ width: pageWidth, height: pageHeight }}>
           <LinedPaper width={pageWidth} height={pageHeight} lineCount={FIXED_LINE_COUNT} />
