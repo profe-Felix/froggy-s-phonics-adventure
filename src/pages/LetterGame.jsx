@@ -117,6 +117,30 @@ export default function LetterGame() {
     refetchInterval: 3000,
   });
 
+  // Detect active live DICTATION sessions for this student's class.
+  // When the teacher starts a live dictation, redirect the student straight
+  // to the DictationStudent page so they join automatically.
+  const { data: activeDictationSessions = [] } = useQuery({
+    queryKey: ['live-dictation-game', selectedStudent?.class_name],
+    queryFn: () =>
+      base44.entities.LiveDictationSession.filter({
+        class_name: selectedStudent?.class_name,
+        school_year: studentData?.school_year || ACTIVE_SCHOOL_YEAR,
+        active: true,
+      }),
+    enabled: !!studentData && !!selectedStudent?.class_name,
+    refetchInterval: 3000,
+  });
+
+  useEffect(() => {
+    if (!activeDictationSessions.length) return;
+    if (liveSession) return; // don't interrupt an active live lesson
+    const s = activeDictationSessions[0];
+    if (!s?.assignment_id) return;
+    const url = `/DictationStudent?assignment=${encodeURIComponent(s.assignment_id)}&class=${encodeURIComponent(s.class_name)}&student=${selectedStudent?.number}`;
+    window.location.href = url;
+  }, [activeDictationSessions, liveSession, selectedStudent]);
+
   useEffect(() => {
     if (!activeLiveSessions.length) return;
     // Already in a live session — don't auto-join another.
