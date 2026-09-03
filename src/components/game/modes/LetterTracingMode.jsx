@@ -118,8 +118,8 @@ export default function LetterTracingMode({
   // through guided → practice → more at each size. Everyone else gets 5.
   const isTestStudent = studentData?.student_number === 30;
   const PHASES = useMemo(() => [
-    { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 6, showGuide: true },
-    { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 6, showGuide: false },
+    { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 7, showGuide: true },
+    { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 14, showGuide: false },
   ], [isTestStudent]);
 
   // Size override for visual testing (e.g. checking sizes on iPad as student
