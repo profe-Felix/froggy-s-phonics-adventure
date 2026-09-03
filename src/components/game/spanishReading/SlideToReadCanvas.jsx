@@ -53,7 +53,7 @@ function splitWords(units) {
 }
 
 function wrapLines(ctx, units, maxWidth, fontSize) {
-  ctx.font = `bold ${fontSize}px Lexend, sans-serif`;
+  ctx.font = `bold ${fontSize}px Andika, sans-serif`;
   const words = splitWords(units);
   const lines = [];
   let line = [], lineW = 0;
@@ -98,7 +98,7 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
   }
   if (!lines) { lines = wrapLines(ctx, units, contentW, 14); lineHeight = 14 * 1.35 + clusterSpace; fontSize = 14; }
 
-  ctx.font = `bold ${fontSize}px Lexend, sans-serif`;
+  ctx.font = `bold ${fontSize}px Andika, sans-serif`;
 
   const lineData = lines.map(line => {
     const lineWidth = line.reduce((s, u) => s + ctx.measureText(u.text).width, 0);
@@ -175,7 +175,7 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     }
   }
 
-  ctx.font = `bold ${fontSize}px Lexend, sans-serif`;
+  ctx.font = `bold ${fontSize}px Andika, sans-serif`;
 
   // ── Text lines ──
   for (let li = 0; li < lines.length; li++) {
@@ -204,7 +204,7 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
   // ── Idle hint ──
   if (!isRecording) {
     ctx.fillStyle = '#6c757d';
-    ctx.font = `bold ${Math.min(16, canvasW * 0.035)}px Lexend, sans-serif`;
+    ctx.font = `bold ${Math.min(16, canvasW * 0.035)}px Andika, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('Press "Start Recording" then drag to read', canvasW / 2, canvasH - padding - 20);
