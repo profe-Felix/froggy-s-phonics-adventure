@@ -120,6 +120,7 @@ export default function LetterTracingMode({
   const PHASES = useMemo(() => [
     { key: 'guided', label: 'Guided', reps: isTestStudent ? 1 : 7, showGuide: true },
     { key: 'practice', label: 'Practice', reps: isTestStudent ? 1 : 14, showGuide: false },
+    { key: 'more', label: 'More', reps: isTestStudent ? 1 : 14, showGuide: false },
   ], [isTestStudent]);
 
   // Size override for visual testing (e.g. checking sizes on iPad as student
@@ -243,14 +244,7 @@ export default function LetterTracingMode({
           restored[letter] = { ...makeLetterState(), sizeLevel: 1, phase: 'guided', sizesCompleted: completed };
         }
       } else if (s.phase || s.sizeLevel != null) {
-        // Migrate: 'more' phase was removed. If a student was in 'more',
-        // they had completed guided + practice, so mark them doneAtSize
-        // for the current size and reset to guided for the next size.
-        if (s.phase === 'more') {
-          restored[letter] = { ...makeLetterState(), ...s, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, doneAtSize: true, sizesCompleted: s.sizesCompleted || 0 };
-        } else {
-          restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
-        }
+        restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
       } else {
         // Old per-letter stage format → migrate.
         const oldStage = Math.min(s.stageIndex || 0, SIZES.length - 1);
@@ -502,7 +496,7 @@ export default function LetterTracingMode({
     // Dot-only reps have no accuracy gate — any attempt is accepted.
     // Only trace reps can be "rough" (amber < 80%).
     const comp = progressFor(letter);
-    const wasDotOnly = comp.phase === 'practice' && (comp.phaseSuccesses % 2 === 1);
+    const wasDotOnly = (comp.phase === 'practice' || comp.phase === 'more') && (comp.phaseSuccesses % 2 === 1);
 
     // Rough trace (< 80%): repair practice, don't advance.
     if (!wasDotOnly && acc != null && acc < 80) {
@@ -562,8 +556,12 @@ export default function LetterTracingMode({
         // Guided done → practice.
         finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'practice' } };
         phaseAdvanced = true;
+      } else if (current.phase === 'practice') {
+        // Practice done → more.
+        finalProgress = { ...nextProgress, [letter]: { ...nextLetter, phase: 'more' } };
+        phaseAdvanced = true;
       } else {
-        // Practice done → doneAtSize.
+        // More done → doneAtSize.
         const completedSizeIdx = current.isNew ? current.sizeLevel : globalSizeIndex;
         const doneLetter = { ...nextLetter, doneAtSize: true, sizesCompleted: Math.max(current.sizesCompleted || 0, completedSizeIdx + 1) };
         finalProgress = { ...nextProgress, [letter]: doneLetter };
@@ -685,7 +683,8 @@ export default function LetterTracingMode({
     }
 
     if (phaseAdvanced) {
-      setCelebrate({ type: 'stage', letter, message: 'Practice — trace & dot!' });
+      const newPhaseLabel = finalProgress[letter]?.phase === 'more' ? 'More' : 'Practice';
+      setCelebrate({ type: 'stage', letter, message: `${newPhaseLabel} — trace & dot!` });
       setTimeout(() => { setCelebrate(null); setLastAccuracy(null); setTraceKey(k => k + 1); }, 1000);
       return;
     }
@@ -917,12 +916,12 @@ export default function LetterTracingMode({
     ? (redoSuccesses % 2 === 1 ? 'dot_only' : 'trace')
     : forcedSize != null
       ? 'trace'
-      : (currentProgress.phase === 'practice' && currentProgress.phaseSuccesses % 2 === 1)
+      : ((currentProgress.phase === 'practice' || currentProgress.phase === 'more') && currentProgress.phaseSuccesses % 2 === 1)
         ? 'dot_only'
         : 'trace';
   const isDotOnly = subMode === 'dot_only';
   const isFreehand = isDotOnly; // dot-only uses freehand drawing (no path validation)
-  const isAlternatingPhase = !redoing && forcedSize == null && currentProgress.phase === 'practice';
+  const isAlternatingPhase = !redoing && forcedSize == null && (currentProgress.phase === 'practice' || currentProgress.phase === 'more');
 
   const currentRequired = forcedSize != null ? 1 : (redoing ? 5 : getRequired(currentLetter));
   const practiceCopies = currentRequired;
