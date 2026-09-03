@@ -2,6 +2,7 @@
 // (Runtime wiring into the Letter Sort lesson step is pending — these presets
 //  drive the standalone Letter Sort page via Supabase today.)
 export default {
+  "M1.L16.F.A1": { "syllables": ["mo","mi","ma","mu","me"], "words": [], "syllcmp": "equals", "syllmatch": "initial", "per": 4 },
   "M4.L16.CF.A1": { "syllcount": [2,3,4], "words": ["queso","gato","cama","gelatina","pelota","boli..grafo","xilo..fono","lupa"] },
   "M6.L1.CF.A1": { "syllcount": [2,3,4], "words": ["hamburguesa","gallina","gato","nido","gota","ventana","autobuses","galletas","escalera"] },
   "M6.L2.CF.A1": { "syllcount": [2,3,4], "words": ["velero","gallina","chocolate","juguetes","grillo","caballo"] },
