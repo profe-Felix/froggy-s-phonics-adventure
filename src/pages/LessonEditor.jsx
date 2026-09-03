@@ -17,6 +17,8 @@ import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
 import { useMissingLetterPresets } from '@/hooks/useMissingLetterPresets';
 import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterPresetEditor';
+import { useSpanishReadingPresets } from '@/hooks/useSpanishReadingPresets';
+import SpanishReadingPresetEditor from '@/components/spanishReading/SpanishReadingPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -49,8 +51,10 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
   const { list: letterSortList } = useLetterSortPresets();
   const { list: missingLetterList } = useMissingLetterPresets();
+  const { list: spanishReadingList, refresh: refreshSpanishReadingPresets } = useSpanishReadingPresets();
   const [lsEditor, setLsEditor] = useState(null);
   const [mlEditor, setMlEditor] = useState(null);
+  const [srEditor, setSrEditor] = useState(null);
 
   const [targetsText, setTargetsText] = useState(
     (step.config?.targets || []).join(', ')
@@ -146,6 +150,44 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               onSaved={(k) => update({ config: { ...step.config, preset: k } })}
             />
           )}
+        </div>
+      ) : step.mode === 'spanish_reading' ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <label className="text-xs text-gray-600 font-bold">Preset (optional — overrides the list picker)
+            <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value, itemsText: '' } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">— default (student picks a list) —</option>
+              {spanishReadingList.map(p => <option key={p.id} value={p.id}>{p.label} ({p.section} · {p.itemCount})</option>)}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setSrEditor('new')} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Plus className="w-3 h-3" /> New preset</button>
+            {step.config?.preset && (
+              <button type="button" onClick={() => setSrEditor(step.config.preset)} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Settings className="w-3 h-3" /> Edit preset</button>
+            )}
+          </div>
+          {srEditor && (
+            <SpanishReadingPresetEditor
+              presetKey={srEditor === 'new' ? null : srEditor}
+              onClose={() => setSrEditor(null)}
+              onSaved={(k) => { refreshSpanishReadingPresets(); update({ config: { ...step.config, preset: k, itemsText: '' } }); }}
+            />
+          )}
+          <div className="text-[10px] text-gray-400 -mt-1">Or type items inline below to override the preset for just this step.</div>
+          <label className="text-xs text-gray-600 font-bold">Section (for inline items)
+            <select value={step.config?.section || 'Sílabas'} onChange={e => update({ config: { ...step.config, section: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="Sílabas">Sílabas</option>
+              <option value="Palabras 💙">Palabras HF</option>
+              <option value="Palabras">Palabras</option>
+              <option value="Oraciones">Oraciones</option>
+            </select>
+          </label>
+          <label className="text-xs text-gray-600 font-bold">Inline items (one per line — overrides preset)
+            <textarea value={step.config?.itemsText || ''} onChange={e => update({ config: { ...step.config, itemsText: e.target.value, preset: '' } })} rows={4}
+              placeholder={step.config?.section === 'Oraciones' ? 'La mama ama a mi.\nMi mamá me mima.' : 'ma\nme\nmi\nmo\nmu'}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
+          </label>
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

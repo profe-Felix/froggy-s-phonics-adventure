@@ -152,7 +152,7 @@ function SessionOverview({ sessions, onContinue }) {
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
-export default function SpanishReadingGame({ studentNumber, className, onBack }) {
+export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection }) {
   const [listsData, setListsData] = useState(null);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedModule, setSelectedModule] = useState(null);
@@ -165,6 +165,15 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   const [todaySessions, setTodaySessions] = useState([]);
   const [loadingModule, setLoadingModule] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Driven mode: when a lesson step passes a preset or inline items, the game
+  // skips the section/module picker and reads only those items.
+  const [drivenItems, setDrivenItems] = useState(null);
+  const [drivenSection, setDrivenSection] = useState(null);
+  const [drivenListName, setDrivenListName] = useState('');
+
+  const isDriven = !!drivenItems;
+  const activeListName = isDriven ? drivenListName : `${selectedSection || ''} M${selectedModule || ''}`;
 
   // Load lists from Supabase
   useEffect(() => {
@@ -179,6 +188,51 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     };
     load();
   }, []);
+
+  // Resolve a lesson-step preset or inline items into a driven item list.
+  useEffect(() => {
+    const text = (inlineItemsText || '').trim();
+    if (text) {
+      const section = inlineSection || 'Sílabas';
+      const parsed = text.split('\n').map((s) => s.trim()).filter(Boolean)
+        .map((line) => {
+          const [t, id] = line.split('|').map((p) => p && p.trim());
+          return id ? { text: t, id } : { text: t };
+        });
+      setDrivenSection(section);
+      setDrivenListName(`inline: ${section}`);
+      setDrivenItems(parsed);
+      return;
+    }
+    if (presetId) {
+      let cancelled = false;
+      base44.entities.SpanishReadingPreset.filter({ key: presetId }).then((recs) => {
+        if (cancelled || !recs.length) return;
+        const r = recs[0];
+        let raw = [];
+        try { raw = JSON.parse(r.items_data || '[]'); } catch {}
+        const section = r.section || 'Sílabas';
+        const parsed = raw.map((it) => (typeof it === 'string' ? { text: it } : it)).filter((it) => it.text || it.id);
+        setDrivenSection(section);
+        setDrivenListName(r.label || r.key);
+        setDrivenItems(parsed);
+      }).catch(() => {});
+      return () => { cancelled = true; };
+    }
+  }, [presetId, inlineItemsText, inlineSection]);
+
+  // When driven items resolve, jump straight into reading them.
+  useEffect(() => {
+    if (!drivenItems) return;
+    setItems(drivenItems);
+    setCurrentIdx(0);
+    setViewMode('reading');
+    setPhase('reading');
+    setRecordingBlob(null);
+    if (drivenSection) setSelectedSection(drivenSection);
+    fetchCompleted();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivenItems, drivenSection]);
 
   const sectionConfig = SECTIONS.find(s => s.key === selectedSection);
   const itemType = sectionConfig?.type || 'word';
@@ -200,8 +254,9 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
   };
 
   useEffect(() => {
-    if (selectedSection) fetchCompleted();
-  }, [refreshKey, selectedSection]);
+    if (selectedSection || isDriven) fetchCompleted();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey, selectedSection, isDriven]);
 
   // Load module with mastery-based sorting: items the teacher marked correct
   // are deprioritized (placed last) so students focus on what they need to learn
@@ -282,7 +337,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
       student_number: studentNumber,
       class_name: className,
       school_year: ACTIVE_SCHOOL_YEAR,
-      list_name: `${selectedSection} M${selectedModule}`,
+      list_name: activeListName,
       item_text: itemText,
       item_type: itemType,
       recording_url: recordingUrl,
@@ -321,8 +376,8 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     );
   }
 
-  // ── Section selector ──
-  if (!selectedSection) {
+  // ── Section selector ── (skipped when driven by a lesson preset/inline items)
+  if (!selectedSection && !isDriven) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
         <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
@@ -371,10 +426,10 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-1.5 sm:py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '1px solid #4338ca' }}>
-        <button onClick={() => { setSelectedSection(null); setSelectedModule(null); setViewMode('reading'); }}
-          className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">← Lists</button>
+        <button onClick={() => { if (isDriven) { onBack?.(); return; } setSelectedSection(null); setSelectedModule(null); setViewMode('reading'); }}
+          className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">{isDriven ? '← Lesson' : '← Lists'}</button>
         <span className="text-white font-black text-xs sm:text-sm flex-1 text-center truncate min-w-0 px-1">
-          {sectionConfig?.icon} {selectedSection} · M{selectedModule}
+          {sectionConfig?.icon} {isDriven ? (drivenListName || selectedSection) : `${selectedSection} · M${selectedModule}`}
         </span>
         <button onClick={() => setViewMode('overview')}
           className={`text-xs sm:text-sm font-bold shrink-0 px-2 py-1 rounded-lg transition ${viewMode === 'overview' ? 'bg-indigo-600 text-white' : 'text-indigo-300 hover:text-white'}`}
@@ -386,17 +441,19 @@ export default function SpanishReadingGame({ studentNumber, className, onBack })
         </div>
       </div>
 
-      {/* Module pills */}
-      <div className="flex gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 overflow-x-auto shrink-0" style={{ background: '#1a1a2e' }}>
-        {moduleNums.map(m => (
-          <button key={m} onClick={() => handleModuleSelect(m)}
-            className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all ${
-              selectedModule === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-indigo-300 hover:bg-gray-700'
-            }`}>
-            M{m}
-          </button>
-        ))}
-      </div>
+      {/* Module pills — hidden when driven by a lesson preset/inline items */}
+      {!isDriven && (
+        <div className="flex gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 overflow-x-auto shrink-0" style={{ background: '#1a1a2e' }}>
+          {moduleNums.map(m => (
+            <button key={m} onClick={() => handleModuleSelect(m)}
+              className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all ${
+                selectedModule === m ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-indigo-300 hover:bg-gray-700'
+              }`}>
+              M{m}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       {loadingModule ? (

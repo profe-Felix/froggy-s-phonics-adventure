@@ -963,6 +963,15 @@ export default function LessonModeRouter({
             onBack={
               wrappedBack
             }
+            presetId={
+              step?.config?.preset
+            }
+            inlineItemsText={
+              step?.config?.itemsText
+            }
+            inlineSection={
+              step?.config?.section
+            }
           />
         );
 

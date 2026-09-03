@@ -1,0 +1,80 @@
+{
+  "name": "SpanishReadingPreset",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Unique preset key. Lesson steps reference presets by this key."
+    },
+    "label": {
+      "type": "string",
+      "default": "",
+      "description": "Display label shown in the preset picker."
+    },
+    "section": {
+      "type": "string",
+      "enum": [
+        "S\u00edlabas",
+        "Palabras \ud83d\udc99",
+        "Palabras",
+        "Oraciones"
+      ],
+      "default": "S\u00edlabas",
+      "description": "Which slide-reading section this preset feeds. Drives the item type (word vs sentence) and audio category."
+    },
+    "items_data": {
+      "type": "string",
+      "description": "JSON array of items. Each item is a string (e.g. \"ma\") or an object {text, id} where id is the audio filename stem. Strings are the common case for syllables/words.",
+      "default": "[]"
+    }
+  },
+  "required": [
+    "key",
+    "items_data"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
