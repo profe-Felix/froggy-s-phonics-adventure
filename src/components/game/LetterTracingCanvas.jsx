@@ -360,18 +360,28 @@ export default function LetterTracingCanvas({
     const c = wrapRef.current;
     const svg = svgRef.current;
     if (!c || !svg || copyCount <= 1) return;
-    const pitch = (svg.clientWidth + COPY_GAP) / copyCount;
-    const copyW = pitch - COPY_GAP;
+    const pitch = effectiveCopyWidth + renderGap;
+    const copyW = effectiveCopyWidth;
+    // In dot-only mode, center the boundary between the previous and active
+    // copy so BOTH stay fully visible — the student sees the completed
+    // reference letter alongside their current attempt. Falls back to
+    // centering the active copy when there's no previous copy or when both
+    // copies don't fit in the viewport (narrow phones).
+    const bothFit = 2 * effectiveCopyWidth + renderGap <= c.clientWidth;
+    const showPrev = dotOnly && safeActiveCopy > 0 && bothFit;
+    const centerPoint = showPrev
+      ? safeActiveCopy * pitch - renderGap / 2
+      : safeActiveCopy * pitch + copyW / 2;
     const targetLeft = Math.max(
       0,
       Math.min(
         c.scrollWidth - c.clientWidth,
-        safeActiveCopy * pitch + copyW / 2 - c.clientWidth / 2
+        centerPoint - c.clientWidth / 2
       )
     );
     c.scrollTo({ left: targetLeft, behavior: firstScrollRef.current ? 'auto' : 'smooth' });
     firstScrollRef.current = false;
-  }, [safeActiveCopy, copyCount]);
+  }, [safeActiveCopy, copyCount, dotOnly, effectiveCopyWidth, renderGap]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
@@ -1212,21 +1222,29 @@ export default function LetterTracingCanvas({
             const isPastStroke =
               copyIndex === safeActiveCopy && si < strokeIndex;
 
-            // In freehand mode (dot-only / freehand), only show guide strokes
-            // for PAST copies — the completed letters stay visible as a visual
-            // reference of where the letter should sit. The active and future
-            // copies are blank so the student writes independently.
-            if (freehandMode && !isPastCopy) return null;
+            // In freehand mode, only past copies show guide strokes (completed
+            // letters as green reference). In dot-only mode, the ACTIVE copy
+            // also gets a faint ghost of the letter so the student can see
+            // what they're aiming for and compare their attempt to it.
+            const isGhostCopy = dotOnly && copyIndex === safeActiveCopy;
+            if (freehandMode && !isPastCopy && !isGhostCopy) return null;
 
             const color =
-              isPastCopy || isPastStroke
-                ? '#22c55e'
-                : isFutureCopy
-                  ? '#94a3b8'
-                  : GUIDE_COLORS[si % GUIDE_COLORS.length];
+              isGhostCopy
+                ? '#94a3b8'
+                : isPastCopy || isPastStroke
+                  ? '#22c55e'
+                  : isFutureCopy
+                    ? '#94a3b8'
+                    : GUIDE_COLORS[si % GUIDE_COLORS.length];
 
             const scaledPts = stroke.map((p) => scaleForCopy(p, copyIndex));
-            const opacity = isPastCopy ? 0.42 : isFutureCopy ? 0.25 : isPastStroke ? 0.5 : 0.6;
+            const opacity =
+              isGhostCopy ? 0.13
+              : isPastCopy ? 0.42
+              : isFutureCopy ? 0.25
+              : isPastStroke ? 0.5
+              : 0.6;
             // A single-point stroke is a dot (the tittle on i/j). splinePathD
             // returns '' for < 2 points, so render it as a filled circle.
             if (scaledPts.length === 1) {

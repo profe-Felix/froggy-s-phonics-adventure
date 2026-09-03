@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { RotateCcw, Check, X } from 'lucide-react';
+import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
+import { splinePathD } from '@/components/tracing/strokeMath';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375;
@@ -10,7 +12,7 @@ const POINTS_PER_MS = 0.03; // ~30 points/sec — slow enough to see formation
 // progressively in the order the student drew them, so the teacher
 // can watch letter formation (stroke order + direction) — not just
 // see the finished ink.
-function SamplePlayback({ sample }) {
+function SamplePlayback({ sample, letter }) {
   const [strokes, setStrokes] = useState([]);
   const [revealed, setRevealed] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -68,6 +70,26 @@ function SamplePlayback({ sample }) {
         <line x1="0" y1="137.6" x2={CANVAS_W} y2="137.6" stroke="#000" strokeWidth="1" strokeDasharray="6 4" />
         <line x1="0" y1="237.4" x2={CANVAS_W} y2="237.4" stroke="#16a34a" strokeWidth="1.5" />
         <line x1="0" y1="337.5" x2={CANVAS_W} y2="337.5" stroke="#fca5a5" strokeWidth="1.5" strokeDasharray="4 4" />
+        {/* Faint reference letter so the teacher can compare the student's
+            attempt to the ideal form. */}
+        {letter && LETTER_WAYPOINTS[letter]?.strokes?.map((stroke, si) => {
+          const pts = stroke.map(p => ({ x: p.x * CANVAS_W, y: p.y * CANVAS_H }));
+          if (pts.length === 1) {
+            return <circle key={`ref-${si}`} cx={pts[0].x} cy={pts[0].y} r="5" fill="#cbd5e1" opacity="0.5" />;
+          }
+          return (
+            <path
+              key={`ref-${si}`}
+              d={splinePathD(pts)}
+              fill="none"
+              stroke="#cbd5e1"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.5"
+            />
+          );
+        })}
         {sample.mode === 'dot_only' && strokes[0]?.[0] && (
           <circle cx={strokes[0][0].x * CANVAS_W} cy={strokes[0][0].y * CANVAS_H} r="6" fill="#a78bfa" />
         )}
@@ -135,7 +157,7 @@ export default function FreehandReplayModal({ studentNumber, className, letter, 
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {samples.map(s => (
-                <SamplePlayback key={s.id} sample={s} />
+                <SamplePlayback key={s.id} sample={s} letter={letter} />
               ))}
             </div>
             {pendingReview && (
