@@ -83,7 +83,11 @@ function TeacherSpeakerIcon({ annotation, containerSize }) {
 export default function StudentBookReader({ book, studentNumber, className, onBack, showQrButton = false, onShowQR, initialPage }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const restoredPage = readRestore(className, studentNumber)?.page;
+  const restored = readRestore(className, studentNumber);
+  // Only restore the page if it was saved for THIS book — the restore key is
+  // per-student (not per-book), so the last page from a different book must not
+  // carry over and open the new book mid-way.
+  const restoredPage = (restored && restored.bookId === book.id) ? restored.page : null;
   const startPage = (initialPage && initialPage >= 1 && initialPage <= (book.pdf_page_count || 1)) ? initialPage : (restoredPage || 1);
   const [currentPage, setCurrentPage] = useState(startPage);
   const [twoPerPage, setTwoPerPage] = useState(false);
