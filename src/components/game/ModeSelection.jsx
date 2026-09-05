@@ -111,6 +111,14 @@ const MODES = [
     icon: '🔤',
     color: 'from-fuchsia-400 to-purple-600',
     alwaysUnlocked: true
+  },
+  {
+    id: 'name_tracing',
+    title: 'Name Tracing',
+    description: 'Practice writing your own name!',
+    icon: '🧒',
+    color: 'from-lime-400 to-green-600',
+    alwaysUnlocked: true
   }
 ];
 

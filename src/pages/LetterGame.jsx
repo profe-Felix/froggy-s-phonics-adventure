@@ -15,6 +15,7 @@ import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import MissingLetterMode from '../components/game/modes/MissingLetterMode';
+import NameTracingMode from '../components/game/modes/NameTracingMode';
 import SyllableCountMode from '../components/game/modes/SyllableCountMode';
 import StoryBuilder from '../pages/StoryBuilder';
 import BookReading from '../pages/BookReading';
@@ -659,6 +660,13 @@ export default function LetterGame() {
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
           onStudentPatch={handlePersistPatch}
+        />
+      )}
+      {currentMode === 'name_tracing' && (
+        <NameTracingMode
+          studentData={studentData}
+          onUpdateProgress={handleUpdateProgress}
+          onBack={handleBackToModes}
         />
       )}
       {currentMode === 'syllable_count' && (

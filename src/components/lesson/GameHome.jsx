@@ -14,6 +14,7 @@ import { BookOpen, PlayCircle } from 'lucide-react';
 const FREE_MODES = [
   { mode: 'letter_sounds', label: 'Letter Sounds', emoji: '🔊' },
   { mode: 'letter_tracing', label: 'Letter Tracing', emoji: '⬇️✏️' },
+  { mode: 'name_tracing', label: 'Name Tracing', emoji: '🧒' },
   { mode: 'sight_words_easy', label: 'Sight Words', emoji: '👁️' },
   { mode: 'missing_letter', label: 'Missing Letter', emoji: '🔤' },
   { mode: 'syllable_count', label: 'Counting Syllables', emoji: '👏' },
@@ -34,7 +35,10 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
   // Tracing-only classes get a single game: Letter Tracing.
   const modes = useMemo(
     () => isTracingOnly
-      ? [{ mode: 'letter_tracing', label: 'Letter Tracing', emoji: '✏️' }]
+      ? [
+          { mode: 'letter_tracing', label: 'Letter Tracing', emoji: '✏️' },
+          { mode: 'name_tracing', label: 'Name Tracing', emoji: '🧒' },
+        ]
       : FREE_MODES,
     [isTracingOnly]
   );
