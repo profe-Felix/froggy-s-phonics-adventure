@@ -1,124 +1,86 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import confetti from 'canvas-confetti';
+import { Sparkles } from 'lucide-react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
-import WordTracingCanvas from '../WordTracingCanvas';
-import { getLanguage } from '@/lib/language';
-import { computeWordLayout } from '@/lib/tracingCore';
+import NameTracingCanvas from '../NameTracingCanvas';
 import { base44 } from '@/api/base44Client';
 
-// Name Tracing — like Word Tracing, but the target word is the student's own
-// name pulled from the roster (Student.name for their class + number).
-// Case is preserved so the capital letter at the start traces correctly.
-export default function NameTracingMode({
-  studentData,
-  onUpdateProgress,
-  onBack,
-}) {
-  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
-  const [traceKey, setTraceKey] = useState(0);
-  const [currentRep, setCurrentRep] = useState(1);
-  const [celebrate, setCelebrate] = useState(null);
-  const [scrollLetterIndex, setScrollLetterIndex] = useState(0);
-  const scrollRef = useRef(null);
-  const prevNameRef = useRef(null);
+// Name Tracing — staged progression like Letter Tracing, on a vertical
+// scrolling page (names are long). No sound.
+//   Phase 1 "Guided"  — 3 rows of dot-to-dot guides (trace over the dots)
+//   Phase 2 "Trace"   — 3 rows of faded outlines (trace the letters)
+//   Phase 3 "Freehand"— 1 row with just a start dot (write it yourself)
+// Rows stack vertically; the page auto-scrolls to the active row.
 
-  const lang = getLanguage(studentData);
-  // Preserve case — names start with a capital. Strip spaces so the name
-  // traces as one connected unit (WordTracingCanvas lays out letters side
-  // by side; a space would render as a gap with no guide).
+const GUIDED_REPS = 3;
+const TRACE_REPS = 3;
+
+export default function NameTracingMode({ studentData, onBack }) {
+  const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
+  const [activeRow, setActiveRow] = useState(0);
+  const [celebrate, setCelebrate] = useState(null);
+  const [done, setDone] = useState(false);
+  const scrollRef = useRef(null);
+  const rowRefs = useRef([]);
+
   const name = (studentData?.name || '').trim();
 
+  // Load DB waypoint overrides
   useEffect(() => {
     let cancelled = false;
-    base44.entities.LetterWaypoint.list()
-      .then((records) => {
-        if (cancelled || !Array.isArray(records) || records.length === 0) return;
-        setWaypoints((prev) => {
-          const merged = { ...prev };
-          for (const r of records) {
-            if (!r.letter || !r.strokes_data) continue;
-            try {
-              const strokes = JSON.parse(r.strokes_data);
-              if (Array.isArray(strokes) && strokes.length) {
-                merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
-              }
-            } catch { /* ignore malformed */ }
-          }
-          return merged;
-        });
-      })
-      .catch(() => {});
+    base44.entities.LetterWaypoint.list().then((records) => {
+      if (cancelled || !Array.isArray(records) || records.length === 0) return;
+      setWaypoints((prev) => {
+        const merged = { ...prev };
+        for (const r of records) {
+          if (!r.letter || !r.strokes_data) continue;
+          try {
+            const strokes = JSON.parse(r.strokes_data);
+            if (Array.isArray(strokes) && strokes.length) {
+              merged[r.letter] = { strokes, hint: r.hint || prev[r.letter]?.hint || '' };
+            }
+          } catch { /* ignore */ }
+        }
+        return merged;
+      });
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
-  // WordTracingCanvas layout constants — must match the canvas internals
-  // (X_SCALE=600, LETTER_GAP=45, PADDING=30, REPETITIONS=3, WORD_GAP=80).
-  const { totalW, letters: nameLetters, layout: letterLayout } = computeWordLayout(name, waypoints, 600, 45, 30, 3, 80);
+  // Build the row plan: guided rows, then trace rows, then one freehand row.
+  const rows = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < GUIDED_REPS; i++) out.push({ mode: 'guided', label: `Guided ${i + 1}` });
+    for (let i = 0; i < TRACE_REPS; i++) out.push({ mode: 'trace', label: `Trace ${i + 1}` });
+    out.push({ mode: 'freehand', label: 'Your turn!' });
+    return out;
+  }, []);
 
-  // Auto-scroll to keep the current letter in view (same logic as WordTracingMode).
+  // Letters in the name that have waypoints
+  const traceableLetters = useMemo(
+    () => name.split('').filter((ch) => waypoints[ch]),
+    [name, waypoints]
+  );
+
+  // Auto-scroll to the active row
   useEffect(() => {
-    if (!scrollRef.current) return;
-    if (prevNameRef.current !== name) {
-      prevNameRef.current = name;
-      scrollRef.current.scrollTo({ left: 0, behavior: 'auto' });
-      return;
+    const el = rowRefs.current[activeRow];
+    if (el && scrollRef.current) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    const lay = letterLayout[scrollLetterIndex];
-    if (!lay) return;
-    const containerW = scrollRef.current.clientWidth;
-    const svg = scrollRef.current.querySelector('svg');
-    const renderedW = svg ? svg.getBoundingClientRect().width : totalW;
-    const scale = renderedW / totalW;
-    const letterLeft = lay.offset * scale;
-    const letterWidth = (lay.width || 360) * scale;
-    const letterRight = letterLeft + letterWidth;
-    const currentScroll = scrollRef.current.scrollLeft;
-    const viewportRight = currentScroll + containerW;
-    if (letterRight <= viewportRight - containerW * 0.25 && letterLeft >= currentScroll) return;
-    const letterCenter = letterLeft + letterWidth / 2;
-    let target = letterCenter - containerW / 2;
-    target = Math.min(target, letterLeft - 20);
-    target = Math.max(0, target);
-    const maxScroll = Math.max(0, renderedW - containerW);
-    target = Math.min(target, maxScroll);
-    scrollRef.current.scrollTo({ left: target, behavior: 'smooth' });
-  }, [scrollLetterIndex, letterLayout, totalW, name]);
+  }, [activeRow]);
 
-  const handleProgress = ({ currentRep: rep, letterIndex: li }) => {
-    setCurrentRep(rep);
-    if (li != null) setScrollLetterIndex(li);
-  };
-
-  const handleComplete = (accuracy) => {
-    const passed = accuracy == null || accuracy >= 80;
-    setCelebrate({ name, accuracy, passed });
-
-    if (passed) {
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+  const handleRowComplete = () => {
+    const next = activeRow + 1;
+    if (next >= rows.length) {
+      // All done!
+      setDone(true);
+      setCelebrate({ message: `You wrote your whole name!` });
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+      setTimeout(() => setCelebrate(null), 2500);
+    } else {
+      setActiveRow(next);
     }
-
-    if (onUpdateProgress) {
-      // Record name-tracing as a mastered item under word_tracing progress
-      // so it shows up in the student's progress, keyed by their name.
-      const existing = studentData?.mode_progress?.word_tracing || {
-        mastered_items: [], learning_items: [], item_attempts: {}, total_correct: 0, total_attempts: 0, unlocked: true,
-      };
-      const mastered = new Set(existing.mastered_items || []);
-      if (passed) mastered.add(name);
-      onUpdateProgress('word_tracing', {
-        mastered_items: Array.from(mastered),
-        total_attempts: mastered.size,
-        total_correct: mastered.size,
-        learning_items: [],
-      });
-    }
-
-    setTimeout(() => {
-      setCelebrate(null);
-      setTraceKey(k => k + 1);
-      setCurrentRep(1);
-      setScrollLetterIndex(0);
-    }, 2400);
   };
 
   if (!name) {
@@ -140,67 +102,114 @@ export default function NameTracingMode({
     );
   }
 
-  if (!nameLetters.length) {
+  if (!traceableLetters.length) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
         <div className="text-center max-w-sm">
           <div className="text-5xl mb-3">✏️</div>
           <p className="text-slate-500">No traceable letters in your name yet.</p>
+          {onBack && (
+            <button onClick={onBack} className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700">
+              Back
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
+  const renderWidth = Math.min(560, Math.max(320, (window.innerWidth || 800) * 0.92));
+  const rowHeight = Math.round(renderWidth * (375 / 300));
+
+  // Current phase label
+  const currentRow = rows[activeRow];
+  const phaseLabel = currentRow?.mode === 'guided' ? 'Guided — trace the dots'
+    : currentRow?.mode === 'trace' ? 'Trace the letters'
+    : 'Write it yourself!';
+
   return (
-    <div className="h-full bg-slate-50 flex flex-col items-center py-4 px-4 gap-3">
-      {/* Name + repetition indicator */}
-      <div className="flex items-center justify-center gap-3 shrink-0">
-        <div className="flex items-end gap-0.5">
-          {name.split('').map((ch, i) => (
-            <span key={i} className={`text-2xl font-bold leading-none ${waypoints[ch] ? 'text-slate-700' : 'text-slate-300'}`}>
-              {ch}
-            </span>
-          ))}
+    <div className="h-full bg-slate-50 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-slate-200 bg-white">
+        <button
+          onClick={onBack}
+          className="text-slate-500 hover:text-slate-800 text-xs font-bold whitespace-nowrap"
+        >
+          ← Games
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="text-slate-800 font-black text-lg leading-none">{name}</div>
+          <div className="text-[11px] text-slate-400 font-bold leading-none">Name Tracing</div>
         </div>
-        <div className="flex items-center gap-1.5">
-          {[1, 2, 3].map((rep) => (
-            <div key={rep} className={`w-2.5 h-2.5 rounded-full transition-colors ${
-              rep < currentRep ? 'bg-green-400' : rep === currentRep ? 'bg-indigo-500' : 'bg-slate-200'
-            }`} />
+        <div className="flex items-center gap-1">
+          {rows.map((r, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full ${i < activeRow ? 'bg-green-400' : i === activeRow ? 'bg-indigo-500' : 'bg-slate-200'}`} />
           ))}
-          <span className="text-xs text-slate-400 font-bold ml-1">
-            Time {currentRep} of 3
-          </span>
         </div>
       </div>
 
-      {/* Name tracing canvas — 3 repetitions on one connected canvas */}
-      <div ref={scrollRef} className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden pb-2 -mx-2 px-2">
-        <WordTracingCanvas
-          key={traceKey}
-          word={name}
-          waypoints={waypoints}
-          lang={lang}
-          renderWidth={totalW}
-          fillHeight
-          onComplete={handleComplete}
-          onProgress={handleProgress}
-        />
+      {/* Phase label */}
+      <div className="text-center py-1.5 shrink-0">
+        <span className={`text-sm font-bold rounded-full px-3 py-0.5 border ${
+          currentRow?.mode === 'guided' ? 'text-amber-700 bg-amber-50 border-amber-200'
+          : currentRow?.mode === 'trace' ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
+          : 'text-pink-700 bg-pink-50 border-pink-200'
+        }`}>
+          {currentRow?.mode === 'guided' ? '● Guided' : currentRow?.mode === 'trace' ? '✍️ Trace' : '🌟 Your turn'}
+          {' '}· Row {activeRow + 1} of {rows.length}
+        </span>
+        <span className="ml-2 text-xs text-slate-400 font-bold">{phaseLabel}</span>
       </div>
 
-      {/* Celebration overlay */}
+      {/* Vertical scrolling page of rows */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="flex flex-col items-center gap-6 py-6 px-4">
+          {rows.map((row, i) => {
+            const isActive = i === activeRow && !done;
+            const isPast = i < activeRow || done;
+            return (
+              <div
+                key={i}
+                ref={(el) => (rowRefs.current[i] = el)}
+                className={`flex flex-col items-center gap-1 transition-opacity ${isPast ? 'opacity-40' : isActive ? 'opacity-100' : 'opacity-30'}`}
+              >
+                <div className="text-[11px] font-bold text-slate-400">{row.label}</div>
+                {isActive ? (
+                  <NameTracingCanvas
+                    key={`row-${i}`}
+                    name={name}
+                    waypoints={waypoints}
+                    mode={row.mode}
+                    renderWidth={renderWidth}
+                    rowHeight={rowHeight}
+                    onComplete={handleRowComplete}
+                  />
+                ) : (
+                  // Placeholder for non-active rows so the page keeps its height
+                  <div
+                    className="rounded-2xl border-4 border-slate-200 bg-white flex items-center justify-center"
+                    style={{ width: renderWidth, height: rowHeight }}
+                  >
+                    {isPast ? (
+                      <span className="text-3xl">✓</span>
+                    ) : (
+                      <span className="text-slate-300 text-sm font-bold">Coming up</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div className="h-8" />
+        </div>
+      </div>
+
+      {/* Celebration */}
       {celebrate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-white rounded-3xl shadow-2xl px-8 py-6 flex flex-col items-center gap-2">
-            <div className="text-4xl">{celebrate.passed ? '🎉' : '✏️'}</div>
-            <div className="text-xl font-black text-slate-800">
-              {celebrate.passed ? `Great job writing "${celebrate.name}"!` : `Try writing "${celebrate.name}" again`}
-            </div>
-            {celebrate.accuracy != null && (
-              <div className={`text-sm font-bold ${celebrate.accuracy >= 80 ? 'text-green-600' : 'text-amber-600'}`}>
-                🎯 {celebrate.accuracy}% accuracy
-              </div>
-            )}
+            <Sparkles className="w-10 h-10 text-amber-400" />
+            <div className="text-2xl font-black text-slate-800">{celebrate.message}</div>
           </div>
         </div>
       )}
