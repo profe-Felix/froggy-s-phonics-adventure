@@ -18,7 +18,7 @@ import { splinePathD } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
-const LETTER_GAP = 10; // small gap — tight like real handwriting but not overlapping
+const LETTER_GAP = 35; // generous gap so letters don't crowd — scales with letter size
 const PADDING = 30;
 const MIN_INK_PX = 120;
 // Match Letter Tracing's starting size (Medium = sizeLevel 2, scale 0.55).
@@ -445,12 +445,23 @@ export default function NameTracingCanvas({
     const reachedEnd = densePath.length > 1
       ? coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL
       : true;
-    if (reachedEnd) {
-      commitStroke();
-    } else {
+    if (!reachedEnd) {
       flashError();
       restartStroke();
+      return;
     }
+    // Accuracy gate: reject strokes that deviate too far from the guide.
+    // Dot strokes are always perfect. This prevents wildly inaccurate
+    // strokes from being accepted as "correct."
+    if (!isDot) {
+      const acc = strokeAccuracy(currentPathRef.current, densePath);
+      if (acc < 45) {
+        flashError();
+        restartStroke();
+        return;
+      }
+    }
+    commitStroke();
   };
 
   // --- Dot-only handlers ---
@@ -667,10 +678,27 @@ export default function NameTracingCanvas({
                           isCurrent ? '#A78BFA' :
                           '#cbd5e1';
             const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.6) : 0.4;
+            const scaled = stroke.map(p => scaleForLetter(p, li));
+            // Dot strokes (e.g. 'i' dot, 'j' dot) are 2 points very close
+            // together — render as a filled circle so the dot is visible.
+            const isDotGuide = scaled.length === 2 && dist(scaled[0], scaled[1]) < 8;
+            if (isDotGuide) {
+              return (
+                <circle
+                  key={`${li}-${si}`}
+                  cx={scaled[0].x}
+                  cy={scaled[0].y}
+                  r={isCurrent && guideFlash ? 7 : 5}
+                  fill={color}
+                  opacity={opacity}
+                  pointerEvents="none"
+                />
+              );
+            }
             return (
               <path
                 key={`${li}-${si}`}
-                d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
+                d={splinePathD(scaled)}
                 fill="none"
                 stroke={color}
                 strokeWidth={isCurrent && guideFlash ? 10 : 6}
@@ -688,6 +716,13 @@ export default function NameTracingCanvas({
           if (s.scaledPts.length < 2) {
             const p = s.scaledPts[0];
             return p ? <circle key={`dp-${i}`} cx={p.x} cy={p.y} r="5" fill="#6366f1" opacity="0.3" pointerEvents="none" /> : null;
+          }
+          // Dot strokes (e.g. 'i' dot) — render as a filled circle
+          if (s.scaledPts.length === 2 && dist(s.scaledPts[0], s.scaledPts[1]) < 8) {
+            return (
+              <circle key={`dp-${i}`} cx={s.scaledPts[0].x} cy={s.scaledPts[0].y} r="5"
+                fill="#A78BFA" opacity="0.3" pointerEvents="none" />
+            );
           }
           return (
             <path
