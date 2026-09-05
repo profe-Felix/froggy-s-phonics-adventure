@@ -7,7 +7,7 @@ import DeskItem, { DESK_W, DESK_H } from '@/components/seating/DeskItem';
 import DeskLandmarkItem from '@/components/seating/DeskLandmarkItem';
 import StudentBankCard from '@/components/seating/StudentBankCard';
 import { getHomeroomForClass } from '@/lib/classRotation';
-import { Loader2, ArrowLeft, Plus, RefreshCw, Users, Pencil, Copy, ClipboardPaste, Check, Trash2, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, RefreshCw, Users, Pencil, Copy, ClipboardPaste, Check, Trash2, Printer, LayoutGrid } from 'lucide-react';
 
 const GROUPS = ['A', 'B', 'C'];
 const GRID_SIZE = 8;
@@ -323,6 +323,37 @@ export default function Desk() {
     setSaving(false);
   };
 
+  const handleGenerateGrid = async () => {
+    if ((desks || []).length > 0) {
+      if (!window.confirm('This adds a 5×4 grid of empty desks on top of the existing layout. Continue?')) return;
+    }
+    const cols = 5;
+    const rows = 4;
+    const colGap = DESK_W + 28;
+    const rowGap = DESK_H + 28;
+    const startX = (CANVAS_W - cols * colGap + 28) / 2;
+    const startY = (CANVAS_H - rows * rowGap + 28) / 2;
+    const newDesks = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        newDesks.push({
+          class_name: selectedClass,
+          group,
+          x: Math.round(startX + c * colGap),
+          y: Math.round(startY + r * rowGap),
+          rotation: 0,
+          student_id: null,
+        });
+      }
+    }
+    setSaving(true);
+    try {
+      const created = await base44.entities.DeskSeat.bulkCreate(newDesks);
+      setDesks((prev) => [...(prev || []), ...created]);
+    } catch { loadRef.current(); }
+    setSaving(false);
+  };
+
   const handleReset = async () => {
     if (!window.confirm('Reset all desks? Students will return to the bank.')) return;
     setSaving(true);
@@ -596,6 +627,9 @@ export default function Desk() {
                 <>
                   <Button size="sm" variant="outline" onClick={handleAddDesk}>
                     <Plus className="w-4 h-4 mr-1.5" /> Add desk
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleGenerateGrid}>
+                    <LayoutGrid className="w-4 h-4 mr-1.5" /> Grid
                   </Button>
                   <Button size="sm" variant="outline" onClick={handleReset}>
                     <RefreshCw className="w-4 h-4 mr-1.5" /> Reset
