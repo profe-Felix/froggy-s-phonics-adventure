@@ -159,6 +159,12 @@ export default function Dashboard() {
                   🔲 QR Codes
                 </Link>
                 <Link
+                  to="/StudentRoster"
+                  className="text-sm text-amber-600 border border-amber-200 rounded-lg px-4 py-2 hover:bg-amber-50"
+                >
+                  🪪 Roster & IDs
+                </Link>
+                <Link
                   to="/SpanishReadingDashboard"
                   className="text-sm text-indigo-600 border border-indigo-200 rounded-lg px-4 py-2 hover:bg-indigo-50"
                 >
