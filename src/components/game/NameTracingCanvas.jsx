@@ -235,7 +235,7 @@ export default function NameTracingCanvas({
       return next;
     });
     setCurrentPath([]);
-    // Score the stroke accuracy (dot strokes are always perfect)
+    // Score the stroke accuracy (dot strokes are always perfect).
     strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
@@ -451,8 +451,10 @@ export default function NameTracingCanvas({
       return;
     }
     // Accuracy gate: reject strokes that deviate too far from the guide.
-    // Dot strokes are always perfect. This prevents wildly inaccurate
-    // strokes from being accepted as "correct."
+    // Dot strokes are always perfect. The messy W from the user's report
+    // deviated 55+ SVG units from the path — with penalty=30 those points
+    // score 0, pulling the average well below 45%. Accurate traces that
+    // follow the guide stay within 5-10 units and score 70-85%.
     if (!isDot) {
       const acc = strokeAccuracy(currentPathRef.current, densePath);
       if (acc < 45) {
@@ -465,15 +467,21 @@ export default function NameTracingCanvas({
   };
 
   // --- Dot-only handlers ---
+  // Use a ref for drawing state because React state is async — the pointer-up
+  // handler can fire before the state update from pointer-down lands, causing
+  // the stroke to be silently discarded (ink disappears).
+  const dotDrawingRef = useRef(false);
+
   const handleDotDown = (p) => {
     if (dotCompleted) return;
+    dotDrawingRef.current = true;
     setDrawing(true);
     dotCurrentRef.current = [p];
     setDotCurrentPath([p]);
   };
 
   const handleDotMove = (p) => {
-    if (!drawing || dotCompleted) return;
+    if (!dotDrawingRef.current || dotCompleted) return;
     const last = dotCurrentRef.current[dotCurrentRef.current.length - 1];
     if (last && dist(p, last) < 2) return;
     dotCurrentRef.current = [...dotCurrentRef.current, p];
@@ -482,7 +490,8 @@ export default function NameTracingCanvas({
   };
 
   const handleDotUp = () => {
-    if (!drawing) return;
+    if (!dotDrawingRef.current) return;
+    dotDrawingRef.current = false;
     setDrawing(false);
     if (dotCurrentRef.current.length > 1) {
       setDotDrawnPaths((prev) => [...prev, dotCurrentRef.current]);
