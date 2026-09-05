@@ -7,6 +7,7 @@ import { ArrowLeft, Printer, CheckCheck, Square } from 'lucide-react';
 import TableTag from '@/components/print/TableTag';
 import MailboxLabel from '@/components/print/MailboxLabel';
 import NamePracticeSheet from '@/components/print/NamePracticeSheet';
+import IdCard from '@/components/print/IdCard';
 
 // Unified print shop: pull a class's students, pick a format, check exactly
 // which cards to print (or filter to the sheet's "Print" checkmarks), and
@@ -80,64 +81,7 @@ export default function StudentIdCards() {
     if (format === 'tabletag') return <TableTag student={s} />;
     if (format === 'mailbox') return <MailboxLabel student={s} showPicture={showPicture} />;
     if (format === 'namepractice') return <NamePracticeSheet student={s} />;
-    // ID card — original design with barcode (CODE39)
-    const name = s.name || '—';
-    const number = s.barcode_number || String(s.student_number).padStart(6, '0');
-    const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
-    return (
-      <div
-        className="w-full relative flex flex-col bg-white border border-slate-300 rounded-md overflow-hidden shadow-sm"
-        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-      >
-        <div className="flex justify-center pt-2">
-          <div className="w-[0.65in] h-[0.65in] rounded overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center shrink-0">
-            {s.photo_url ? (
-              <img src={s.photo_url} alt={name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-lg font-bold text-slate-400">{initials || '?'}</span>
-            )}
-          </div>
-        </div>
-        <div className="px-2 mt-2 text-center">
-          <div className="text-[15px] font-extrabold text-slate-900 leading-tight break-words">{name}</div>
-        </div>
-        <div className="px-2 mt-2 space-y-1.5">
-          {s.grade && (
-            <div className="flex items-baseline justify-between gap-1 border-b border-slate-100 pb-1">
-              <span className="text-[8px] uppercase tracking-wider text-slate-400">Grade</span>
-              <span className="text-[13px] font-bold text-slate-900">{s.grade}</span>
-            </div>
-          )}
-          {s.homeroom && (
-            <div className="flex items-baseline justify-between gap-1 border-b border-slate-100 pb-1">
-              <span className="text-[8px] uppercase tracking-wider text-slate-400">Homeroom</span>
-              <span className="text-[13px] font-bold text-slate-900">{s.homeroom}</span>
-            </div>
-          )}
-        </div>
-        {(s.teacher_name || s.site) && (
-          <div className="px-2 mt-1.5 space-y-0.5">
-            {s.teacher_name && (
-              <div className="flex items-baseline justify-between gap-1">
-                <span className="text-[7px] uppercase tracking-wider text-slate-400">Teacher</span>
-                <span className="text-[9px] font-medium text-slate-700 text-right truncate">{s.teacher_name}</span>
-              </div>
-            )}
-            {s.site && (
-              <div className="flex items-baseline justify-between gap-1">
-                <span className="text-[7px] uppercase tracking-wider text-slate-400">Site</span>
-                <span className="text-[9px] font-medium text-slate-700 text-right truncate">{s.site}</span>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="flex-1" />
-        <div className="w-full px-1.5 pb-1.5 flex flex-col items-center">
-          <Barcode value={number} />
-          <span className="text-[10px] font-mono tracking-widest text-slate-800 mt-0.5">{number}</span>
-        </div>
-      </div>
-    );
+    return <IdCard student={s} />;
   };
 
   const handlePrint = () => {
