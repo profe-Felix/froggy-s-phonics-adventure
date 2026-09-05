@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Teachers:wght@400;700&display=swap');
+
+@font-face {
+  font-family: 'ZBKidLettersArrowDot';
+  src: url('https://base44.app/api/apps/6a7a69303138d9d4c5d46a80/files/mp/public/6a7a69303138d9d4c5d46a80/3d358cca2_ZBKidLettersArrowDot.otf') format('opentype');
+  font-display: block;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --font-heading: ui-sans-serif, system-ui, sans-serif;
+    --font-body: ui-sans-serif, system-ui, sans-serif;
+    --font-display: ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+}
+
+@layer components {
+  [data-paste-target]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .tag-font {
+    font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .practice-sheet {
+    --f: 1in;
+    --g: 0.67in;
+    --offset: 0in;
+    --cap: calc(var(--f) * 1.015333);
+    --xh: calc(var(--f) * 0.568667);
+    --desc: calc(var(--f) * 0.533333);
+    --asc: calc(var(--f) * 1.166667);
+    --lh: 1.7;
+    --pblue: #3da8d9;
+    --ppink: #d93d7c;
+    width: 8in;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--g);
+    padding: 0.2in 0;
+    color: #000;
+  }
+  .page-preview {
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.25in;
+    box-sizing: border-box;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+  }
+  .practice-set {
+    position: relative;
+    height: calc(3 * var(--g));
+    flex-shrink: 0;
+  }
+  .practice-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+  }
+  .practice-line.top { top: 0; border-top: 2px solid var(--pblue); }
+  .practice-line.mid { top: var(--g); border-top: 2px dashed var(--pblue); }
+  .practice-line.base { top: calc(2 * var(--g)); border-top: 2px solid var(--pblue); }
+  .practice-line.desc { top: calc(3 * var(--g)); border-top: 2px solid var(--ppink); }
+  .practice-text {
+    position: absolute;
+    left: 0.1in;
+    top: calc(2 * var(--g) - var(--asc) + var(--offset));
+    font-size: var(--f);
+    line-height: var(--lh);
+    font-family: 'ZBKidLettersArrowDot', ui-sans-serif, sans-serif;
+    color: #000;
+    white-space: nowrap;
+  }
+
+  .id-card {
+    width: 2.3in;
+    height: 3.4in;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .id-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 2.3in);
+    gap: 0in;
+    justify-content: center;
+  }
+
+  .sheet-wrap {
+    position: relative;
+    width: calc(8.5in * var(--zoom, 1));
+    height: calc(11in * var(--zoom, 1));
+    margin: 0 auto;
+  }
+
+  .sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0;
+    background: #fff;
+    transform: scale(var(--zoom, 1));
+    transform-origin: top left;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  }
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.25in;
+  }
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .sheet-wrap {
+    --zoom: 1 !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  .sheet {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .id-card {
+    box-shadow: none !important;
+  }
+  .page-preview {
+    border: none !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    width: auto !important;
+    box-shadow: none !important;
+  }
+}
