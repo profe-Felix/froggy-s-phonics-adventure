@@ -9,7 +9,7 @@ const HEADER_MAP: Record<string, string> = {
   'barcode': 'barcode_number', 'barcode number': 'barcode_number', 'barcode_number': 'barcode_number',
   'number': 'number_raw', 'no': 'number_raw', 'num': 'number_raw', '#': 'number_raw',
   'class': 'class_name', 'class name': 'class_name', 'class_name': 'class_name',
-  'class number': 'class_name', 'class_number': 'class_name', 'class #': 'class_name', 'classno': 'class_name',
+  'class number': 'number_raw', 'class_number': 'number_raw', 'class #': 'number_raw', 'classno': 'class_name',
   'teacher': 'teacher_name', 'teacher name': 'teacher_name', 'teacher_name': 'teacher_name',
   'site': 'site', 'grade': 'grade', 'homeroom': 'homeroom',
   'print': 'print_flag', 'print id': 'print_flag', 'need id': 'print_flag',
@@ -142,9 +142,25 @@ export async function upsertStudents(base44: any, incoming: SheetStudent[], scho
     if (s.student_number) byClassNumber[`${cls}:${s.student_number}`] = s;
     if (s.name) byClassName[`${cls}:${String(s.name).toLowerCase().trim()}`] = s;
   }
+  // Existing unnamed (empty) slots per class, lowest number first — filled by
+  // incoming students that have no class number, before creating new records.
+  const emptySlotsByClass: Record<string, any[]> = {};
+  for (const s of existing) {
+    if (schoolYear && s.school_year && s.school_year !== schoolYear) continue;
+    if (s.name && String(s.name).trim()) continue;
+    const cls = String(s.class_name || '').toLowerCase();
+    if (!cls) continue;
+    if (!emptySlotsByClass[cls]) emptySlotsByClass[cls] = [];
+    emptySlotsByClass[cls].push(s);
+  }
+  for (const cls of Object.keys(emptySlotsByClass)) {
+    emptySlotsByClass[cls].sort((a, b) => (a.student_number || 0) - (b.student_number || 0));
+  }
+
   const toCreate: any[] = [];
   const toUpdate: any[] = [];
   const unmatched: string[] = [];
+  const nextNumberByClass: Record<string, number> = {};
   for (const s of incoming) {
     const cls = String(s.class_name || '').toLowerCase();
     let ex: any = null;
@@ -162,6 +178,26 @@ export async function upsertStudents(base44: any, incoming: SheetStudent[], scho
       toUpdate.push({ id: ex.id, ...patch });
     } else if (s.student_number && s.class_name) {
       toCreate.push({ student_number: s.student_number, class_name: s.class_name, school_year: schoolYear, language: 'es', ...patch });
+    } else if (!s.student_number && s.class_name && s.name) {
+      // No class number in the sheet — fill an existing empty slot if available.
+      const clsKey = cls;
+      const slots = emptySlotsByClass[clsKey];
+      if (slots && slots.length > 0) {
+        const slot = slots.shift()!;
+        toUpdate.push({ id: slot.id, ...patch });
+      } else {
+        // No empty slot — assign the next available number for this class.
+        if (nextNumberByClass[clsKey] === undefined) {
+          let max = 0;
+          for (const e of existing) {
+            if (schoolYear && e.school_year && e.school_year !== schoolYear) continue;
+            if (String(e.class_name || '').toLowerCase() === clsKey && e.student_number > max) max = e.student_number;
+          }
+          nextNumberByClass[clsKey] = max;
+        }
+        nextNumberByClass[clsKey]++;
+        toCreate.push({ student_number: nextNumberByClass[clsKey], class_name: s.class_name, school_year: schoolYear, language: 'es', ...patch });
+      }
     } else {
       unmatched.push(s.name || s.barcode_number || '(no name)');
     }
