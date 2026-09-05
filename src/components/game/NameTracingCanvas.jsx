@@ -6,38 +6,36 @@ import {
 import { splinePathD } from '@/components/tracing/strokeMath';
 
 // One row of a name — letters laid out horizontally using the same waypoint
-// system as LetterTracingCanvas. Three modes with decreasing support:
-//   guided   — dot-to-dot guide path + coverage validation
-//   trace    — faded outline of the letters + coverage validation
-//   freehand — a single start dot, no validation (ink threshold + Done button)
-// No sound. Calls onComplete when the row is finished.
+// system as LetterTracingCanvas. Two modes:
+//   guided   — colored spline pathways + numbered start dots + coverage validation
+//   dot_only — just the start dots for each stroke, freehand drawing, ink threshold
+// No sound. Calls onComplete(strokes?) when the row is finished.
+// For dot_only, passes normalized strokes (0-1) for teacher review/saving.
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
 const LETTER_GAP = 18;
 const PADDING = 30;
-const DOT_STEP = 11; // spacing between guide dots (guided mode)
-const MIN_INK_PX = 120; // freehand: minimum total ink length to allow "Done"
+const MIN_INK_PX = 120;
 
 export default function NameTracingCanvas({
   name,
   waypoints,
-  mode = 'guided', // 'guided' | 'trace' | 'freehand'
+  mode = 'guided',
   renderWidth = 320,
-  rowHeight = 360,
   onComplete,
 }) {
-  const isFreehand = mode === 'freehand';
+  const isDotOnly = mode === 'dot_only';
   const isGuided = mode === 'guided';
 
-  // Layout: one repetition of the name.
+  // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
     () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 0),
     [name, waypoints]
   );
 
   // Build dense paths for every stroke of every letter (for coverage validation
-  // + guide-dot rendering). Each entry: { letterIndex, strokeIndex, dense }.
+  // + guide rendering). Each entry: { letterIndex, strokeIndex, dense, scaledPts }.
   const allStrokes = useMemo(() => {
     const out = [];
     layout.forEach((lay, li) => {
@@ -50,8 +48,9 @@ export default function NameTracingCanvas({
         const clean = Array.isArray(stroke)
           ? stroke.filter((p) => p && p.x != null && p.y != null)
           : [];
+        const scaledPts = clean.map(scaleFn);
         const dense = clean.length ? buildDensePath(clean, scaleFn, 3) : [];
-        out.push({ letterIndex: li, strokeIndex: si, dense, scaleFn });
+        out.push({ letterIndex: li, strokeIndex: si, dense, scaledPts, scaleFn });
       });
     });
     return out;
@@ -61,6 +60,9 @@ export default function NameTracingCanvas({
     () => allStrokes.reduce((sum, s) => sum + s.dense.length, 0),
     [allStrokes]
   );
+
+  // SVG height proportional to width so the name fills the width.
+  const renderH = totalW > 0 ? renderWidth * (CANVAS_H / totalW) : renderWidth * 1.25;
 
   // SVG coordinate conversion
   const svgRef = useRef(null);
@@ -81,13 +83,12 @@ export default function NameTracingCanvas({
   const [currentPath, setCurrentPath] = useState([]);
   const currentPathRef = useRef([]);
   const [drawnPaths, setDrawnPaths] = useState([]);
-  const visitedRef = useRef(new Set()); // dense indices visited (all strokes)
+  const visitedRef = useRef(new Set());
   const [completed, setCompleted] = useState(false);
   const [enoughInk, setEnoughInk] = useState(false);
   const usingPointerRef = useRef(false);
   const usingTouchRef = useRef(false);
 
-  // Reset when name/mode changes
   useEffect(() => {
     setDrawing(false);
     setCurrentPath([]);
@@ -107,18 +108,17 @@ export default function NameTracingCanvas({
   }, []);
 
   const checkComplete = useCallback(() => {
-    if (isFreehand) {
+    if (isDotOnly) {
       const totalInk = inkLength(drawnPaths) + inkLength(currentPathRef.current.length ? [currentPathRef.current] : []);
       setEnoughInk(totalInk >= MIN_INK_PX);
       return;
     }
-    // guided/trace: coverage across all strokes collectively
     if (totalDenseLen <= 1) { setCompleted(true); return; }
     const frac = visitedRef.current.size / totalDenseLen;
     if (frac >= MIN_COVER_FRAC && !completed) {
       setCompleted(true);
     }
-  }, [isFreehand, drawnPaths, inkLength, totalDenseLen, completed]);
+  }, [isDotOnly, drawnPaths, inkLength, totalDenseLen, completed]);
 
   const handleDown = (clientX, clientY) => {
     if (completed) return;
@@ -138,8 +138,7 @@ export default function NameTracingCanvas({
     currentPathRef.current = [...currentPathRef.current, p];
     setCurrentPath(currentPathRef.current);
 
-    // Coverage: mark dense points near the pen
-    if (!isFreehand) {
+    if (isGuided) {
       for (const s of allStrokes) {
         for (let i = 0; i < s.dense.length; i++) {
           if (visitedRef.current.has(s.letterIndex * 100000 + s.strokeIndex * 10000 + i)) continue;
@@ -161,8 +160,7 @@ export default function NameTracingCanvas({
     currentPathRef.current = [];
     setCurrentPath([]);
     checkComplete();
-    // Auto-complete on lift if coverage met
-    if (!isFreehand && !completed) {
+    if (isGuided && !completed) {
       const frac = visitedRef.current.size / Math.max(1, totalDenseLen);
       if (frac >= MIN_COVER_FRAC) {
         setCompleted(true);
@@ -170,25 +168,27 @@ export default function NameTracingCanvas({
     }
   };
 
-  // Fire onComplete when completed (guided/trace) or Done pressed (freehand)
+  // Fire onComplete when completed
   useEffect(() => {
-    if (completed && !isFreehand) {
+    if (completed && isGuided) {
       onComplete?.();
     }
-  }, [completed, isFreehand, onComplete]);
+  }, [completed, isGuided, onComplete]);
 
   const onPointerDown = (e) => {
     if (usingTouchRef.current) return;
     usingPointerRef.current = true;
+    try { svgRef.current?.setPointerCapture(e.pointerId); } catch {}
     handleDown(e.clientX, e.clientY);
   };
   const onPointerMove = (e) => {
     if (!usingPointerRef.current) return;
     handleMove(e.clientX, e.clientY);
   };
-  const onPointerUp = () => {
+  const onPointerUp = (e) => {
     if (!usingPointerRef.current) return;
     usingPointerRef.current = false;
+    try { svgRef.current?.releasePointerCapture(e.pointerId); } catch {}
     handleUp();
   };
   const onTouchStart = (e) => {
@@ -209,25 +209,32 @@ export default function NameTracingCanvas({
     handleUp();
   };
 
-  const pathD = (pts) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const pathD = (pts) => pts.length < 2 ? '' :
+    pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-  // Start dot position (first letter, first stroke, first point)
-  const startDot = useMemo(() => {
-    if (!allStrokes.length) return null;
-    const s = allStrokes[0];
-    return s.dense[0] || null;
-  }, [allStrokes]);
+  // Normalize strokes to 0-1 for saving
+  const normalizeStrokes = useCallback(() => {
+    return drawnPaths.map((stroke) =>
+      stroke.map((p) => ({ x: p.x / totalW, y: p.y / CANVAS_H }))
+    );
+  }, [drawnPaths, totalW]);
+
+  const handleDone = () => {
+    setCompleted(true);
+    onComplete?.(normalizeStrokes());
+  };
 
   return (
     <div className="flex flex-col items-center select-none" style={{ width: renderWidth }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${totalW} ${CANVAS_H}`}
-        className="rounded-2xl border-4 border-slate-200 bg-white shrink-0"
+        preserveAspectRatio="xMidYMid meet"
+        className={`rounded-2xl border-4 shrink-0 ${completed ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-white'}`}
         style={{
           display: 'block',
           width: renderWidth,
-          height: rowHeight,
+          height: renderH,
           cursor: 'crosshair',
           touchAction: 'none',
           userSelect: 'none',
@@ -250,59 +257,53 @@ export default function NameTracingCanvas({
         <line x1="0" y1={0.633 * CANVAS_H} x2={totalW} y2={0.633 * CANVAS_H} stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         <line x1="0" y1={0.90 * CANVAS_H} x2={totalW} y2={0.90 * CANVAS_H} stroke="#fca5a5" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
-        {/* Guide rendering */}
-        {isGuided && allStrokes.map((s) => {
-          // Render dot-to-dot guides along the dense path
-          const dots = [];
-          for (let i = 0; i < s.dense.length; i += Math.max(1, Math.round(DOT_STEP / 3))) {
-            dots.push(s.dense[i]);
-          }
-          if (s.dense.length && dots[dots.length - 1] !== s.dense[s.dense.length - 1]) {
-            dots.push(s.dense[s.dense.length - 1]);
-          }
+        {/* Guided mode: colored spline pathways for all strokes */}
+        {isGuided && allStrokes.map((s, i) => {
           const color = GUIDE_COLORS[s.strokeIndex % GUIDE_COLORS.length];
-          return dots.map((p, di) => (
-            <circle key={`g-${s.letterIndex}-${s.strokeIndex}-${di}`} cx={p.x} cy={p.y} r="3.5" fill={color} opacity="0.55" pointerEvents="none" />
-          ));
-        })}
-
-        {mode === 'trace' && allStrokes.map((s) => {
-          if (s.dense.length < 2) {
-            const p = s.dense[0];
-            return p ? <circle key={`t-${s.letterIndex}-${s.strokeIndex}`} cx={p.x} cy={p.y} r="4" fill="#94a3b8" opacity="0.3" pointerEvents="none" /> : null;
+          if (s.scaledPts.length < 2) {
+            const p = s.scaledPts[0];
+            return p ? <circle key={`path-${i}`} cx={p.x} cy={p.y} r="5" fill={color} opacity="0.55" pointerEvents="none" /> : null;
           }
           return (
             <path
-              key={`t-${s.letterIndex}-${s.strokeIndex}`}
-              d={splinePathD(s.dense)}
+              key={`path-${i}`}
+              d={splinePathD(s.scaledPts)}
               fill="none"
-              stroke="#94a3b8"
-              strokeWidth="5"
+              stroke={color}
+              strokeWidth="6"
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity="0.3"
+              opacity="0.55"
               pointerEvents="none"
             />
           );
         })}
 
-        {/* Start dot — shown in guided (numbered) and freehand (just the dot) */}
-        {startDot && !completed && (
-          <>
-            {isGuided && (
-              <circle cx={startDot.x} cy={startDot.y} r="16" fill={GUIDE_COLORS[0]} opacity="0.15">
-                <animate attributeName="r" values="12;20;12" dur="1s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.2;0.05;0.2" dur="1s" repeatCount="indefinite" />
-              </circle>
-            )}
-            <circle cx={startDot.x} cy={startDot.y} r={isGuided ? 8 : 7} fill={isGuided ? GUIDE_COLORS[0] : '#6366f1'} opacity={isFreehand ? 0.5 : 1} pointerEvents="none" />
-            {isGuided && (
-              <text x={startDot.x} y={startDot.y + 4} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold" pointerEvents="none">1</text>
-            )}
-          </>
-        )}
+        {/* Start dots — numbered in guided, plain in dot_only */}
+        {allStrokes.map((s, i) => {
+          const p = s.dense[0];
+          if (!p) return null;
+          const color = GUIDE_COLORS[s.strokeIndex % GUIDE_COLORS.length];
+          return (
+            <g key={`start-${i}`} pointerEvents="none">
+              {isGuided && !completed && (
+                <>
+                  <circle cx={p.x} cy={p.y} r="14" fill={color} opacity="0.12">
+                    <animate attributeName="r" values="10;16;10" dur="1s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.15;0.05;0.15" dur="1s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx={p.x} cy={p.y} r="8" fill={color} />
+                  <text x={p.x} y={p.y + 3} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">{i + 1}</text>
+                </>
+              )}
+              {isDotOnly && !completed && (
+                <circle cx={p.x} cy={p.y} r="6" fill="#6366f1" opacity="0.35" />
+              )}
+            </g>
+          );
+        })}
 
-        {/* Drawn paths (completed strokes) */}
+        {/* Drawn paths */}
         {drawnPaths.map((pts, i) => (
           <path key={`d-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" pointerEvents="none" />
         ))}
@@ -313,22 +314,22 @@ export default function NameTracingCanvas({
         )}
 
         {/* Completion check */}
-        {completed && !isFreehand && (
+        {completed && (
           <g pointerEvents="none">
-            <circle cx={totalW - 30} cy={30} r="16" fill="#22c55e" />
-            <path d="M -7 0 L -2 5 L 7 -5" transform={`translate(${totalW - 30} 30)`} stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx={totalW - 25} cy={25} r="14" fill="#22c55e" />
+            <path d="M -6 0 L -2 4 L 6 -5" transform={`translate(${totalW - 25} 25)`} stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </g>
         )}
       </svg>
 
-      {/* Freehand: Done button */}
-      {isFreehand && (
+      {/* Dot-only: Done button */}
+      {isDotOnly && (
         <div className="h-9 shrink-0 flex items-center justify-center mt-1">
           {completed ? (
             <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">🎉 Done!</div>
           ) : enoughInk ? (
             <button
-              onClick={() => { setCompleted(true); onComplete?.(); }}
+              onClick={handleDone}
               className="bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-5 py-1.5 rounded-full shadow-md"
             >
               ✓ Done

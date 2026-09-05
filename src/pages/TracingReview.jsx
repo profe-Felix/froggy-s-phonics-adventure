@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClassNames } from '@/hooks/useClassNames';
@@ -203,7 +204,12 @@ export default function TracingReview() {
   return (
     <div className="min-h-screen bg-slate-50 p-4">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-2xl font-black text-slate-800 mb-4">✏️ Tracing Review</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-black text-slate-800">✏️ Tracing Review</h1>
+          <Link to="/NameTracingReview" className="text-indigo-600 hover:underline text-sm font-bold">
+            Name Tracing Review →
+          </Link>
+        </div>
 
         {/* Class + Letter selectors */}
         <div className="flex flex-wrap items-end gap-3 mb-4">

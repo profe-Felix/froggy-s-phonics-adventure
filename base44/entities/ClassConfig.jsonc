@@ -52,6 +52,15 @@
       "default": false,
       "description": "If true, this class skips the level path and lands on the Games tab with only Letter Tracing available (no sound). Used for classes with a different letter-learning progression, e.g. Schwarz."
     },
+    "name_tracing_mode": {
+      "type": "string",
+      "enum": [
+        "first_only",
+        "first_last"
+      ],
+      "default": "first_only",
+      "description": "Name Tracing scope for this class. first_only = trace just the first name. first_last = trace first and last name on separate lines."
+    },
     "shares_books_from": {
       "type": "array",
       "items": {
