@@ -11,11 +11,14 @@ import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 // Unified print shop: pull a class's students, pick a format, check exactly
 // which cards to print (or filter to the sheet's "Print" checkmarks), and
 // print multiple per sheet.
+// Each format has fixed physical dimensions so cards print at the right size
+// and the grid packs as many per page as the letter sheet allows.
+// ID card = standard CR80 badge-holder size (2.125" × 3.375").
 const FORMATS = {
-  id: { label: 'ID Card', cols: 3 },
-  tabletag: { label: 'Table Tag', cols: 2 },
-  mailbox: { label: 'Mailbox Label', cols: 8 },
-  namepractice: { label: 'Name Practice', cols: 1 },
+  id: { label: 'ID Card', cols: 3, cardW: '2.125in', cardH: '3.375in' },
+  tabletag: { label: 'Table Tag', cols: 2, cardW: '3in', cardH: '0.9in' },
+  mailbox: { label: 'Mailbox Label', cols: 7, cardW: '0.9in', cardH: '2in' },
+  namepractice: { label: 'Name Practice', cols: 1, cardW: '8.5in', cardH: '11in' },
 };
 
 export default function StudentIdCards() {
@@ -79,19 +82,22 @@ export default function StudentIdCards() {
     if (format === 'tabletag') return <TableTag student={s} />;
     if (format === 'mailbox') return <MailboxLabel student={s} showPicture={showPicture} />;
     if (format === 'namepractice') return <NamePracticeSheet student={s} />;
-    // ID card
+    // ID card — fixed CR80 badge-holder size (2.125" × 3.375")
     const qrUrl = `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}`;
     return (
-      <div className="card border-2 border-slate-800 rounded-xl p-2.5 flex flex-col items-center gap-1" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <div
+        className="border-2 border-slate-800 rounded-lg flex flex-col items-center bg-white overflow-hidden"
+        style={{ width: '2.125in', height: '3.375in', padding: '0.08in', gap: '0.04in', breakInside: 'avoid', pageBreakInside: 'avoid' }}
+      >
         {s.photo_url ? (
-          <img className="w-full aspect-square object-cover rounded-lg" src={s.photo_url} alt={s.name || String(s.student_number)} />
+          <img className="rounded object-cover" style={{ width: '1.65in', height: '1.65in' }} src={s.photo_url} alt={s.name || String(s.student_number)} />
         ) : (
-          <div className="w-full aspect-square rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-4xl font-black">{s.student_number}</div>
+          <div className="rounded bg-slate-100 flex items-center justify-center text-slate-400 font-black" style={{ width: '1.65in', height: '1.65in', fontSize: '28pt' }}>{s.student_number}</div>
         )}
-        <div className="text-slate-800 font-extrabold text-sm leading-tight">{s.name || `Student ${s.student_number}`}</div>
-        <div className="text-teal-700 font-black text-xl leading-none">#{s.student_number}</div>
-        <div className="text-slate-500 text-[11px]">Class {s.class_name} · {s.school_year || ACTIVE_SCHOOL_YEAR}</div>
-        <div className="mt-0.5"><QRCodeSVG value={qrUrl} size={72} /></div>
+        <div className="text-slate-800 font-extrabold leading-tight text-center" style={{ fontSize: '8pt' }}>{s.name || `Student ${s.student_number}`}</div>
+        <div className="text-teal-700 font-black leading-none" style={{ fontSize: '13pt' }}>#{s.student_number}</div>
+        <div className="text-slate-500 text-center" style={{ fontSize: '6pt' }}>Class {s.class_name} · {s.school_year || ACTIVE_SCHOOL_YEAR}</div>
+        <QRCodeSVG value={qrUrl} size={48} />
       </div>
     );
   };
@@ -112,10 +118,10 @@ export default function StudentIdCards() {
     win.document.write(`<!DOCTYPE html><html><head><title>${fmt.label} - Class ${safeClass}</title>
       ${styles}
       <style>
-        @page { size: letter portrait; margin: 0.5in; }
+        @page { size: letter portrait; margin: 0.25in; }
         body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
-        .sheet { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 0.2in; }
-        .card { page-break-inside: avoid; break-inside: avoid; }
+        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: 0.15in; justify-content: center; }
+        .card { page-break-inside: avoid; break-inside: avoid; display: flex; align-items: center; justify-content: center; }
         ${pageBreak}
       </style></head><body>${printContents}</body></html>`);
     win.document.close();
@@ -242,11 +248,11 @@ export default function StudentIdCards() {
             </p>
             <div
               ref={printRef}
-              className="sheet grid gap-4 bg-white p-4 rounded-xl border"
-              style={{ gridTemplateColumns: `repeat(${fmt.cols}, minmax(0, 1fr))` }}
+              className="sheet grid bg-white p-4 rounded-xl border"
+              style={{ gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.cardW})`, gap: '0.15in', justifyContent: 'center' }}
             >
               {selectedStudents.map(s => (
-                <div key={s.id} className="card">{renderCard(s)}</div>
+                <div key={s.id} className="card flex items-center justify-center">{renderCard(s)}</div>
               ))}
             </div>
           </>
