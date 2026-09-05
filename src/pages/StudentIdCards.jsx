@@ -102,8 +102,15 @@ export default function StudentIdCards() {
     const safeClass = String(selectedClass || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const cols = fmt.cols;
     const pageBreak = format === 'namepractice' ? '.card { page-break-after: always; } .card:last-child { page-break-after: auto; }' : '';
-    const win = window.open('', '_blank');
+    // Copy all stylesheets from the current document so Tailwind classes
+    // (borders, flex, colors, etc.) render correctly in the print window.
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(el => el.outerHTML).join('\n');
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { alert('Please allow popups to print.'); return; }
+    win.document.open();
     win.document.write(`<!DOCTYPE html><html><head><title>${fmt.label} - Class ${safeClass}</title>
+      ${styles}
       <style>
         @page { size: letter portrait; margin: 0.5in; }
         body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
@@ -113,8 +120,21 @@ export default function StudentIdCards() {
       </style></head><body>${printContents}</body></html>`);
     win.document.close();
     win.focus();
-    win.print();
-    win.close();
+    // Wait for stylesheets + images to load before printing, otherwise the
+    // print renders unstyled / without photos.
+    const doPrint = () => {
+      try {
+        win.focus();
+        win.print();
+        win.close();
+      } catch (e) { /* browser blocked the print */ }
+    };
+    if (win.document.readyState === 'complete') {
+      // Give images a tick to decode.
+      setTimeout(doPrint, 300);
+    } else {
+      win.onload = () => setTimeout(doPrint, 300);
+    }
   };
 
   return (
