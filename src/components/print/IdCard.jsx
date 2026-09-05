@@ -1,7 +1,9 @@
+// Exact copy of original IdCard.jsx from quick-class-card2.
+// Field mapping: student_name → name.
+// Image component → plain img (Image component not in this app).
+
 import Barcode from '@/components/Barcode';
 
-// Exact replica of the original PrintPro ID card layout.
-// Dimensions come from the .id-card CSS class (2.3in × 3.4in).
 export default function IdCard({ student }) {
   const name = student.name || '—';
   const number = student.barcode_number || '000000';

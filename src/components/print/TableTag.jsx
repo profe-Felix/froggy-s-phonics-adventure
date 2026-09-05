@@ -1,10 +1,13 @@
+// Exact copy of original TableTag.jsx from quick-class-card2.
+// Field mapping: student_name → name, class_number → student_number.
+// Image component → plain img (Image component not in this app).
+
 import AutofitName from '@/components/print/AutofitName';
 
-// 3" × 0.9" horizontal desk/table name tag: number | photo | name (autofit).
 export default function TableTag({ student }) {
   const name = student.name || '—';
   const photo = student.photo_url;
-  const number = student.student_number || '';
+  const number = String(student.student_number ?? '') || student.barcode_number || '';
 
   const tokens = (student.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
