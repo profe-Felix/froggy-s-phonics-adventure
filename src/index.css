@@ -112,3 +112,12 @@
   animation: card-flip 0.45s ease-in-out;
   perspective: 600px;
 }
+
+/* ID card print layout — exact replica of original PrintPro sizing.
+   2.3in × 3.4in cards, 3 columns, no gap (cards touch edge-to-edge). */
+.id-card {
+  width: 2.3in;
+  height: 3.4in;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}

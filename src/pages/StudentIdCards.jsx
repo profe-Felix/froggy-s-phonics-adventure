@@ -16,7 +16,7 @@ import IdCard from '@/components/print/IdCard';
 // and the grid packs as many per page as the letter sheet allows.
 // ID card = standard CR80 badge-holder size (2.125" × 3.375").
 const FORMATS = {
-  id: { label: 'ID Card', cols: 3, cardW: '2.3in', cardH: 'auto' },
+  id: { label: 'ID Card', cols: 3, cardW: '2.3in', cardH: 'auto', gap: '0in' },
   tabletag: { label: 'Table Tag', cols: 2, cardW: '3in', cardH: '0.9in' },
   mailbox: { label: 'Mailbox Label', cols: 7, cardW: '0.9in', cardH: '2in' },
   namepractice: { label: 'Name Practice', cols: 1, cardW: '8.5in', cardH: '11in' },
@@ -102,7 +102,7 @@ export default function StudentIdCards() {
       <style>
         @page { size: letter portrait; margin: 0.25in; }
         body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
-        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: 0.15in; justify-content: center; padding: 0.25in; }
+        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: ${fmt.gap || '0.15in'}; justify-content: center; padding: 0.25in; }
         .card { page-break-inside: avoid; break-inside: avoid; display: flex; align-items: center; justify-content: center; }
         ${pageBreak}
       </style></head><body><div class="sheet">${printContents}</div></body></html>`);
@@ -231,7 +231,7 @@ export default function StudentIdCards() {
             <div
               ref={printRef}
               className="sheet grid bg-white p-4 rounded-xl border"
-              style={{ gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.cardW})`, gap: '0.15in', justifyContent: 'center' }}
+              style={{ gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.cardW})`, gap: fmt.gap || '0.15in', justifyContent: 'center' }}
             >
               {selectedStudents.map(s => (
                 <div key={s.id} className="card flex items-center justify-center">{renderCard(s)}</div>
