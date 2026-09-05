@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClassNames } from '@/hooks/useClassNames';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { splitNameParts } from '@/lib/nameNormalize';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import NameTracingReplayModal from '@/components/tracing/NameTracingReplayModal';
 import { Link } from 'react-router-dom';
@@ -92,11 +93,11 @@ export default function NameTracingReview() {
             <div className="px-3 py-6 text-center text-slate-400 text-sm">No students in this class.</div>
           ) : students.map(s => {
             const studentSamples = samplesByStudent[s.student_number] || [];
-            const nameParts = s.name ? s.name.trim().split(/\s+/) : [];
-            const useLast = s.name_tracing_last && nameParts.length >= 2;
+            const { first: firstName, last: lastName } = splitNameParts(s.name);
+            const useLast = s.name_tracing_last && !!lastName;
             const partsLabel = useLast
-              ? `${nameParts[0]} · ${nameParts.slice(1).join(' ')}`
-              : nameParts[0] || '—';
+              ? `${firstName} · ${lastName}`
+              : firstName || '—';
             return (
               <div key={s.id} className="grid grid-cols-12 gap-2 px-3 py-2 border-b last:border-0 items-center text-sm">
                 <div className="col-span-1 font-bold text-slate-600">{s.student_number}</div>
@@ -105,8 +106,8 @@ export default function NameTracingReview() {
                 <div className="col-span-2 flex justify-center">
                   <button
                     onClick={() => handleToggleLast(s)}
-                    disabled={nameParts.length < 2}
-                    title={nameParts.length < 2 ? 'No last name on file' : (s.name_tracing_last ? 'Tracing first + last name' : 'First name only — check to add last name')}
+                    disabled={!lastName}
+                    title={!lastName ? 'No last name on file' : (s.name_tracing_last ? 'Tracing first + last name' : 'First name only — check to add last name')}
                     className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed ${
                       s.name_tracing_last
                         ? 'bg-indigo-600 border-indigo-600 text-white'

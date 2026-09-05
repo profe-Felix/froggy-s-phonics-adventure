@@ -66,6 +66,21 @@ export function parseName(full) {
   return { first, last, key: nf + '|' + nl };
 }
 
+// Split a full name into { first, last } preserving original formatting.
+// Skips middle initials (single letter + optional period) so the last name
+// only contains actual surnames (including double last names).
+// e.g. "Jordan S. Garcia Dardon" → { first: "Jordan", last: "Garcia Dardon" }
+//      "Caleb Hernandez Lara"     → { first: "Caleb", last: "Hernandez Lara" }
+//      "Jesus Hernandez"         → { first: "Jesus", last: "Hernandez" }
+export function splitNameParts(full) {
+  const tokens = String(full || '').trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return { first: '', last: '' };
+  if (tokens.length === 1) return { first: tokens[0], last: '' };
+  const isMiddleInitial = (t) => /^[A-Za-z]\.?$/.test(t);
+  const lastTokens = tokens.slice(1).filter((t) => !isMiddleInitial(t));
+  return { first: tokens[0], last: lastTokens.join(' ') };
+}
+
 export function namesMatch(a, b) {
   const pa = parseName(a);
   const pb = parseName(b);

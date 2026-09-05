@@ -5,6 +5,7 @@ import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import NameTracingCanvas from '../NameTracingCanvas';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { splitNameParts } from '@/lib/nameNormalize';
 
 // Name Tracing — two-row progression per name part:
 //   Row 1 (top): Guided — colored pathway guides + numbered start dots, trace over them
@@ -47,15 +48,15 @@ export default function NameTracingMode({ studentData, onBack }) {
     return () => { cancelled = true; };
   }, [className]);
 
-  // Split name into parts: first name only, or first + last if teacher checked the box for this student
+  // Split name into parts: first name only, or first + last if teacher checked the box for this student.
+  // Middle initials are skipped so the last name only contains actual surnames.
   const nameParts = useMemo(() => {
     if (!fullName) return [];
-    const tokens = fullName.split(/\s+/).filter(Boolean);
-    if (tokens.length === 0) return [];
-    if (studentData?.name_tracing_last && tokens.length >= 2) {
-      return [tokens[0], tokens.slice(1).join(' ')];
+    const { first, last } = splitNameParts(fullName);
+    if (studentData?.name_tracing_last && last) {
+      return [first, last];
     }
-    return [tokens[0]];
+    return [first];
   }, [fullName, studentData?.name_tracing_last]);
 
   // Build rows: for each name part, [guided, dot_only]
