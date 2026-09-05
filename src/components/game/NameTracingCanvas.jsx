@@ -450,14 +450,16 @@ export default function NameTracingCanvas({
       restartStroke();
       return;
     }
-    // Accuracy gate: reject strokes that deviate too far from the guide.
-    // Dot strokes are always perfect. The messy W from the user's report
-    // deviated 55+ SVG units from the path — with penalty=30 those points
-    // score 0, pulling the average well below 45%. Accurate traces that
-    // follow the guide stay within 5-10 units and score 70-85%.
+    // Accuracy gate: only accept "green" quality traces (accuracy >= 80).
+    // The visual feedback uses 80 as the green/amber boundary, and the user
+    // wants yellow/amber traces rejected — a messy stroke that wobbles far
+    // from the guide must be redone, not accepted. Dot strokes are always
+    // perfect. The default penalty (30) works because waypoints are densely
+    // sampled on curves, so a trace that follows the smooth guide path stays
+    // within a few px of the linear dense path and scores 85-100.
     if (!isDot) {
       const acc = strokeAccuracy(currentPathRef.current, densePath);
-      if (acc < 45) {
+      if (acc < 80) {
         flashError();
         restartStroke();
         return;
