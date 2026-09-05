@@ -45,15 +45,16 @@ export default function CarpetCell({ seat, student, isSelected, onClick, showFul
         </div>
       )}
 
-      {partner && (
-        <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center overflow-hidden">
-          {partnerIsImage ? (
-            <img src={partner} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[9px] font-bold text-slate-600">{partner}</span>
-          )}
-        </div>
-      )}
+      {partner &&
+        (partnerIsImage ? (
+          <div className="absolute top-1 right-1 w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow z-10">
+            <img src={partner} alt="partner" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full max-w-[80%] truncate z-10">
+            {partner}
+          </div>
+        ))}
     </div>
   );
 }
