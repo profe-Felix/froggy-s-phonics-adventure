@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Printer, Upload, Link2, Camera, Images, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Upload, Link2, Camera, Images, LayoutGrid, Armchair } from 'lucide-react';
 import RosterStudentModal from '@/components/dashboard/RosterStudentModal';
 import ImportSheetDialog from '@/components/roster/ImportSheetDialog';
 import SheetLinkManager from '@/components/roster/SheetLinkManager';
@@ -158,10 +158,18 @@ export default function StudentRoster() {
             )}
             {selectedClass && (
               <Link
-                to={`/SeatingChart?class=${encodeURIComponent(selectedClass)}`}
+                to={`/Desk?class=${encodeURIComponent(selectedClass)}`}
                 className="flex items-center gap-2 bg-teal-600 text-white px-3 py-2 rounded-lg hover:bg-teal-700 text-sm font-medium"
               >
-                <LayoutGrid className="w-4 h-4" /> Seating
+                <LayoutGrid className="w-4 h-4" /> Desk
+              </Link>
+            )}
+            {selectedClass && (
+              <Link
+                to={`/Carpet?class=${encodeURIComponent(selectedClass)}`}
+                className="flex items-center gap-2 bg-rose-600 text-white px-3 py-2 rounded-lg hover:bg-rose-700 text-sm font-medium"
+              >
+                <Armchair className="w-4 h-4" /> Carpet
               </Link>
             )}
           </div>

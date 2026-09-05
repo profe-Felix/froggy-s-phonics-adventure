@@ -1,0 +1,84 @@
+{
+  "name": "DeskSeat",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class (teacher) this desk layout belongs to."
+    },
+    "group": {
+      "type": "string",
+      "description": "Rotation group A, B, or C."
+    },
+    "x": {
+      "type": "number",
+      "default": 0,
+      "description": "X position (center) on the canvas"
+    },
+    "y": {
+      "type": "number",
+      "default": 0,
+      "description": "Y position (center) on the canvas"
+    },
+    "rotation": {
+      "type": "number",
+      "default": 0,
+      "description": "Rotation in degrees (0/90/180/270)"
+    },
+    "student_id": {
+      "type": "string",
+      "description": "Seated student ID"
+    }
+  },
+  "required": [
+    "class_name",
+    "group",
+    "x",
+    "y"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,32 +1,29 @@
 import { cn } from '@/lib/utils';
+import { parseName } from '@/lib/nameNormalize';
 
-function splitName(name) {
-  const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
-  const first = tokens[0] || '';
-  let last = '';
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i].replace(/\.$/, '').length > 1) { last = tokens[i].replace(/\.$/, ''); break; }
-  }
-  return { first, last };
+function isImageUrl(s) {
+  return typeof s === 'string' && (s.startsWith('http') || s.startsWith('/'));
 }
 
-// A single square seat on the carpet grid. Tap to seat the selected student
-// or to pick up the seated student.
-export default function CarpetCell({ seat, student, isSelected, onClick }) {
+export default function CarpetCell({ seat, student, isSelected, onClick, showFullName }) {
   const photo = student?.photo_url;
   const name = student?.name;
-  const { first, last } = splitName(name);
-  const displayName = first || last || '';
+  const { first, last } = parseName(name);
+  const displayName = showFullName && first && last ? `${first} ${last}` : (first || last || '');
   const initials = name
     ? name.split(' ').map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
     : '';
+  const partner = seat?.partner_label;
+  const partnerIsImage = isImageUrl(partner);
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        'relative aspect-square border-2 rounded-lg overflow-hidden cursor-pointer transition-all bg-white',
-        isSelected ? 'border-indigo-500 ring-2 ring-indigo-300 z-10' : 'border-slate-300 hover:border-slate-400',
+        'relative flex-1 aspect-square border-2 rounded-lg overflow-hidden cursor-pointer transition-all bg-white',
+        isSelected
+          ? 'border-primary ring-2 ring-primary ring-offset-1 z-10'
+          : 'border-slate-300 hover:border-slate-400',
         !student && 'bg-slate-50'
       )}
     >
@@ -45,6 +42,16 @@ export default function CarpetCell({ seat, student, isSelected, onClick }) {
       {student && (
         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate text-center">
           {displayName}
+        </div>
+      )}
+
+      {partner && (
+        <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center overflow-hidden">
+          {partnerIsImage ? (
+            <img src={partner} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[9px] font-bold text-slate-600">{partner}</span>
+          )}
         </div>
       )}
     </div>

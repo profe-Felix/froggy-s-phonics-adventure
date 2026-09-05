@@ -1,0 +1,76 @@
+{
+  "name": "CarpetSeat",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class (teacher) this carpet seat belongs to."
+    },
+    "group": {
+      "type": "string",
+      "description": "Rotation group A, B, or C."
+    },
+    "position": {
+      "type": "integer",
+      "description": "Seat position index (0-24)"
+    },
+    "student_id": {
+      "type": "string",
+      "description": "Seated student ID"
+    },
+    "partner_label": {
+      "type": "string",
+      "description": "Talking partner label/icon"
+    }
+  },
+  "required": [
+    "class_name",
+    "group",
+    "position"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "DeskLandmark",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class (teacher) this landmark belongs to."
+    },
+    "group": {
+      "type": "string",
+      "description": "Rotation group A, B, or C."
+    },
+    "x": {
+      "type": "number",
+      "default": 0,
+      "description": "X position (center)"
+    },
+    "y": {
+      "type": "number",
+      "default": 0,
+      "description": "Y position (center)"
+    },
+    "width": {
+      "type": "number",
+      "default": 80
+    },
+    "height": {
+      "type": "number",
+      "default": 60
+    },
+    "label": {
+      "type": "string",
+      "default": "",
+      "description": "Label e.g. 'Teacher Desk', 'Door'"
+    }
+  },
+  "required": [
+    "class_name",
+    "group",
+    "x",
+    "y",
+    "width",
+    "height"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

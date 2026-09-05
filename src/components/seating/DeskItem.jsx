@@ -1,23 +1,12 @@
 import { RotateCw, X } from 'lucide-react';
+import { parseName } from '@/lib/nameNormalize';
 import { cn } from '@/lib/utils';
 
 export const DESK_W = 84;
 export const DESK_H = 56;
 
-function splitName(name) {
-  const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
-  const first = tokens[0] || '';
-  let last = '';
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i].replace(/\.$/, '').length > 1) { last = tokens[i].replace(/\.$/, ''); break; }
-  }
-  return { first, last };
-}
-
-// A single draggable desk on the seating canvas. Shows the seated student's
-// photo or initials. Rotate/delete controls appear when interactive.
-export default function DeskItem({ desk, student, isSelected, interactive, onPointerDown, onRotate, onDelete }) {
-  const { first, last } = splitName(student?.name);
+export default function DeskItem({ desk, student, isBankSelected, isSelected, isSwapSource, interactive, onPointerDown, onRotate, onDelete }) {
+  const { first, last } = parseName(student?.name);
   const displayName = first || last || '';
   const initials = student ? ((first[0] || '') + (last[0] || '')).toUpperCase() : '';
   const photo = student?.photo_url;
@@ -33,7 +22,13 @@ export default function DeskItem({ desk, student, isSelected, interactive, onPoi
         'absolute select-none rounded-md border-2 bg-white overflow-hidden transition-shadow',
         interactive && 'cursor-grab active:cursor-grabbing hover:shadow-md',
         !interactive && 'pointer-events-none',
-        isSelected ? 'border-indigo-500 ring-2 ring-indigo-300 z-10' : 'border-slate-400'
+        isSelected
+          ? 'border-primary ring-2 ring-primary z-10'
+          : isSwapSource
+            ? 'border-amber-500 ring-2 ring-amber-500 z-10'
+            : isBankSelected && !student
+              ? 'border-primary border-dashed bg-primary/5'
+              : 'border-slate-400'
       )}
       style={{
         left: desk.x - visualW / 2,
@@ -55,7 +50,9 @@ export default function DeskItem({ desk, student, isSelected, interactive, onPoi
           </div>
         )
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-300">Empty</div>
+        <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-300">
+          {isBankSelected ? 'Tap to seat' : 'Empty'}
+        </div>
       )}
 
       {interactive && (

@@ -42,7 +42,8 @@ import DictationStudent from './pages/DictationStudent';
 import TracingReview from './pages/TracingReview';
 import StudentRoster from './pages/StudentRoster';
 import StudentIdCards from './pages/StudentIdCards';
-import SeatingChart from './pages/SeatingChart';
+import Desk from './pages/Desk';
+import Carpet from './pages/Carpet';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -133,7 +134,8 @@ const AuthenticatedApp = () => {
       <Route path="/TracingReview" element={<TracingReview />} />
       <Route path="/StudentRoster" element={<StudentRoster />} />
       <Route path="/StudentIdCards" element={<StudentIdCards />} />
-      <Route path="/SeatingChart" element={<SeatingChart />} />
+      <Route path="/Desk" element={<Desk />} />
+      <Route path="/Carpet" element={<Carpet />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
