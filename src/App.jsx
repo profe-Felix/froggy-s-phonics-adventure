@@ -42,6 +42,7 @@ import DictationStudent from './pages/DictationStudent';
 import TracingReview from './pages/TracingReview';
 import StudentRoster from './pages/StudentRoster';
 import StudentIdCards from './pages/StudentIdCards';
+import NamePractice from './pages/NamePractice';
 import Desk from './pages/Desk';
 import Carpet from './pages/Carpet';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -134,6 +135,7 @@ const AuthenticatedApp = () => {
       <Route path="/TracingReview" element={<TracingReview />} />
       <Route path="/StudentRoster" element={<StudentRoster />} />
       <Route path="/StudentIdCards" element={<StudentIdCards />} />
+      <Route path="/NamePractice" element={<NamePractice />} />
       <Route path="/Desk" element={<Desk />} />
       <Route path="/Carpet" element={<Carpet />} />
       <Route path="*" element={<PageNotFound />} />

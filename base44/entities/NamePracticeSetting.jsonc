@@ -1,0 +1,34 @@
+{
+  "name": "NamePracticeSetting",
+  "type": "object",
+  "properties": {
+    "settings": {
+      "type": "object",
+      "properties": {
+        "fontSize": {
+          "type": "number"
+        },
+        "lineSize": {
+          "type": "number"
+        },
+        "offset": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        }
+      },
+      "default": {},
+      "description": "Global name-practice layout settings shared across all teachers."
+    }
+  },
+  "required": [
+    "settings"
+  ],
+  "rls": {
+    "read": null,
+    "create": null,
+    "update": null,
+    "delete": null
+  }
+}

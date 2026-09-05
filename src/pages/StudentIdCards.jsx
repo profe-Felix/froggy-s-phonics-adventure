@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Printer, CheckCheck, Square, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, Printer, CheckCheck, Square, ZoomIn, ZoomOut, PenLine } from 'lucide-react';
 import TableTag from '@/components/print/TableTag';
 import MailboxLabel from '@/components/print/MailboxLabel';
-import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 import IdCard from '@/components/print/IdCard';
 
 // Unified print shop — exact replica of original PrintSheet print mechanism:
@@ -15,7 +14,6 @@ const FORMATS = {
   id: { label: 'ID Card', width: '2.3in', cols: 3 },
   tabletag: { label: 'Table Tag', width: '3in', cols: 2 },
   mailbox: { label: 'Mailbox Label', width: '0.9in', cols: 8 },
-  namepractice: { label: 'Name Practice', width: '8.5in', cols: 1 },
 };
 
 export default function StudentIdCards() {
@@ -72,7 +70,6 @@ export default function StudentIdCards() {
   const renderCard = (s) => {
     if (format === 'tabletag') return <TableTag student={s} />;
     if (format === 'mailbox') return <MailboxLabel student={s} showPicture={showPicture} />;
-    if (format === 'namepractice') return <NamePracticeSheet student={s} />;
     return <IdCard student={s} />;
   };
 
@@ -118,6 +115,12 @@ export default function StudentIdCards() {
                 <ZoomIn className="w-4 h-4" />
               </button>
             </div>
+            <Link
+              to={`/NamePractice${selectedClass ? `?class=${encodeURIComponent(selectedClass)}` : ''}`}
+              className="flex items-center gap-2 bg-white border rounded-md px-3 py-2 hover:bg-gray-50 text-sm font-medium text-muted-foreground"
+            >
+              <PenLine className="w-4 h-4" /> Name Practice
+            </Link>
             <button
               onClick={() => window.print()}
               disabled={selectedStudents.length === 0}
