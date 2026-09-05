@@ -4,11 +4,20 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Printer, CheckCheck, Square } from 'lucide-react';
+import TableTag from '@/components/print/TableTag';
+import MailboxLabel from '@/components/print/MailboxLabel';
+import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 
-// ID card print page. Pulls students for a class, lets the teacher check
-// exactly which cards to print (so a single replacement card doesn't force
-// reprinting the whole class), and prints multiple cards per sheet with a
-// QR login code on each card.
+// Unified print shop: pull a class's students, pick a format, check exactly
+// which cards to print (or filter to the sheet's "Print" checkmarks), and
+// print multiple per sheet.
+const FORMATS = {
+  id: { label: 'ID Card', cols: 3 },
+  tabletag: { label: 'Table Tag', cols: 2 },
+  mailbox: { label: 'Mailbox Label', cols: 8 },
+  namepractice: { label: 'Name Practice', cols: 1 },
+};
+
 export default function StudentIdCards() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialClass = urlParams.get('class') || '';
@@ -18,6 +27,9 @@ export default function StudentIdCards() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Set());
+  const [format, setFormat] = useState('id');
+  const [printOnlyMarked, setPrintOnlyMarked] = useState(false);
+  const [showPicture, setShowPicture] = useState(true);
   const printRef = useRef();
 
   const baseUrl = `${window.location.origin}/LetterGame`;
@@ -35,7 +47,6 @@ export default function StudentIdCards() {
     if (!selectedClass) return;
     base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR }).then(all => {
       setStudents(all);
-      // Default: all selected — print the whole class in one click.
       setSelected(new Set(all.map(s => s.student_number)));
     });
   }, [selectedClass]);
@@ -53,28 +64,52 @@ export default function StudentIdCards() {
   const byNumber = {};
   students.forEach(s => { byNumber[s.student_number] = s; });
 
+  // The list we show in the checkbox grid: optionally filtered to print_flag.
+  const gridStudents = printOnlyMarked ? students.filter(s => s.print_flag) : students;
+
+  // The list we actually print: selected ∩ (marked filter if on).
   const selectedStudents = students
     .filter(s => selected.has(s.student_number))
+    .filter(s => !printOnlyMarked || s.print_flag)
     .sort((a, b) => a.student_number - b.student_number);
+
+  const fmt = FORMATS[format];
+
+  const renderCard = (s) => {
+    if (format === 'tabletag') return <TableTag student={s} />;
+    if (format === 'mailbox') return <MailboxLabel student={s} showPicture={showPicture} />;
+    if (format === 'namepractice') return <NamePracticeSheet student={s} />;
+    // ID card
+    const qrUrl = `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}`;
+    return (
+      <div className="card border-2 border-slate-800 rounded-xl p-2.5 flex flex-col items-center gap-1" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        {s.photo_url ? (
+          <img className="w-full aspect-square object-cover rounded-lg" src={s.photo_url} alt={s.name || String(s.student_number)} />
+        ) : (
+          <div className="w-full aspect-square rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-4xl font-black">{s.student_number}</div>
+        )}
+        <div className="text-slate-800 font-extrabold text-sm leading-tight">{s.name || `Student ${s.student_number}`}</div>
+        <div className="text-teal-700 font-black text-xl leading-none">#{s.student_number}</div>
+        <div className="text-slate-500 text-[11px]">Class {s.class_name} · {s.school_year || ACTIVE_SCHOOL_YEAR}</div>
+        <div className="mt-0.5"><QRCodeSVG value={qrUrl} size={72} /></div>
+      </div>
+    );
+  };
 
   const handlePrint = () => {
     if (!printRef.current || selectedStudents.length === 0) return;
     const printContents = printRef.current.innerHTML;
     const safeClass = String(selectedClass || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const cols = fmt.cols;
+    const pageBreak = format === 'namepractice' ? '.card { page-break-after: always; } .card:last-child { page-break-after: auto; }' : '';
     const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><head><title>ID Cards - Class ${safeClass}</title>
+    win.document.write(`<!DOCTYPE html><html><head><title>${fmt.label} - Class ${safeClass}</title>
       <style>
         @page { size: letter portrait; margin: 0.5in; }
         body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
-        .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25in; }
-        .card { border: 2px solid #1e293b; border-radius: 14px; padding: 10px; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-        .card .photo { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 10px; background: #f1f5f9; }
-        .card .ph { width: 100%; aspect-ratio: 1/1; border-radius: 10px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 44px; font-weight: 900; }
-        .card .name { font-size: 15px; font-weight: 800; line-height: 1.1; }
-        .card .num { font-size: 22px; font-weight: 900; color: #0f766e; line-height: 1; }
-        .card .meta { font-size: 11px; color: #64748b; }
-        .card .qr { margin-top: 2px; }
-        @media print { body { padding: 0; } }
+        .sheet { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 0.2in; }
+        .card { page-break-inside: avoid; break-inside: avoid; }
+        ${pageBreak}
       </style></head><body>${printContents}</body></html>`);
     win.document.close();
     win.focus();
@@ -89,11 +124,24 @@ export default function StudentIdCards() {
           <div className="flex items-center gap-3">
             <Link to="/StudentRoster" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">🪪 ID Card Printer</h1>
+              <h1 className="text-2xl font-bold text-gray-800">🖨️ Print Shop</h1>
               <p className="text-sm text-gray-500">Check the cards you need, then print — no need to reprint the whole class.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={format} onChange={e => setFormat(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm font-medium">
+              {Object.entries(FORMATS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+            </select>
+            <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={printOnlyMarked} onChange={e => setPrintOnlyMarked(e.target.checked)} />
+              Only marked
+            </label>
+            {format === 'mailbox' && (
+              <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" checked={showPicture} onChange={e => setShowPicture(e.target.checked)} />
+                Pictures
+              </label>
+            )}
             <button onClick={selectAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-lg px-3 py-2 hover:bg-gray-50 font-medium text-gray-600">
               <CheckCheck className="w-4 h-4" /> All
             </button>
@@ -110,7 +158,6 @@ export default function StudentIdCards() {
           </div>
         </div>
 
-        {/* Class selector */}
         <div className="flex gap-2 flex-wrap mb-4">
           {loading ? (
             <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -121,9 +168,7 @@ export default function StudentIdCards() {
               <button
                 key={cls}
                 onClick={() => setSelectedClass(cls)}
-                className={`px-4 py-2 rounded-full font-medium text-sm transition ${
-                  selectedClass === cls ? 'bg-indigo-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-indigo-50'
-                }`}
+                className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClass === cls ? 'bg-indigo-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-indigo-50'}`}
               >
                 Class {cls}
               </button>
@@ -131,29 +176,35 @@ export default function StudentIdCards() {
           )}
         </div>
 
-        {/* Checkbox grid — pick which cards to print */}
+        {printOnlyMarked && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            Showing only students marked “Print” in the Google Sheet. Uncheck “Only marked” to see the whole class.
+          </p>
+        )}
+
+        {/* Checkbox grid */}
         {selectedClass && (
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-6">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = byNumber[num];
               const checked = selected.has(num);
+              const inGrid = !printOnlyMarked || (s && s.print_flag);
+              if (!inGrid) return <div key={num} className="aspect-[3/4] rounded-xl border border-dashed border-gray-100 bg-gray-50/50" />;
               return (
                 <button
                   key={num}
                   onClick={() => s && toggle(num)}
                   disabled={!s}
-                  className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${
-                    !s ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300' :
-                    checked ? 'border-indigo-500 ring-2 ring-indigo-300 bg-white' : 'border-gray-200 bg-white opacity-50'
-                  }`}
+                  className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${!s ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300' : checked ? 'border-indigo-500 ring-2 ring-indigo-300 bg-white' : 'border-gray-200 bg-white opacity-50'}`}
                 >
                   {s?.photo_url && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
                   <div className="relative z-10 flex flex-col items-center" style={{ textShadow: s?.photo_url ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
                     <span className={`text-xl font-black ${s?.photo_url ? 'text-white' : 'text-gray-400'}`}>{num}</span>
                     {s?.name && <span className={`text-[11px] font-bold ${s?.photo_url ? 'text-white' : 'text-gray-500'}`}>{s.name}</span>}
                   </div>
+                  {s?.print_flag && <span className="absolute top-1 right-1 text-[9px] bg-amber-500 text-white font-bold rounded-full px-1.5 py-0.5 z-20">PRINT</span>}
                   {s && (
-                    <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold ${checked ? 'bg-indigo-600' : 'bg-gray-400/70'}`}>
+                    <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 ${checked ? 'bg-indigo-600' : 'bg-gray-400/70'}`}>
                       {checked ? '✓' : ''}
                     </div>
                   )}
@@ -163,29 +214,24 @@ export default function StudentIdCards() {
           </div>
         )}
 
-        {/* Print preview — only the checked cards render here, and this is what prints */}
-        {selectedStudents.length > 0 && (
+        {/* Print preview */}
+        {selectedStudents.length > 0 ? (
           <>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-2">Preview · {selectedStudents.length} card{selectedStudents.length === 1 ? '' : 's'}</p>
-            <div ref={printRef} className="sheet grid grid-cols-3 gap-4 bg-white p-4 rounded-xl border">
-              {selectedStudents.map(s => {
-                const qrUrl = `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}`;
-                return (
-                  <div key={s.id} className="card border-2 border-slate-800 rounded-xl p-2.5 flex flex-col items-center gap-1">
-                    {s.photo_url ? (
-                      <img className="photo w-full aspect-square object-cover rounded-lg" src={s.photo_url} alt={s.name || String(s.student_number)} />
-                    ) : (
-                      <div className="ph w-full aspect-square rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-4xl font-black">{s.student_number}</div>
-                    )}
-                    <div className="name text-slate-800 font-extrabold text-sm leading-tight">{s.name || `Student ${s.student_number}`}</div>
-                    <div className="num text-teal-700 font-black text-xl leading-none">#{s.student_number}</div>
-                    <div className="meta text-slate-500 text-[11px]">Class {s.class_name} · {s.school_year || ACTIVE_SCHOOL_YEAR}</div>
-                    <div className="qr"><QRCodeSVG value={qrUrl} size={72} /></div>
-                  </div>
-                );
-              })}
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-2">
+              Preview · {selectedStudents.length} {fmt.label}{selectedStudents.length === 1 ? '' : 's'}
+            </p>
+            <div
+              ref={printRef}
+              className="sheet grid gap-4 bg-white p-4 rounded-xl border"
+              style={{ gridTemplateColumns: `repeat(${fmt.cols}, minmax(0, 1fr))` }}
+            >
+              {selectedStudents.map(s => (
+                <div key={s.id} className="card">{renderCard(s)}</div>
+              ))}
             </div>
           </>
+        ) : (
+          <p className="text-center py-10 text-gray-400">No students selected. Check some above or turn off “Only marked”.</p>
         )}
       </div>
     </div>

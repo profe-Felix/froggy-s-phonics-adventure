@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, Printer } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Upload, Link2 } from 'lucide-react';
 import RosterStudentModal from '@/components/dashboard/RosterStudentModal';
+import ImportSheetDialog from '@/components/roster/ImportSheetDialog';
+import SheetLinkManager from '@/components/roster/SheetLinkManager';
 
 const DEFAULT_PROGRESS = {
   letter_sounds: { mastered_items: [], learning_items: ['o', 'i', 'a'], item_attempts: {}, total_correct: 0, total_attempts: 0, unlocked: true },
@@ -14,7 +16,7 @@ const DEFAULT_PROGRESS = {
 };
 
 // Dedicated roster page — focused on photos, names, and class assignment.
-// Cleaner than the progress-heavy Dashboard. Links straight to ID card printing.
+// Import from Google Sheets, manage saved sheet links, then print ID cards.
 export default function StudentRoster() {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
@@ -22,21 +24,30 @@ export default function StudentRoster() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showImport, setShowImport] = useState(false);
+  const [showLinks, setShowLinks] = useState(false);
 
-  useEffect(() => {
-    base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(all => {
-      const unique = [...new Set(all.map(s => s.class_name).filter(Boolean))].sort();
-      setClasses(unique);
-      if (unique.length > 0) setSelectedClass(unique[0]);
-      setLoading(false);
-    });
-  }, []);
+  const loadClasses = async () => {
+    const all = await base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200);
+    const unique = [...new Set(all.map(s => s.class_name).filter(Boolean))].sort();
+    setClasses(unique);
+    if (unique.length > 0 && !selectedClass) setSelectedClass(unique[0]);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadClasses(); }, []);
 
   useEffect(() => {
     if (!selectedClass) return;
     base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR })
       .then(all => setStudents(all));
   }, [selectedClass]);
+
+  const reloadStudents = async () => {
+    if (!selectedClass) return;
+    const all = await base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR });
+    setStudents(all);
+  };
 
   const ensureAll = async () => {
     setGenerating(true);
@@ -52,12 +63,10 @@ export default function StudentRoster() {
         current_mode: 'letter_sounds'
       })));
     }
-    const all = await base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR });
-    setStudents(all);
+    await reloadStudents();
     setGenerating(false);
   };
 
-  // Clicking a placeholder slot creates the record on the fly and opens the editor.
   const createAndOpen = async (num) => {
     try {
       const created = await base44.entities.Student.create({
@@ -75,7 +84,6 @@ export default function StudentRoster() {
 
   const handleUpdate = (updated) => {
     setStudents(prev => {
-      // If the student moved to a different class, drop them from this view.
       if (updated.class_name !== selectedClass) return prev.filter(s => s.id !== updated.id);
       return prev.map(s => s.id === updated.id ? updated : s);
     });
@@ -83,6 +91,11 @@ export default function StudentRoster() {
       setClasses(prev => prev.includes(updated.class_name) ? prev : [...prev, updated.class_name].sort());
     }
     setSelectedStudent(updated);
+  };
+
+  const handleImported = async () => {
+    await loadClasses();
+    await reloadStudents();
   };
 
   const byNumber = {};
@@ -96,10 +109,22 @@ export default function StudentRoster() {
             <Link to="/Dashboard" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">🪪 Student Roster</h1>
-              <p className="text-sm text-gray-500">Manage photos, names, and classes — then print ID cards.</p>
+              <p className="text-sm text-gray-500">Import from Google Sheets, manage photos, then print.</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 bg-white border border-emerald-300 text-emerald-700 px-3 py-2 rounded-lg hover:bg-emerald-50 text-sm font-medium"
+            >
+              <Upload className="w-4 h-4" /> Import Sheet
+            </button>
+            <button
+              onClick={() => setShowLinks(true)}
+              className="flex items-center gap-2 bg-white border border-sky-300 text-sky-700 px-3 py-2 rounded-lg hover:bg-sky-50 text-sm font-medium"
+            >
+              <Link2 className="w-4 h-4" /> Sheet Links
+            </button>
             {selectedClass && (
               <button
                 onClick={ensureAll}
@@ -115,7 +140,7 @@ export default function StudentRoster() {
                 to={`/StudentIdCards?class=${encodeURIComponent(selectedClass)}`}
                 className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium"
               >
-                <Printer className="w-4 h-4" /> Print ID Cards
+                <Printer className="w-4 h-4" /> Print Shop
               </Link>
             )}
           </div>
@@ -125,15 +150,13 @@ export default function StudentRoster() {
           {loading ? (
             <div className="w-6 h-6 border-2 border-amber-200 border-t-amber-600 rounded-full animate-spin" />
           ) : classes.length === 0 ? (
-            <p className="text-gray-400">No classes yet. Create students in the Dashboard first.</p>
+            <p className="text-gray-400">No classes yet. Import a sheet or create students in the Dashboard first.</p>
           ) : (
             classes.map(cls => (
               <button
                 key={cls}
                 onClick={() => setSelectedClass(cls)}
-                className={`px-4 py-2 rounded-full font-medium text-sm transition ${
-                  selectedClass === cls ? 'bg-amber-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-amber-50'
-                }`}
+                className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClass === cls ? 'bg-amber-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-amber-50'}`}
               >
                 Class {cls}
               </button>
@@ -150,19 +173,15 @@ export default function StudentRoster() {
                 <button
                   key={num}
                   onClick={() => s ? setSelectedStudent(s) : createAndOpen(num)}
-                  className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center bg-white transition hover:scale-[1.03] active:scale-95 ${
-                    s ? 'border-amber-200 hover:border-amber-400 shadow-sm' : 'border-dashed border-gray-200 text-gray-300'
-                  }`}
+                  className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center bg-white transition hover:scale-[1.03] active:scale-95 ${s ? 'border-amber-200 hover:border-amber-400 shadow-sm' : 'border-dashed border-gray-200 text-gray-300'}`}
                 >
                   {hasPhoto && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
-                  <div
-                    className="relative z-10 flex flex-col items-center"
-                    style={{ textShadow: hasPhoto ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}
-                  >
+                  <div className="relative z-10 flex flex-col items-center" style={{ textShadow: hasPhoto ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
                     <span className={`text-2xl font-black ${hasPhoto ? 'text-white' : 'text-gray-300'}`}>{num}</span>
                     {s?.name && <span className={`text-xs font-bold mt-0.5 ${hasPhoto ? 'text-white' : 'text-gray-400'}`}>{s.name}</span>}
                   </div>
                   {!s && <span className="absolute bottom-1.5 text-[10px] text-gray-300 font-bold">+ add</span>}
+                  {s?.print_flag && <span className="absolute top-1 right-1 text-[9px] bg-amber-500 text-white font-bold rounded-full px-1.5 py-0.5 z-20">PRINT</span>}
                 </button>
               );
             })}
@@ -177,6 +196,9 @@ export default function StudentRoster() {
           onUpdate={handleUpdate}
         />
       )}
+
+      <ImportSheetDialog open={showImport} onOpenChange={setShowImport} onImported={handleImported} />
+      <SheetLinkManager open={showLinks} onOpenChange={setShowLinks} onSynced={reloadStudents} />
     </div>
   );
 }

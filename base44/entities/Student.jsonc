@@ -25,6 +25,36 @@
       "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
       "default": ""
     },
+    "print_flag": {
+      "type": "boolean",
+      "description": "Set from the Google Sheet 'Print' column \u2014 true when this student needs an ID card printed. Drives the 'Only marked' filter in the print shop.",
+      "default": false
+    },
+    "barcode_number": {
+      "type": "string",
+      "description": "School-wide barcode/ID number from the roster sheet (distinct from the 1-30 student_number used for login).",
+      "default": ""
+    },
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher name from the roster sheet.",
+      "default": ""
+    },
+    "site": {
+      "type": "string",
+      "description": "Site/school name from the roster sheet.",
+      "default": ""
+    },
+    "grade": {
+      "type": "string",
+      "description": "Grade level from the roster sheet.",
+      "default": ""
+    },
+    "homeroom": {
+      "type": "string",
+      "description": "Homeroom from the roster sheet. Used as a fallback for class_name when the sheet has no Class column.",
+      "default": ""
+    },
     "language": {
       "type": "string",
       "enum": [

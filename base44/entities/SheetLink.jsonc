@@ -1,0 +1,63 @@
+{
+  "name": "SheetLink",
+  "type": "object",
+  "properties": {
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher or class name this sheet belongs to. Used to recall the sheet for printing/sync by name."
+    },
+    "sheet_url": {
+      "type": "string",
+      "description": "Google Sheets URL or spreadsheet ID. Must be shared as 'Anyone with the link' so the CSV export can be fetched."
+    }
+  },
+  "required": [
+    "teacher_name",
+    "sheet_url"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6 * * 1-5",
+      "one_time_date": null,
+      "timezone": "America/Chicago",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "description": "Syncs all linked Google Sheets into the Student roster every weekday at 6am",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "daily_roster_sync",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "sync_sheets": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "syncSavedSheets"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Sync roster sheets",
+            "description": "Pull latest names + print flags"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Daily Roster Sync"
+}
