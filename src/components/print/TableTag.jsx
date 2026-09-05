@@ -1,10 +1,11 @@
-import AutofitName from './AutofitName';
+import AutofitName from '@/components/print/AutofitName';
 
 // 3" × 0.9" horizontal desk/table name tag: number | photo | name (autofit).
 export default function TableTag({ student }) {
   const name = student.name || '—';
   const photo = student.photo_url;
   const number = student.student_number || '';
+
   const tokens = (student.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   let last = '';
@@ -15,7 +16,7 @@ export default function TableTag({ student }) {
 
   return (
     <div
-      className="border-2 border-black bg-white overflow-hidden flex"
+      className="tag-font border-2 border-black bg-white overflow-hidden flex"
       style={{ width: '3in', height: '0.9in', breakInside: 'avoid', pageBreakInside: 'avoid' }}
     >
       <div className="flex items-center justify-center border-r-2 border-black" style={{ width: '0.7in' }}>

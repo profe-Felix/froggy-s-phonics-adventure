@@ -1,4 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Edu+NSW+ACT+Foundation:wght@400;700&family=Teachers:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700;1,800&display=swap');
+
+@font-face {
+  font-family: 'ZBKidLettersArrowDot';
+  src: url('https://base44.app/api/apps/6a7a69303138d9d4c5d46a80/files/mp/public/6a7a69303138d9d4c5d46a80/3d358cca2_ZBKidLettersArrowDot.otf') format('opentype');
+  font-display: block;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -120,4 +127,71 @@
   height: 3.4in;
   break-inside: avoid;
   page-break-inside: avoid;
+}
+
+.id-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 2.3in);
+  gap: 0in;
+  justify-content: center;
+}
+
+/* Tag font for table tags / mailbox labels */
+.tag-font {
+  font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Name practice sheet — uses ZBKidLettersArrowDot font with handwriting guide lines */
+.page-preview {
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.25in;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+}
+.practice-sheet {
+  --f: 1in;
+  --g: 0.67in;
+  --offset: 0in;
+  --cap: calc(var(--f) * 1.015333);
+  --xh: calc(var(--f) * 0.568667);
+  --desc: calc(var(--f) * 0.533333);
+  --asc: calc(var(--f) * 1.166667);
+  --lh: 1.7;
+  --pblue: #3da8d9;
+  --ppink: #d93d7c;
+  width: 8in;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--g);
+  padding: 0.2in 0;
+  color: #000;
+}
+.practice-set {
+  position: relative;
+  height: calc(3 * var(--g));
+  flex-shrink: 0;
+}
+.practice-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+.practice-line.top { top: 0; border-top: 2px solid var(--pblue); }
+.practice-line.mid { top: var(--g); border-top: 2px dashed var(--pblue); }
+.practice-line.base { top: calc(2 * var(--g)); border-top: 2px solid var(--pblue); }
+.practice-line.desc { top: calc(3 * var(--g)); border-top: 2px solid var(--ppink); }
+.practice-text {
+  position: absolute;
+  left: 0.1in;
+  top: calc(2 * var(--g) - var(--asc) + var(--offset));
+  font-size: var(--f);
+  line-height: var(--lh);
+  font-family: 'ZBKidLettersArrowDot', ui-sans-serif, sans-serif;
+  color: #000;
+  white-space: nowrap;
 }

@@ -19,7 +19,7 @@ const FORMATS = {
   id: { label: 'ID Card', cols: 3, cardW: '2.3in', cardH: 'auto', gap: '0in' },
   tabletag: { label: 'Table Tag', cols: 2, cardW: '3in', cardH: '0.9in' },
   mailbox: { label: 'Mailbox Label', cols: 7, cardW: '0.9in', cardH: '2in' },
-  namepractice: { label: 'Name Practice', cols: 1, cardW: '8.5in', cardH: '11in' },
+  namepractice: { label: 'Name Practice', cols: 1, cardW: '8.5in', cardH: '11in', gap: '0in' },
 };
 
 export default function StudentIdCards() {
