@@ -1,25 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Barcode from '@/components/Barcode';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Printer, CheckCheck, Square } from 'lucide-react';
+import { ArrowLeft, Printer, CheckCheck, Square, ZoomIn, ZoomOut } from 'lucide-react';
 import TableTag from '@/components/print/TableTag';
 import MailboxLabel from '@/components/print/MailboxLabel';
 import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 import IdCard from '@/components/print/IdCard';
 
-// Unified print shop: pull a class's students, pick a format, check exactly
-// which cards to print (or filter to the sheet's "Print" checkmarks), and
-// print multiple per sheet.
-// Each format has fixed physical dimensions so cards print at the right size
-// and the grid packs as many per page as the letter sheet allows.
-// ID card = standard CR80 badge-holder size (2.125" × 3.375").
+// Unified print shop — exact replica of original PrintSheet print mechanism:
+// native window.print() with .sheet-wrap / .sheet CSS + @media print rules.
+// The grid uses gap: 0 and justify-content: center so cards touch edge-to-edge.
 const FORMATS = {
-  id: { label: 'ID Card', cols: 3, cardW: '2.3in', cardH: 'auto', gap: '0in' },
-  tabletag: { label: 'Table Tag', cols: 2, cardW: '3in', cardH: '0.9in', gap: '0in' },
-  mailbox: { label: 'Mailbox Label', cols: 8, cardW: '0.9in', cardH: '2in', gap: '0in' },
-  namepractice: { label: 'Name Practice', cols: 1, cardW: '8.5in', cardH: '11in', gap: '0in' },
+  id: { label: 'ID Card', width: '2.3in', cols: 3 },
+  tabletag: { label: 'Table Tag', width: '3in', cols: 2 },
+  mailbox: { label: 'Mailbox Label', width: '0.9in', cols: 8 },
+  namepractice: { label: 'Name Practice', width: '8.5in', cols: 1 },
 };
 
 export default function StudentIdCards() {
@@ -34,7 +30,7 @@ export default function StudentIdCards() {
   const [format, setFormat] = useState('id');
   const [printOnlyMarked, setPrintOnlyMarked] = useState(false);
   const [showPicture, setShowPicture] = useState(true);
-  const printRef = useRef();
+  const [zoom, setZoom] = useState(1.4);
 
   useEffect(() => {
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(all => {
@@ -66,10 +62,6 @@ export default function StudentIdCards() {
   const byNumber = {};
   students.forEach(s => { byNumber[s.student_number] = s; });
 
-  // The list we show in the checkbox grid: optionally filtered to print_flag.
-  const gridStudents = printOnlyMarked ? students.filter(s => s.print_flag) : students;
-
-  // The list we actually print: selected ∩ (marked filter if on).
   const selectedStudents = students
     .filter(s => selected.has(s.student_number))
     .filter(s => !printOnlyMarked || s.print_flag)
@@ -84,164 +76,144 @@ export default function StudentIdCards() {
     return <IdCard student={s} />;
   };
 
-  const handlePrint = () => {
-    if (!printRef.current || selectedStudents.length === 0) return;
-    const printContents = printRef.current.innerHTML;
-    const safeClass = String(selectedClass || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const cols = fmt.cols;
-    const pageBreak = format === 'namepractice' ? '.card { page-break-after: always; } .card:last-child { page-break-after: auto; }' : '';
-    // Copy all stylesheets from the current document so Tailwind classes
-    // (borders, flex, colors, etc.) render correctly in the print window.
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(el => el.outerHTML).join('\n');
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) { alert('Please allow popups to print.'); return; }
-    win.document.open();
-    win.document.write(`<!DOCTYPE html><html><head><title>${fmt.label} - Class ${safeClass}</title>
-      ${styles}
-      <style>
-        @page { size: letter portrait; margin: 0.25in; }
-        body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
-        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: ${fmt.gap || '0in'}; justify-content: center; padding: 0.25in; }
-        .card { page-break-inside: avoid; break-inside: avoid; display: flex; align-items: center; justify-content: center; }
-        ${pageBreak}
-      </style></head><body><div class="sheet">${printContents}</div></body></html>`);
-    win.document.close();
-    win.focus();
-    // Wait for stylesheets + images to load before printing, otherwise the
-    // print renders unstyled / without photos.
-    const doPrint = () => {
-      try {
-        win.focus();
-        win.print();
-        win.close();
-      } catch (e) { /* browser blocked the print */ }
-    };
-    if (win.document.readyState === 'complete') {
-      // Give images a tick to decode.
-      setTimeout(doPrint, 300);
-    } else {
-      win.onload = () => setTimeout(doPrint, 300);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div className="min-h-screen bg-slate-200 print:bg-white">
+      <header className="no-print border-b bg-white sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Link to="/StudentRoster" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">🖨️ Print Shop</h1>
-              <p className="text-sm text-gray-500">Check the cards you need, then print — no need to reprint the whole class.</p>
+              <h1 className="text-lg font-semibold leading-tight">🖨️ Print Shop</h1>
+              <p className="text-xs text-muted-foreground">
+                {loading ? 'Loading…' : `${selectedStudents.length} · ${fmt.label}`}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <select value={format} onChange={e => setFormat(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm font-medium">
+          <div className="flex items-center gap-3 flex-wrap">
+            <select value={format} onChange={e => setFormat(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
               {Object.entries(FORMATS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
             </select>
-            <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
               <input type="checkbox" checked={printOnlyMarked} onChange={e => setPrintOnlyMarked(e.target.checked)} />
               Only marked
             </label>
             {format === 'mailbox' && (
-              <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                 <input type="checkbox" checked={showPicture} onChange={e => setShowPicture(e.target.checked)} />
                 Pictures
               </label>
             )}
-            <button onClick={selectAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-lg px-3 py-2 hover:bg-gray-50 font-medium text-gray-600">
+            <button onClick={selectAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-md px-3 py-2 hover:bg-gray-50 font-medium text-muted-foreground">
               <CheckCheck className="w-4 h-4" /> All
             </button>
-            <button onClick={clearAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-lg px-3 py-2 hover:bg-gray-50 font-medium text-gray-600">
+            <button onClick={clearAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-md px-3 py-2 hover:bg-gray-50 font-medium text-muted-foreground">
               <Square className="w-4 h-4" /> None
             </button>
+            <div className="flex items-center border rounded-md overflow-hidden">
+              <button className="px-2 py-1.5 hover:bg-gray-50" onClick={() => setZoom(z => Math.max(0.6, +(z - 0.2).toFixed(2)))}>
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="px-2 text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
+              <button className="px-2 py-1.5 hover:bg-gray-50" onClick={() => setZoom(z => Math.min(2.2, +(z + 0.2).toFixed(2)))}>
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
             <button
-              onClick={handlePrint}
+              onClick={() => window.print()}
               disabled={selectedStudents.length === 0}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-40"
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium disabled:opacity-40"
             >
-              <Printer className="w-4 h-4" /> Print {selectedStudents.length} card{selectedStudents.length === 1 ? '' : 's'}
+              <Printer className="w-4 h-4" /> Print
             </button>
           </div>
         </div>
+      </header>
 
-        <div className="flex gap-2 flex-wrap mb-4">
-          {loading ? (
-            <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          ) : classes.length === 0 ? (
-            <p className="text-gray-400">No classes found.</p>
-          ) : (
-            classes.map(cls => (
-              <button
-                key={cls}
-                onClick={() => setSelectedClass(cls)}
-                className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClass === cls ? 'bg-indigo-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-indigo-50'}`}
-              >
-                Class {cls}
-              </button>
-            ))
-          )}
-        </div>
+      <main className="py-8 flex justify-center print:block print:py-0">
+        {loading ? (
+          <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        ) : (
+          <div className="flex flex-col items-center gap-6">
+            {/* Class picker + checkbox grid — no-print so they don't appear on paper */}
+            <div className="no-print flex flex-col items-center gap-4 w-full max-w-3xl">
+              <div className="flex gap-2 flex-wrap justify-center">
+                {classes.map(cls => (
+                  <button
+                    key={cls}
+                    onClick={() => setSelectedClass(cls)}
+                    className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClass === cls ? 'bg-indigo-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-indigo-50'}`}
+                  >
+                    Class {cls}
+                  </button>
+                ))}
+              </div>
 
-        {printOnlyMarked && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-            Showing only students marked “Print” in the Google Sheet. Uncheck “Only marked” to see the whole class.
-          </p>
-        )}
+              {printOnlyMarked && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Showing only students marked “Print” in the Google Sheet.
+                </p>
+              )}
 
-        {/* Checkbox grid */}
-        {selectedClass && (
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-6">
-            {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
-              const s = byNumber[num];
-              const checked = selected.has(num);
-              const inGrid = !printOnlyMarked || (s && s.print_flag);
-              if (!inGrid) return <div key={num} className="aspect-[3/4] rounded-xl border border-dashed border-gray-100 bg-gray-50/50" />;
-              return (
-                <button
-                  key={num}
-                  onClick={() => s && toggle(num)}
-                  disabled={!s}
-                  className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${!s ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300' : checked ? 'border-indigo-500 ring-2 ring-indigo-300 bg-white' : 'border-gray-200 bg-white opacity-50'}`}
-                >
-                  {s?.photo_url && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
-                  <div className="relative z-10 flex flex-col items-center" style={{ textShadow: s?.photo_url ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
-                    <span className={`text-xl font-black ${s?.photo_url ? 'text-white' : 'text-gray-400'}`}>{num}</span>
-                    {s?.name && <span className={`text-[11px] font-bold ${s?.photo_url ? 'text-white' : 'text-gray-500'}`}>{s.name}</span>}
+              {selectedClass && (
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
+                    const s = byNumber[num];
+                    const checked = selected.has(num);
+                    const inGrid = !printOnlyMarked || (s && s.print_flag);
+                    if (!inGrid) return <div key={num} className="aspect-[3/4] rounded-xl border border-dashed border-gray-100 bg-gray-50/50" />;
+                    return (
+                      <button
+                        key={num}
+                        onClick={() => s && toggle(num)}
+                        disabled={!s}
+                        className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${!s ? 'border-dashed border-gray-200 bg-gray-50 text-gray-300' : checked ? 'border-indigo-500 ring-2 ring-indigo-300 bg-white' : 'border-gray-200 bg-white opacity-50'}`}
+                      >
+                        {s?.photo_url && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
+                        <div className="relative z-10 flex flex-col items-center" style={{ textShadow: s?.photo_url ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
+                          <span className={`text-xl font-black ${s?.photo_url ? 'text-white' : 'text-gray-400'}`}>{num}</span>
+                          {s?.name && <span className={`text-[11px] font-bold ${s?.photo_url ? 'text-white' : 'text-gray-500'}`}>{s.name}</span>}
+                        </div>
+                        {s?.print_flag && <span className="absolute top-1 right-1 text-[9px] bg-amber-500 text-white font-bold rounded-full px-1.5 py-0.5 z-20">PRINT</span>}
+                        {s && (
+                          <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 ${checked ? 'bg-indigo-600' : 'bg-gray-400/70'}`}>
+                            {checked ? '✓' : ''}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Print sheet — exact replica of original .sheet-wrap / .sheet */}
+            {selectedStudents.length > 0 ? (
+              <div className="sheet-wrap" style={{ '--zoom': zoom }}>
+                <div className="sheet">
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.width})`,
+                      gap: 0,
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {selectedStudents.map((s, i) => (
+                      <div key={s.id || i} style={format === 'namepractice' && i < selectedStudents.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}>
+                        {renderCard(s)}
+                      </div>
+                    ))}
                   </div>
-                  {s?.print_flag && <span className="absolute top-1 right-1 text-[9px] bg-amber-500 text-white font-bold rounded-full px-1.5 py-0.5 z-20">PRINT</span>}
-                  {s && (
-                    <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 ${checked ? 'bg-indigo-600' : 'bg-gray-400/70'}`}>
-                      {checked ? '✓' : ''}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
+                </div>
+              </div>
+            ) : (
+              <div className="no-print text-center text-muted-foreground py-20 max-w-sm">
+                No students selected. Check some above or turn off “Only marked”.
+              </div>
+            )}
           </div>
         )}
-
-        {/* Print preview */}
-        {selectedStudents.length > 0 ? (
-          <>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wide mb-2">
-              Preview · {selectedStudents.length} {fmt.label}{selectedStudents.length === 1 ? '' : 's'}
-            </p>
-            <div
-              ref={printRef}
-              className="sheet grid bg-white p-4 rounded-xl border"
-              style={{ gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.cardW})`, gap: fmt.gap || '0in', justifyContent: 'center' }}
-            >
-              {selectedStudents.map(s => (
-                <div key={s.id} className="card flex items-center justify-center">{renderCard(s)}</div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="text-center py-10 text-gray-400">No students selected. Check some above or turn off “Only marked”.</p>
-        )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -136,6 +136,70 @@
   justify-content: center;
 }
 
+/* Print sheet — exact replica of original PrintSheet/PrintLive.
+   .sheet-wrap holds a zoomed .sheet; @media print strips both so the
+   grid prints at true physical size via native window.print(). */
+.sheet-wrap {
+  position: relative;
+  width: calc(8.5in * var(--zoom, 1));
+  height: calc(11in * var(--zoom, 1));
+  margin: 0 auto;
+}
+
+.sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0;
+  background: #fff;
+  transform: scale(var(--zoom, 1));
+  transform-origin: top left;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.25in;
+  }
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .sheet-wrap {
+    --zoom: 1 !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  .sheet {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .id-card {
+    box-shadow: none !important;
+  }
+  .page-preview {
+    border: none !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    width: auto !important;
+    box-shadow: none !important;
+  }
+}
+
 /* Tag font for table tags / mailbox labels */
 .tag-font {
   font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;
