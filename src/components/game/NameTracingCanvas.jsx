@@ -18,9 +18,15 @@ import { splinePathD } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
-const LETTER_GAP = -6; // slight overlap so letters connect like real handwriting
+const LETTER_GAP = 10; // small gap — tight like real handwriting but not overlapping
 const PADDING = 30;
 const MIN_INK_PX = 120;
+// Match Letter Tracing's starting size (Medium = sizeLevel 2, scale 0.55).
+// Each letter in the name renders at the same physical size as a Medium
+// letter in Letter Tracing, so kids practice writing at the size they're
+// used to — not oversized.
+const SIZE_SCALE = 0.55;
+const RENDER_H = CANVAS_H * SIZE_SCALE; // ~206px — same as Letter Tracing Medium
 
 export default function NameTracingCanvas({
   name,
@@ -79,6 +85,8 @@ export default function NameTracingCanvas({
   const [errorFlash, setErrorFlash] = useState(false);
   const [awaitingLift, setAwaitingLift] = useState(false);
   const [guideFlash, setGuideFlash] = useState(false);
+  const [accuracy, setAccuracy] = useState(null);
+  const strokeAccuraciesRef = useRef([]);
 
   // --- Dot-only mode: freehand state ---
   const [dotDrawnPaths, setDotDrawnPaths] = useState([]);
@@ -114,8 +122,11 @@ export default function NameTracingCanvas({
     setEnoughInk(false);
   }, [name, mode]);
 
-  // SVG height proportional to width
-  const renderH = totalW > 0 ? renderWidth * (CANVAS_H / totalW) : renderWidth * 1.25;
+  // Fixed height matching Letter Tracing's Medium size. Width is proportional
+  // to the name length so each letter is the same physical size as in Letter
+  // Tracing. If the name is too wide for the viewport, the container scrolls.
+  const renderH = RENDER_H;
+  const renderW = totalW > 0 ? RENDER_H * (totalW / CANVAS_H) : renderWidth;
 
   const toSvg = useCallback((clientX, clientY) => {
     const svg = svgRef.current;
@@ -169,12 +180,14 @@ export default function NameTracingCanvas({
   const totalStrokeCount = allStrokes.length;
   const isAllDone = isGuided && status === 'success';
 
-  // Fire onComplete when guided mode succeeds
+  // Fire onComplete when guided mode succeeds — slight delay so the student
+  // sees their accuracy score before the row advances.
   useEffect(() => {
     if (status === 'success' && isGuided) {
-      onComplete?.();
+      const timer = setTimeout(() => onComplete?.(accuracy), 1500);
+      return () => clearTimeout(timer);
     }
-  }, [status, isGuided, onComplete]);
+  }, [status, isGuided, onComplete, accuracy]);
 
   // --- Dot-only helpers ---
   const inkLength = useCallback((paths) => {
@@ -222,6 +235,8 @@ export default function NameTracingCanvas({
       return next;
     });
     setCurrentPath([]);
+    // Score the stroke accuracy (dot strokes are always perfect)
+    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
@@ -234,6 +249,9 @@ export default function NameTracingCanvas({
       const newLetterIdx = letterIndex + 1;
       if (newLetterIdx >= wordLetters.length) {
         setStatus('success');
+        const accs = strokeAccuraciesRef.current;
+        const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
+        setAccuracy(avg);
       } else {
         setStatus('idle');
         setLetterIndex(newLetterIdx);
@@ -251,11 +269,20 @@ export default function NameTracingCanvas({
     if (status === 'success') return;
     const currentStrokes = strokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
-    const firstWp = scaleWord(currentStrokes[0]);
-    const startTol = isDot ? DOT_HIT_RADIUS : HIT_RADIUS * 1.8;
-    if (waypointIndex === 0 && dist(pos, firstWp) > startTol) {
-      flashError();
-      return;
+    // Match LetterTracingCanvas: check against the first 30% of the dense
+    // path with a generous tolerance (WOBBLE_RADIUS), not just the first
+    // waypoint — more forgiving for touch screens and interactive boards.
+    if (waypointIndex === 0) {
+      const startTol = isDot ? DOT_HIT_RADIUS : WOBBLE_RADIUS;
+      const checkEnd = isDot ? 1 : Math.max(8, Math.floor(densePath.length * 0.3));
+      let minD = Infinity;
+      for (let i = 0; i < checkEnd && i < densePath.length; i++) {
+        minD = Math.min(minD, dist(pos, densePath[i]));
+      }
+      if (minD > startTol) {
+        flashError();
+        return;
+      }
     }
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
@@ -561,9 +588,10 @@ export default function NameTracingCanvas({
   }
 
   const isSuccess = status === 'success';
+  const isAmber = isSuccess && accuracy != null && accuracy < 80;
 
   return (
-    <div className="flex flex-col items-center select-none" style={{ width: renderWidth }}>
+    <div className="flex flex-col items-center select-none" style={{ width: renderW, maxWidth: '100%' }}>
       {/* Status prompt */}
       <div className="h-8 shrink-0 flex items-center justify-center">
         {isGuided && awaitingLift && (
@@ -572,8 +600,23 @@ export default function NameTracingCanvas({
           </div>
         )}
         {isGuided && isSuccess && (
-          <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">
-            🎉 Great job!
+          <div className="flex items-center gap-3">
+            <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
+              isAmber
+                ? 'bg-amber-100 border-amber-400 text-amber-800'
+                : 'bg-green-100 border-green-400 text-green-800'
+            }`}>
+              {isAmber ? '✏️ Good try!' : '🎉 Great job!'}
+            </div>
+            {accuracy != null && (
+              <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
+                isAmber
+                  ? 'bg-amber-100 border-amber-300 text-amber-800'
+                  : 'bg-indigo-100 border-indigo-300 text-indigo-800'
+              }`}>
+                🎯 {accuracy}%
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -584,13 +627,13 @@ export default function NameTracingCanvas({
         preserveAspectRatio="xMidYMid meet"
         className={`rounded-2xl border-4 shrink-0 ${
           errorFlash ? 'border-red-400 bg-red-50' :
-          isSuccess ? 'border-green-400 bg-green-50' :
+          isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
           dotCompleted ? 'border-green-400 bg-green-50' :
           'border-slate-200 bg-white'
         }`}
         style={{
           display: 'block',
-          width: renderWidth,
+          width: renderW,
           height: renderH,
           cursor: 'crosshair',
           touchAction: 'none',

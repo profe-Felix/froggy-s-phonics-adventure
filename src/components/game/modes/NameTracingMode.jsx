@@ -184,8 +184,8 @@ export default function NameTracingMode({ studentData, onBack }) {
       </div>
 
       {/* Vertical scrolling page of rows */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        <div className="flex flex-col items-center gap-8 py-6 px-4">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+        <div className="flex flex-col items-center gap-8 py-6 px-4 min-w-min">
           {rows.map((row, i) => {
             const isActive = i === activeRow && !completedRows.has(i);
             const isPast = completedRows.has(i);
