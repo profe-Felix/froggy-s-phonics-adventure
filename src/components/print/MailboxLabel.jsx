@@ -1,16 +1,9 @@
-// Exact copy of original MailboxLabel.jsx from quick-class-card2.
-// Field mapping: student_name → name, class_number → student_number.
-// Image component → plain img (Image component not in this app).
+import { parseName } from '@/lib/nameNormalize';
 
 export default function MailboxLabel({ student, showPicture = true }) {
   const photo = student.photo_url;
-  const number = String(student.student_number ?? '') || student.barcode_number || '';
-  const tokens = (student.name || '').trim().split(/\s+/).filter(Boolean);
-  const first = tokens[0] || '';
-  let last = '';
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i].replace(/\.$/, '').length > 1) { last = tokens[i].replace(/\.$/, ''); break; }
-  }
+  const number = student.class_number || student.student_number || student.barcode_number || '';
+  const { first, last } = parseName(student.student_name || student.name || '');
   const initials = ((first[0] || '') + (last[0] || '')).toUpperCase();
 
   if (!showPicture) {

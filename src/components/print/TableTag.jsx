@@ -1,15 +1,11 @@
-// Exact copy of original TableTag.jsx from quick-class-card2.
-// Field mapping: student_name → name, class_number → student_number.
-// Image component → plain img (Image component not in this app).
-
 import AutofitName from '@/components/print/AutofitName';
 
 export default function TableTag({ student }) {
-  const name = student.name || '—';
+  const name = student.student_name || student.name || '—';
   const photo = student.photo_url;
-  const number = String(student.student_number ?? '') || student.barcode_number || '';
+  const number = student.class_number || student.student_number || student.barcode_number || '';
 
-  const tokens = (student.name || '').trim().split(/\s+/).filter(Boolean);
+  const tokens = (student.student_name || student.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   let last = '';
   for (let i = 1; i < tokens.length; i++) {

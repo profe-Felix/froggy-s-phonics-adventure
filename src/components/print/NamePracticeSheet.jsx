@@ -1,8 +1,5 @@
-// Exact copy of original NamePracticeSheet.jsx from quick-class-card2.
-// Field mapping: student_name → name.
-
 export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0 }) {
-  const tokens = (student?.name || '').trim().split(/\s+/).filter(Boolean);
+  const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
   const rows = mode === 'firstlast' ? [first, last, first, last] : [first, first, first, first];

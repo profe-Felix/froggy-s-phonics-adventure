@@ -1,11 +1,7 @@
-// Exact copy of original IdCard.jsx from quick-class-card2.
-// Field mapping: student_name → name.
-// Image component → plain img (Image component not in this app).
-
 import Barcode from '@/components/Barcode';
 
 export default function IdCard({ student }) {
-  const name = student.name || '—';
+  const name = student.student_name || student.name || '—';
   const number = student.barcode_number || '000000';
   const photo = student.photo_url;
   const initials = name
