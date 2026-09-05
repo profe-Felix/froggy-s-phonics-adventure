@@ -158,10 +158,10 @@ export default function StudentIdCards() {
       <style>
         @page { size: letter portrait; margin: 0.25in; }
         body { font-family: 'Teachers', 'Andika', sans-serif; margin: 0; padding: 0; color: #1e293b; }
-        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: 0.15in; justify-content: center; }
+        .sheet { display: grid; grid-template-columns: repeat(${cols}, ${fmt.cardW}); gap: 0.15in; justify-content: center; padding: 0.25in; }
         .card { page-break-inside: avoid; break-inside: avoid; display: flex; align-items: center; justify-content: center; }
         ${pageBreak}
-      </style></head><body>${printContents}</body></html>`);
+      </style></head><body><div class="sheet">${printContents}</div></body></html>`);
     win.document.close();
     win.focus();
     // Wait for stylesheets + images to load before printing, otherwise the
