@@ -230,6 +230,7 @@ export default function StudentRoster() {
       {selectedStudent && (
         <RosterStudentModal
           student={selectedStudent}
+          classes={classes}
           onClose={() => setSelectedStudent(null)}
           onUpdate={handleUpdate}
         />

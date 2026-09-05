@@ -3,11 +3,9 @@ import { X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import StudentPhotoEditor from './StudentPhotoEditor';
 
-const CLASSES = ['F', 'V', 'C', 'S', 'B', 'M', 'R', 'T', 'G', 'L'];
-
 // Lightweight roster editor — photo + name + class + language only.
 // Intentionally simpler than StudentDetail (which is progress-heavy).
-export default function RosterStudentModal({ student, onClose, onUpdate }) {
+export default function RosterStudentModal({ student, onClose, onUpdate, classes = [] }) {
   const [name, setName] = useState(student.name || '');
   const [className, setClassName] = useState(student.class_name || '');
   const [customClass, setCustomClass] = useState('');
@@ -67,7 +65,7 @@ export default function RosterStudentModal({ student, onClose, onUpdate }) {
                 className="border rounded-lg px-2 py-2 text-sm"
               >
                 <option value="">Select…</option>
-                {CLASSES.map(c => <option key={c} value={c}>Class {c}</option>)}
+                {classes.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
               <input
                 value={customClass}
