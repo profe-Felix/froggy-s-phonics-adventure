@@ -6,34 +6,20 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import NameTracingReplayModal from '@/components/tracing/NameTracingReplayModal';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, User } from 'lucide-react';
+import { ArrowLeft, Eye, Check } from 'lucide-react';
 
 // Teacher dashboard for Name Tracing:
-//  - Toggle first-only vs first+last name per class (saved to ClassConfig)
+//  - Per-student checkmark: trace last name too (some students master first name faster)
 //  - View each student's dot-only attempts with animated playback
 export default function NameTracingReview() {
   const { classList } = useClassNames();
   const queryClient = useQueryClient();
   const [selectedClass, setSelectedClass] = useState('');
-  const [nameMode, setNameMode] = useState('first_only');
   const [replayStudent, setReplayStudent] = useState(null);
 
   useEffect(() => {
     if (!selectedClass && classList.length) setSelectedClass(classList[0]);
   }, [classList]);
-
-  // Load class config for the toggle
-  const { data: classConfigs = [] } = useQuery({
-    queryKey: ['class-config', selectedClass],
-    queryFn: () => base44.entities.ClassConfig.filter({ class_name: selectedClass }),
-    enabled: !!selectedClass,
-  });
-
-  useEffect(() => {
-    if (classConfigs?.length) {
-      setNameMode(classConfigs[0].name_tracing_mode || 'first_only');
-    }
-  }, [classConfigs]);
 
   const { data: students = [] } = useQuery({
     queryKey: ['students', selectedClass],
@@ -57,14 +43,10 @@ export default function NameTracingReview() {
     samplesByStudent[s.student_number].push(s);
   }
 
-  const handleToggleMode = async (mode) => {
-    setNameMode(mode);
-    if (classConfigs?.length) {
-      await base44.entities.ClassConfig.update(classConfigs[0].id, { name_tracing_mode: mode });
-    } else if (selectedClass) {
-      await base44.entities.ClassConfig.create({ class_name: selectedClass, name_tracing_mode: mode });
-    }
-    queryClient.invalidateQueries({ queryKey: ['class-config', selectedClass] });
+  const handleToggleLast = async (student) => {
+    const newVal = !student.name_tracing_last;
+    await base44.entities.Student.update(student.id, { name_tracing_last: newVal });
+    queryClient.invalidateQueries({ queryKey: ['students', selectedClass] });
   };
 
   return (
@@ -77,7 +59,7 @@ export default function NameTracingReview() {
           </Link>
         </div>
 
-        {/* Class selector + name mode toggle */}
+        {/* Class selector */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
           <div className="flex flex-wrap items-end gap-4">
             <div>
@@ -90,28 +72,9 @@ export default function NameTracingReview() {
                 {classList.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Name scope</label>
-              <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-                <button
-                  onClick={() => handleToggleMode('first_only')}
-                  className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${nameMode === 'first_only' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500'}`}
-                >
-                  First name only
-                </button>
-                <button
-                  onClick={() => handleToggleMode('first_last')}
-                  className={`px-4 py-1.5 rounded-md text-sm font-bold transition ${nameMode === 'first_last' ? 'bg-white text-indigo-600 shadow' : 'text-slate-500'}`}
-                >
-                  First + Last name
-                </button>
-              </div>
-            </div>
           </div>
           <p className="text-xs text-slate-400 mt-2">
-            {nameMode === 'first_only'
-              ? 'Students trace just their first name.'
-              : 'Students trace their first name and last name on separate lines.'}
+            Check the box next to a student once they've mastered their first name — they'll start tracing their last name too.
           </p>
         </div>
 
@@ -119,9 +82,10 @@ export default function NameTracingReview() {
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-100 border-b font-bold text-xs text-slate-500 uppercase">
             <div className="col-span-1">#</div>
-            <div className="col-span-4">Name</div>
+            <div className="col-span-3">Name</div>
             <div className="col-span-3">Name part(s)</div>
-            <div className="col-span-2">Attempts</div>
+            <div className="col-span-2 text-center">+ Last name</div>
+            <div className="col-span-1 text-center">Attempts</div>
             <div className="col-span-2">View</div>
           </div>
           {students.length === 0 ? (
@@ -129,16 +93,31 @@ export default function NameTracingReview() {
           ) : students.map(s => {
             const studentSamples = samplesByStudent[s.student_number] || [];
             const nameParts = s.name ? s.name.trim().split(/\s+/) : [];
-            const partsLabel = nameMode === 'first_last' && nameParts.length >= 2
+            const useLast = s.name_tracing_last && nameParts.length >= 2;
+            const partsLabel = useLast
               ? `${nameParts[0]} · ${nameParts.slice(1).join(' ')}`
               : nameParts[0] || '—';
             return (
               <div key={s.id} className="grid grid-cols-12 gap-2 px-3 py-2 border-b last:border-0 items-center text-sm">
                 <div className="col-span-1 font-bold text-slate-600">{s.student_number}</div>
-                <div className="col-span-4 font-bold text-slate-700 truncate">{s.name || `Student ${s.student_number}`}</div>
+                <div className="col-span-3 font-bold text-slate-700 truncate">{s.name || `Student ${s.student_number}`}</div>
                 <div className="col-span-3 text-slate-500 text-xs font-bold truncate">{partsLabel}</div>
-                <div className="col-span-2 text-slate-500 font-bold">
-                  {studentSamples.length > 0 ? `${studentSamples.length} saved` : '—'}
+                <div className="col-span-2 flex justify-center">
+                  <button
+                    onClick={() => handleToggleLast(s)}
+                    disabled={nameParts.length < 2}
+                    title={nameParts.length < 2 ? 'No last name on file' : (s.name_tracing_last ? 'Tracing first + last name' : 'First name only — check to add last name')}
+                    className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition disabled:opacity-30 disabled:cursor-not-allowed ${
+                      s.name_tracing_last
+                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                        : 'bg-white border-slate-300 hover:border-indigo-400'
+                    }`}
+                  >
+                    {s.name_tracing_last && <Check className="w-4 h-4" strokeWidth={3} />}
+                  </button>
+                </div>
+                <div className="col-span-1 text-center text-slate-500 font-bold text-xs">
+                  {studentSamples.length > 0 ? studentSamples.length : '—'}
                 </div>
                 <div className="col-span-2">
                   <button

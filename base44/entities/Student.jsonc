@@ -69,6 +69,11 @@
       "description": "If true, only teachers can change the student's language on the landing page.",
       "default": true
     },
+    "name_tracing_last": {
+      "type": "boolean",
+      "description": "If true, this student traces both first AND last name in Name Tracing mode. Default false = first name only. Teachers check this per student once they've mastered their first name.",
+      "default": false
+    },
     "tags": {
       "type": "array",
       "items": {

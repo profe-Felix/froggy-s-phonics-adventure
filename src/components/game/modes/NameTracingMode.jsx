@@ -13,7 +13,6 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 // Saves dot-only attempts to TracingSample for teacher review. No sound.
 export default function NameTracingMode({ studentData, onBack }) {
   const [waypoints, setWaypoints] = useState(LETTER_WAYPOINTS);
-  const [nameMode, setNameMode] = useState('first_only');
   const [activeRow, setActiveRow] = useState(0);
   const [completedRows, setCompletedRows] = useState(new Set());
   const [celebrate, setCelebrate] = useState(null);
@@ -45,25 +44,19 @@ export default function NameTracingMode({ studentData, onBack }) {
       });
     }).catch(() => {});
 
-    if (className) {
-      base44.entities.ClassConfig.filter({ class_name: className }).then((configs) => {
-        if (cancelled || !configs?.length) return;
-        setNameMode(configs[0].name_tracing_mode || 'first_only');
-      }).catch(() => {});
-    }
     return () => { cancelled = true; };
   }, [className]);
 
-  // Split name into parts based on teacher toggle
+  // Split name into parts: first name only, or first + last if teacher checked the box for this student
   const nameParts = useMemo(() => {
     if (!fullName) return [];
     const tokens = fullName.split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return [];
-    if (nameMode === 'first_last' && tokens.length >= 2) {
+    if (studentData?.name_tracing_last && tokens.length >= 2) {
       return [tokens[0], tokens.slice(1).join(' ')];
     }
     return [tokens[0]];
-  }, [fullName, nameMode]);
+  }, [fullName, studentData?.name_tracing_last]);
 
   // Build rows: for each name part, [guided, dot_only]
   const rows = useMemo(() => {
