@@ -118,6 +118,7 @@ export default function NameTracingCanvas({
     setDotDrawnPaths([]);
     setDotCurrentPath([]);
     dotCurrentRef.current = [];
+    dotDrawingRef.current = false;
     setDotCompleted(false);
     setEnoughInk(false);
   }, [name, mode]);
@@ -236,7 +237,8 @@ export default function NameTracingCanvas({
     });
     setCurrentPath([]);
     // Score the stroke accuracy (dot strokes are always perfect).
-    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
+    // Use the same penalty as the accuracy gate for consistency.
+    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath, 60));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
@@ -454,11 +456,12 @@ export default function NameTracingCanvas({
     // The visual feedback uses 80 as the green/amber boundary, and the user
     // wants yellow/amber traces rejected — a messy stroke that wobbles far
     // from the guide must be redone, not accepted. Dot strokes are always
-    // perfect. The default penalty (30) works because waypoints are densely
-    // sampled on curves, so a trace that follows the smooth guide path stays
-    // within a few px of the linear dense path and scores 85-100.
+    // perfect. Penalty 60 (wider than the default 30) accounts for the gap
+    // between the smooth rendered guide path (spline) and the linear
+    // validation path (densePath) on curved letters — a perfect trace on a
+    // curve still scores 85+, while a messy wobble (15+ px) drops below 80.
     if (!isDot) {
-      const acc = strokeAccuracy(currentPathRef.current, densePath);
+      const acc = strokeAccuracy(currentPathRef.current, densePath, 60);
       if (acc < 80) {
         flashError();
         restartStroke();
@@ -477,7 +480,6 @@ export default function NameTracingCanvas({
   const handleDotDown = (p) => {
     if (dotCompleted) return;
     dotDrawingRef.current = true;
-    setDrawing(true);
     dotCurrentRef.current = [p];
     setDotCurrentPath([p]);
   };
@@ -494,7 +496,6 @@ export default function NameTracingCanvas({
   const handleDotUp = () => {
     if (!dotDrawingRef.current) return;
     dotDrawingRef.current = false;
-    setDrawing(false);
     if (dotCurrentRef.current.length > 1) {
       setDotDrawnPaths((prev) => [...prev, dotCurrentRef.current]);
     }
@@ -811,13 +812,18 @@ export default function NameTracingCanvas({
           ); })()
         )}
 
-        {/* Start dots — dot-only mode (all strokes) */}
+        {/* Start dots — dot-only mode (all strokes), numbered for stroke order */}
         {isDotOnly && !dotCompleted && allStrokes.map((s, i) => {
           const p = s.dense[0];
           if (!p) return null;
+          // Number strokes sequentially across all letters (1, 2, 3…)
+          // so multi-stroke letters (e.g. W=1, i=2+3, l=4…) show the order.
           return (
             <g key={`start-${i}`} pointerEvents="none">
-              <circle cx={p.x} cy={p.y} r="6" fill="#6366f1" opacity="0.35" />
+              <circle cx={p.x} cy={p.y} r="11" fill="#6366f1" opacity="0.2" />
+              <circle cx={p.x} cy={p.y} r="8" fill="#6366f1" opacity="0.55" />
+              <text x={p.x} y={p.y + 3.5} textAnchor="middle" fontSize="10"
+                fill="white" fontWeight="bold" pointerEvents="none">{i + 1}</text>
             </g>
           );
         })}
