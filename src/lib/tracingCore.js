@@ -161,8 +161,33 @@ export function fonemaUrl(letter, lang = 'es') {
 // across all its strokes), pixel width, and x-offset. Letters are placed
 // left-to-right based on their real ink width plus a small gap so the word
 // reads as a connected unit instead of sitting in fixed-width cells.
-export function computeWordLayout(word, waypoints, xScale = 300, gap = 20, padding = 30, repetitions = 3, wordGap = 80) {
+export function computeWordLayout(word, waypoints, xScale = 300, gap = 20, padding = 30, repetitions = 3, wordGap = 80, useFixedCells = false) {
   const baseLetters = word.split('').filter(l => waypoints[l]);
+  // First pass: when useFixedCells is set, compute the max ink width across
+  // all letters so every letter gets the same cell width (like a fixed-width
+  // font). This prevents letters with wide strokes (j, q, T, Y) from
+  // overlapping their neighbors — each letter is centered in its cell.
+  let fixedCellWidth = null;
+  if (useFixedCells) {
+    let maxInkWidth = 0;
+    for (const ch of baseLetters) {
+      const ls = waypoints[ch]?.strokes || [];
+      let mnX = Infinity, mxX = -Infinity;
+      for (const stroke of ls) {
+        if (!Array.isArray(stroke)) continue;
+        for (const p of stroke) {
+          if (p && p.x != null) {
+            if (p.x < mnX) mnX = p.x;
+            if (p.x > mxX) mxX = p.x;
+          }
+        }
+      }
+      if (isFinite(mnX) && isFinite(mxX)) {
+        maxInkWidth = Math.max(maxInkWidth, (mxX - mnX) * xScale);
+      }
+    }
+    fixedCellWidth = maxInkWidth;
+  }
   let cursor = padding;
   const layout = [];
   for (let rep = 0; rep < repetitions; rep++) {
@@ -186,10 +211,12 @@ export function computeWordLayout(word, waypoints, xScale = 300, gap = 20, paddi
       }
       if (!isFinite(minX)) { minX = 0; maxX = 1; }
       if (!isFinite(minY)) { minY = 0; maxY = 1; }
-      const width = (maxX - minX) * xScale;
-      const offset = cursor;
-      cursor += width + gap;
-      layout.push({ ch, minX, maxX, minY, maxY, width, offset, rep });
+      const inkWidth = (maxX - minX) * xScale;
+      const cellWidth = fixedCellWidth != null ? Math.max(fixedCellWidth, inkWidth) : inkWidth;
+      const inkOffset = fixedCellWidth != null ? (cellWidth - inkWidth) / 2 : 0;
+      const offset = cursor + inkOffset;
+      cursor += cellWidth + gap;
+      layout.push({ ch, minX, maxX, minY, maxY, width: cellWidth, offset, rep });
     }
   }
   const totalW = Math.max(xScale, cursor + padding);

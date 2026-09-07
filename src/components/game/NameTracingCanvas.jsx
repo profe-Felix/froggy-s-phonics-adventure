@@ -40,7 +40,7 @@ export default function NameTracingCanvas({
 
   // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 0),
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 0, true),
     [name, waypoints]
   );
 
@@ -238,7 +238,7 @@ export default function NameTracingCanvas({
     setCurrentPath([]);
     // Score the stroke accuracy (dot strokes are always perfect).
     // Use the same penalty as the accuracy gate for consistency.
-    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath, 60));
+    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
@@ -452,22 +452,10 @@ export default function NameTracingCanvas({
       restartStroke();
       return;
     }
-    // Accuracy gate: only accept "green" quality traces (accuracy >= 80).
-    // The visual feedback uses 80 as the green/amber boundary, and the user
-    // wants yellow/amber traces rejected — a messy stroke that wobbles far
-    // from the guide must be redone, not accepted. Dot strokes are always
-    // perfect. Penalty 60 (wider than the default 30) accounts for the gap
-    // between the smooth rendered guide path (spline) and the linear
-    // validation path (densePath) on curved letters — a perfect trace on a
-    // curve still scores 85+, while a messy wobble (15+ px) drops below 80.
-    if (!isDot) {
-      const acc = strokeAccuracy(currentPathRef.current, densePath, 60);
-      if (acc < 80) {
-        flashError();
-        restartStroke();
-        return;
-      }
-    }
+    // No accuracy gate — same as LetterTracingCanvas (the authoring preview).
+    // Coverage + direction + wobble gates enforce the correct pathway; the
+    // accuracy score is calculated in commitStroke for display only (green
+    // vs amber feedback), not for gating acceptance.
     commitStroke();
   };
 
@@ -689,7 +677,7 @@ export default function NameTracingCanvas({
             const color = isCompleted ? '#22c55e' :
                           isCurrent ? '#A78BFA' :
                           '#cbd5e1';
-            const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.6) : 0.4;
+            const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.7) : 0.5;
             const scaled = stroke.map(p => scaleForLetter(p, li));
             // Dot strokes (e.g. 'i' dot, 'j' dot) are 2 points very close
             // together — render as a filled circle so the dot is visible.
@@ -700,7 +688,7 @@ export default function NameTracingCanvas({
                   key={`${li}-${si}`}
                   cx={scaled[0].x}
                   cy={scaled[0].y}
-                  r={isCurrent && guideFlash ? 7 : 5}
+                  r={isCurrent && guideFlash ? 9 : 7}
                   fill={color}
                   opacity={opacity}
                   pointerEvents="none"
@@ -754,14 +742,14 @@ export default function NameTracingCanvas({
         {/* Drawn paths — guided mode (all letters' completed strokes) */}
         {isGuided && Object.entries(drawnPathsByLetter).map(([li, paths]) =>
           paths.map((pts, i) => (
-            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#22c55e" strokeWidth="11"
+            <path key={`d${li}-${i}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="11"
               strokeLinecap="round" strokeLinejoin="round" opacity="0.85" pointerEvents="none" />
           ))
         )}
 
         {/* Current drawing path — guided mode */}
         {isGuided && currentPath.length > 1 && (
-          <path d={pathD(currentPath)} fill="none" stroke="#22c55e" strokeWidth="11"
+          <path d={pathD(currentPath)} fill="none" stroke="#6366f1" strokeWidth="11"
             strokeLinecap="round" strokeLinejoin="round" opacity="0.85" pointerEvents="none" />
         )}
 
