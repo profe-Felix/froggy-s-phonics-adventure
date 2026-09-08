@@ -7,7 +7,7 @@ import {
   MAX_GAP, START_TOL, END_TOL, GUIDE_COLORS,
   isDotStroke, DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
-import { splinePathD } from '@/components/tracing/strokeMath';
+import { splinePathD, catmullRom } from '@/components/tracing/strokeMath';
 
 // One row of a name — letters laid out horizontally using the same waypoint
 // system and per-stroke validation as WordTracingCanvas. Two modes:
@@ -175,6 +175,29 @@ export default function NameTracingCanvas({
     return clean.length ? buildDensePath(clean, scaleWord) : [];
   }, [strokes, strokeIndex, scaleWord]);
 
+  // Spline-based dense path for ACCURACY scoring only. The visual guide
+  // renders via splinePathD (Catmull-Rom), but buildDensePath uses linear
+  // interpolation — so on curved letters the spline bulges outward from the
+  // linear path. Scoring accuracy against the linear path unfairly penalizes
+  // a perfect trace that follows the visual spline guide. This spline path
+  // matches what the user sees, so accuracy reflects real handwriting quality.
+  const splineDensePath = useMemo(() => {
+    const wp = strokes[strokeIndex];
+    const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
+    if (!clean.length) return [];
+    const scaled = clean.map(pt => {
+      const lay = layout[letterIndex];
+      const baseX = lay ? lay.offset : 0;
+      const minX = lay ? lay.minX : 0;
+      return {
+        x: baseX + (pt.x - minX) * X_SCALE,
+        y: pt.y * CANVAS_H,
+        ...(pt.corner ? { corner: true } : {}),
+      };
+    });
+    return catmullRom(scaled, 16);
+  }, [strokes, strokeIndex, letterIndex, layout]);
+
   const isDot = useMemo(() => isDotStroke(densePath), [densePath]);
 
   // Check if all strokes are done (guided mode)
@@ -236,9 +259,9 @@ export default function NameTracingCanvas({
       return next;
     });
     setCurrentPath([]);
-    // Score the stroke accuracy (dot strokes are always perfect).
-    // Use the same penalty as the accuracy gate for consistency.
-    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
+    // Score the stroke accuracy against the spline reference (matches the
+    // visual guide). Dot strokes are always perfect.
+    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, splineDensePath, 30));
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
@@ -452,10 +475,19 @@ export default function NameTracingCanvas({
       restartStroke();
       return;
     }
-    // No accuracy gate — same as LetterTracingCanvas (the authoring preview).
-    // Coverage + direction + wobble gates enforce the correct pathway; the
-    // accuracy score is calculated in commitStroke for display only (green
-    // vs amber feedback), not for gating acceptance.
+    // Accuracy gate: reject wobbly traces. The spline-based reference path
+    // matches the visual guide, so a trace that follows the guide scores
+    // high. Penalty 30 with threshold 80: a clean trace (deviation < 6px)
+    // scores 80+, a wobbly trace (deviation > 6px) is rejected and must be
+    // redone. Dot strokes are always perfect.
+    if (!isDot) {
+      const acc = strokeAccuracy(currentPathRef.current, splineDensePath, 30);
+      if (acc < 80) {
+        flashError();
+        restartStroke();
+        return;
+      }
+    }
     commitStroke();
   };
 
@@ -676,8 +708,8 @@ export default function NameTracingCanvas({
             const isCurrent = li === letterIndex;
             const color = isCompleted ? '#22c55e' :
                           isCurrent ? '#A78BFA' :
-                          '#cbd5e1';
-            const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.7) : 0.5;
+                          '#94a3b8';
+            const opacity = isCompleted ? 0.5 : isCurrent ? (guideFlash ? 0.85 : 0.7) : 0.7;
             const scaled = stroke.map(p => scaleForLetter(p, li));
             // Dot strokes (e.g. 'i' dot, 'j' dot) are 2 points very close
             // together — render as a filled circle so the dot is visible.
