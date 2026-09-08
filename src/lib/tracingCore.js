@@ -157,12 +157,61 @@ export function fonemaUrl(letter, lang = 'es') {
   return `${AUDIO_BASE}/${lang}/letters/fonemas/${letter.toLowerCase()}.mp3`;
 }
 
+// The letter waypoints use y: T=0.10 (top), M=0.42 (midline/x-height),
+// B=0.72 (baseline), D=0.92 (descender). Two thresholds drive the tucking:
+//   MIDLINE_Y (0.42): ink below this is the "stem" region — rightLower is
+//     the rightmost x in this region. For Y/T the stem is narrow, so the
+//     next letter can tuck closer.
+//   UPPER_THRESHOLD (0.25): ink above this is a true ascender (h, l, k, b, d,
+//     f, t). Round letters (o, e, a) have arcs that slightly exceed the
+//     midline (~0.38-0.41) but are NOT ascenders — the 0.25 cutoff excludes
+//     them so they can still tuck under a previous letter's arm.
+const MIDLINE_Y = 0.42;
+const UPPER_THRESHOLD = 0.25;
+
 // Compute the layout for a word: each letter's actual ink bounds (minX/maxX
 // across all its strokes), pixel width, and x-offset. Letters are placed
 // left-to-right based on their real ink width plus a small gap so the word
 // reads as a connected unit instead of sitting in fixed-width cells.
+// Letters with wide tops but narrow stems (Y, T) let the next letter tuck
+// under their arm when the next letter has no ascender.
 export function computeWordLayout(word, waypoints, xScale = 300, gap = 20, padding = 30, repetitions = 3, wordGap = 80, useFixedCells = false) {
   const baseLetters = word.split('').filter(l => waypoints[l]);
+
+  // Pre-pass: compute per-letter bounds including the split between
+  // upper ink (above midline — arms/ascender) and lower ink (below midline
+  // — stem/body). This drives the tucking logic.
+  const letterBounds = baseLetters.map(ch => {
+    const letterStrokes = waypoints[ch]?.strokes || [];
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    let rightLower = -Infinity; // rightmost x of ink below midline (stem)
+    let hasUpper = false;       // true ascender (ink above UPPER_THRESHOLD)
+    for (const stroke of letterStrokes) {
+      if (!Array.isArray(stroke)) continue;
+      for (const p of stroke) {
+        if (p && p.x != null) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y != null) {
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+            if (p.y > MIDLINE_Y) {
+              if (p.x > rightLower) rightLower = p.x;
+            }
+            if (p.y < UPPER_THRESHOLD) {
+              hasUpper = true;
+            }
+          }
+        }
+      }
+    }
+    if (!isFinite(minX)) { minX = 0; maxX = 1; }
+    if (!isFinite(minY)) { minY = 0; maxY = 1; }
+    if (!isFinite(rightLower)) rightLower = maxX; // no lower ink — use full
+    return { minX, maxX, minY, maxY, rightLower, hasUpper };
+  });
+
   // First pass: when useFixedCells is set, compute the max ink width across
   // all letters so every letter gets the same cell width (like a fixed-width
   // font). This prevents letters with wide strokes (j, q, T, Y) from
@@ -188,37 +237,42 @@ export function computeWordLayout(word, waypoints, xScale = 300, gap = 20, paddi
     }
     fixedCellWidth = maxInkWidth;
   }
-  let cursor = padding;
+
+  let lastRightEdge = padding; // pixel x where the next letter can start
   const layout = [];
   for (let rep = 0; rep < repetitions; rep++) {
-    if (rep > 0) cursor += wordGap;
-    for (const ch of baseLetters) {
-      const letterStrokes = waypoints[ch]?.strokes || [];
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      for (const stroke of letterStrokes) {
-        if (!Array.isArray(stroke)) continue;
-        for (const p of stroke) {
-          if (p && p.x != null) {
-            if (p.x < minX) minX = p.x;
-            if (p.x > maxX) maxX = p.x;
-            if (p.y != null) {
-              if (p.y < minY) minY = p.y;
-              if (p.y > maxY) maxY = p.y;
-            }
-          }
-        }
-      }
-      if (!isFinite(minX)) { minX = 0; maxX = 1; }
-      if (!isFinite(minY)) { minY = 0; maxY = 1; }
-      const inkWidth = (maxX - minX) * xScale;
+    if (rep > 0) lastRightEdge += wordGap;
+    for (let i = 0; i < baseLetters.length; i++) {
+      const ch = baseLetters[i];
+      const b = letterBounds[i];
+      const inkWidth = (b.maxX - b.minX) * xScale;
       const cellWidth = fixedCellWidth != null ? Math.max(fixedCellWidth, inkWidth) : inkWidth;
       const inkOffset = fixedCellWidth != null ? (cellWidth - inkWidth) / 2 : 0;
-      const offset = cursor + inkOffset;
-      cursor += cellWidth + gap;
-      layout.push({ ch, minX, maxX, minY, maxY, width: cellWidth, offset, rep });
+
+      let offset;
+      if (i === 0) {
+        // First letter in this repetition — starts at the cursor.
+        offset = lastRightEdge + inkOffset;
+      } else {
+        const prev = letterBounds[i - 1];
+        const prevLayout = layout[layout.length - 1];
+        if (!useFixedCells && !b.hasUpper && prev.rightLower < prev.maxX) {
+          // This letter has no ascender — it can tuck under the previous
+          // letter's arm. Space from the previous letter's STEM right edge
+          // (below midline), not its full right edge (which includes the arm).
+          const prevRightLowerPx = prevLayout.offset + (prev.rightLower - prev.minX) * xScale;
+          offset = prevRightLowerPx + gap + inkOffset;
+        } else {
+          // Standard: space from the previous letter's full right edge.
+          const prevRightFullPx = prevLayout.offset + (prev.maxX - prev.minX) * xScale;
+          offset = prevRightFullPx + gap + inkOffset;
+        }
+      }
+
+      lastRightEdge = offset + inkWidth;
+      layout.push({ ch, minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY, width: cellWidth, offset, rep });
     }
   }
-  const totalW = Math.max(xScale, cursor + padding);
+  const totalW = Math.max(xScale, lastRightEdge + padding);
   return { letters: layout.map(l => l.ch), layout, totalW, wordLength: baseLetters.length, repetitions };
 }
