@@ -18,7 +18,7 @@ import { splinePathD, catmullRom } from '@/components/tracing/strokeMath';
 
 const X_SCALE = 300;
 const CANVAS_H = 375;
-const LETTER_GAP = 35; // generous gap so letters don't crowd — scales with letter size
+const LETTER_GAP = 12; // tight gap so letters form a cohesive word (matches word tracing)
 const PADDING = 30;
 const MIN_INK_PX = 120;
 // Match Letter Tracing's starting size (Medium = sizeLevel 2, scale 0.55).
@@ -40,7 +40,7 @@ export default function NameTracingCanvas({
 
   // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 0, true),
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 0, false),
     [name, waypoints]
   );
 
