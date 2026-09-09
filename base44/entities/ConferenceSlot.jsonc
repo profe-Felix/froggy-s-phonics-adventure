@@ -1,0 +1,111 @@
+{
+  "name": "ConferenceSlot",
+  "type": "object",
+  "properties": {
+    "conference_id": {
+      "type": "string",
+      "description": "ID of the Conference this slot belongs to."
+    },
+    "conference_code": {
+      "type": "string",
+      "description": "Denormalized conference code so parents can look up slots by the QR code without knowing the conference id."
+    },
+    "teacher_name": {
+      "type": "string",
+      "default": "",
+      "description": "Denormalized teacher name for the parent-facing confirmation."
+    },
+    "date": {
+      "type": "string",
+      "description": "ISO date YYYY-MM-DD of the slot."
+    },
+    "start_minutes": {
+      "type": "integer",
+      "description": "Start time as minutes from midnight (e.g. 750 = 12:30 pm). Sortable and timezone-safe."
+    },
+    "duration_min": {
+      "type": "integer",
+      "default": 20,
+      "description": "Meeting length in minutes."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "booked"
+      ],
+      "default": "open",
+      "description": "open = available for booking, booked = a parent has claimed it."
+    },
+    "parent_name": {
+      "type": "string",
+      "default": "",
+      "description": "Name of the parent who booked this slot."
+    },
+    "student_name": {
+      "type": "string",
+      "default": "",
+      "description": "Name of the student the conference is about."
+    },
+    "parent_phone": {
+      "type": "string",
+      "default": "",
+      "description": "Optional parent phone for the teacher's records."
+    },
+    "booked_at": {
+      "type": "string",
+      "description": "ISO timestamp when the slot was booked."
+    }
+  },
+  "required": [
+    "conference_id",
+    "conference_code",
+    "date",
+    "start_minutes"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

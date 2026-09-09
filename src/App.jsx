@@ -47,6 +47,8 @@ import NameTracingReview from './pages/NameTracingReview';
 import Desk from './pages/Desk';
 import Carpet from './pages/Carpet';
 import DocumentCamera from './pages/DocumentCamera';
+import ConferenceDashboard from './pages/ConferenceDashboard';
+import ConferenceSignUp from './pages/ConferenceSignUp';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -142,6 +144,8 @@ const AuthenticatedApp = () => {
       <Route path="/Desk" element={<Desk />} />
       <Route path="/Carpet" element={<Carpet />} />
       <Route path="/DocumentCamera" element={<DocumentCamera />} />
+      <Route path="/ConferenceDashboard" element={<ConferenceDashboard />} />
+      <Route path="/ConferenceSignUp" element={<ConferenceSignUp />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

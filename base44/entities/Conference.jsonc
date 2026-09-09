@@ -1,0 +1,78 @@
+{
+  "name": "Conference",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Conference event name e.g. 'October Parent Conferences'"
+    },
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher this conference belongs to."
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Optional class tag for this conference."
+    },
+    "code": {
+      "type": "string",
+      "description": "Short unique code used in the parent sign-up QR link."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive conferences are hidden from parents (sign-up closed)."
+    }
+  },
+  "required": [
+    "title",
+    "teacher_name",
+    "code"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}
