@@ -145,7 +145,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           <div className={divider} />
 
           {/* Tool selection */}
-          <div className="flex gap-1">
+          <div className={`flex gap-1 ${isVertical ? 'flex-col' : 'flex-row'}`}>
             <button onClick={() => setTool('pen')} className={`p-1.5 rounded-lg transition-transform active:scale-90 ${tool === 'pen' ? 'bg-white text-black' : 'bg-zinc-700 text-white'}`} title="Pen"><Pen className="w-4 h-4" /></button>
             <button onClick={() => setTool('highlighter')} className={`p-1.5 rounded-lg transition-transform active:scale-90 ${tool === 'highlighter' ? 'bg-white text-black' : 'bg-zinc-700 text-white'}`} title="Highlighter"><Highlighter className="w-4 h-4" /></button>
             <button onClick={() => setTool('eraser_object')} className={`p-1.5 rounded-lg transition-transform active:scale-90 ${tool === 'eraser_object' || tool === 'eraser_pixel' ? 'bg-white text-black' : 'bg-zinc-700 text-white'}`} title="Eraser"><Eraser className="w-4 h-4" /></button>
@@ -154,7 +154,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           <div className={divider} />
 
           {/* Color + size — compact triggers; choices open in a popover */}
-          <div className="flex gap-1 items-center">
+          <div className={`flex gap-1 items-center ${isVertical ? 'flex-col' : 'flex-row'}`}>
             <button
               onClick={() => setOpenPanel(p => p === 'color' ? null : 'color')}
               className={`w-7 h-7 rounded-full border-2 transition-transform active:scale-90 ${openPanel === 'color' ? 'border-white' : 'border-white/30'}`}
@@ -173,7 +173,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           <div className={divider} />
 
           {/* Undo / Redo / Clear */}
-          <div className="flex gap-1">
+          <div className={`flex gap-1 ${isVertical ? 'flex-col' : 'flex-row'}`}>
             <button onClick={() => canvasRef.current?.undo()} className="p-1.5 rounded-lg bg-zinc-700 text-white transition-transform active:scale-90" title="Undo"><Undo2 className="w-4 h-4" /></button>
             <button onClick={() => canvasRef.current?.redo()} className="p-1.5 rounded-lg bg-zinc-700 text-white transition-transform active:scale-90" title="Redo"><Redo2 className="w-4 h-4" /></button>
             <button onClick={() => canvasRef.current?.clearStrokes()} className="p-1.5 rounded-lg bg-red-600 text-white transition-transform active:scale-90" title="Clear all"><Trash2 className="w-4 h-4" /></button>
