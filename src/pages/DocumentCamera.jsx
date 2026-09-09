@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, RotateCw, Maximize, Minimize, Grid3x3, RefreshCw, Pen } from 'lucide-react';
+import { Camera, RotateCw, Maximize, Minimize, Grid3x3, RefreshCw, Pen, Snowflake } from 'lucide-react';
 import DocCamMarkup from '@/components/doccam/DocCamMarkup';
 
 // Document Camera — a simple teacher-only page for using an iPad as a doc
@@ -18,9 +18,24 @@ export default function DocumentCamera() {
   const [fullscreen, setFullscreen] = useState(false);
   const [mirror, setMirror] = useState(false);
   const [showMarkup, setShowMarkup] = useState(false);
+  const [frozen, setFrozen] = useState(false);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const containerRef = useRef(null);
   const markupRef = useRef(null);
+
+  // Freeze frame: pause the live feed on the current frame so the teacher
+  // can hold a still image (e.g. to annotate). Resumes on toggle off.
+  const toggleFreeze = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (frozen) {
+      v.play().catch(() => {});
+      setFrozen(false);
+    } else {
+      v.pause();
+      setFrozen(true);
+    }
+  };
 
   // Enumerate available video input devices
   const enumerateCameras = useCallback(async () => {
@@ -198,6 +213,14 @@ export default function DocumentCamera() {
             {cameraLabel}
           </div>
         )}
+
+        {/* Frozen indicator */}
+        {frozen && !error && (
+          <div className="absolute top-3 right-3 bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-pulse">
+            <Snowflake className="w-3.5 h-3.5" />
+            FROZEN
+          </div>
+        )}
       </div>
 
       {/* Control bar — large touch targets for iPad */}
@@ -250,6 +273,17 @@ export default function DocumentCamera() {
           >
             <Grid3x3 className="w-5 h-5" />
             Grid
+          </button>
+
+          {/* Freeze frame */}
+          <button
+            onClick={toggleFreeze}
+            className={`flex items-center gap-2 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform ${
+              frozen ? 'bg-sky-500 text-white' : 'bg-zinc-700 text-white'
+            }`}
+          >
+            <Snowflake className="w-5 h-5" />
+            {frozen ? 'Frozen' : 'Freeze'}
           </button>
 
           {/* Markup */}

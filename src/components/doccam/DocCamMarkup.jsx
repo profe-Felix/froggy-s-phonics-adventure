@@ -36,7 +36,10 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
     clear: () => canvasRef.current?.clearStrokes(),
   }));
 
-  // --- Toolbar drag-to-snap ---
+  // --- Toolbar drag-to-snap (2D) ---
+  // Drag freely; on release snap to the nearest horizontal third. Docking
+  // left or right orients the toolbar VERTICALLY (stacked sections) so it
+  // hugs the edge as a narrow column; center keeps it horizontal at bottom.
   const onGripDown = (e) => {
     const tb = toolbarRef.current;
     const parent = tb?.parentElement;
@@ -44,10 +47,15 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
     const tbRect = tb.getBoundingClientRect();
     const parentRect = parent.getBoundingClientRect();
     setDrag({
-      grabOffset: e.clientX - tbRect.left,
+      grabOffsetX: e.clientX - tbRect.left,
+      grabOffsetY: e.clientY - tbRect.top,
       tbW: tbRect.width,
+      tbH: tbRect.height,
       parentW: parentRect.width,
+      parentH: parentRect.height,
       left: tbRect.left - parentRect.left,
+      top: tbRect.top - parentRect.top,
+      vertical: dock === 'left' || dock === 'right',
     });
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
   };
@@ -57,29 +65,33 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
     const parent = toolbarRef.current?.parentElement;
     if (!parent) return;
     const parentRect = parent.getBoundingClientRect();
-    let left = e.clientX - parentRect.left - drag.grabOffset;
+    let left = e.clientX - parentRect.left - drag.grabOffsetX;
+    let top = e.clientY - parentRect.top - drag.grabOffsetY;
     left = Math.max(8, Math.min(left, parentRect.width - drag.tbW - 8));
-    setDrag({ ...drag, left });
+    top = Math.max(8, Math.min(top, parentRect.height - drag.tbH - 8));
+    setDrag({ ...drag, left, top });
   };
 
   const onGripUp = (e) => {
     if (!drag) return;
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
-    const center = drag.left + drag.tbW / 2;
+    const centerX = drag.left + drag.tbW / 2;
     const third = drag.parentW / 3;
-    if (center < third) setDock('left');
-    else if (center > 2 * third) setDock('right');
+    if (centerX < third) setDock('left');
+    else if (centerX > 2 * third) setDock('right');
     else setDock('center');
     setDrag(null);
   };
 
+  const isVertical = drag ? drag.vertical : (dock === 'left' || dock === 'right');
+
   const toolbarPos = drag
-    ? { left: drag.left, right: 'auto', transform: 'none' }
+    ? { left: drag.left, top: drag.top, right: 'auto', bottom: 'auto', transform: 'none' }
     : dock === 'left'
-      ? { left: 16, right: 'auto', transform: 'none' }
+      ? { left: 16, top: '50%', right: 'auto', bottom: 'auto', transform: 'translateY(-50%)' }
       : dock === 'right'
-        ? { right: 16, left: 'auto', transform: 'none' }
-        : { left: '50%', right: 'auto', transform: 'translateX(-50%)' };
+        ? { right: 16, top: '50%', left: 'auto', bottom: 'auto', transform: 'translateY(-50%)' }
+        : { left: '50%', bottom: 16, top: 'auto', right: 'auto', transform: 'translateX(-50%)' };
 
   return (
     <div className="absolute inset-0 z-20">
@@ -100,7 +112,9 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
         className="absolute bottom-4 z-30"
         style={toolbarPos}
       >
-        <div className="bg-zinc-900/95 backdrop-blur rounded-2xl px-3 py-2.5 flex items-center gap-2 flex-wrap justify-center shadow-2xl border border-white/10">
+        <div className={`bg-zinc-900/95 backdrop-blur rounded-2xl px-3 py-2.5 gap-2 justify-center shadow-2xl border border-white/10 flex ${
+          isVertical ? 'flex-col items-center' : 'flex-wrap items-center'
+        }`}>
           {/* Drag grip — reposition the toolbar; snaps on release */}
           <button
             onPointerDown={onGripDown}
@@ -114,7 +128,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           </button>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-white/20" />
+          <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
           {/* Tool selection */}
           <div className="flex gap-1.5">
@@ -148,10 +162,10 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           </div>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-white/20" />
+          <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
           {/* Color swatches */}
-          <div className="flex gap-1.5">
+          <div className={`flex gap-1.5 ${isVertical ? 'flex-wrap max-w-[180px] justify-center' : ''}`}>
             {COLORS.map(c => (
               <button
                 key={c}
@@ -167,7 +181,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           </div>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-white/20" />
+          <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
           {/* Size selection */}
           <div className="flex gap-1.5 items-center">
@@ -192,7 +206,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           </div>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-white/20" />
+          <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
           {/* Undo / Redo / Clear */}
           <div className="flex gap-1.5">
@@ -220,7 +234,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           </div>
 
           {/* Divider */}
-          <div className="w-px h-8 bg-white/20" />
+          <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
           {/* Close markup */}
           <button
