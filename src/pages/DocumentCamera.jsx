@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, RotateCw, Maximize, Minimize, Grid3x3, RefreshCw } from 'lucide-react';
+import { Camera, RotateCw, Maximize, Minimize, Grid3x3, RefreshCw, Pen } from 'lucide-react';
+import DocCamMarkup from '@/components/doccam/DocCamMarkup';
 
 // Document Camera — a simple teacher-only page for using an iPad as a doc
 // camera. Connect an external USB camera via a dock and this page shows the
@@ -16,6 +17,10 @@ export default function DocumentCamera() {
   const [showGrid, setShowGrid] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [mirror, setMirror] = useState(false);
+  const [showMarkup, setShowMarkup] = useState(false);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const containerRef = useRef(null);
+  const markupRef = useRef(null);
 
   // Enumerate available video input devices
   const enumerateCameras = useCallback(async () => {
@@ -104,6 +109,17 @@ export default function DocumentCamera() {
     return () => navigator.mediaDevices?.removeEventListener?.('devicechange', handler);
   }, [enumerateCameras]);
 
+  // Track container size for the markup canvas overlay
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showMarkup]);
+
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       await document.documentElement.requestFullscreen?.();
@@ -120,7 +136,7 @@ export default function DocumentCamera() {
   return (
     <div className="fixed inset-0 bg-black flex flex-col select-none">
       {/* Video feed */}
-      <div className="relative flex-1 flex items-center justify-center overflow-hidden">
+      <div ref={containerRef} className="relative flex-1 flex items-center justify-center overflow-hidden">
         {error ? (
           <div className="text-center text-white p-8 max-w-md">
             <Camera className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -153,17 +169,27 @@ export default function DocumentCamera() {
         )}
 
         {/* Grid overlay */}
-        {showGrid && !error && (
+        {showGrid && !error && !showMarkup && (
           <div className="absolute inset-0 pointer-events-none flex">
             <div className="flex-1 border-l border-r border-white/30" />
             <div className="flex-1 border-r border-white/30" />
           </div>
         )}
-        {showGrid && !error && (
+        {showGrid && !error && !showMarkup && (
           <div className="absolute inset-0 pointer-events-none flex flex-col">
             <div className="flex-1 border-b border-white/30" />
             <div className="flex-1 border-b border-white/30" />
           </div>
+        )}
+
+        {/* Markup overlay */}
+        {showMarkup && !error && containerSize.w > 0 && (
+          <DocCamMarkup
+            ref={markupRef}
+            width={containerSize.w}
+            height={containerSize.h}
+            onClose={() => setShowMarkup(false)}
+          />
         )}
 
         {/* Camera label badge */}
@@ -224,6 +250,17 @@ export default function DocumentCamera() {
           >
             <Grid3x3 className="w-5 h-5" />
             Grid
+          </button>
+
+          {/* Markup */}
+          <button
+            onClick={() => setShowMarkup(m => !m)}
+            className={`flex items-center gap-2 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform ${
+              showMarkup ? 'bg-indigo-600 text-white' : 'bg-zinc-700 text-white'
+            }`}
+          >
+            <Pen className="w-5 h-5" />
+            Markup
           </button>
 
           {/* Fullscreen */}
