@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Undo2, Redo2, Eraser, Highlighter, Pen, Trash2, X, GripVertical } from 'lucide-react';
+import { Undo2, Redo2, Eraser, Highlighter, Pen, Trash2, X, GripVertical, PenTool } from 'lucide-react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 
 // Markup overlay for the document camera — reuses the notebook's smooth
@@ -17,6 +17,9 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
   // Toolbar dock position + drag state.
   const [dock, setDock] = useState('center'); // 'left' | 'center' | 'right'
   const [drag, setDrag] = useState(null); // { grabOffset, tbW, parentW, left } while dragging
+  // Bar visibility — when false the toolbar is hidden but the ink stays on
+  // screen until explicitly cleared. A small floating button reopens the bar.
+  const [barVisible, setBarVisible] = useState(true);
 
   const COLORS = [
     '#ef4444', // red
@@ -111,6 +114,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
       />
 
       {/* Toolbar — draggable, snaps to left / center / right. Large touch targets. */}
+      {barVisible && (
       <div
         ref={toolbarRef}
         className="absolute bottom-4 z-30"
@@ -240,16 +244,30 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
           {/* Divider */}
           <div className={isVertical ? 'h-px w-10 bg-white/20' : 'w-px h-8 bg-white/20'} />
 
-          {/* Close markup */}
+          {/* Hide bar — keeps ink on screen; reopen via the floating button */}
           <button
-            onClick={onClose}
+            onClick={() => setBarVisible(false)}
             className="p-2.5 rounded-xl bg-zinc-700 text-white transition-transform active:scale-90"
-            title="Close markup"
+            title="Hide toolbar (ink stays)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
       </div>
+      )}
+
+      {/* Floating reopen button — shown when the toolbar is hidden so the
+          teacher can bring the tools back without losing the ink on screen. */}
+      {!barVisible && (
+        <button
+          onClick={() => setBarVisible(true)}
+          onContextMenu={(e) => e.preventDefault()}
+          className="absolute bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
+          title="Show markup tools"
+        >
+          <PenTool className="w-6 h-6" />
+        </button>
+      )}
     </div>
   );
 });
