@@ -46,6 +46,7 @@ import NamePractice from './pages/NamePractice';
 import NameTracingReview from './pages/NameTracingReview';
 import Desk from './pages/Desk';
 import Carpet from './pages/Carpet';
+import DocumentCamera from './pages/DocumentCamera';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -140,6 +141,7 @@ const AuthenticatedApp = () => {
       <Route path="/NameTracingReview" element={<NameTracingReview />} />
       <Route path="/Desk" element={<Desk />} />
       <Route path="/Carpet" element={<Carpet />} />
+      <Route path="/DocumentCamera" element={<DocumentCamera />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
