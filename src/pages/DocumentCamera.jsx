@@ -18,6 +18,10 @@ export default function DocumentCamera() {
   const [fullscreen, setFullscreen] = useState(false);
   const [mirror, setMirror] = useState(false);
   const [showMarkup, setShowMarkup] = useState(false);
+  // Toolbar visibility is separate from markup mode. Once markup is on, the
+  // ink layer stays mounted; the Markup button toggles only the toolbar so
+  // ink persists until cleared (trash) or markup is closed (X).
+  const [markupToolbarVisible, setMarkupToolbarVisible] = useState(true);
   const [frozen, setFrozen] = useState(false);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const containerRef = useRef(null);
@@ -203,7 +207,9 @@ export default function DocumentCamera() {
             ref={markupRef}
             width={containerSize.w}
             height={containerSize.h}
-            onClose={() => setShowMarkup(false)}
+            toolbarVisible={markupToolbarVisible}
+            onShowToolbar={() => setMarkupToolbarVisible(true)}
+            onClose={() => { setShowMarkup(false); setMarkupToolbarVisible(true); }}
           />
         )}
 
@@ -288,7 +294,10 @@ export default function DocumentCamera() {
 
           {/* Markup */}
           <button
-            onClick={() => setShowMarkup(m => !m)}
+            onClick={() => {
+              if (!showMarkup) { setShowMarkup(true); setMarkupToolbarVisible(true); }
+              else setMarkupToolbarVisible(v => !v);
+            }}
             className={`flex items-center gap-2 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform ${
               showMarkup ? 'bg-indigo-600 text-white' : 'bg-zinc-700 text-white'
             }`}

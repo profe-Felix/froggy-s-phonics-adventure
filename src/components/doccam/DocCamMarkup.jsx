@@ -7,7 +7,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 // Overlaid on top of the live video feed. Toggled on/off by the teacher.
 // The toolbar can be dragged by its grip and snaps to the left, center, or
 // right edge so it stays out of the way of whatever the teacher is showing.
-const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }, ref) {
+const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, toolbarVisible, onShowToolbar, onClose }, ref) {
   const canvasRef = useRef(null);
   const toolbarRef = useRef(null);
   const [tool, setTool] = useState('pen');
@@ -17,9 +17,6 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
   // Toolbar dock position + drag state.
   const [dock, setDock] = useState('center'); // 'left' | 'center' | 'right'
   const [drag, setDrag] = useState(null); // { grabOffset, tbW, parentW, left } while dragging
-  // Bar visibility — when false the toolbar is hidden but the ink stays on
-  // screen until explicitly cleared. A small floating button reopens the bar.
-  const [barVisible, setBarVisible] = useState(true);
   // Which inline popover is open: 'color' | 'size' | null. Keeps the bar
   // compact — color/size choices live in a small popover, not the main row.
   const [openPanel, setOpenPanel] = useState(null);
@@ -121,7 +118,7 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
 
       {/* Toolbar — a single compact row of icon buttons. Color and size
           collapse into small popover triggers so the bar stays tiny. */}
-      {barVisible && (
+      {toolbarVisible && (
       <div
         ref={toolbarRef}
         className="absolute z-30"
@@ -181,11 +178,11 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
 
           <div className={divider} />
 
-          {/* Hide bar — keeps ink on screen; reopen via the floating button */}
+          {/* Close markup — exits markup mode entirely (ink is cleared) */}
           <button
-            onClick={() => setBarVisible(false)}
+            onClick={onClose}
             className="p-1.5 rounded-lg bg-zinc-700 text-white transition-transform active:scale-90"
-            title="Hide toolbar (ink stays)"
+            title="Close markup"
           >
             <X className="w-4 h-4" />
           </button>
@@ -228,9 +225,9 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
 
       {/* Floating reopen button — shown when the toolbar is hidden so the
           teacher can bring the tools back without losing the ink on screen. */}
-      {!barVisible && (
+      {!toolbarVisible && (
         <button
-          onClick={() => setBarVisible(true)}
+          onClick={onShowToolbar}
           onContextMenu={(e) => e.preventDefault()}
           className="absolute bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
           title="Show markup tools"
