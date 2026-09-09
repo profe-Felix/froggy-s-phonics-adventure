@@ -94,7 +94,11 @@ const DocCamMarkup = forwardRef(function DocCamMarkup({ width, height, onClose }
         : { left: '50%', bottom: 16, top: 'auto', right: 'auto', transform: 'translateX(-50%)' };
 
   return (
-    <div className="absolute inset-0 z-20">
+    <div
+      className="absolute inset-0 z-20"
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {/* Drawing canvas overlay */}
       <AnnotationCanvas
         ref={canvasRef}

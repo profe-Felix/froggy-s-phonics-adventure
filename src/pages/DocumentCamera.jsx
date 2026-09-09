@@ -149,7 +149,7 @@ export default function DocumentCamera() {
   const cameraLabel = activeCamera?.label?.replace(/\(.*?\)/g, '').trim() || 'Camera';
 
   return (
-    <div className="fixed inset-0 bg-black flex flex-col select-none">
+    <div className="fixed inset-0 bg-black flex flex-col select-none" onContextMenu={(e) => e.preventDefault()} style={{ WebkitTouchCallout: 'none' }}>
       {/* Video feed */}
       <div ref={containerRef} className="relative flex-1 flex items-center justify-center overflow-hidden">
         {error ? (

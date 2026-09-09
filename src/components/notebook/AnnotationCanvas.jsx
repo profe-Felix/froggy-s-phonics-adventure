@@ -684,6 +684,11 @@ const onTouchStart = (e) => {
       cancelStrokeForScroll();
     };
 
+    // Suppress the browser's context menu so a long-press with a stylus
+    // (Promethean pen "hold to right-click") or a right-click with a mouse
+    // never interrupts drawing.
+    const onContextMenu = (e) => { e.preventDefault(); };
+
     c.addEventListener('mousedown', onMouseDown);
     c.addEventListener('mousemove', onMouseMove);
     c.addEventListener('mouseup', onMouseUp);
@@ -692,6 +697,7 @@ const onTouchStart = (e) => {
     c.addEventListener('touchmove', onTouchMove, { passive: false });
     c.addEventListener('touchend', onTouchEnd);
     c.addEventListener('touchcancel', onTouchCancel);
+    c.addEventListener('contextmenu', onContextMenu);
 
     return () => {
       c.removeEventListener('mousedown', onMouseDown);
@@ -702,6 +708,7 @@ const onTouchStart = (e) => {
       c.removeEventListener('touchmove', onTouchMove);
       c.removeEventListener('touchend', onTouchEnd);
       c.removeEventListener('touchcancel', onTouchCancel);
+      c.removeEventListener('contextmenu', onContextMenu);
       current.current = null;
       drawing.current = false;
     };
@@ -858,6 +865,9 @@ const onTouchStart = (e) => {
           pointerEvents: (mode === 'draw' && !passThrough) ? 'auto' : 'none',
           cursor: tool === 'eraser_pixel' || tool === 'eraser_object' ? 'none' : 'crosshair',
           background: 'transparent',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
         }}
       />
       {eraserCursorPos && (tool === 'eraser_pixel' || tool === 'eraser_object') && (
