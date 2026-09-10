@@ -89,25 +89,34 @@ export default function FluencyTable() {
   };
 
   // Any participant (teacher or student) starts a row's synced sweep.
+  // Apply changes to local session state immediately so the teacher's own
+  // screen updates without waiting on the realtime subscription — previously
+  // shuffle / preset-change relied solely on the subscription, so a delayed
+  // or missed event made the page look frozen and forced a refresh.
   const onPlayRow = (r) => {
     if (!session) return;
+    const sweepStartAt = new Date().toISOString();
+    setSession((prev) => (prev ? { ...prev, active_row: r, sweep_start_at: sweepStartAt } : prev));
     base44.entities.FluencySession.update(session.id, {
       active_row: r,
-      sweep_start_at: new Date().toISOString(),
-    });
+      sweep_start_at: sweepStartAt,
+    }).catch(() => {});
   };
 
   const changePreset = (id) => {
     setLobbyPreset(id);
+    setSession((prev) => (prev ? { ...prev, preset_id: id, active_row: 0, sweep_start_at: '' } : prev));
     if (session) base44.entities.FluencySession.update(session.id, {
       preset_id: id, active_row: 0, sweep_start_at: '',
-    });
+    }).catch(() => {});
   };
 
   const shuffle = () => {
+    const seed = Date.now();
+    setSession((prev) => (prev ? { ...prev, seed, active_row: 0, sweep_start_at: '' } : prev));
     if (session) base44.entities.FluencySession.update(session.id, {
-      seed: Date.now(), active_row: 0, sweep_start_at: '',
-    });
+      seed, active_row: 0, sweep_start_at: '',
+    }).catch(() => {});
   };
 
   const studentUrl = `${window.location.origin}${window.location.pathname}?role=student&code=${session?.code || ''}`;

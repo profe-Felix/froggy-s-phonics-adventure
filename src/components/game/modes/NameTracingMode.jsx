@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { Sparkles } from 'lucide-react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import NameTracingCanvas from '../NameTracingCanvas';
+import NameReferenceStrip from '../NameReferenceStrip';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { splitNameParts } from '@/lib/nameNormalize';
@@ -200,14 +201,22 @@ export default function NameTracingMode({ studentData, onBack }) {
               >
                 <div className={`text-xs font-bold ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>{row.label}</div>
                 {isActive ? (
-                  <NameTracingCanvas
-                    key={`row-${i}`}
-                    name={row.part}
-                    waypoints={waypoints}
-                    mode={row.mode}
-                    renderWidth={renderWidth}
-                    onComplete={handleRowComplete}
-                  />
+                  <>
+                    {row.mode === 'dot_only' && (
+                      <div className="flex flex-col items-center gap-0.5 mb-1">
+                        <span className="text-[10px] font-bold text-slate-400 tracking-wider">EXAMPLE</span>
+                        <NameReferenceStrip name={row.part} waypoints={waypoints} renderWidth={renderWidth} />
+                      </div>
+                    )}
+                    <NameTracingCanvas
+                      key={`row-${i}`}
+                      name={row.part}
+                      waypoints={waypoints}
+                      mode={row.mode}
+                      renderWidth={renderWidth}
+                      onComplete={handleRowComplete}
+                    />
+                  </>
                 ) : (
                   <div
                     className="rounded-2xl border-4 border-slate-200 bg-white flex items-center justify-center"

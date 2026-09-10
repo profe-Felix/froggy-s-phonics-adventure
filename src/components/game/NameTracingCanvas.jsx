@@ -93,7 +93,6 @@ export default function NameTracingCanvas({
   const [dotCurrentPath, setDotCurrentPath] = useState([]);
   const dotCurrentRef = useRef([]);
   const [dotCompleted, setDotCompleted] = useState(false);
-  const [enoughInk, setEnoughInk] = useState(false);
 
   const svgRef = useRef(null);
 
@@ -120,7 +119,6 @@ export default function NameTracingCanvas({
     dotCurrentRef.current = [];
     dotDrawingRef.current = false;
     setDotCompleted(false);
-    setEnoughInk(false);
   }, [name, mode]);
 
   // Fixed height matching Letter Tracing's Medium size. Width is proportional
@@ -221,13 +219,6 @@ export default function NameTracingCanvas({
     }
     return len;
   }, []);
-
-  const checkDotComplete = useCallback(() => {
-    const allPaths = [...dotDrawnPaths];
-    if (dotCurrentRef.current.length > 1) allPaths.push(dotCurrentRef.current);
-    const totalInk = inkLength(allPaths);
-    setEnoughInk(totalInk >= MIN_INK_PX);
-  }, [dotDrawnPaths, inkLength]);
 
   // --- Guided mode handlers (ported from WordTracingCanvas) ---
   const flashError = () => {
@@ -510,7 +501,6 @@ export default function NameTracingCanvas({
     if (last && dist(p, last) < 2) return;
     dotCurrentRef.current = [...dotCurrentRef.current, p];
     setDotCurrentPath(dotCurrentRef.current);
-    checkDotComplete();
   };
 
   const handleDotUp = () => {
@@ -521,7 +511,6 @@ export default function NameTracingCanvas({
     }
     dotCurrentRef.current = [];
     setDotCurrentPath([]);
-    checkDotComplete();
   };
 
   // --- Unified pointer handlers ---
@@ -743,34 +732,6 @@ export default function NameTracingCanvas({
           });
         })}
 
-        {/* Dot-only mode: show all guide paths faintly + start dots */}
-        {isDotOnly && allStrokes.map((s, i) => {
-          if (s.scaledPts.length < 2) {
-            const p = s.scaledPts[0];
-            return p ? <circle key={`dp-${i}`} cx={p.x} cy={p.y} r="5" fill="#6366f1" opacity="0.3" pointerEvents="none" /> : null;
-          }
-          // Dot strokes (e.g. 'i' dot) — render as a filled circle
-          if (s.scaledPts.length === 2 && dist(s.scaledPts[0], s.scaledPts[1]) < 8) {
-            return (
-              <circle key={`dp-${i}`} cx={s.scaledPts[0].x} cy={s.scaledPts[0].y} r="5"
-                fill="#A78BFA" opacity="0.3" pointerEvents="none" />
-            );
-          }
-          return (
-            <path
-              key={`dp-${i}`}
-              d={splinePathD(s.scaledPts)}
-              fill="none"
-              stroke="#A78BFA"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.3"
-              pointerEvents="none"
-            />
-          );
-        })}
-
         {/* Drawn paths — guided mode (all letters' completed strokes) */}
         {isGuided && Object.entries(drawnPathsByLetter).map(([li, paths]) =>
           paths.map((pts, i) => (
@@ -862,7 +823,7 @@ export default function NameTracingCanvas({
         <div className="h-9 shrink-0 flex items-center justify-center mt-1">
           {dotCompleted ? (
             <div className="bg-green-100 border border-green-400 rounded-full px-4 py-1 text-green-800 font-bold text-sm">🎉 Done!</div>
-          ) : enoughInk ? (
+          ) : dotDrawnPaths.length > 0 ? (
             <button
               onClick={handleDone}
               className="bg-green-500 hover:bg-green-600 text-white font-bold text-sm px-5 py-1.5 rounded-full shadow-md"
@@ -870,7 +831,7 @@ export default function NameTracingCanvas({
               ✓ Done
             </button>
           ) : (
-            <div className="text-amber-700 text-xs font-bold">✏️ Write your whole name…</div>
+            <div className="text-amber-700 text-xs font-bold">✏️ Write your name…</div>
           )}
         </div>
       )}
