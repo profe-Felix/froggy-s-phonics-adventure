@@ -4,6 +4,7 @@ import { ArrowLeft, Printer, ZoomIn, ZoomOut, Images, Type } from 'lucide-react'
 import { base44 } from '@/api/base44Client';
 import { listAllImagesJpg } from '@/lib/lettersort/storage';
 import { markersToPretty } from '@/lib/lettersort/phonics';
+import AutoFitWord from '@/components/print/AutoFitWord';
 
 // ─── Source ──────────────────────────────────────────────────────────────────
 // Spanish Reading high-frequency word lists live in Supabase storage as
@@ -235,10 +236,14 @@ export default function HfwCards() {
                       if (!card) return <div key={ci} className="hfw-card hfw-card--empty" />;
                       return (
                         <div key={ci} className={`hfw-card ${card.imageUrl ? '' : 'hfw-card--text-only'}`}>
-                          {card.imageUrl && (
-                            <img src={card.imageUrl} alt={card.word} className="hfw-card__img" />
+                          {card.imageUrl ? (
+                            <>
+                              <img src={card.imageUrl} alt={card.word} className="hfw-card__img" />
+                              <div className="hfw-card__word">{card.word}</div>
+                            </>
+                          ) : (
+                            <AutoFitWord text={card.word} />
                           )}
-                          <div className="hfw-card__word">{card.word}</div>
                         </div>
                       );
                     })}
