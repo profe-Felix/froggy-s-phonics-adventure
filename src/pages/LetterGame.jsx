@@ -582,6 +582,7 @@ export default function LetterGame() {
           }}
           onPlayMode={handleModeSelect}
           onLogout={handleLogout}
+          barcodeLogin={barcodeLogin}
         />
       </>
     );

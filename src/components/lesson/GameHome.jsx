@@ -20,7 +20,7 @@ const FREE_MODES = [
   { mode: 'syllable_count', label: 'Counting Syllables', emoji: '👏' },
 ];
 
-export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete }) {
+export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete, barcodeLogin }) {
   const { tracingOnlyFor } = useClassColors();
   const isTracingOnly = tracingOnlyFor(studentData?.class_name);
 
@@ -138,7 +138,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
         )}
       </div>
 
-      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} />}
+      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} barcodeLogin={barcodeLogin} />}
     </div>
   );
 }

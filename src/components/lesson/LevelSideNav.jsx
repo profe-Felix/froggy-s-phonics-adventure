@@ -14,7 +14,7 @@ const ITEMS = [
   { key: 'videos', label: 'Videos', Icon: PlayCircle },
 ];
 
-export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly }) {
+export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly, barcodeLogin }) {
   const { colorFor } = useClassColors();
   const className = selectedStudent?.class_name || '';
   const classColor = colorFor(className);
@@ -82,15 +82,17 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
           </button>
         );
       })}
-      <button
-        onClick={onLogout}
-        className="flex flex-col items-center gap-1 w-14 mt-1 pt-2 border-t border-white/10"
-      >
-        <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white">
-          <LogOut className="w-5 h-5" />
-        </span>
-        <span className="text-[10px] font-bold text-white/60">Exit</span>
-      </button>
+      {!barcodeLogin && (
+        <button
+          onClick={onLogout}
+          className="flex flex-col items-center gap-1 w-14 mt-1 pt-2 border-t border-white/10"
+        >
+          <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white">
+            <LogOut className="w-5 h-5" />
+          </span>
+          <span className="text-[10px] font-bold text-white/60">Exit</span>
+        </button>
+      )}
     </div>
   );
 }
