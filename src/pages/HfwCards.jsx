@@ -11,8 +11,8 @@ const LISTS_URL =
   'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
 const SECTIONS = ['Palabras 💙', 'Palabras'];
-const CARDS_PER_SHEET = 8; // 4 cols × 2 rows
-const COLS = 4;
+const CARDS_PER_SHEET = 12; // 3 cols × 4 rows (portrait)
+const COLS = 3;
 
 // ─── Image map ───────────────────────────────────────────────────────────────
 // Enumerate the letter-sort image bucket once, build word→url map so we don't
