@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Printer, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, Printer, ZoomIn, ZoomOut, Images, Type } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import { listAllImagesJpg } from '@/lib/lettersort/storage';
 import { markersToPretty } from '@/lib/lettersort/phonics';
 
@@ -14,10 +15,7 @@ const SECTIONS = ['Palabras 💙', 'Palabras'];
 const CARDS_PER_SHEET = 12; // 3 cols × 4 rows (portrait)
 const COLS = 3;
 
-// ─── Image map ───────────────────────────────────────────────────────────────
-// Enumerate the letter-sort image bucket once, build word→url map so we don't
-// fire a HEAD request per card. Words without a matching image (articles,
-// prepositions) render as text-only cards.
+// ─── Image map (sight-words mode) ────────────────────────────────────────────
 function buildImageMap(files) {
   const map = new Map();
   for (const f of files) {
@@ -33,6 +31,7 @@ const lookupImage = (word, map) => {
 };
 
 export default function HfwCards() {
+  const [mode, setMode] = useState('words'); // 'words' | 'pictures'
   const [lists, setLists] = useState(null);
   const [section, setSection] = useState('Palabras 💙');
   const [presetKey, setPresetKey] = useState('M1');
@@ -40,7 +39,11 @@ export default function HfwCards() {
   const [loadingImgs, setLoadingImgs] = useState(true);
   const [zoom, setZoom] = useState(1.3);
 
-  // Load word lists from Supabase
+  // Pictures mode: NounGender records
+  const [nouns, setNouns] = useState(null);
+  const [genderFilter, setGenderFilter] = useState('all'); // all | masculine | feminine
+
+  // Load word lists from Supabase (sight-words mode)
   useEffect(() => {
     fetch(LISTS_URL, { cache: 'no-store' })
       .then((r) => r.json())
@@ -48,7 +51,7 @@ export default function HfwCards() {
       .catch(() => setLists(null));
   }, []);
 
-  // Enumerate the letter-sort image bucket once
+  // Enumerate the letter-sort image bucket once (sight-words mode)
   useEffect(() => {
     let cancelled = false;
     listAllImagesJpg({ bucket: 'lettersort-images' })
@@ -67,6 +70,20 @@ export default function HfwCards() {
     return () => { cancelled = true; };
   }, []);
 
+  // Load NounGender records (pictures mode)
+  const loadNouns = useCallback(async () => {
+    try {
+      const all = await base44.entities.NounGender.filter({ active: true }, 'word', 500);
+      setNouns(all);
+    } catch {
+      setNouns([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'pictures' && nouns === null) void loadNouns();
+  }, [mode, nouns, loadNouns]);
+
   const sectionPresets = useMemo(() => {
     if (!lists || !lists[section]) return {};
     return lists[section];
@@ -77,33 +94,39 @@ export default function HfwCards() {
     [sectionPresets]
   );
 
-  // Keep presetKey valid when section changes
   useEffect(() => {
     if (presetKeys.length && !presetKeys.includes(presetKey)) {
       setPresetKey(presetKeys[0]);
     }
   }, [presetKeys, presetKey]);
 
-  const words = useMemo(() => {
+  // Build the card list for the current mode
+  const cards = useMemo(() => {
+    if (mode === 'pictures') {
+      let out = nouns || [];
+      if (genderFilter !== 'all') out = out.filter((r) => r.gender === genderFilter);
+      return out.map((r) => ({ word: r.word, imageUrl: r.image_url || null }));
+    }
+    // words mode
     const p = sectionPresets[presetKey];
     if (!p) return [];
-    // Each preset is { new: [...], review: [...] } — combine both, new first
     const out = [];
     if (Array.isArray(p.new)) out.push(...p.new);
     if (Array.isArray(p.review)) out.push(...p.review);
-    return out;
-  }, [sectionPresets, presetKey]);
+    return out.map((w) => ({ word: w, imageUrl: imageMap ? lookupImage(w, imageMap) : null }));
+  }, [mode, nouns, genderFilter, sectionPresets, presetKey, imageMap]);
 
-  // Paginate into sheets of 8
+  // Paginate into sheets
   const sheets = useMemo(() => {
     const out = [];
-    for (let i = 0; i < words.length; i += CARDS_PER_SHEET) {
-      out.push(words.slice(i, i + CARDS_PER_SHEET));
+    for (let i = 0; i < cards.length; i += CARDS_PER_SHEET) {
+      out.push(cards.slice(i, i + CARDS_PER_SHEET));
     }
     return out.length ? out : [[]];
-  }, [words]);
+  }, [cards]);
 
-  const cardCount = words.length;
+  const cardCount = cards.length;
+  const loading = mode === 'words' ? !lists : nouns === null;
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
@@ -112,27 +135,66 @@ export default function HfwCards() {
           <div className="flex items-center gap-3">
             <Link to="/TeacherHub" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">🃏 HFW Picture Cards</h1>
+              <h1 className="text-lg font-semibold leading-tight">🃏 HFW Cards</h1>
               <p className="text-xs text-muted-foreground">
-                {loadingImgs ? 'Loading images…' : `${cardCount} words · ${sheets.length} sheet${sheets.length > 1 ? 's' : ''}`}
+                {loading ? 'Loading…' : `${cardCount} cards · ${sheets.length} sheet${sheets.length > 1 ? 's' : ''}`}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={section}
-              onChange={(e) => setSection(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {SECTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select
-              value={presetKey}
-              onChange={(e) => setPresetKey(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {presetKeys.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+            {/* Mode toggle */}
+            <div className="flex items-center bg-gray-100 rounded-md p-0.5">
+              <button
+                onClick={() => setMode('words')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition ${mode === 'words' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
+              >
+                <Type className="w-4 h-4" /> Sight Words
+              </button>
+              <button
+                onClick={() => setMode('pictures')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition ${mode === 'pictures' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
+              >
+                <Images className="w-4 h-4" /> Pictures
+              </button>
+            </div>
+
+            {mode === 'words' ? (
+              <>
+                <select
+                  value={section}
+                  onChange={(e) => setSection(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {SECTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select
+                  value={presetKey}
+                  onChange={(e) => setPresetKey(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {presetKeys.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </>
+            ) : (
+              <>
+                <select
+                  value={genderFilter}
+                  onChange={(e) => setGenderFilter(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="all">All nouns</option>
+                  <option value="masculine">Masculine (el)</option>
+                  <option value="feminine">Feminine (la)</option>
+                </select>
+                <Link
+                  to="/NounGenderEditor"
+                  className="h-9 flex items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm text-indigo-600 hover:bg-indigo-50"
+                >
+                  Edit genders
+                </Link>
+              </>
+            )}
+
             <div className="flex items-center border rounded-md overflow-hidden">
               <button className="px-2 py-1.5 hover:bg-gray-50" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.2).toFixed(2)))}>
                 <ZoomOut className="w-4 h-4" />
@@ -154,26 +216,31 @@ export default function HfwCards() {
       </header>
 
       <main className="py-8 flex justify-center print:block print:py-0">
-        {!lists ? (
-          <div className="text-muted-foreground">Loading word lists…</div>
+        {loading ? (
+          <div className="text-muted-foreground">Loading…</div>
+        ) : cardCount === 0 ? (
+          <div className="text-center text-muted-foreground py-20 max-w-sm">
+            {mode === 'pictures'
+              ? 'No nouns yet. Open "Edit genders" and click "Scan bucket" to seed the library, then assign masculine/feminine.'
+              : 'No words in this preset.'}
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-6">
-            {sheets.map((sheetWords, si) => (
+            {sheets.map((sheetCards, si) => (
               <div key={si} className="sheet-wrap" style={{ '--zoom': zoom }}>
                 <div className="sheet">
                   <div className="hfw-grid">
                     {Array.from({ length: CARDS_PER_SHEET }).map((_, ci) => {
-                      const word = sheetWords[ci];
-                      if (!word) return <div key={ci} className="hfw-card hfw-card--empty" />;
-                      const img = imageMap ? lookupImage(word, imageMap) : null;
+                      const card = sheetCards[ci];
+                      if (!card) return <div key={ci} className="hfw-card hfw-card--empty" />;
                       return (
                         <div key={ci} className="hfw-card">
-                          {img ? (
-                            <img src={img} alt={word} className="hfw-card__img" />
+                          {card.imageUrl ? (
+                            <img src={card.imageUrl} alt={card.word} className="hfw-card__img" />
                           ) : (
                             <div className="hfw-card__img-placeholder" />
                           )}
-                          <div className="hfw-card__word">{word}</div>
+                          <div className="hfw-card__word">{card.word}</div>
                         </div>
                       );
                     })}

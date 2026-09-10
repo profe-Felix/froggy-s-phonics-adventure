@@ -1,0 +1,91 @@
+{
+  "name": "NounGender",
+  "type": "object",
+  "properties": {
+    "word": {
+      "type": "string",
+      "description": "The noun word (lowercase pretty form, e.g. 'mesa', 'arbol')."
+    },
+    "image_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Picture URL from the letter-sort image bucket. Seeded automatically when the editor scans the bucket.",
+      "default": ""
+    },
+    "gender": {
+      "type": "string",
+      "enum": [
+        "",
+        "masculine",
+        "feminine"
+      ],
+      "default": "",
+      "description": "Grammatical gender. Empty = not yet assigned. Drives article+noun phrase auto-generation (masculine \u2192 el, feminine \u2192 la)."
+    },
+    "article": {
+      "type": "string",
+      "enum": [
+        "",
+        "el",
+        "la",
+        "los",
+        "las"
+      ],
+      "default": "",
+      "description": "Definite article. Auto-derived from gender (masculine\u2192el, feminine\u2192la) but editable for exceptions like 'el agua', 'la mano'."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "If false, this noun is excluded from phrase generation and picture cards."
+    }
+  },
+  "required": [
+    "word"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "teacher"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -50,6 +50,7 @@ import DocumentCamera from './pages/DocumentCamera';
 import ConferenceDashboard from './pages/ConferenceDashboard';
 import ConferenceSignUp from './pages/ConferenceSignUp';
 import HfwCards from './pages/HfwCards';
+import NounGenderEditor from './pages/NounGenderEditor';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -148,6 +149,7 @@ const AuthenticatedApp = () => {
       <Route path="/ConferenceDashboard" element={<ConferenceDashboard />} />
       <Route path="/ConferenceSignUp" element={<ConferenceSignUp />} />
       <Route path="/HfwCards" element={<HfwCards />} />
+      <Route path="/NounGenderEditor" element={<NounGenderEditor />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
