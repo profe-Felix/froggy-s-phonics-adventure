@@ -13,11 +13,13 @@ export default function AutoFitWord({
   maxFontIn = 1.2,
   minFontIn = 0.15,
   paddingIn = 0.08,
+  fixedFontPx, // when provided, use this exact size (uniform height across all cards)
 }) {
   const containerRef = useRef(null);
   const textRef = useRef(null);
 
   useLayoutEffect(() => {
+    if (fixedFontPx) return; // fixed size — skip auto-fit
     const container = containerRef.current;
     const textEl = textRef.current;
     if (!container || !textEl) return;
@@ -43,7 +45,7 @@ export default function AutoFitWord({
     const ro = new ResizeObserver(fit);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [text, maxFontIn, minFontIn, paddingIn]);
+  }, [text, maxFontIn, minFontIn, paddingIn, fixedFontPx]);
 
   return (
     <div ref={containerRef} className="w-full h-full flex items-center justify-center" style={{ overflow: 'hidden' }}>
@@ -56,6 +58,7 @@ export default function AutoFitWord({
           color: '#1e293b',
           lineHeight: 1.05,
           whiteSpace: 'nowrap',
+          ...(fixedFontPx ? { fontSize: fixedFontPx + 'px' } : {}),
         }}
       >
         {text}

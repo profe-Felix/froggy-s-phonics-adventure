@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Printer, ZoomIn, ZoomOut, Images, Type } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -129,6 +129,46 @@ export default function HfwCards() {
   const cardCount = cards.length;
   const loading = mode === 'words' ? !lists : nouns === null;
 
+  // ── Shared font size for sight words ─────────────────────────────────────
+  // All text-only cards use the SAME font size, determined by the longest word
+  // in the set. This gives every card uniform text height instead of each word
+  // auto-fitting to a different size.
+  const gridRef = useRef(null);
+  const measureRef = useRef(null);
+  const [sharedFontPx, setSharedFontPx] = useState(null);
+
+  const textOnlyWords = useMemo(
+    () => cards.filter((c) => !c.imageUrl).map((c) => c.word).filter(Boolean),
+    [cards]
+  );
+
+  useLayoutEffect(() => {
+    if (loading || textOnlyWords.length === 0) { setSharedFontPx(null); return; }
+    const grid = gridRef.current;
+    const measure = measureRef.current;
+    if (!grid || !measure) return;
+
+    const gapPx = 0.01 * 96;
+    const cardW = (grid.clientWidth - 2 * gapPx) / 3;
+    const cardH = (grid.clientHeight - 3 * gapPx) / 4;
+    const padPx = 0.08 * 96;
+    const targetW = cardW - 2 * padPx;
+    const targetH = cardH - 2 * padPx;
+
+    const longest = textOnlyWords.reduce((a, b) => (a.length > b.length ? a : b));
+    measure.textContent = longest;
+
+    let lo = 0.15 * 96;
+    let hi = 1.2 * 96;
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      measure.style.fontSize = mid + 'px';
+      if (measure.offsetWidth <= targetW && measure.offsetHeight <= targetH) lo = mid;
+      else hi = mid;
+    }
+    setSharedFontPx(lo);
+  }, [textOnlyWords, loading]);
+
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
       <header className="no-print border-b bg-white sticky top-0 z-10">
@@ -217,6 +257,7 @@ export default function HfwCards() {
       </header>
 
       <main className="py-8 flex justify-center print:block print:py-0">
+        <span ref={measureRef} style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', whiteSpace: 'nowrap', fontWeight: 700, fontFamily: "'Teachers', system-ui, sans-serif", fontFeatureSettings: "'ss10'", lineHeight: '1.05' }} />
         {loading ? (
           <div className="text-muted-foreground">Loading…</div>
         ) : cardCount === 0 ? (
@@ -230,7 +271,7 @@ export default function HfwCards() {
             {sheets.map((sheetCards, si) => (
               <div key={si} className="hfw-sheet-wrap" style={{ '--zoom': zoom }}>
                 <div className="hfw-sheet">
-                  <div className="hfw-grid">
+                  <div className="hfw-grid" ref={si === 0 ? gridRef : undefined}>
                     {Array.from({ length: CARDS_PER_SHEET }).map((_, ci) => {
                       const card = sheetCards[ci];
                       if (!card) return <div key={ci} className="hfw-card hfw-card--empty" />;
@@ -242,7 +283,7 @@ export default function HfwCards() {
                               <div className="hfw-card__word">{card.word}</div>
                             </>
                           ) : (
-                            <AutoFitWord text={card.word} />
+                            <AutoFitWord text={card.word} fixedFontPx={sharedFontPx} />
                           )}
                         </div>
                       );
