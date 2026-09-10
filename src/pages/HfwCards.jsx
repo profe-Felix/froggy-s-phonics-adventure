@@ -234,11 +234,9 @@ export default function HfwCards() {
                       const card = sheetCards[ci];
                       if (!card) return <div key={ci} className="hfw-card hfw-card--empty" />;
                       return (
-                        <div key={ci} className="hfw-card">
-                          {card.imageUrl ? (
+                        <div key={ci} className={`hfw-card ${card.imageUrl ? '' : 'hfw-card--text-only'}`}>
+                          {card.imageUrl && (
                             <img src={card.imageUrl} alt={card.word} className="hfw-card__img" />
-                          ) : (
-                            <div className="hfw-card__img-placeholder" />
                           )}
                           <div className="hfw-card__word">{card.word}</div>
                         </div>

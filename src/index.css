@@ -291,6 +291,11 @@
   line-height: 1.05;
   margin-top: 0.03in;
 }
+.hfw-card--text-only .hfw-card__word {
+  flex: 1;
+  font-size: 0.5in;
+  margin-top: 0;
+}
 
 /* Tag font for table tags / mailbox labels */
 .tag-font {
