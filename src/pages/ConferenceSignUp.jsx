@@ -129,7 +129,7 @@ export default function ConferenceSignUp() {
             <input value={form.parent_phone} onChange={(e) => setForm({ ...form, parent_phone: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500" />
           </label>
           <button type="submit" disabled={booking?.status === 'loading'} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold disabled:opacity-50 active:scale-95 transition">
-            {booking?.status === 'loading' ? 'Booking…' : 'Confirm Booking'}
+            {booking?.status === 'loading' ? 'Booking…' : 'Confirm'}
           </button>
         </form>
       )}
