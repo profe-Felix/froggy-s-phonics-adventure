@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import StudentLogin from '../components/game/StudentLogin';
+import ScanToPlay from '../components/game/ScanToPlay';
 import ModeSelection from '../components/game/ModeSelection';
 import LetterSoundsMode from '../components/game/modes/LetterSoundsMode';
 import SightWordsEasyMode from '../components/game/modes/SightWordsEasyMode';
@@ -32,6 +33,7 @@ import { useClassColors } from '@/hooks/useClassColors';
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
+  const urlBarcode = urlParams.get('barcode');
   const rawClass = urlParams.get('class') || null;
   // Map all variations to canonical names
   const classMap = {
@@ -43,10 +45,12 @@ export default function LetterGame() {
   const urlNumber = parseInt(urlParams.get('number'));
   const urlYear = urlParams.get('year') || null;
   const liveCode = urlParams.get('live');
-  const autoStudent = urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null;
+  const autoStudent = urlBarcode ? null : (urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null);
 
-  const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : autoStudent);
+  const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : urlBarcode ? 'loading_by_barcode' : autoStudent);
   const [directStudentId] = useState(urlStudentId);
+  const [barcodeLogin, setBarcodeLogin] = useState(!!urlBarcode);
+  const [barcodeError, setBarcodeError] = useState(false);
   const [studentData, setStudentData] = useState(null);
   // Always start on the path homescreen (GameHome) when a student logs in.
   // Previously this restored the last mode from localStorage, which sent
@@ -63,7 +67,7 @@ export default function LetterGame() {
   const { data: lessonsForClass = [] } = useQuery({
     queryKey: ['lessons', selectedStudent?.class_name],
     queryFn: () => base44.entities.Lesson.filter({ active: true }),
-    enabled: !!selectedStudent && selectedStudent !== 'loading_by_id',
+    enabled: !!selectedStudent && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
   });
   const hasAssignedLesson = lessonsForClass.some(
     l => !l.class_name || l.class_name === selectedStudent?.class_name
@@ -201,10 +205,36 @@ export default function LetterGame() {
     }
   });
 
+  // Barcode lookup — finds the most recent student record for this barcode
+  // number. Picks the highest school_year so a stale roster (old grade) is
+  // superseded by the current one.
+  const { data: barcodeStudent } = useQuery({
+    queryKey: ['student-by-barcode', urlBarcode],
+    queryFn: async () => {
+      const matches = await base44.entities.Student.filter({ barcode_number: urlBarcode });
+      if (!matches?.length) return null;
+      return matches.sort((a, b) =>
+        (b.school_year || '').localeCompare(a.school_year || '')
+      )[0];
+    },
+    enabled: !!urlBarcode,
+  });
+
+  useEffect(() => {
+    if (!urlBarcode || barcodeStudent === undefined || studentData) return;
+    if (barcodeStudent) {
+      setStudentData(barcodeStudent);
+      setSelectedStudent({ number: barcodeStudent.student_number, class_name: barcodeStudent.class_name });
+    } else {
+      setBarcodeError(true);
+      setSelectedStudent(null);
+    }
+  }, [barcodeStudent, urlBarcode, studentData]);
+
   const { data: students } = useQuery({
     queryKey: ['students'],
     queryFn: () => base44.entities.Student.list(),
-    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id'
+    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode'
   });
 
   const createStudentMutation = useMutation({
@@ -235,7 +265,7 @@ export default function LetterGame() {
   }, [directStudent, directStudentId]);
 
   useEffect(() => {
-    if (!selectedStudent || selectedStudent === 'loading_by_id' || !students) return;
+    if (!selectedStudent || selectedStudent === 'loading_by_id' || selectedStudent === 'loading_by_barcode' || !students) return;
     if (directStudentId) return; // already handled above
     if (selectedStudent && students) {
       const effectiveYear = urlYear || ACTIVE_SCHOOL_YEAR;
@@ -481,27 +511,35 @@ export default function LetterGame() {
   // Without this the number is lost on refresh and they land back on the
   // number-login page even though we already know who they are.
   useEffect(() => {
-    if (!selectedStudent || selectedStudent === 'loading_by_id') return;
+    if (!selectedStudent || selectedStudent === 'loading_by_id' || selectedStudent === 'loading_by_barcode') return;
+    // If logged in via barcode, the barcode stays in the URL — don't add
+    // class+number which would create a confusing URL on refresh.
+    if (barcodeLogin) return;
     const params = new URLSearchParams(window.location.search);
     if (selectedStudent.class_name) params.set('class', selectedStudent.class_name);
     if (selectedStudent.number) params.set('number', String(selectedStudent.number));
     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-  }, [selectedStudent]);
+  }, [selectedStudent, barcodeLogin]);
 
   const handleLogout = () => {
     setSelectedStudent(null);
     setStudentData(null);
     setCurrentMode(null);
-    // Clear the persisted number so a refresh after logout goes back to the
-    // login page instead of straight back in as the previous student.
+    setBarcodeError(false);
+    // Clear all login params so a refresh after logout goes to the scan screen
+    // (if barcode was used) or the class picker (if manual login).
     const params = new URLSearchParams(window.location.search);
     params.delete('number');
     params.delete('studentId');
+    params.delete('barcode');
     const qs = params.toString();
     window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
   };
 
   if (!selectedStudent) {
+    if (barcodeLogin || barcodeError) {
+      return <ScanToPlay error={barcodeError ? 'QR code not recognized. Ask your teacher for help.' : null} />;
+    }
     return <StudentLogin onSelectStudent={setSelectedStudent} preselectedClass={urlClass || null} />;
   }
 

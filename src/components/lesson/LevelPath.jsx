@@ -280,12 +280,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
       >
         {/* Top bar — padded below Safari's address bar via safe-area-inset */}
         <div className="sticky top-0 z-30 flex items-center justify-between px-4 py-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-          <button
-            onClick={onLogout}
-            className="px-4 py-1.5 rounded-full bg-white text-indigo-900 text-sm font-bold shadow"
-          >
-            Grownups
-          </button>
+          <div />
           <div className="flex items-center gap-2">
             {canEdit && !editing && (
               <button

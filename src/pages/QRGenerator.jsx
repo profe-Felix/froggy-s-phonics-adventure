@@ -97,7 +97,7 @@ export default function QRGenerator() {
             </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">🔲 QR Code Generator</h1>
-              <p className="text-sm text-gray-500">Compact codes — re-generate if you rename a class</p>
+              <p className="text-sm text-gray-500">Barcode-based · import the roster sheet to populate barcode numbers</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -151,15 +151,17 @@ export default function QRGenerator() {
           <div ref={printRef} className="grid grid-cols-4 sm:grid-cols-5 gap-4">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = studentMap[num];
-              const url = s ? `${baseUrl}?class=${encodeURIComponent(s.class_name)}&number=${s.student_number}&year=${s.school_year || ACTIVE_SCHOOL_YEAR}` : null;
+              const url = s?.barcode_number ? `${baseUrl}?barcode=${encodeURIComponent(s.barcode_number)}` : null;
               return (
                 <div key={num} className={`bg-white border rounded-xl p-3 text-center shadow-sm ${!s ? 'opacity-30' : 'border-gray-200'}`}>
                   {url
                     ? <QRCodeSVG value={url} size={100} className="mx-auto" />
-                    : <div className="w-[100px] h-[100px] mx-auto bg-gray-100 rounded flex items-center justify-center text-gray-300 text-xs">no record</div>
+                    : s
+                      ? <div className="w-[100px] h-[100px] mx-auto bg-amber-50 rounded flex items-center justify-center text-amber-500 text-xs text-center px-1 font-medium">no barcode<br />import sheet</div>
+                      : <div className="w-[100px] h-[100px] mx-auto bg-gray-100 rounded flex items-center justify-center text-gray-300 text-xs">no record</div>
                   }
                   <div className="mt-2 font-bold text-gray-800 text-lg">{num}</div>
-                  <div className="text-xs text-gray-400">Class {selectedClass}</div>
+                  <div className="text-xs text-gray-400">{s?.name || `Class ${selectedClass}`}</div>
                 </div>
               );
             })}
