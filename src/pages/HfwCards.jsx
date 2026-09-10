@@ -113,7 +113,7 @@ export default function HfwCards() {
     const out = [];
     if (Array.isArray(p.new)) out.push(...p.new);
     if (Array.isArray(p.review)) out.push(...p.review);
-    return out.map((w) => ({ word: w, imageUrl: imageMap ? lookupImage(w, imageMap) : null }));
+    return out.map((w) => ({ word: w, imageUrl: null }));
   }, [mode, nouns, genderFilter, sectionPresets, presetKey, imageMap]);
 
   // Paginate into sheets
