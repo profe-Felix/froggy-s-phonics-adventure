@@ -227,8 +227,8 @@ export default function HfwCards() {
         ) : (
           <div className="flex flex-col items-center gap-6">
             {sheets.map((sheetCards, si) => (
-              <div key={si} className="sheet-wrap" style={{ '--zoom': zoom }}>
-                <div className="sheet">
+              <div key={si} className="hfw-sheet-wrap" style={{ '--zoom': zoom }}>
+                <div className="hfw-sheet">
                   <div className="hfw-grid">
                     {Array.from({ length: CARDS_PER_SHEET }).map((_, ci) => {
                       const card = sheetCards[ci];

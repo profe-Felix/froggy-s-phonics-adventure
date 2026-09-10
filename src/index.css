@@ -198,31 +198,65 @@
     width: auto !important;
     box-shadow: none !important;
   }
+  @page HfwLandscape {
+    size: letter landscape;
+    margin: 0.25in;
+  }
+  .hfw-sheet-wrap {
+    --zoom: 1 !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  .hfw-sheet {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    height: auto !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
 }
 
-/* HFW picture-card grid — 4 cols × 2 rows = 8 cards per letter sheet.
-   Tight grid with a thin white gap between cards so one straight cut
-   separates them (no trimming around each card). Each card is ~2in × 5in:
-   picture on top, word below in a large handwriting-friendly font. */
+/* HFW card grid — landscape letter, 3 cols × 4 rows = 12 cards per sheet.
+   Cards autosize to fill grid cells (1fr) and center content vertically
+   and horizontally. Gap is 0.01in — thin enough for a precision cutter blade. */
+.hfw-sheet-wrap {
+  position: relative;
+  width: calc(11in * var(--zoom, 1));
+  height: calc(8.5in * var(--zoom, 1));
+  margin: 0 auto;
+}
+.hfw-sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 11in;
+  height: 8.5in;
+  background: #fff;
+  transform: scale(var(--zoom, 1));
+  transform-origin: top left;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  padding: 0.15in;
+  box-sizing: border-box;
+  page: HfwLandscape;
+}
 .hfw-grid {
   display: grid;
-  grid-template-columns: repeat(3, 2.65in);
-  grid-template-rows: repeat(4, 2.6in);
-  gap: 0.03in;
-  justify-content: center;
-  align-content: center;
-  padding: 0.08in 0;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 0.01in;
+  width: 100%;
+  height: 100%;
 }
 .hfw-card {
-  width: 2.65in;
-  height: 2.6in;
   break-inside: avoid;
   page-break-inside: avoid;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0.08in 0.06in;
+  justify-content: center;
+  padding: 0.04in 0.03in;
   box-sizing: border-box;
   border: 1px dashed #cbd5e1;
   background: #fff;
@@ -234,28 +268,28 @@
 }
 .hfw-card__img {
   width: 100%;
-  max-height: 1.75in;
+  flex: 1;
+  min-height: 0;
   object-fit: contain;
-  flex-shrink: 0;
 }
 .hfw-card__img-placeholder {
   width: 100%;
-  height: 1.75in;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
 }
 .hfw-card__word {
-  flex: 1;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: 'Teachers', system-ui, sans-serif;
   font-feature-settings: 'ss10';
   font-weight: 700;
-  font-size: 0.36in;
+  font-size: 0.26in;
   color: #1e293b;
   text-align: center;
   line-height: 1.05;
-  margin-top: 0.06in;
+  margin-top: 0.03in;
 }
 
 /* Tag font for table tags / mailbox labels */
