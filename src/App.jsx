@@ -51,6 +51,7 @@ import ConferenceDashboard from './pages/ConferenceDashboard';
 import ConferenceSignUp from './pages/ConferenceSignUp';
 import HfwCards from './pages/HfwCards';
 import NounGenderEditor from './pages/NounGenderEditor';
+import LetterGame from './pages/LetterGame';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -150,6 +151,7 @@ const AuthenticatedApp = () => {
       <Route path="/ConferenceSignUp" element={<ConferenceSignUp />} />
       <Route path="/HfwCards" element={<HfwCards />} />
       <Route path="/NounGenderEditor" element={<NounGenderEditor />} />
+      <Route path="/ID" element={<LetterGame />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

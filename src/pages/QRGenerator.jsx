@@ -21,7 +21,7 @@ export default function QRGenerator() {
   const [generating, setGenerating] = useState(false);
   const printRef = useRef();
 
-  const baseUrl = `${window.location.origin}/LetterGame`;
+  const baseUrl = `${window.location.origin}/ID`;
 
   useEffect(() => {
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(all => {
