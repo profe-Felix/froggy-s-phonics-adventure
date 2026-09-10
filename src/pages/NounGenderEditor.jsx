@@ -10,7 +10,20 @@ import { markersToPretty } from '@/lib/lettersort/phonics';
 // feminine to each. The phrase game auto-generates el/la + noun phrases from
 // these assignments.
 
-const articleFor = (gender) => (gender === 'masculine' ? 'el' : gender === 'feminine' ? 'la' : '');
+// Auto-detect plurality from the word. Spanish plurals end in -s.
+// Exclude short words (mes, gas, bus, tis, tos) and known singular exceptions.
+const SINGULAR_S_WORDS = new Set(['lunes', 'martes', 'miercoles', 'jueves', 'crisis', 'paraguas', 'virus', 'tesis']);
+const detectNumber = (word) => {
+  const w = (word || '').toLowerCase().trim();
+  if (SINGULAR_S_WORDS.has(w)) return 'singular';
+  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return 'plural';
+  return 'singular';
+};
+const articleFor = (gender, number = 'singular') => {
+  if (gender === 'masculine') return number === 'plural' ? 'los' : 'el';
+  if (gender === 'feminine') return number === 'plural' ? 'las' : 'la';
+  return '';
+};
 
 export default function NounGenderEditor() {
   const [records, setRecords] = useState(null);
@@ -24,6 +37,19 @@ export default function NounGenderEditor() {
     setLoading(true);
     try {
       const all = await base44.entities.NounGender.list('-word', 500);
+      // Backfill: auto-detect number for records that don't have it yet
+      const needsBackfill = all.filter((r) => !r.number);
+      if (needsBackfill.length > 0) {
+        const updates = needsBackfill.map((r) => {
+          const num = detectNumber(r.word);
+          return { id: r.id, number: num, article: r.gender ? articleFor(r.gender, num) : '' };
+        });
+        await base44.entities.NounGender.bulkUpdate(updates);
+        const map = new Map(updates.map((u) => [u.id, u]));
+        all.forEach((r) => {
+          if (map.has(r.id)) { r.number = map.get(r.id).number; r.article = map.get(r.id).article; }
+        });
+      }
       setRecords(all);
     } catch {
       setRecords([]);
@@ -47,7 +73,7 @@ export default function NounGenderEditor() {
         const word = markersToPretty(f.core || '').toLowerCase().trim();
         if (!word || existing.has(word) || seen.has(word)) continue;
         seen.add(word);
-        toCreate.push({ word, image_url: f.url, gender: '', article: '', active: true });
+        toCreate.push({ word, image_url: f.url, gender: '', article: '', number: detectNumber(word), active: true });
       }
       if (toCreate.length === 0) {
         setSeedMsg('No new nouns found — library is up to date.');
@@ -63,8 +89,8 @@ export default function NounGenderEditor() {
     }
   }, [records, load]);
 
-  const setGender = useCallback(async (id, gender) => {
-    const article = articleFor(gender);
+  const setGender = useCallback(async (id, gender, number) => {
+    const article = articleFor(gender, number);
     setRecords((prev) => (prev || []).map((r) => (r.id === id ? { ...r, gender, article } : r)));
     try {
       await base44.entities.NounGender.update(id, { gender, article });
@@ -168,8 +194,13 @@ export default function NounGenderEditor() {
                   )}
                 </div>
                 <div className="p-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-gray-800 text-sm">{r.word}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-gray-800 text-sm">{r.word}</span>
+                      {r.number === 'plural' && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full">plural</span>
+                      )}
+                    </div>
                     <button
                       onClick={() => toggleActive(r.id, !r.active)}
                       className="text-xs text-gray-400 hover:text-gray-600"
@@ -178,26 +209,31 @@ export default function NounGenderEditor() {
                       {r.active ? '👁️' : '🚫'}
                     </button>
                   </div>
+                  {(r.gender || r.number === 'plural') && (
+                    <div className="text-xs text-gray-400 font-bold mb-1.5 text-center">
+                      {r.article || articleFor(r.gender, r.number)} {r.word}
+                    </div>
+                  )}
                   <div className="flex gap-1.5">
                     <button
-                      onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine')}
+                      onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
                       className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
                         r.gender === 'masculine'
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
                       }`}
                     >
-                      el masc
+                      {r.number === 'plural' ? 'los' : 'el'} masc
                     </button>
                     <button
-                      onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine')}
+                      onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine', r.number || 'singular')}
                       className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
                         r.gender === 'feminine'
                           ? 'bg-pink-600 text-white border-pink-600'
                           : 'bg-white text-pink-600 border-pink-200 hover:border-pink-400'
                       }`}
                     >
-                      la fem
+                      {r.number === 'plural' ? 'las' : 'la'} fem
                     </button>
                   </div>
                 </div>

@@ -20,7 +20,16 @@
         "feminine"
       ],
       "default": "",
-      "description": "Grammatical gender. Empty = not yet assigned. Drives article+noun phrase auto-generation (masculine \u2192 el, feminine \u2192 la)."
+      "description": "Grammatical gender. Empty = not yet assigned. Drives article+noun phrase auto-generation (masculine \u2192 el/los, feminine \u2192 la/las)."
+    },
+    "number": {
+      "type": "string",
+      "enum": [
+        "singular",
+        "plural"
+      ],
+      "default": "singular",
+      "description": "Grammatical number. Auto-detected from the word (Spanish plurals end in -s). Drives article selection: singular \u2192 el/la, plural \u2192 los/las."
     },
     "article": {
       "type": "string",
@@ -32,7 +41,7 @@
         "las"
       ],
       "default": "",
-      "description": "Definite article. Auto-derived from gender (masculine\u2192el, feminine\u2192la) but editable for exceptions like 'el agua', 'la mano'."
+      "description": "Definite article. Auto-derived from gender + number (masculine singular\u2192el, masculine plural\u2192los, feminine singular\u2192la, feminine plural\u2192las) but editable for exceptions like 'el agua', 'la mano'."
     },
     "active": {
       "type": "boolean",
