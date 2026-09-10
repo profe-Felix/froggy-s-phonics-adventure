@@ -25,12 +25,28 @@ const detectNumber = (word) => {
   if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return 'plural';
   return 'singular';
 };
-// Detect infinitive verbs (end in -ar, -er, -ir) — not nouns.
-const isInfinitiveVerb = (word) => {
-  const w = (word || '').toLowerCase().trim();
-  if (w.length < 4) return false;
-  return /(?:ar|er|ir)$/.test(w) && !['mujer', 'coliflor', 'mantequer', 'sartén', 'tambor', 'molor'].includes(w);
-};
+// Detect infinitive verbs — not nouns. We use a known-verbs whitelist rather
+// than a -ar/-er/-ir regex so real nouns like 'mujer', 'collar', 'altar',
+// 'azúcar' (which happen to end in those suffixes) are never false-flagged.
+const INFINITIVE_VERBS = new Set([
+  // -ar action verbs (likely to have pictures in a phonics bucket)
+  'saltar', 'nadar', 'cantar', 'bailar', 'pintar', 'cocinar', 'lavar', 'peinar',
+  'cortar', 'pegar', 'sacar', 'tocar', 'mirar', 'hablar', 'gritar', 'llorar',
+  'abrazar', 'besar', 'caminar', 'volar', 'patinar', 'esquiar', 'dibujar',
+  'trabajar', 'estudiar', 'ensenar', 'pensar', 'jugar', 'fregar', 'freir',
+  'asustar', 'barrer', 'cepillar', 'secar', 'duchar', 'banar', 'sentar',
+  // -er verbs
+  'comer', 'beber', 'leer', 'creer', 'romper', 'temer', 'aprender', 'vender',
+  'perder', 'volver', 'morder', 'sorprender', 'barrer', 'cocer', 'tejer',
+  // -ir verbs
+  'subir', 'dormir', 'escribir', 'vivir', 'salir', 'venir', 'decir', 'recibir',
+  'permitir', 'sufrir', 'existir', 'resistir', 'describir', 'inscribir',
+  'abrir', 'cerrar', 'reir', 'sonreir',
+  // irregular but common
+  'ser', 'estar', 'tener', 'poner', 'saber', 'querer', 'poder', 'deber',
+  'hacer', 'ir', 'ver', 'dar',
+]);
+const isInfinitiveVerb = (word) => INFINITIVE_VERBS.has((word || '').toLowerCase().trim());
 const articleFor = (gender, number = 'singular') => {
   if (gender === 'masculine') return number === 'plural' ? 'los' : 'el';
   if (gender === 'feminine') return number === 'plural' ? 'las' : 'la';
