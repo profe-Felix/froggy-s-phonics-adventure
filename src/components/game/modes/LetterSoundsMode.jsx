@@ -56,6 +56,16 @@ export default function LetterSoundsMode({ studentData, onUpdateProgress, onComp
   const preloadedAudio = useRef({});
   const audioTimeoutRef = useRef(null);
 
+  // Stop audio when the step unmounts (lesson step change / back to path).
+  // Without this, `new Audio()` objects keep playing after unmount.
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) { try { audioRef.current.pause?.(); } catch {} }
+      if (audioTimeoutRef.current) clearTimeout(audioTimeoutRef.current);
+      try { window.speechSynthesis?.cancel(); } catch {}
+    };
+  }, []);
+
   const language = getLanguage(studentData);
   const ALL_LETTERS = language === 'en' ? LETTER_SOUNDS_EN : LETTER_SOUNDS;
   const FALLBACK_LEARNING = language === 'en' ? ['s', 'a', 't'] : ['o', 'i', 'a'];

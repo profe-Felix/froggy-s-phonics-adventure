@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { X, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
+import { stopAllAudio } from '@/lib/audio';
 
 // Linear lesson flow: left dots show every step's status, right arrows move
 // prev/next. Hosts one step's activity at a time via LessonModeRouter.
@@ -25,13 +26,24 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
     .map((s, originalIndex) => ({ step: s, originalIndex }))
     .filter(({ step }) => step.live_scope !== 'live_only');
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the step jump happens BEFORE the
+  // browser paints. With useEffect, step 0 briefly mounts → its audio
+  // autoplay fires → then we jump to the first incomplete step → step 1's
+  // audio also fires → both play at once. useLayoutEffect sets the correct
+  // step synchronously before paint, so step 0 never mounts and its audio
+  // never starts.
+  useLayoutEffect(() => {
     if (!progress || !visibleSteps.length || didInitialLandRef.current) return;
     didInitialLandRef.current = true;
     const firstIncomplete = visibleSteps.findIndex(({ originalIndex }) => !completedSteps.includes(originalIndex));
     const target = firstIncomplete === -1 ? visibleSteps.length - 1 : firstIncomplete;
     setStepIdx(prev => prev !== target ? target : prev);
   }, [progress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop all audio from the previous step when the step changes (manual nav
+  // via arrows or dots). The key={stepIdx} remount unmounts the old component,
+  // but `new Audio()` objects are not in the DOM and keep playing without this.
+  useEffect(() => { stopAllAudio(); }, [stepIdx]);
 
   const allDone = visibleSteps.length > 0 && visibleSteps.every(({ originalIndex }) => completedSteps.includes(originalIndex));
   const awardedRef = useRef(false);

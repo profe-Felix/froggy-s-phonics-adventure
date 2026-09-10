@@ -28,6 +28,14 @@ export default function SightWordsEasyMode({ studentData, onUpdateProgress, targ
   const audioRef = useRef(null);
   const preloadedAudio = useRef({});
 
+  // Stop audio when the step unmounts (lesson step change / back to path).
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) { try { audioRef.current.pause?.(); } catch {} }
+      try { window.speechSynthesis?.cancel(); } catch {}
+    };
+  }, []);
+
   // Load teacher-authored waypoints from the DB so the word tracing canvas
   // uses the same templates the tracing canvas teaches.
   useEffect(() => {

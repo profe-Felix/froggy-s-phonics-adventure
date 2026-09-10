@@ -297,6 +297,30 @@
   margin-top: 0;
 }
 
+/* QR code print layout — native window.print() shows only the QR grid. */
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.5in;
+  }
+  .no-print {
+    display: none !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .printable,
+  .printable * {
+    visibility: visible;
+  }
+  .printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
 /* Tag font for table tags / mailbox labels */
 .tag-font {
   font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;

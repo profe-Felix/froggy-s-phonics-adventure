@@ -17,6 +17,25 @@ import { base44 } from '@/api/base44Client';
 export const AUDIO_BASE =
   'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/audio';
 
+// Global registry of active Audio objects so stopAllAudio() can pause audio
+// created via `new Audio()` that is NOT attached to the DOM (and thus not
+// reachable via querySelector). Each play function registers its Audio here;
+// stopAllAudio pauses and resets every tracked element.
+const _activeAudios = new Set();
+export function _trackAudio(a) {
+  _activeAudios.add(a);
+  a.addEventListener('ended', () => _activeAudios.delete(a), { once: true });
+  a.addEventListener('error', () => _activeAudios.delete(a), { once: true });
+  return a;
+}
+export function stopAllAudio() {
+  try { window.speechSynthesis?.cancel(); } catch { /* best-effort */ }
+  _activeAudios.forEach((a) => {
+    try { a.pause(); a.currentTime = 0; } catch { /* best-effort */ }
+  });
+  _activeAudios.clear();
+}
+
 // Escape accented characters to ASCII-safe filenames — used by the `words`
 // category (spelling, sight-words, phonics): papá → papa.. , ñ → n.. , ü → u,,.
 export function toAudioName(word) {
@@ -42,7 +61,7 @@ export function playLetterSound(letter, lang = 'es') {
       window.speechSynthesis.speak(u);
       return;
     }
-    const a = new Audio(`${AUDIO_BASE}/${lang}/letters/fonemas/${letter.toLowerCase()}.mp3`);
+    const a = _trackAudio(new Audio(`${AUDIO_BASE}/${lang}/letters/fonemas/${letter.toLowerCase()}.mp3`));
     a.play().catch(() => {});
   } catch {}
 }
@@ -106,7 +125,7 @@ export async function playTts(text, lang = 'es', rate = 0.85) {
   }
   if (url) {
     try {
-      const a = new Audio(url);
+      const a = _trackAudio(new Audio(url));
       a.playbackRate = rate;
       a.play().catch(() => {});
       return;

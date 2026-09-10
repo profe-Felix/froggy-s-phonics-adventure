@@ -61,26 +61,7 @@ export default function QRGenerator() {
     setGenerating(false);
   };
 
-  const handlePrint = () => {
-    const printContents = printRef.current.innerHTML;
-    const safeClass = String(selectedClass || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const win = window.open('', '_blank');
-    win.document.write(`
-      <html><head><title>QR Codes - Class ${safeClass}</title>
-      <style>
-        body { font-family: sans-serif; margin: 0; padding: 16px; }
-        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
-        .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; text-align: center; page-break-inside: avoid; }
-        .label { font-size: 18px; font-weight: bold; margin-top: 8px; }
-        @media print { body { padding: 8px; } }
-      </style></head>
-      <body>${printContents}</body></html>
-    `);
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
-  };
+  const handlePrint = () => window.print();
 
   // Build a map: student_number -> student record
   const studentMap = {};
@@ -90,7 +71,7 @@ export default function QRGenerator() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div className="no-print flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Link to="/Dashboard" className="text-gray-400 hover:text-gray-600">
               <ArrowLeft className="w-5 h-5" />
@@ -124,7 +105,7 @@ export default function QRGenerator() {
         </div>
 
         {/* Class selector */}
-        <div className="flex gap-2 flex-wrap mb-6">
+        <div className="no-print flex gap-2 flex-wrap mb-6">
           {loading ? (
             <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
           ) : classes.length === 0 ? (
@@ -148,7 +129,7 @@ export default function QRGenerator() {
 
         {/* QR Grid */}
         {selectedClass && (
-          <div ref={printRef} className="grid grid-cols-4 sm:grid-cols-5 gap-4">
+          <div ref={printRef} className="printable grid grid-cols-4 sm:grid-cols-5 gap-4">
             {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
               const s = studentMap[num];
               const url = s?.barcode_number ? `${baseUrl}?barcode=${encodeURIComponent(s.barcode_number)}` : null;

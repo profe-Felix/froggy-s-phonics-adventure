@@ -55,9 +55,17 @@ export default function LetterGame() {
   // Always start on the path homescreen (GameHome) when a student logs in.
   // Previously this restored the last mode from localStorage, which sent
   // students straight back into a game instead of the level path.
-  const [currentMode, setCurrentMode] = useState(null);
+  // Now we restore from sessionStorage so a refresh keeps the student in
+  // their current free-play mode instead of bouncing back to the path.
+  const [currentMode, setCurrentMode] = useState(() => sessionStorage.getItem('lettergame_mode') || null);
   const [activeLessonStep, setActiveLessonStep] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
+
+  // Persist current free-play mode so a refresh restores it.
+  useEffect(() => {
+    if (currentMode) sessionStorage.setItem('lettergame_mode', currentMode);
+    else sessionStorage.removeItem('lettergame_mode');
+  }, [currentMode]);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
   const queryClient = useQueryClient();

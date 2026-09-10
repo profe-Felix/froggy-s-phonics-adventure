@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import LevelPath from './LevelPath';
 import LevelSideNav from './LevelSideNav';
 import LessonMap from './LessonMap';
@@ -6,6 +6,9 @@ import LessonStepper from './LessonStepper';
 import SideQuests from './SideQuests';
 import { useClassColors } from '@/hooks/useClassColors';
 import { BookOpen, PlayCircle } from 'lucide-react';
+import { fetchLessons } from '@/lib/lessonsLoader';
+
+const LESSON_KEY = 'gamehome_open_lesson';
 
 // The student's home shell: a side nav (Lessons / Books / Games / Videos) plus
 // the active section. "Lessons" is the level path; tapping a puck opens that
@@ -31,6 +34,27 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
   const [section, setSection] = useState(() => isTracingOnly ? 'games' : 'lessons');
   const [openLesson, setOpenLesson] = useState(null);
   const [openSideQuest, setOpenSideQuest] = useState(null);
+
+  // Restore the open lesson after a refresh so the student lands back in
+  // their lesson instead of the level path.
+  useEffect(() => {
+    const savedId = sessionStorage.getItem(LESSON_KEY);
+    if (!savedId) return;
+    let cancelled = false;
+    fetchLessons().then((lessons) => {
+      if (cancelled) return;
+      const found = lessons.find((l) => l.id === savedId);
+      if (found) setOpenLesson(found);
+      else sessionStorage.removeItem(LESSON_KEY);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persist the open lesson id so a refresh restores it.
+  useEffect(() => {
+    if (openLesson) sessionStorage.setItem(LESSON_KEY, openLesson.id);
+    else sessionStorage.removeItem(LESSON_KEY);
+  }, [openLesson]);
 
   // Tracing-only classes get a single game: Letter Tracing.
   const modes = useMemo(
