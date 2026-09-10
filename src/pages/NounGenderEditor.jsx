@@ -10,14 +10,26 @@ import { markersToPretty } from '@/lib/lettersort/phonics';
 // feminine to each. The phrase game auto-generates el/la + noun phrases from
 // these assignments.
 
-// Auto-detect plurality from the word. Spanish plurals end in -s.
-// Exclude short words (mes, gas, bus, tis, tos) and known singular exceptions.
-const SINGULAR_S_WORDS = new Set(['lunes', 'martes', 'miercoles', 'jueves', 'crisis', 'paraguas', 'virus', 'tesis']);
+// Auto-detect plurality from the word. Spanish plurals end in -s,
+// but many nouns are "invariable" — they end in -s in the singular too.
+const SINGULAR_S_WORDS = new Set([
+  'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
+  'crisis', 'paraguas', 'virus', 'tesis', 'microondas', 'cumpleanos',
+  'torax', 'atlas', 'oasis', 'analisis', 'enfasis', 'apocalipsis',
+  'axis', 'biceps', 'cactus', 'chassis', 'gas', 'bus', 'tos', 'res',
+  'mes', 'tis', 'pas', 'pies', 'dios', 'jueves', 'trajes',
+]);
 const detectNumber = (word) => {
   const w = (word || '').toLowerCase().trim();
   if (SINGULAR_S_WORDS.has(w)) return 'singular';
   if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return 'plural';
   return 'singular';
+};
+// Detect infinitive verbs (end in -ar, -er, -ir) — not nouns.
+const isInfinitiveVerb = (word) => {
+  const w = (word || '').toLowerCase().trim();
+  if (w.length < 4) return false;
+  return /(?:ar|er|ir)$/.test(w) && !['mujer', 'coliflor', 'mantequer', 'sartén', 'tambor', 'molor'].includes(w);
 };
 const articleFor = (gender, number = 'singular') => {
   if (gender === 'masculine') return number === 'plural' ? 'los' : 'el';
@@ -60,30 +72,59 @@ export default function NounGenderEditor() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Seed: scan bucket, create records for nouns not yet in the DB
-  const seed = useCallback(async () => {
+  // Sync: scan bucket, add new nouns AND remove records for deleted images
+  const sync = useCallback(async () => {
     setSeeding(true);
     setSeedMsg('');
     try {
       const files = await listAllImagesJpg({ bucket: 'lettersort-images' });
-      const existing = new Set((records || []).map((r) => r.word.toLowerCase()));
-      const toCreate = [];
-      const seen = new Set();
+      const bucketWords = new Set();
+      const bucketUrls = new Map();
       for (const f of files) {
         const word = markersToPretty(f.core || '').toLowerCase().trim();
-        if (!word || existing.has(word) || seen.has(word)) continue;
-        seen.add(word);
-        toCreate.push({ word, image_url: f.url, gender: '', article: '', number: detectNumber(word), active: true });
+        if (word) { bucketWords.add(word); bucketUrls.set(word, f.url); }
       }
-      if (toCreate.length === 0) {
-        setSeedMsg('No new nouns found — library is up to date.');
-      } else {
+      const current = records || [];
+      // Find records whose word is no longer in the bucket
+      const toDelete = current.filter((r) => !bucketWords.has(r.word.toLowerCase()));
+      // Find new words in the bucket not yet in the DB
+      const existing = new Set(current.map((r) => r.word.toLowerCase()));
+      const toCreate = [];
+      const seen = new Set();
+      for (const w of bucketWords) {
+        if (existing.has(w) || seen.has(w)) continue;
+        seen.add(w);
+        toCreate.push({ word: w, image_url: bucketUrls.get(w) || '', gender: '', article: '', number: detectNumber(w), active: true });
+      }
+      // Also re-detect number for existing records (fixes bad plural detection)
+      const toUpdate = current
+        .filter((r) => bucketWords.has(r.word.toLowerCase()))
+        .filter((r) => {
+          const correctNum = detectNumber(r.word);
+          return r.number !== correctNum;
+        })
+        .map((r) => {
+          const num = detectNumber(r.word);
+          return { id: r.id, number: num, article: r.gender ? articleFor(r.gender, num) : '' };
+        });
+
+      const parts = [];
+      if (toDelete.length > 0) {
+        await base44.entities.NounGender.deleteMany({ id: { $in: toDelete.map((r) => r.id) } });
+        parts.push(`removed ${toDelete.length} deleted`);
+      }
+      if (toCreate.length > 0) {
         await base44.entities.NounGender.bulkCreate(toCreate);
-        setSeedMsg(`Added ${toCreate.length} new noun${toCreate.length > 1 ? 's' : ''}.`);
-        await load();
+        parts.push(`added ${toCreate.length} new`);
       }
+      if (toUpdate.length > 0) {
+        await base44.entities.NounGender.bulkUpdate(toUpdate);
+        parts.push(`fixed ${toUpdate.length} number`);
+      }
+      setSeedMsg(parts.length > 0 ? parts.join(' · ') : 'Library is up to date — no changes.');
+      await load();
     } catch (e) {
-      setSeedMsg('Seed failed — check console.');
+      setSeedMsg('Sync failed — check console.');
     } finally {
       setSeeding(false);
     }
@@ -157,11 +198,11 @@ export default function NounGenderEditor() {
               <option value="feminine">Feminine</option>
             </select>
             <button
-              onClick={seed}
+              onClick={sync}
               disabled={seeding}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium disabled:opacity-40"
             >
-              <RefreshCw className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} /> Scan bucket
+              <RefreshCw className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} /> Sync library
             </button>
           </div>
         </div>
@@ -199,6 +240,9 @@ export default function NounGenderEditor() {
                       <span className="font-bold text-gray-800 text-sm">{r.word}</span>
                       {r.number === 'plural' && (
                         <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full">plural</span>
+                      )}
+                      {isInfinitiveVerb(r.word) && (
+                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-1.5 py-0.5 rounded-full" title="Infinitive verb — not a noun">verb?</span>
                       )}
                     </div>
                     <button
