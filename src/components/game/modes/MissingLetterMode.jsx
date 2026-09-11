@@ -8,6 +8,7 @@ import { AUDIO_BASE, toAudioName } from '@/lib/audio';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { generateMissingLetterItems } from '@/lib/missingLetterFreePlay';
+import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '../../data/letterSounds';
 import { Volume2, RotateCcw, Check, Trophy } from 'lucide-react';
 
 const IMG_BUCKET = 'lettersort-images';
@@ -64,7 +65,12 @@ export default function MissingLetterMode({
   // sounds matter, not coin/progress updates that also change studentData.
   // Without this, earning coins on "Next →" would regenerate the word list
   // and skip the student ahead.
-  const masteredKey = (studentData?.mode_progress?.letter_sounds?.mastered_items || []).join(',');
+  const ALL_LETTERS = lang === 'en' ? LETTER_SOUNDS_EN : LETTER_SOUNDS;
+  const FALLBACK_LEARNING = lang === 'en' ? ['s', 'a', 't'] : ['o', 'i', 'a'];
+  const progressionKey = [
+    ...(studentData?.mode_progress?.letter_sounds?.mastered_items || []),
+    ...(studentData?.mode_progress?.letter_sounds?.learning_items || []),
+  ].join(',');
 
   // Load preset. Standalone (no presetId) generates items from the student's
   // mastered letter sounds using the Letter Sort image bucket.
@@ -74,8 +80,12 @@ export default function MissingLetterMode({
       try {
         if (!presetId) {
           // Free play: build items from mastered letter sounds.
-          const mastered = studentData?.mode_progress?.letter_sounds?.mastered_items || [];
-          const its = await generateMissingLetterItems(mastered);
+          const ls = studentData?.mode_progress?.letter_sounds || {};
+          const mastered = ls.mastered_items || [];
+          const learning = (ls.learning_items || []).filter(l => ALL_LETTERS.includes(l));
+          let pool = [...learning, ...mastered];
+          if (!pool.length) pool = FALLBACK_LEARNING;
+          const its = await generateMissingLetterItems(pool);
           if (cancelled || !its.length) return;
           const shuffled = its.slice();
           for (let i = shuffled.length - 1; i > 0; i--) {
@@ -109,7 +119,7 @@ export default function MissingLetterMode({
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [presetId, masteredKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [presetId, progressionKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load waypoints from DB (merge over static fallback) so tracing uses the
   // exact strokes the teacher authored.
