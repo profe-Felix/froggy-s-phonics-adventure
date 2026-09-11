@@ -29,6 +29,7 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
         const r = el.getBoundingClientRect();
         centers[sid] = {
           x: r.left - containerRect.left + r.width / 2,
+          y: r.top - containerRect.top + r.height / 2,
           top: r.top - containerRect.top,
           bottom: r.bottom - containerRect.top,
         };
@@ -45,24 +46,30 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
         if (!info || !info.partnerIds || info.partnerIds.length === 0) continue;
 
         if (info.partnerIds.length >= 2) {
-          // Trio
+          // Trio — L-shape: find the corner student (same column as one partner,
+          // same row as the other). Right angle at the corner, short legs to each
+          // partner, hypotenuse between the two partners (midpoint at grid corner).
           const trioIds = [sid, ...info.partnerIds];
           for (const tid of trioIds) processed.add(tid);
           const tc = trioIds.map(id => centers[id]).filter(Boolean);
           if (tc.length < 3) continue;
-          const sorted = [...tc].sort((a, b) => a.top - b.top);
-          const twoAbove = Math.abs(sorted[0].top - sorted[1].top) < Math.abs(sorted[1].top - sorted[2].top);
-          const upperStudents = twoAbove ? [sorted[0], sorted[1]] : [sorted[0]];
-          const lowerStudents = twoAbove ? [sorted[2]] : [sorted[1], sorted[2]];
-          const upperBottom = Math.max(...upperStudents.map(c => c.bottom));
-          const lowerTop = Math.min(...lowerStudents.map(c => c.top));
-          const pairStudents = twoAbove ? upperStudents : lowerStudents;
-          const extraStudent = twoAbove ? lowerStudents[0] : upperStudents[0];
+          let corner = null, arms = [];
+          for (let i = 0; i < 3; i++) {
+            const c = tc[i];
+            const others = tc.filter((_, j) => j !== i);
+            const sameCol = others.some(o => Math.abs(o.x - c.x) < 5);
+            const sameRow = others.some(o => Math.abs(o.y - c.y) < 5);
+            if (sameCol && sameRow) {
+              corner = c;
+              arms = others;
+              break;
+            }
+          }
+          if (!corner) continue;
           trios.push({
-            midX: (pairStudents[0].x + pairStudents[1].x) / 2,
-            extraX: extraStudent.x,
-            extraBelow: twoAbove,
-            cy: (upperBottom + lowerTop) / 2,
+            cx: corner.x, cy: corner.y,
+            a1x: arms[0].x, a1y: arms[0].y,
+            a2x: arms[1].x, a2y: arms[1].y,
             temporary: info.isTemporary,
           });
         } else if (info.partnerIds.length === 1) {
@@ -103,10 +110,20 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
   const PERM = '#228BE6';
   const TEMP = '#f97316';
   const SQ_HALF = 13; // square half-size
-  const TRI_LEG = 18; // right-triangle leg length
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 15 }}>
+      {markers.trios.map((t, i) => (
+        <polygon
+          key={`trio-${i}`}
+          points={`${t.cx},${t.cy} ${t.a1x},${t.a1y} ${t.a2x},${t.a2y}`}
+          fill="white"
+          fillOpacity="0.6"
+          stroke={t.temporary ? TEMP : PERM}
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
+      ))}
       {markers.pairs.map((p, i) => (
         <rect
           key={`pair-${i}`}
@@ -120,21 +137,6 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
           strokeWidth="2.5"
         />
       ))}
-      {markers.trios.map((t, i) => {
-        const dx = t.extraX >= t.midX ? 1 : -1;
-        const dy = t.extraBelow ? 1 : -1;
-        const pts = `${t.midX},${t.cy} ${t.midX + dx * TRI_LEG},${t.cy} ${t.midX},${t.cy + dy * TRI_LEG}`;
-        return (
-          <polygon
-            key={`trio-${i}`}
-            points={pts}
-            fill="white"
-            stroke={t.temporary ? TEMP : PERM}
-            strokeWidth="2.5"
-            strokeLinejoin="round"
-          />
-        );
-      })}
     </svg>
   );
 }
