@@ -89,6 +89,19 @@ export default function Carpet() {
     const allSeats = await base44.entities.CarpetSeat.filter({ class_name: selectedClass, group });
     allSeats.sort((a, b) => a.position - b.position);
 
+    // Clean up orphaned student references (student was deleted from roster)
+    const studentIds = new Set(students.map(s => s.id));
+    const orphaned = allSeats.filter(s => s.student_id && !studentIds.has(s.student_id));
+    if (orphaned.length > 0) {
+      await base44.entities.CarpetSeat.bulkUpdate(
+        orphaned.map(s => ({ id: s.id, student_id: null }))
+      );
+      for (const o of orphaned) {
+        const idx = allSeats.findIndex(seat => seat.id === o.id);
+        if (idx >= 0) allSeats[idx] = { ...allSeats[idx], student_id: null };
+      }
+    }
+
     if (allSeats.length < GRID_SIZE) {
       const existingPositions = new Set(allSeats.map((s) => s.position));
       const classStudents = students.filter(

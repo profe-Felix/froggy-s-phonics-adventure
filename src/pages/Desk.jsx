@@ -132,6 +132,17 @@ export default function Desk() {
   );
   const homeroom = getHomeroomForClass(selectedClass, group);
 
+  // Auto-delete orphaned desks whose student_id references a deleted student
+  useEffect(() => {
+    if (!desks || !students) return;
+    const studentIds = new Set(students.map(s => s.id));
+    const orphaned = desks.filter(d => d.student_id && !studentIds.has(d.student_id));
+    if (orphaned.length === 0) return;
+    const orphanedIds = new Set(orphaned.map(d => d.id));
+    setDesks(prev => prev ? prev.filter(d => !orphanedIds.has(d.id)) : prev);
+    Promise.all(orphaned.map(d => base44.entities.DeskSeat.delete(d.id))).catch(() => loadRef.current());
+  }, [desks, students]);
+
   const bankStudents = useMemo(
     () =>
       students && selectedClass
@@ -362,6 +373,45 @@ export default function Desk() {
     try {
       const updates = (desks || []).map((d) => ({ id: d.id, student_id: null }));
       if (updates.length) await base44.entities.DeskSeat.bulkUpdate(updates);
+    } catch { loadRef.current(); }
+    setSaving(false);
+  };
+
+  const handleRemoveEmpty = async () => {
+    const empty = (desks || []).filter(d => !d.student_id || !studentMap[d.student_id]);
+    if (empty.length === 0) return;
+    if (!window.confirm(`Remove ${empty.length} empty desk${empty.length > 1 ? 's' : ''}?`)) return;
+    const emptyIds = new Set(empty.map(d => d.id));
+    setDesks(prev => prev ? prev.filter(d => !emptyIds.has(d.id)) : prev);
+    setSaving(true);
+    try {
+      await Promise.all(empty.map(d => base44.entities.DeskSeat.delete(d.id)));
+    } catch { loadRef.current(); }
+    setSaving(false);
+  };
+
+  const handleAutoFill = async () => {
+    if (!desks || !students) return;
+    const emptyDesks = desks.filter(d => !d.student_id || !studentMap[d.student_id]);
+    if (emptyDesks.length === 0) return;
+    const seatedIds = new Set(desks.filter(d => d.student_id && studentMap[d.student_id]).map(d => d.student_id));
+    const available = students.filter(
+      (s) =>
+        (s.class_name || '').toLowerCase() === homeroom.toLowerCase() &&
+        !seatedIds.has(s.id)
+    );
+    if (available.length === 0) return;
+    const updates = [];
+    const newDesks = [...desks];
+    for (let i = 0; i < emptyDesks.length && i < available.length; i++) {
+      updates.push({ id: emptyDesks[i].id, student_id: available[i].id });
+      const idx = newDesks.findIndex((d) => d.id === emptyDesks[i].id);
+      if (idx >= 0) newDesks[idx] = { ...newDesks[idx], student_id: available[i].id };
+    }
+    setDesks(newDesks);
+    setSaving(true);
+    try {
+      await base44.entities.DeskSeat.bulkUpdate(updates);
     } catch { loadRef.current(); }
     setSaving(false);
   };
@@ -633,6 +683,12 @@ export default function Desk() {
                   </Button>
                   <Button size="sm" variant="outline" onClick={handleReset}>
                     <RefreshCw className="w-4 h-4 mr-1.5" /> Reset
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleAutoFill}>
+                    <Users className="w-4 h-4 mr-1.5" /> Auto-fill
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleRemoveEmpty}>
+                    <Trash2 className="w-4 h-4 mr-1.5" /> Remove empty
                   </Button>
                   {group === 'A' && (desks || []).length > 0 && (
                     <Button size="sm" variant="outline" onClick={handleCopyLayoutToGroups}>
