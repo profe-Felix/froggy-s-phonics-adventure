@@ -8,6 +8,7 @@ import {
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 import { splinePathD } from '@/components/tracing/strokeMath';
+import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 
 const X_SCALE = 600;
 const CANVAS_H = 750;
@@ -599,10 +600,8 @@ export default function MissingLetterWordCanvas({
         onPointerCancel={handlePointerUp}
       >
         {/* Writing lines — span the full word width */}
-        {/* Sky / grass / dirt background zones */}
-        <rect x="0" y={0.10 * CANVAS_H} width={totalW} height={0.267 * CANVAS_H} fill="#dceaf9" opacity="0.5" />
-        <rect x="0" y={0.367 * CANVAS_H} width={totalW} height={0.266 * CANVAS_H} fill="#e8f5e9" opacity="0.5" />
-        <rect x="0" y={0.633 * CANVAS_H} width={totalW} height={0.267 * CANVAS_H} fill="#f5ebe0" opacity="0.5" />
+        {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={80} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
         {/* Fence line (dashed black) */}

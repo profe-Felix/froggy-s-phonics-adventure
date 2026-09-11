@@ -8,6 +8,7 @@ import {
 } from '@/lib/tracingCore';
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 import { splinePathD } from '@/components/tracing/strokeMath';
+import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
@@ -1202,10 +1203,8 @@ export default function LetterTracingCanvas({
         {/* Primary writing lines — equal-zone spacing (matches authoring).
             vector-effect=non-scaling-stroke keeps lines visible at every size
             tier (Huge through Paper) instead of thinning to sub-pixel. */}
-        {/* Sky / grass / dirt background zones */}
-        <rect x="0" y={0.10 * CANVAS_H} width={TOTAL_W} height={0.267 * CANVAS_H} fill="#dceaf9" opacity="0.5" />
-        <rect x="0" y={0.367 * CANVAS_H} width={TOTAL_W} height={0.266 * CANVAS_H} fill="#e8f5e9" opacity="0.5" />
-        <rect x="0" y={0.633 * CANVAS_H} width={TOTAL_W} height={0.267 * CANVAS_H} fill="#f5ebe0" opacity="0.5" />
+        {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={60} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
           stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />

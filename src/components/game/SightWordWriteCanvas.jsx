@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { Trash2, Check, Volume2, RefreshCw, ArrowRight } from 'lucide-react';
 import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
+import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 import { recognize, pathwayMatch } from '@/lib/letterRecognize';
 import { segmentByRecognition } from '@/components/tracing/LetterRecognitionCanvas';
 import { LETTER_WAYPOINTS } from '../data/letterWaypoints';
@@ -189,10 +190,8 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
           onPointerCancel={up}
         >
           {/* Guide lines — same vertical positions as the tracing canvas */}
-          {/* Sky / grass / dirt background zones */}
-          <rect x="0" y={0.10 * CANVAS_H} width={VIEWBOX_W} height={0.267 * CANVAS_H} fill="#dceaf9" opacity="0.5" />
-          <rect x="0" y={0.367 * CANVAS_H} width={VIEWBOX_W} height={0.266 * CANVAS_H} fill="#e8f5e9" opacity="0.5" />
-          <rect x="0" y={0.633 * CANVAS_H} width={VIEWBOX_W} height={0.267 * CANVAS_H} fill="#f5ebe0" opacity="0.5" />
+          {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
+          <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={60} />
           {/* Sky line (blue) */}
           <line x1="0" y1={0.10 * CANVAS_H} x2={VIEWBOX_W} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
           {/* Fence line (dashed black) */}
