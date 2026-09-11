@@ -202,12 +202,9 @@
     width: auto !important;
     box-shadow: none !important;
   }
-  @page HfwLandscape {
-    size: letter landscape;
-    margin: 0.25in;
-  }
   .hfw-sheet-wrap {
     --zoom: 1 !important;
+    position: static !important;
     width: auto !important;
     height: auto !important;
   }
@@ -223,6 +220,13 @@
     box-shadow: none !important;
     padding: 0.15in !important;
   }
+}
+
+/* Named page for HFW landscape printing — must be top-level (not inside @media)
+   so Chrome applies it before the print media query overrides. */
+@page HfwLandscape {
+  size: letter landscape;
+  margin: 0.25in;
 }
 
 /* HFW card grid — landscape letter, 3 cols × 4 rows = 12 cards per sheet.
