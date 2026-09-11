@@ -1,7 +1,7 @@
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 
 export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0,
-  emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX }) {
+  emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap }) {
   const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
@@ -36,6 +36,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
                 fenceWidth={fenceWidth}
                 fenceOffset={fenceOffset}
                 emojiX={emojiX}
+                fenceGap={fenceGap}
               />
             </svg>
             <div className="practice-line top" />

@@ -18,13 +18,14 @@ export default function NamePractice() {
   const [offset, setOffset] = useState(() => parseFloat(localStorage.getItem('np3.offset')) || 0);
   const [scale, setScale] = useState(() => parseFloat(localStorage.getItem('np3.scale')) || 1);
   // TEMP: emoji tuning sliders — remove once values are finalized
-  const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.84);
-  const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.26);
-  const [emojiSpacing, setEmojiSpacing] = useState(90);
-  const [bgWidth, setBgWidth] = useState(80);
-  const [fenceWidth, setFenceWidth] = useState(40);
+  const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.96);
+  const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.16);
+  const [emojiSpacing, setEmojiSpacing] = useState(45);
+  const [bgWidth, setBgWidth] = useState(140);
+  const [fenceWidth, setFenceWidth] = useState(26);
   const [fenceOffset, setFenceOffset] = useState(0);
-  const [emojiX, setEmojiX] = useState(60);
+  const [emojiX, setEmojiX] = useState(13);
+  const [fenceGap, setFenceGap] = useState(35);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -210,6 +211,11 @@ export default function NamePractice() {
             <span className="w-10 tabular-nums">{fenceWidth}</span>
           </label>
           <label className="flex items-center gap-1.5 text-muted-foreground">
+            Fence Gap
+            <input type="range" min={0} max={80} step={1} value={fenceGap} onChange={(e) => setFenceGap(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{fenceGap}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
             Fence Offset
             <input type="range" min={0} max={40} step={1} value={fenceOffset} onChange={(e) => setFenceOffset(parseFloat(e.target.value))} className="w-24" />
             <span className="w-10 tabular-nums">{fenceOffset}</span>
@@ -231,13 +237,13 @@ export default function NamePractice() {
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
                 <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} />
+                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} fenceGap={fenceGap} />
               </div>
             ))}
           </div>
         ) : selected ? (
           <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} />
+            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} fenceGap={fenceGap} />
         ) : null}
       </main>
     </div>

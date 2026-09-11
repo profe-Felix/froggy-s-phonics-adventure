@@ -20,7 +20,7 @@ const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
   emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing = 70, bgWidth = 80,
-  fenceWidth = 40, fenceOffset = 0, emojiX = 0 }) {
+  fenceWidth = 40, fenceOffset = 0, emojiX = 0, fenceGap = 35 }) {
 
   const clipId = useId();
 
@@ -48,7 +48,7 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   // Image rendered at natural aspect ratio (height = grassH), then clipped.
   // fenceOffset shifts the image left → shows different pickets.
   const fenceImgW = grassH * FENCE_ASPECT;
-  const fenceX = lowX + 35; // positioned after the lowercase emoji
+  const fenceX = lowX + fenceGap; // positioned after the lowercase emoji
   const imgX = fenceX - fenceOffset;
 
   return (
