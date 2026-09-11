@@ -111,15 +111,7 @@ export default function Desk() {
       base44.entities.DeskSeat.filter({ class_name: selectedClass, group }),
       base44.entities.DeskLandmark.filter({ class_name: selectedClass, group }),
     ]);
-    // Auto-remove empty desks (no student assigned) — keeps the layout clean
-    const empty = allDesks.filter(d => !d.student_id);
-    if (empty.length > 0) {
-      await Promise.all(empty.map(d => base44.entities.DeskSeat.delete(d.id)));
-      const emptyIds = new Set(empty.map(d => d.id));
-      setDesks(allDesks.filter(d => !emptyIds.has(d.id)));
-    } else {
-      setDesks(allDesks);
-    }
+    setDesks(allDesks);
     setLandmarks(allLandmarks);
   }, [selectedClass, group]);
 
@@ -140,22 +132,23 @@ export default function Desk() {
   );
   const homeroom = getHomeroomForClass(selectedClass, group);
 
-  // Auto-delete orphaned desks (student deleted) and desks assigned to unnamed students
+  // Unseat orphaned desks (student deleted) and desks assigned to unnamed students.
+  // The desk itself stays — only the student assignment is cleared.
   useEffect(() => {
     if (!desks || !students) return;
     const sMap = {};
     for (const s of students) sMap[s.id] = s;
-    const toRemove = desks.filter(d => {
-      if (!d.student_id) return false; // truly empty desks handled by loadAll
+    const toUnseat = desks.filter(d => {
+      if (!d.student_id) return false;
       const student = sMap[d.student_id];
       if (!student) return true; // orphaned
       if (!student.name) return true; // assigned to unnamed/blank roster entry
       return false;
     });
-    if (toRemove.length === 0) return;
-    const removeIds = new Set(toRemove.map(d => d.id));
-    setDesks(prev => prev ? prev.filter(d => !removeIds.has(d.id)) : prev);
-    Promise.all(toRemove.map(d => base44.entities.DeskSeat.delete(d.id))).catch(() => loadRef.current());
+    if (toUnseat.length === 0) return;
+    const unseatIds = new Set(toUnseat.map(d => d.id));
+    setDesks(prev => prev ? prev.map(d => unseatIds.has(d.id) ? { ...d, student_id: null } : d) : prev);
+    Promise.all(toUnseat.map(d => base44.entities.DeskSeat.update(d.id, { student_id: null }))).catch(() => loadRef.current());
   }, [desks, students]);
 
   const bankStudents = useMemo(

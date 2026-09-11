@@ -12,6 +12,7 @@ import { parseName } from '@/lib/nameNormalize';
 
 const ROW_SIZES = [5, 5, 6, 5, 5];
 const GRID_SIZE = ROW_SIZES.reduce((a, b) => a + b, 0);
+const ROW_COLORS = ['bg-red-100', 'bg-green-100', 'bg-blue-100', 'bg-pink-100', 'bg-cyan-100'];
 const GROUPS = ['A', 'B', 'C'];
 
 export default function Carpet() {
@@ -102,29 +103,34 @@ export default function Carpet() {
       }
     }
 
-    // Only create spots for real students (with names), not blank roster entries
-    const classStudents = students.filter(
-      (s) => (s.class_name || '').toLowerCase() === homeroom.toLowerCase() && s.name
-    );
-    const targetCount = Math.min(classStudents.length, GRID_SIZE);
-
-    // Remove excess empty seats beyond what we need for named students
-    const seatedCount = allSeats.filter(s => s.student_id).length;
-    const maxNeeded = Math.max(targetCount, seatedCount);
-    const emptySeats = allSeats.filter(s => !s.student_id);
-    if (allSeats.length > maxNeeded && emptySeats.length > 0) {
-      const toRemove = emptySeats.slice(0, allSeats.length - maxNeeded);
-      await Promise.all(toRemove.map(s => base44.entities.CarpetSeat.delete(s.id)));
-      const removeIds = new Set(toRemove.map(s => s.id));
-      for (let i = allSeats.length - 1; i >= 0; i--) {
-        if (removeIds.has(allSeats[i].id)) allSeats.splice(i, 1);
+    // Unseat students with no name (blank roster entries) — keep the spot, just clear it
+    const sMap = {};
+    for (const s of students) sMap[s.id] = s;
+    const toUnseat = allSeats.filter(seat => {
+      if (!seat.student_id) return false;
+      const student = sMap[seat.student_id];
+      if (!student) return true; // orphaned
+      if (!student.name) return true; // unnamed
+      return false;
+    });
+    if (toUnseat.length > 0) {
+      await base44.entities.CarpetSeat.bulkUpdate(
+        toUnseat.map(s => ({ id: s.id, student_id: null }))
+      );
+      for (const o of toUnseat) {
+        const idx = allSeats.findIndex(seat => seat.id === o.id);
+        if (idx >= 0) allSeats[idx] = { ...allSeats[idx], student_id: null };
       }
     }
 
-    if (allSeats.length < targetCount) {
+    // Create missing carpet spots up to the full grid (spots exist regardless of students)
+    if (allSeats.length < GRID_SIZE) {
       const existingPositions = new Set(allSeats.map((s) => s.position));
+      const classStudents = students.filter(
+        (s) => (s.class_name || '').toLowerCase() === homeroom.toLowerCase() && s.name
+      );
       const newSeats = [];
-      for (let i = 0; i < targetCount; i++) {
+      for (let i = 0; i < GRID_SIZE; i++) {
         if (!existingPositions.has(i)) {
           newSeats.push({
             class_name: selectedClass,
@@ -401,7 +407,7 @@ export default function Carpet() {
     const start = ROW_SIZES.slice(0, rowIdx).reduce((a, b) => a + b, 0);
     const rowSeats = seats.slice(start, start + ROW_SIZES[rowIdx]);
     return (
-      <div key={rowIdx} className="flex gap-2">
+      <div key={rowIdx} className={cn('flex gap-2 p-1.5 rounded-lg', ROW_COLORS[rowIdx] || '')}>
         {rowSeats.map((seat) => {
           const student = seat.student_id ? studentMap[seat.student_id] : null;
           const { first } = student ? parseName(student.name) : { first: '' };
