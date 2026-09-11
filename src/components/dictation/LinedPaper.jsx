@@ -14,18 +14,24 @@ export default function LinedPaper({ width, height, lineCount = 6 }) {
     const yTop = i * lh;
     rows.push(
       <g key={i}>
-        {/* Ascender line — solid blue */}
+        {/* Sky background */}
+        <rect x={0} y={yTop + lh * 0.10} width={width} height={lh * 0.267} fill="#dceaf9" opacity={0.5} />
+        {/* Grass background */}
+        <rect x={0} y={yTop + lh * 0.367} width={width} height={lh * 0.266} fill="#e8f5e9" opacity={0.5} />
+        {/* Dirt background */}
+        <rect x={0} y={yTop + lh * 0.633} width={width} height={lh * 0.267} fill="#f5ebe0" opacity={0.5} />
+        {/* Sky line — solid blue */}
         <line x1={0} y1={yTop + lh * 0.10} x2={width} y2={yTop + lh * 0.10}
-          stroke="#2563eb" strokeWidth={2.5} opacity={0.9} />
-        {/* Midline — dashed black */}
+          stroke="#4a90e2" strokeWidth={2.5} opacity={0.9} />
+        {/* Fence line — dashed black */}
         <line x1={0} y1={yTop + lh * 0.367} x2={width} y2={yTop + lh * 0.367}
           stroke="#000000" strokeWidth={1.8} strokeDasharray="12 8" opacity={0.9} />
-        {/* Baseline — solid green */}
+        {/* Grass line (baseline) — solid green */}
         <line x1={0} y1={yTop + lh * 0.633} x2={width} y2={yTop + lh * 0.633}
           stroke="#16a34a" strokeWidth={2.5} opacity={0.9} />
-        {/* Descender line — solid pink */}
+        {/* Dirt line (descender) — solid brown */}
         <line x1={0} y1={yTop + lh * 0.90} x2={width} y2={yTop + lh * 0.90}
-          stroke="#db2777" strokeWidth={2.5} opacity={0.95} />
+          stroke="#8d6e63" strokeWidth={2.5} opacity={0.95} />
       </g>
     );
   }

@@ -381,8 +381,10 @@
   --desc: calc(var(--f) * 0.533333);
   --asc: calc(var(--f) * 1.166667);
   --lh: 1.7;
-  --pblue: #3da8d9;
-  --ppink: #d93d7c;
+  --psky: #4a90e2;
+  --pfence: #000000;
+  --pgrass: #43a047;
+  --pdirt: #795548;
   width: 8in;
   margin: 0 auto;
   display: flex;
@@ -401,10 +403,19 @@
   left: 0;
   right: 0;
 }
-.practice-line.top { top: 0; border-top: 2px solid var(--pblue); }
-.practice-line.mid { top: var(--g); border-top: 2px dashed var(--pblue); }
-.practice-line.base { top: calc(2 * var(--g)); border-top: 2px solid var(--pblue); }
-.practice-line.desc { top: calc(3 * var(--g)); border-top: 2px solid var(--ppink); }
+.practice-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+.practice-bg.sky { top: 0; height: var(--g); background: #dceaf9; }
+.practice-bg.grass { top: var(--g); height: var(--g); background: #e8f5e9; }
+.practice-bg.dirt { top: calc(2 * var(--g)); height: var(--g); background: #f5ebe0; }
+.practice-line.top { top: 0; border-top: 2px solid var(--psky); }
+.practice-line.mid { top: var(--g); border-top: 2px dashed var(--pfence); }
+.practice-line.base { top: calc(2 * var(--g)); border-top: 2px solid var(--pgrass); }
+.practice-line.desc { top: calc(3 * var(--g)); border-top: 2px solid var(--pdirt); }
 .practice-text {
   position: absolute;
   left: 0.1in;

@@ -72,6 +72,8 @@ export default function NamePractice() {
   let visible = students ?? [];
   if (classParam) visible = visible.filter((s) => s.class_name === classParam);
   if (classFilter) visible = visible.filter((s) => s.class_name === classFilter);
+  // Only show students with names — blank roster entries get no page
+  visible = visible.filter((s) => (s.name || '').trim());
 
   useEffect(() => {
     if (classParam && !classFilter) setClassFilter(classParam);

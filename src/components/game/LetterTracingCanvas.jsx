@@ -1202,14 +1202,22 @@ export default function LetterTracingCanvas({
         {/* Primary writing lines — equal-zone spacing (matches authoring).
             vector-effect=non-scaling-stroke keeps lines visible at every size
             tier (Huge through Paper) instead of thinning to sub-pixel. */}
+        {/* Sky / grass / dirt background zones */}
+        <rect x="0" y={0.10 * CANVAS_H} width={TOTAL_W} height={0.267 * CANVAS_H} fill="#dceaf9" opacity="0.5" />
+        <rect x="0" y={0.367 * CANVAS_H} width={TOTAL_W} height={0.266 * CANVAS_H} fill="#e8f5e9" opacity="0.5" />
+        <rect x="0" y={0.633 * CANVAS_H} width={TOTAL_W} height={0.267 * CANVAS_H} fill="#f5ebe0" opacity="0.5" />
+        {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
-          stroke="#93c5fd" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+          stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Fence line (dashed black) */}
         <line x1="0" y1={0.367 * CANVAS_H} x2={TOTAL_W} y2={0.367 * CANVAS_H}
           stroke="#000000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Grass line / baseline (green) */}
         <line x1="0" y1={0.633 * CANVAS_H} x2={TOTAL_W} y2={0.633 * CANVAS_H}
           stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Dirt line / descender (brown) */}
         <line x1="0" y1={0.90 * CANVAS_H} x2={TOTAL_W} y2={0.90 * CANVAS_H}
-          stroke="#fca5a5" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
+          stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Practice row. Earlier copies are completed, the active copy
             uses the normal stroke colors, and upcoming copies stay faint.

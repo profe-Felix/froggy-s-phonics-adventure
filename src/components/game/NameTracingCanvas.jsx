@@ -684,10 +684,18 @@ export default function NameTracingCanvas({
         onTouchCancel={onTouchEnd}
       >
         {/* Guide lines */}
-        <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#93c5fd" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Sky / grass / dirt background zones */}
+        <rect x="0" y={0.10 * CANVAS_H} width={totalW} height={0.267 * CANVAS_H} fill="#dceaf9" opacity="0.5" />
+        <rect x="0" y={0.367 * CANVAS_H} width={totalW} height={0.266 * CANVAS_H} fill="#e8f5e9" opacity="0.5" />
+        <rect x="0" y={0.633 * CANVAS_H} width={totalW} height={0.267 * CANVAS_H} fill="#f5ebe0" opacity="0.5" />
+        {/* Sky line (blue) */}
+        <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Fence line (dashed black) */}
         <line x1="0" y1={0.367 * CANVAS_H} x2={totalW} y2={0.367 * CANVAS_H} stroke="#000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        {/* Grass line / baseline (green) */}
         <line x1="0" y1={0.633 * CANVAS_H} x2={totalW} y2={0.633 * CANVAS_H} stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
-        <line x1="0" y1={0.90 * CANVAS_H} x2={totalW} y2={0.90 * CANVAS_H} stroke="#fca5a5" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
+        {/* Dirt line / descender (brown) */}
+        <line x1="0" y1={0.90 * CANVAS_H} x2={totalW} y2={0.90 * CANVAS_H} stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Guide paths for ALL letters — completed = green, current = colored, upcoming = grey */}
         {isGuided && wordLetters.map((ch, li) => {

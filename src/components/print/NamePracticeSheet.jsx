@@ -9,6 +9,9 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
       <div className="practice-sheet" style={{ '--f': `${fontSize}in`, '--g': `${lineSize}in`, '--offset': `${offset}in` }}>
         {rows.map((name, i) => (
           <div className="practice-set" key={i}>
+            <div className="practice-bg sky" />
+            <div className="practice-bg grass" />
+            <div className="practice-bg dirt" />
             <div className="practice-line top" />
             <div className="practice-line mid" />
             <div className="practice-line base" />
