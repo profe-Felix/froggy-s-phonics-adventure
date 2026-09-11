@@ -56,9 +56,15 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
           const lowerStudents = twoAbove ? [sorted[2]] : [sorted[1], sorted[2]];
           const upperBottom = Math.max(...upperStudents.map(c => c.bottom));
           const lowerTop = Math.min(...lowerStudents.map(c => c.top));
-          const cx = tc.reduce((s, c) => s + c.x, 0) / 3;
-          const cy = (upperBottom + lowerTop) / 2;
-          trios.push({ cx, cy, pointsUp: !twoAbove, temporary: info.isTemporary });
+          const pairStudents = twoAbove ? upperStudents : lowerStudents;
+          const extraStudent = twoAbove ? lowerStudents[0] : upperStudents[0];
+          trios.push({
+            midX: (pairStudents[0].x + pairStudents[1].x) / 2,
+            extraX: extraStudent.x,
+            extraBelow: twoAbove,
+            cy: (upperBottom + lowerTop) / 2,
+            temporary: info.isTemporary,
+          });
         } else if (info.partnerIds.length === 1) {
           // Pair
           const pid = info.partnerIds[0];
@@ -97,8 +103,7 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
   const PERM = '#228BE6';
   const TEMP = '#f97316';
   const SQ_HALF = 13; // square half-size
-  const TRI_SIDE = 28;
-  const TRI_H = (TRI_SIDE * Math.sqrt(3)) / 2;
+  const TRI_LEG = 18; // right-triangle leg length
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 15 }}>
@@ -116,11 +121,9 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
         />
       ))}
       {markers.trios.map((t, i) => {
-        const r1 = (2 * TRI_H) / 3;
-        const r2 = TRI_H / 3;
-        const pts = t.pointsUp
-          ? `${t.cx},${t.cy - r1} ${t.cx - TRI_SIDE / 2},${t.cy + r2} ${t.cx + TRI_SIDE / 2},${t.cy + r2}`
-          : `${t.cx},${t.cy + r1} ${t.cx - TRI_SIDE / 2},${t.cy - r2} ${t.cx + TRI_SIDE / 2},${t.cy - r2}`;
+        const dx = t.extraX >= t.midX ? 1 : -1;
+        const dy = t.extraBelow ? 1 : -1;
+        const pts = `${t.midX},${t.cy} ${t.midX + dx * TRI_LEG},${t.cy} ${t.midX},${t.cy + dy * TRI_LEG}`;
         return (
           <polygon
             key={`trio-${i}`}

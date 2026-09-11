@@ -715,7 +715,7 @@ export default function Carpet() {
                 <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
                 <span className="flex items-center gap-1"><Star className="w-3 h-3 inline" /> Star (trio third)</span>
                 <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#228BE6" strokeWidth="2" /></svg> Square = pair</span>
-                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><polygon points="7,1 13,12 1,12" fill="white" stroke="#228BE6" strokeWidth="2" strokeLinejoin="round" /></svg> Triangle = trio</span>
+                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><polygon points="1,1 1,13 13,13" fill="white" stroke="#228BE6" strokeWidth="2" strokeLinejoin="round" /></svg> Triangle = trio</span>
                 <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#f97316" strokeWidth="2" /></svg> Orange = temporary</span>
               </div>
             )}
