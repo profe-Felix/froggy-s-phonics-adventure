@@ -43,7 +43,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
             <div className="practice-line mid" />
             <div className="practice-line base" />
             <div className="practice-line desc" />
-            <div className="practice-text" style={{ left: `${(bgWidth / 100) + 0.1}in` }}>{name}</div>
+            <div className="practice-text" style={{ left: `${(bgWidth / 100) + 0.02}in` }}>{name}</div>
           </div>
         ))}
       </div>
