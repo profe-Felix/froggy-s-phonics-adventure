@@ -42,7 +42,7 @@ export default function NameTracingCanvas({
 
   // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 4, 80, false),
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 80, false),
     [name, waypoints]
   );
 

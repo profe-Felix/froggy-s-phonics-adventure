@@ -66,6 +66,8 @@ export default function NameTracingMode({ studentData, onBack }) {
     for (const part of nameParts) {
       out.push({ part, mode: 'guided', label: `${part} — Guided` });
       out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
+      out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
+      out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
     }
     return out;
   }, [nameParts]);

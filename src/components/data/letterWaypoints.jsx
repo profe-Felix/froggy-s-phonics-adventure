@@ -64,7 +64,7 @@ export const LETTER_WAYPOINTS = {
   b: {
     strokes: [[
       // pull down straight from ascender
-      { x: 0.35, y: 0.10 }, { x: 0.35, y: 0.72 },
+      { x: 0.35, y: 0.10 }, { x: 0.35, y: 0.72, corner: true },
       // push up to midline then circle forward
       { x: 0.35, y: 0.52 },
       ...arc(0.52, 0.57, 0.17, 0.15, 180, 540, 20),
@@ -79,7 +79,7 @@ export const LETTER_WAYPOINTS = {
     strokes: [[
       ...arc(0.50, 0.57, 0.19, 0.16, -50, 300, 20),
       { x: 0.69, y: 0.57 },
-      { x: 0.69, y: 0.10 },
+      { x: 0.69, y: 0.10, corner: true },
       { x: 0.69, y: 0.72 },
     ]],
     hint: 'Circle back all the way, push up to top, pull down'
@@ -109,7 +109,7 @@ export const LETTER_WAYPOINTS = {
   },
   h: {
     strokes: [[
-      { x: 0.35, y: 0.10 }, { x: 0.35, y: 0.72 },
+      { x: 0.35, y: 0.10 }, { x: 0.35, y: 0.72, corner: true },
       { x: 0.35, y: 0.52 },
       ...arc(0.52, 0.52, 0.17, 0.12, 180, 360, 10),
       { x: 0.69, y: 0.72 },
@@ -133,7 +133,7 @@ export const LETTER_WAYPOINTS = {
   k: {
     strokes: [
       [{ x: 0.35, y: 0.10 }, { x: 0.35, y: 0.72 }],
-      [{ x: 0.72, y: 0.42 }, { x: 0.35, y: 0.57 }, { x: 0.72, y: 0.72 }],
+      [{ x: 0.72, y: 0.42 }, { x: 0.35, y: 0.57, corner: true }, { x: 0.72, y: 0.72 }],
     ],
     hint: 'Pull down. Lift. Slant left, slant right'
   },
@@ -143,10 +143,10 @@ export const LETTER_WAYPOINTS = {
   },
   m: {
     strokes: [[
-      { x: 0.20, y: 0.42 }, { x: 0.20, y: 0.72 },
+      { x: 0.20, y: 0.42 }, { x: 0.20, y: 0.72, corner: true },
       { x: 0.20, y: 0.52 },
       ...arc(0.34, 0.52, 0.14, 0.12, 180, 360, 8),
-      { x: 0.48, y: 0.72 },
+      { x: 0.48, y: 0.72, corner: true },
       { x: 0.48, y: 0.52 },
       ...arc(0.60, 0.52, 0.14, 0.12, 180, 360, 8),
       { x: 0.74, y: 0.72 },
@@ -155,7 +155,7 @@ export const LETTER_WAYPOINTS = {
   },
   n: {
     strokes: [[
-      { x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72 },
+      { x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72, corner: true },
       { x: 0.33, y: 0.52 },
       ...arc(0.50, 0.52, 0.17, 0.12, 180, 360, 10),
       { x: 0.67, y: 0.72 },
@@ -168,7 +168,7 @@ export const LETTER_WAYPOINTS = {
   },
   p: {
     strokes: [[
-      { x: 0.35, y: 0.42 }, { x: 0.35, y: 0.92 },
+      { x: 0.35, y: 0.42 }, { x: 0.35, y: 0.92, corner: true },
       { x: 0.35, y: 0.52 },
       ...arc(0.52, 0.57, 0.17, 0.15, 180, 540, 20),
     ]],
@@ -178,14 +178,14 @@ export const LETTER_WAYPOINTS = {
     strokes: [[
       ...arc(0.50, 0.57, 0.19, 0.16, -50, 300, 20),
       { x: 0.69, y: 0.57 },
-      { x: 0.69, y: 0.92 },
+      { x: 0.69, y: 0.92, corner: true },
       { x: 0.78, y: 0.95 },
     ]],
     hint: 'Circle back all the way, push up, pull down, curve forward'
   },
   r: {
     strokes: [[
-      { x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72 },
+      { x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72, corner: true },
       { x: 0.33, y: 0.50 },
       ...arc(0.50, 0.46, 0.18, 0.10, 180, 340, 8),
     ]],
@@ -209,20 +209,20 @@ export const LETTER_WAYPOINTS = {
     strokes: [[
       { x: 0.33, y: 0.42 },
       ...arc(0.50, 0.63, 0.17, 0.12, 180, 360, 12),
-      { x: 0.67, y: 0.42 },
+      { x: 0.67, y: 0.42, corner: true },
       { x: 0.67, y: 0.72 },
     ]],
     hint: 'Pull down, curve forward, push up, pull down'
   },
   v: {
-    strokes: [[{ x: 0.25, y: 0.42 }, { x: 0.50, y: 0.72 }, { x: 0.75, y: 0.42 }]],
+    strokes: [[{ x: 0.25, y: 0.42 }, { x: 0.50, y: 0.72, corner: true }, { x: 0.75, y: 0.42 }]],
     hint: 'Slant right, slant up'
   },
   w: {
     strokes: [[
-      { x: 0.14, y: 0.42 }, { x: 0.30, y: 0.72 },
-      { x: 0.50, y: 0.55 },
-      { x: 0.70, y: 0.72 }, { x: 0.86, y: 0.42 }
+      { x: 0.14, y: 0.42 }, { x: 0.30, y: 0.72, corner: true },
+      { x: 0.50, y: 0.55, corner: true },
+      { x: 0.70, y: 0.72, corner: true }, { x: 0.86, y: 0.42 }
     ]],
     hint: 'Slant right, slant up, slant right, slant up'
   },
@@ -242,8 +242,8 @@ export const LETTER_WAYPOINTS = {
   },
   z: {
     strokes: [[
-      { x: 0.28, y: 0.42 }, { x: 0.72, y: 0.42 },
-      { x: 0.28, y: 0.72 }, { x: 0.72, y: 0.72 }
+      { x: 0.28, y: 0.42 }, { x: 0.72, y: 0.42, corner: true },
+      { x: 0.28, y: 0.72, corner: true }, { x: 0.72, y: 0.72 }
     ]],
     hint: 'Slide right, slant left, slide right'
   },
@@ -252,7 +252,7 @@ export const LETTER_WAYPOINTS = {
   // students (gated in LetterTracingMode); English students never see it.
   ñ: {
     strokes: [
-      [{ x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72 },
+      [{ x: 0.33, y: 0.42 }, { x: 0.33, y: 0.72, corner: true },
        { x: 0.33, y: 0.52 },
        ...arc(0.50, 0.52, 0.17, 0.12, 180, 360, 10),
        { x: 0.67, y: 0.72 }],
@@ -266,8 +266,8 @@ export const LETTER_WAYPOINTS = {
   // the strokes from the authoring page.
   Ñ: {
     strokes: [
-      [{ x: 0.33, y: 0.10 }, { x: 0.33, y: 0.72 },
-       { x: 0.67, y: 0.10 }, { x: 0.67, y: 0.72 }],
+      [{ x: 0.33, y: 0.10 }, { x: 0.33, y: 0.72, corner: true },
+       { x: 0.67, y: 0.10, corner: true }, { x: 0.67, y: 0.72 }],
       [...arc(0.41, 0.04, 0.07, 0.04, 180, 360, 6),
        ...arc(0.55, 0.04, 0.07, 0.04, 180, 0, 6)],
     ],

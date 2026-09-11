@@ -18,7 +18,7 @@ const SHEET_W = 800; // minimum sheet width — matches NameTracingCanvas
 
 export default function NameReferenceStrip({ name, waypoints, renderWidth = 320 }) {
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 4, 80, false),
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 80, false),
     [name, waypoints]
   );
 
