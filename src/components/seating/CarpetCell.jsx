@@ -1,5 +1,9 @@
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
+import { Sun, Moon, Star, ArrowLeftRight } from 'lucide-react';
+
+// Row → partner icon: red=sun, green=moon, blue=moon(walkway), pink=sun, aqua=moon
+const ROW_PARTNER_ICONS = [Sun, Moon, Moon, Sun, Moon];
 
 function isImageUrl(s) {
   return typeof s === 'string' && (s.startsWith('http') || s.startsWith('/'));
@@ -15,6 +19,7 @@ export default function CarpetCell({
   partnerInfo,
   partnerStudents,
   showPartners,
+  rowIndex,
 }) {
   const photo = student?.photo_url;
   const name = student?.name;
@@ -29,68 +34,69 @@ export default function CarpetCell({
   const isOut = status && status !== 'present';
   const statusLabel = status === 'absent' ? 'Absent' : status === 'stepped_out' ? 'Pulled' : '';
 
-  // Computed partner display names (from carpet partner logic, not the manual partner_label)
-  const partnerNames =
-    partnerInfo?.partnerIds
-      ?.map((id) => {
-        const p = partnerStudents?.[id];
-        if (!p) return '';
-        const { first: pf } = parseName(p.name);
-        return pf || p.name || '';
-      })
-      .filter(Boolean) || [];
+  // Partner icon: Star for trio third (temporary trio member), else Sun/Moon by row
+  const isTrioThird = partnerInfo?.isTrio && partnerInfo?.isTemporary;
+  const PartnerIconComp = isTrioThird ? Star : rowIndex != null ? ROW_PARTNER_ICONS[rowIndex] : null;
+  const hasPartner = partnerInfo && partnerInfo.partnerIds && partnerInfo.partnerIds.length > 0;
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        'relative flex-1 aspect-square border-2 rounded-lg overflow-hidden cursor-pointer transition-all bg-white',
-        isSelected
-          ? 'border-primary ring-2 ring-primary ring-offset-1 z-10'
-          : 'border-slate-300 hover:border-slate-400',
-        !student && 'bg-slate-50',
-        isOut && 'opacity-40 grayscale'
+        'relative flex-1 aspect-square p-1 cursor-pointer transition-all',
+        isSelected && 'z-20'
       )}
     >
-      {student ? (
-        photo ? (
-          <img src={photo} alt={name} className="w-full h-full object-cover" />
+      <div
+        className={cn(
+          'relative w-full h-full rounded-md overflow-hidden border',
+          student ? 'bg-white border-slate-200' : 'bg-slate-100/50 border-transparent',
+          isSelected ? 'ring-2 ring-primary' : '',
+          isOut && 'opacity-40 grayscale'
+        )}
+      >
+        {student ? (
+          photo ? (
+            <img src={photo} alt={name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-slate-100">
+              <span className="text-lg font-bold text-slate-400">{initials || '?'}</span>
+            </div>
+          )
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-slate-100">
-            <span className="text-lg font-bold text-slate-400">{initials || '?'}</span>
+          <div className="w-full h-full" />
+        )}
+
+        {isOut && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-500/40">
+            <span className="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">
+              {statusLabel}
+            </span>
           </div>
-        )
-      ) : (
-        <div className="w-full h-full" />
-      )}
+        )}
 
-      {isOut && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-500/40">
-          <span className="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">
-            {statusLabel}
-          </span>
-        </div>
-      )}
+        {student && !isOut && (
+          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate text-center">
+            {displayName}
+          </div>
+        )}
+      </div>
 
-      {student && !isOut && (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate text-center">
-          {displayName}
-        </div>
-      )}
-
-      {showPartners && partnerInfo && partnerNames.length > 0 && !isOut && (
+      {/* Partner icons: sun/moon/star + arrow, shown in partners mode */}
+      {showPartners && student && !isOut && PartnerIconComp && (
         <div
           className={cn(
-            'absolute top-1 left-1 text-[8px] px-1 py-0.5 rounded-full max-w-[70%] truncate z-10',
-            partnerInfo.isTemporary ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
+            'absolute top-0.5 left-0.5 z-10 flex items-center gap-0.5 rounded-full px-1 py-0.5 shadow',
+            partnerInfo?.isTemporary ? 'bg-orange-500' : 'bg-blue-600'
           )}
         >
-          {partnerInfo.isTrio ? '👥 ' : ''}
-          {partnerNames.join(' + ')}
+          <PartnerIconComp className="w-3 h-3 text-white" />
+          {hasPartner && <ArrowLeftRight className="w-2.5 h-2.5 text-white" />}
         </div>
       )}
 
-      {partner &&
+      {/* Manual partner label (setup mode only) */}
+      {partner && !showPartners &&
         (partnerIsImage ? (
           <div className="absolute top-1 right-1 w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow z-10">
             <img src={partner} alt="partner" className="w-full h-full object-cover" />

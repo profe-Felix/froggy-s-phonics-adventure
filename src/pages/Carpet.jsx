@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Button } from '@/components/ui/button';
 import CarpetCell from '@/components/seating/CarpetCell';
-import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, UserX, HeartHandshake, ClipboardList } from 'lucide-react';
+import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, UserX, HeartHandshake, ClipboardList, Sun, Moon, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StudentBankCard from '@/components/seating/StudentBankCard';
 import AbsencePanel from '@/components/seating/AbsencePanel';
@@ -472,7 +472,7 @@ export default function Carpet() {
     const start = ROW_SIZES.slice(0, rowIdx).reduce((a, b) => a + b, 0);
     const rowSeats = seats.slice(start, start + ROW_SIZES[rowIdx]);
     return (
-      <div key={rowIdx} className={cn('flex gap-1 rounded-lg', ROW_COLORS[rowIdx] || '')}>
+      <div key={rowIdx} className={cn('flex gap-0 rounded-lg', ROW_COLORS[rowIdx] || '')}>
         {rowSeats.map((seat) => {
           const student = seat.student_id ? studentMap[seat.student_id] : null;
           const { first } = student ? parseName(student.name) : { first: '' };
@@ -488,6 +488,7 @@ export default function Carpet() {
               partnerInfo={partnerMap[seat.student_id]}
               partnerStudents={studentMap}
               showPartners={viewMode === 'teaching' && teachingMode === 'partners'}
+              rowIndex={rowIdx}
             />
           );
         })}
@@ -700,8 +701,11 @@ export default function Carpet() {
               </div>
             )}
             {teachingMode === 'partners' && (
-              <div className="text-center text-xs text-muted-foreground">
-                Blue badges = regular partners · Orange badges = temporary partners (auto-assigned when partner is out)
+              <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-4 flex-wrap">
+                <span className="flex items-center gap-1"><Sun className="w-3 h-3 inline" /> Sun (red/pink)</span>
+                <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
+                <span className="flex items-center gap-1"><Star className="w-3 h-3 inline" /> Star (trio third)</span>
+                <span>↔ = has partner · Orange = temporary</span>
               </div>
             )}
           </div>
