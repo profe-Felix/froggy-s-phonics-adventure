@@ -20,7 +20,8 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 300;
 const CANVAS_H = 375;
 const LETTER_GAP = 20; // comfortable gap so letters don't overlap but read as a word
-const PADDING = 30;
+const PADDING = 160; // clears the guide visual (fence ends ~140) so letters start after it
+const SHEET_W = 800; // minimum sheet width for a "sheet of paper" look
 const MIN_INK_PX = 120;
 // Match Letter Tracing's starting size (Medium = sizeLevel 2, scale 0.55).
 // Each letter in the name renders at the same physical size as a Medium
@@ -126,7 +127,8 @@ export default function NameTracingCanvas({
   // to the name length so each letter is the same physical size as in Letter
   // Tracing. If the name is too wide for the viewport, the container scrolls.
   const renderH = RENDER_H;
-  const renderW = totalW > 0 ? RENDER_H * (totalW / CANVAS_H) : renderWidth;
+  const sheetW = Math.max(totalW, SHEET_W);
+  const renderW = RENDER_H * (sheetW / CANVAS_H);
 
   const toSvg = useCallback((clientX, clientY) => {
     const svg = svgRef.current;
@@ -656,13 +658,13 @@ export default function NameTracingCanvas({
 
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${totalW} ${CANVAS_H}`}
+        viewBox={`0 0 ${sheetW} ${CANVAS_H}`}
         preserveAspectRatio="xMidYMid meet"
-        className={`rounded-2xl border-4 shrink-0 ${
-          errorFlash ? 'border-red-400 bg-red-50' :
-          isSuccess ? (isAmber ? 'border-amber-400 bg-amber-50' : 'border-green-400 bg-green-50') :
-          dotCompleted ? 'border-green-400 bg-green-50' :
-          'border-slate-200 bg-white'
+        className={`shrink-0 border-b border-slate-200 ${
+          errorFlash ? 'bg-red-50' :
+          isSuccess ? (isAmber ? 'bg-amber-50' : 'bg-green-50') :
+          dotCompleted ? 'bg-green-50' :
+          'bg-white'
         }`}
         style={{
           display: 'block',
@@ -686,15 +688,15 @@ export default function NameTracingCanvas({
       >
         {/* Guide lines */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={80} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} bgWidth={140} />
         {/* Sky line (blue) */}
-        <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={0.10 * CANVAS_H} x2={sheetW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         {/* Fence line (dashed black) */}
-        <line x1="0" y1={0.367 * CANVAS_H} x2={totalW} y2={0.367 * CANVAS_H} stroke="#000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={0.367 * CANVAS_H} x2={sheetW} y2={0.367 * CANVAS_H} stroke="#000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />
         {/* Grass line / baseline (green) */}
-        <line x1="0" y1={0.633 * CANVAS_H} x2={totalW} y2={0.633 * CANVAS_H} stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={0.633 * CANVAS_H} x2={sheetW} y2={0.633 * CANVAS_H} stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         {/* Dirt line / descender (brown) */}
-        <line x1="0" y1={0.90 * CANVAS_H} x2={totalW} y2={0.90 * CANVAS_H} stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
+        <line x1="0" y1={0.90 * CANVAS_H} x2={sheetW} y2={0.90 * CANVAS_H} stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Guide paths for ALL letters — completed = green, current = colored, upcoming = grey */}
         {isGuided && wordLetters.map((ch, li) => {
@@ -736,6 +738,21 @@ export default function NameTracingCanvas({
                 pointerEvents="none"
               />
             );
+          });
+        })}
+
+        {/* Faint letter guides — dot-only mode (shows letter shapes as a model) */}
+        {isDotOnly && wordLetters.map((ch, li) => {
+          const letterStrokes = waypoints[ch]?.strokes || [];
+          return letterStrokes.map((stroke, si) => {
+            const clean = Array.isArray(stroke) ? stroke.filter(p => p && p.x != null && p.y != null) : [];
+            const scaled = clean.map(p => scaleForLetter(p, li));
+            if (!scaled.length) return null;
+            const isDotGuide = scaled.length === 2 && dist(scaled[0], scaled[1]) < 8;
+            if (isDotGuide) {
+              return <circle key={`dg-${li}-${si}`} cx={scaled[0].x} cy={scaled[0].y} r="7" fill="#94a3b8" opacity="0.3" pointerEvents="none" />;
+            }
+            return <path key={`dg-${li}-${si}`} d={splinePathD(scaled)} fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" opacity="0.3" pointerEvents="none" />;
           });
         })}
 
@@ -819,8 +836,8 @@ export default function NameTracingCanvas({
         {/* Completion check — guided */}
         {isGuided && isSuccess && (
           <g pointerEvents="none">
-            <circle cx={totalW - 25} cy={25} r="14" fill="#22c55e" />
-            <path d="M -6 0 L -2 4 L 6 -5" transform={`translate(${totalW - 25} 25)`} stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx={sheetW - 25} cy={25} r="14" fill="#22c55e" />
+            <path d="M -6 0 L -2 4 L 6 -5" transform={`translate(${sheetW - 25} 25)`} stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </g>
         )}
       </svg>

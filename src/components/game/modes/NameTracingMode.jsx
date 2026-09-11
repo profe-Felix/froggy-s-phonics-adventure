@@ -186,28 +186,20 @@ export default function NameTracingMode({ studentData, onBack }) {
 
       {/* Vertical scrolling page of rows */}
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-        <div className="flex flex-col items-center gap-8 py-6 px-4 min-w-min">
-          {rows.map((row, i) => {
-            const isActive = i === activeRow && !completedRows.has(i);
-            const isPast = completedRows.has(i);
-            const isFuture = i > activeRow && !completedRows.has(i);
-            const hasTraceable = row.part.split('').some((ch) => waypoints[ch]);
-            if (!hasTraceable) return null;
-            return (
-              <div
-                key={i}
-                ref={(el) => (rowRefs.current[i] = el)}
-                className={`flex flex-col items-center gap-1 transition-opacity ${isPast ? 'opacity-40' : isActive ? 'opacity-100' : 'opacity-25'}`}
-              >
-                <div className={`text-xs font-bold ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>{row.label}</div>
-                {isActive ? (
-                  <>
-                    {row.mode === 'dot_only' && (
-                      <div className="flex flex-col items-center gap-0.5 mb-1">
-                        <span className="text-[10px] font-bold text-slate-400 tracking-wider">EXAMPLE</span>
-                        <NameReferenceStrip name={row.part} waypoints={waypoints} renderWidth={renderWidth} />
-                      </div>
-                    )}
+        <div className="flex flex-col items-center py-6 px-4 min-w-min">
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            {rows.map((row, i) => {
+              const isActive = i === activeRow && !completedRows.has(i);
+              const isPast = completedRows.has(i);
+              const hasTraceable = row.part.split('').some((ch) => waypoints[ch]);
+              if (!hasTraceable) return null;
+              return (
+                <div
+                  key={i}
+                  ref={(el) => (rowRefs.current[i] = el)}
+                  className={`transition-opacity ${isPast ? 'opacity-30' : isActive ? 'opacity-100' : 'opacity-20'}`}
+                >
+                  {isActive ? (
                     <NameTracingCanvas
                       key={`row-${i}`}
                       name={row.part}
@@ -216,22 +208,20 @@ export default function NameTracingMode({ studentData, onBack }) {
                       renderWidth={renderWidth}
                       onComplete={handleRowComplete}
                     />
-                  </>
-                ) : (
-                  <div
-                    className="rounded-2xl border-4 border-slate-200 bg-white flex items-center justify-center"
-                    style={{ width: renderWidth, height: renderWidth * (375 / 300) }}
-                  >
-                    {isPast ? (
-                      <span className="text-3xl text-green-400">✓</span>
-                    ) : (
-                      <span className="text-slate-300 text-sm font-bold">Coming up</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  ) : (
+                    <div className="relative">
+                      <NameReferenceStrip name={row.part} waypoints={waypoints} renderWidth={renderWidth} />
+                      {isPast && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-4xl text-green-400 opacity-60">✓</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           <div className="h-8" />
         </div>
       </div>
