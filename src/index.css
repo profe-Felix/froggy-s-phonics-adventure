@@ -202,6 +202,9 @@
     width: auto !important;
     box-shadow: none !important;
   }
+  .practice-sheet {
+    padding: 0.1in 0 !important;
+  }
   .hfw-sheet-wrap {
     --zoom: 1 !important;
     position: static !important;
@@ -338,12 +341,10 @@
   background: transparent;
 }
 
-/* QR code print layout — native window.print() shows only the QR grid. */
+/* QR code print layout — native window.print() shows only the QR grid.
+   @page rule is injected per-print by printWithPage() in JS — no @page here
+   so it can't override the injected rule. */
 @media print {
-  @page {
-    size: letter portrait;
-    margin: 0.5in;
-  }
   .no-print {
     display: none !important;
   }

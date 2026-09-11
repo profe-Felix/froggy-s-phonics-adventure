@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { listAllImagesJpg } from '@/lib/lettersort/storage';
 import { markersToPretty } from '@/lib/lettersort/phonics';
 import AutoFitWord from '@/components/print/AutoFitWord';
+import { printWithPage } from '@/lib/printWithPage';
 
 // ─── Source ──────────────────────────────────────────────────────────────────
 // Spanish Reading high-frequency word lists live in Supabase storage as
@@ -246,7 +247,7 @@ export default function HfwCards() {
               </button>
             </div>
             <button
-              onClick={() => window.print()}
+              onClick={() => printWithPage('size: letter landscape; margin: 0.25in')}
               disabled={cardCount === 0}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium disabled:opacity-40"
             >

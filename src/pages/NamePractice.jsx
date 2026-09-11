@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
 import NamePracticeSheet from '@/components/print/NamePracticeSheet';
+import { printWithPage } from '@/lib/printWithPage';
 
 export default function NamePractice() {
   const [students, setStudents] = useState(null);
@@ -151,7 +152,7 @@ export default function NamePractice() {
                 ))}
               </select>
             )}
-            <Button onClick={() => window.print()}>
+            <Button onClick={() => printWithPage('size: letter portrait; margin: 0.25in')}>
               <Printer className="w-4 h-4 mr-2" /> Print
             </Button>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
