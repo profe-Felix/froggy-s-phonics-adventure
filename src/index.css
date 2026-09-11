@@ -346,7 +346,9 @@
   .sheet-wrap,
   .sheet-wrap *,
   .hfw-sheet-wrap,
-  .hfw-sheet-wrap * {
+  .hfw-sheet-wrap *,
+  .page-preview,
+  .page-preview * {
     visibility: visible;
   }
   .printable {
