@@ -111,7 +111,15 @@ export default function Desk() {
       base44.entities.DeskSeat.filter({ class_name: selectedClass, group }),
       base44.entities.DeskLandmark.filter({ class_name: selectedClass, group }),
     ]);
-    setDesks(allDesks);
+    // Auto-remove empty desks (no student assigned) — keeps the layout clean
+    const empty = allDesks.filter(d => !d.student_id);
+    if (empty.length > 0) {
+      await Promise.all(empty.map(d => base44.entities.DeskSeat.delete(d.id)));
+      const emptyIds = new Set(empty.map(d => d.id));
+      setDesks(allDesks.filter(d => !emptyIds.has(d.id)));
+    } else {
+      setDesks(allDesks);
+    }
     setLandmarks(allLandmarks);
   }, [selectedClass, group]);
 
@@ -132,15 +140,22 @@ export default function Desk() {
   );
   const homeroom = getHomeroomForClass(selectedClass, group);
 
-  // Auto-delete orphaned desks whose student_id references a deleted student
+  // Auto-delete orphaned desks (student deleted) and desks assigned to unnamed students
   useEffect(() => {
     if (!desks || !students) return;
-    const studentIds = new Set(students.map(s => s.id));
-    const orphaned = desks.filter(d => d.student_id && !studentIds.has(d.student_id));
-    if (orphaned.length === 0) return;
-    const orphanedIds = new Set(orphaned.map(d => d.id));
-    setDesks(prev => prev ? prev.filter(d => !orphanedIds.has(d.id)) : prev);
-    Promise.all(orphaned.map(d => base44.entities.DeskSeat.delete(d.id))).catch(() => loadRef.current());
+    const sMap = {};
+    for (const s of students) sMap[s.id] = s;
+    const toRemove = desks.filter(d => {
+      if (!d.student_id) return false; // truly empty desks handled by loadAll
+      const student = sMap[d.student_id];
+      if (!student) return true; // orphaned
+      if (!student.name) return true; // assigned to unnamed/blank roster entry
+      return false;
+    });
+    if (toRemove.length === 0) return;
+    const removeIds = new Set(toRemove.map(d => d.id));
+    setDesks(prev => prev ? prev.filter(d => !removeIds.has(d.id)) : prev);
+    Promise.all(toRemove.map(d => base44.entities.DeskSeat.delete(d.id))).catch(() => loadRef.current());
   }, [desks, students]);
 
   const bankStudents = useMemo(
