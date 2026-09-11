@@ -1,27 +1,32 @@
 /**
  * GuideKeyVisual — a small left-edge grounding visual for handwriting guides.
  *
- * Shows colored zones (sky/grass/dirt) limited to a narrow bgWidth (saves ink
- * on printouts), two 🚶‍➡️ walking figures on the LEFT whose feet are on the
+ * Shows colored zones (sky/grass/dirt) limited to bgWidth (saves ink on
+ * printouts), two 🚶‍➡️ walking figures on the LEFT whose feet are on the
  * grass and heads touch the ceiling (sky for capital, fence for lowercase),
- * and a picket fence on the RIGHT (cropped from the included fence SVG).
+ * and a picket fence AFTER the emojis — rendered at full height and clipped
+ * to show only a horizontal window (2-3 pickets) via fenceWidth/fenceOffset.
  *
- * TEMP: emojiHeightFactor, emojiFeetFactor, emojiXAdjust, fenceCrop are manual
- * tuning sliders passed from NamePractice. Once values are finalized, hardcode them.
+ * TEMP: all tuning props are manual sliders from NamePractice. Once values
+ * are finalized, hardcode them.
  *
  * Renders an SVG <g> group — place it inside an <svg> element.
  */
 
+import { useId } from 'react';
+
 const FENCE_URL = 'https://media.base44.com/images/public/6972eada24fac6b62ccbab8e/bf7297494_156818.svg';
+const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
-  emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiXAdjust = 0, fenceCrop = 800,
-  bgWidth }) {
-  const h = dirtY - skyY;
+  emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing = 70, bgWidth = 80,
+  fenceWidth = 40, fenceOffset = 0 }) {
+
+  const clipId = useId();
+
   const skyH = fenceY - skyY;
   const grassH = grassY - fenceY;
   const dirtH = dirtY - grassY;
-  const bg = bgWidth ?? width;
 
   // Zone heights
   const capZoneH = grassY - skyY;
@@ -35,31 +40,42 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const capY = grassY - emojiFeetFactor * capFSize;
   const lowY = grassY - emojiFeetFactor * lowFSize;
 
-  // Layout: emojis on the LEFT (spread apart), fence on the RIGHT
-  const capX = width * 0.10 + emojiXAdjust;
-  const lowX = width * 0.58 + emojiXAdjust;
+  // Emojis on the LEFT — capital then lowercase, spaced by emojiSpacing
+  const capX = 20;
+  const lowX = capX + emojiSpacing;
 
-  // Fence: crop the SVG (1280×1000) to fenceCrop viewBox units, on the right side.
-  const fenceW = width * 0.24;
-  const fenceX = width * 0.74;
+  // Fence AFTER the emojis — full height, clipped to a horizontal window.
+  // Image rendered at natural aspect ratio (height = grassH), then clipped.
+  // fenceOffset shifts the image left → shows different pickets.
+  const fenceImgW = grassH * FENCE_ASPECT;
+  const fenceX = lowX + 35; // positioned after the lowercase emoji
+  const imgX = fenceX - fenceOffset;
 
   return (
     <g pointerEvents="none">
       {/* Background zones — limited to bgWidth (saves ink) */}
-      <rect x={0} y={skyY} width={bg} height={skyH} fill="#dceaf9" opacity={opacity} />
-      <rect x={0} y={fenceY} width={bg} height={grassH} fill="#e8f5e9" opacity={opacity} />
-      <rect x={0} y={grassY} width={bg} height={dirtH} fill="#f5ebe0" opacity={opacity} />
+      <rect x={0} y={skyY} width={bgWidth} height={skyH} fill="#dceaf9" opacity={opacity} />
+      <rect x={0} y={fenceY} width={bgWidth} height={grassH} fill="#e8f5e9" opacity={opacity} />
+      <rect x={0} y={grassY} width={bgWidth} height={dirtH} fill="#f5ebe0" opacity={opacity} />
 
       {/* Capital walking figure — feet at grass, head at sky (LEFT) */}
       <text x={capX} y={capY} fontSize={capFSize} textAnchor="middle">🚶‍➡️</text>
 
-      {/* Lowercase walking figure — feet at grass, head at fence (LEFT, next to capital) */}
+      {/* Lowercase walking figure — feet at grass, head at fence (next to capital) */}
       <text x={lowX} y={lowY} fontSize={lowFSize} textAnchor="middle">🚶‍➡️</text>
 
-      {/* Fence — cropped panels, from grass line up to fence (dotted) line (RIGHT) */}
-      <svg x={fenceX} y={fenceY} width={fenceW} height={grassH} viewBox={`0 0 ${fenceCrop} 1000`} preserveAspectRatio="xMidYMid slice">
-        <image href={FENCE_URL} x={0} y={0} width={1280} height={1000} />
-      </svg>
+      {/* Fence — full height, clipped to show a window of pickets */}
+      <clipPath id={clipId}>
+        <rect x={fenceX} y={fenceY} width={fenceWidth} height={grassH} />
+      </clipPath>
+      <image
+        href={FENCE_URL}
+        x={imgX}
+        y={fenceY}
+        width={fenceImgW}
+        height={grassH}
+        clipPath={`url(#${clipId})`}
+      />
     </g>
   );
 }

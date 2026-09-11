@@ -20,8 +20,10 @@ export default function NamePractice() {
   // TEMP: emoji tuning sliders — remove once values are finalized
   const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.84);
   const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.26);
-  const [emojiXAdjust, setEmojiXAdjust] = useState(0);
-  const [fenceCrop, setFenceCrop] = useState(800);
+  const [emojiSpacing, setEmojiSpacing] = useState(90);
+  const [bgWidth, setBgWidth] = useState(80);
+  const [fenceWidth, setFenceWidth] = useState(40);
+  const [fenceOffset, setFenceOffset] = useState(0);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -187,14 +189,24 @@ export default function NamePractice() {
             <span className="w-12 tabular-nums">{emojiFeetFactor.toFixed(3)}</span>
           </label>
           <label className="flex items-center gap-1.5 text-muted-foreground">
-            X Shift
-            <input type="range" min={-30} max={30} step={1} value={emojiXAdjust} onChange={(e) => setEmojiXAdjust(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-12 tabular-nums">{emojiXAdjust}</span>
+            Spacing
+            <input type="range" min={40} max={120} step={1} value={emojiSpacing} onChange={(e) => setEmojiSpacing(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{emojiSpacing}</span>
           </label>
           <label className="flex items-center gap-1.5 text-muted-foreground">
-            Fence
-            <input type="range" min={200} max={1280} step={50} value={fenceCrop} onChange={(e) => setFenceCrop(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-12 tabular-nums">{fenceCrop}</span>
+            BG Width
+            <input type="range" min={40} max={200} step={2} value={bgWidth} onChange={(e) => setBgWidth(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{bgWidth}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            Fence Width
+            <input type="range" min={15} max={70} step={1} value={fenceWidth} onChange={(e) => setFenceWidth(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{fenceWidth}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            Fence Offset
+            <input type="range" min={0} max={40} step={1} value={fenceOffset} onChange={(e) => setFenceOffset(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{fenceOffset}</span>
           </label>
           <span className="text-amber-700">Emojis left, fence right. Heads → sky/fence, feet on grass.</span>
         </div>
@@ -213,13 +225,13 @@ export default function NamePractice() {
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
                 <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} fenceCrop={fenceCrop} />
+                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} />
               </div>
             ))}
           </div>
         ) : selected ? (
           <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} fenceCrop={fenceCrop} />
+            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} />
         ) : null}
       </main>
     </div>
