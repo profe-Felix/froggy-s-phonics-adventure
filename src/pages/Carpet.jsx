@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Che
 import { cn } from '@/lib/utils';
 import StudentBankCard from '@/components/seating/StudentBankCard';
 import AbsencePanel from '@/components/seating/AbsencePanel';
+import PartnerArrows from '@/components/seating/PartnerArrows';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { parseName } from '@/lib/nameNormalize';
 import { computePartners } from '@/lib/carpetPartners';
@@ -38,6 +39,7 @@ export default function Carpet() {
   const [sheetLinks, setSheetLinks] = useState([]);
   const [teachingMode, setTeachingMode] = useState('carpet');
   const fileInputRef = useRef(null);
+  const carpetGridRef = useRef(null);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -687,8 +689,15 @@ export default function Carpet() {
           </div>
         ) : !isSetup ? (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col">
+            <div ref={carpetGridRef} className={cn('relative flex flex-col', teachingMode === 'partners' && 'gap-6')}>
               {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
+              {teachingMode === 'partners' && (
+                <PartnerArrows
+                  seats={seats}
+                  partnerMap={partnerMap}
+                  containerRef={carpetGridRef}
+                />
+              )}
             </div>
             {teachingMode === 'absence' && (
               <div className="bg-white rounded-lg border p-3">
@@ -705,7 +714,8 @@ export default function Carpet() {
                 <span className="flex items-center gap-1"><Sun className="w-3 h-3 inline" /> Sun (red/pink)</span>
                 <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
                 <span className="flex items-center gap-1"><Star className="w-3 h-3 inline" /> Star (trio third)</span>
-                <span>↔ = has partner · Orange = temporary</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-blue-600 rounded" /> Blue arrow = partners</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-orange-500 rounded" /> Orange = temporary</span>
               </div>
             )}
           </div>

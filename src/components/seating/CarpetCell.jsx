@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
-import { Sun, Moon, Star, ArrowLeftRight } from 'lucide-react';
+import { Sun, Moon, Star } from 'lucide-react';
 
 // Row → partner icon: red=sun, green=moon, blue=moon(walkway), pink=sun, aqua=moon
 const ROW_PARTNER_ICONS = [Sun, Moon, Moon, Sun, Moon];
@@ -42,6 +42,7 @@ export default function CarpetCell({
   return (
     <div
       onClick={onClick}
+      data-student-id={student?.id || ''}
       className={cn(
         'relative flex-1 aspect-square p-1 cursor-pointer transition-all',
         isSelected && 'z-20'
@@ -82,16 +83,15 @@ export default function CarpetCell({
         )}
       </div>
 
-      {/* Partner icons: sun/moon/star + arrow, shown in partners mode */}
+      {/* Partner icons: sun/moon/star, shown in partners mode */}
       {showPartners && student && !isOut && PartnerIconComp && (
         <div
           className={cn(
-            'absolute top-0.5 left-0.5 z-10 flex items-center gap-0.5 rounded-full px-1 py-0.5 shadow',
+            'absolute top-0.5 left-0.5 z-10 flex items-center rounded-full px-1 py-0.5 shadow',
             partnerInfo?.isTemporary ? 'bg-orange-500' : 'bg-blue-600'
           )}
         >
           <PartnerIconComp className="w-3 h-3 text-white" />
-          {hasPartner && <ArrowLeftRight className="w-2.5 h-2.5 text-white" />}
         </div>
       )}
 
