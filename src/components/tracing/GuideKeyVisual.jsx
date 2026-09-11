@@ -51,12 +51,17 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const fenceX = lowX + fenceGap; // positioned after the lowercase emoji
   const imgX = fenceX - fenceOffset;
 
+  // Background must cover all visual elements (emojis + fence) so the
+  // colored zone wraps around the fence, not just the emojis.
+  const fenceEnd = fenceX + fenceWidth;
+  const bgDrawWidth = Math.max(bgWidth, fenceEnd);
+
   return (
     <g pointerEvents="none">
-      {/* Background zones — limited to bgWidth (saves ink) */}
-      <rect x={0} y={skyY} width={bgWidth} height={skyH} fill="#dceaf9" opacity={opacity} />
-      <rect x={0} y={fenceY} width={bgWidth} height={grassH} fill="#e8f5e9" opacity={opacity} />
-      <rect x={0} y={grassY} width={bgWidth} height={dirtH} fill="#f5ebe0" opacity={opacity} />
+      {/* Background zones — extend to cover emojis + fence (saves ink vs full width) */}
+      <rect x={0} y={skyY} width={bgDrawWidth} height={skyH} fill="#dceaf9" opacity={opacity} />
+      <rect x={0} y={fenceY} width={bgDrawWidth} height={grassH} fill="#e8f5e9" opacity={opacity} />
+      <rect x={0} y={grassY} width={bgDrawWidth} height={dirtH} fill="#f5ebe0" opacity={opacity} />
 
       {/* Capital walking figure — feet at grass, head at sky (LEFT) */}
       <text x={capX} y={capY} fontSize={capFSize} textAnchor="middle">🚶‍➡️</text>
