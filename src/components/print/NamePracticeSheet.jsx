@@ -1,6 +1,7 @@
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 
-export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0 }) {
+export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0,
+  emojiHeightFactor, emojiFeetFactor, emojiXAdjust }) {
   const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
@@ -28,6 +29,9 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
                 grassY={2 * gUnits}
                 dirtY={3 * gUnits}
                 width={vbW}
+                emojiHeightFactor={emojiHeightFactor}
+                emojiFeetFactor={emojiFeetFactor}
+                emojiXAdjust={emojiXAdjust}
               />
             </svg>
             <div className="practice-line top" />

@@ -17,6 +17,10 @@ export default function NamePractice() {
   const [lineSize, setLineSize] = useState(() => parseFloat(localStorage.getItem('np3.lineSize')) || 0.67);
   const [offset, setOffset] = useState(() => parseFloat(localStorage.getItem('np3.offset')) || 0);
   const [scale, setScale] = useState(() => parseFloat(localStorage.getItem('np3.scale')) || 1);
+  // TEMP: emoji tuning sliders — remove once values are finalized
+  const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.84);
+  const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.26);
+  const [emojiXAdjust, setEmojiXAdjust] = useState(0);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -168,6 +172,26 @@ export default function NamePractice() {
             <Button size="sm" variant="ghost" onClick={() => { setFontSize(1.35); setLineSize(0.67); setOffset(0); setScale(1); }}>Reset</Button>
           </div>
         </div>
+        {/* TEMP: emoji tuning sliders — remove once values are finalized */}
+        <div className="max-w-5xl mx-auto px-6 py-1.5 flex items-center gap-4 flex-wrap border-t bg-amber-50 text-xs">
+          <span className="font-bold text-amber-800">TEMP Emoji:</span>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            Height
+            <input type="range" min={0.5} max={2.0} step={0.01} value={emojiHeightFactor} onChange={(e) => setEmojiHeightFactor(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-12 tabular-nums">{emojiHeightFactor.toFixed(3)}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            Feet
+            <input type="range" min={0} max={0.5} step={0.01} value={emojiFeetFactor} onChange={(e) => setEmojiFeetFactor(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-12 tabular-nums">{emojiFeetFactor.toFixed(3)}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            X Shift
+            <input type="range" min={-30} max={30} step={1} value={emojiXAdjust} onChange={(e) => setEmojiXAdjust(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-12 tabular-nums">{emojiXAdjust}</span>
+          </label>
+          <span className="text-amber-700">Heads → sky (tall) &amp; fence (short). Feet on grass.</span>
+        </div>
       </header>
 
       <main className="py-8 flex justify-center print:block print:py-0">
@@ -182,12 +206,14 @@ export default function NamePractice() {
                 key={s.id}
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
-                <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset} />
+                <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
+                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} />
               </div>
             ))}
           </div>
         ) : selected ? (
-          <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset} />
+          <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
+            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} />
         ) : null}
       </main>
     </div>
