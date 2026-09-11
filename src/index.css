@@ -345,7 +345,9 @@
   .printable,
   .printable *,
   .sheet-wrap,
-  .sheet-wrap * {
+  .sheet-wrap *,
+  .hfw-sheet-wrap,
+  .hfw-sheet-wrap * {
     visibility: visible;
   }
   .printable {
