@@ -8,7 +8,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
 
   // GuideKeyVisual viewBox — sized in hundredths of an inch so the aspect
   // ratio matches the practice-set (width: 0.7in, height: 3 * lineSize in).
-  const vbW = 70;
+  const vbW = 80;
   const gUnits = lineSize * 100;
   const vbH = 3 * gUnits;
 

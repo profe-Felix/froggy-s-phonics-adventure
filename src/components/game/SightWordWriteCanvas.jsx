@@ -191,7 +191,7 @@ export default function SightWordWriteCanvas({ word, onDone, onPlaySound }) {
         >
           {/* Guide lines — same vertical positions as the tracing canvas */}
           {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-          <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={60} />
+          <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={80} />
           {/* Sky line (blue) */}
           <line x1="0" y1={0.10 * CANVAS_H} x2={VIEWBOX_W} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
           {/* Fence line (dashed black) */}

@@ -412,14 +412,14 @@
 .practice-bg.sky { top: 0; height: var(--g); background: #dceaf9; }
 .practice-bg.grass { top: var(--g); height: var(--g); background: #e8f5e9; }
 .practice-bg.dirt { top: calc(2 * var(--g)); height: var(--g); background: #f5ebe0; }
-.practice-guide-visual { position: absolute; left: 0; top: 0; width: 0.7in; height: 100%; pointer-events: none; z-index: 1; }
+.practice-guide-visual { position: absolute; left: 0; top: 0; width: 0.8in; height: 100%; pointer-events: none; z-index: 1; }
 .practice-line.top { top: 0; border-top: 2px solid var(--psky); }
 .practice-line.mid { top: var(--g); border-top: 2px dashed var(--pfence); }
 .practice-line.base { top: calc(2 * var(--g)); border-top: 2px solid var(--pgrass); }
 .practice-line.desc { top: calc(3 * var(--g)); border-top: 2px solid var(--pdirt); }
 .practice-text {
   position: absolute;
-  left: 0.8in;
+  left: 0.9in;
   top: calc(2 * var(--g) - var(--asc) + var(--offset));
   font-size: var(--f);
   line-height: var(--lh);

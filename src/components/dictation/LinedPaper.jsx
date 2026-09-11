@@ -16,7 +16,7 @@ export default function LinedPaper({ width, height, lineCount = 6 }) {
     rows.push(
       <g key={i}>
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={yTop + lh * 0.10} fenceY={yTop + lh * 0.367} grassY={yTop + lh * 0.633} dirtY={yTop + lh * 0.90} width={55} />
+        <GuideKeyVisual skyY={yTop + lh * 0.10} fenceY={yTop + lh * 0.367} grassY={yTop + lh * 0.633} dirtY={yTop + lh * 0.90} width={80} />
         {/* Sky line — solid blue */}
         <line x1={0} y1={yTop + lh * 0.10} x2={width} y2={yTop + lh * 0.10}
           stroke="#4a90e2" strokeWidth={2.5} opacity={0.9} />
