@@ -1,47 +1,53 @@
 {
-  "name": "CarpetSeat",
+  "name": "CarpetAbsence",
   "type": "object",
   "properties": {
+    "student_id": {
+      "type": "string",
+      "description": "ID of the student who was absent or pulled out."
+    },
+    "student_name": {
+      "type": "string",
+      "default": "",
+      "description": "Denormalized student name for display without joining."
+    },
     "class_name": {
       "type": "string",
-      "description": "Class (teacher) this carpet seat belongs to."
+      "description": "Class (teacher) this absence belongs to."
     },
     "group": {
       "type": "string",
       "description": "Rotation group A, B, or C."
     },
-    "position": {
-      "type": "integer",
-      "description": "Seat position index (0-24)"
-    },
-    "student_id": {
-      "type": "string",
-      "description": "Seated student ID"
-    },
-    "partner_label": {
-      "type": "string",
-      "description": "Talking partner label/icon"
-    },
-    "status": {
+    "type": {
       "type": "string",
       "enum": [
-        "present",
         "absent",
         "stepped_out"
       ],
-      "default": "present",
-      "description": "Attendance status for the seated student. present = in class, absent = not here today, stepped_out = pulled out temporarily. Drives greyed-out rendering and partner reassignment."
+      "description": "absent = not in school today, stepped_out = pulled out temporarily (intervention, bathroom, office, etc.)."
     },
-    "absent_since": {
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the student was marked out."
+    },
+    "ended_at": {
       "type": "string",
       "default": "",
-      "description": "ISO timestamp when the student was marked absent/stepped_out. Cleared when they return."
+      "description": "ISO timestamp when the student returned. Empty while still out."
+    },
+    "duration_minutes": {
+      "type": "integer",
+      "default": 0,
+      "description": "Total minutes out, computed when the student returns."
     }
   },
   "required": [
+    "student_id",
     "class_name",
     "group",
-    "position"
+    "type",
+    "started_at"
   ],
   "rls": {
     "read": null,

@@ -5,16 +5,40 @@ function isImageUrl(s) {
   return typeof s === 'string' && (s.startsWith('http') || s.startsWith('/'));
 }
 
-export default function CarpetCell({ seat, student, isSelected, onClick, showFullName }) {
+export default function CarpetCell({
+  seat,
+  student,
+  isSelected,
+  onClick,
+  showFullName,
+  status,
+  partnerInfo,
+  partnerStudents,
+  showPartners,
+}) {
   const photo = student?.photo_url;
   const name = student?.name;
   const { first, last } = parseName(name);
-  const displayName = showFullName && first && last ? `${first} ${last}` : (first || last || '');
+  const displayName = showFullName && first && last ? `${first} ${last}` : first || last || '';
   const initials = name
     ? name.split(' ').map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
     : '';
   const partner = seat?.partner_label;
   const partnerIsImage = isImageUrl(partner);
+
+  const isOut = status && status !== 'present';
+  const statusLabel = status === 'absent' ? 'Absent' : status === 'stepped_out' ? 'Pulled' : '';
+
+  // Computed partner display names (from carpet partner logic, not the manual partner_label)
+  const partnerNames =
+    partnerInfo?.partnerIds
+      ?.map((id) => {
+        const p = partnerStudents?.[id];
+        if (!p) return '';
+        const { first: pf } = parseName(p.name);
+        return pf || p.name || '';
+      })
+      .filter(Boolean) || [];
 
   return (
     <div
@@ -24,7 +48,8 @@ export default function CarpetCell({ seat, student, isSelected, onClick, showFul
         isSelected
           ? 'border-primary ring-2 ring-primary ring-offset-1 z-10'
           : 'border-slate-300 hover:border-slate-400',
-        !student && 'bg-slate-50'
+        !student && 'bg-slate-50',
+        isOut && 'opacity-40 grayscale'
       )}
     >
       {student ? (
@@ -39,9 +64,29 @@ export default function CarpetCell({ seat, student, isSelected, onClick, showFul
         <div className="w-full h-full" />
       )}
 
-      {student && (
+      {isOut && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-500/40">
+          <span className="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">
+            {statusLabel}
+          </span>
+        </div>
+      )}
+
+      {student && !isOut && (
         <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate text-center">
           {displayName}
+        </div>
+      )}
+
+      {showPartners && partnerInfo && partnerNames.length > 0 && !isOut && (
+        <div
+          className={cn(
+            'absolute top-1 left-1 text-[8px] px-1 py-0.5 rounded-full max-w-[70%] truncate z-10',
+            partnerInfo.isTemporary ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
+          )}
+        >
+          {partnerInfo.isTrio ? '👥 ' : ''}
+          {partnerNames.join(' + ')}
         </div>
       )}
 

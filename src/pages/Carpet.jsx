@@ -4,11 +4,13 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Button } from '@/components/ui/button';
 import CarpetCell from '@/components/seating/CarpetCell';
-import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, UserX, HeartHandshake, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StudentBankCard from '@/components/seating/StudentBankCard';
+import AbsencePanel from '@/components/seating/AbsencePanel';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { parseName } from '@/lib/nameNormalize';
+import { computePartners } from '@/lib/carpetPartners';
 
 const ROW_SIZES = [5, 5, 6, 5, 5];
 const GRID_SIZE = ROW_SIZES.reduce((a, b) => a + b, 0);
@@ -34,6 +36,7 @@ export default function Carpet() {
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [importing, setImporting] = useState(false);
   const [sheetLinks, setSheetLinks] = useState([]);
+  const [teachingMode, setTeachingMode] = useState('carpet');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -177,6 +180,58 @@ export default function Carpet() {
     return new Set(Object.entries(counts).filter(([, c]) => c > 1).map(([k]) => k));
   }, [seats, studentMap]);
 
+  const partnerMap = useMemo(
+    () => (seats && studentMap ? computePartners(seats, studentMap) : {}),
+    [seats, studentMap]
+  );
+
+  const handleAbsenceToggle = async (position) => {
+    const seat = seats.find((s) => s.position === position);
+    if (!seat || !seat.student_id) return;
+    const currentStatus = seat.status || 'present';
+    const nextStatus =
+      currentStatus === 'present' ? 'absent' : currentStatus === 'absent' ? 'stepped_out' : 'present';
+    const now = new Date().toISOString();
+
+    setSeats((prev) =>
+      prev
+        ? prev.map((s) =>
+            s.position === position
+              ? { ...s, status: nextStatus, absent_since: nextStatus === 'present' ? '' : s.absent_since || now }
+              : s
+          )
+        : prev
+    );
+
+    setSaving(true);
+    try {
+      if (nextStatus === 'present') {
+        await base44.entities.CarpetSeat.update(seat.id, { status: 'present', absent_since: '' });
+        const openRecs = await base44.entities.CarpetAbsence.filter({ student_id: seat.student_id, ended_at: '' });
+        for (const r of openRecs) {
+          const dur = Math.round((new Date(now) - new Date(r.started_at)) / 60000);
+          await base44.entities.CarpetAbsence.update(r.id, { ended_at: now, duration_minutes: dur });
+        }
+      } else {
+        await base44.entities.CarpetSeat.update(seat.id, { status: nextStatus, absent_since: now });
+        const student = studentMap[seat.student_id];
+        await base44.entities.CarpetAbsence.create({
+          student_id: seat.student_id,
+          student_name: student?.name || '',
+          class_name: selectedClass,
+          group,
+          type: nextStatus,
+          started_at: now,
+          ended_at: '',
+          duration_minutes: 0,
+        });
+      }
+    } catch {
+      loadSeats();
+    }
+    setSaving(false);
+  };
+
   const handleIconUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
@@ -209,6 +264,16 @@ export default function Carpet() {
   const handleCellClick = async (position) => {
     const seat = seats.find((s) => s.position === position);
     if (!seat) return;
+
+    // Teaching mode: absence — tap to cycle present → absent → stepped_out → present
+    if (viewMode === 'teaching' && teachingMode === 'absence') {
+      handleAbsenceToggle(position);
+      return;
+    }
+    // Teaching mode: partners — view only, no click action
+    if (viewMode === 'teaching' && teachingMode === 'partners') {
+      return;
+    }
 
     if (viewMode === 'teaching' || mode === 'swap') {
       if (viewMode === 'setup' && selectedBankStudent) {
@@ -419,6 +484,10 @@ export default function Carpet() {
               isSelected={selectedCell === seat.position}
               onClick={() => handleCellClick(seat.position)}
               showFullName={sharedFirstNames.has((first || '').toLowerCase())}
+              status={seat.status || 'present'}
+              partnerInfo={partnerMap[seat.student_id]}
+              partnerStudents={studentMap}
+              showPartners={viewMode === 'teaching' && teachingMode === 'partners'}
             />
           );
         })}
@@ -567,6 +636,40 @@ export default function Carpet() {
                 </Button>
               </div>
             )}
+            {!isSetup && selectedClass && (
+              <div className="flex items-center gap-2 ml-auto">
+                <div className="flex items-center border rounded-md overflow-hidden">
+                  <Button
+                    size="sm"
+                    variant={teachingMode === 'carpet' ? 'default' : 'ghost'}
+                    onClick={() => setTeachingMode('carpet')}
+                  >
+                    <Users className="w-4 h-4 mr-1.5" /> Carpet
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={teachingMode === 'partners' ? 'default' : 'ghost'}
+                    onClick={() => setTeachingMode('partners')}
+                  >
+                    <HeartHandshake className="w-4 h-4 mr-1.5" /> Partners
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={teachingMode === 'absence' ? 'default' : 'ghost'}
+                    onClick={() => setTeachingMode('absence')}
+                  >
+                    <UserX className="w-4 h-4 mr-1.5" /> Absence
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.location.href = '/AbsenceDashboard'}
+                >
+                  <ClipboardList className="w-4 h-4 mr-1.5" /> History
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -582,8 +685,25 @@ export default function Carpet() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : !isSetup ? (
-          <div className="flex flex-col">
-            {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col">
+              {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
+            </div>
+            {teachingMode === 'absence' && (
+              <div className="bg-white rounded-lg border p-3">
+                <h3 className="text-sm font-medium mb-2">Currently Out</h3>
+                <AbsencePanel
+                  seats={seats}
+                  studentMap={studentMap}
+                  onMarkBack={handleAbsenceToggle}
+                />
+              </div>
+            )}
+            {teachingMode === 'partners' && (
+              <div className="text-center text-xs text-muted-foreground">
+                Blue badges = regular partners · Orange badges = temporary partners (auto-assigned when partner is out)
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex gap-4">
