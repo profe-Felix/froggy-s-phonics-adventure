@@ -505,7 +505,7 @@ export default function Carpet() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b bg-white sticky top-0 z-10">
-        <div className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-5xl')}>
+        <div className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-3xl')}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Button asChild variant="ghost" size="icon">
@@ -672,7 +672,7 @@ export default function Carpet() {
         </div>
       </header>
 
-      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-5xl')}>
+      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-2xl')}>
         {!selectedClass ? (
           <div className="text-center py-20">
             <Users className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
