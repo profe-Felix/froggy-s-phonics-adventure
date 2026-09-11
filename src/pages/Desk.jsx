@@ -149,6 +149,7 @@ export default function Desk() {
         ? students.filter(
             (s) =>
               (s.class_name || '').toLowerCase() === homeroom.toLowerCase() &&
+              s.name &&
               !assignedIds.has(s.id)
           )
         : [],
@@ -398,6 +399,7 @@ export default function Desk() {
     const available = students.filter(
       (s) =>
         (s.class_name || '').toLowerCase() === homeroom.toLowerCase() &&
+        s.name &&
         !seatedIds.has(s.id)
     );
     if (available.length === 0) return;

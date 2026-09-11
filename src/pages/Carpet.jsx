@@ -102,13 +102,29 @@ export default function Carpet() {
       }
     }
 
-    if (allSeats.length < GRID_SIZE) {
+    // Only create spots for real students (with names), not blank roster entries
+    const classStudents = students.filter(
+      (s) => (s.class_name || '').toLowerCase() === homeroom.toLowerCase() && s.name
+    );
+    const targetCount = Math.min(classStudents.length, GRID_SIZE);
+
+    // Remove excess empty seats beyond what we need for named students
+    const seatedCount = allSeats.filter(s => s.student_id).length;
+    const maxNeeded = Math.max(targetCount, seatedCount);
+    const emptySeats = allSeats.filter(s => !s.student_id);
+    if (allSeats.length > maxNeeded && emptySeats.length > 0) {
+      const toRemove = emptySeats.slice(0, allSeats.length - maxNeeded);
+      await Promise.all(toRemove.map(s => base44.entities.CarpetSeat.delete(s.id)));
+      const removeIds = new Set(toRemove.map(s => s.id));
+      for (let i = allSeats.length - 1; i >= 0; i--) {
+        if (removeIds.has(allSeats[i].id)) allSeats.splice(i, 1);
+      }
+    }
+
+    if (allSeats.length < targetCount) {
       const existingPositions = new Set(allSeats.map((s) => s.position));
-      const classStudents = students.filter(
-        (s) => (s.class_name || '').toLowerCase() === homeroom.toLowerCase()
-      );
       const newSeats = [];
-      for (let i = 0; i < GRID_SIZE; i++) {
+      for (let i = 0; i < targetCount; i++) {
         if (!existingPositions.has(i)) {
           newSeats.push({
             class_name: selectedClass,
@@ -274,6 +290,7 @@ export default function Carpet() {
         ? students.filter(
             (s) =>
               (s.class_name || '').toLowerCase() === homeroom.toLowerCase() &&
+              s.name &&
               !assignedIds.has(s.id)
           )
         : [],
@@ -292,6 +309,18 @@ export default function Carpet() {
     } catch {
       loadSeats();
     }
+    setSaving(false);
+  };
+
+  const handleUnseat = async (studentId) => {
+    const seat = (seats || []).find((s) => s.student_id === studentId);
+    if (!seat) return;
+    setSeats(prev => prev ? prev.map(s => s.id === seat.id ? { ...s, student_id: null } : s) : prev);
+    setSelectedCell(null);
+    setSaving(true);
+    try {
+      await base44.entities.CarpetSeat.update(seat.id, { student_id: null });
+    } catch { loadSeats(); }
     setSaving(false);
   };
 
@@ -326,6 +355,7 @@ export default function Carpet() {
     const available = students.filter(
       (s) =>
         (s.class_name || '').toLowerCase() === homeroom.toLowerCase() &&
+        s.name &&
         !assignedIds.has(s.id)
     );
     if (available.length === 0) return;
@@ -588,12 +618,20 @@ export default function Carpet() {
                     Tap another student to swap — or tap the highlighted one to cancel.
                   </p>
                   {selectedCellStudent && (
-                    <button
-                      onClick={() => handleDeleteStudent(selectedCellStudent.id)}
-                      className="mt-1.5 text-sm text-destructive hover:text-destructive/80 inline-flex items-center gap-1"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete {selectedCellStudent.name}
-                    </button>
+                    <div className="flex items-center justify-center gap-4 mt-1.5">
+                      <button
+                        onClick={() => handleUnseat(selectedCellStudent.id)}
+                        className="text-sm text-amber-600 hover:text-amber-700 inline-flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-4 h-4" /> Unseat {selectedCellStudent.name}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStudent(selectedCellStudent.id)}
+                        className="text-sm text-destructive hover:text-destructive/80 inline-flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
