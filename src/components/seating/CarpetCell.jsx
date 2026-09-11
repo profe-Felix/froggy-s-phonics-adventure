@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
-import { Sun, Moon, Star } from 'lucide-react';
+import { Sun, Moon, Star, Home, DoorOpen, UserCheck } from 'lucide-react';
 
 // Row → partner icon: red=sun, green=moon, blue=moon(walkway), pink=sun, aqua=moon
 const ROW_PARTNER_ICONS = [Sun, Moon, Moon, Sun, Moon];
@@ -20,6 +20,7 @@ export default function CarpetCell({
   partnerStudents,
   showPartners,
   rowIndex,
+  onStatusChange,
 }) {
   const photo = student?.photo_url;
   const name = student?.name;
@@ -82,6 +83,36 @@ export default function CarpetCell({
           </div>
         )}
       </div>
+
+      {/* Status icon overlay — appears within the cell when selected (teaching carpet mode).
+          Clicking an icon changes the student's status; clicking another student swaps. */}
+      {isSelected && onStatusChange && student && (
+        <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 rounded-md z-30 p-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange('absent'); }}
+            className={cn('p-1.5 rounded-md transition-colors', status === 'absent' ? 'bg-amber-500' : 'bg-white/90 hover:bg-white')}
+            title="Absent (home)"
+          >
+            <Home className={cn('w-4 h-4', status === 'absent' ? 'text-white' : 'text-amber-600')} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange('stepped_out'); }}
+            className={cn('p-1.5 rounded-md transition-colors', status === 'stepped_out' ? 'bg-blue-500' : 'bg-white/90 hover:bg-white')}
+            title="Pulled out"
+          >
+            <DoorOpen className={cn('w-4 h-4', status === 'stepped_out' ? 'text-white' : 'text-blue-600')} />
+          </button>
+          {status !== 'present' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onStatusChange('present'); }}
+              className="p-1.5 rounded-md bg-white/90 hover:bg-white transition-colors"
+              title="Back (present)"
+            >
+              <UserCheck className="w-4 h-4 text-green-600" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Partner icons: sun/moon/star, shown in partners mode */}
       {showPartners && student && !isOut && PartnerIconComp && (
