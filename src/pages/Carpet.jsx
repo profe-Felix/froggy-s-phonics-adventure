@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Button } from '@/components/ui/button';
 import CarpetCell from '@/components/seating/CarpetCell';
-import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, HeartHandshake, ClipboardList, Sun, Moon, Star } from 'lucide-react';
+import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StudentBankCard from '@/components/seating/StudentBankCard';
 import AbsencePanel from '@/components/seating/AbsencePanel';
@@ -266,8 +266,9 @@ export default function Carpet() {
     const seat = seats.find((s) => s.position === position);
     if (!seat) return;
 
-    // Teaching mode: partners — view only, no click action
+    // Teaching mode: partners — allow selecting a student for status overlay, no swapping
     if (viewMode === 'teaching' && teachingMode === 'partners') {
+      if (seat.student_id) setSelectedCell(selectedCell === position ? null : position);
       return;
     }
 
@@ -485,7 +486,7 @@ export default function Carpet() {
               partnerStudents={studentMap}
               showPartners={viewMode === 'teaching' && teachingMode === 'partners'}
               rowIndex={rowIdx}
-              onStatusChange={viewMode === 'teaching' && teachingMode === 'carpet' && seat.student_id ? (s) => { handleSetStatus(seat.position, s); setSelectedCell(null); } : undefined}
+              onStatusChange={viewMode === 'teaching' && seat.student_id ? (s) => { handleSetStatus(seat.position, s); setSelectedCell(null); } : undefined}
             />
           );
         })}
@@ -704,16 +705,7 @@ export default function Carpet() {
                 />
               </div>
             )}
-            {teachingMode === 'partners' && (
-              <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-4 flex-wrap">
-                <span className="flex items-center gap-1"><Sun className="w-3 h-3 inline" /> Sun (red/pink)</span>
-                <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
-                <span className="flex items-center gap-1"><Star className="w-3 h-3 inline" /> Star (trio third)</span>
-                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#228BE6" strokeWidth="2" /></svg> Square = pair</span>
-                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><polygon points="1,1 1,13 13,13" fill="white" stroke="#228BE6" strokeWidth="2" strokeLinejoin="round" /></svg> Triangle = trio</span>
-                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#f97316" strokeWidth="2" /></svg> Orange = temporary</span>
-              </div>
-            )}
+
           </div>
         ) : (
           <div className="flex gap-4">

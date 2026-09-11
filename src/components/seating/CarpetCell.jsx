@@ -118,11 +118,11 @@ export default function CarpetCell({
       {showPartners && student && !isOut && PartnerIconComp && (
         <div
           className={cn(
-            'absolute top-0.5 left-0.5 z-10 flex items-center rounded-full px-1 py-0.5 shadow',
+            'absolute top-0.5 left-0.5 z-10 flex items-center rounded-full p-1 shadow',
             partnerInfo?.isTemporary ? 'bg-orange-500' : 'bg-blue-600'
           )}
         >
-          <PartnerIconComp className="w-3 h-3 text-white" />
+          <PartnerIconComp className="w-5 h-5 text-white" />
         </div>
       )}
 
