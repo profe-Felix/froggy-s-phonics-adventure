@@ -214,10 +214,10 @@
   .hfw-sheet {
     position: static !important;
     transform: none !important;
-    width: auto !important;
-    height: auto !important;
+    width: 11in !important;
+    height: 8.5in !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 0.15in !important;
   }
 }
 
