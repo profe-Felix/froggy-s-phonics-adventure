@@ -1,7 +1,7 @@
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 
 export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0,
-  emojiHeightFactor, emojiFeetFactor, emojiXAdjust }) {
+  emojiHeightFactor, emojiFeetFactor, emojiXAdjust, fenceCrop }) {
   const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
@@ -9,7 +9,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
 
   // GuideKeyVisual viewBox — sized in hundredths of an inch so the aspect
   // ratio matches the practice-set (width: 0.7in, height: 3 * lineSize in).
-  const vbW = 80;
+  const vbW = 200;
   const gUnits = lineSize * 100;
   const vbH = 3 * gUnits;
 
@@ -29,9 +29,11 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
                 grassY={2 * gUnits}
                 dirtY={3 * gUnits}
                 width={vbW}
+                bgWidth={80}
                 emojiHeightFactor={emojiHeightFactor}
                 emojiFeetFactor={emojiFeetFactor}
                 emojiXAdjust={emojiXAdjust}
+                fenceCrop={fenceCrop}
               />
             </svg>
             <div className="practice-line top" />

@@ -21,6 +21,7 @@ export default function NamePractice() {
   const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.84);
   const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.26);
   const [emojiXAdjust, setEmojiXAdjust] = useState(0);
+  const [fenceCrop, setFenceCrop] = useState(800);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -190,7 +191,12 @@ export default function NamePractice() {
             <input type="range" min={-30} max={30} step={1} value={emojiXAdjust} onChange={(e) => setEmojiXAdjust(parseFloat(e.target.value))} className="w-24" />
             <span className="w-12 tabular-nums">{emojiXAdjust}</span>
           </label>
-          <span className="text-amber-700">Heads → sky (tall) &amp; fence (short). Feet on grass.</span>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
+            Fence
+            <input type="range" min={200} max={1280} step={50} value={fenceCrop} onChange={(e) => setFenceCrop(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-12 tabular-nums">{fenceCrop}</span>
+          </label>
+          <span className="text-amber-700">Emojis left, fence right. Heads → sky/fence, feet on grass.</span>
         </div>
       </header>
 
@@ -207,13 +213,13 @@ export default function NamePractice() {
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
                 <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} />
+                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} fenceCrop={fenceCrop} />
               </div>
             ))}
           </div>
         ) : selected ? (
           <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} />
+            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiXAdjust={emojiXAdjust} fenceCrop={fenceCrop} />
         ) : null}
       </main>
     </div>
