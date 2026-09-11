@@ -24,6 +24,7 @@ export default function NamePractice() {
   const [bgWidth, setBgWidth] = useState(80);
   const [fenceWidth, setFenceWidth] = useState(40);
   const [fenceOffset, setFenceOffset] = useState(0);
+  const [emojiX, setEmojiX] = useState(60);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -189,6 +190,11 @@ export default function NamePractice() {
             <span className="w-12 tabular-nums">{emojiFeetFactor.toFixed(3)}</span>
           </label>
           <label className="flex items-center gap-1.5 text-muted-foreground">
+            Emoji X
+            <input type="range" min={0} max={120} step={1} value={emojiX} onChange={(e) => setEmojiX(parseFloat(e.target.value))} className="w-24" />
+            <span className="w-10 tabular-nums">{emojiX}</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-muted-foreground">
             Spacing
             <input type="range" min={40} max={120} step={1} value={emojiSpacing} onChange={(e) => setEmojiSpacing(parseFloat(e.target.value))} className="w-24" />
             <span className="w-10 tabular-nums">{emojiSpacing}</span>
@@ -225,13 +231,13 @@ export default function NamePractice() {
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
                 <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} />
+                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} />
               </div>
             ))}
           </div>
         ) : selected ? (
           <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} />
+            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} />
         ) : null}
       </main>
     </div>

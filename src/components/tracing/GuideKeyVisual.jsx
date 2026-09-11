@@ -20,7 +20,7 @@ const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
   emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing = 70, bgWidth = 80,
-  fenceWidth = 40, fenceOffset = 0 }) {
+  fenceWidth = 40, fenceOffset = 0, emojiX = 0 }) {
 
   const clipId = useId();
 
@@ -41,7 +41,7 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const lowY = grassY - emojiFeetFactor * lowFSize;
 
   // Emojis on the LEFT — capital then lowercase, spaced by emojiSpacing
-  const capX = 20;
+  const capX = 20 + emojiX;
   const lowX = capX + emojiSpacing;
 
   // Fence AFTER the emojis — full height, clipped to a horizontal window.
