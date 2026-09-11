@@ -12,7 +12,7 @@ import { parseName } from '@/lib/nameNormalize';
 
 const ROW_SIZES = [5, 5, 6, 5, 5];
 const GRID_SIZE = ROW_SIZES.reduce((a, b) => a + b, 0);
-const ROW_COLORS = ['bg-red-300', 'bg-green-300', 'bg-blue-300', 'bg-pink-300', 'bg-cyan-300'];
+const ROW_COLORS = ['bg-red-400', 'bg-green-400', 'bg-blue-400', 'bg-pink-400', 'bg-cyan-400'];
 const GROUPS = ['A', 'B', 'C'];
 
 export default function Carpet() {
