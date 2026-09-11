@@ -66,10 +66,24 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
             }
           }
           if (!corner) continue;
+          // Grid corner = midpoint of the two arms (hypotenuse midpoint anchor,
+          // falls at the 4-square intersection).
+          const gx = (arms[0].x + arms[1].x) / 2;
+          const gy = (arms[0].y + arms[1].y) / 2;
+          // Unit directions from corner toward each arm
+          const d1x = arms[0].x - corner.x, d1y = arms[0].y - corner.y;
+          const d1l = Math.hypot(d1x, d1y) || 1;
+          const d2x = arms[1].x - corner.x, d2y = arms[1].y - corner.y;
+          const d2l = Math.hypot(d2x, d2y) || 1;
+          const u1x = d1x / d1l, u1y = d1y / d1l;
+          const u2x = d2x / d2l, u2y = d2y / d2l;
+          // Small triangle: legs of length L (= pair square width),
+          // hypotenuse midpoint pinned at the grid corner.
+          const L = 26, h = L / 2;
           trios.push({
-            cx: corner.x, cy: corner.y,
-            a1x: arms[0].x, a1y: arms[0].y,
-            a2x: arms[1].x, a2y: arms[1].y,
+            cx: gx - h * (u1x + u2x), cy: gy - h * (u1y + u2y),
+            a1x: gx + h * (u1x - u2x), a1y: gy + h * (u1y - u2y),
+            a2x: gx + h * (u2x - u1x), a2y: gy + h * (u2y - u1y),
             temporary: info.isTemporary,
           });
         } else if (info.partnerIds.length === 1) {
@@ -118,9 +132,8 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
           key={`trio-${i}`}
           points={`${t.cx},${t.cy} ${t.a1x},${t.a1y} ${t.a2x},${t.a2y}`}
           fill="white"
-          fillOpacity="0.6"
           stroke={t.temporary ? TEMP : PERM}
-          strokeWidth="3"
+          strokeWidth="2.5"
           strokeLinejoin="round"
         />
       ))}
