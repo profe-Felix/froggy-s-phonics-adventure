@@ -257,7 +257,7 @@ export default function HfwCards() {
       </header>
 
       <main className="py-8 flex justify-center print:block print:py-0">
-        <span ref={measureRef} style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', whiteSpace: 'nowrap', fontWeight: 700, fontFamily: "'Teachers', system-ui, sans-serif", fontFeatureSettings: "'ss10'", lineHeight: '1.05' }} />
+        <span ref={measureRef} style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', whiteSpace: 'nowrap', fontWeight: 400, fontFamily: "'Teachers', system-ui, sans-serif", fontFeatureSettings: "'ss10'", lineHeight: '1.05' }} />
         {loading ? (
           <div className="text-muted-foreground">Loading…</div>
         ) : cardCount === 0 ? (

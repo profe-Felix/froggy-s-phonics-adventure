@@ -52,7 +52,7 @@ export default function AutoFitWord({
       <span
         ref={textRef}
         style={{
-          fontWeight: 700,
+          fontWeight: 400,
           fontFamily: "'Teachers', system-ui, sans-serif",
           fontFeatureSettings: "'ss10'",
           color: '#1e293b',
