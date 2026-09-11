@@ -202,6 +202,10 @@
     width: auto !important;
     box-shadow: none !important;
   }
+  @page HfwLandscape {
+    size: letter landscape;
+    margin: 0.25in;
+  }
   .hfw-sheet-wrap {
     --zoom: 1 !important;
     width: auto !important;
@@ -221,21 +225,21 @@
   }
 }
 
-/* HFW card grid — portrait letter, 3 cols × 4 rows = 12 cards per sheet.
+/* HFW card grid — landscape letter, 3 cols × 4 rows = 12 cards per sheet.
    Cards autosize to fill grid cells (1fr) and center content vertically
    and horizontally. Gap is 0.01in — thin enough for a precision cutter blade. */
 .hfw-sheet-wrap {
   position: relative;
-  width: calc(8.5in * var(--zoom, 1));
-  height: calc(11in * var(--zoom, 1));
+  width: calc(11in * var(--zoom, 1));
+  height: calc(8.5in * var(--zoom, 1));
   margin: 0 auto;
 }
 .hfw-sheet {
   position: absolute;
   top: 0;
   left: 0;
-  width: 8.5in;
-  height: 11in;
+  width: 11in;
+  height: 8.5in;
   background: #fff;
   transform: scale(var(--zoom, 1));
   transform-origin: top left;
@@ -243,6 +247,7 @@
   display: flex;
   padding: 0.15in;
   box-sizing: border-box;
+  page: HfwLandscape;
 }
 .hfw-grid {
   display: grid;
