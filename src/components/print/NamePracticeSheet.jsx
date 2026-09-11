@@ -13,6 +13,10 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
   const gUnits = lineSize * 100;
   const vbH = 3 * gUnits;
 
+  // Fence right edge in viewBox units — text must start past this to avoid overlap.
+  const fenceEnd = 20 + emojiX + emojiSpacing + fenceGap + fenceWidth;
+  const textLeftIn = Math.max(bgWidth, fenceEnd) / 100 + 0.2;
+
   return (
     <div className="page-preview">
       <div className="practice-sheet" style={{ '--f': `${fontSize}in`, '--g': `${lineSize}in`, '--offset': `${offset}in` }}>
@@ -43,7 +47,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
             <div className="practice-line mid" />
             <div className="practice-line base" />
             <div className="practice-line desc" />
-            <div className="practice-text" style={{ left: `${(bgWidth / 100) + 0.02}in` }}>{name}</div>
+            <div className="practice-text" style={{ left: `${textLeftIn}in` }}>{name}</div>
           </div>
         ))}
       </div>
