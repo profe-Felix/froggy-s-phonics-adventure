@@ -6,38 +6,44 @@ import { useEffect, useState, useRef } from 'react';
  *
  * - Pairs: white square straddling the border between the two cells
  * - Trios: white triangle straddling the border, pointing toward the solo side
+ * - Move recommendations: dashed arrow from a solo student to an empty seat
+ *   where they'd form a natural pair with another solo across groups
  *
  * Blue border = permanent partner, orange border = temporary (solo reassigned).
  */
 export default function PartnerArrows({ seats, partnerMap, containerRef }) {
-  const [markers, setMarkers] = useState({ pairs: [], trios: [] });
+  const [markers, setMarkers] = useState({ pairs: [], trios: [], moves: [] });
   const rafRef = useRef(null);
 
   useEffect(() => {
     const measure = () => {
       const container = containerRef.current;
       if (!container || !seats || !partnerMap) {
-        setMarkers({ pairs: [], trios: [] });
+        setMarkers({ pairs: [], trios: [], moves: [] });
         return;
       }
       const containerRect = container.getBoundingClientRect();
-      const centers = {};
-      const cellEls = container.querySelectorAll('[data-student-id]');
+
+      // Index cells by student id and by position
+      const centers = {};      // student_id → { x, y, top, bottom }
+      const posCenters = {};    // position → { x, y }
+      const cellEls = container.querySelectorAll('[data-position]');
       for (const el of cellEls) {
-        const sid = el.getAttribute('data-student-id');
-        if (!sid) continue;
         const r = el.getBoundingClientRect();
-        centers[sid] = {
-          x: r.left - containerRect.left + r.width / 2,
-          y: r.top - containerRect.top + r.height / 2,
-          top: r.top - containerRect.top,
-          bottom: r.bottom - containerRect.top,
-        };
+        const cx = r.left - containerRect.left + r.width / 2;
+        const cy = r.top - containerRect.top + r.height / 2;
+        const pos = el.getAttribute('data-position');
+        if (pos) posCenters[pos] = { x: cx, y: cy };
+        const sid = el.getAttribute('data-student-id');
+        if (sid) {
+          centers[sid] = { x: cx, y: cy, top: r.top - containerRect.top, bottom: r.bottom - containerRect.top };
+        }
       }
 
       const processed = new Set();
       const pairs = [];
       const trios = [];
+      const moves = [];
 
       for (const seat of seats) {
         const sid = seat.student_id;
@@ -87,24 +93,44 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
             temporary: info.isTemporary,
           });
         } else if (info.partnerIds.length === 1) {
-          // Pair
           const pid = info.partnerIds[0];
           processed.add(sid);
           processed.add(pid);
-          if (!centers[sid] || !centers[pid]) continue;
-          const a = centers[sid];
-          const b = centers[pid];
-          const upper = a.top < b.top ? a : b;
-          const lower = a.top < b.top ? b : a;
-          pairs.push({
-            midX: (upper.x + lower.x) / 2,
-            midY: (upper.bottom + lower.top) / 2,
-            temporary: info.isTemporary,
-          });
+
+          // Check for move recommendation (cross-group pair)
+          if (info.moveToPosition != null && posCenters[info.moveToPosition] && centers[sid]) {
+            moves.push({
+              fromX: centers[sid].x,
+              fromY: centers[sid].y,
+              toX: posCenters[info.moveToPosition].x,
+              toY: posCenters[info.moveToPosition].y,
+            });
+          } else if (partnerMap[pid]?.moveToPosition != null && posCenters[partnerMap[pid].moveToPosition] && centers[pid]) {
+            moves.push({
+              fromX: centers[pid].x,
+              fromY: centers[pid].y,
+              toX: posCenters[partnerMap[pid].moveToPosition].x,
+              toY: posCenters[partnerMap[pid].moveToPosition].y,
+            });
+          }
+
+          // Pair marker (skip if this is a cross-group move pair — draw arrow instead)
+          if (info.moveToPosition == null && partnerMap[pid]?.moveToPosition == null) {
+            if (!centers[sid] || !centers[pid]) continue;
+            const a = centers[sid];
+            const b = centers[pid];
+            const upper = a.top < b.top ? a : b;
+            const lower = a.top < b.top ? b : a;
+            pairs.push({
+              midX: (upper.x + lower.x) / 2,
+              midY: (upper.bottom + lower.top) / 2,
+              temporary: info.isTemporary,
+            });
+          }
         }
       }
 
-      setMarkers({ pairs, trios });
+      setMarkers({ pairs, trios, moves });
     };
 
     rafRef.current = requestAnimationFrame(measure);
@@ -119,11 +145,12 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
     };
   }, [seats, partnerMap, containerRef]);
 
-  if (markers.pairs.length === 0 && markers.trios.length === 0) return null;
+  if (markers.pairs.length === 0 && markers.trios.length === 0 && markers.moves.length === 0) return null;
 
   const PERM = '#228BE6';
   const TEMP = '#f97316';
   const SQ_HALF = 13; // square half-size
+  const MOVE_COLOR = '#6366f1'; // indigo for move arrows
 
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 15 }}>
@@ -150,6 +177,32 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
           strokeWidth="2.5"
         />
       ))}
+      {markers.moves.map((m, i) => {
+        // Dashed arrow from the student's current cell to the recommended empty seat
+        const dx = m.toX - m.fromX;
+        const dy = m.toY - m.fromY;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len;
+        // Shorten the line so it starts/ends at cell edges, not centers
+        const offset = 22;
+        const sx = m.fromX + ux * offset;
+        const sy = m.fromY + uy * offset;
+        const ex = m.toX - ux * offset;
+        const ey = m.toY - uy * offset;
+        // Arrowhead
+        const ah = 8;
+        const ax1 = ex - ux * ah + uy * ah * 0.6;
+        const ay1 = ey - uy * ah - ux * ah * 0.6;
+        const ax2 = ex - ux * ah - uy * ah * 0.6;
+        const ay2 = ey - uy * ah + ux * ah * 0.6;
+        return (
+          <g key={`move-${i}`}>
+            <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={MOVE_COLOR} strokeWidth="3" strokeDasharray="5 4" strokeLinecap="round" />
+            <polygon points={`${ex},${ey} ${ax1},${ay1} ${ax2},${ay2}`} fill={MOVE_COLOR} />
+            <circle cx={m.toX} cy={m.toY} r="14" fill="none" stroke={MOVE_COLOR} strokeWidth="2.5" strokeDasharray="3 3" />
+          </g>
+        );
+      })}
     </svg>
   );
 }

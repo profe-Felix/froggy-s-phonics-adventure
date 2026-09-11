@@ -44,6 +44,7 @@ export default function CarpetCell({
     <div
       onClick={onClick}
       data-student-id={student?.id || ''}
+      data-position={seat?.position}
       className={cn(
         'relative flex-1 aspect-square p-1 cursor-pointer transition-all',
         isSelected && 'z-20'
