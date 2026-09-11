@@ -1,27 +1,26 @@
 import { useEffect, useState, useRef } from 'react';
 
 /**
- * Renders prominent double-sided arrows between partnered students,
- * overlaid on the carpet grid. Arrows sit in the gap between adjacent
- * rows so they don't obscure the photos.
+ * Renders geometric shape markers between partnered students,
+ * overlaid on the carpet grid (no extra row spacing needed).
  *
- * Uses DOM measurement to find each cell's center, so it works regardless
- * of row sizes or temporary (solo-reassignment) pairings that cross columns.
+ * - Pairs: white square straddling the border between the two cells
+ * - Trios: white triangle straddling the border, pointing toward the solo side
+ *
+ * Blue border = permanent partner, orange border = temporary (solo reassigned).
  */
 export default function PartnerArrows({ seats, partnerMap, containerRef }) {
-  const [arrows, setArrows] = useState([]);
+  const [markers, setMarkers] = useState({ pairs: [], trios: [] });
   const rafRef = useRef(null);
 
   useEffect(() => {
     const measure = () => {
       const container = containerRef.current;
       if (!container || !seats || !partnerMap) {
-        setArrows([]);
+        setMarkers({ pairs: [], trios: [] });
         return;
       }
       const containerRect = container.getBoundingClientRect();
-
-      // Build a map of student_id → edge points (relative to container)
       const centers = {};
       const cellEls = container.querySelectorAll('[data-student-id]');
       for (const el of cellEls) {
@@ -35,95 +34,101 @@ export default function PartnerArrows({ seats, partnerMap, containerRef }) {
         };
       }
 
-      // Build unique pairs (each pair drawn once)
-      const seen = new Set();
+      const processed = new Set();
       const pairs = [];
+      const trios = [];
+
       for (const seat of seats) {
         const sid = seat.student_id;
-        if (!sid) continue;
+        if (!sid || processed.has(sid)) continue;
         const info = partnerMap[sid];
         if (!info || !info.partnerIds || info.partnerIds.length === 0) continue;
-        for (const pid of info.partnerIds) {
-          const key = [sid, pid].sort().join('::');
-          if (seen.has(key)) continue;
-          seen.add(key);
+
+        if (info.partnerIds.length >= 2) {
+          // Trio
+          const trioIds = [sid, ...info.partnerIds];
+          for (const tid of trioIds) processed.add(tid);
+          const tc = trioIds.map(id => centers[id]).filter(Boolean);
+          if (tc.length < 3) continue;
+          const sorted = [...tc].sort((a, b) => a.top - b.top);
+          const twoAbove = Math.abs(sorted[0].top - sorted[1].top) < Math.abs(sorted[1].top - sorted[2].top);
+          const upperStudents = twoAbove ? [sorted[0], sorted[1]] : [sorted[0]];
+          const lowerStudents = twoAbove ? [sorted[2]] : [sorted[1], sorted[2]];
+          const upperBottom = Math.max(...upperStudents.map(c => c.bottom));
+          const lowerTop = Math.min(...lowerStudents.map(c => c.top));
+          const cx = tc.reduce((s, c) => s + c.x, 0) / 3;
+          const cy = (upperBottom + lowerTop) / 2;
+          trios.push({ cx, cy, pointsUp: !twoAbove, temporary: info.isTemporary });
+        } else if (info.partnerIds.length === 1) {
+          // Pair
+          const pid = info.partnerIds[0];
+          processed.add(sid);
+          processed.add(pid);
           if (!centers[sid] || !centers[pid]) continue;
+          const a = centers[sid];
+          const b = centers[pid];
+          const upper = a.top < b.top ? a : b;
+          const lower = a.top < b.top ? b : a;
           pairs.push({
-            a: centers[sid],
-            b: centers[pid],
+            midX: (upper.x + lower.x) / 2,
+            midY: (upper.bottom + lower.top) / 2,
             temporary: info.isTemporary,
           });
         }
       }
-      setArrows(pairs);
+
+      setMarkers({ pairs, trios });
     };
 
-    // Defer to next frame so layout is settled after the gap-6 class applies
     rafRef.current = requestAnimationFrame(measure);
-
     const ro = new ResizeObserver(() => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(measure);
     });
     if (containerRef.current) ro.observe(containerRef.current);
-
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
   }, [seats, partnerMap, containerRef]);
 
-  if (arrows.length === 0) return null;
+  if (markers.pairs.length === 0 && markers.trios.length === 0) return null;
+
+  const PERM = '#228BE6';
+  const TEMP = '#f97316';
+  const SQ_HALF = 13; // square half-size
+  const TRI_SIDE = 28;
+  const TRI_H = (TRI_SIDE * Math.sqrt(3)) / 2;
 
   return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 15 }}
-    >
-      <defs>
-        <marker
-          id="partner-arrow-head"
-          markerWidth="7"
-          markerHeight="7"
-          refX="6"
-          refY="3.5"
-          orient="auto-start-reverse"
-        >
-          <path d="M0,0 L7,3.5 L0,7 Z" fill="#228BE6" />
-        </marker>
-        <marker
-          id="partner-arrow-head-temp"
-          markerWidth="7"
-          markerHeight="7"
-          refX="6"
-          refY="3.5"
-          orient="auto-start-reverse"
-        >
-          <path d="M0,0 L7,3.5 L0,7 Z" fill="#f97316" />
-        </marker>
-      </defs>
-      {arrows.map((p, i) => {
-        // Draw from bottom of the upper cell to top of the lower cell
-        const aTop = p.a.top < p.b.top ? p.a : p.b;
-        const aBot = p.a.top < p.b.top ? p.b : p.a;
-        const y1 = aTop.bottom;
-        const y2 = aBot.top;
-        const x1 = aTop.x;
-        const x2 = aBot.x;
-        const color = p.temporary ? '#f97316' : '#228BE6';
-        const marker = p.temporary ? 'url(#partner-arrow-head-temp)' : 'url(#partner-arrow-head)';
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 15 }}>
+      {markers.pairs.map((p, i) => (
+        <rect
+          key={`pair-${i}`}
+          x={p.midX - SQ_HALF}
+          y={p.midY - SQ_HALF}
+          width={SQ_HALF * 2}
+          height={SQ_HALF * 2}
+          rx="5"
+          fill="white"
+          stroke={p.temporary ? TEMP : PERM}
+          strokeWidth="2.5"
+        />
+      ))}
+      {markers.trios.map((t, i) => {
+        const r1 = (2 * TRI_H) / 3;
+        const r2 = TRI_H / 3;
+        const pts = t.pointsUp
+          ? `${t.cx},${t.cy - r1} ${t.cx - TRI_SIDE / 2},${t.cy + r2} ${t.cx + TRI_SIDE / 2},${t.cy + r2}`
+          : `${t.cx},${t.cy + r1} ${t.cx - TRI_SIDE / 2},${t.cy - r2} ${t.cx + TRI_SIDE / 2},${t.cy - r2}`;
         return (
-          <line
-            key={i}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke={color}
-            strokeWidth="4"
-            strokeLinecap="round"
-            markerStart={marker}
-            markerEnd={marker}
+          <polygon
+            key={`trio-${i}`}
+            points={pts}
+            fill="white"
+            stroke={t.temporary ? TEMP : PERM}
+            strokeWidth="2.5"
+            strokeLinejoin="round"
           />
         );
       })}

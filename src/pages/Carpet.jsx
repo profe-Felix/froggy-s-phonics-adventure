@@ -689,7 +689,7 @@ export default function Carpet() {
           </div>
         ) : !isSetup ? (
           <div className="flex flex-col gap-4">
-            <div ref={carpetGridRef} className={cn('relative flex flex-col', teachingMode === 'partners' && 'gap-6')}>
+            <div ref={carpetGridRef} className="relative flex flex-col">
               {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
               {teachingMode === 'partners' && (
                 <PartnerArrows
@@ -714,8 +714,9 @@ export default function Carpet() {
                 <span className="flex items-center gap-1"><Sun className="w-3 h-3 inline" /> Sun (red/pink)</span>
                 <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
                 <span className="flex items-center gap-1"><Star className="w-3 h-3 inline" /> Star (trio third)</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-blue-600 rounded" /> Blue arrow = partners</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-orange-500 rounded" /> Orange = temporary</span>
+                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#228BE6" strokeWidth="2" /></svg> Square = pair</span>
+                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><polygon points="7,1 13,12 1,12" fill="white" stroke="#228BE6" strokeWidth="2" strokeLinejoin="round" /></svg> Triangle = trio</span>
+                <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#f97316" strokeWidth="2" /></svg> Orange = temporary</span>
               </div>
             )}
           </div>
