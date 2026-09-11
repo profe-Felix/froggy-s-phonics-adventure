@@ -44,7 +44,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         }
       ]
@@ -58,7 +58,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         }
       ]
@@ -72,7 +72,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         }
       ]

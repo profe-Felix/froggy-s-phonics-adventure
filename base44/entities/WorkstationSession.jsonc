@@ -38,7 +38,7 @@
   "rls": {
     "create": {
       "user_condition": {
-        "role": "teacher"
+        "role": "user"
       }
     },
     "read": {
@@ -50,7 +50,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         },
         {
@@ -69,7 +69,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         },
         {
@@ -88,7 +88,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         }
       ]

@@ -50,7 +50,7 @@
         },
         {
           "user_condition": {
-            "role": "teacher"
+            "role": "user"
           }
         }
       ]
