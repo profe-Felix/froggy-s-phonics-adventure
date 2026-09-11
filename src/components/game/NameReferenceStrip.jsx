@@ -11,15 +11,15 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 300;
 const CANVAS_H = 375;
 const LETTER_GAP = 20;
-const PADDING = 160; // clears the guide visual so letters start after the fence
+// PADDING is now a prop (default 160)
 const SIZE_SCALE = 0.55;
 const RENDER_H = CANVAS_H * SIZE_SCALE;
 const SHEET_W = 800; // minimum sheet width — matches NameTracingCanvas
 
-export default function NameReferenceStrip({ name, waypoints, renderWidth = 320 }) {
+export default function NameReferenceStrip({ name, waypoints, renderWidth = 320, guideProps = null, padding = 160 }) {
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 80, false),
-    [name, waypoints]
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, padding, 1, 80, false),
+    [name, waypoints, padding]
   );
 
   const sheetW = Math.max(totalW, SHEET_W);
@@ -29,7 +29,7 @@ export default function NameReferenceStrip({ name, waypoints, renderWidth = 320 
     const lay = layout[li];
     const baseX = lay ? lay.offset : 0;
     const minX = lay ? lay.minX : 0;
-    return { x: baseX + (pt.x - minX) * X_SCALE, y: pt.y * CANVAS_H };
+    return { x: baseX + (pt.x - minX) * X_SCALE, y: pt.y * CANVAS_H, ...(pt.corner ? { corner: true } : {}) };
   };
 
   if (!layout.length) return null;
@@ -42,7 +42,7 @@ export default function NameReferenceStrip({ name, waypoints, renderWidth = 320 
       style={{ display: 'block', width: renderW, height: RENDER_H }}
     >
       {/* Grounding visual — same proportions as NamePractice */}
-      <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} bgWidth={140} />
+      <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} {...(guideProps || { bgWidth: 140 })} />
       {/* Guide lines — same as NameTracingCanvas */}
       <line x1="0" y1={0.10 * CANVAS_H} x2={sheetW} y2={0.10 * CANVAS_H} stroke="#93c5fd" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
       <line x1="0" y1={0.367 * CANVAS_H} x2={sheetW} y2={0.367 * CANVAS_H} stroke="#000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />

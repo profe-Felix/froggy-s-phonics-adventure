@@ -16,6 +16,38 @@
         },
         "scale": {
           "type": "number"
+        },
+        "emojiHeightFactor": {
+          "type": "number",
+          "description": "Emoji visual height as a fraction of zone height (0.5-2.0)."
+        },
+        "emojiFeetFactor": {
+          "type": "number",
+          "description": "Emoji feet position as a fraction of font size (0-0.5)."
+        },
+        "emojiSpacing": {
+          "type": "number",
+          "description": "Horizontal gap between capital and lowercase emoji in hundredths-of-inch units."
+        },
+        "bgWidth": {
+          "type": "number",
+          "description": "Background zone width in hundredths-of-inch units."
+        },
+        "fenceWidth": {
+          "type": "number",
+          "description": "Visible fence window width in hundredths-of-inch units."
+        },
+        "fenceOffset": {
+          "type": "number",
+          "description": "Fence image horizontal offset (shifts pickets) in hundredths-of-inch units."
+        },
+        "emojiX": {
+          "type": "number",
+          "description": "Extra emoji X offset in hundredths-of-inch units."
+        },
+        "fenceGap": {
+          "type": "number",
+          "description": "Gap between lowercase emoji and fence in hundredths-of-inch units."
         }
       },
       "default": {},

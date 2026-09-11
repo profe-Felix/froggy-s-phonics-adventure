@@ -26,6 +26,41 @@ export default function NameTracingMode({ studentData, onBack }) {
   const studentNumber = studentData?.student_number;
   const schoolYear = studentData?.school_year || ACTIVE_SCHOOL_YEAR;
 
+  // Load guide visual settings from NamePracticeSetting (shared with Name Practice page)
+  const [guideSettings, setGuideSettings] = useState(null);
+  useEffect(() => {
+    base44.entities.NamePracticeSetting.list('-created_date').then((recs) => {
+      if (recs[0]?.settings) setGuideSettings(recs[0].settings);
+    }).catch(() => {});
+  }, []);
+
+  // Compute scaled guide props + padding for the Name Tracing canvas.
+  // NamePractice uses hundredths-of-inch units; Name Tracing uses pixels.
+  // Scale factor = tracingZoneHeight / practiceZoneHeight = 100 / (lineSize * 100)
+  const { guideProps, padding } = useMemo(() => {
+    if (!guideSettings) return { guideProps: null, padding: 160 };
+    const s = guideSettings;
+    const scale = 100 / ((s.lineSize || 0.67) * 100);
+    const bgW = (s.bgWidth || 140) * scale;
+    const eX = (s.emojiX || 13) * scale;
+    const eS = (s.emojiSpacing || 45) * scale;
+    const fG = (s.fenceGap || 35) * scale;
+    const fW = (s.fenceWidth || 26) * scale;
+    const fO = (s.fenceOffset || 0) * scale;
+    const baseX = bgW * 0.143;
+    const fenceEnd = baseX + eX + eS + fG + fW;
+    const bgDrawWidth = Math.max(bgW, fenceEnd);
+    return {
+      guideProps: {
+        emojiHeightFactor: s.emojiHeightFactor ?? 0.96,
+        emojiFeetFactor: s.emojiFeetFactor ?? 0.16,
+        bgWidth: bgW, emojiX: eX, emojiSpacing: eS,
+        fenceGap: fG, fenceWidth: fW, fenceOffset: fO,
+      },
+      padding: bgDrawWidth + 20,
+    };
+  }, [guideSettings]);
+
   // Load DB waypoint overrides + class config
   useEffect(() => {
     let cancelled = false;
@@ -209,10 +244,12 @@ export default function NameTracingMode({ studentData, onBack }) {
                       mode={row.mode}
                       renderWidth={renderWidth}
                       onComplete={handleRowComplete}
+                      guideProps={guideProps}
+                      padding={padding}
                     />
                   ) : (
                     <div className="relative">
-                      <NameReferenceStrip name={row.part} waypoints={waypoints} renderWidth={renderWidth} />
+                      <NameReferenceStrip name={row.part} waypoints={waypoints} renderWidth={renderWidth} guideProps={guideProps} padding={padding} />
                       {isPast && (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <span className="text-4xl text-green-400 opacity-60">✓</span>

@@ -18,15 +18,15 @@ export default function NamePractice() {
   const [lineSize, setLineSize] = useState(() => parseFloat(localStorage.getItem('np3.lineSize')) || 0.67);
   const [offset, setOffset] = useState(() => parseFloat(localStorage.getItem('np3.offset')) || 0);
   const [scale, setScale] = useState(() => parseFloat(localStorage.getItem('np3.scale')) || 1);
-  // TEMP: emoji tuning sliders — remove once values are finalized
-  const [emojiHeightFactor, setEmojiHeightFactor] = useState(0.96);
-  const [emojiFeetFactor, setEmojiFeetFactor] = useState(0.16);
-  const [emojiSpacing, setEmojiSpacing] = useState(45);
-  const [bgWidth, setBgWidth] = useState(140);
-  const [fenceWidth, setFenceWidth] = useState(26);
-  const [fenceOffset, setFenceOffset] = useState(0);
-  const [emojiX, setEmojiX] = useState(13);
-  const [fenceGap, setFenceGap] = useState(35);
+  // Emoji/fence tuning sliders — saved to NamePracticeSetting + localStorage
+  const [emojiHeightFactor, setEmojiHeightFactor] = useState(() => parseFloat(localStorage.getItem('np3.emojiHeightFactor')) || 0.96);
+  const [emojiFeetFactor, setEmojiFeetFactor] = useState(() => parseFloat(localStorage.getItem('np3.emojiFeetFactor')) || 0.16);
+  const [emojiSpacing, setEmojiSpacing] = useState(() => parseFloat(localStorage.getItem('np3.emojiSpacing')) || 45);
+  const [bgWidth, setBgWidth] = useState(() => parseFloat(localStorage.getItem('np3.bgWidth')) || 140);
+  const [fenceWidth, setFenceWidth] = useState(() => parseFloat(localStorage.getItem('np3.fenceWidth')) || 26);
+  const [fenceOffset, setFenceOffset] = useState(() => parseFloat(localStorage.getItem('np3.fenceOffset')) || 0);
+  const [emojiX, setEmojiX] = useState(() => parseFloat(localStorage.getItem('np3.emojiX')) || 13);
+  const [fenceGap, setFenceGap] = useState(() => parseFloat(localStorage.getItem('np3.fenceGap')) || 35);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const settingIdRef = useRef(null);
 
@@ -37,7 +37,7 @@ export default function NamePractice() {
         const recs = await base44.entities.NamePracticeSetting.list('-created_date');
         let rec = recs[0];
         if (!rec) {
-          rec = await base44.entities.NamePracticeSetting.create({ settings: { fontSize: 1.35, lineSize: 0.67, offset: 0, scale: 1 } });
+          rec = await base44.entities.NamePracticeSetting.create({ settings: { fontSize: 1.35, lineSize: 0.67, offset: 0, scale: 1, emojiHeightFactor: 0.96, emojiFeetFactor: 0.16, emojiSpacing: 45, bgWidth: 140, fenceWidth: 26, fenceOffset: 0, emojiX: 13, fenceGap: 35 } });
         }
         settingIdRef.current = rec.id;
         const s = rec.settings;
@@ -46,6 +46,14 @@ export default function NamePractice() {
           if (typeof s.lineSize === 'number') setLineSize(s.lineSize);
           if (typeof s.offset === 'number') setOffset(s.offset);
           if (typeof s.scale === 'number') setScale(s.scale);
+          if (typeof s.emojiHeightFactor === 'number') setEmojiHeightFactor(s.emojiHeightFactor);
+          if (typeof s.emojiFeetFactor === 'number') setEmojiFeetFactor(s.emojiFeetFactor);
+          if (typeof s.emojiSpacing === 'number') setEmojiSpacing(s.emojiSpacing);
+          if (typeof s.bgWidth === 'number') setBgWidth(s.bgWidth);
+          if (typeof s.fenceWidth === 'number') setFenceWidth(s.fenceWidth);
+          if (typeof s.fenceOffset === 'number') setFenceOffset(s.fenceOffset);
+          if (typeof s.emojiX === 'number') setEmojiX(s.emojiX);
+          if (typeof s.fenceGap === 'number') setFenceGap(s.fenceGap);
         }
       } catch { /* keep local defaults */ }
       setSettingsLoaded(true);
@@ -56,15 +64,23 @@ export default function NamePractice() {
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.lineSize', String(lineSize)); }, [lineSize, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.offset', String(offset)); }, [offset, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.scale', String(scale)); }, [scale, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiHeightFactor', String(emojiHeightFactor)); }, [emojiHeightFactor, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiFeetFactor', String(emojiFeetFactor)); }, [emojiFeetFactor, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiSpacing', String(emojiSpacing)); }, [emojiSpacing, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.bgWidth', String(bgWidth)); }, [bgWidth, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceWidth', String(fenceWidth)); }, [fenceWidth, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceOffset', String(fenceOffset)); }, [fenceOffset, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiX', String(emojiX)); }, [emojiX, settingsLoaded]);
+  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceGap', String(fenceGap)); }, [fenceGap, settingsLoaded]);
 
   // Debounced save to global settings
   useEffect(() => {
     if (!settingsLoaded || !settingIdRef.current) return;
     const t = setTimeout(() => {
-      base44.entities.NamePracticeSetting.update(settingIdRef.current, { settings: { fontSize, lineSize, offset, scale } }).catch(() => {});
+      base44.entities.NamePracticeSetting.update(settingIdRef.current, { settings: { fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap } }).catch(() => {});
     }, 800);
     return () => clearTimeout(t);
-  }, [fontSize, lineSize, offset, scale, settingsLoaded]);
+  }, [fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap, settingsLoaded]);
 
   const [searchParams] = useSearchParams();
   const classParam = searchParams.get('class') || '';
@@ -178,9 +194,9 @@ export default function NamePractice() {
             <Button size="sm" variant="ghost" onClick={() => { setFontSize(1.35); setLineSize(0.67); setOffset(0); setScale(1); }}>Reset</Button>
           </div>
         </div>
-        {/* TEMP: emoji tuning sliders — remove once values are finalized */}
+        {/* Emoji/fence tuning sliders — saved to NamePracticeSetting */}
         <div className="max-w-5xl mx-auto px-6 py-1.5 flex items-center gap-4 flex-wrap border-t bg-amber-50 text-xs">
-          <span className="font-bold text-amber-800">TEMP Emoji:</span>
+          <span className="font-bold text-amber-800">Emoji Guide:</span>
           <label className="flex items-center gap-1.5 text-muted-foreground">
             Height
             <input type="range" min={0.5} max={2.0} step={0.01} value={emojiHeightFactor} onChange={(e) => setEmojiHeightFactor(parseFloat(e.target.value))} className="w-24" />

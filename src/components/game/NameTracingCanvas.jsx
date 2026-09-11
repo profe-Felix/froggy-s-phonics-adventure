@@ -20,7 +20,7 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 300;
 const CANVAS_H = 375;
 const LETTER_GAP = 20; // comfortable gap so letters don't overlap but read as a word
-const PADDING = 160; // clears the guide visual (fence ends ~140) so letters start after it
+// PADDING is now a prop (default 160) — set by NameTracingMode from guide settings
 const SHEET_W = 800; // minimum sheet width for a "sheet of paper" look
 const MIN_INK_PX = 120;
 // Match Letter Tracing's starting size (Medium = sizeLevel 2, scale 0.55).
@@ -36,14 +36,16 @@ export default function NameTracingCanvas({
   mode = 'guided',
   renderWidth = 320,
   onComplete,
+  guideProps = null,
+  padding = 160,
 }) {
   const isDotOnly = mode === 'dot_only';
   const isGuided = mode === 'guided';
 
   // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
-    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, PADDING, 1, 80, false),
-    [name, waypoints]
+    () => computeWordLayout(name, waypoints, X_SCALE, LETTER_GAP, padding, 1, 80, false),
+    [name, waypoints, padding]
   );
 
   // Flatten all strokes across all letters for guide rendering + dot_only.
@@ -688,7 +690,7 @@ export default function NameTracingCanvas({
       >
         {/* Guide lines */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} bgWidth={140} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} {...(guideProps || { bgWidth: 140 })} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={sheetW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         {/* Fence line (dashed black) */}
