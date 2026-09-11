@@ -13,7 +13,7 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 600;
 const CANVAS_H = 750;
 const LETTER_GAP = 40;
-const PADDING = 30;
+const PADDING = 350; // clears the guide visual (fence+emoji ~280px at CANVAS_H=750) with margin so the first letter isn't hidden
 const TEXT_FONT_SIZE = 520;
 const TEXT_LETTER_WIDTH = 300;
 const FONEMA_INTERVAL_MS = 2000;
@@ -601,7 +601,7 @@ export default function MissingLetterWordCanvas({
       >
         {/* Writing lines — span the full word width */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={150} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={280} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
         {/* Fence line (dashed black) */}

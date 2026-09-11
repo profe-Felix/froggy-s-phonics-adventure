@@ -24,7 +24,7 @@ export async function headExists(bucket, path) {
 // server-side. (Used when a preset has no explicit word list.)
 export async function listAll(bucket, prefix = '') {
   const res = await base44.functions.invoke('supabaseStorageList', { bucket, prefix });
-  return res.data?.files || [];
+  return res?.data?.files || res?.files || [];
 }
 
 function stripImageSuffix(t) { return t.replace(/_(pic|img|image|foto)$/i, ''); }
