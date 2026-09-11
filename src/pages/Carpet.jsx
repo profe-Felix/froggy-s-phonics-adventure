@@ -4,11 +4,12 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Button } from '@/components/ui/button';
 import CarpetCell from '@/components/seating/CarpetCell';
-import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, UserX, HeartHandshake, ClipboardList, Sun, Moon, Star } from 'lucide-react';
+import { Loader2, ArrowLeft, Shuffle, Tag, Users, Plus, RefreshCw, Settings, Check, Download, Trash2, Printer, HeartHandshake, ClipboardList, Sun, Moon, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StudentBankCard from '@/components/seating/StudentBankCard';
 import AbsencePanel from '@/components/seating/AbsencePanel';
 import PartnerArrows from '@/components/seating/PartnerArrows';
+import StatusSidebar from '@/components/seating/StatusSidebar';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { parseName } from '@/lib/nameNormalize';
 import { computePartners } from '@/lib/carpetPartners';
@@ -187,19 +188,18 @@ export default function Carpet() {
     [seats, studentMap]
   );
 
-  const handleAbsenceToggle = async (position) => {
+  const handleSetStatus = async (position, newStatus) => {
     const seat = seats.find((s) => s.position === position);
     if (!seat || !seat.student_id) return;
     const currentStatus = seat.status || 'present';
-    const nextStatus =
-      currentStatus === 'present' ? 'absent' : currentStatus === 'absent' ? 'stepped_out' : 'present';
+    if (currentStatus === newStatus) return;
     const now = new Date().toISOString();
 
     setSeats((prev) =>
       prev
         ? prev.map((s) =>
             s.position === position
-              ? { ...s, status: nextStatus, absent_since: nextStatus === 'present' ? '' : s.absent_since || now }
+              ? { ...s, status: newStatus, absent_since: newStatus === 'present' ? '' : s.absent_since || now }
               : s
           )
         : prev
@@ -207,7 +207,7 @@ export default function Carpet() {
 
     setSaving(true);
     try {
-      if (nextStatus === 'present') {
+      if (newStatus === 'present') {
         await base44.entities.CarpetSeat.update(seat.id, { status: 'present', absent_since: '' });
         const openRecs = await base44.entities.CarpetAbsence.filter({ student_id: seat.student_id, ended_at: '' });
         for (const r of openRecs) {
@@ -215,14 +215,14 @@ export default function Carpet() {
           await base44.entities.CarpetAbsence.update(r.id, { ended_at: now, duration_minutes: dur });
         }
       } else {
-        await base44.entities.CarpetSeat.update(seat.id, { status: nextStatus, absent_since: now });
+        await base44.entities.CarpetSeat.update(seat.id, { status: newStatus, absent_since: now });
         const student = studentMap[seat.student_id];
         await base44.entities.CarpetAbsence.create({
           student_id: seat.student_id,
           student_name: student?.name || '',
           class_name: selectedClass,
           group,
-          type: nextStatus,
+          type: newStatus,
           started_at: now,
           ended_at: '',
           duration_minutes: 0,
@@ -267,11 +267,6 @@ export default function Carpet() {
     const seat = seats.find((s) => s.position === position);
     if (!seat) return;
 
-    // Teaching mode: absence — tap to cycle present → absent → stepped_out → present
-    if (viewMode === 'teaching' && teachingMode === 'absence') {
-      handleAbsenceToggle(position);
-      return;
-    }
     // Teaching mode: partners — view only, no click action
     if (viewMode === 'teaching' && teachingMode === 'partners') {
       return;
@@ -502,6 +497,10 @@ export default function Carpet() {
   const selectedCellStudent = selectedCell !== null && seats
     ? studentMap[seats.find((s) => s.position === selectedCell)?.student_id]
     : null;
+  const selectedCellStatus = selectedCell !== null && seats
+    ? (seats.find((s) => s.position === selectedCell)?.status || 'present')
+    : 'present';
+  const outStudents = (seats || []).filter(s => s.student_id && s.status && s.status !== 'present');
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -656,13 +655,6 @@ export default function Carpet() {
                   >
                     <HeartHandshake className="w-4 h-4 mr-1.5" /> Partners
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={teachingMode === 'absence' ? 'default' : 'ghost'}
-                    onClick={() => setTeachingMode('absence')}
-                  >
-                    <UserX className="w-4 h-4 mr-1.5" /> Absence
-                  </Button>
                 </div>
                 <Button
                   size="sm"
@@ -677,7 +669,7 @@ export default function Carpet() {
         </div>
       </header>
 
-      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-2xl')}>
+      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-3xl')}>
         {!selectedClass ? (
           <div className="text-center py-20">
             <Users className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
@@ -688,28 +680,37 @@ export default function Carpet() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : !isSetup ? (
-          <div className="flex flex-col gap-4">
-            <div ref={carpetGridRef} className="relative flex flex-col">
-              {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
-              {teachingMode === 'partners' && (
-                <PartnerArrows
-                  seats={seats}
-                  partnerMap={partnerMap}
-                  containerRef={carpetGridRef}
-                />
-              )}
-            </div>
-            {teachingMode === 'absence' && (
-              <div className="bg-white rounded-lg border p-3">
-                <h3 className="text-sm font-medium mb-2">Currently Out</h3>
-                <AbsencePanel
-                  seats={seats}
-                  studentMap={studentMap}
-                  onMarkBack={handleAbsenceToggle}
-                />
-              </div>
+          <div className="flex gap-3 items-start justify-center">
+            {teachingMode === 'carpet' && selectedCell !== null && selectedCellStudent && (
+              <StatusSidebar
+                student={selectedCellStudent}
+                status={selectedCellStatus}
+                onStatusChange={(s) => { handleSetStatus(selectedCell, s); setSelectedCell(null); }}
+                onClose={() => setSelectedCell(null)}
+              />
             )}
-            {teachingMode === 'partners' && (
+            <div className="flex flex-col gap-4 flex-1 min-w-0">
+              <div ref={carpetGridRef} className="relative flex flex-col">
+                {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
+                {teachingMode === 'partners' && (
+                  <PartnerArrows
+                    seats={seats}
+                    partnerMap={partnerMap}
+                    containerRef={carpetGridRef}
+                  />
+                )}
+              </div>
+              {teachingMode === 'carpet' && outStudents.length > 0 && (
+                <div className="bg-white rounded-lg border p-3">
+                  <h3 className="text-sm font-medium mb-2">Currently Out</h3>
+                  <AbsencePanel
+                    seats={seats}
+                    studentMap={studentMap}
+                    onMarkBack={(pos) => handleSetStatus(pos, 'present')}
+                  />
+                </div>
+              )}
+              {teachingMode === 'partners' && (
               <div className="text-center text-xs text-muted-foreground flex items-center justify-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1"><Sun className="w-3 h-3 inline" /> Sun (red/pink)</span>
                 <span className="flex items-center gap-1"><Moon className="w-3 h-3 inline" /> Moon (green/aqua)</span>
@@ -719,6 +720,7 @@ export default function Carpet() {
                 <span className="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 14 14" className="inline-block"><rect x="1" y="1" width="12" height="12" rx="3" fill="white" stroke="#f97316" strokeWidth="2" /></svg> Orange = temporary</span>
               </div>
             )}
+            </div>
           </div>
         ) : (
           <div className="flex gap-4">
