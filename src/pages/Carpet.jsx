@@ -12,7 +12,7 @@ import { parseName } from '@/lib/nameNormalize';
 
 const ROW_SIZES = [5, 5, 6, 5, 5];
 const GRID_SIZE = ROW_SIZES.reduce((a, b) => a + b, 0);
-const ROW_COLORS = ['bg-red-100', 'bg-green-100', 'bg-blue-100', 'bg-pink-100', 'bg-cyan-100'];
+const ROW_COLORS = ['bg-red-300', 'bg-green-300', 'bg-blue-300', 'bg-pink-300', 'bg-cyan-300'];
 const GROUPS = ['A', 'B', 'C'];
 
 export default function Carpet() {
@@ -407,7 +407,7 @@ export default function Carpet() {
     const start = ROW_SIZES.slice(0, rowIdx).reduce((a, b) => a + b, 0);
     const rowSeats = seats.slice(start, start + ROW_SIZES[rowIdx]);
     return (
-      <div key={rowIdx} className={cn('flex gap-2 p-1.5 rounded-lg', ROW_COLORS[rowIdx] || '')}>
+      <div key={rowIdx} className={cn('flex gap-1 rounded-lg', ROW_COLORS[rowIdx] || '')}>
         {rowSeats.map((seat) => {
           const student = seat.student_id ? studentMap[seat.student_id] : null;
           const { first } = student ? parseName(student.name) : { first: '' };
@@ -571,7 +571,7 @@ export default function Carpet() {
         </div>
       </header>
 
-      <main className={cn('mx-auto px-4 sm:px-6 py-8', isSetup ? 'max-w-5xl' : 'max-w-3xl')}>
+      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-2xl')}>
         {!selectedClass ? (
           <div className="text-center py-20">
             <Users className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
@@ -582,7 +582,7 @@ export default function Carpet() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : !isSetup ? (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
           </div>
         ) : (
@@ -688,7 +688,7 @@ export default function Carpet() {
                   </p>
                 </>
               )}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col">
                 {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
               </div>
             </div>
