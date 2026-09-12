@@ -48,7 +48,7 @@ export default function LessonModeRouter({
   isLast = false,
   liveMode = false,
 }) {
-  const { progress, markStepComplete } = useLessonProgress(
+  const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
     selectedStudent?.class_name,
     lessonId
@@ -677,6 +677,12 @@ export default function LessonModeRouter({
         if (meta?.total) setLetterSortFirstTry({ correct: meta.firstTryCorrect ?? 0, total: meta.total });
       }
 
+      // Counting / phoneme activities: don't complete or award coins when the
+      // student hasn't answered any item correctly (prevents 0/N farming).
+      if (step?.mode === 'activities' && meta?.totalItems > 0 && (meta?.correctCount ?? 0) === 0) {
+        return;
+      }
+
       if (isReplayRun) {
         // Completion activities can be repeated for practice, but repeats
         // intentionally award zero coins.
@@ -1104,6 +1110,8 @@ export default function LessonModeRouter({
             stepConfig={
               step?.config
             }
+            activityState={getActivityState?.(stepIndex)}
+            onActivityState={(state) => saveActivityState?.(stepIndex, state)}
           />
         );
 

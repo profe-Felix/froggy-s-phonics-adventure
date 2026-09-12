@@ -4,8 +4,7 @@ import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildActivity } from '@/lib/activities/engine';
 import { DEFAULT_PALETTE } from '@/lib/activities/palette';
 import { playTts } from '@/lib/audio';
-import { getSavedVoice, langFromVoice } from '@/lib/activities/ttsVoices';
-import TtsVoiceSelect from './TtsVoiceSelect';
+import { getDefaultVoice, langFromVoice } from '@/lib/activities/ttsVoices';
 import { RefreshCw, Volume2, Mic, Send } from 'lucide-react';
 
 // Phoneme manipulation ("count + change"). One square box per sound in the
@@ -52,8 +51,8 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
   const [placed, setPlaced] = useState([]); // colorKey[]|null, length N
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  // Selected TTS voice (persisted). Empty = backend default.
-  const [ttsVoice, setTtsVoice] = useState(() => getSavedVoice());
+  // DB-backed default voice (teacher-selected). Fetched once on mount.
+  const [ttsVoice, setTtsVoice] = useState('');
 
   const placedRef = useRef([]);
   const gesturesRef = useRef([]);
@@ -72,6 +71,11 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
   const current = hasItems ? activity.items[order[pos]] || activity.items[0] : null;
   const { modeDef } = activity;
   const N = current ? clamp(current.answer || MIN_BOXES, MIN_BOXES, MAX_BOXES) : MIN_BOXES;
+
+  // Fetch the teacher-selected default voice once.
+  useEffect(() => {
+    getDefaultVoice().then(setTtsVoice);
+  }, []);
 
   useEffect(() => {
     if (!activity.items.length) return;
@@ -325,7 +329,6 @@ export default function PhonemeManipulationActivity({ config, studentName }) {
       </div>
 
       <div className="flex items-center justify-center gap-2 sm:gap-3 min-h-[44px] flex-wrap">
-        <TtsVoiceSelect value={ttsVoice} onChange={setTtsVoice} />
         <button onClick={speak} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200">
           <Volume2 className="w-4 h-4" /> Escuchar
         </button>

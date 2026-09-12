@@ -52,6 +52,7 @@ import ConferenceSignUp from './pages/ConferenceSignUp';
 import HfwCards from './pages/HfwCards';
 import NounGenderEditor from './pages/NounGenderEditor';
 import AbsenceDashboard from './pages/AbsenceDashboard';
+import TtsVoices from './pages/TtsVoices';
 import LetterGame from './pages/LetterGame';
 import LegacyLetterReview from './pages/LegacyLetterReview';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -154,6 +155,7 @@ const AuthenticatedApp = () => {
       <Route path="/HfwCards" element={<HfwCards />} />
       <Route path="/NounGenderEditor" element={<NounGenderEditor />} />
       <Route path="/AbsenceDashboard" element={<AbsenceDashboard />} />
+      <Route path="/TtsVoices" element={<TtsVoices />} />
       <Route path="/ID" element={<LetterGame />} />
       <Route path="/LegacyLetterReview" element={<LegacyLetterReview />} />
       <Route path="*" element={<PageNotFound />} />

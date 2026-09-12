@@ -34,6 +34,11 @@
       "type": "boolean",
       "default": false,
       "description": "True once every step in the lesson is completed"
+    },
+    "activity_state": {
+      "type": "string",
+      "default": "{}",
+      "description": "JSON object mapping stepIndex (as string) to activity-specific progress (e.g. { correctIndices, order, pos } for counting activities) so students resume where they left off after exiting mid-activity."
     }
   },
   "required": [

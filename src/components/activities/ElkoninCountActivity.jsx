@@ -3,8 +3,7 @@ import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildActivity } from '@/lib/activities/engine';
 import { playTts } from '@/lib/audio';
-import { getSavedVoice, langFromVoice } from '@/lib/activities/ttsVoices';
-import TtsVoiceSelect from './TtsVoiceSelect';
+import { getDefaultVoice, langFromVoice } from '@/lib/activities/ttsVoices';
 import { RefreshCw, Volume2, Mic, Send } from 'lucide-react';
 
 // Canvas-based Elkonin counting. Eight SQUARE boxes sit touching in a single
@@ -48,19 +47,21 @@ function layoutFor(w, h) {
   };
 }
 
-export default function ElkoninCountActivity({ config, studentName, onScoreUpdate }) {
+export default function ElkoninCountActivity({ config, studentName, onScoreUpdate, initialState, onProgress }) {
   const activity = useMemo(() => buildActivity(config), [config]);
   const recorder = useAudioRecorder();
-  const [order, setOrder] = useState([]);
-  const [pos, setPos] = useState(0);
+  // Restore saved progress so a student who exits mid-activity resumes where
+  // they left off instead of resetting to 0.
+  const [order, setOrder] = useState(() => initialState?.order || []);
+  const [pos, setPos] = useState(() => initialState?.pos || 0);
   const [phase, setPhase] = useState('ready'); // ready | recording | submitted
   const [placed, setPlaced] = useState(() => Array(BOX_COUNT).fill(false));
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   // Track which items were answered correctly across the whole session.
-  const [correctSet, setCorrectSet] = useState(() => new Set());
-  // Selected TTS voice (persisted). Empty = backend default.
-  const [ttsVoice, setTtsVoice] = useState(() => getSavedVoice());
+  const [correctSet, setCorrectSet] = useState(() => new Set(initialState?.correctIndices || []));
+  // DB-backed default voice (teacher-selected). Fetched once on mount.
+  const [ttsVoice, setTtsVoice] = useState('');
 
   const placedRef = useRef(Array(BOX_COUNT).fill(false));
   const gesturesRef = useRef([]);
@@ -86,11 +87,25 @@ export default function ElkoninCountActivity({ config, studentName, onScoreUpdat
     }
   }, [correctSet, activity.items.length, onScoreUpdate]);
 
+  // Persist within-activity progress so the student resumes after exiting.
+  useEffect(() => {
+    if (!onProgress || !order.length) return;
+    onProgress({ correctIndices: [...correctSet], order, pos });
+  }, [correctSet, order, pos, onProgress]);
+
+  // Fetch the teacher-selected default voice once.
+  useEffect(() => {
+    getDefaultVoice().then(setTtsVoice);
+  }, []);
+
   useEffect(() => {
     if (!activity.items.length) return;
-    setOrder(shuffle(activity.items.map((_, i) => i)));
-    setPos(0);
-    resetItem();
+    // Only (re)shuffle if we don't have a restored order — otherwise resume.
+    if (!order.length) {
+      setOrder(shuffle(activity.items.map((_, i) => i)));
+      setPos(0);
+      resetItem();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activity]);
 
@@ -291,7 +306,6 @@ export default function ElkoninCountActivity({ config, studentName, onScoreUpdat
       </div>
 
       <div className="flex items-center justify-center gap-2 sm:gap-3 min-h-[44px] flex-wrap">
-        <TtsVoiceSelect value={ttsVoice} onChange={setTtsVoice} />
         <button onClick={speak} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200">
           <Volume2 className="w-4 h-4" /> Escuchar
         </button>

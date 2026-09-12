@@ -95,5 +95,28 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     qc.setQueryData(key, updated);
   };
 
-  return { progress, isLoading, markStepComplete, createError, retry };
+  // Persist within-activity progress (e.g. which counting items were already
+  // answered correctly) so a student who exits mid-activity resumes where they
+  // left off instead of resetting to zero.
+  const saveActivityState = async (stepIndex, state) => {
+    if (!progress) return;
+    let cur = {};
+    try { cur = JSON.parse(progress.activity_state || '{}'); } catch { cur = {}; }
+    cur[String(stepIndex)] = state;
+    const activity_state = JSON.stringify(cur);
+    // Avoid a redundant write if nothing changed.
+    if (progress.activity_state === activity_state) return;
+    const updated = await base44.entities.LessonProgress.update(progress.id, { activity_state });
+    qc.setQueryData(key, { ...updated, activity_state });
+  };
+
+  const getActivityState = (stepIndex) => {
+    if (!progress?.activity_state) return null;
+    try {
+      const cur = JSON.parse(progress.activity_state);
+      return cur[String(stepIndex)] || null;
+    } catch { return null; }
+  };
+
+  return { progress, isLoading, markStepComplete, saveActivityState, getActivityState, createError, retry };
 }

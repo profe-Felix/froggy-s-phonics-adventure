@@ -27,7 +27,7 @@ const DEFAULT_CONFIG = {
   items: ['El gato come', 'Yo soy grande', 'La luna brilla en la noche'].map(t => ({ text: t })),
 };
 
-export default function ActivitiesStep({ onComplete, studentName, stepConfig }) {
+export default function ActivitiesStep({ onComplete, studentName, stepConfig, activityState, onActivityState }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
   // Track correct count across items so the lesson router can award tiered
   // mastery rewards (80% = 5 coins, 100% = 10 coins).
@@ -75,10 +75,20 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig }) 
         ) : mode === 'rhyme_identification' ? (
           <RhymeActivity config={config} studentName={name} />
         ) : (
-          <ElkoninCountActivity config={config} studentName={name} onScoreUpdate={setScore} />
+          <ElkoninCountActivity
+            config={config}
+            studentName={name}
+            onScoreUpdate={setScore}
+            initialState={activityState}
+            onProgress={onActivityState}
+          />
         )}
       </div>
-      <StepDoneBar onDone={() => onComplete(score)} label={score.totalItems > 0 ? `Done (${score.correctCount}/${score.totalItems})` : 'Done'} />
+      <StepDoneBar
+        onDone={() => onComplete(score)}
+        disabled={score.totalItems > 0 && score.correctCount === 0}
+        label={score.totalItems > 0 ? `Done (${score.correctCount}/${score.totalItems})` : 'Done'}
+      />
     </div>
   );
 }

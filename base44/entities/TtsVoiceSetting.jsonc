@@ -1,0 +1,50 @@
+{
+  "name": "TtsVoiceSetting",
+  "type": "object",
+  "properties": {
+    "voice_id": {
+      "type": "string",
+      "default": "es-US-Wavenet-A",
+      "description": "Default Google Cloud TTS voice ID used by all student-facing Escuchar buttons. Set by the teacher from the TTS Voices preview page."
+    }
+  },
+  "required": [
+    "voice_id"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
