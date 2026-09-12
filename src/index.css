@@ -369,6 +369,16 @@
   }
 }
 
+/* Sidebar: fill full viewport height in landscape so items distribute evenly
+   without scrolling. In portrait, the sidebar stays compact and top-anchored. */
+@media (orientation: landscape) {
+  .sidebar-nav {
+    bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
+    justify-content: space-between !important;
+    gap: 0 !important;
+  }
+}
+
 /* Tag font for table tags / mailbox labels */
 .tag-font {
   font-family: 'Teachers', ui-sans-serif, system-ui, sans-serif;
