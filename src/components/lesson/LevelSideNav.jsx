@@ -20,7 +20,6 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
   const classColor = colorFor(className);
   const studentPhoto = studentData?.photo_url;
   const studentNumber = selectedStudent?.number;
-  const displayName = studentData?.name || `Student ${studentNumber}`;
 
   // Tracing-only classes (e.g. Schwarz) skip the level path and quests entirely —
   // their lessons aren't built yet. Only Books / Games / Videos remain.
@@ -30,7 +29,7 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
 
   return (
     <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-3 rounded-3xl bg-[#1a1a2e] px-2 py-3 shadow-xl">
-      {/* Pinned profile — always at the top, above Lessons */}
+      {/* Pinned profile — photo only, no name/coins visible to students */}
       <div className="flex flex-col items-center gap-1 w-14 pb-2 border-b border-white/10">
         <span
           className="rounded-full p-0.5 shadow-lg"
@@ -39,7 +38,7 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
           {studentPhoto ? (
             <img
               src={studentPhoto}
-              alt={displayName}
+              alt="me"
               className="w-12 h-12 rounded-full object-cover border-2 border-white/90"
             />
           ) : (
@@ -51,14 +50,6 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
             </span>
           )}
         </span>
-        <span className="text-[9px] font-bold text-white text-center leading-tight max-w-[3.5rem] truncate">
-          {displayName}
-        </span>
-        {className && (
-          <span className="text-[8px] font-bold text-white/60 truncate max-w-[3.5rem]">
-            {className}
-          </span>
-        )}
       </div>
 
       {items.map(({ key, label, Icon }) => {
