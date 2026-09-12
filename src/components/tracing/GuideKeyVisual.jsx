@@ -8,9 +8,12 @@
  * to show only a horizontal window (2-3 pickets) via fenceWidth/fenceOffset.
  *
  * LAYOUT SCALING: When explicit spacing props (emojiSpacing, fenceGap, etc.)
- * are NOT provided, the layout auto-scales to fit within bgWidth/width.
- * This keeps the visual compact for tracing canvases (width=80 → fence ends
- * at ~80px) while NamePractice passes explicit tuned values that override.
+ * are NOT provided, the layout auto-scales by emoji font-size (capFSize),
+ * which is derived from the zone height × emojiHeightFactor. This keeps the
+ * fence clip window proportional to the fence image (always ~3 planks)
+ * regardless of canvas dimensions. A smaller emojiHeightFactor produces a
+ * proportionally narrower guide. NamePractice passes explicit tuned values
+ * that override the auto-scaling entirely.
  *
  * Renders an SVG <g> group — place it inside an <svg> element.
  */
@@ -20,14 +23,19 @@ import { useId } from 'react';
 const FENCE_URL = 'https://media.base44.com/images/public/6972eada24fac6b62ccbab8e/bf7297494_156818.svg';
 const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
 
-// Proportional layout ratios derived from NamePractice tuned values
-// (bgWidth=140: base=20, emojiX=13, emojiSpacing=45, fenceGap=35, fenceWidth=26).
-// Used to auto-scale the visual to fit any bgWidth when not explicitly provided.
-const R_BASE = 0.143;       // left margin before first emoji
-const R_EMOJI_X = 0.093;    // extra emoji X offset
-const R_EMOJI_SPACING = 0.321; // gap between capital and lowercase emoji
-const R_FENCE_GAP = 0.25;   // gap between lowercase emoji and fence
-const R_FENCE_WIDTH = 0.186; // visible fence window width
+// Height-based auto-scaling ratios derived from NamePractice tuned values.
+// NamePractice: capFSize=102.8, grassH=53.4 (emojiHeightFactor=0.96, lh=67)
+//   base=20, emojiX=13, emojiSpacing=45, fenceGap=35, fenceWidth=26
+// Ratios are relative to capFSize (= capZoneH * emojiHeightFactor) so the
+// entire guide scales with the emoji size — a smaller emojiHeightFactor
+// produces a proportionally narrower guide.
+// fenceWidth is relative to grassH (the fence image height) so the clip
+// window always shows ~3 planks regardless of canvas dimensions.
+const R_BASE_F = 0.195;        // baseX / capFSize
+const R_EMOJI_X_F = 0.126;     // emojiX / capFSize
+const R_EMOJI_SPACING_F = 0.438; // emojiSpacing / capFSize
+const R_FENCE_GAP_F = 0.340;   // fenceGap / capFSize
+const R_FENCE_WIDTH_H = 0.487; // fenceWidth / grassH (shows ~3 planks)
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
   emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing, bgWidth,
@@ -38,26 +46,26 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   // Effective background width — falls back to `width` then to a default.
   const effBg = bgWidth ?? width ?? 80;
 
-  // Auto-scale layout to fit within effBg when not explicitly provided.
-  // NamePractice passes explicit values → those override (unaffected).
-  // Tracing canvases pass only width → layout scales proportionally.
-  const baseX = effBg * R_BASE;
-  const effEmojiX = emojiX ?? effBg * R_EMOJI_X;
-  const effEmojiSpacing = emojiSpacing ?? effBg * R_EMOJI_SPACING;
-  const effFenceGap = fenceGap ?? effBg * R_FENCE_GAP;
-  const effFenceWidth = fenceWidth ?? effBg * R_FENCE_WIDTH;
-
+  // Zone heights — drive the height-based auto-scaling so the visual is
+  // proportional to the writing lines regardless of canvas aspect ratio.
   const skyH = fenceY - skyY;
   const grassH = grassY - fenceY;
   const dirtH = dirtY - grassY;
-
-  // Zone heights
   const capZoneH = grassY - skyY;
   const lowZoneH = grassY - fenceY;
 
-  // Direct font-size: emoji visual height ≈ font-size, so font-size = zone * factor.
+  // Emoji font-sizes (computed early so auto-scaling can use capFSize).
   const capFSize = capZoneH * emojiHeightFactor;
   const lowFSize = lowZoneH * emojiHeightFactor;
+
+  // Auto-scale layout by emoji font-size when not explicitly provided.
+  // NamePractice passes explicit values → those override (unaffected).
+  // Tracing canvases pass only width → layout scales to the emoji size.
+  const baseX = capFSize * R_BASE_F;
+  const effEmojiX = emojiX ?? capFSize * R_EMOJI_X_F;
+  const effEmojiSpacing = emojiSpacing ?? capFSize * R_EMOJI_SPACING_F;
+  const effFenceGap = fenceGap ?? capFSize * R_FENCE_GAP_F;
+  const effFenceWidth = fenceWidth ?? grassH * R_FENCE_WIDTH_H;
 
   // Y position: baseline at grassY, shifted up by emojiFeetFactor * fontSize
   const capY = grassY - emojiFeetFactor * capFSize;

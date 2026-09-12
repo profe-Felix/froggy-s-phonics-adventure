@@ -14,10 +14,12 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 600;
 const CANVAS_H = 750;
 const LETTER_GAP = 45;
-// Left padding must clear the GuideKeyVisual (width=150) so the fence sits at
-// the BEGINNING of the word — like a "start here" marker — not overlapping
+// Left padding must clear the GuideKeyVisual so the fence sits at the
+// BEGINNING of the word — like a "start here" marker — not overlapping
 // the first letter. Right padding mirrors it for visual balance.
-const PADDING = 165;
+// Auto-scaled by zone height (capZoneH≈400, grassH≈200, emojiHeightFactor=0.48)
+// → guide ≈ 310 units.
+const PADDING = 320;
 const REPETITIONS = 3; // trace the word 3 times with spaces between
 const WORD_GAP = 80; // px space between word repetitions (like a real word space)
 const FONEMA_INTERVAL_MS = 2000;
@@ -615,7 +617,8 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
       >
         {/* Writing lines — span the full word width */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={150} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
+  emojiHeightFactor={0.48} emojiFeetFactor={0.16} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
         {/* Fence line (dashed black) */}

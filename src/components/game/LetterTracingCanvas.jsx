@@ -13,9 +13,10 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const COPY_GAP = 24;
-// Left padding for the GuideKeyVisual (width=80) so the fence sits at the
+// Left padding for the GuideKeyVisual so the fence sits at the
 // BEGINNING of the letter — like a "start here" marker — not overlapping it.
-const GUIDE_W = 80;
+// Auto-scaled by zone height (capZoneH≈200, grassH≈100) → guide ≈ 260 units.
+const GUIDE_W = 260;
 
 export default function LetterTracingCanvas({
   letter,
@@ -1230,7 +1231,8 @@ export default function LetterTracingCanvas({
             vector-effect=non-scaling-stroke keeps lines visible at every size
             tier (Huge through Paper) instead of thinning to sub-pixel. */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} width={80} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
+  emojiHeightFactor={0.96} emojiFeetFactor={0.16} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
           stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
