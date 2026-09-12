@@ -8,8 +8,9 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
   const rows = mode === 'firstlast' ? [first, last, first, last] : [first, first, first, first];
 
   // GuideKeyVisual viewBox — sized in hundredths of an inch so the aspect
-  // ratio matches the practice-set (width: 2in, height: 3 * lineSize in).
-  const vbW = 200;
+  // ratio matches the practice-set. Wider than the old 2in so the fence
+  // always has room (mirrors WordTracingCanvas: 600-unit canvas, 530 padding).
+  const vbW = 300;
   const gUnits = lineSize * 100;
   const vbH = 3 * gUnits;
 
@@ -19,9 +20,9 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
   const grassH = gUnits;       // grassY - fenceY
   const capFSize = capZoneH * emojiHeightFactor;
   const fenceEnd = capFSize * (R_BASE_F + emojiXRatio + emojiSpacingRatio + fenceGapRatio) + grassH * fenceWidthRatio;
-  // Gap after fence mirrors WordTracingCanvas: ~77 units in a 600-unit canvas
-  // → proportional gap in the 200-unit viewBox, plus a small fixed margin.
-  const gapUnits = fenceEnd * 0.17;
+  // Fixed gap after the fence — mirrors WordTracingCanvas where PADDING (530)
+  // clears the guide (~450-520 units) with a small consistent buffer.
+  const gapUnits = 30;
   const textLeftIn = (fenceEnd + gapUnits) / 100;
 
   return (

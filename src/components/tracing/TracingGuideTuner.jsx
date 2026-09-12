@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/button';
  * the useTracingGuideSettings hook.
  */
 export default function TracingGuideTuner({ settings, update, save, saving, savedFlash }) {
-  const [fine, setFine] = useState(false);
-  const step = fine ? 0.001 : 0.01;
+  const [fine, setFine] = useState(0); // 0 = normal, 1 = fine (0.001), 2 = ultra (0.0001)
+  const step = fine === 2 ? 0.0001 : fine === 1 ? 0.001 : 0.01;
   const s = settings;
   const slider = (label, key, min, max, fmt) => (
     <label key={key} className="flex items-center gap-1.5 text-muted-foreground">
@@ -45,10 +45,24 @@ export default function TracingGuideTuner({ settings, update, save, saving, save
       {slider('Fence Gap', 'fenceGapRatio', 0.1, 0.6, (v) => v.toFixed(3))}
       {slider('Fence Width', 'fenceWidthRatio', 0.2, 0.8, (v) => v.toFixed(3))}
       {slider('Fence Offset', 'fenceOffsetRatio', 0, 0.5, (v) => v.toFixed(3))}
-      <label className="flex items-center gap-1 text-amber-700 cursor-pointer select-none font-medium">
-        <input type="checkbox" checked={fine} onChange={(e) => setFine(e.target.checked)} className="accent-amber-600 w-3 h-3" />
-        Fine {fine ? '(0.001)' : '(0.01)'}
-      </label>
+      <div className="flex items-center gap-1 text-amber-700">
+        <span className="font-medium">Precision:</span>
+        <button
+          type="button"
+          onClick={() => setFine(0)}
+          className={`px-1.5 py-0.5 rounded text-xs ${fine === 0 ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'}`}
+        >0.01</button>
+        <button
+          type="button"
+          onClick={() => setFine(1)}
+          className={`px-1.5 py-0.5 rounded text-xs ${fine === 1 ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'}`}
+        >0.001</button>
+        <button
+          type="button"
+          onClick={() => setFine(2)}
+          className={`px-1.5 py-0.5 rounded text-xs ${fine === 2 ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'}`}
+        >0.0001</button>
+      </div>
       <span className="text-amber-700">Heads → sky/fence, feet on grass. Scales across all canvases.</span>
       <Button
         size="sm"
