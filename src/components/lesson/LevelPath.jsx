@@ -214,6 +214,11 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const ready = aspect > 0 && width > 0;
   const containerH = ready ? Math.round(width * aspect) : 0;
 
+  // Scale level dots with screen width: 56px on desktop, down to ~34px on phones.
+  const dotSize = Math.min(56, Math.max(34, width * 0.047));
+  const dotFont = Math.round(dotSize * 0.32);
+  const lockSize = Math.round(dotSize * 0.25);
+
   // --- Drag handling (edit mode) ---
   const dragInfo = useRef(null);
   useEffect(() => {
@@ -355,8 +360,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
               style={{
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
-                width: 56,
-                height: 56,
+                width: dotSize,
+                height: dotSize,
                 background: done ? '#4ade80' : active ? '#ffffff' : editing ? '#c7d2fe' : '#ffffff',
                 border: active ? '4px solid #F48FB1' : '3px solid #ffffff',
                 opacity: locked && !editing ? 0.85 : 1,
@@ -366,19 +371,19 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
             >
               {locked && !editing ? (
                 <>
-                  <span className="text-lg font-black text-gray-400">{n}</span>
-                  <Lock className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-gray-400/80" />
+                  <span className="font-black text-gray-400" style={{ fontSize: dotFont }}>{n}</span>
+                  <Lock className="absolute top-0.5 right-0.5 text-gray-400/80" style={{ width: lockSize, height: lockSize }} />
                 </>
               ) : (
-                <span className="text-lg font-black" style={{ color: done ? '#ffffff' : '#311B92' }}>
+                <span className="font-black" style={{ color: done ? '#ffffff' : '#311B92', fontSize: dotFont }}>
                   {n}
                 </span>
               )}
               {done && !editing && (
-                <Star className="absolute -top-1 -right-1 w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow" />
+                <Star className="absolute -top-1 -right-1 text-yellow-400 fill-yellow-400 drop-shadow" style={{ width: lockSize, height: lockSize }} />
               )}
               {active && !editing && (
-                <span className="absolute -bottom-5 text-[10px] font-black text-white bg-pink-500 rounded-full px-2 py-0.5 shadow whitespace-nowrap">
+                <span className="absolute text-white bg-pink-500 rounded-full px-2 py-0.5 shadow whitespace-nowrap" style={{ bottom: -dotSize * 0.2, fontSize: Math.max(8, dotFont * 0.6) }}>
                   ▶ HERE
                 </span>
               )}
