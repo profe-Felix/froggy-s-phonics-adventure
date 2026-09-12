@@ -19,7 +19,10 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
   const grassH = gUnits;       // grassY - fenceY
   const capFSize = capZoneH * emojiHeightFactor;
   const fenceEnd = capFSize * (R_BASE_F + emojiXRatio + emojiSpacingRatio + fenceGapRatio) + grassH * fenceWidthRatio;
-  const textLeftIn = fenceEnd / 100 + 0.2;
+  // Gap after fence mirrors WordTracingCanvas: ~77 units in a 600-unit canvas
+  // → proportional gap in the 200-unit viewBox, plus a small fixed margin.
+  const gapUnits = fenceEnd * 0.17;
+  const textLeftIn = (fenceEnd + gapUnits) / 100;
 
   return (
     <div className="page-preview">
@@ -36,7 +39,6 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
                 fenceY={gUnits}
                 grassY={2 * gUnits}
                 dirtY={3 * gUnits}
-                width={vbW}
                 emojiHeightFactor={emojiHeightFactor}
                 emojiFeetFactor={emojiFeetFactor}
                 emojiSpacingRatio={emojiSpacingRatio}
