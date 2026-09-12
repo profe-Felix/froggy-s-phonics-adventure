@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
+import { Printer, ArrowLeft, Loader2, Save, Check } from 'lucide-react';
 import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
 
@@ -28,6 +28,8 @@ export default function NamePractice() {
   const [emojiX, setEmojiX] = useState(() => parseFloat(localStorage.getItem('np3.emojiX')) || 13);
   const [fenceGap, setFenceGap] = useState(() => parseFloat(localStorage.getItem('np3.fenceGap')) || 35);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const settingIdRef = useRef(null);
 
   // Load global settings (shared across all teachers)
@@ -73,14 +75,22 @@ export default function NamePractice() {
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiX', String(emojiX)); }, [emojiX, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceGap', String(fenceGap)); }, [fenceGap, settingsLoaded]);
 
-  // Debounced save to global settings
-  useEffect(() => {
-    if (!settingsLoaded || !settingIdRef.current) return;
-    const t = setTimeout(() => {
-      base44.entities.NamePracticeSetting.update(settingIdRef.current, { settings: { fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap } }).catch(() => {});
-    }, 800);
-    return () => clearTimeout(t);
-  }, [fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap, settingsLoaded]);
+  // Explicit save — called by the Save button. Writes all tuning values to
+  // the shared NamePracticeSetting entity so they persist across sessions and
+  // devices. Replaces the old debounced auto-save which silently failed and
+  // caused the fence to "move" back to stale values on refresh.
+  const saveSettings = useCallback(async () => {
+    if (!settingIdRef.current) return;
+    setSaving(true);
+    try {
+      await base44.entities.NamePracticeSetting.update(settingIdRef.current, {
+        settings: { fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap }
+      });
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2000);
+    } catch { /* show nothing — button reverts */ }
+    setSaving(false);
+  }, [fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap]);
 
   const [searchParams] = useSearchParams();
   const classParam = searchParams.get('class') || '';
@@ -238,6 +248,14 @@ export default function NamePractice() {
             <span className="w-10 tabular-nums">{fenceOffset}</span>
           </label>
           <span className="text-amber-700">Emojis left, fence right. Heads → sky/fence, feet on grass.</span>
+          <Button
+            size="sm"
+            onClick={saveSettings}
+            disabled={saving || !settingsLoaded}
+            className={savedFlash ? 'bg-green-500 hover:bg-green-500' : 'bg-amber-600 hover:bg-amber-700'}
+          >
+            {savedFlash ? <><Check className="w-3.5 h-3.5 mr-1" /> Saved!</> : <><Save className="w-3.5 h-3.5 mr-1" /> {saving ? 'Saving…' : 'Save settings'}</>}
+          </Button>
         </div>
       </header>
 
