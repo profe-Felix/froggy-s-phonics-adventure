@@ -7,6 +7,8 @@ import NameReferenceStrip from '../NameReferenceStrip';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { splitNameParts } from '@/lib/nameNormalize';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import { R_BASE_F } from '@/components/tracing/GuideKeyVisual';
 
 // Name Tracing — two-row progression per name part:
 //   Row 1 (top): Guided — colored pathway guides + numbered start dots, trace over them
@@ -26,40 +28,29 @@ export default function NameTracingMode({ studentData, onBack }) {
   const studentNumber = studentData?.student_number;
   const schoolYear = studentData?.school_year || ACTIVE_SCHOOL_YEAR;
 
-  // Load guide visual settings from NamePracticeSetting (shared with Name Practice page)
-  const [guideSettings, setGuideSettings] = useState(null);
-  useEffect(() => {
-    base44.entities.NamePracticeSetting.list('-created_date').then((recs) => {
-      if (recs[0]?.settings) setGuideSettings(recs[0].settings);
-    }).catch(() => {});
-  }, []);
+  // Use the SAME ratio-based guide settings as Letter/Word Tracing —
+  // TracingGuideSetting entity, not the old absolute NamePracticeSetting.
+  const { settings: gs } = useTracingGuideSettings();
 
-  // Compute scaled guide props + padding for the Name Tracing canvas.
-  // NamePractice uses hundredths-of-inch units; Name Tracing uses pixels.
-  // Scale factor = tracingZoneHeight / practiceZoneHeight = 100 / (lineSize * 100)
+  // Compute padding from ratio-based fenceEnd (mirrors GuideKeyVisual logic)
+  // so the name letters start past the fence with a clear gap, exactly like
+  // WordTracingCanvas. CANVAS_H=375 in NameTracingCanvas.
   const { guideProps, padding } = useMemo(() => {
-    if (!guideSettings) return { guideProps: null, padding: 160 };
-    const s = guideSettings;
-    const scale = 100 / ((s.lineSize || 0.67) * 100);
-    const bgW = (s.bgWidth || 140) * scale;
-    const eX = (s.emojiX || 13) * scale;
-    const eS = (s.emojiSpacing || 45) * scale;
-    const fG = (s.fenceGap || 35) * scale;
-    const fW = (s.fenceWidth || 26) * scale;
-    const fO = (s.fenceOffset || 0) * scale;
-    const baseX = bgW * 0.143;
-    const fenceEnd = baseX + eX + eS + fG + fW;
-    const bgDrawWidth = Math.max(bgW, fenceEnd);
+    if (!gs) return { guideProps: null, padding: 290 };
+    const CANVAS_H = 375;
+    const skyY = 0.10 * CANVAS_H;
+    const fenceY = 0.367 * CANVAS_H;
+    const grassY = 0.633 * CANVAS_H;
+    const capZoneH = grassY - skyY;
+    const grassH = grassY - fenceY;
+    const capFSize = capZoneH * gs.emojiHeightFactor;
+    const fenceEnd = capFSize * (R_BASE_F + gs.emojiXRatio + gs.emojiSpacingRatio + gs.fenceGapRatio)
+      + grassH * gs.fenceWidthRatio;
     return {
-      guideProps: {
-        emojiHeightFactor: s.emojiHeightFactor ?? 0.96,
-        emojiFeetFactor: s.emojiFeetFactor ?? 0.16,
-        bgWidth: bgW, emojiX: eX, emojiSpacing: eS,
-        fenceGap: fG, fenceWidth: fW, fenceOffset: fO,
-      },
-      padding: bgDrawWidth + 20,
+      guideProps: gs,
+      padding: Math.round(fenceEnd + 50),
     };
-  }, [guideSettings]);
+  }, [gs]);
 
   // Load DB waypoint overrides + class config
   useEffect(() => {

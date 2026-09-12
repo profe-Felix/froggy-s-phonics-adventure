@@ -42,7 +42,15 @@ export default function NameReferenceStrip({ name, waypoints, renderWidth = 320,
       style={{ display: 'block', width: renderW, height: RENDER_H }}
     >
       {/* Grounding visual — same proportions as NamePractice */}
-      <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} {...(guideProps || { bgWidth: 140 })} />
+      <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
+        emojiHeightFactor={guideProps?.emojiHeightFactor}
+        emojiFeetFactor={guideProps?.emojiFeetFactor}
+        emojiSpacingRatio={guideProps?.emojiSpacingRatio}
+        emojiXRatio={guideProps?.emojiXRatio}
+        fenceGapRatio={guideProps?.fenceGapRatio}
+        fenceWidthRatio={guideProps?.fenceWidthRatio}
+        fenceOffsetRatio={guideProps?.fenceOffsetRatio}
+      />
       {/* Guide lines — same as NameTracingCanvas */}
       <line x1="0" y1={0.10 * CANVAS_H} x2={sheetW} y2={0.10 * CANVAS_H} stroke="#93c5fd" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
       <line x1="0" y1={0.367 * CANVAS_H} x2={sheetW} y2={0.367 * CANVAS_H} stroke="#000" strokeWidth="2" strokeDasharray="8 6" opacity="0.8" vectorEffect="non-scaling-stroke" />

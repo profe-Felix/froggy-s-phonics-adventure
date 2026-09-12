@@ -690,7 +690,15 @@ export default function NameTracingCanvas({
       >
         {/* Guide lines */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
-        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H} {...(guideProps || { bgWidth: 140 })} />
+        <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
+          emojiHeightFactor={guideProps?.emojiHeightFactor}
+          emojiFeetFactor={guideProps?.emojiFeetFactor}
+          emojiSpacingRatio={guideProps?.emojiSpacingRatio}
+          emojiXRatio={guideProps?.emojiXRatio}
+          fenceGapRatio={guideProps?.fenceGapRatio}
+          fenceWidthRatio={guideProps?.fenceWidthRatio}
+          fenceOffsetRatio={guideProps?.fenceOffsetRatio}
+        />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={sheetW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
         {/* Fence line (dashed black) */}
