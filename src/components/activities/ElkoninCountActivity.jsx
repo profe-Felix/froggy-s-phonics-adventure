@@ -3,6 +3,8 @@ import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { buildActivity } from '@/lib/activities/engine';
 import { playTts } from '@/lib/audio';
+import { getSavedVoice, langFromVoice } from '@/lib/activities/ttsVoices';
+import TtsVoiceSelect from './TtsVoiceSelect';
 import { RefreshCw, Volume2, Mic, Send } from 'lucide-react';
 
 // Canvas-based Elkonin counting. Eight SQUARE boxes sit touching in a single
@@ -57,6 +59,8 @@ export default function ElkoninCountActivity({ config, studentName, onScoreUpdat
   const [submitError, setSubmitError] = useState(null);
   // Track which items were answered correctly across the whole session.
   const [correctSet, setCorrectSet] = useState(() => new Set());
+  // Selected TTS voice (persisted). Empty = backend default.
+  const [ttsVoice, setTtsVoice] = useState(() => getSavedVoice());
 
   const placedRef = useRef(Array(BOX_COUNT).fill(false));
   const gesturesRef = useRef([]);
@@ -266,7 +270,8 @@ export default function ElkoninCountActivity({ config, studentName, onScoreUpdat
   }
 
   function speak() {
-    playTts(current.text, 'es');
+    const lang = langFromVoice(ttsVoice) === 'en-US' ? 'en' : 'es';
+    playTts(current.text, lang, 0.85, ttsVoice);
   }
 
   const placedCount = placed.filter(Boolean).length;
@@ -285,15 +290,11 @@ export default function ElkoninCountActivity({ config, studentName, onScoreUpdat
         </span>
       </div>
 
-      <div className="rounded-2xl bg-white border-2 border-slate-200 p-4 sm:p-6 text-center shadow-sm">
-        <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">{modeDef.in}</div>
-        <div className="text-2xl sm:text-3xl font-bold text-slate-800 leading-snug">{current.text}</div>
-        <button onClick={speak} className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold">
+      <div className="flex items-center justify-center gap-2 sm:gap-3 min-h-[44px] flex-wrap">
+        <TtsVoiceSelect value={ttsVoice} onChange={setTtsVoice} />
+        <button onClick={speak} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200">
           <Volume2 className="w-4 h-4" /> Escuchar
         </button>
-      </div>
-
-      <div className="flex items-center justify-center gap-3 min-h-[44px] flex-wrap">
         {phase === 'ready' && (
           <button onClick={startReady} className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-bold flex items-center gap-1.5">
             <Mic className="w-4 h-4" /> Listo

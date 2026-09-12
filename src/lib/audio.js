@@ -112,13 +112,13 @@ export async function preloadSilenceStart(url) {
 // browser's speech synthesizer if the backend is unreachable.
 const ttsCache = new Map();
 
-export async function playTts(text, lang = 'es', rate = 0.85) {
+export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
   if (!text) return;
-  const key = `${lang}:${text}`;
+  const key = `${lang}:${voice || ''}:${text}`;
   let url = ttsCache.get(key);
   if (!url) {
     try {
-      const res = await base44.functions.invoke('generateTts', { text, lang });
+      const res = await base44.functions.invoke('generateTts', { text, lang, voice: voice || undefined });
       url = res.data?.url;
       if (url) ttsCache.set(key, url);
     } catch { /* fall through to speechSynthesis */ }

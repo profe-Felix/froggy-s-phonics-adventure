@@ -15,22 +15,40 @@ async function hashText(text) {
     .map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Derive the languageCode (e.g. "es-US") from a voice name (e.g. "es-US-Wavenet-B").
+function langCodeFromVoice(voice) {
+  if (!voice) return null;
+  const parts = String(voice).split('-');
+  if (parts.length >= 2) return `${parts[0]}-${parts[1]}`;
+  return null;
+}
+
 export default async function(req: Request): Promise<Response> {
   try {
     const body = await req.json().catch(() => ({}));
     const text = String(body.text || '').trim().slice(0, 500);
     const lang = body.lang === 'en' ? 'en' : 'es';
+    // Optional voice name (e.g. "es-US-Neural2-B"). When omitted, the default
+    // Standard voice for the language is used (legacy behavior).
+    const voice = body.voice ? String(body.voice).trim() : '';
     if (!text) return Response.json({ error: 'text required' }, { status: 400 });
 
+    // Resolve the effective voice + languageCode. A provided voice wins; its
+    // languageCode is derived from the voice name so es-US voices use es-US.
+    const defaultVoice = lang === 'en' ? 'en-US-Standard-E' : 'es-ES-Standard-A';
+    const effectiveVoice = voice || defaultVoice;
+    const langCode = langCodeFromVoice(effectiveVoice) || (lang === 'en' ? 'en-US' : 'es-ES');
+
     const hash = await hashText(text);
-    const path = `${lang}/tts/${hash}.mp3`;
+    // Include the voice in the cache path so different voices don't collide.
+    const path = `${lang}/tts/${effectiveVoice}/${hash}.mp3`;
     const publicUrl = `${SB_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 
     // 1. Already cached in the bucket? Return instantly — no API call, no cost.
     const head = await fetch(publicUrl, { method: 'HEAD' });
     if (head.ok) return Response.json({ url: publicUrl });
 
-    // 2. Generate via Google Cloud TTS (Standard voice = cheapest tier).
+    // 2. Generate via Google Cloud TTS.
     const apiKey = secrets.get('GOOGLE_TTS_API_KEY');
     if (!apiKey) return Response.json({ error: 'TTS API key not set' }, { status: 500 });
 
@@ -42,8 +60,8 @@ export default async function(req: Request): Promise<Response> {
         body: JSON.stringify({
           input: { text },
           voice: {
-            languageCode: lang === 'en' ? 'en-US' : 'es-ES',
-            name: lang === 'en' ? 'en-US-Standard-E' : 'es-ES-Standard-A',
+            languageCode: langCode,
+            name: effectiveVoice,
           },
           audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0 },
         }),
