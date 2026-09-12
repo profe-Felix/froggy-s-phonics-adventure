@@ -34,7 +34,7 @@ function defaultPos(i) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout, onStudentPatch, parentView }) {
+export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onStartStep, onLogout, onStudentPatch, parentView }) {
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const qc = useQueryClient();
@@ -169,14 +169,9 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const [saving, setSaving] = useState(false);
 
   // Parent-view preview: when the toggle is ON, tapping a puck opens a preview
-  // modal (with a scrollable carousel of all lessons) instead of jumping in.
+  // modal showing the lesson's steps (parts) as a carousel, instead of jumping
+  // straight in.
   const [previewLesson, setPreviewLesson] = useState(null);
-
-  // Carousel data: all class lessons with a `done` flag for the preview modal.
-  const carouselLessons = useMemo(
-    () => myLessons.map(l => ({ ...l, done: completedSet.has(l.lesson_number) })),
-    [myLessons, completedSet]
-  );
 
   const enterEdit = () => { setDraft({ ...savedPositions }); setEditing(true); };
   const cancelEdit = () => { setEditing(false); setDraft({}); setDragSlot(null); };
@@ -438,11 +433,13 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
         <LessonPreviewModal
           lesson={previewLesson.lesson}
           isCompleted={previewLesson.done}
-          allLessons={carouselLessons}
           studentName={studentData?.name?.split(' ')[0]}
           onPlay={() => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l); }}
           onClose={() => setPreviewLesson(null)}
-          onSelectLesson={(l) => setPreviewLesson({ lesson: l, done: l.done })}
+          onStartStep={(step, index, l) => {
+            setPreviewLesson(null);
+            onStartStep?.(step, index, l);
+          }}
         />
       )}
     </div>

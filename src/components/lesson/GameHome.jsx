@@ -89,6 +89,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             studentData={studentData}
             selectedStudent={selectedStudent}
             onOpenLesson={setOpenLesson}
+            onStartStep={onStartStep}
             onLogout={onLogout}
             onStudentPatch={onStudentPatch}
             parentView={parentView}

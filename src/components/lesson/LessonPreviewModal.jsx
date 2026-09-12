@@ -1,48 +1,45 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { X, Play, Check, Info, Star } from 'lucide-react';
 
 // Parent-facing lesson preview. Shown when the "parent view" toggle is ON and
-// a level puck is tapped, so grown-ups can see what a lesson covers before the
-// child jumps in. A horizontal carousel below the card lets them browse every
-// lesson in the class. Matches the supplied mockups (white card, navy ink,
-// green completed badge, fox "play again" pill, pastel carousel cards).
+// a level puck is tapped. The carousel below the card shows the STEPS (parts)
+// within this lesson — not every lesson — so grown-ups can preview each
+// activity before the child jumps in. Tapping a step card launches that step
+// directly; "Start lesson" opens the full dot-progression from step 1.
 const NAVY = '#2D2650';
 const MUTED = '#7A758D';
 
-// Pastel card palette — rotates across lessons so each card reads distinct.
-const CARD_COLORS = [
-  { bg: '#80E5FF', num: 'rgba(255,255,255,0.75)' },
-  { bg: '#F06292', num: 'rgba(255,255,255,0.75)' },
-  { bg: '#FFE082', num: 'rgba(255,255,255,0.7)' },
-  { bg: '#7DFDC4', num: 'rgba(255,255,255,0.7)' },
-  { bg: '#FFB885', num: 'rgba(255,255,255,0.7)' },
-  { bg: '#B39DDB', num: 'rgba(255,255,255,0.7)' },
-];
+// Map step.color enum → pastel card background + faded-number color.
+const STEP_COLORS = {
+  sky:     { bg: '#80E5FF', num: 'rgba(255,255,255,0.75)' },
+  pink:    { bg: '#F06292', num: 'rgba(255,255,255,0.75)' },
+  yellow:  { bg: '#FFE082', num: 'rgba(255,255,255,0.7)' },
+  green:   { bg: '#7DFDC4', num: 'rgba(255,255,255,0.7)' },
+  orange:  { bg: '#FFB885', num: 'rgba(255,255,255,0.7)' },
+  purple:  { bg: '#B39DDB', num: 'rgba(255,255,255,0.7)' },
+  blue:    { bg: '#7CB9FF', num: 'rgba(255,255,255,0.75)' },
+  teal:    { bg: '#80DEEA', num: 'rgba(255,255,255,0.7)' },
+  rose:    { bg: '#FF9AA2', num: 'rgba(255,255,255,0.7)' },
+  indigo:  { bg: '#9FA8DA', num: 'rgba(255,255,255,0.7)' },
+};
+const FALLBACK = { bg: '#80E5FF', num: 'rgba(255,255,255,0.75)' };
 
-export default function LessonPreviewModal({ lesson, isCompleted, allLessons, studentName, onPlay, onClose, onSelectLesson }) {
-  const scrollRef = useRef(null);
-
-  // Center the selected lesson's card in the carousel whenever it changes.
-  useEffect(() => {
-    const el = scrollRef.current?.querySelector(`[data-lesson="${lesson?.id}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [lesson?.id]);
-
+export default function LessonPreviewModal({ lesson, isCompleted, studentName, onPlay, onClose, onStartStep }) {
   if (!lesson) return null;
 
   const num = lesson.lesson_number || 1;
   const subtitle = lesson.subtitle || lesson.title || '';
-  // Personalize: "Luke will learn the letter M..." when we know the student.
   const body = studentName
     ? `${studentName} will ${subtitle.charAt(0).toLowerCase()}${subtitle.slice(1)}`
     : subtitle;
+  const steps = lesson.steps || [];
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
       style={{ background: 'linear-gradient(135deg, #a78bfa 0%, #60a5fa 50%, #6ee7b7 100%)' }}
     >
-      {/* Decorative pale-yellow stars (top-right cluster) */}
+      {/* Decorative pale-yellow stars */}
       <div className="absolute top-8 right-10 text-yellow-100/70 text-5xl select-none pointer-events-none">✦</div>
       <div className="absolute top-20 right-24 text-yellow-100/50 text-3xl select-none pointer-events-none">✦</div>
       <div className="absolute top-32 right-12 text-yellow-100/40 text-2xl select-none pointer-events-none">✦</div>
@@ -110,55 +107,49 @@ export default function LessonPreviewModal({ lesson, isCompleted, allLessons, st
           </div>
         </div>
 
-        {/* --- Scrollable carousel of all lessons --- */}
-        {allLessons?.length > 0 && (
+        {/* --- Scrollable carousel of this lesson's STEPS --- */}
+        {steps.length > 0 && (
           <div className="mt-6">
+            <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: 'rgba(255,255,255,0.85)' }}>
+              {steps.length} part{steps.length !== 1 ? 's' : ''} in this lesson
+            </p>
             <div
-              ref={scrollRef}
               className="flex gap-4 overflow-x-auto pb-2 px-1 snap-x"
               style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
             >
-              {allLessons.map((l) => {
-                const c = CARD_COLORS[((l.lesson_number || 1) - 1) % CARD_COLORS.length];
-                const selected = l.id === lesson.id;
+              {steps.map((step, i) => {
+                const c = STEP_COLORS[step.color] || FALLBACK;
                 return (
                   <button
-                    key={l.id}
-                    data-lesson={l.id}
-                    onClick={() => onSelectLesson?.(l)}
-                    className="snap-center shrink-0 flex flex-col items-center"
+                    key={i}
+                    onClick={() => onStartStep?.(step, i, lesson)}
+                    className="snap-center shrink-0 flex flex-col items-center group"
                   >
                     <div
-                      className="relative w-28 h-32 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden transition"
-                      style={{ background: c.bg, outline: selected ? `3px solid ${NAVY}` : 'none', outlineOffset: '2px' }}
+                      className="relative w-28 h-32 rounded-2xl shadow-lg flex items-center justify-center overflow-hidden transition group-hover:scale-105 group-active:scale-95"
+                      style={{ background: c.bg }}
                     >
                       {/* faded big number */}
                       <span
                         className="absolute top-1 left-1/2 -translate-x-1/2 text-5xl font-black select-none pointer-events-none"
                         style={{ color: c.num }}
                       >
-                        {l.lesson_number}
+                        {i + 1}
                       </span>
                       {/* illustration emoji */}
                       <span className="text-4xl mt-5 drop-shadow-sm">
-                        {l.steps?.[0]?.emoji || '⭐'}
+                        {step.emoji || '⭐'}
                       </span>
                       {/* star badge */}
                       <span className="absolute top-2 right-2">
                         <Star className="w-6 h-6 text-yellow-300 fill-yellow-300 drop-shadow" />
                       </span>
-                      {/* completed check */}
-                      {l.done && (
-                        <span className="absolute bottom-2 right-2 w-6 h-6 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                        </span>
-                      )}
                     </div>
                     <span
                       className="mt-2 text-xs font-bold text-center max-w-[7rem] leading-tight"
                       style={{ color: NAVY }}
                     >
-                      {l.title}
+                      {step.title}
                     </span>
                   </button>
                 );
