@@ -31,7 +31,7 @@ const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
 // produces a proportionally narrower guide.
 // fenceWidth is relative to grassH (the fence image height) so the clip
 // window always shows ~3 planks regardless of canvas dimensions.
-const R_BASE_F = 0.195;        // baseX / capFSize
+export const R_BASE_F = 0.195;        // baseX / capFSize
 const R_EMOJI_X_F = 0.126;     // emojiX / capFSize
 const R_EMOJI_SPACING_F = 0.438; // emojiSpacing / capFSize
 const R_FENCE_GAP_F = 0.340;   // fenceGap / capFSize

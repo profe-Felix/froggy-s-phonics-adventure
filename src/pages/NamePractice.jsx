@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Printer, ArrowLeft, Loader2, Save, Check } from 'lucide-react';
 import NamePracticeSheet from '@/components/print/NamePracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import TracingGuideTuner from '@/components/tracing/TracingGuideTuner';
 
 export default function NamePractice() {
   const [students, setStudents] = useState(null);
@@ -18,28 +20,22 @@ export default function NamePractice() {
   const [lineSize, setLineSize] = useState(() => parseFloat(localStorage.getItem('np3.lineSize')) || 0.67);
   const [offset, setOffset] = useState(() => parseFloat(localStorage.getItem('np3.offset')) || 0);
   const [scale, setScale] = useState(() => parseFloat(localStorage.getItem('np3.scale')) || 1);
-  // Emoji/fence tuning sliders — saved to NamePracticeSetting + localStorage
-  const [emojiHeightFactor, setEmojiHeightFactor] = useState(() => parseFloat(localStorage.getItem('np3.emojiHeightFactor')) || 0.96);
-  const [emojiFeetFactor, setEmojiFeetFactor] = useState(() => parseFloat(localStorage.getItem('np3.emojiFeetFactor')) || 0.16);
-  const [emojiSpacing, setEmojiSpacing] = useState(() => parseFloat(localStorage.getItem('np3.emojiSpacing')) || 45);
-  const [bgWidth, setBgWidth] = useState(() => parseFloat(localStorage.getItem('np3.bgWidth')) || 140);
-  const [fenceWidth, setFenceWidth] = useState(() => parseFloat(localStorage.getItem('np3.fenceWidth')) || 26);
-  const [fenceOffset, setFenceOffset] = useState(() => parseFloat(localStorage.getItem('np3.fenceOffset')) || 0);
-  const [emojiX, setEmojiX] = useState(() => parseFloat(localStorage.getItem('np3.emojiX')) || 13);
-  const [fenceGap, setFenceGap] = useState(() => parseFloat(localStorage.getItem('np3.fenceGap')) || 35);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const settingIdRef = useRef(null);
 
-  // Load global settings (shared across all teachers)
+  // Shared guide settings (emoji/fence ratios) — same as letter/word tracing
+  const guideHook = useTracingGuideSettings();
+
+  // Load print-only settings (fontSize, lineSize, offset, scale) from NamePracticeSetting
   useEffect(() => {
     (async () => {
       try {
         const recs = await base44.entities.NamePracticeSetting.list('-created_date');
         let rec = recs[0];
         if (!rec) {
-          rec = await base44.entities.NamePracticeSetting.create({ settings: { fontSize: 1.35, lineSize: 0.67, offset: 0, scale: 1, emojiHeightFactor: 0.96, emojiFeetFactor: 0.16, emojiSpacing: 45, bgWidth: 140, fenceWidth: 26, fenceOffset: 0, emojiX: 13, fenceGap: 35 } });
+          rec = await base44.entities.NamePracticeSetting.create({ settings: { fontSize: 1.35, lineSize: 0.67, offset: 0, scale: 1 } });
         }
         settingIdRef.current = rec.id;
         const s = rec.settings;
@@ -48,14 +44,6 @@ export default function NamePractice() {
           if (typeof s.lineSize === 'number') setLineSize(s.lineSize);
           if (typeof s.offset === 'number') setOffset(s.offset);
           if (typeof s.scale === 'number') setScale(s.scale);
-          if (typeof s.emojiHeightFactor === 'number') setEmojiHeightFactor(s.emojiHeightFactor);
-          if (typeof s.emojiFeetFactor === 'number') setEmojiFeetFactor(s.emojiFeetFactor);
-          if (typeof s.emojiSpacing === 'number') setEmojiSpacing(s.emojiSpacing);
-          if (typeof s.bgWidth === 'number') setBgWidth(s.bgWidth);
-          if (typeof s.fenceWidth === 'number') setFenceWidth(s.fenceWidth);
-          if (typeof s.fenceOffset === 'number') setFenceOffset(s.fenceOffset);
-          if (typeof s.emojiX === 'number') setEmojiX(s.emojiX);
-          if (typeof s.fenceGap === 'number') setFenceGap(s.fenceGap);
         }
       } catch { /* keep local defaults */ }
       setSettingsLoaded(true);
@@ -66,31 +54,19 @@ export default function NamePractice() {
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.lineSize', String(lineSize)); }, [lineSize, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.offset', String(offset)); }, [offset, settingsLoaded]);
   useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.scale', String(scale)); }, [scale, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiHeightFactor', String(emojiHeightFactor)); }, [emojiHeightFactor, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiFeetFactor', String(emojiFeetFactor)); }, [emojiFeetFactor, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiSpacing', String(emojiSpacing)); }, [emojiSpacing, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.bgWidth', String(bgWidth)); }, [bgWidth, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceWidth', String(fenceWidth)); }, [fenceWidth, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceOffset', String(fenceOffset)); }, [fenceOffset, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.emojiX', String(emojiX)); }, [emojiX, settingsLoaded]);
-  useEffect(() => { if (settingsLoaded) localStorage.setItem('np3.fenceGap', String(fenceGap)); }, [fenceGap, settingsLoaded]);
 
-  // Explicit save — called by the Save button. Writes all tuning values to
-  // the shared NamePracticeSetting entity so they persist across sessions and
-  // devices. Replaces the old debounced auto-save which silently failed and
-  // caused the fence to "move" back to stale values on refresh.
-  const saveSettings = useCallback(async () => {
+  const savePrintSettings = useCallback(async () => {
     if (!settingIdRef.current) return;
     setSaving(true);
     try {
       await base44.entities.NamePracticeSetting.update(settingIdRef.current, {
-        settings: { fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap }
+        settings: { fontSize, lineSize, offset, scale }
       });
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 2000);
     } catch { /* show nothing — button reverts */ }
     setSaving(false);
-  }, [fontSize, lineSize, offset, scale, emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap]);
+  }, [fontSize, lineSize, offset, scale]);
 
   const [searchParams] = useSearchParams();
   const classParam = searchParams.get('class') || '';
@@ -108,7 +84,6 @@ export default function NamePractice() {
   let visible = students ?? [];
   if (classParam) visible = visible.filter((s) => s.class_name === classParam);
   if (classFilter) visible = visible.filter((s) => s.class_name === classFilter);
-  // Only show students with names — blank roster entries get no page
   visible = visible.filter((s) => (s.name || '').trim());
 
   useEffect(() => {
@@ -126,6 +101,8 @@ export default function NamePractice() {
   const effFont = fontSize * scale;
   const effLine = lineSize * scale;
   const effOffset = offset * scale;
+
+  const gs = guideHook.settings;
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
@@ -202,61 +179,17 @@ export default function NamePractice() {
               <span className="w-12 tabular-nums">{Math.round(scale * 100)}%</span>
             </label>
             <Button size="sm" variant="ghost" onClick={() => { setFontSize(1.35); setLineSize(0.67); setOffset(0); setScale(1); }}>Reset</Button>
+            <Button
+              size="sm"
+              onClick={savePrintSettings}
+              disabled={saving || !settingsLoaded}
+              className={savedFlash ? 'bg-green-500 hover:bg-green-500' : ''}
+            >
+              {savedFlash ? <><Check className="w-3.5 h-3.5 mr-1" /> Saved!</> : <><Save className="w-3.5 h-3.5 mr-1" /> {saving ? 'Saving…' : 'Save print'}</>}
+            </Button>
           </div>
         </div>
-        {/* Emoji/fence tuning sliders — saved to NamePracticeSetting */}
-        <div className="max-w-5xl mx-auto px-6 py-1.5 flex items-center gap-4 flex-wrap border-t bg-amber-50 text-xs">
-          <span className="font-bold text-amber-800">Emoji Guide:</span>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Height
-            <input type="range" min={0.5} max={2.0} step={0.01} value={emojiHeightFactor} onChange={(e) => setEmojiHeightFactor(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-12 tabular-nums">{emojiHeightFactor.toFixed(3)}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Feet
-            <input type="range" min={0} max={0.5} step={0.01} value={emojiFeetFactor} onChange={(e) => setEmojiFeetFactor(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-12 tabular-nums">{emojiFeetFactor.toFixed(3)}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Emoji X
-            <input type="range" min={0} max={120} step={1} value={emojiX} onChange={(e) => setEmojiX(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{emojiX}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Spacing
-            <input type="range" min={40} max={120} step={1} value={emojiSpacing} onChange={(e) => setEmojiSpacing(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{emojiSpacing}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            BG Width
-            <input type="range" min={40} max={200} step={2} value={bgWidth} onChange={(e) => setBgWidth(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{bgWidth}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Fence Width
-            <input type="range" min={15} max={70} step={1} value={fenceWidth} onChange={(e) => setFenceWidth(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{fenceWidth}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Fence Gap
-            <input type="range" min={0} max={80} step={1} value={fenceGap} onChange={(e) => setFenceGap(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{fenceGap}</span>
-          </label>
-          <label className="flex items-center gap-1.5 text-muted-foreground">
-            Fence Offset
-            <input type="range" min={0} max={40} step={1} value={fenceOffset} onChange={(e) => setFenceOffset(parseFloat(e.target.value))} className="w-24" />
-            <span className="w-10 tabular-nums">{fenceOffset}</span>
-          </label>
-          <span className="text-amber-700">Emojis left, fence right. Heads → sky/fence, feet on grass.</span>
-          <Button
-            size="sm"
-            onClick={saveSettings}
-            disabled={saving || !settingsLoaded}
-            className={savedFlash ? 'bg-green-500 hover:bg-green-500' : 'bg-amber-600 hover:bg-amber-700'}
-          >
-            {savedFlash ? <><Check className="w-3.5 h-3.5 mr-1" /> Saved!</> : <><Save className="w-3.5 h-3.5 mr-1" /> {saving ? 'Saving…' : 'Save settings'}</>}
-          </Button>
-        </div>
+        <TracingGuideTuner {...guideHook} />
       </header>
 
       <main className="py-8 flex justify-center print:block print:py-0">
@@ -272,13 +205,19 @@ export default function NamePractice() {
                 style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
               >
                 <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} fenceGap={fenceGap} />
+                  emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+                  emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+                  fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+                  fenceOffsetRatio={gs.fenceOffsetRatio} />
               </div>
             ))}
           </div>
         ) : selected ? (
           <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={emojiHeightFactor} emojiFeetFactor={emojiFeetFactor} emojiSpacing={emojiSpacing} bgWidth={bgWidth} fenceWidth={fenceWidth} fenceOffset={fenceOffset} emojiX={emojiX} fenceGap={fenceGap} />
+            emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+            emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+            fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+            fenceOffsetRatio={gs.fenceOffsetRatio} />
         ) : null}
       </main>
     </div>

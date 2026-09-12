@@ -1,21 +1,25 @@
-import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
+import GuideKeyVisual, { R_BASE_F } from '@/components/tracing/GuideKeyVisual';
 
 export default function NamePracticeSheet({ student, mode = 'first', fontSize = 1.35, lineSize = 0.7, offset = 0,
-  emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth, fenceWidth, fenceOffset, emojiX, fenceGap }) {
+  emojiHeightFactor, emojiFeetFactor, emojiSpacingRatio, emojiXRatio, fenceGapRatio, fenceWidthRatio, fenceOffsetRatio }) {
   const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
   const rows = mode === 'firstlast' ? [first, last, first, last] : [first, first, first, first];
 
   // GuideKeyVisual viewBox — sized in hundredths of an inch so the aspect
-  // ratio matches the practice-set (width: 0.7in, height: 3 * lineSize in).
+  // ratio matches the practice-set (width: 2in, height: 3 * lineSize in).
   const vbW = 200;
   const gUnits = lineSize * 100;
   const vbH = 3 * gUnits;
 
-  // Fence right edge in viewBox units — text must start past this to avoid overlap.
-  const fenceEnd = 20 + emojiX + emojiSpacing + fenceGap + fenceWidth;
-  const textLeftIn = Math.max(bgWidth, fenceEnd) / 100 + 0.2;
+  // Compute fence end from ratio-based settings (mirrors GuideKeyVisual logic)
+  // so the name text starts past the fence, not overlapping it.
+  const capZoneH = 2 * gUnits; // grassY - skyY
+  const grassH = gUnits;       // grassY - fenceY
+  const capFSize = capZoneH * emojiHeightFactor;
+  const fenceEnd = capFSize * (R_BASE_F + emojiXRatio + emojiSpacingRatio + fenceGapRatio) + grassH * fenceWidthRatio;
+  const textLeftIn = fenceEnd / 100 + 0.2;
 
   return (
     <div className="page-preview">
@@ -33,14 +37,13 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
                 grassY={2 * gUnits}
                 dirtY={3 * gUnits}
                 width={vbW}
-                bgWidth={bgWidth}
                 emojiHeightFactor={emojiHeightFactor}
                 emojiFeetFactor={emojiFeetFactor}
-                emojiSpacing={emojiSpacing}
-                fenceWidth={fenceWidth}
-                fenceOffset={fenceOffset}
-                emojiX={emojiX}
-                fenceGap={fenceGap}
+                emojiSpacingRatio={emojiSpacingRatio}
+                emojiXRatio={emojiXRatio}
+                fenceGapRatio={fenceGapRatio}
+                fenceWidthRatio={fenceWidthRatio}
+                fenceOffsetRatio={fenceOffsetRatio}
               />
             </svg>
             <div className="practice-line top" />
