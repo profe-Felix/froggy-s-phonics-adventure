@@ -46,7 +46,8 @@ export default function LetterTracingCanvas({
 
   const TOTAL_W =
     CANVAS_W * copyCount +
-    COPY_GAP * (copyCount - 1);
+    COPY_GAP * (copyCount - 1) +
+    GUIDE_W;
 
   // Per-copy display width. A single copy is capped by both viewport height and
   // width (so it never scrolls on its own). When repair practice adds extra
@@ -66,7 +67,7 @@ export default function LetterTracingCanvas({
   // When fillHeight is set (e.g. the Letter Sounds feedback popup) the SVG
   // fills its measured container so the writing area stays as big as possible,
   // instead of using a fixed renderWidth that leaves the canvas small.
-  const _aspect = CANVAS_W / CANVAS_H;
+  const _aspect = TOTAL_W / CANVAS_H;
   let effectiveCopyWidth;
   let renderH;
   if (fillHeight && fitSize) {
@@ -112,22 +113,29 @@ export default function LetterTracingCanvas({
       copyCount <= 1
         ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)
         : Math.min(renderWidth, _maxByHeight);
-    renderH = effectiveCopyWidth * (CANVAS_H / CANVAS_W);
   }
   // Scale COPY_GAP from viewBox units to CSS pixels so the rendered SVG's
   // aspect ratio matches the viewBox exactly. Without this, the gap is the
   // same px count in both spaces, preserveAspectRatio letterboxes multi-copy
   // layouts, and the coordinate mapping drifts offset from the stylus.
   const renderGap = COPY_GAP * (effectiveCopyWidth / CANVAS_W);
+  // The guide visual (GUIDE_W viewBox units) adds CSS width on the left.
+  const guideRenderW = GUIDE_W * (effectiveCopyWidth / CANVAS_W);
   const totalRenderW =
-    effectiveCopyWidth * copyCount + renderGap * (copyCount - 1);
+    effectiveCopyWidth * copyCount + renderGap * (copyCount - 1) + guideRenderW;
+  // Compute renderH from the total CSS width so the SVG's aspect ratio matches
+  // the viewBox (TOTAL_W × CANVAS_H) exactly — no letterboxing, no coordinate
+  // drift. In fillHeight mode, renderH was already set from the container.
+  if (!fillHeight || !fitSize) {
+    renderH = totalRenderW * (CANVAS_H / TOTAL_W);
+  }
 
   const scaleForCopy = useCallback(
     (pt, copyIndex = safeActiveCopy) => {
       const base = scaleFn(pt, CANVAS_W, CANVAS_H);
 
       return {
-        x: base.x + copyIndex * (CANVAS_W + COPY_GAP),
+        x: base.x + copyIndex * (CANVAS_W + COPY_GAP) + GUIDE_W,
         y: base.y,
         ...(pt?.corner ? { corner: true } : {}),
       };
@@ -386,9 +394,11 @@ export default function LetterTracingCanvas({
     // copies don't fit in the viewport (narrow phones).
     const bothFit = 2 * effectiveCopyWidth + renderGap <= c.clientWidth;
     const showPrev = dotOnly && safeActiveCopy > 0 && bothFit;
-    const centerPoint = showPrev
+    // The guide visual adds guideRenderW on the left — offset the scroll target
+    // so the active copy is centered, not the guide.
+    const centerPoint = (showPrev
       ? safeActiveCopy * pitch - renderGap / 2
-      : safeActiveCopy * pitch + copyW / 2;
+      : safeActiveCopy * pitch + copyW / 2) + guideRenderW;
     const targetLeft = Math.max(
       0,
       Math.min(
@@ -398,7 +408,7 @@ export default function LetterTracingCanvas({
     );
     c.scrollTo({ left: targetLeft, behavior: firstScrollRef.current ? 'auto' : 'smooth' });
     firstScrollRef.current = false;
-  }, [safeActiveCopy, copyCount, dotOnly, effectiveCopyWidth, renderGap]);
+  }, [safeActiveCopy, copyCount, dotOnly, effectiveCopyWidth, renderGap, guideRenderW]);
 
   const getPos = (e) => {
     const svg = svgRef.current;
