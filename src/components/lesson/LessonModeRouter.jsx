@@ -383,6 +383,28 @@ export default function LessonModeRouter({
         return;
       }
 
+      // Mastery replays must also meet the threshold before awarding coins.
+      // Without this, a student with saved progress (e.g. 1/8) could press
+      // Done on a replay and collect +5 coins without doing any new work.
+      if (
+        comp.type === 'mastery' &&
+        !isTracingMode &&
+        step?.mode !== 'letter_sort'
+      ) {
+        const target = comp.target || 1;
+        const threshold = comp.threshold || 1;
+        const correctCount =
+          meta?.correctCount ?? meta?.masteredCount ?? 0;
+        const totalItems = meta?.totalItems ?? target;
+        const metThreshold =
+          correctCount >= totalItems ||
+          (threshold < 1 &&
+            correctCount >=
+              Math.ceil(totalItems * threshold));
+
+        if (!metThreshold) return;
+      }
+
       completedOnceRef.current =
         true;
 
@@ -398,7 +420,7 @@ export default function LessonModeRouter({
       //   0 coins
       //
       // Mastery:
-      //   +4 coins
+      //   +5 coins (only when threshold met — gated above)
       //
       // Tracing:
       //   +8 coins
@@ -421,11 +443,6 @@ export default function LessonModeRouter({
         return;
       }
 
-      if (isTracingMode) {
-        awardStepCoins(5, 'tracing_replay');
-        return;
-      }
-
       if (comp.type === 'mastery') {
         awardStepCoins(5, 'mastery_replay');
         return;
@@ -436,6 +453,8 @@ export default function LessonModeRouter({
     }, [
       isTracingMode,
       comp.type,
+      comp.threshold,
+      comp.target,
       step?.mode,
       awardStepCoins,
     ]);
