@@ -46,7 +46,7 @@ function layoutFor(w, h) {
   };
 }
 
-export default function ElkoninCountActivity({ config, studentName }) {
+export default function ElkoninCountActivity({ config, studentName, onScoreUpdate }) {
   const activity = useMemo(() => buildActivity(config), [config]);
   const recorder = useAudioRecorder();
   const [order, setOrder] = useState([]);
@@ -55,6 +55,8 @@ export default function ElkoninCountActivity({ config, studentName }) {
   const [placed, setPlaced] = useState(() => Array(BOX_COUNT).fill(false));
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  // Track which items were answered correctly across the whole session.
+  const [correctSet, setCorrectSet] = useState(() => new Set());
 
   const placedRef = useRef(Array(BOX_COUNT).fill(false));
   const gesturesRef = useRef([]);
@@ -71,6 +73,14 @@ export default function ElkoninCountActivity({ config, studentName }) {
   const { modeDef } = activity;
   const correct = current ? current.answer : 0;
   const unitWord = modeDef.what === 'palabras' ? 'palabra' : 'sonido';
+
+  // Report score up to the parent so the lesson router can award tiered
+  // mastery rewards (80% = 5 coins, 100% = 10 coins).
+  useEffect(() => {
+    if (onScoreUpdate) {
+      onScoreUpdate({ correctCount: correctSet.size, totalItems: activity.items.length });
+    }
+  }, [correctSet, activity.items.length, onScoreUpdate]);
 
   useEffect(() => {
     if (!activity.items.length) return;
@@ -239,6 +249,10 @@ export default function ElkoninCountActivity({ config, studentName }) {
         teacher_note: '',
       });
       setPhase('submitted'); phaseRef.current = 'submitted';
+      // Track whether this item was answered correctly for mastery scoring.
+      if (placedCount === correct) {
+        setCorrectSet(prev => { const n = new Set(prev); n.add(order[pos]); return n; });
+      }
     } catch (e) {
       setSubmitError('Error al guardar: ' + (e?.message || e));
     } finally {

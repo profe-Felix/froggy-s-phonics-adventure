@@ -321,10 +321,23 @@ export default function LessonModeRouter({
       }
 
       if (comp.type === 'mastery') {
-        awardStepCoins(
-          10,
-          'first_mastery'
-        );
+        // Tiered mastery rewards: 100% = 10 coins, 80% threshold = 5 coins.
+        // meta.correctCount/totalItems come from activities (via completeStep);
+        // for progress-based mastery, maybeComplete passes the mastered count.
+        const target = comp.target || 1;
+        const threshold = comp.threshold || 1;
+        const correctCount = meta?.correctCount ?? meta?.masteredCount ?? 0;
+        const totalItems = meta?.totalItems ?? target;
+
+        if (correctCount >= totalItems) {
+          awardStepCoins(10, 'first_mastery_100');
+        } else if (threshold < 1 && correctCount >= Math.ceil(totalItems * threshold)) {
+          awardStepCoins(5, 'first_mastery_80');
+        } else {
+          // Threshold not met — don't award, but still mark step complete
+          // so the student can move on (teacher chose partial mastery).
+          awardStepCoins(0, 'first_mastery_below_threshold');
+        }
 
         return;
       }
@@ -485,10 +498,17 @@ export default function LessonModeRouter({
 
         if (!isDone) return;
 
+        const masteryMeta = comp.type === 'mastery' && !isTracingMode
+          ? {
+              correctCount: progressData?.mastered_items?.length || 0,
+              totalItems: comp.target || 1,
+            }
+          : undefined;
+
         if (isReplayRun) {
-          finishReplayRun();
+          finishReplayRun(masteryMeta);
         } else {
-          finishFirstRun();
+          finishFirstRun(masteryMeta);
         }
       },
       [
@@ -1293,7 +1313,7 @@ export default function LessonModeRouter({
                   comp.type ===
                     'mastery' && (
                     <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +10 coins
+                      🪙 +{(comp.threshold || 1) < 1 ? '5–10' : '10'} coins
                     </p>
                   )}
 

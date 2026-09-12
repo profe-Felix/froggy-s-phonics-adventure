@@ -57,9 +57,13 @@ function StepCard({ step, index, status, onStart }) {
         <Star className="w-3.5 h-3.5 text-yellow-700 fill-yellow-500" />
       </span>
       {/* emoji / illustration */}
-      <span className="text-4xl sm:text-5xl mt-6 mb-1 drop-shadow-sm">
-        {isLocked ? '🔒' : (step.emoji || MODE_BY_VALUE[step.mode]?.emoji || '⭐')}
-      </span>
+      {step.emojiImage && !isLocked ? (
+        <img src={step.emojiImage} alt="" className="w-12 h-12 sm:w-14 sm:h-14 mt-4 mb-1 object-contain drop-shadow-sm" />
+      ) : (
+        <span className="text-4xl sm:text-5xl mt-6 mb-1 drop-shadow-sm">
+          {isLocked ? '🔒' : (step.emoji || MODE_BY_VALUE[step.mode]?.emoji || '⭐')}
+        </span>
+      )}
       <span className="text-xs sm:text-sm font-black text-gray-700 text-center leading-tight px-1">
         {step.title}
       </span>

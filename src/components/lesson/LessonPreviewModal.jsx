@@ -451,9 +451,13 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                     <div className="lp-step-card" style={{ background: color }}>
                       <span className="lp-number">{i + 1}</span>
                       <StarBadge filled={isCompleted} />
-                      <div className="lp-emoji">
-                        {step.emoji || '⭐'}
-                      </div>
+                      {step.emojiImage ? (
+                        <img src={step.emojiImage} alt="" className="lp-emoji" style={{ objectFit: 'contain', height: '60%', width: '60%' }} />
+                      ) : (
+                        <div className="lp-emoji">
+                          {step.emoji || '⭐'}
+                        </div>
+                      )}
                     </div>
                     <span className="lp-step-label">{step.title}</span>
                   </button>

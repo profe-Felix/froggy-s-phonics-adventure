@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy, Settings, Image as ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getPresetList } from '@/lib/presets';
 import StudentPicker from '@/components/lesson/StudentPicker';
@@ -55,6 +55,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
   const [lsEditor, setLsEditor] = useState(null);
   const [mlEditor, setMlEditor] = useState(null);
   const [srEditor, setSrEditor] = useState(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const [targetsText, setTargetsText] = useState(
     (step.config?.targets || []).join(', ')
@@ -83,7 +84,11 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
     <div className={`rounded-2xl border-2 ${c.bg} border-white shadow-sm p-3 flex flex-col gap-2`}>
       <div className="flex items-center gap-2">
         <span className="w-7 h-7 rounded-full bg-white/80 flex items-center justify-center font-black text-gray-700 text-sm">{index + 1}</span>
-        <span className="text-xl">{step.emoji || MODE_BY_VALUE[step.mode]?.emoji}</span>
+        {step.emojiImage ? (
+          <img src={step.emojiImage} alt="" className="w-7 h-7 object-contain" />
+        ) : (
+          <span className="text-xl">{step.emoji || MODE_BY_VALUE[step.mode]?.emoji}</span>
+        )}
         <span className="font-bold text-gray-800 text-sm flex-1 truncate">{step.title}</span>
         <div className="flex gap-1">
           <button onClick={() => onMove(-1)} disabled={index === 0} className="w-7 h-7 rounded-lg bg-white/80 hover:bg-white disabled:opacity-40 flex items-center justify-center"><ChevronUp className="w-4 h-4" /></button>
@@ -200,10 +205,37 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
       ) : null}
 
       <div className="grid grid-cols-3 gap-2">
-        <label className="text-xs text-gray-600 font-bold col-span-1">Emoji
-          <input value={step.emoji} onChange={e => update({ emoji: e.target.value })} maxLength={4}
-            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
-        </label>
+        <div className="col-span-1">
+          <span className="text-xs text-gray-600 font-bold">Emoji / Image</span>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <input value={step.emoji} onChange={e => update({ emoji: e.target.value })} maxLength={4}
+              placeholder="🔵"
+              className="w-14 text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-center" />
+            <button type="button" onClick={() => setEmojiPickerOpen(o => !o)}
+              className="text-xs font-bold px-2 py-1.5 rounded-lg bg-indigo-600 text-white inline-flex items-center gap-1 hover:bg-indigo-700 whitespace-nowrap">
+              <ImageIcon className="w-3.5 h-3.5" /> {step.emojiImage ? 'Image ✓' : 'Upload'}
+            </button>
+          </div>
+          {step.emojiImage && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
+                <img src={step.emojiImage} alt="step icon" className="w-full h-full object-contain" />
+              </div>
+              <button type="button" onClick={() => update({ emojiImage: '' })}
+                className="text-red-400 hover:text-red-600">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          {emojiPickerOpen && (
+            <div className="mt-1.5 p-2 rounded-lg bg-white border border-gray-200">
+              <ImagePicker
+                value={step.emojiImage || ''}
+                onChange={(url) => { update({ emojiImage: url }); setEmojiPickerOpen(false); }}
+              />
+            </div>
+          )}
+        </div>
         <label className="text-xs text-gray-600 font-bold col-span-1">Card color
           <select value={step.color} onChange={e => update({ color: e.target.value })}
             className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
@@ -220,11 +252,26 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
       </div>
 
       {step.completion.type === 'mastery' && (
-        <label className="text-xs text-gray-600 font-bold">Items to master
-          <input type="number" min={1} value={step.completion.target}
-            onChange={e => updateCompletion({ target: parseInt(e.target.value) || 1 })}
-            className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
-        </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-gray-600 font-bold">Items to master
+            <input type="number" min={1} value={step.completion.target}
+              onChange={e => updateCompletion({ target: parseInt(e.target.value) || 1 })}
+              className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+          </label>
+          <label className="text-xs text-gray-600 font-bold">Mastery threshold
+            <select value={String(step.completion.threshold || 1)}
+              onChange={e => updateCompletion({ threshold: parseFloat(e.target.value) })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="1">100% — 10 coins</option>
+              <option value="0.8">80% — 5 coins</option>
+            </select>
+          </label>
+          <p className="text-[10px] text-gray-400 font-bold pb-2">
+            {step.completion.threshold && step.completion.threshold < 1
+              ? `≥${Math.ceil((step.completion.target || 1) * step.completion.threshold)} correct = 5 coins · all ${step.completion.target || 1} = 10 coins`
+              : `All ${step.completion.target || 1} correct = 10 coins`}
+          </p>
+        </div>
       )}
 
       <label className="text-xs text-gray-600 font-bold">Availability

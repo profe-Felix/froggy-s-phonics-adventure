@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import HuntActivity from '@/components/activities/HuntActivity';
@@ -29,6 +29,9 @@ const DEFAULT_CONFIG = {
 
 export default function ActivitiesStep({ onComplete, studentName, stepConfig }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
+  // Track correct count across items so the lesson router can award tiered
+  // mastery rewards (80% = 5 coins, 100% = 10 coins).
+  const [score, setScore] = useState({ correctCount: 0, totalItems: 0 });
   const config = useMemo(() => {
     const cfg = stepConfig || {};
     // If a preset is selected, use it as the base.
@@ -72,10 +75,10 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig }) 
         ) : mode === 'rhyme_identification' ? (
           <RhymeActivity config={config} studentName={name} />
         ) : (
-          <ElkoninCountActivity config={config} studentName={name} />
+          <ElkoninCountActivity config={config} studentName={name} onScoreUpdate={setScore} />
         )}
       </div>
-      <StepDoneBar onDone={onComplete} />
+      <StepDoneBar onDone={() => onComplete(score)} label={score.totalItems > 0 ? `Done (${score.correctCount}/${score.totalItems})` : 'Done'} />
     </div>
   );
 }
