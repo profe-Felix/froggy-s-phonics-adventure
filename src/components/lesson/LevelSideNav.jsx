@@ -28,7 +28,7 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
     : ITEMS;
 
   return (
-    <div className="absolute right-2 top-2 z-30 flex flex-col gap-1.5 rounded-3xl bg-[#1a1a2e] px-2 py-2 shadow-xl" style={{ top: 'max(0.5rem, env(safe-area-inset-top))', maxHeight: 'calc(100dvh - 1rem)', overflowY: 'auto' }}>
+    <div className="absolute right-2 z-30 flex flex-col justify-between rounded-3xl bg-[#1a1a2e] px-2 py-2 shadow-xl" style={{ top: 'max(0.5rem, env(safe-area-inset-top))', bottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
       {/* Pinned profile — photo + name + class so students see who's logged in */}
       <div className="flex flex-col items-center gap-0.5 w-14 pb-1.5 border-b border-white/10">
         <span
