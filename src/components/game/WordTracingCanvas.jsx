@@ -14,7 +14,10 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const X_SCALE = 600;
 const CANVAS_H = 750;
 const LETTER_GAP = 45;
-const PADDING = 30; // left/right edge padding so ink doesn't touch the canvas border
+// Left padding must clear the GuideKeyVisual (width=150) so the fence sits at
+// the BEGINNING of the word — like a "start here" marker — not overlapping
+// the first letter. Right padding mirrors it for visual balance.
+const PADDING = 165;
 const REPETITIONS = 3; // trace the word 3 times with spaces between
 const WORD_GAP = 80; // px space between word repetitions (like a real word space)
 const FONEMA_INTERVAL_MS = 2000;

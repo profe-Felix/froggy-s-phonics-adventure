@@ -13,6 +13,9 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
 const COPY_GAP = 24;
+// Left padding for the GuideKeyVisual (width=80) so the fence sits at the
+// BEGINNING of the letter — like a "start here" marker — not overlapping it.
+const GUIDE_W = 80;
 
 export default function LetterTracingCanvas({
   letter,
