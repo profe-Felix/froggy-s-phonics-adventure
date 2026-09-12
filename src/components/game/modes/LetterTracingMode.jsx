@@ -81,6 +81,7 @@ export default function LetterTracingMode({
   freeSpinEnabled = true,
   silent = false,
   locked = false,
+  onBack,
 }) {
   const [currentLetter, setCurrentLetter] = useState(null);
 
@@ -748,6 +749,14 @@ export default function LetterTracingMode({
           <div className="bg-amber-100 border border-amber-300 rounded-full px-4 py-1 text-amber-800 font-bold text-sm">
             🔍 Preview size: {SIZES[forcedSize].label} (traceSize={forcedSize})
           </div>
+        )}
+        {onBack && !locked && (
+          <button
+            onClick={onBack}
+            className="self-start text-slate-500 hover:text-slate-800 text-sm font-bold flex items-center gap-1"
+          >
+            ← Back to Modes
+          </button>
         )}
         <div className="text-center">
           <div className="text-4xl mb-1">✏️</div>

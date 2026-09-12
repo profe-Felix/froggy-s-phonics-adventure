@@ -659,6 +659,7 @@ export default function LetterGame() {
           silent={tracingOnlyFor(studentData?.class_name)}
           targets={activeTracingLock ? [activeTracingLock.letter] : undefined}
           locked={!!activeTracingLock}
+          onBack={handleBackToModes}
         />
       )}
       {currentMode === 'number_hearing' && (
