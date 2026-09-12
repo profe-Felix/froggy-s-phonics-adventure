@@ -1,0 +1,50 @@
+{
+  "name": "TracingGuideSetting",
+  "type": "object",
+  "properties": {
+    "settings": {
+      "type": "object",
+      "properties": {
+        "emojiHeightFactor": {
+          "type": "number",
+          "description": "Emoji font-size as a fraction of zone height. Controls how tall the emoji is \u2014 larger = heads reach sky/fence lines. Proportional, scales across canvas sizes."
+        },
+        "emojiFeetFactor": {
+          "type": "number",
+          "description": "Emoji baseline offset from grass line as a fraction of font size. Controls feet position \u2014 adjust so feet touch the green baseline. Proportional."
+        },
+        "emojiSpacingRatio": {
+          "type": "number",
+          "description": "Horizontal gap between capital and lowercase emoji as a fraction of capFSize. Proportional."
+        },
+        "emojiXRatio": {
+          "type": "number",
+          "description": "Extra emoji X offset as a fraction of capFSize. Proportional."
+        },
+        "fenceGapRatio": {
+          "type": "number",
+          "description": "Gap between lowercase emoji and fence as a fraction of capFSize. Proportional."
+        },
+        "fenceWidthRatio": {
+          "type": "number",
+          "description": "Visible fence window width as a fraction of grass height. Controls how many pickets show. Proportional."
+        },
+        "fenceOffsetRatio": {
+          "type": "number",
+          "description": "Fence image horizontal offset as a fraction of fence image width. Shifts which pickets are visible. Proportional."
+        }
+      },
+      "default": {},
+      "description": "Proportional guide layout settings for letter/word tracing canvases. All values are ratios (not absolute pixels) so they scale across different canvas sizes."
+    }
+  },
+  "required": [
+    "settings"
+  ],
+  "rls": {
+    "read": null,
+    "create": null,
+    "update": null,
+    "delete": null
+  }
+}

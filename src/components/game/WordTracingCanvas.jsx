@@ -10,6 +10,7 @@ import {
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 
 const X_SCALE = 600;
 const CANVAS_H = 750;
@@ -28,6 +29,7 @@ const FONEMA_INTERVAL_MS = 2000;
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
 export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, repetitions: repCount, fillHeight = false, onComplete, onAccuracy, onProgress }) {
+  const { settings: gs } = useTracingGuideSettings();
   const REPS = repCount && repCount > 0 ? repCount : REPETITIONS;
   const layoutResult = useMemo(
     () => computeWordLayout(word, waypoints, X_SCALE, LETTER_GAP, PADDING, REPS, WORD_GAP),
@@ -618,7 +620,10 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         {/* Writing lines — span the full word width */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
         <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
-  emojiHeightFactor={0.96} emojiFeetFactor={0.16} />
+  emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+  emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+  fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+  fenceOffsetRatio={gs.fenceOffsetRatio} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={totalW} y2={0.10 * CANVAS_H} stroke="#4a90e2" strokeWidth="1.5" opacity="0.7" />
         {/* Fence line (dashed black) */}

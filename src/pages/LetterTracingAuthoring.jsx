@@ -7,6 +7,8 @@ import { CANVAS_W, CANVAS_H } from '@/components/tracing/strokeMath';
 import LetterTracingCanvas from '@/components/game/LetterTracingCanvas';
 import NumberComposer from '@/components/tracing/NumberComposer';
 import { base44 } from '@/api/base44Client';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import TracingGuideTuner from '@/components/tracing/TracingGuideTuner';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
@@ -30,6 +32,8 @@ export default function LetterTracingAuthoring() {
   const [authorMode, setAuthorMode] = useState('snap');
   // Picker category: 'letters' (with case toggle) or 'numbers' (0-20).
   const [pickerCategory, setPickerCategory] = useState('letters');
+  // Guide tuning (emoji/fence layout) — saved to TracingGuideSetting entity.
+  const { settings: guideSettings, update: updateGuide, save: saveGuide, saving: guideSaving, savedFlash: guideSaved } = useTracingGuideSettings();
 
   // Shared trace image + transform — lives here so it persists when toggling
   // between "Snap to ink" and "Trace thin" (no re-inserting the image).
@@ -197,6 +201,11 @@ export default function LetterTracingAuthoring() {
               <RotateCcw className="w-4 h-4" /> Reset
             </button>
           </div>
+        </div>
+
+        {/* Guide tuning bar — emoji/fence layout sliders */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-5">
+          <TracingGuideTuner settings={guideSettings} update={updateGuide} save={saveGuide} saving={guideSaving} savedFlash={guideSaved} />
         </div>
 
         {/* Character picker + category toggle + hint */}
@@ -397,6 +406,7 @@ export default function LetterTracingAuthoring() {
                     onComplete={() => {}}
                     onReset={() => {}}
                     debugCoverage={showCoverage}
+                    guideSettings={guideSettings}
                   />
                 </div>
               ) : (

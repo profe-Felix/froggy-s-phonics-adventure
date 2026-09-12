@@ -39,7 +39,10 @@ const R_FENCE_WIDTH_H = 0.487; // fenceWidth / grassH (shows ~3 planks)
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
   emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing, bgWidth,
-  fenceWidth, fenceOffset = 0, emojiX, fenceGap }) {
+  fenceWidth, fenceOffset = 0, emojiX, fenceGap,
+  // Ratio-based overrides (proportional — scale across canvas sizes).
+  // When provided, these replace the default auto-scaling ratios.
+  emojiSpacingRatio, emojiXRatio, fenceGapRatio, fenceWidthRatio, fenceOffsetRatio }) {
 
   const clipId = useId();
 
@@ -59,13 +62,19 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const lowFSize = lowZoneH * emojiHeightFactor;
 
   // Auto-scale layout by emoji font-size when not explicitly provided.
-  // NamePractice passes explicit values → those override (unaffected).
-  // Tracing canvases pass only width → layout scales to the emoji size.
+  // NamePractice passes explicit absolute values → those override (unaffected).
+  // Tracing canvases pass ratio overrides → those replace the default ratios.
+  // Otherwise, the built-in default ratios apply.
+  const rEmojiX = emojiXRatio ?? R_EMOJI_X_F;
+  const rEmojiSpacing = emojiSpacingRatio ?? R_EMOJI_SPACING_F;
+  const rFenceGap = fenceGapRatio ?? R_FENCE_GAP_F;
+  const rFenceWidth = fenceWidthRatio ?? R_FENCE_WIDTH_H;
+
   const baseX = capFSize * R_BASE_F;
-  const effEmojiX = emojiX ?? capFSize * R_EMOJI_X_F;
-  const effEmojiSpacing = emojiSpacing ?? capFSize * R_EMOJI_SPACING_F;
-  const effFenceGap = fenceGap ?? capFSize * R_FENCE_GAP_F;
-  const effFenceWidth = fenceWidth ?? grassH * R_FENCE_WIDTH_H;
+  const effEmojiX = emojiX ?? capFSize * rEmojiX;
+  const effEmojiSpacing = emojiSpacing ?? capFSize * rEmojiSpacing;
+  const effFenceGap = fenceGap ?? capFSize * rFenceGap;
+  const effFenceWidth = fenceWidth ?? grassH * rFenceWidth;
 
   // Y position: baseline at grassY, shifted up by emojiFeetFactor * fontSize
   const capY = grassY - emojiFeetFactor * capFSize;
@@ -77,10 +86,12 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
 
   // Fence AFTER the emojis — full height, clipped to a horizontal window.
   // Image rendered at natural aspect ratio (height = grassH), then clipped.
-  // fenceOffset shifts the image left → shows different pickets.
+  // fenceOffsetRatio (if provided) shifts the image as a fraction of fenceImgW;
+  // otherwise fenceOffset (absolute) is used.
   const fenceImgW = grassH * FENCE_ASPECT;
   const fenceX = lowX + effFenceGap; // positioned after the lowercase emoji
-  const imgX = fenceX - fenceOffset;
+  const effFenceOffset = fenceOffsetRatio != null ? fenceOffsetRatio * fenceImgW : fenceOffset;
+  const imgX = fenceX - effFenceOffset;
 
   // Background must cover all visual elements (emojis + fence) so the
   // colored zone wraps around the fence, not just the emojis.

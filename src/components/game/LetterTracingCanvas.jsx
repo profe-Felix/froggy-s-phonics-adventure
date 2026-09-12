@@ -9,6 +9,7 @@ import {
 import { getSilenceStartSync, preloadSilenceStart } from '@/lib/audio';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 
 const CANVAS_W = 300;
 const CANVAS_H = 375; // matches calibration 400×500 (4:5) aspect ratio
@@ -38,7 +39,10 @@ export default function LetterTracingCanvas({
   freehandMode = false,
   dotOnly = false,
   onFreehandStrokes,
+  guideSettings,
 }) {
+  const { settings: hookSettings } = useTracingGuideSettings();
+  const gs = guideSettings || hookSettings;
   const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
     0,
@@ -1232,7 +1236,10 @@ export default function LetterTracingCanvas({
             tier (Huge through Paper) instead of thinning to sub-pixel. */}
         {/* Grounding visual: sky/grass/dirt zones (left chunk only) + fence + figures */}
         <GuideKeyVisual skyY={0.10 * CANVAS_H} fenceY={0.367 * CANVAS_H} grassY={0.633 * CANVAS_H} dirtY={0.90 * CANVAS_H}
-  emojiHeightFactor={0.96} emojiFeetFactor={0.16} />
+  emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+  emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+  fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+  fenceOffsetRatio={gs.fenceOffsetRatio} />
         {/* Sky line (blue) */}
         <line x1="0" y1={0.10 * CANVAS_H} x2={TOTAL_W} y2={0.10 * CANVAS_H}
           stroke="#4a90e2" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
