@@ -53,6 +53,7 @@ import HfwCards from './pages/HfwCards';
 import NounGenderEditor from './pages/NounGenderEditor';
 import AbsenceDashboard from './pages/AbsenceDashboard';
 import LetterGame from './pages/LetterGame';
+import LegacyLetterReview from './pages/LegacyLetterReview';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -154,6 +155,7 @@ const AuthenticatedApp = () => {
       <Route path="/NounGenderEditor" element={<NounGenderEditor />} />
       <Route path="/AbsenceDashboard" element={<AbsenceDashboard />} />
       <Route path="/ID" element={<LetterGame />} />
+      <Route path="/LegacyLetterReview" element={<LegacyLetterReview />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
