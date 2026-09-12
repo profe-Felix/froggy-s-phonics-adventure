@@ -265,7 +265,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
     : studentSlots;
 
   return (
-    <div className="relative h-screen overflow-y-auto bg-[#a932d5]" style={{ paddingRight: '76px' }}>
+    <div className="relative h-screen overflow-y-auto bg-[#a932d5]">
       <div
         ref={wrapRef}
         onClick={onPathClick}
@@ -307,18 +307,14 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
                 </button>
               </>
             )}
-            {canEdit && (
-              <>
-                <CoinBadge coins={coins} onClick={() => { setWheelFreeSpin(false); setWheelOpen(true); }} />
-                {(studentData?.banked_spins || 0) > 0 && (
-                  <button
-                    onClick={() => { setWheelFreeSpin(true); setWheelOpen(true); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-400 text-white text-sm font-bold shadow animate-pulse"
-                  >
-                    🎟️ {studentData.banked_spins} free spin{studentData.banked_spins !== 1 ? 's' : ''}
-                  </button>
-                )}
-              </>
+            <CoinBadge coins={coins} onClick={() => { setWheelFreeSpin(false); setWheelOpen(true); }} />
+            {(studentData?.banked_spins || 0) > 0 && (
+              <button
+                onClick={() => { setWheelFreeSpin(true); setWheelOpen(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-400 text-white text-sm font-bold shadow animate-pulse"
+              >
+                🎟️ {studentData.banked_spins} free spin{studentData.banked_spins !== 1 ? 's' : ''}
+              </button>
             )}
           </div>
         </div>
