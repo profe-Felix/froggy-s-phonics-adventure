@@ -71,8 +71,17 @@ export default function LetterTracingCanvas({
     // Medium) renders visibly smaller instead of always filling the whole
     // container. Without this, fillHeight ignored renderWidth and every size
     // looked identical.
-    const fitW = fitSize.width * sizeScale;
-    const fitH = fitSize.height * sizeScale;
+    //
+    // On phones (narrow screens), boost the scale so the canvas stays usable.
+    // SIZE_SCALES are tuned for iPad's large screen; on a phone even scale 1.0
+    // produces a small canvas, and smaller scales (0.22–0.55) make it tiny.
+    // The floor keeps phone canvases at a usable size while preserving the
+    // full size progression on iPad.
+    const _vw2 = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const isPhone = _vw2 < 640;
+    const effScale = isPhone ? Math.max(sizeScale, 0.8) : sizeScale;
+    const fitW = fitSize.width * effScale;
+    const fitH = fitSize.height * effScale;
     if (copyCount <= 1) {
       // Single copy: fit within both width and height (centered, no scroll).
       let w = fitW;
