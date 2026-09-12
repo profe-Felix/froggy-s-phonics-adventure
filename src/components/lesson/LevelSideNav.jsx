@@ -28,9 +28,9 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
     : ITEMS;
 
   return (
-    <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-3 rounded-3xl bg-[#1a1a2e] px-2 py-3 shadow-xl">
+    <div className="absolute right-2 top-2 z-30 flex flex-col gap-1.5 rounded-3xl bg-[#1a1a2e] px-2 py-2 shadow-xl" style={{ top: 'max(0.5rem, env(safe-area-inset-top))', maxHeight: 'calc(100dvh - 1rem)', overflowY: 'auto' }}>
       {/* Pinned profile — photo + name + class so students see who's logged in */}
-      <div className="flex flex-col items-center gap-1 w-14 pb-2 border-b border-white/10">
+      <div className="flex flex-col items-center gap-0.5 w-14 pb-1.5 border-b border-white/10">
         <span
           className="rounded-full p-0.5 shadow-lg"
           style={{ background: `linear-gradient(135deg, ${classColor.from}, ${classColor.to})` }}
@@ -67,13 +67,13 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
             className="flex flex-col items-center gap-1 w-14"
           >
             <span
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
                 on ? 'bg-white text-[#1a1a2e]' : 'bg-white/10 text-white'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-4 h-4" />
             </span>
-            <span className={`text-[10px] font-bold ${on ? 'text-white' : 'text-white/60'}`}>
+            <span className={`text-[9px] font-bold ${on ? 'text-white' : 'text-white/60'}`}>
               {label}
             </span>
           </button>
@@ -82,12 +82,12 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
       {!barcodeLogin && (
         <button
           onClick={onLogout}
-          className="flex flex-col items-center gap-1 w-14 mt-1 pt-2 border-t border-white/10"
+          className="flex flex-col items-center gap-1 w-14 mt-1 pt-1.5 border-t border-white/10"
         >
-          <span className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white">
-            <LogOut className="w-5 h-5" />
+          <span className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white">
+            <LogOut className="w-4 h-4" />
           </span>
-          <span className="text-[10px] font-bold text-white/60">Exit</span>
+          <span className="text-[9px] font-bold text-white/60">Exit</span>
         </button>
       )}
     </div>
