@@ -1,9 +1,9 @@
 import React from 'react';
 import { X, Play, Check, Info, Star, ChevronLeft } from 'lucide-react';
 
-// Parent-facing lesson preview. Shown when the "parent view" toggle is ON and
-// a level puck is tapped. Compact header + big grid of step tiles that fill the
-// width. Filled stars for completed lessons, outlined stars for incomplete.
+// Lesson preview shown when a level puck is tapped (both parent view and
+// student view). Compact header + horizontally scrolling carousel of step
+// tiles. Filled stars for completed lessons, outlined stars for incomplete.
 // Tapping a tile launches that step directly; "Start lesson" opens the full
 // dot-progression from step 1.
 const NAVY = '#2D2650';
@@ -33,9 +33,6 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
     ? `${studentName} will ${subtitle.charAt(0).toLowerCase()}${subtitle.slice(1)}`
     : subtitle;
   const steps = lesson.steps || [];
-
-  // Grid columns: up to 4 across, shrink for fewer steps.
-  const cols = Math.min(steps.length || 1, 4);
 
   return (
     <div
@@ -88,15 +85,15 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
           </button>
         </div>
 
-        {/* --- Big tile grid --- */}
+        {/* --- Horizontal scrolling tile carousel --- */}
         {steps.length > 0 && (
           <div>
             <p className="text-xs font-bold uppercase tracking-wider mb-2 text-white/80">
               {steps.length} part{steps.length !== 1 ? 's' : ''} in this lesson
             </p>
             <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+              className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
+              style={{ scrollbarWidth: 'thin', scrollSnapType: 'x mandatory' }}
             >
               {steps.map((step, i) => {
                 const c = STEP_COLORS[step.color] || FALLBACK;
@@ -104,7 +101,8 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                   <button
                     key={i}
                     onClick={() => onStartStep?.(step, i, lesson)}
-                    className="flex flex-col items-center group"
+                    className="flex flex-col items-center group shrink-0"
+                    style={{ width: '9rem', scrollSnapAlign: 'start' }}
                   >
                     <div
                       className="relative w-full rounded-2xl shadow-lg flex items-center justify-center overflow-hidden transition group-hover:scale-[1.03] group-active:scale-95"

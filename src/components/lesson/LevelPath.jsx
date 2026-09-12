@@ -359,8 +359,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
               onClick={(e) => {
                 if (editing) return;
                 if (!lesson || locked) return;
-                if (parentView) setPreviewLesson({ lesson, done });
-                else onOpenLesson(lesson);
+                setPreviewLesson({ lesson, done });
               }}
               onPointerDown={(e) => {
                 if (!editing) return;
