@@ -17,12 +17,12 @@ export default function CharacterDock({ studentData, characters, onSetActive }) 
       <button
         onClick={() => setOpen(true)}
         title="Your character"
-        className="fixed bottom-6 left-6 z-30 w-[200px] h-[200px] rounded-3xl bg-white/90 border-4 border-white shadow-lg flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition">
-        
+        className="fixed bottom-6 left-6 z-30 w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] rounded-3xl bg-white/90 border-4 border-white shadow-lg flex items-center justify-center overflow-hidden hover:scale-105 active:scale-95 transition">
+
         {active ?
         <img src={active.url} alt="character" className="w-full h-full object-cover" /> :
 
-        <span className="text-3xl">🥚</span>
+        <span className="text-3xl sm:text-3xl">🥚</span>
         }
       </button>
 
@@ -43,8 +43,12 @@ export default function CharacterDock({ studentData, characters, onSetActive }) 
                 No characters yet — spin the wheel to get one!
               </p> :
 
-          <div className="grid grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
-                {characters.map((c) => {
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
+                {[...characters].sort((a, b) => {
+                  const aOwned = unlocked.includes(a.id) ? 0 : 1;
+                  const bOwned = unlocked.includes(b.id) ? 0 : 1;
+                  return aOwned - bOwned;
+                }).map((c) => {
               const owned = unlocked.includes(c.id);
               const isActive = c.id === activeId;
               return (
@@ -53,7 +57,7 @@ export default function CharacterDock({ studentData, characters, onSetActive }) 
                   disabled={!owned}
                   onClick={() => onSetActive(c.id)}
                   className={`relative rounded-xl overflow-hidden border-4 transition ${isActive ? 'border-amber-400 ring-2 ring-amber-300' : owned ? 'border-white hover:scale-105' : 'border-gray-200 opacity-40'}`}>
-                  
+
                       <img src={c.url} alt={c.id} className="w-full aspect-square object-cover" />
                       {!owned &&
                   <div className="absolute inset-0 bg-gray-500/50 flex items-center justify-center">
