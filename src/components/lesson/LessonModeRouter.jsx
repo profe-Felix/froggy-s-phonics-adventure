@@ -281,6 +281,29 @@ export default function LessonModeRouter({
         return;
       }
 
+      // Mastery steps require the threshold to be met before the step (and
+      // thus the lesson) can be marked complete. No mastery → no completion,
+      // no coins. The student stays in the activity until they reach the
+      // threshold.
+      if (
+        comp.type === 'mastery' &&
+        !isTracingMode &&
+        step?.mode !== 'letter_sort'
+      ) {
+        const target = comp.target || 1;
+        const threshold = comp.threshold || 1;
+        const correctCount =
+          meta?.correctCount ?? meta?.masteredCount ?? 0;
+        const totalItems = meta?.totalItems ?? target;
+        const metThreshold =
+          correctCount >= totalItems ||
+          (threshold < 1 &&
+            correctCount >=
+              Math.ceil(totalItems * threshold));
+
+        if (!metThreshold) return;
+      }
+
       completedOnceRef.current =
         true;
 
@@ -301,7 +324,8 @@ export default function LessonModeRouter({
       //   +4 coins
       //
       // Mastery:
-      //   +8 coins
+      //   100% = 10 coins, 80% threshold = 5 coins
+      //   (below-threshold is blocked above — never reaches here)
       //
       // Tracing:
       //   FREE SPIN handled inside LetterTracingMode / WordTracingMode
@@ -325,18 +349,13 @@ export default function LessonModeRouter({
         // meta.correctCount/totalItems come from activities (via completeStep);
         // for progress-based mastery, maybeComplete passes the mastered count.
         const target = comp.target || 1;
-        const threshold = comp.threshold || 1;
         const correctCount = meta?.correctCount ?? meta?.masteredCount ?? 0;
         const totalItems = meta?.totalItems ?? target;
 
         if (correctCount >= totalItems) {
           awardStepCoins(10, 'first_mastery_100');
-        } else if (threshold < 1 && correctCount >= Math.ceil(totalItems * threshold)) {
-          awardStepCoins(5, 'first_mastery_80');
         } else {
-          // Threshold not met — don't award, but still mark step complete
-          // so the student can move on (teacher chose partial mastery).
-          awardStepCoins(0, 'first_mastery_below_threshold');
+          awardStepCoins(5, 'first_mastery_80');
         }
 
         return;
@@ -352,6 +371,8 @@ export default function LessonModeRouter({
       markStepComplete,
       isTracingMode,
       comp.type,
+      comp.threshold,
+      comp.target,
       step?.mode,
       awardStepCoins,
     ]);
@@ -1110,6 +1131,7 @@ export default function LessonModeRouter({
             stepConfig={
               step?.config
             }
+            completion={comp}
             activityState={getActivityState?.(stepIndex)}
             onActivityState={(state) => saveActivityState?.(stepIndex, state)}
           />

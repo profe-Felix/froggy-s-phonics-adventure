@@ -27,11 +27,23 @@ const DEFAULT_CONFIG = {
   items: ['El gato come', 'Yo soy grande', 'La luna brilla en la noche'].map(t => ({ text: t })),
 };
 
-export default function ActivitiesStep({ onComplete, studentName, stepConfig, activityState, onActivityState }) {
+export default function ActivitiesStep({ onComplete, studentName, stepConfig, completion, activityState, onActivityState }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
   // Track correct count across items so the lesson router can award tiered
   // mastery rewards (80% = 5 coins, 100% = 10 coins).
   const [score, setScore] = useState({ correctCount: 0, totalItems: 0 });
+
+  // Mastery threshold gating: the Done button stays disabled until the student
+  // meets the configured mastery threshold (e.g. 80% or 100%). This prevents
+  // "completing" a mastery lesson without actually mastering the content.
+  const isMastery = completion?.type === 'mastery';
+  const masteryThreshold = completion?.threshold || 1;
+  const masteryTarget = completion?.target || 1;
+  const totalForThreshold = score.totalItems || (isMastery ? masteryTarget : 0);
+  const neededCorrect = masteryThreshold < 1
+    ? Math.ceil(totalForThreshold * masteryThreshold)
+    : totalForThreshold;
+  const metMastery = !isMastery || score.correctCount >= neededCorrect;
   const config = useMemo(() => {
     const cfg = stepConfig || {};
     // If a preset is selected, use it as the base.
@@ -86,8 +98,10 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, ac
       </div>
       <StepDoneBar
         onDone={() => onComplete(score)}
-        disabled={score.totalItems > 0 && score.correctCount === 0}
-        label={score.totalItems > 0 ? `Done (${score.correctCount}/${score.totalItems})` : 'Done'}
+        disabled={score.totalItems > 0 && !metMastery}
+        label={score.totalItems > 0
+          ? (isMastery ? `Master ${score.correctCount}/${neededCorrect}` : `Done (${score.correctCount}/${score.totalItems})`)
+          : 'Done'}
       />
     </div>
   );
