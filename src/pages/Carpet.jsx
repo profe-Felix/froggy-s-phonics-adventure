@@ -12,7 +12,6 @@ import PartnerArrows from '@/components/seating/PartnerArrows';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { parseName } from '@/lib/nameNormalize';
 import { computePartners } from '@/lib/carpetPartners';
-import { useAuth } from '@/lib/AuthContext';
 
 const ROW_SIZES = [5, 5, 6, 5, 5];
 const GRID_SIZE = ROW_SIZES.reduce((a, b) => a + b, 0);
@@ -20,7 +19,6 @@ const ROW_COLORS = ['bg-green-400', 'bg-red-400', 'bg-blue-400', 'bg-pink-400', 
 const GROUPS = ['A', 'B', 'C'];
 
 export default function Carpet() {
-  const { isAuthenticated, navigateToLogin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState(null);
   const [seats, setSeats] = useState(null);
@@ -529,11 +527,6 @@ export default function Carpet() {
             </div>
             <div className="flex items-center gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-              {!isAuthenticated && (
-                <Button size="sm" variant="default" onClick={navigateToLogin}>
-                  Log in
-                </Button>
-              )}
               {selectedClass && isSetup && homeroomSheetLink && (
                 <Button
                   size="sm"
