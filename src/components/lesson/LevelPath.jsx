@@ -10,6 +10,7 @@ import PrizeWheel from '@/components/game/PrizeWheel';
 import { getCharacters } from '@/lib/characters';
 import { useClassColors } from '@/hooks/useClassColors';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
+import LessonPreviewModal from './LessonPreviewModal';
 
 // Level-path homepage. A single background image is shown once (no repeat),
 // sized to fill the container exactly. Level pucks are positioned by % over it.
@@ -33,7 +34,7 @@ function defaultPos(i) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout, onStudentPatch }) {
+export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onLogout, onStudentPatch, parentView }) {
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const qc = useQueryClient();
@@ -166,6 +167,16 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const [draft, setDraft] = useState({});      // slot(string) -> {x,y}
   const [dragSlot, setDragSlot] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // Parent-view preview: when the toggle is ON, tapping a puck opens a preview
+  // modal (with a scrollable carousel of all lessons) instead of jumping in.
+  const [previewLesson, setPreviewLesson] = useState(null);
+
+  // Carousel data: all class lessons with a `done` flag for the preview modal.
+  const carouselLessons = useMemo(
+    () => myLessons.map(l => ({ ...l, done: completedSet.has(l.lesson_number) })),
+    [myLessons, completedSet]
+  );
 
   const enterEdit = () => { setDraft({ ...savedPositions }); setEditing(true); };
   const cancelEdit = () => { setEditing(false); setDraft({}); setDragSlot(null); };
@@ -350,7 +361,12 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
               key={n}
               ref={!editing && active ? activeRef : null}
               disabled={locked && !editing}
-              onClick={(e) => { if (editing) return; if (lesson && !locked) onOpenLesson(lesson); }}
+              onClick={(e) => {
+                if (editing) return;
+                if (!lesson || locked) return;
+                if (parentView) setPreviewLesson({ lesson, done });
+                else onOpenLesson(lesson);
+              }}
               onPointerDown={(e) => {
                 if (!editing) return;
                 e.preventDefault();
@@ -416,6 +432,19 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           </>
         )}
       </div>
+
+      {/* Parent-view preview modal */}
+      {previewLesson && (
+        <LessonPreviewModal
+          lesson={previewLesson.lesson}
+          isCompleted={previewLesson.done}
+          allLessons={carouselLessons}
+          studentName={studentData?.name?.split(' ')[0]}
+          onPlay={() => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l); }}
+          onClose={() => setPreviewLesson(null)}
+          onSelectLesson={(l) => setPreviewLesson({ lesson: l, done: l.done })}
+        />
+      )}
     </div>
   );
 }

@@ -35,6 +35,14 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
   const [openLesson, setOpenLesson] = useState(null);
   const [openSideQuest, setOpenSideQuest] = useState(null);
 
+  // Parent view toggle — when ON, tapping a lesson puck opens a preview modal
+  // (with a scrollable carousel) instead of jumping straight into the lesson.
+  // Persisted so a parent's preference survives across sessions at home.
+  const [parentView, setParentView] = useState(
+    () => localStorage.getItem('parent_view') === '1'
+  );
+  useEffect(() => { localStorage.setItem('parent_view', parentView ? '1' : '0'); }, [parentView]);
+
   // Restore the open lesson after a refresh so the student lands back in
   // their lesson instead of the level path.
   useEffect(() => {
@@ -83,6 +91,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             onOpenLesson={setOpenLesson}
             onLogout={onLogout}
             onStudentPatch={onStudentPatch}
+            parentView={parentView}
           />
         )}
 
@@ -162,7 +171,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
         )}
       </div>
 
-      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} barcodeLogin={barcodeLogin} />}
+      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} barcodeLogin={barcodeLogin} parentView={parentView} onToggleParentView={() => setParentView(v => !v)} />}
     </div>
   );
 }

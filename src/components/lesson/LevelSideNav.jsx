@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Gamepad2, PlayCircle, ListChecks, Compass, LogOut } from 'lucide-react';
+import { BookOpen, Gamepad2, PlayCircle, ListChecks, Compass, LogOut, Eye, EyeOff } from 'lucide-react';
 import { useClassColors } from '@/hooks/useClassColors';
 
 // Vertical side menu (right edge) — switches the student between the level
@@ -14,7 +14,7 @@ const ITEMS = [
   { key: 'videos', label: 'Videos', Icon: PlayCircle },
 ];
 
-export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly, barcodeLogin }) {
+export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly, barcodeLogin, parentView, onToggleParentView }) {
   const { colorFor } = useClassColors();
   const className = selectedStudent?.class_name || '';
   const classColor = colorFor(className);
@@ -79,6 +79,22 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
           </button>
         );
       })}
+      {/* Parent view toggle — reveals lesson previews + carousel for grown-ups */}
+      <button
+        onClick={onToggleParentView}
+        className="flex flex-col items-center gap-1 w-14 mt-1 pt-1.5 border-t border-white/10"
+        title={parentView ? 'Parent view ON — tap a lesson to preview it' : 'Student view — tap a lesson to play'}
+      >
+        <span
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition ${parentView ? 'bg-amber-400 text-[#1a1a2e]' : 'bg-white/10 text-white'}`}
+        >
+          {parentView ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+        </span>
+        <span className={`text-[9px] font-bold ${parentView ? 'text-white' : 'text-white/60'}`}>
+          {parentView ? 'Parent' : 'Student'}
+        </span>
+      </button>
+
       {!barcodeLogin && (
         <button
           onClick={onLogout}
