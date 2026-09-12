@@ -369,9 +369,9 @@
   }
 }
 
-/* Sidebar: fill full viewport height in landscape so items distribute evenly
-   without scrolling. In portrait, the sidebar stays compact and top-anchored. */
-@media (orientation: landscape) {
+/* Sidebar: fill full viewport height on mobile landscape so items distribute
+   evenly without scrolling. Desktop keeps a compact, top-anchored layout. */
+@media (orientation: landscape) and (max-width: 1024px) {
   .sidebar-nav {
     bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
     justify-content: space-between !important;
