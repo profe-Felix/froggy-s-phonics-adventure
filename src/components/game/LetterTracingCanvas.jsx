@@ -78,7 +78,11 @@ export default function LetterTracingCanvas({
     // The floor keeps phone canvases at a usable size while preserving the
     // full size progression on iPad.
     const _vw2 = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const isPhone = _vw2 < 640;
+    const _vh2 = typeof window !== 'undefined' ? window.innerHeight : 800;
+    // Detect phones in BOTH orientations: portrait (narrow width) and landscape
+    // (short height). Using the shorter dimension catches all phones while
+    // excluding tablets (iPad mini shortest side = 768px).
+    const isPhone = Math.min(_vw2, _vh2) < 500;
     const effScale = isPhone ? Math.max(sizeScale, 0.8) : sizeScale;
     const fitW = fitSize.width * effScale;
     const fitH = fitSize.height * effScale;
