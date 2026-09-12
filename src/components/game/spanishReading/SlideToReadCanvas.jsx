@@ -4,9 +4,10 @@ import { parseText } from './phonetics';
 import { AUDIO_BASE } from '@/lib/audio';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
-const BG_COLOR = '#ffffff';
-const TEXT_REVEALED = '#000000';
-const TEXT_UNREVEALED = '#d3d3d3';
+const THEMES = {
+  default: { bg: '#ffffff', textRevealed: '#000000', textUnrevealed: '#d3d3d3' },
+  mint: { bg: '#d1f7e6', textRevealed: '#0e1133', textUnrevealed: '#a3c9bd' },
+};
 const PILL_COLORS = { green: '#008000', red: '#ff0000', grey: '#999999' };
 const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
@@ -90,7 +91,7 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
   const clusterSpace = pillH + sliderH + thumbR * 2 + Math.max(6, canvasH * 0.01);
 
   let fontSize = 16, lines = null, lineHeight = 22;
-  const maxFs = Math.min(48, canvasH * 0.22, contentW * 0.09);
+  const maxFs = Math.min(140, canvasH * 0.45, contentW * 0.28);
   for (let fs = maxFs; fs >= 14; fs -= 1) {
     const wrapped = wrapLines(ctx, units, contentW, fs);
     const lh = fs * 1.35 + clusterSpace;
@@ -159,8 +160,9 @@ function getClusterY(layout, activeLineIdx) {
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
-function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH) {
-  ctx.fillStyle = BG_COLOR;
+function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH, theme = 'default') {
+  const tc = THEMES[theme] || THEMES.default;
+  ctx.fillStyle = tc.bg;
   ctx.fillRect(0, 0, canvasW, canvasH);
   if (!layout) return;
 
@@ -189,12 +191,12 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
       const w = ctx.measureText(unit.text).width;
       if (unit.type === 'token') {
         const isRevealed = li < activeLine || (li === activeLine && tokIdx < revealedCount);
-        ctx.fillStyle = isRevealed ? TEXT_REVEALED : TEXT_UNREVEALED;
+        ctx.fillStyle = isRevealed ? tc.textRevealed : tc.textUnrevealed;
         ctx.fillText(unit.text, x, y);
         prevRevealed = isRevealed;
         tokIdx++;
       } else {
-        ctx.fillStyle = prevRevealed ? TEXT_REVEALED : TEXT_UNREVEALED;
+        ctx.fillStyle = prevRevealed ? tc.textRevealed : tc.textUnrevealed;
         ctx.fillText(unit.text, x, y);
       }
       x += w;
@@ -299,7 +301,7 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingComplete, onBack }) {
+export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingComplete, onBack, theme = 'default' }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -352,7 +354,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
     const ctx = ctxRef.current;
     if (!ctx || canvasSize.w === 0) return;
     layoutRef.current = calculateLayout(ctx, units, canvasSize.w, canvasSize.h);
-    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, recordingState === 'recording', canvasSize.w, canvasSize.h);
+    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, recordingState === 'recording', canvasSize.w, canvasSize.h, theme);
   }, [units, canvasSize, activeLine, thumbX, recordingState]);
 
   // ── Reset on text change ──
@@ -478,7 +480,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: BG_COLOR }}>
+    <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
       {/* Header */}
       <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 border-b-2" style={{ background: '#f8f9fa', borderColor: '#007bff' }}>
         <button onClick={() => {

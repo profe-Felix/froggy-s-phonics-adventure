@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import SlideToReadCanvas from './SlideToReadCanvas';
 import RecordingsProgressBar from './RecordingsProgressBar';
+import ParentLedReadingPlayer from './ParentLedReadingPlayer';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -152,7 +153,7 @@ function SessionOverview({ sessions, onContinue }) {
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
-export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection }) {
+export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection, substeps, onComplete }) {
   const [listsData, setListsData] = useState(null);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedModule, setSelectedModule] = useState(null);
@@ -372,6 +373,19 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
         <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Parent-led substep flow ── (when the lesson step has substeps configured)
+  if (substeps && substeps.length > 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col">
+        <ParentLedReadingPlayer
+          substeps={substeps}
+          onComplete={onComplete || onBack}
+          onBack={onBack}
+        />
       </div>
     );
   }

@@ -19,6 +19,7 @@ import { useMissingLetterPresets } from '@/hooks/useMissingLetterPresets';
 import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterPresetEditor';
 import { useSpanishReadingPresets } from '@/hooks/useSpanishReadingPresets';
 import SpanishReadingPresetEditor from '@/components/spanishReading/SpanishReadingPresetEditor';
+import SubstepEditor from '@/components/spanishReading/SubstepEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -193,6 +194,10 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               placeholder={step.config?.section === 'Oraciones' ? 'La mama ama a mi.\nMi mamá me mima.' : 'ma\nme\nmi\nmo\nmu'}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
           </label>
+          <SubstepEditor
+            substeps={step.config?.substeps || []}
+            onChange={(substeps) => update({ config: { ...step.config, substeps } })}
+          />
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

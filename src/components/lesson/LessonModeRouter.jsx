@@ -1038,6 +1038,12 @@ export default function LessonModeRouter({
             inlineSection={
               step?.config?.section
             }
+            substeps={
+              step?.config?.substeps
+            }
+            onComplete={
+              completeStep
+            }
           />
         );
 
