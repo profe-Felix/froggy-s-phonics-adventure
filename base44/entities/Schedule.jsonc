@@ -1,0 +1,119 @@
+{
+  "name": "Schedule",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class (teacher) this schedule belongs to."
+    },
+    "teacher_name": {
+      "type": "string",
+      "default": "",
+      "description": "Teacher's display name shown in the schedule header."
+    },
+    "title": {
+      "type": "string",
+      "default": "Daily Schedule Kindergarten Bilingual",
+      "description": "Schedule title shown under the teacher name."
+    },
+    "start_time": {
+      "type": "string",
+      "default": "7:50",
+      "description": "Start of the school day in H:MM format (24h or 12h). All row times are calculated from this."
+    },
+    "start_period": {
+      "type": "string",
+      "enum": [
+        "AM",
+        "PM"
+      ],
+      "default": "AM",
+      "description": "AM or PM for the start time."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "Subject/activity name shown in the SUBJECT column."
+          },
+          "minutes": {
+            "type": "integer",
+            "default": 0,
+            "description": "Duration in minutes. Drives the auto-calculated TIME column."
+          },
+          "non_instructional": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, the row renders with black background and white text (Lunch, Recess, Dismissal)."
+          },
+          "is_switch": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, the subject text is italicized in salmon/red (transition rows)."
+          },
+          "is_dismissal": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, this is the DISMISSAL row \u2014 shows only the start time, no duration."
+          }
+        },
+        "required": [
+          "subject"
+        ]
+      },
+      "default": [],
+      "description": "Ordered list of schedule rows. Times auto-calculate from start_time + cumulative minutes."
+    }
+  },
+  "required": [
+    "class_name"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

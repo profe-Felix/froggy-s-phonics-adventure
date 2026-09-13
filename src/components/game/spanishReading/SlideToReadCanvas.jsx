@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Mic, Headphones } from 'lucide-react';
 import { parseText } from './phonetics';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
+import { useLiveVoice } from '@/hooks/useLiveVoice';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
 const THEMES = {
@@ -153,7 +155,7 @@ function getClusterY(layout, activeLineIdx) {
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
-function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH, theme = 'default') {
+function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH, theme = 'default', inkContinuity = 0, replayContinuity = null) {
   const tc = THEMES[theme] || THEMES.default;
   ctx.fillStyle = tc.bg;
   ctx.fillRect(0, 0, canvasW, canvasH);
@@ -244,6 +246,25 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
   ctx.beginPath();
   ctx.arc(currentThumbX, sliderY + sliderH / 2, thumbR * 0.35, 0, Math.PI * 2);
   ctx.fill();
+
+  // ── Ink fill overlay on active line (mic monitoring) ──
+  // Draws a semi-transparent ink wash over the active line's text area.
+  // The fill height rises from the bottom based on voice continuity (0-1).
+  // When the student pauses, continuity drops and the ink level falls.
+  const inkLevel = replayContinuity != null ? replayContinuity : (inkContinuity || 0);
+  if (inkLevel > 0.1 && layout.lines[activeLine]) {
+    const line = layout.lines[activeLine];
+    const lineTopY = layout.textStartY - layout.fontSize + activeLine * layout.lineHeight;
+    const textBottomY = lineTopY + layout.fontSize;
+    const textHeight = layout.fontSize;
+    const inkHeight = textHeight * Math.min(1, inkLevel);
+
+    // Draw ink fill as a semi-transparent overlay on the text bounds
+    ctx.save();
+    ctx.fillStyle = 'rgba(82, 213, 198, 0.28)'; // teal ink wash
+    ctx.fillRect(line.startX, textBottomY - inkHeight, line.width, inkHeight);
+    ctx.restore();
+  }
 }
 
 // ── Audio-only recording (no video — avoids CORS + payload size limits) ───────
@@ -318,9 +339,12 @@ export default function SlideToReadCanvas({
   text, itemId, itemType, onGrade, onBack, theme = 'default',
   demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel,
   onRecordingComplete,
-  // Replay mode: when replayData ({audioUrl, sliderData}) is provided, the canvas
-  // shows a Play button and replays the teacher's slider animation + audio.
+  // Replay mode: when replayData ({audioUrl, sliderData, continuityData}) is provided, the canvas
+  // shows a Play button and replays the teacher's slider animation + audio + ink fill.
   replayData = null,
+  // Mic monitoring: when true, enables voice-activated ink fill on the active line.
+  // Students see their text fill with ink as they read; pauses cause the ink to drop.
+  micEnabled = false,
 }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
@@ -333,6 +357,11 @@ export default function SlideToReadCanvas({
   const [reviewUrl, setReviewUrl] = useState(null);
   const [saving, setSaving] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [showMicToggle, setShowMicToggle] = useState(false);
+
+  // ── Live voice monitoring (ink fill) ──
+  const voice = useLiveVoice();
+  const { continuity, state: voiceState, hasHeadphones } = voice;
 
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);

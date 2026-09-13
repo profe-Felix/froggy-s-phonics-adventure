@@ -1,0 +1,59 @@
+{
+  "name": "StudentDashboard",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string",
+      "description": "ID of the Student this dashboard belongs to."
+    },
+    "student_number": {
+      "type": "integer",
+      "description": "Student number (denormalized for quick lookup)."
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class this student belongs to."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "en",
+        "es"
+      ],
+      "default": "es",
+      "description": "Dashboard language. 'en' = English letter grid (A-Z), 'es' = Spanish letter grid (includes Ch, Ll, \u00d1, Rr)."
+    },
+    "dashboard_data": {
+      "type": "string",
+      "default": "{}",
+      "description": "JSON object containing all mastery checkboxes: letters (upper/lower/sound/formation), numbers (read/write), compose/decompose, counting milestones, and parent initials per 9-week period."
+    }
+  },
+  "required": [
+    "student_id"
+  ],
+  "rls": {
+    "read": null,
+    "create": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

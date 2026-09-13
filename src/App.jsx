@@ -55,6 +55,8 @@ import AbsenceDashboard from './pages/AbsenceDashboard';
 import TtsVoices from './pages/TtsVoices';
 import LetterGame from './pages/LetterGame';
 import LegacyLetterReview from './pages/LegacyLetterReview';
+import SchedulePlanner from './pages/SchedulePlanner';
+import StudentDashboard from './pages/StudentDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -158,6 +160,8 @@ const AuthenticatedApp = () => {
       <Route path="/TtsVoices" element={<TtsVoices />} />
       <Route path="/ID" element={<LetterGame />} />
       <Route path="/LegacyLetterReview" element={<LegacyLetterReview />} />
+      <Route path="/SchedulePlanner" element={<SchedulePlanner />} />
+      <Route path="/StudentDashboard" element={<StudentDashboard />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

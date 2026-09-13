@@ -5,14 +5,13 @@ import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.700.0';
 
 // Cloudflare R2 audio/video management for lesson demo steps.
 // Actions:
-//   list           — list all objects in the bucket
-//   presign        — generate a one-hour presigned PUT URL
-//   delete         — delete an object
-//   save_demo      — store a demo URL + slider_data in Lesson step.config.demos[word]
-//   upload_demo    — receive an AUDIO file (multipart) + lessonId/stepIndex/word/sliderData,
-//                    upload audio to R2 server-side (avoids browser CORS + payload size
-//                    limits for video), and save audio_url + slider_data into the Lesson.
-//                    Used by teachers from any browser without a platform login.
+//   list              — list all objects in the bucket
+//   presign           — generate a one-hour presigned PUT URL
+//   delete            — delete an object
+//   save_demo         — store a demo URL + slider_data in Lesson step.config.demos[word]
+//   upload_demo_b64   — receive audio as base64 string (JSON) + metadata, upload to R2 server-side.
+//                       Audio is small (~50-200KB) so base64 fits within the JSON payload limit.
+//                       Avoids both CORS issues and multipart parsing crashes.
 export default async function(req) {
   try {
     const accountId = secrets.get('R2_ACCOUNT_ID');
@@ -30,54 +29,6 @@ export default async function(req) {
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       credentials: { accessKeyId, secretAccessKey },
     });
-
-    const contentType = req.headers.get('content-type') || '';
-
-    // ── upload_demo: multipart form-data (audio file + metadata + sliderData) ──
-    if (contentType.includes('multipart/form-data')) {
-      const form = await req.formData();
-      const file = form.get('file');
-      const lessonId = String(form.get('lessonId') || '').trim();
-      const stepIndex = Number(form.get('stepIndex'));
-      const word = String(form.get('word') || '').trim();
-      const sliderDataRaw = String(form.get('sliderData') || '[]');
-
-      if (!file || !lessonId || !word || !Number.isFinite(stepIndex)) {
-        return Response.json({ error: 'file, lessonId, stepIndex, word required' }, { status: 400 });
-      }
-
-      let sliderData = [];
-      try { sliderData = JSON.parse(sliderDataRaw); } catch { sliderData = []; }
-
-      const fileContentType = (file.type || 'audio/webm').split(';')[0];
-      const ext = fileContentType.includes('mp4') ? 'm4a'
-        : fileContentType.includes('ogg') ? 'ogg' : 'webm';
-      const key = `blending-demos/${word}.${ext}`;
-      const buffer = await file.arrayBuffer();
-
-      await s3.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: new Uint8Array(buffer),
-        ContentType: fileContentType,
-      }));
-
-      const audioUrl = `${publicBase}/${key}`;
-
-      // Save audio_url + slider_data into the Lesson entity
-      const base44 = createClientFromRequest(req);
-      const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
-      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
-      const step = steps[stepIndex] || {};
-      const config = { ...(step.config || {}) };
-      const demos = { ...(config.demos || {}) };
-      demos[word] = { audio_url: audioUrl, slider_data: sliderData };
-      config.demos = demos;
-      steps[stepIndex] = { ...step, config };
-      await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
-
-      return Response.json({ ok: true, audioUrl, sliderData });
-    }
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list';
@@ -109,6 +60,54 @@ export default async function(req) {
       if (!key) return Response.json({ error: 'key required' }, { status: 400 });
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
       return Response.json({ ok: true });
+    }
+
+    // ── upload_demo_b64: audio as base64 string (JSON body) ──
+    if (action === 'upload_demo_b64') {
+      const lessonId = String(body.lessonId || '').trim();
+      const stepIndex = Number(body.stepIndex);
+      const word = String(body.word || '').trim();
+      const audioBase64 = String(body.audioBase64 || '');
+      const contentType = String(body.contentType || 'audio/webm').split(';')[0];
+      const sliderData = Array.isArray(body.sliderData) ? body.sliderData : [];
+
+      if (!lessonId || !word || !audioBase64 || !Number.isFinite(stepIndex)) {
+        return Response.json({ error: 'lessonId, stepIndex, word, audioBase64 required' }, { status: 400 });
+      }
+
+      const ext = contentType.includes('mp4') ? 'm4a'
+        : contentType.includes('ogg') ? 'ogg' : 'webm';
+      const key = `blending-demos/${word}.${ext}`;
+
+      // Decode base64 to binary
+      const binaryString = atob(audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: bytes,
+        ContentType: contentType,
+      }));
+
+      const audioUrl = `${publicBase}/${key}`;
+
+      // Save audio_url + slider_data into the Lesson entity
+      const base44 = createClientFromRequest(req);
+      const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
+      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
+      const step = steps[stepIndex] || {};
+      const config = { ...(step.config || {}) };
+      const demos = { ...(config.demos || {}) };
+      demos[word] = { audio_url: audioUrl, slider_data: sliderData };
+      config.demos = demos;
+      steps[stepIndex] = { ...step, config };
+      await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
+
+      return Response.json({ ok: true, audioUrl, sliderData });
     }
 
     if (action === 'save_demo') {
