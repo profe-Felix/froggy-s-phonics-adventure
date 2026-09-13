@@ -29,6 +29,7 @@ import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
 import WordTracingMode from '@/components/game/modes/WordTracingMode';
 import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
+import { buildBlendingSubstepsForWords } from '@/lib/blendingLetters';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -1040,6 +1041,27 @@ export default function LessonModeRouter({
             }
             substeps={
               step?.config?.substeps
+            }
+            onComplete={
+              completeStep
+            }
+          />
+        );
+
+      case 'blending_letters':
+        return (
+          <SpanishReadingGame
+            studentNumber={
+              studentNumber
+            }
+            className={
+              className
+            }
+            onBack={
+              wrappedBack
+            }
+            substeps={
+              buildBlendingSubstepsForWords(step?.config?.itemsText, step?.config?.hint)
             }
             onComplete={
               completeStep

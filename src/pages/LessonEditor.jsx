@@ -199,6 +199,22 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
             onChange={(substeps) => update({ config: { ...step.config, substeps } })}
           />
         </div>
+      ) : step.mode === 'blending_letters' ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <div className="text-[10px] text-indigo-500 font-bold">
+            🔤 Blending Letters — type a word below and the 3 parent-led substeps (point &amp; say sounds, video model, student practice) are built automatically. Phoneme sounds play from the Supabase fonemas files.
+          </div>
+          <label className="text-xs text-gray-600 font-bold">Words (one per line)
+            <textarea value={step.config?.itemsText || ''} onChange={e => update({ config: { ...step.config, itemsText: e.target.value } })} rows={4}
+              placeholder={'mi\nma\nso'}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
+          </label>
+          <label className="text-xs text-gray-600 font-bold">Hint (shown in Tips — shared across all words)
+            <input value={step.config?.hint || ''} onChange={e => update({ config: { ...step.config, hint: e.target.value } })}
+              placeholder="Asegúrate de que tu hijo no haga pausas entre los sonidos"
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+          </label>
+        </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset
           <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}

@@ -22,7 +22,7 @@ export default function PracticeSubstep({ substep, onRecordingComplete }) {
           className="text-sm text-center py-2 px-4 shrink-0"
           style={{ color: C.muted, background: C.bg }}
         >
-          <span className="font-bold">Hint:</span> {hint}
+          <span className="font-bold">Pista:</span> {hint}
         </p>
       )}
     </div>

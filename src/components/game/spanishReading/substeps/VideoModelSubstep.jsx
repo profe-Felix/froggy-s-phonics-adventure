@@ -26,7 +26,7 @@ export default function VideoModelSubstep({ substep }) {
           className="w-full rounded-2xl shadow-lg p-8 text-center"
           style={{ background: '#ffffff', color: C.muted }}
         >
-          No video configured for this step.
+          No hay video configurado para este paso.
         </div>
       )}
     </div>

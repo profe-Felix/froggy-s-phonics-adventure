@@ -34,7 +34,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
         className="flex items-center justify-center h-full text-lg font-bold"
         style={{ background: C.bg, color: C.muted }}
       >
-        No substeps configured.
+        No hay pasos configurados.
       </div>
     );
   }
@@ -72,7 +72,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
           className="px-3 py-1.5 rounded-full text-sm font-bold border-2 bg-white active:scale-95 transition"
           style={{ borderColor: C.text, color: C.text }}
         >
-          Tips
+          Consejos
         </button>
       </div>
 

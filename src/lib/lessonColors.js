@@ -27,6 +27,7 @@ export const MODE_OPTIONS = [
   { value: 'phonics',               label: 'Phonics Cloze',     emoji: '👂', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'sentences',             label: 'Sentences',         emoji: '📝', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'spanish_reading',       label: 'Spanish Reading',   emoji: '📖', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'blending_letters',      label: 'Blending Letters',   emoji: '🔤', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'storybuilder',          label: 'Story Builder',    emoji: '🎨', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'book_reading',          label: 'Book Reading',     emoji: '📚', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'number_hearing',        label: 'Number Hearing',    emoji: '🔢', defaultCompletion: 'view',    defaultTarget: 1 },
