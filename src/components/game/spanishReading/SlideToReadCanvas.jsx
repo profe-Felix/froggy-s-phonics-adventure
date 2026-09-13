@@ -173,7 +173,7 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
   let revealedCount = 0;
   if (isRecording && pillLayout && thumbX !== null) {
     for (const pos of pillLayout.positions) {
-      if (thumbX >= pos.x) revealedCount++;
+      if (thumbX > pos.x) revealedCount++;
     }
   }
 
@@ -535,23 +535,6 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
 
   return (
     <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
-      {/* Header — no back button; parent SpanishReadingGame handles navigation. */}
-      <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 border-b-2" style={{ background: '#f8f9fa', borderColor: '#007bff' }}>
-        {itemId && (
-          <button onClick={handlePlayAudio}
-            className={`ml-auto w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-xl shadow transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}
-            title="Escucha la palabra/oración">
-            🔊
-          </button>
-        )}
-        {recordingState === 'recording' && (
-          <span className="flex items-center gap-1.5 ml-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-red-500 font-bold text-xs">REC</span>
-          </span>
-        )}
-      </div>
-
       {/* Canvas */}
       <div className="flex-1 relative overflow-hidden">
         <canvas
