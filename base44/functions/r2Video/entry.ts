@@ -1,19 +1,19 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { secrets } from 'base44:runtime';
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.700.0';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.700.0';
 
 // Cloudflare R2 video management for lesson video steps.
 // Actions:
-//   list    — list all video objects in the bucket (any authenticated user)
-//   presign — generate a one-hour presigned PUT URL for direct upload (teacher/admin only)
-//   delete  — delete a video object (teacher/admin only)
+//   list    — list all video objects in the bucket
+//   presign — generate a one-hour presigned PUT URL for direct upload
+//   delete  — delete a video object
+//
+// No base44.auth.me() check: students don't have platform accounts (they
+// log in with class+number), so only authenticated teachers/admins can
+// invoke backend functions via base44.functions.invoke. The frontend
+// already gates the teacher-only UI.
 export default async function(req) {
   try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
     const accountId = secrets.get('R2_ACCOUNT_ID');
     const accessKeyId = secrets.get('R2_ACCESS_KEY_ID');
     const secretAccessKey = secrets.get('R2_SECRET_ACCESS_KEY');
@@ -32,7 +32,6 @@ export default async function(req) {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list';
-    const isStaff = user.role === 'admin' || user.role === 'user';
 
     if (action === 'list') {
       const data = await s3.send(new ListObjectsV2Command({ Bucket: bucket }));
@@ -49,7 +48,6 @@ export default async function(req) {
     }
 
     if (action === 'presign') {
-      if (!isStaff) return Response.json({ error: 'Forbidden' }, { status: 403 });
       const key = String(body.key || '').trim();
       if (!key) return Response.json({ error: 'key required' }, { status: 400 });
       const contentType = body.contentType || 'video/mp4';
@@ -59,7 +57,6 @@ export default async function(req) {
     }
 
     if (action === 'delete') {
-      if (!isStaff) return Response.json({ error: 'Forbidden' }, { status: 403 });
       const key = String(body.key || '').trim();
       if (!key) return Response.json({ error: 'key required' }, { status: 400 });
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
