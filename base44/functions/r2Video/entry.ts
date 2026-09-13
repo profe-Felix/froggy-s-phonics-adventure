@@ -1,17 +1,16 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.48';
 import { secrets } from 'base44:runtime';
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.700.0';
 import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.700.0';
 
 // Cloudflare R2 video management for lesson video steps.
 // Actions:
-//   list    — list all video objects in the bucket
-//   presign — generate a one-hour presigned PUT URL for direct upload
-//   delete  — delete a video object
-//
-// No base44.auth.me() check: students don't have platform accounts (they
-// log in with class+number), so only authenticated teachers/admins can
-// invoke backend functions via base44.functions.invoke. The frontend
-// already gates the teacher-only UI.
+//   list      — list all video objects in the bucket
+//   presign   — generate a one-hour presigned PUT URL for direct upload
+//   delete    — delete a video object
+//   save_demo — store a demo video URL in a Lesson's step.config.demos[word]
+//               (uses asServiceRole so teachers can save from any browser
+//               without a platform login — only ?role=teacher is needed)
 export default async function(req) {
   try {
     const accountId = secrets.get('R2_ACCOUNT_ID');
@@ -61,6 +60,27 @@ export default async function(req) {
       if (!key) return Response.json({ error: 'key required' }, { status: 400 });
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
       return Response.json({ ok: true });
+    }
+
+    if (action === 'save_demo') {
+      const lessonId = String(body.lessonId || '').trim();
+      const stepIndex = Number(body.stepIndex);
+      const word = String(body.word || '').trim();
+      const publicUrl = String(body.publicUrl || '').trim();
+      if (!lessonId || !word || !publicUrl || !Number.isFinite(stepIndex)) {
+        return Response.json({ error: 'lessonId, stepIndex, word, publicUrl required' }, { status: 400 });
+      }
+      const base44 = createClientFromRequest(req);
+      const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
+      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
+      const step = steps[stepIndex] || {};
+      const config = { ...(step.config || {}) };
+      const demos = { ...(config.demos || {}) };
+      demos[word] = publicUrl;
+      config.demos = demos;
+      steps[stepIndex] = { ...step, config };
+      await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
+      return Response.json({ ok: true, publicUrl });
     }
 
     return Response.json({ error: 'unknown action' }, { status: 400 });
