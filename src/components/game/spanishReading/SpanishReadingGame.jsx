@@ -191,8 +191,6 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   const [items, setItems] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [viewMode, setViewMode] = useState('reading'); // 'reading' | 'overview'
-  const [phase, setPhase] = useState('reading'); // 'reading' | 'selfgrade'
-  const [recordingBlob, setRecordingBlob] = useState(null);
   const [completedTexts, setCompletedTexts] = useState(new Set());
   const [todaySessions, setTodaySessions] = useState([]);
   const [loadingModule, setLoadingModule] = useState(false);
@@ -259,8 +257,6 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     setItems(drivenItems);
     setCurrentIdx(0);
     setViewMode('reading');
-    setPhase('reading');
-    setRecordingBlob(null);
     if (drivenSection) setSelectedSection(drivenSection);
     fetchCompleted();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,8 +317,6 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     setItems(sorted);
     setCurrentIdx(0);
     setViewMode('reading');
-    setPhase('reading');
-    setRecordingBlob(null);
     setLoadingModule(false);
     fetchCompleted();
   };
@@ -345,19 +339,14 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     loadModule(selectedSection, moduleNum);
   };
 
-  const handleRecordingComplete = (blob) => {
-    setRecordingBlob(blob);
-    setPhase('selfgrade');
-  };
-
-  const handleSelfGrade = async (grade) => {
+  const handleGrade = async (grade, blob) => {
     const currentItem = items[currentIdx];
     const itemText = getItemText(currentItem);
 
     let recordingUrl = null;
-    if (recordingBlob) {
-      const ext = recordingBlob.type?.includes('mp4') ? 'mp4' : 'webm';
-      const file = new File([recordingBlob], `spanish_reading_${Date.now()}.${ext}`, { type: recordingBlob.type });
+    if (blob) {
+      const ext = blob.type?.includes('mp4') ? 'mp4' : 'webm';
+      const file = new File([blob], `spanish_reading_${Date.now()}.${ext}`, { type: blob.type });
       try {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
         recordingUrl = file_url;
@@ -385,17 +374,14 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     setCompletedTexts(newCompleted);
     setTodaySessions(prev => [newSession, ...prev]);
     setRefreshKey(k => k + 1);
-    setRecordingBlob(null);
 
     // Auto-advance to next unread item
     const nextUnreadIdx = items.findIndex(it => !newCompleted.has(getItemText(it)));
     if (nextUnreadIdx !== -1) {
       setCurrentIdx(nextUnreadIdx);
-      setPhase('reading');
     } else {
       // All items done — show session overview for reflection
       setViewMode('overview');
-      setPhase('reading');
     }
   };
 
@@ -512,28 +498,14 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
         />
       ) : currentItem ? (
         <div className="flex-1 overflow-hidden flex flex-col">
-          {phase === 'reading' && (
-            <SlideToReadCanvas
-              key={`${selectedSection}-${selectedModule}-${currentIdx}`}
-              text={itemText}
-              itemId={getItemId(currentItem)}
-              itemType={itemType}
-              onRecordingComplete={handleRecordingComplete}
-              onBack={() => setViewMode('overview')}
-            />
-          )}
-          {phase === 'selfgrade' && (
-            <div className="flex-1 overflow-y-auto">
-              <SelfGradeScreen
-                blob={recordingBlob}
-                itemText={itemText}
-                itemId={getItemId(currentItem)}
-                itemType={itemType}
-                onGrade={handleSelfGrade}
-                onBack={() => { setPhase('reading'); setRecordingBlob(null); }}
-              />
-            </div>
-          )}
+          <SlideToReadCanvas
+            key={`${selectedSection}-${selectedModule}-${currentIdx}`}
+            text={itemText}
+            itemId={getItemId(currentItem)}
+            itemType={itemType}
+            onGrade={handleGrade}
+            onBack={() => setViewMode('overview')}
+          />
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">

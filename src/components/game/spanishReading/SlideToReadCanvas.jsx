@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { parseText } from './phonetics';
-import { AUDIO_BASE } from '@/lib/audio';
+import { AUDIO_BASE, playTts } from '@/lib/audio';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
 const THEMES = {
@@ -301,7 +301,7 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingComplete, onBack, theme = 'default' }) {
+export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default' }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -309,6 +309,10 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
   const [thumbX, setThumbX] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [recordingBlob, setRecordingBlob] = useState(null);
+  const [reviewUrl, setReviewUrl] = useState(null);
+  const [playingRecording, setPlayingRecording] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);
@@ -354,7 +358,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
     const ctx = ctxRef.current;
     if (!ctx || canvasSize.w === 0) return;
     layoutRef.current = calculateLayout(ctx, units, canvasSize.w, canvasSize.h);
-    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, recordingState === 'recording', canvasSize.w, canvasSize.h, theme);
+    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, recordingState === 'recording' || recordingState === 'review', canvasSize.w, canvasSize.h, theme);
   }, [units, canvasSize, activeLine, thumbX, recordingState]);
 
   // ── Reset on text change ──
@@ -363,6 +367,9 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
     advanceDirRef.current = 0;
     activeLineRef.current = 0; thumbXRef.current = null; recordingStateRef.current = 'idle';
     if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
+    if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
+    setRecordingBlob(null);
+    setSaving(false);
   }, [text]);
 
   // ── Cleanup ──
@@ -370,10 +377,17 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
     if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
   }, []);
 
-  const handlePlayAudio = () => {
+  const handlePlayAudio = async () => {
     setPlaying(true);
-    playAudioById(itemId, itemType);
-    setTimeout(() => setPlaying(false), 2000);
+    try {
+      if (itemId) {
+        playAudioById(itemId, itemType);
+        setTimeout(() => setPlaying(false), 2000);
+      } else {
+        await playTts(text, 'es', 0.85);
+        setPlaying(false);
+      }
+    } catch { setPlaying(false); }
   };
 
   // ── Start recording (interaction reveals regardless of media success) ──
@@ -396,13 +410,52 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
     }
   };
 
-  // ── Stop recording ──
+  // ── Stop recording — enter review mode (compact bar, no page change) ──
   const handleStop = async () => {
     setRecordingState('stopping');
     recordingStateRef.current = 'stopping';
     const blob = await stopCanvasRecording(recordingRef.current);
     recordingRef.current = null;
-    onRecordingComplete(blob);
+    if (blob) {
+      setReviewUrl(URL.createObjectURL(blob));
+      setRecordingBlob(blob);
+      setRecordingState('review');
+      recordingStateRef.current = 'review';
+    } else {
+      setRecordingState('idle');
+      recordingStateRef.current = 'idle';
+    }
+  };
+
+  // ── Review helpers (compact in-place bar — no separate screen) ──
+  const playReviewRecording = () => {
+    if (!reviewUrl) return;
+    setPlayingRecording(true);
+    const v = document.createElement('video');
+    v.src = reviewUrl;
+    v.style.display = 'none';
+    document.body.appendChild(v);
+    v.play().catch(() => {});
+    const done = () => { v.remove(); setPlayingRecording(false); };
+    v.onended = done;
+    v.onerror = done;
+  };
+
+  const handleGrade = async (grade) => {
+    if (saving) return;
+    setSaving(true);
+    try { await onGrade?.(grade, recordingBlob); } finally { setSaving(false); }
+  };
+
+  const handleRerecord = () => {
+    if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
+    setRecordingBlob(null);
+    setRecordingState('idle');
+    recordingStateRef.current = 'idle';
+    setActiveLine(0);
+    setThumbX(null);
+    activeLineRef.current = 0;
+    thumbXRef.current = null;
   };
 
   // ── Thumb update (absolute finger tracking) ──
@@ -529,6 +582,36 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
         )}
         {recordingState === 'stopping' && (
           <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Stopping…</div>
+        )}
+        {recordingState === 'review' && (
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
+            <button onClick={playReviewRecording} disabled={playingRecording}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playingRecording ? 'opacity-60' : ''}`}
+              style={{ background: '#007bff' }}>
+              {playingRecording ? '⏸ Playing…' : '▶ Review'}
+            </button>
+            <button onClick={handlePlayAudio} disabled={playing}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
+              style={{ background: '#f87171' }}>
+              🔊 Listen
+            </button>
+            <button onClick={handleRerecord}
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-gray-700 text-sm shadow transition active:scale-95"
+              style={{ background: '#e5e7eb' }}>
+              🔄 Redo
+            </button>
+            <div className="flex-1 min-w-2" />
+            <button onClick={() => handleGrade('correct')} disabled={saving}
+              className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
+              style={{ background: '#16a34a' }}>
+              👍
+            </button>
+            <button onClick={() => handleGrade('incorrect')} disabled={saving}
+              className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
+              style={{ background: '#dc2626' }}>
+              👎
+            </button>
+          </div>
         )}
       </div>
     </div>
