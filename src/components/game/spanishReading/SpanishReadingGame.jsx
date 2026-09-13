@@ -184,7 +184,7 @@ function SessionOverview({ sessions, onContinue }) {
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
-export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection, substeps, onComplete }) {
+export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection, substeps, onComplete, teacherMode = false, lessonId, stepIndex }) {
   const [listsData, setListsData] = useState(null);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedModule, setSelectedModule] = useState(null);
@@ -402,6 +402,9 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
           substeps={substeps}
           onComplete={onComplete || onBack}
           onBack={onBack}
+          teacherMode={teacherMode}
+          lessonId={lessonId}
+          stepIndex={stepIndex}
         />
       </div>
     );

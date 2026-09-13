@@ -48,6 +48,7 @@ export default function LessonModeRouter({
   onNext,
   isLast = false,
   liveMode = false,
+  teacherMode = false,
 }) {
   const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
@@ -1065,6 +1066,15 @@ export default function LessonModeRouter({
             }
             onComplete={
               completeStep
+            }
+            teacherMode={
+              teacherMode
+            }
+            lessonId={
+              lessonId
+            }
+            stepIndex={
+              stepIndex
             }
           />
         );

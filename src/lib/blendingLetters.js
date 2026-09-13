@@ -30,10 +30,10 @@ export function buildBlendingSubsteps(word, demoUrl) {
       hint: 'Asegúrate de que tu hijo no haga pausas entre los sonidos',
     },
     {
-      type: 'audio_demo',
-      title: 'Escucha cómo se hace',
+      type: 'video',
+      title: 'Mira cómo se hace',
       word: w,
-      audioUrl: demoUrl || '',
+      videoUrl: demoUrl || '',
       hint: '',
     },
     {

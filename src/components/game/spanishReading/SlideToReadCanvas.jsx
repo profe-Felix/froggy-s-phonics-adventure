@@ -301,7 +301,7 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default' }) {
+export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default', demoMode = false, onDemoRecorded }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -587,27 +587,40 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
               style={{ background: '#007bff' }}>
               {playingRecording ? '⏸ Playing…' : '▶ Review'}
             </button>
-            <button onClick={handlePlayAudio} disabled={playing}
-              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
-              style={{ background: '#f87171' }}>
-              🔊 Listen
-            </button>
             <button onClick={handleRerecord}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-gray-700 text-sm shadow transition active:scale-95"
               style={{ background: '#e5e7eb' }}>
               🔄 Redo
             </button>
-            <div className="flex-1 min-w-2" />
-            <button onClick={() => handleGrade('correct')} disabled={saving}
-              className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
-              style={{ background: '#16a34a' }}>
-              👍
-            </button>
-            <button onClick={() => handleGrade('incorrect')} disabled={saving}
-              className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
-              style={{ background: '#dc2626' }}>
-              👎
-            </button>
+            {demoMode ? (
+              <>
+                <div className="flex-1 min-w-2" />
+                <button onClick={() => onDemoRecorded?.(recordingBlob)}
+                  className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
+                  style={{ background: '#16a34a' }}>
+                  📤 Upload Demo
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={handlePlayAudio} disabled={playing}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
+                  style={{ background: '#f87171' }}>
+                  🔊 Listen
+                </button>
+                <div className="flex-1 min-w-2" />
+                <button onClick={() => handleGrade('correct')} disabled={saving}
+                  className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
+                  style={{ background: '#16a34a' }}>
+                  👍
+                </button>
+                <button onClick={() => handleGrade('incorrect')} disabled={saving}
+                  className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
+                  style={{ background: '#dc2626' }}>
+                  👎
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

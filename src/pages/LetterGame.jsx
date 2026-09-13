@@ -45,6 +45,7 @@ export default function LetterGame() {
   const urlNumber = parseInt(urlParams.get('number'));
   const urlYear = urlParams.get('year') || null;
   const liveCode = urlParams.get('live');
+  const teacherMode = urlParams.get('role') === 'teacher';
   const autoStudent = urlBarcode ? null : (urlClass && urlNumber ? { number: urlNumber, class_name: urlClass } : null);
 
   const [selectedStudent, setSelectedStudent] = useState(urlStudentId ? 'loading_by_id' : urlBarcode ? 'loading_by_barcode' : autoStudent);
@@ -612,6 +613,7 @@ export default function LetterGame() {
           setActiveLesson(null);
           setActiveStepIndex(null);
         }}
+        teacherMode={teacherMode}
       />
     );
   }

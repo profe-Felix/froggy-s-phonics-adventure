@@ -32,7 +32,7 @@ export default async function(req) {
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list';
-    const isStaff = user.role === 'admin' || user.role === 'teacher';
+    const isStaff = user.role === 'admin' || user.role === 'user';
 
     if (action === 'list') {
       const data = await s3.send(new ListObjectsV2Command({ Bucket: bucket }));
