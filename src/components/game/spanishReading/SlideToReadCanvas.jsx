@@ -301,7 +301,7 @@ function stopCanvasRecording(rec) {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default', demoMode = false, onDemoRecorded }) {
+export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default', demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -608,6 +608,13 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
                   style={{ background: '#f87171' }}>
                   🔊 Listen
                 </button>
+                {teacherMode && (
+                  <button onClick={() => onSaveModel?.(recordingBlob)}
+                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
+                    style={{ background: '#16a34a' }}>
+                    💾 Save model
+                  </button>
+                )}
                 <div className="flex-1 min-w-2" />
                 <button onClick={() => handleGrade('correct')} disabled={saving}
                   className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}

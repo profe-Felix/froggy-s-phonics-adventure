@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Loader2, CheckCircle2, Video } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import { SUBSTEP_COLORS as C } from './substepTheme';
 import SlideToReadCanvas from '../SlideToReadCanvas';
+import { uploadBlendingDemo } from '@/lib/blendingDemoUpload';
 
 // Teacher-only view shown in place of the video model substep when
 // ?role=teacher is in the URL. The teacher records themselves sliding the
@@ -23,38 +23,10 @@ export default function BlendingDemoRecorderView({ word, lessonId, stepIndex, ex
     if (!blob || !lessonId || stepIndex == null) return;
     setStatus('uploading');
     try {
-      // 1. Presign an R2 upload URL via the r2Video backend function.
-      const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-      const key = `blending-demos/${word}.${ext}`;
-      const res = await base44.functions.invoke('r2Video', {
-        action: 'presign',
-        key,
-        contentType: blob.type || 'video/webm',
-      });
-      if (!res?.uploadUrl) throw new Error('No upload URL returned');
-
-      // 2. Upload the blob directly to R2.
-      const uploadRes = await fetch(res.uploadUrl, {
-        method: 'PUT',
-        body: blob,
-        headers: { 'Content-Type': blob.type || 'video/webm' },
-      });
-      if (!uploadRes.ok) throw new Error('Upload to R2 failed');
-
-      // 3. Save the public URL into the Lesson entity's step config demos.
-      const lesson = await base44.entities.Lesson.get(lessonId);
-      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
-      const step = steps[stepIndex] || {};
-      const config = { ...(step.config || {}) };
-      const demos = { ...(config.demos || {}) };
-      demos[word] = res.publicUrl;
-      config.demos = demos;
-      steps[stepIndex] = { ...step, config };
-      await base44.entities.Lesson.update(lessonId, { steps });
-
-      setSavedUrl(res.publicUrl);
+      const publicUrl = await uploadBlendingDemo(blob, word, lessonId, stepIndex);
+      setSavedUrl(publicUrl);
       setStatus('saved');
-      onSaved?.(res.publicUrl);
+      onSaved?.(publicUrl);
     } catch (e) {
       console.error('Demo upload failed:', e);
       setStatus('error');

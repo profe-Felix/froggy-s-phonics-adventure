@@ -125,7 +125,13 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
               ))}
               {current.type === 'audio_demo' && <AudioModelSubstep substep={current} />}
               {current.type === 'practice' && (
-                <PracticeSubstep substep={current} onRecordingComplete={() => {}} />
+                <PracticeSubstep
+                  substep={current}
+                  onRecordingComplete={() => {}}
+                  teacherMode={teacherMode}
+                  lessonId={lessonId}
+                  stepIndex={stepIndex}
+                />
               )}
             </motion.div>
           </AnimatePresence>
