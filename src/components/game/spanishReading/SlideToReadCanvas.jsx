@@ -322,6 +322,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
   const thumbXRef = useRef(null);
   const recordingStateRef = useRef('idle');
   const advanceDirRef = useRef(0);
+  const reviewVideoRef = useRef(null);
 
   const units = useMemo(() => parseText(text), [text]);
 
@@ -428,18 +429,18 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
   };
 
   // ── Review helpers (compact in-place bar — no separate screen) ──
+  // Show the recorded video visibly overlaid on the canvas so the student
+  // can watch their sliding animation playback, not just hear the audio.
   const playReviewRecording = () => {
     if (!reviewUrl) return;
     setPlayingRecording(true);
-    const v = document.createElement('video');
-    v.src = reviewUrl;
-    v.style.display = 'none';
-    document.body.appendChild(v);
-    v.play().catch(() => {});
-    const done = () => { v.remove(); setPlayingRecording(false); };
-    v.onended = done;
-    v.onerror = done;
   };
+
+  useEffect(() => {
+    if (playingRecording && reviewVideoRef.current) {
+      reviewVideoRef.current.play().catch(() => setPlayingRecording(false));
+    }
+  }, [playingRecording, reviewUrl]);
 
   const handleGrade = async (grade) => {
     if (saving) return;
@@ -562,6 +563,19 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         />
+        {/* Review playback overlay — shows the recorded video so the student
+            can watch their sliding animation, not just hear the audio. */}
+        {playingRecording && reviewUrl && (
+          <video
+            ref={reviewVideoRef}
+            src={reviewUrl}
+            controls
+            className="absolute inset-0 w-full h-full object-contain"
+            style={{ background: (THEMES[theme] || THEMES.default).bg }}
+            onEnded={() => setPlayingRecording(false)}
+            onError={() => setPlayingRecording(false)}
+          />
+        )}
       </div>
 
       {/* Controls */}
