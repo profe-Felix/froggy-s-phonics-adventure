@@ -502,7 +502,8 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
 
 export default function LessonEditor() {
   const { user } = useAuth();
-  const canManage = user && (user.role === 'admin' || user.role === 'teacher');
+  const urlRole = new URLSearchParams(window.location.search).get('role') || '';
+  const canManage = (user && (user.role === 'admin' || user.role === 'user')) || urlRole === 'teacher';
   const qc = useQueryClient();
   const { classList } = useClassNames();
   const CLASSES = ['', ...classList];

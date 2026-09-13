@@ -84,11 +84,17 @@ function SetupMode({ schedule, setSchedule, onSave, saving, classOptions }) {
     });
   };
 
-  const addRow = () => {
-    setSchedule(s => ({
-      ...s,
-      rows: [...s.rows, { subject: 'New Subject', minutes: 30, non_instructional: false, is_switch: false, is_dismissal: false }],
-    }));
+  const addRow = (idx = null) => {
+    setSchedule(s => {
+      const newRow = { subject: 'New Subject', minutes: 30, non_instructional: false, is_switch: false, is_dismissal: false };
+      const rows = [...s.rows];
+      if (idx == null) {
+        rows.push(newRow);
+      } else {
+        rows.splice(idx, 0, newRow);
+      }
+      return { ...s, rows };
+    });
   };
 
   const removeRow = (idx) => {
@@ -190,7 +196,7 @@ function SetupMode({ schedule, setSchedule, onSave, saving, classOptions }) {
         {schedule.rows.map((row, idx) => {
           const t = times[idx];
           return (
-            <div key={idx} className="grid grid-cols-[2rem_2.5rem_1fr_5rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem] gap-1 px-2 py-1.5 items-center border-t border-gray-100 text-sm">
+            <div key={idx} className="group relative grid grid-cols-[2rem_2.5rem_1fr_5rem_2.5rem_2.5rem_2.5rem_2.5rem_2.5rem] gap-1 px-2 py-1.5 items-center border-t border-gray-100 text-sm">
               <button onClick={() => removeRow(idx)} className="text-red-500 hover:text-red-700 flex justify-center">
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -198,6 +204,19 @@ function SetupMode({ schedule, setSchedule, onSave, saving, classOptions }) {
                 <button onClick={() => moveRow(idx, -1)} disabled={idx === 0} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
                 <button onClick={() => moveRow(idx, 1)} disabled={idx === schedule.rows.length - 1} className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
               </div>
+              {/* Insert buttons — appear on hover */}
+              <div className="absolute left-0 right-0 -top-px h-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                <button onClick={() => addRow(idx)} className="pointer-events-auto text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 shadow-sm hover:bg-blue-100 whitespace-nowrap">
+                  + Insert above
+                </button>
+              </div>
+              {idx === schedule.rows.length - 1 && (
+                <div className="absolute left-0 right-0 bottom-0 h-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                  <button onClick={() => addRow(idx + 1)} className="pointer-events-auto text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 shadow-sm hover:bg-blue-100 whitespace-nowrap">
+                    + Insert below
+                  </button>
+                </div>
+              )}
               <input
                 type="text"
                 value={row.subject}

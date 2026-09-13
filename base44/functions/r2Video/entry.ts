@@ -63,6 +63,10 @@ export default async function(req) {
     }
 
     // ── upload_demo_b64: audio as base64 string (JSON body) ──
+    // Uploads audio to R2 (no SDK needed), then best-effort saves demo metadata
+    // into the Lesson entity. The Lesson update is wrapped separately so that
+    // if createClientFromRequest/asServiceRole fails (e.g. no auth token from
+    // published app), the R2 upload still succeeds and the frontend gets the URL.
     if (action === 'upload_demo_b64') {
       const lessonId = String(body.lessonId || '').trim();
       const stepIndex = Number(body.stepIndex);
@@ -71,43 +75,73 @@ export default async function(req) {
       const contentType = String(body.contentType || 'audio/webm').split(';')[0];
       const sliderData = Array.isArray(body.sliderData) ? body.sliderData : [];
 
-      if (!lessonId || !word || !audioBase64 || !Number.isFinite(stepIndex)) {
-        return Response.json({ error: 'lessonId, stepIndex, word, audioBase64 required' }, { status: 400 });
+      if (!word || !audioBase64 || !Number.isFinite(stepIndex)) {
+        return Response.json({ error: 'stepIndex, word, audioBase64 required' }, { status: 400 });
       }
 
       const ext = contentType.includes('mp4') ? 'm4a'
         : contentType.includes('ogg') ? 'ogg' : 'webm';
       const key = `blending-demos/${word}.${ext}`;
 
+      console.log('upload_demo_b64: decoding base64, length=', audioBase64.length);
+
       // Decode base64 to binary
-      const binaryString = atob(audioBase64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      let bytes;
+      try {
+        const binaryString = atob(audioBase64);
+        bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+      } catch (decodeErr) {
+        console.error('base64 decode failed:', decodeErr?.message || decodeErr);
+        return Response.json({ error: 'base64 decode failed: ' + (decodeErr?.message || 'unknown') }, { status: 400 });
       }
 
-      await s3.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: key,
-        Body: bytes,
-        ContentType: contentType,
-      }));
+      console.log('upload_demo_b64: decoded', bytes.length, 'bytes, uploading via fetch to R2 key:', key);
+
+      // Use fetch + presigned URL instead of s3.send(PutObjectCommand) —
+      // the AWS SDK's streaming upload crashes the Deno worker, but a plain
+      // fetch PUT with the presigned URL works reliably.
+      const presignCommand = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
+      const uploadUrl = await getSignedUrl(s3, presignCommand, { expiresIn: 300 });
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: bytes,
+      });
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        console.error('R2 PUT failed:', uploadRes.status, errText);
+        return Response.json({ error: `R2 upload failed: ${uploadRes.status}` }, { status: 500 });
+      }
+
+      console.log('upload_demo_b64: R2 upload complete');
 
       const audioUrl = `${publicBase}/${key}`;
 
-      // Save audio_url + slider_data into the Lesson entity
-      const base44 = createClientFromRequest(req);
-      const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
-      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
-      const step = steps[stepIndex] || {};
-      const config = { ...(step.config || {}) };
-      const demos = { ...(config.demos || {}) };
-      demos[word] = { audio_url: audioUrl, slider_data: sliderData };
-      config.demos = demos;
-      steps[stepIndex] = { ...step, config };
-      await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
+      // Best-effort: save demo metadata into the Lesson entity.
+      // If this fails (no auth, lesson not found, etc.), the R2 upload still succeeds.
+      let lessonSaved = false;
+      if (lessonId) {
+        try {
+          const base44 = createClientFromRequest(req);
+          const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
+          const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
+          const step = steps[stepIndex] || {};
+          const config = { ...(step.config || {}) };
+          const demos = { ...(config.demos || {}) };
+          demos[word] = { audio_url: audioUrl, slider_data: sliderData };
+          config.demos = demos;
+          steps[stepIndex] = { ...step, config };
+          await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
+          lessonSaved = true;
+        } catch (lessonErr) {
+          console.warn('Lesson save failed (R2 upload still succeeded):', lessonErr?.message || lessonErr);
+        }
+      }
 
-      return Response.json({ ok: true, audioUrl, sliderData });
+      return Response.json({ ok: true, audioUrl, sliderData, lessonSaved });
     }
 
     if (action === 'save_demo') {

@@ -376,6 +376,8 @@ export default function StudentDashboard() {
   const studentParam = urlParams.get('student') || '';
   const isTeacher = role === 'teacher';
 
+  const [classOptions, setClassOptions] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(classParam || '');
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(studentParam || '');
   const [dashboard, setDashboard] = useState(null);
@@ -383,9 +385,17 @@ export default function StudentDashboard() {
   const [saving, setSaving] = useState(false);
   const [lang, setLang] = useState('es');
 
+  // Load class options from ClassConfig
   useEffect(() => {
-    if (isTeacher && classParam) {
-      base44.entities.Student.filter({ class_name: classParam, school_year: ACTIVE_SCHOOL_YEAR })
+    base44.entities.ClassConfig.list().then(configs => {
+      setClassOptions(configs.map(c => c.class_name).filter(Boolean).sort());
+    }).catch(e => console.warn('Load classes failed:', e));
+  }, []);
+
+  useEffect(() => {
+    const cls = selectedClass || classParam;
+    if (isTeacher && cls) {
+      base44.entities.Student.filter({ class_name: cls, school_year: ACTIVE_SCHOOL_YEAR })
         .then(list => {
           setStudents(list.sort((a, b) => a.student_number - b.student_number));
           if (list.length > 0 && !selectedStudentId) {
@@ -394,7 +404,7 @@ export default function StudentDashboard() {
         })
         .catch(e => console.warn('Load students failed:', e));
     }
-  }, [isTeacher, classParam]);
+  }, [isTeacher, selectedClass, classParam]);
 
   useEffect(() => {
     if (selectedStudentId) {
@@ -487,19 +497,30 @@ export default function StudentDashboard() {
         </button>
       </div>
 
-      {isTeacher && students.length > 0 && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+      {isTeacher && (
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2 items-center">
           <select
-            value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
+            value={selectedClass}
+            onChange={(e) => { setSelectedClass(e.target.value); setSelectedStudentId(''); setStudents([]); }}
             className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
           >
-            {students.map(s => (
-              <option key={s.id} value={s.id}>
-                #{s.student_number} {s.name || ''}
-              </option>
-            ))}
+            <option value="">Select class…</option>
+            {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {students.length > 0 && (
+            <select
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">Select student…</option>
+              {students.map(s => (
+                <option key={s.id} value={s.id}>
+                  #{s.student_number} {s.name || ''}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
@@ -507,7 +528,7 @@ export default function StudentDashboard() {
         <div className="px-4 py-2 border-b border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
           <div><span className="font-bold">{lang === 'es' ? 'Nombre:' : 'Name:'}</span> {students.find(s => s.id === selectedStudentId)?.name || '—'}</div>
           <div><span className="font-bold">ID:</span> {students.find(s => s.id === selectedStudentId)?.barcode_number || '—'}</div>
-          <div><span className="font-bold">{lang === 'es' ? 'Maestro(a):' : 'Teacher:'}</span> {classParam || '—'}</div>
+          <div><span className="font-bold">{lang === 'es' ? 'Maestro(a):' : 'Teacher:'}</span> {selectedClass || classParam || '—'}</div>
           <div><span className="font-bold">{lang === 'es' ? 'Grado:' : 'Grade:'}</span> {students.find(s => s.id === selectedStudentId)?.grade || 'K'}</div>
         </div>
       )}
@@ -524,7 +545,13 @@ export default function StudentDashboard() {
         </div>
       ) : (
         <div className="max-w-md mx-auto mt-20 text-center text-gray-500">
-          <p>Select a student to view their dashboard.</p>
+          {isTeacher && !selectedClass ? (
+            <p>Select a class above to load students.</p>
+          ) : isTeacher && selectedClass && students.length === 0 ? (
+            <p>No students found in this class.</p>
+          ) : (
+            <p>Select a student to view their dashboard.</p>
+          )}
         </div>
       )}
     </div>
