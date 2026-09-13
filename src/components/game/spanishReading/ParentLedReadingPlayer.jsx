@@ -5,6 +5,7 @@ import { stopAllAudio } from '@/lib/audio';
 import { SUBSTEP_COLORS as C } from './substeps/substepTheme';
 import ParentNotesSubstep from './substeps/ParentNotesSubstep';
 import VideoModelSubstep from './substeps/VideoModelSubstep';
+import AudioModelSubstep from './substeps/AudioModelSubstep';
 import PracticeSubstep from './substeps/PracticeSubstep';
 
 export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBack }) {
@@ -112,6 +113,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
             >
               {current.type === 'parent_notes' && <ParentNotesSubstep substep={current} />}
               {current.type === 'video' && <VideoModelSubstep substep={current} />}
+              {current.type === 'audio_demo' && <AudioModelSubstep substep={current} />}
               {current.type === 'practice' && (
                 <PracticeSubstep substep={current} onRecordingComplete={() => {}} />
               )}

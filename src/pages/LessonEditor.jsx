@@ -20,6 +20,7 @@ import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterP
 import { useSpanishReadingPresets } from '@/hooks/useSpanishReadingPresets';
 import SpanishReadingPresetEditor from '@/components/spanishReading/SpanishReadingPresetEditor';
 import SubstepEditor from '@/components/spanishReading/SubstepEditor';
+import BlendingDemoRecorder from '@/components/lesson/BlendingDemoRecorder';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -57,6 +58,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
   const [mlEditor, setMlEditor] = useState(null);
   const [srEditor, setSrEditor] = useState(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [showDemoRecorder, setShowDemoRecorder] = useState(false);
 
   const [targetsText, setTargetsText] = useState(
     (step.config?.targets || []).join(', ')
@@ -202,7 +204,7 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
       ) : step.mode === 'blending_letters' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
           <div className="text-[10px] text-indigo-500 font-bold">
-            🔤 Blending Letters — type a word below and the 3 parent-led substeps (point &amp; say sounds, video model, student practice) are built automatically. Phoneme sounds play from the Supabase fonemas files.
+            🔤 Blending Letters — type a word below and the 3 parent-led substeps (point &amp; say sounds, audio demo, student practice) are built automatically. Phoneme sounds play from the Supabase fonemas files. Record your own audio demo for each word below.
           </div>
           <label className="text-xs text-gray-600 font-bold">Words (one per line)
             <textarea value={step.config?.itemsText || ''} onChange={e => update({ config: { ...step.config, itemsText: e.target.value } })} rows={4}
@@ -214,6 +216,26 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               placeholder="Asegúrate de que tu hijo no haga pausas entre los sonidos"
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
           </label>
+          <button
+            type="button"
+            onClick={() => setShowDemoRecorder(s => !s)}
+            className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-1"
+          >
+            🎙️ {showDemoRecorder ? 'Hide demo recorder' : 'Record audio demos'}
+          </button>
+          {showDemoRecorder && (
+            <BlendingDemoRecorder
+              itemsText={step.config?.itemsText || ''}
+              demos={step.config?.demos || {}}
+              onChange={(word, url) => {
+                const demos = { ...(step.config?.demos || {}) };
+                if (url) demos[word] = url;
+                else delete demos[word];
+                update({ config: { ...step.config, demos } });
+              }}
+              onClose={() => setShowDemoRecorder(false)}
+            />
+          )}
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

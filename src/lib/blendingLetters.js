@@ -5,8 +5,12 @@
 // Audio uses the phoneme files in Supabase (es/letters/fonemas/{letter}.mp3)
 // via playLetterSound() — NOT TTS. The audioLetter field on each prompt
 // drives which phoneme file plays.
+//
+// The model substep is type 'audio_demo' — the teacher records themselves
+// saying the sounds and blending the word. The recording URL is stored in
+// step.config.demos[word] and passed through as audioUrl.
 
-export function buildBlendingSubsteps(word) {
+export function buildBlendingSubsteps(word, demoUrl) {
   const w = (word || '').trim();
   if (!w) return [];
 
@@ -26,10 +30,10 @@ export function buildBlendingSubsteps(word) {
       hint: 'Asegúrate de que tu hijo no haga pausas entre los sonidos',
     },
     {
-      type: 'video',
-      title: 'Mira cómo se hace',
+      type: 'audio_demo',
+      title: 'Escucha cómo se hace',
       word: w,
-      videoUrl: '',
+      audioUrl: demoUrl || '',
       hint: '',
     },
     {
@@ -46,10 +50,11 @@ export function buildBlendingSubsteps(word) {
 // Build substeps for multiple words (one per line from the inline items textarea).
 // Each word gets its own set of 3 substeps in sequence.
 // An optional shared hint overrides the default hint on every parent_notes substep.
-export function buildBlendingSubstepsForWords(itemsText, sharedHint) {
+// demos is a map of word → R2 audio URL for the teacher's recorded model.
+export function buildBlendingSubstepsForWords(itemsText, sharedHint, demos = {}) {
   if (!itemsText || !itemsText.trim()) return [];
   const words = itemsText.split('\n').map((s) => s.trim()).filter(Boolean);
-  const substeps = words.flatMap((word) => buildBlendingSubsteps(word));
+  const substeps = words.flatMap((word) => buildBlendingSubsteps(word, demos[word]));
   if (sharedHint && sharedHint.trim()) {
     return substeps.map((s) =>
       s.type === 'parent_notes' ? { ...s, hint: sharedHint.trim() } : s

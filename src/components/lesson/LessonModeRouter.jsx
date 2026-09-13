@@ -1061,7 +1061,7 @@ export default function LessonModeRouter({
               wrappedBack
             }
             substeps={
-              buildBlendingSubstepsForWords(step?.config?.itemsText, step?.config?.hint)
+              buildBlendingSubstepsForWords(step?.config?.itemsText, step?.config?.hint, step?.config?.demos)
             }
             onComplete={
               completeStep
