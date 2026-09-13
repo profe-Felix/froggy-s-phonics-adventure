@@ -40,7 +40,8 @@ export default function NameTracingCanvas({
   padding = 160,
 }) {
   const isDotOnly = mode === 'dot_only';
-  const isGuided = mode === 'guided';
+  const isGuided = mode === 'guided' || mode === 'dot_accurate';
+  const hideGuides = mode === 'dot_accurate'; // guided validation, no visible paths/pellets
 
   // Layout: one repetition of the name (only traceable letters).
   const { layout, totalW } = useMemo(
@@ -97,6 +98,10 @@ export default function NameTracingCanvas({
   const [dotCurrentPath, setDotCurrentPath] = useState([]);
   const dotCurrentRef = useRef([]);
   const [dotCompleted, setDotCompleted] = useState(false);
+  // Ref for dot-only drawing state — declared BEFORE the reset useEffect so
+  // it's always initialized when the effect runs (fixes strokes disappearing
+  // on the second attempt due to stale/uninitialized ref).
+  const dotDrawingRef = useRef(false);
 
   const svgRef = useRef(null);
 
@@ -488,13 +493,17 @@ export default function NameTracingCanvas({
   };
 
   // --- Dot-only handlers ---
-  // Use a ref for drawing state because React state is async — the pointer-up
-  // handler can fire before the state update from pointer-down lands, causing
-  // the stroke to be silently discarded (ink disappears).
-  const dotDrawingRef = useRef(false);
-
   const handleDotDown = (p) => {
     if (dotCompleted) return;
+    // Stage 3: freehand but must start at a start dot for each stroke
+    const nearStart = allStrokes.some((s) => {
+      const sp = s.dense[0];
+      return sp && dist(p, sp) < 30;
+    });
+    if (!nearStart) {
+      flashError();
+      return;
+    }
     dotDrawingRef.current = true;
     dotCurrentRef.current = [p];
     setDotCurrentPath([p]);
@@ -589,7 +598,7 @@ export default function NameTracingCanvas({
 
   // Guide dots (Pac-Man pellets) for guided mode
   const guideDots = useMemo(() => {
-    if (!drawing || awaitingLift || isAllDone || !densePath.length) return [];
+    if (hideGuides || !drawing || awaitingLift || isAllDone || !densePath.length) return [];
     const progress = Math.max(0, Math.min(densePath.length - 1, pathProgressRef.current));
     const offsets = [5, 11, 18, 26];
     const seen = new Set();
@@ -602,7 +611,7 @@ export default function NameTracingCanvas({
   }, [drawing, awaitingLift, isAllDone, densePath, currentPath]);
 
   const guideArrow = useMemo(() => {
-    if (!drawing || awaitingLift || isAllDone || !densePath.length) return null;
+    if (hideGuides || !drawing || awaitingLift || isAllDone || !densePath.length) return null;
     const progress = Math.max(0, Math.min(densePath.length - 1, pathProgressRef.current));
     const arrowIndex = Math.min(densePath.length - 1, progress + 30);
     const directionIndex = Math.min(densePath.length - 1, arrowIndex + 4);
@@ -709,7 +718,7 @@ export default function NameTracingCanvas({
         <line x1="0" y1={0.90 * CANVAS_H} x2={sheetW} y2={0.90 * CANVAS_H} stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
 
         {/* Guide paths for ALL letters — completed = green, current = colored, upcoming = grey */}
-        {isGuided && wordLetters.map((ch, li) => {
+        {isGuided && !hideGuides && wordLetters.map((ch, li) => {
           const letterStrokes = waypoints[ch]?.strokes || [];
           return letterStrokes.map((stroke, si) => {
             const isCompleted = li < letterIndex;
@@ -751,8 +760,8 @@ export default function NameTracingCanvas({
           });
         })}
 
-        {/* Faint letter guides — dot-only mode (shows letter shapes as a model) */}
-        {isDotOnly && wordLetters.map((ch, li) => {
+        {/* Faint letter guides — dot-only and dot_accurate modes (shows letter shapes as a model) */}
+        {(isDotOnly || hideGuides) && wordLetters.map((ch, li) => {
           const letterStrokes = waypoints[ch]?.strokes || [];
           return letterStrokes.map((stroke, si) => {
             const clean = Array.isArray(stroke) ? stroke.filter(p => p && p.x != null && p.y != null) : [];

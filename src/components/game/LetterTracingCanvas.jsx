@@ -76,48 +76,40 @@ export default function LetterTracingCanvas({
   let effectiveCopyWidth;
   let renderH;
   if (fillHeight && fitSize) {
-    // Scale the available area by sizeScale so each size level (Huge/Big/
-    // Medium) renders visibly smaller instead of always filling the whole
-    // container. Without this, fillHeight ignored renderWidth and every size
-    // looked identical.
-    //
-    // On phones (narrow screens), boost the scale so the canvas stays usable.
-    // SIZE_SCALES are tuned for iPad's large screen; on a phone even scale 1.0
-    // produces a small canvas, and smaller scales (0.22–0.55) make it tiny.
-    // The floor keeps phone canvases at a usable size while preserving the
-    // full size progression on iPad.
     const _vw2 = typeof window !== 'undefined' ? window.innerWidth : 800;
     const _vh2 = typeof window !== 'undefined' ? window.innerHeight : 800;
-    // Detect phones in BOTH orientations: portrait (narrow width) and landscape
-    // (short height). Using the shorter dimension catches all phones while
-    // excluding tablets (iPad mini shortest side = 768px).
     const isPhone = Math.min(_vw2, _vh2) < 500;
     const effScale = isPhone ? Math.max(sizeScale, 0.8) : sizeScale;
     const fitW = fitSize.width * effScale;
     const fitH = fitSize.height * effScale;
     if (copyCount <= 1) {
-      // Single copy: fit within both width and height (centered, no scroll).
+      // Single copy: w is the TOTAL SVG width (copy + guide). Fit within
+      // container, then derive the per-copy width from the total so the SVG
+      // never exceeds the viewport (previously effectiveCopyWidth was set to
+      // the total width, then guide width was added on top — double-counting
+      // the guide and causing horizontal overflow / massive scrollbar).
       let w = fitW;
       let h = w / _aspect;
       if (h > fitH) { h = fitH; w = h * _aspect; }
-      effectiveCopyWidth = Math.max(80, w);
-      renderH = effectiveCopyWidth / _aspect;
+      effectiveCopyWidth = Math.max(80, w * (CANVAS_W / TOTAL_W));
+      renderH = h;
     } else {
-      // Multiple copies (repair practice): fit to the container's HEIGHT so the
-      // row is never vertically clipped. Copies extend horizontally and the
-      // scroll container pans — each copy stays large instead of shrinking the
-      // whole row to fit the width.
+      // Multi-copy: fit to height, per-copy width from copy aspect ratio.
       renderH = fitH;
-      effectiveCopyWidth = Math.max(200, renderH * _aspect);
+      effectiveCopyWidth = Math.max(200, renderH * (CANVAS_W / CANVAS_H));
     }
   } else {
     const _vw = typeof window !== 'undefined' ? window.innerWidth : 800;
     const _vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-    const _maxByHeight = Math.max(200, (_vh - 30) * _aspect);
-    effectiveCopyWidth =
-      copyCount <= 1
-        ? Math.min(renderWidth, _maxByHeight, _vw * 0.96)
-        : Math.min(renderWidth, _maxByHeight);
+    if (copyCount <= 1) {
+      // Cap the TOTAL width at the viewport, then derive copy width.
+      const _maxByHeight = Math.max(200, (_vh - 30) * _aspect);
+      const maxTotalW = Math.min(renderWidth * (TOTAL_W / CANVAS_W), _maxByHeight, _vw * 0.96);
+      effectiveCopyWidth = Math.max(80, maxTotalW * (CANVAS_W / TOTAL_W));
+    } else {
+      const _maxByHeight = Math.max(200, (_vh - 30) * (CANVAS_W / CANVAS_H));
+      effectiveCopyWidth = Math.min(renderWidth, _maxByHeight);
+    }
   }
   // Scale COPY_GAP from viewBox units to CSS pixels so the rendered SVG's
   // aspect ratio matches the viewBox exactly. Without this, the gap is the

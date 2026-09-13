@@ -86,14 +86,16 @@ export default function NameTracingMode({ studentData, onBack }) {
     return [first];
   }, [fullName, studentData?.name_tracing_last]);
 
-  // Build rows: for each name part, [guided, dot_only]
+  // Build rows: 3 stages × 4 traces per name part
+  //   Stage 1: guided (following dots + colored pathways)
+  //   Stage 2: dot_accurate (start dot only, accuracy required)
+  //   Stage 3: dot_only (freehand, must start at start dots)
   const rows = useMemo(() => {
     const out = [];
     for (const part of nameParts) {
-      out.push({ part, mode: 'guided', label: `${part} — Guided` });
-      out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
-      out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
-      out.push({ part, mode: 'dot_only', label: `${part} — Your turn` });
+      for (let i = 0; i < 4; i++) out.push({ part, mode: 'guided', label: `${part} — Guided` });
+      for (let i = 0; i < 4; i++) out.push({ part, mode: 'dot_accurate', label: `${part} — Your turn` });
+      for (let i = 0; i < 4; i++) out.push({ part, mode: 'dot_only', label: `${part} — Free` });
     }
     return out;
   }, [nameParts]);
@@ -205,9 +207,14 @@ export default function NameTracingMode({ studentData, onBack }) {
       <div className="text-center py-1.5 shrink-0">
         <span className={`text-sm font-bold rounded-full px-3 py-0.5 border ${
           currentRow?.mode === 'guided' ? 'text-amber-700 bg-amber-50 border-amber-200'
+          : currentRow?.mode === 'dot_accurate' ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
           : 'text-pink-700 bg-pink-50 border-pink-200'
         }`}>
-          {currentRow?.mode === 'guided' ? '● Guided — trace the pathways' : '🌟 Your turn — write from the start dots'}
+          {currentRow?.mode === 'guided'
+            ? '● Guided — trace the pathways'
+            : currentRow?.mode === 'dot_accurate'
+            ? '🌟 Your turn — write from the start dots'
+            : '✏️ Free — start at the dots and write!'}
         </span>
         <span className="ml-2 text-xs text-slate-400 font-bold">Row {activeRow + 1} of {rows.length}</span>
       </div>
