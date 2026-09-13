@@ -5,6 +5,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import SlideToReadCanvas from './SlideToReadCanvas';
 import RecordingsProgressBar from './RecordingsProgressBar';
 import ParentLedReadingPlayer from './ParentLedReadingPlayer';
+import { AUDIO_BASE, playTts } from '@/lib/audio';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -28,9 +29,10 @@ function playRecording(url) {
 }
 
 // ── Self-grade screen ────────────────────────────────────────────────────────
-function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
+function SelfGradeScreen({ blob, itemText, itemId, itemType, onGrade, onBack }) {
   const videoUrl = blob ? URL.createObjectURL(blob) : null;
   const [saving, setSaving] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
@@ -40,6 +42,29 @@ function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
     setSaving(true);
     await onGrade(grade);
     setSaving(false);
+  };
+
+  // Play the correct pronunciation: try the audio bucket file by id first,
+  // fall back to cloud TTS so every word has audio.
+  const handlePlayWord = async () => {
+    setPlaying(true);
+    try {
+      if (itemId) {
+        const category = itemType === 'sentence' ? 'sentences' : 'words';
+        const base = `${AUDIO_BASE}/es/${category}`;
+        const candidates = [`${base}/${itemId}.mp3`, `${base}/${itemId}.wav`];
+        for (const url of candidates) {
+          try {
+            const a = new Audio(url);
+            await new Promise((res, rej) => { a.onended = res; a.onerror = rej; a.play().catch(rej); });
+            return;
+          } catch { /* try next */ }
+        }
+      }
+      await playTts(itemText, 'es', 0.85);
+    } finally {
+      setPlaying(false);
+    }
   };
 
   return (
@@ -52,7 +77,13 @@ function SelfGradeScreen({ blob, itemText, onGrade, onBack }) {
 
       <div className="w-full rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center" style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
         <p className="text-white/60 text-xs font-bold mb-1">Leíste:</p>
-        <p className="text-white font-black text-sm sm:text-lg">{itemText}</p>
+        <p className="text-white font-black text-sm sm:text-lg mb-2">{itemText}</p>
+        <button onClick={handlePlayWord}
+          disabled={playing}
+          className={`px-4 py-2 rounded-xl font-bold text-white text-sm shadow-lg transition-all active:scale-95 ${playing ? 'bg-rose-500' : 'bg-rose-400 hover:bg-rose-500'}`}
+          title="Escucha la palabra correcta">
+          {playing ? '🔊 …' : '🔊 Escuchar'}
+        </button>
       </div>
 
       {!saving ? (
@@ -496,6 +527,8 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
               <SelfGradeScreen
                 blob={recordingBlob}
                 itemText={itemText}
+                itemId={getItemId(currentItem)}
+                itemType={itemType}
                 onGrade={handleSelfGrade}
                 onBack={() => { setPhase('reading'); setRecordingBlob(null); }}
               />

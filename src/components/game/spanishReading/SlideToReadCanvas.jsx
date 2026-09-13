@@ -481,12 +481,8 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onRecordingC
 
   return (
     <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
-      {/* Header */}
+      {/* Header — no back button; parent SpanishReadingGame handles navigation. */}
       <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 border-b-2" style={{ background: '#f8f9fa', borderColor: '#007bff' }}>
-        <button onClick={() => {
-          if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
-          onBack?.();
-        }} className="text-blue-600 hover:text-blue-800 font-bold text-sm">← Back</button>
         {itemId && (
           <button onClick={handlePlayAudio}
             className={`ml-auto w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base sm:text-xl shadow transition-all active:scale-95 ${playing ? 'bg-rose-500 scale-110' : 'bg-rose-400 hover:bg-rose-500'}`}

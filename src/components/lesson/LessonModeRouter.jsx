@@ -1306,13 +1306,13 @@ export default function LessonModeRouter({
         {renderMode()}
       </React.Fragment>
 
-      {/* Floating back-to-lesson button — hidden in stepper/live modes. */}
+      {/* Floating back-to-lesson button — hidden in stepper/live modes,
+          and for spanish_reading (the game has its own header/back nav). */}
       {!stepperMode &&
-        !liveMode && (
+        !liveMode &&
+        step?.mode !== 'spanish_reading' && (
           <Button
-            onClick={
-              wrappedBack
-            }
+            onClick={wrappedBack}
             className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
@@ -1320,18 +1320,20 @@ export default function LessonModeRouter({
           </Button>
         )}
 
-      {/* Goal / progress chip */}
-      <div
-        className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
-          goalDone
-            ? 'bg-green-100 text-green-700'
-            : isReplayRun
-              ? 'bg-amber-100 text-amber-700'
-              : 'bg-white/90 text-gray-700'
-        }`}
-      >
-        {goalText}
-      </div>
+      {/* Goal / progress chip — hidden for spanish_reading (game has its own header). */}
+      {step?.mode !== 'spanish_reading' && (
+        <div
+          className={`absolute top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-black shadow-lg ${
+            goalDone
+              ? 'bg-green-100 text-green-700'
+              : isReplayRun
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-white/90 text-gray-700'
+          }`}
+        >
+          {goalText}
+        </div>
+      )}
 
       {/* Completion overlay — hidden in live mode because teacher drives pacing. */}
       {done &&
