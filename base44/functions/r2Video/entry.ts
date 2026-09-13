@@ -5,12 +5,14 @@ import { getSignedUrl } from 'npm:@aws-sdk/s3-request-presigner@3.700.0';
 
 // Cloudflare R2 video management for lesson video steps.
 // Actions:
-//   list      — list all video objects in the bucket
-//   presign   — generate a one-hour presigned PUT URL for direct upload
-//   delete    — delete a video object
-//   save_demo — store a demo video URL in a Lesson's step.config.demos[word]
-//               (uses asServiceRole so teachers can save from any browser
-//               without a platform login — only ?role=teacher is needed)
+//   list           — list all video objects in the bucket
+//   presign        — generate a one-hour presigned PUT URL for direct upload
+//   delete         — delete a video object
+//   save_demo      — store a demo video URL in a Lesson's step.config.demos[word]
+//   upload_demo    — receive a video file (multipart) + lessonId/stepIndex/word,
+//                    upload it to R2 server-side (avoids browser CORS), and save
+//                    the demo URL into the Lesson in one call. Used by teachers
+//                    from any browser without a platform login.
 export default async function(req) {
   try {
     const accountId = secrets.get('R2_ACCOUNT_ID');
@@ -28,6 +30,49 @@ export default async function(req) {
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       credentials: { accessKeyId, secretAccessKey },
     });
+
+    const contentType = req.headers.get('content-type') || '';
+
+    // ── upload_demo: multipart form-data (file + metadata) ──
+    if (contentType.includes('multipart/form-data')) {
+      const form = await req.formData();
+      const file = form.get('file');
+      const lessonId = String(form.get('lessonId') || '').trim();
+      const stepIndex = Number(form.get('stepIndex'));
+      const word = String(form.get('word') || '').trim();
+
+      if (!file || !lessonId || !word || !Number.isFinite(stepIndex)) {
+        return Response.json({ error: 'file, lessonId, stepIndex, word required' }, { status: 400 });
+      }
+
+      const fileContentType = (file.type || 'video/webm').split(';')[0];
+      const ext = fileContentType.includes('mp4') ? 'mp4' : 'webm';
+      const key = `blending-demos/${word}.${ext}`;
+      const buffer = await file.arrayBuffer();
+
+      await s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: new Uint8Array(buffer),
+        ContentType: fileContentType,
+      }));
+
+      const publicUrl = `${publicBase}/${key}`;
+
+      // Save the demo URL into the Lesson entity
+      const base44 = createClientFromRequest(req);
+      const lesson = await base44.asServiceRole.entities.Lesson.get(lessonId);
+      const steps = Array.isArray(lesson.steps) ? [...lesson.steps] : [];
+      const step = steps[stepIndex] || {};
+      const config = { ...(step.config || {}) };
+      const demos = { ...(config.demos || {}) };
+      demos[word] = publicUrl;
+      config.demos = demos;
+      steps[stepIndex] = { ...step, config };
+      await base44.asServiceRole.entities.Lesson.update(lessonId, { steps });
+
+      return Response.json({ ok: true, publicUrl });
+    }
 
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'list';
@@ -49,8 +94,8 @@ export default async function(req) {
     if (action === 'presign') {
       const key = String(body.key || '').trim();
       if (!key) return Response.json({ error: 'key required' }, { status: 400 });
-      const contentType = body.contentType || 'video/mp4';
-      const command = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
+      const ct = body.contentType || 'video/mp4';
+      const command = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: ct });
       const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
       return Response.json({ uploadUrl, publicUrl: `${publicBase}/${key}` });
     }

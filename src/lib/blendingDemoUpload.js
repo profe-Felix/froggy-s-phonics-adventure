@@ -5,18 +5,19 @@ import { appParams } from '@/lib/app-params';
 // BlendingDemoRecorderView (video model step) and the PracticeSubstep
 // (teacher "Save model" button on the practice step).
 //
-// Calls the r2Video backend function directly via fetch (not base44.functions.invoke)
-// so it works from any browser without a platform login — teachers only need
-// the ?role=teacher URL parameter. The function uses asServiceRole to update
-// the Lesson entity server-side.
-async function invokeR2Video(payload) {
+// Sends the video as multipart form-data to the r2Video backend function,
+// which uploads to R2 server-side (avoids browser CORS on R2) and saves the
+// demo URL into the Lesson in one call. Works from any browser without a
+// platform login — teachers only need ?role=teacher.
+async function invokeR2VideoUpload(blob, word, lessonId, stepIndex) {
   const { appId } = appParams;
   const url = `${window.location.origin}/api/apps/${appId}/functions/r2Video`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const form = new FormData();
+  form.append('file', blob, `${word}.webm`);
+  form.append('lessonId', lessonId);
+  form.append('stepIndex', String(stepIndex));
+  form.append('word', word);
+  const res = await fetch(url, { method: 'POST', body: form });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `r2Video failed: ${res.status}`);
@@ -26,30 +27,6 @@ async function invokeR2Video(payload) {
 
 export async function uploadBlendingDemo(blob, word, lessonId, stepIndex) {
   if (!blob || !lessonId || stepIndex == null) return null;
-
-  const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
-  const key = `blending-demos/${word}.${ext}`;
-  const presignRes = await invokeR2Video({
-    action: 'presign',
-    key,
-    contentType: blob.type || 'video/webm',
-  });
-  if (!presignRes?.uploadUrl) throw new Error('No upload URL returned');
-
-  const uploadRes = await fetch(presignRes.uploadUrl, {
-    method: 'PUT',
-    body: blob,
-    headers: { 'Content-Type': blob.type || 'video/webm' },
-  });
-  if (!uploadRes.ok) throw new Error('Upload to R2 failed');
-
-  await invokeR2Video({
-    action: 'save_demo',
-    lessonId,
-    stepIndex,
-    word,
-    publicUrl: presignRes.publicUrl,
-  });
-
-  return presignRes.publicUrl;
+  const result = await invokeR2VideoUpload(blob, word, lessonId, stepIndex);
+  return result?.publicUrl || null;
 }
