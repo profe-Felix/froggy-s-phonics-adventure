@@ -7,7 +7,6 @@ import ParentNotesSubstep from './substeps/ParentNotesSubstep';
 import VideoModelSubstep from './substeps/VideoModelSubstep';
 import AudioModelSubstep from './substeps/AudioModelSubstep';
 import PracticeSubstep from './substeps/PracticeSubstep';
-import BlendingDemoRecorderView from './substeps/BlendingDemoRecorderView';
 
 export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBack, teacherMode = false, lessonId, stepIndex }) {
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -113,16 +112,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
               style={{ minHeight: '100%' }}
             >
               {current.type === 'parent_notes' && <ParentNotesSubstep substep={current} />}
-              {current.type === 'video' && (teacherMode ? (
-                <BlendingDemoRecorderView
-                  word={current.word}
-                  lessonId={lessonId}
-                  stepIndex={stepIndex}
-                  existingUrl={current.videoUrl}
-                />
-              ) : (
-                <VideoModelSubstep substep={current} />
-              ))}
+              {current.type === 'video' && <VideoModelSubstep substep={current} />}
               {current.type === 'audio_demo' && <AudioModelSubstep substep={current} />}
               {current.type === 'practice' && (
                 <PracticeSubstep
