@@ -6,8 +6,8 @@ import { uploadBlendingDemo } from '@/lib/blendingDemoUpload';
 
 // Teacher-only view shown in place of the video model substep when
 // ?role=teacher is in the URL. The teacher records themselves sliding the
-// slider and saying the sounds; the video uploads to R2 and the public URL
-// is saved into the Lesson entity's step.config.demos[word].
+// slider and saying the sounds; the audio + slider animation data uploads
+// to R2 and is saved into the Lesson entity's step.config.demos[word].
 //
 // Props:
 //   word      — the word to display and record a demo for
@@ -17,16 +17,16 @@ import { uploadBlendingDemo } from '@/lib/blendingDemoUpload';
 //   onSaved   — optional callback after the demo is saved
 export default function BlendingDemoRecorderView({ word, lessonId, stepIndex, existingUrl, onSaved }) {
   const [status, setStatus] = useState('idle'); // idle | uploading | saved | error
-  const [savedUrl, setSavedUrl] = useState(existingUrl || '');
+  const [hasDemo, setHasDemo] = useState(!!existingUrl);
 
-  const handleDemoRecorded = async (blob) => {
-    if (!blob || !lessonId || stepIndex == null) return;
+  const handleDemoRecorded = async (recording) => {
+    if (!recording?.audioBlob || !lessonId || stepIndex == null) return;
     setStatus('uploading');
     try {
-      const publicUrl = await uploadBlendingDemo(blob, word, lessonId, stepIndex);
-      setSavedUrl(publicUrl);
+      const audioUrl = await uploadBlendingDemo(recording, word, lessonId, stepIndex);
+      setHasDemo(true);
       setStatus('saved');
-      onSaved?.(publicUrl);
+      onSaved?.(audioUrl);
     } catch (e) {
       console.error('Demo upload failed:', e);
       setStatus('error');
@@ -64,7 +64,7 @@ export default function BlendingDemoRecorderView({ word, lessonId, stepIndex, ex
       )}
 
       {/* Existing demo note */}
-      {savedUrl && status === 'idle' && (
+      {hasDemo && status === 'idle' && (
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/60 text-xs font-bold" style={{ color: C.muted }}>
           <Video className="w-3.5 h-3.5" />
           A demo exists — record again to replace it.
@@ -79,17 +79,6 @@ export default function BlendingDemoRecorderView({ word, lessonId, stepIndex, ex
             theme="mint"
             demoMode
             onDemoRecorded={handleDemoRecorded}
-          />
-        </div>
-      )}
-
-      {/* After save, show the uploaded video for confirmation */}
-      {status === 'saved' && savedUrl && (
-        <div className="w-full rounded-2xl overflow-hidden shadow-lg" style={{ background: C.card }}>
-          <video
-            src={savedUrl}
-            controls
-            className="w-full max-h-[50vh] object-contain"
           />
         </div>
       )}

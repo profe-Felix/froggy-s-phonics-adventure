@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { parseText } from './phonetics';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
@@ -12,8 +12,7 @@ const PILL_COLORS = { green: '#008000', red: '#ff0000', grey: '#999999' };
 const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
 const THUMB_COLOR = '#007bff';
-// Spanish reading items live under the matching category by item id:
-// sentence items → es/sentences, word/syllable items → es/words.
+
 function playAudioById(id, itemType) {
   if (!id) return;
   const category = itemType === 'sentence' ? 'sentences' : 'words';
@@ -78,8 +77,6 @@ function wrapLines(ctx, units, maxWidth, fontSize) {
 }
 
 // ── Layout ───────────────────────────────────────────────────────────────────
-// Each line reserves space below it for the pill + slider cluster so the
-// interactive elements sit directly under the active line without overlap.
 function calculateLayout(ctx, units, canvasW, canvasH) {
   const padding = Math.max(16, canvasW * 0.06);
   const contentW = canvasW - padding * 2;
@@ -87,7 +84,6 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
   const pillH = Math.max(6, canvasH * 0.014);
   const sliderH = Math.max(4, canvasH * 0.008);
   const thumbR = Math.max(12, canvasH * 0.022);
-  // vertical space reserved under each line for the slider cluster
   const clusterSpace = pillH + sliderH + thumbR * 2 + Math.max(6, canvasH * 0.01);
 
   let fontSize = 16, lines = null, lineHeight = 22;
@@ -117,10 +113,8 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
     return { units: line, tokenPositions, tokenCount: tokIdx, width: lineWidth, startX };
   });
 
-  // Vertically center the whole text block
   const blockH = lineData.length * lineHeight;
   const textStartY = Math.max(padding + fontSize, (canvasH - blockH) / 2 + fontSize);
-
   const totalTokens = lineData.reduce((s, l) => s + l.tokenCount, 0);
 
   return {
@@ -149,7 +143,6 @@ function getPillLayout(layout, activeLineIdx) {
   return { positions, startX, endX, totalW: endX - startX };
 }
 
-// Position pills + slider directly under the active text line
 function getClusterY(layout, activeLineIdx) {
   const lineTopY = layout.textStartY - layout.fontSize + activeLineIdx * layout.lineHeight;
   const textBottomY = lineTopY + layout.fontSize;
@@ -168,7 +161,6 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
 
   const { fontSize, lineHeight, lines, textStartY, padding } = layout;
 
-  // Determine revealed count: token is revealed when thumb reaches its LEFT edge
   const pillLayout = getPillLayout(layout, activeLine);
   let revealedCount = 0;
   if (isRecording && pillLayout && thumbX !== null) {
@@ -179,7 +171,6 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
 
   ctx.font = `bold ${fontSize}px Andika, sans-serif`;
 
-  // ── Text lines ──
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const y = textStartY + li * lineHeight;
@@ -203,7 +194,6 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     }
   }
 
-  // ── Idle hint ──
   if (!isRecording) {
     ctx.fillStyle = '#6c757d';
     ctx.font = `bold ${Math.min(16, canvasW * 0.035)}px Andika, sans-serif`;
@@ -215,13 +205,11 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     return;
   }
 
-  // ── Pills + Slider (directly under active line) ──
   if (!pillLayout) return;
   const { pillY, pillH, sliderY, sliderH, thumbR } = { ...layout, ...getClusterY(layout, activeLine) };
   const { startX, endX, totalW, positions } = pillLayout;
   const currentThumbX = thumbX !== null ? thumbX : startX;
 
-  // Pills
   const inset = Math.min(1.5, pillH * 0.15);
   for (const pos of positions) {
     const isRevealed = pos.tokenIdx < revealedCount;
@@ -238,19 +226,16 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
     }
   }
 
-  // Slider track
   ctx.fillStyle = SLIDER_TRACK;
   roundRect(ctx, startX, sliderY, totalW, sliderH, sliderH / 2);
   ctx.fill();
 
-  // Filled portion
   if (currentThumbX > startX) {
     ctx.fillStyle = SLIDER_FILLED;
     roundRect(ctx, startX, sliderY, Math.max(thumbR * 0.5, currentThumbX - startX), sliderH, sliderH / 2);
     ctx.fill();
   }
 
-  // Thumb (exactly at finger position)
   ctx.fillStyle = THUMB_COLOR;
   ctx.beginPath();
   ctx.arc(currentThumbX, sliderY + sliderH / 2, thumbR, 0, Math.PI * 2);
@@ -261,47 +246,82 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
   ctx.fill();
 }
 
-// ── Recording helpers ────────────────────────────────────────────────────────
-function getSupportedMimeType() {
-  for (const t of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']) {
+// ── Audio-only recording (no video — avoids CORS + payload size limits) ───────
+function getSupportedAudioMimeType() {
+  for (const t of ['audio/webm', 'audio/ogg', 'audio/mp4']) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
   return '';
 }
 
-async function startCanvasRecording(canvas) {
-  const canvasStream = canvas.captureStream(30);
-  let audioStream = null;
-  try { audioStream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {}
-  const tracks = [...canvasStream.getVideoTracks()];
-  if (audioStream) tracks.push(...audioStream.getAudioTracks());
-  const combined = new MediaStream(tracks);
-  const mimeType = getSupportedMimeType();
-  const recorder = new MediaRecorder(combined, mimeType ? { mimeType } : undefined);
+async function startAudioRecording() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mimeType = getSupportedAudioMimeType();
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
   const chunks = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
   return new Promise(resolve => {
-    recorder.onstart = () => resolve({ recorder, chunks, audioStream, canvasStream });
+    recorder.onstart = () => resolve({ recorder, chunks, stream });
     recorder.onerror = () => resolve(null);
-    recorder.start();
+    recorder.start(100);
   });
 }
 
-function stopCanvasRecording(rec) {
+function stopAudioRecording(rec) {
   return new Promise(resolve => {
     if (!rec) return resolve(null);
     rec.recorder.onstop = () => {
-      const blob = new Blob(rec.chunks, { type: rec.recorder.mimeType || 'video/webm' });
-      rec.audioStream?.getTracks().forEach(t => t.stop());
-      rec.canvasStream?.getTracks().forEach(t => t.stop());
+      const blob = new Blob(rec.chunks, { type: rec.recorder.mimeType || 'audio/webm' });
+      rec.stream?.getTracks().forEach(t => t.stop());
       resolve(blob);
     };
     rec.recorder.stop();
   });
 }
 
+// ── Replay: animate slider from recorded keyframes synced to audio ────────────
+function startSliderReplay(audioEl, sliderData, setActiveLine, setThumbX, onDone) {
+  if (!sliderData || sliderData.length === 0) {
+    audioEl?.play().catch(() => {});
+    audioEl?.addEventListener('ended', () => onDone?.());
+    return () => {};
+  }
+  audioEl?.play().catch(() => {});
+  let rafId = null;
+  const animate = () => {
+    if (!audioEl || audioEl.ended) {
+      onDone?.();
+      return;
+    }
+    const t = audioEl.currentTime * 1000;
+    let prev = sliderData[0], next = sliderData[sliderData.length - 1];
+    for (let i = 0; i < sliderData.length - 1; i++) {
+      if (sliderData[i].t <= t && sliderData[i + 1].t >= t) {
+        prev = sliderData[i];
+        next = sliderData[i + 1];
+        break;
+      }
+    }
+    const ratio = next.t === prev.t ? 0 : (t - prev.t) / (next.t - prev.t);
+    const x = prev.x + (next.x - prev.x) * ratio;
+    const line = prev.line + (next.line - prev.line) * ratio;
+    setActiveLine(Math.round(line));
+    setThumbX(x);
+    rafId = requestAnimationFrame(animate);
+  };
+  rafId = requestAnimationFrame(animate);
+  return () => { if (rafId) cancelAnimationFrame(rafId); };
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
-export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onBack, theme = 'default', demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel }) {
+export default function SlideToReadCanvas({
+  text, itemId, itemType, onGrade, onBack, theme = 'default',
+  demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel,
+  onRecordingComplete,
+  // Replay mode: when replayData ({audioUrl, sliderData}) is provided, the canvas
+  // shows a Play button and replays the teacher's slider animation + audio.
+  replayData = null,
+}) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [recordingState, setRecordingState] = useState('idle');
@@ -309,10 +329,10 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
   const [thumbX, setThumbX] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [recordingBlob, setRecordingBlob] = useState(null);
+  const [audioBlob, setAudioBlob] = useState(null);
   const [reviewUrl, setReviewUrl] = useState(null);
-  const [playingRecording, setPlayingRecording] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
 
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);
@@ -322,7 +342,10 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
   const thumbXRef = useRef(null);
   const recordingStateRef = useRef('idle');
   const advanceDirRef = useRef(0);
-  const reviewVideoRef = useRef(null);
+  const sliderDataRef = useRef([]);
+  const recStartTimeRef = useRef(0);
+  const replayAudioRef = useRef(null);
+  const stopReplayRef = useRef(null);
 
   const units = useMemo(() => parseText(text), [text]);
 
@@ -359,23 +382,28 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
     const ctx = ctxRef.current;
     if (!ctx || canvasSize.w === 0) return;
     layoutRef.current = calculateLayout(ctx, units, canvasSize.w, canvasSize.h);
-    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, recordingState === 'recording' || recordingState === 'review', canvasSize.w, canvasSize.h, theme);
-  }, [units, canvasSize, activeLine, thumbX, recordingState]);
+    const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
+    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, showInteractive, canvasSize.w, canvasSize.h, theme);
+  }, [units, canvasSize, activeLine, thumbX, recordingState, isReplaying, theme]);
 
   // ── Reset on text change ──
   useEffect(() => {
     setRecordingState('idle'); setActiveLine(0); setThumbX(null); setDragging(false);
     advanceDirRef.current = 0;
     activeLineRef.current = 0; thumbXRef.current = null; recordingStateRef.current = 'idle';
-    if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
+    if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
-    setRecordingBlob(null);
+    setAudioBlob(null);
     setSaving(false);
+    setIsReplaying(false);
+    sliderDataRef.current = [];
   }, [text]);
 
   // ── Cleanup ──
   useEffect(() => () => {
-    if (recordingRef.current) { stopCanvasRecording(recordingRef.current); recordingRef.current = null; }
+    if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
+    if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
+    if (reviewUrl) URL.revokeObjectURL(reviewUrl);
   }, []);
 
   const handlePlayAudio = async () => {
@@ -391,75 +419,122 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
     } catch { setPlaying(false); }
   };
 
-  // ── Start recording (interaction reveals regardless of media success) ──
+  // ── Start recording (audio-only + slider data capture) ──
   const handleStartRecording = async () => {
-    // Enter interactive mode immediately so slider/pills show
     setRecordingState('recording');
     recordingStateRef.current = 'recording';
+    sliderDataRef.current = [];
     const layout = layoutRef.current;
     if (layout) {
       const pillLayout = getPillLayout(layout, 0);
       setThumbX(pillLayout ? pillLayout.startX : 0);
       thumbXRef.current = pillLayout ? pillLayout.startX : 0;
     }
-    // Best-effort media capture — if it fails, interaction still works
     try {
-      recordingRef.current = await startCanvasRecording(canvasRef.current);
+      recordingRef.current = await startAudioRecording();
+      recStartTimeRef.current = Date.now();
+      // Record initial slider position
+      sliderDataRef.current.push({ t: 0, x: thumbXRef.current || 0, line: 0 });
     } catch (err) {
-      console.warn('Media recording unavailable, continuing without it:', err);
+      console.warn('Audio recording unavailable:', err);
       recordingRef.current = null;
     }
   };
 
-  // ── Stop recording — enter review mode (compact bar, no page change) ──
+  // ── Stop recording — enter review mode ──
   const handleStop = async () => {
     setRecordingState('stopping');
     recordingStateRef.current = 'stopping';
-    const blob = await stopCanvasRecording(recordingRef.current);
+    // Record final position
+    sliderDataRef.current.push({
+      t: Date.now() - recStartTimeRef.current,
+      x: thumbXRef.current || 0,
+      line: activeLineRef.current,
+    });
+    const blob = await stopAudioRecording(recordingRef.current);
     recordingRef.current = null;
     if (blob) {
       setReviewUrl(URL.createObjectURL(blob));
-      setRecordingBlob(blob);
+      setAudioBlob(blob);
       setRecordingState('review');
       recordingStateRef.current = 'review';
+      onRecordingComplete?.({ audioBlob: blob, sliderData: sliderDataRef.current });
     } else {
       setRecordingState('idle');
       recordingStateRef.current = 'idle';
     }
   };
 
-  // ── Review helpers (compact in-place bar — no separate screen) ──
-  // Show the recorded video visibly overlaid on the canvas so the student
-  // can watch their sliding animation playback, not just hear the audio.
+  // ── Review: replay audio + slider animation on the canvas ──
   const playReviewRecording = () => {
-    if (!reviewUrl) return;
-    setPlayingRecording(true);
+    if (!reviewUrl || !audioBlob) return;
+    // Stop any existing replay
+    if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
+    const audio = new Audio(reviewUrl);
+    replayAudioRef.current = audio;
+    setIsReplaying(true);
+    stopReplayRef.current = startSliderReplay(
+      audio,
+      sliderDataRef.current,
+      setActiveLine,
+      setThumbX,
+      () => {
+        setIsReplaying(false);
+        stopReplayRef.current = null;
+      }
+    );
   };
 
-  useEffect(() => {
-    if (playingRecording && reviewVideoRef.current) {
-      reviewVideoRef.current.play().catch(() => setPlayingRecording(false));
-    }
-  }, [playingRecording, reviewUrl]);
+  // ── Replay mode (teacher demo playback) ──
+  const handleReplayDemo = () => {
+    if (!replayData?.audioUrl) return;
+    if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
+    const audio = new Audio(replayData.audioUrl);
+    replayAudioRef.current = audio;
+    setIsReplaying(true);
+    stopReplayRef.current = startSliderReplay(
+      audio,
+      replayData.sliderData || [],
+      setActiveLine,
+      setThumbX,
+      () => {
+        setIsReplaying(false);
+        setActiveLine(0);
+        const layout = layoutRef.current;
+        if (layout) {
+          const pillLayout = getPillLayout(layout, 0);
+          setThumbX(pillLayout ? pillLayout.startX : null);
+        }
+        stopReplayRef.current = null;
+      }
+    );
+  };
+
+  const stopReplay = () => {
+    if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
+    if (replayAudioRef.current) { replayAudioRef.current.pause(); replayAudioRef.current = null; }
+    setIsReplaying(false);
+  };
 
   const handleGrade = async (grade) => {
     if (saving) return;
     setSaving(true);
-    try { await onGrade?.(grade, recordingBlob); } finally { setSaving(false); }
+    try { await onGrade?.(grade, { audioBlob, sliderData: sliderDataRef.current }); } finally { setSaving(false); }
   };
 
   const handleRerecord = () => {
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
-    setRecordingBlob(null);
+    setAudioBlob(null);
     setRecordingState('idle');
     recordingStateRef.current = 'idle';
     setActiveLine(0);
     setThumbX(null);
     activeLineRef.current = 0;
     thumbXRef.current = null;
+    sliderDataRef.current = [];
   };
 
-  // ── Thumb update (absolute finger tracking) ──
+  // ── Thumb update (absolute finger tracking + slider data capture) ──
   const updateThumb = (clientX) => {
     const layout = layoutRef.current;
     if (!layout) return;
@@ -495,6 +570,9 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
       setThumbX(nextPillLayout ? nextPillLayout.startX : newThumbX);
       thumbXRef.current = nextPillLayout ? nextPillLayout.startX : newThumbX;
       advanceDirRef.current = 1;
+      if (recordingStateRef.current === 'recording') {
+        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: nextPillLayout ? nextPillLayout.startX : newThumbX, line: nextLine });
+      }
       return;
     }
 
@@ -506,11 +584,17 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
       setThumbX(prevPillLayout ? prevPillLayout.endX : newThumbX);
       thumbXRef.current = prevPillLayout ? prevPillLayout.endX : newThumbX;
       advanceDirRef.current = -1;
+      if (recordingStateRef.current === 'recording') {
+        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: prevPillLayout ? prevPillLayout.endX : newThumbX, line: prevLine });
+      }
       return;
     }
 
     setThumbX(newThumbX);
     thumbXRef.current = newThumbX;
+    if (recordingStateRef.current === 'recording') {
+      sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: newThumbX, line: activeLineRef.current });
+    }
   };
 
   const handlePointerDown = (e) => {
@@ -533,6 +617,36 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
     setDragging(false);
   };
 
+  // ── Replay mode (no recording controls) ──
+  if (replayData) {
+    return (
+      <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
+        <div className="flex-1 relative overflow-hidden">
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full"
+            style={{ touchAction: 'none' }}
+          />
+        </div>
+        <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2" style={{ background: '#f8f9fa' }}>
+          {!isReplaying ? (
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleReplayDemo}
+              className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
+              style={{ background: '#007bff' }}>
+              ▶ Ver modelo
+            </motion.button>
+          ) : (
+            <motion.button whileTap={{ scale: 0.95 }} onClick={stopReplay}
+              className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
+              style={{ background: '#dc2626' }}>
+              ⏸ Detener
+            </motion.button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
       {/* Canvas */}
@@ -546,19 +660,6 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         />
-        {/* Review playback overlay — shows the recorded video so the student
-            can watch their sliding animation, not just hear the audio. */}
-        {playingRecording && reviewUrl && (
-          <video
-            ref={reviewVideoRef}
-            src={reviewUrl}
-            controls
-            className="absolute inset-0 w-full h-full object-contain"
-            style={{ background: (THEMES[theme] || THEMES.default).bg }}
-            onEnded={() => setPlayingRecording(false)}
-            onError={() => setPlayingRecording(false)}
-          />
-        )}
       </div>
 
       {/* Controls */}
@@ -582,10 +683,10 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
         )}
         {recordingState === 'review' && (
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-            <button onClick={playReviewRecording} disabled={playingRecording}
-              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playingRecording ? 'opacity-60' : ''}`}
+            <button onClick={playReviewRecording} disabled={isReplaying}
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${isReplaying ? 'opacity-60' : ''}`}
               style={{ background: '#007bff' }}>
-              {playingRecording ? '⏸ Playing…' : '▶ Review'}
+              {isReplaying ? '▶ Playing…' : '▶ Review'}
             </button>
             <button onClick={handleRerecord}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-gray-700 text-sm shadow transition active:scale-95"
@@ -595,7 +696,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
             {demoMode ? (
               <>
                 <div className="flex-1 min-w-2" />
-                <button onClick={() => onDemoRecorded?.(recordingBlob)}
+                <button onClick={() => onDemoRecorded?.({ audioBlob, sliderData: sliderDataRef.current })}
                   className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
                   style={{ background: '#16a34a' }}>
                   📤 Upload Demo
@@ -609,7 +710,7 @@ export default function SlideToReadCanvas({ text, itemId, itemType, onGrade, onB
                   🔊 Listen
                 </button>
                 {teacherMode && (
-                  <button onClick={() => onSaveModel?.(recordingBlob)}
+                  <button onClick={() => onSaveModel?.({ audioBlob, sliderData: sliderDataRef.current })}
                     className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
                     style={{ background: '#16a34a' }}>
                     💾 Save model

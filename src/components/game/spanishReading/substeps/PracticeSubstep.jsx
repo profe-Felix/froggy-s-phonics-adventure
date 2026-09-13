@@ -8,11 +8,11 @@ export default function PracticeSubstep({ substep, onRecordingComplete, teacherM
   const { word, itemId, hint, itemType = 'word' } = substep;
   const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
 
-  const handleSaveModel = async (blob) => {
-    if (!blob || !lessonId || stepIndex == null) return;
+  const handleSaveModel = async (recording) => {
+    if (!recording?.audioBlob || !lessonId || stepIndex == null) return;
     setSaveState('saving');
     try {
-      await uploadBlendingDemo(blob, word, lessonId, stepIndex);
+      await uploadBlendingDemo(recording, word, lessonId, stepIndex);
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 3000);
     } catch (e) {

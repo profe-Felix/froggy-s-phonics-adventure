@@ -29,14 +29,15 @@ function playRecording(url) {
 }
 
 // ── Self-grade screen ────────────────────────────────────────────────────────
-function SelfGradeScreen({ blob, itemText, itemId, itemType, onGrade, onBack }) {
-  const videoUrl = blob ? URL.createObjectURL(blob) : null;
+function SelfGradeScreen({ recording, itemText, itemId, itemType, onGrade, onBack }) {
+  const audioBlob = recording?.audioBlob;
+  const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
   const [saving, setSaving] = useState(false);
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
-    return () => { if (videoUrl) URL.revokeObjectURL(videoUrl); };
-  }, [videoUrl]);
+    return () => { if (audioUrl) URL.revokeObjectURL(audioUrl); };
+  }, [audioUrl]);
 
   const handleGrade = async (grade) => {
     setSaving(true);
@@ -71,8 +72,8 @@ function SelfGradeScreen({ blob, itemText, itemId, itemType, onGrade, onBack }) 
     <div className="flex flex-col items-center gap-4 sm:gap-5 px-3 sm:px-4 py-4 sm:py-6 w-full max-w-md mx-auto">
       <p className="text-white font-black text-base sm:text-lg text-center">🎧 Escucha tu lectura</p>
 
-      {videoUrl && (
-        <video src={videoUrl} controls className="w-full rounded-xl sm:rounded-2xl shadow-2xl" style={{ maxHeight: 220 }} />
+      {audioUrl && (
+        <audio src={audioUrl} controls className="w-full rounded-xl sm:rounded-2xl shadow-2xl" />
       )}
 
       <div className="w-full rounded-xl sm:rounded-2xl p-3 sm:p-4 text-center" style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}>
@@ -339,14 +340,15 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     loadModule(selectedSection, moduleNum);
   };
 
-  const handleGrade = async (grade, blob) => {
+  const handleGrade = async (grade, recording) => {
     const currentItem = items[currentIdx];
     const itemText = getItemText(currentItem);
 
     let recordingUrl = null;
-    if (blob) {
-      const ext = blob.type?.includes('mp4') ? 'mp4' : 'webm';
-      const file = new File([blob], `spanish_reading_${Date.now()}.${ext}`, { type: blob.type });
+    const audioBlob = recording?.audioBlob;
+    if (audioBlob) {
+      const ext = audioBlob.type?.includes('mp4') ? 'm4a' : 'webm';
+      const file = new File([audioBlob], `spanish_reading_${Date.now()}.${ext}`, { type: audioBlob.type });
       try {
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
         recordingUrl = file_url;

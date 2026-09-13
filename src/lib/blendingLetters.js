@@ -6,11 +6,12 @@
 // via playLetterSound() — NOT TTS. The audioLetter field on each prompt
 // drives which phoneme file plays.
 //
-// The model substep is type 'audio_demo' — the teacher records themselves
-// saying the sounds and blending the word. The recording URL is stored in
-// step.config.demos[word] and passed through as audioUrl.
+// The model substep is type 'video' — the teacher records themselves sliding
+// the slider and saying the sounds. The recording is stored as a playback
+// system (audio + slider keyframes) in step.config.demos[word] as
+// { audio_url, slider_data } and passed through as the `demo` field.
 
-export function buildBlendingSubsteps(word, demoUrl) {
+export function buildBlendingSubsteps(word, demo) {
   const w = (word || '').trim();
   if (!w) return [];
 
@@ -33,7 +34,7 @@ export function buildBlendingSubsteps(word, demoUrl) {
       type: 'video',
       title: 'Mira cómo se hace',
       word: w,
-      videoUrl: demoUrl || '',
+      demo: demo || null,
       hint: '',
     },
     {
@@ -50,7 +51,7 @@ export function buildBlendingSubsteps(word, demoUrl) {
 // Build substeps for multiple words (one per line from the inline items textarea).
 // Each word gets its own set of 3 substeps in sequence.
 // An optional shared hint overrides the default hint on every parent_notes substep.
-// demos is a map of word → R2 audio URL for the teacher's recorded model.
+// demos is a map of word → { audio_url, slider_data } for the teacher's recorded model.
 export function buildBlendingSubstepsForWords(itemsText, sharedHint, demos = {}) {
   if (!itemsText || !itemsText.trim()) return [];
   const words = itemsText.split('\n').map((s) => s.trim()).filter(Boolean);
