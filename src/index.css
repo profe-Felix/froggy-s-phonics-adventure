@@ -367,6 +367,10 @@
     top: 0;
     width: 100%;
   }
+  /* Dashboard / Schedule print mode — make everything visible when body has dashboard-printing class */
+  body.dashboard-printing * {
+    visibility: visible;
+  }
 }
 
 /* Sidebar: fill full viewport height on mobile landscape so items distribute

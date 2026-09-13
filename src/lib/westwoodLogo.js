@@ -1,0 +1,1 @@
+export const WESTWOOD_LOGO_URL = 'https://media.base44.com/images/public/6972eada24fac6b62ccbab8e/b8e45defe_WestWoodLogo.png';

@@ -1,21 +1,49 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { WESTWOOD_LOGO_URL } from '@/lib/westwoodLogo';
+import { Printer, Users } from 'lucide-react';
 
 // ── Letter sets ───────────────────────────────────────────────────────────────
 const EN_LETTERS_ROW1 = ['A','B','C','D','E','F','G','H','I','J','K','L','M'];
 const EN_LETTERS_ROW2 = ['N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 
-const ES_LETTERS_ROW1 = ['O','o','I','i','A','a','U','u','E','e','M','m','P','p','S','s','L','l','N','n','D','d','T','t'];
-const ES_LETTERS_ROW2 = ['F','f','B','b','R','r','C','c','Q','q','V','v','R','Ll','ll','G','g','Y','y','Z','z','H','h'];
-const ES_LETTERS_ROW3 = ['J','j','C','c','Ñ','ñ','G','g','Ch','ch','K','k','X','x','W','w'];
+// Spanish letters — structured objects:
+// {d: display, k: unique data key, p?: phoneme marker, bl?: black out Letra row, tl?: thin left border}
+const ES_LETTERS_ROW1 = [
+  {d:'O',k:'O'},{d:'o',k:'o',tl:1},{d:'I',k:'I'},{d:'i',k:'i',tl:1},
+  {d:'A',k:'A'},{d:'a',k:'a',tl:1},{d:'U',k:'U'},{d:'u',k:'u',tl:1},
+  {d:'E',k:'E'},{d:'e',k:'e',tl:1},{d:'M',k:'M'},{d:'m',k:'m',tl:1},
+  {d:'P',k:'P'},{d:'p',k:'p',tl:1},{d:'S',k:'S'},{d:'s',k:'s',tl:1},
+  {d:'L',k:'L'},{d:'l',k:'l',tl:1},{d:'N',k:'N'},{d:'n',k:'n',tl:1},
+  {d:'D',k:'D'},{d:'d',k:'d',tl:1},{d:'T',k:'T'},{d:'t',k:'t',tl:1},
+];
+const ES_LETTERS_ROW2 = [
+  {d:'F',k:'F'},{d:'f',k:'f',tl:1},{d:'B',k:'B'},{d:'b',k:'b',tl:1},
+  {d:'R_',k:'R_'},{d:'r',k:'r',tl:1},
+  {d:'C',k:'C',p:'/k/'},{d:'c',k:'c',p:'/k/',tl:1},
+  {d:'Q',k:'Q'},{d:'q',k:'q',tl:1},{d:'V',k:'V'},{d:'v',k:'v',tl:1},
+  {d:'_r_',k:'_r_',bl:1},
+  {d:'Ll',k:'Ll',bl:1},{d:'ll',k:'ll',bl:1,tl:1},
+  {d:'G',k:'G',p:'/g/'},{d:'g',k:'g',p:'/g/',tl:1},
+  {d:'Y',k:'Y'},{d:'y',k:'y',tl:1},{d:'Z',k:'Z'},{d:'z',k:'z',tl:1},
+  {d:'H',k:'H'},{d:'h',k:'h',tl:1},
+];
+const ES_LETTERS_ROW3 = [
+  {d:'J',k:'J'},{d:'j',k:'j',tl:1},
+  {d:'C',k:'C_s',p:'/s/',bl:1},{d:'c',k:'c_s',p:'/s/',bl:1,tl:1},
+  {d:'Ñ',k:'Ñ'},{d:'ñ',k:'ñ',tl:1},
+  {d:'G',k:'G_j',p:'/j/',bl:1},{d:'g',k:'g_j',p:'/j/',bl:1,tl:1},
+  {d:'Ch',k:'Ch',bl:1},{d:'ch',k:'ch',bl:1,tl:1},
+  {d:'K',k:'K'},{d:'k',k:'k',tl:1},{d:'X',k:'X'},{d:'x',k:'x',tl:1},
+  {d:'W',k:'W'},{d:'w',k:'w',tl:1},
+];
+const ALL_ES_LETTERS = [...ES_LETTERS_ROW1, ...ES_LETTERS_ROW2, ...ES_LETTERS_ROW3];
 
 const NUMBERS_ROW1 = ['0','1','2','3','4','5','6','7','8','9','10'];
 const NUMBERS_ROW2 = ['11','12','13','14','15','16','17','18','19','20'];
-
 const COMPOSE_ROW1 = ['1','2','3','4','5','6','7','8','9','10'];
 const COMPOSE_ROW2 = ['11','12','13','14','15','16','17','18','19','20'];
-
 const PERIODS = ['1st', '2nd', '3rd', '4th'];
 
 // ── Default empty dashboard data ──────────────────────────────────────────────
@@ -34,9 +62,11 @@ function createEmptyData() {
       compose: { '1st': '', '2nd': '', '3rd': '', '4th': '' },
     },
   };
-  const allLetters = [...EN_LETTERS_ROW1, ...EN_LETTERS_ROW2];
-  for (const l of allLetters) {
+  for (const l of [...EN_LETTERS_ROW1, ...EN_LETTERS_ROW2]) {
     data.letters[l] = { upper: false, lower: false, sound: false, formation: false };
+  }
+  for (const l of ALL_ES_LETTERS) {
+    data.letters[l.k] = { upper: false, lower: false, sound: false, formation: false };
   }
   for (const n of [...NUMBERS_ROW1, ...NUMBERS_ROW2]) {
     data.numbers[n] = { read: false, write: false };
@@ -47,17 +77,20 @@ function createEmptyData() {
   return data;
 }
 
-// ── Checkmark cell ────────────────────────────────────────────────────────────
-function CheckCell({ checked, onClick, readOnly }) {
+// ── Checkmark cell — black check, no border, no fill ───────────────────────────
+function CheckCell({ checked, onClick, readOnly, blackedOut }) {
+  if (blackedOut) {
+    return <div className="w-full h-full bg-black print:bg-black" />;
+  }
   return (
     <button
       onClick={readOnly ? undefined : onClick}
       disabled={readOnly}
-      className={`w-full h-7 flex items-center justify-center border border-black transition ${
-        checked ? 'bg-black text-white' : 'bg-white hover:bg-gray-100'
+      className={`w-full min-h-7 py-1 flex items-center justify-center transition ${
+        checked ? 'text-black' : 'text-transparent hover:bg-gray-100'
       } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
     >
-      {checked && <span className="text-xs font-bold">✓</span>}
+      <span className="text-base font-bold leading-none">✓</span>
     </button>
   );
 }
@@ -65,7 +98,7 @@ function CheckCell({ checked, onClick, readOnly }) {
 // ── Section header ────────────────────────────────────────────────────────────
 function SectionHeader({ title }) {
   return (
-    <div className="bg-[#FF0000] text-white font-bold uppercase text-sm text-center py-1.5 border border-black">
+    <div className="bg-[#FF0000] text-white font-bold uppercase text-sm text-center py-1.5 border-2 border-black">
       {title}
     </div>
   );
@@ -74,11 +107,11 @@ function SectionHeader({ title }) {
 // ── Parent initials row ───────────────────────────────────────────────────────
 function ParentInitialsRow({ label, data, toggle, path, readOnly }) {
   return (
-    <div className="border-t border-black p-3">
+    <div className="border-t-2 border-black p-3">
       <p className="text-xs font-bold mb-2">{label}</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {PERIODS.map(p => (
-          <div key={p} className="border border-black rounded px-2 py-1 text-xs">
+          <div key={p} className="border-2 border-black rounded px-2 py-1 text-xs">
             <span className="font-bold">{p} 9 Weeks:</span>
             <input
               type="text"
@@ -95,6 +128,14 @@ function ParentInitialsRow({ label, data, toggle, path, readOnly }) {
   );
 }
 
+// ── Thin border style helper for Spanish grid ────────────────────────────────
+function cellBorderStyle(letters, ci) {
+  const style = {};
+  if (letters[ci].tl) style.borderLeftWidth = '1px';
+  if (ci < letters.length - 1 && letters[ci + 1].tl) style.borderRightWidth = '1px';
+  return style;
+}
+
 // ── Letter grid (English) ─────────────────────────────────────────────────────
 function EnglishLetterGrid({ data, toggle, readOnly }) {
   const rows = [
@@ -106,22 +147,22 @@ function EnglishLetterGrid({ data, toggle, readOnly }) {
   const allLetters = [...EN_LETTERS_ROW1, ...EN_LETTERS_ROW2];
 
   return (
-    <div className="border border-black">
+    <div className="border-2 border-black">
       <SectionHeader title="Letter and Sound Identification" />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <tbody>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20"></td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20"></td>
               {allLetters.map(l => (
-                <td key={l} className="border border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{l}</td>
+                <td key={l} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{l}</td>
               ))}
             </tr>
             {rows.map(row => (
               <tr key={row.key}>
-                <td className="border border-black px-2 py-1 text-xs font-bold w-20">{row.label}</td>
+                <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{row.label}</td>
                 {allLetters.map(l => (
-                  <td key={`${l}-${row.key}`} className="border border-black p-0">
+                  <td key={`${l}-${row.key}`} className="border-2 border-black p-0">
                     <CheckCell checked={data.letters[l]?.[row.key]} onClick={() => toggle(`letters.${l}.${row.key}`)} readOnly={readOnly} />
                   </td>
                 ))}
@@ -130,7 +171,7 @@ function EnglishLetterGrid({ data, toggle, readOnly }) {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-4 px-3 py-2 border-t border-black text-xs">
+      <div className="flex flex-wrap gap-4 px-3 py-2 border-t-2 border-black text-xs">
         <label className="flex items-center gap-2 font-bold">
           <CheckCell checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} /> Knows all upper case
         </label>
@@ -160,7 +201,7 @@ function SpanishLetterGrid({ data, toggle, readOnly }) {
   ];
 
   return (
-    <div className="border border-black">
+    <div className="border-2 border-black">
       <SectionHeader title="Identificación de letras y sonidos" />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -168,20 +209,26 @@ function SpanishLetterGrid({ data, toggle, readOnly }) {
             {letterRows.map((row, ri) => (
               <React.Fragment key={`lr-${ri}`}>
                 <tr>
-                  <td className="border border-black px-2 py-1 text-xs font-bold w-16"></td>
+                  <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16"></td>
                   {row.letters.map((l, ci) => (
-                    <td key={`${l}-${ci}`} className="border border-black text-center font-bold text-sm px-1 min-w-[1.6rem]">{l}</td>
+                    <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-1 min-w-[1.6rem]"
+                      style={cellBorderStyle(row.letters, ci)}>
+                      <div className="font-bold text-sm leading-tight">{l.d}</div>
+                      {l.p && <div className="text-[10px] font-normal text-gray-600 leading-tight">{l.p}</div>}
+                    </td>
                   ))}
                 </tr>
                 {skillRows.map(sr => (
                   <tr key={`${ri}-${sr.key}`}>
-                    <td className="border border-black px-2 py-1 text-xs font-bold w-16">{sr.label}</td>
+                    <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16">{sr.label}</td>
                     {row.letters.map((l, ci) => (
-                      <td key={`${l}-${ci}-${sr.key}`} className="border border-black p-0">
+                      <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
+                        style={cellBorderStyle(row.letters, ci)}>
                         <CheckCell
-                          checked={data.letters[l]?.[sr.key]}
-                          onClick={() => toggle(`letters.${l}.${sr.key}`)}
+                          checked={data.letters[l.k]?.[sr.key]}
+                          onClick={() => toggle(`letters.${l.k}.${sr.key}`)}
                           readOnly={readOnly}
+                          blackedOut={sr.key === 'upper' && l.bl}
                         />
                       </td>
                     ))}
@@ -192,7 +239,7 @@ function SpanishLetterGrid({ data, toggle, readOnly }) {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-4 px-3 py-2 border-t border-black text-xs">
+      <div className="flex flex-wrap gap-4 px-3 py-2 border-t-2 border-black text-xs">
         <label className="flex items-center gap-2 font-bold">
           <CheckCell checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} /> Conoce todas las mayúsculas
         </label>
@@ -217,51 +264,51 @@ function NumbersGrid({ data, toggle, readOnly, lang }) {
   const canLabel = lang === 'es' ? 'Puedo' : 'I can';
 
   return (
-    <div className="border border-black">
+    <div className="border-2 border-black">
       <SectionHeader title={title} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <tbody>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20">{canLabel}</td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{canLabel}</td>
               {NUMBERS_ROW1.map(n => (
-                <td key={n} className="border border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+                <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
               ))}
             </tr>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
               {NUMBERS_ROW1.map(n => (
-                <td key={`${n}-r`} className="border border-black p-0">
+                <td key={`${n}-r`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.read} onClick={() => toggle(`numbers.${n}.read`)} readOnly={readOnly} />
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
               {NUMBERS_ROW1.map(n => (
-                <td key={`${n}-w`} className="border border-black p-0">
+                <td key={`${n}-w`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.write} onClick={() => toggle(`numbers.${n}.write`)} readOnly={readOnly} />
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20"></td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20"></td>
               {NUMBERS_ROW2.map(n => (
-                <td key={n} className="border border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+                <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
               ))}
             </tr>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
               {NUMBERS_ROW2.map(n => (
-                <td key={`${n}-r`} className="border border-black p-0">
+                <td key={`${n}-r`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.read} onClick={() => toggle(`numbers.${n}.read`)} readOnly={readOnly} />
                 </td>
               ))}
             </tr>
             <tr>
-              <td className="border border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
+              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
               {NUMBERS_ROW2.map(n => (
-                <td key={`${n}-w`} className="border border-black p-0">
+                <td key={`${n}-w`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.write} onClick={() => toggle(`numbers.${n}.write`)} readOnly={readOnly} />
                 </td>
               ))}
@@ -287,31 +334,31 @@ function ComposeGrid({ data, toggle, readOnly, lang }) {
   const renderBlock = (nums) => (
     <>
       <tr>
-        <td className="border border-black px-2 py-1 text-xs font-bold w-24">{canLabel}</td>
+        <td className="border-2 border-black px-2 py-1 text-xs font-bold w-24">{canLabel}</td>
         {nums.map(n => (
-          <td key={n} className="border border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+          <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
         ))}
       </tr>
       <tr>
-        <td className="border border-black px-2 py-1 text-xs w-24">{composeLabel}</td>
+        <td className="border-2 border-black px-2 py-1 text-xs w-24">{composeLabel}</td>
         {nums.map(n => (
-          <td key={`${n}-c`} className="border border-black p-0">
+          <td key={`${n}-c`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.compose} onClick={() => toggle(`compose.${n}.compose`)} readOnly={readOnly} />
           </td>
         ))}
       </tr>
       <tr>
-        <td className="border border-black px-2 py-1 text-xs w-24">{decomp2Label}</td>
+        <td className="border-2 border-black px-2 py-1 text-xs w-24">{decomp2Label}</td>
         {nums.map(n => (
-          <td key={`${n}-d2`} className="border border-black p-0">
+          <td key={`${n}-d2`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.decompose2} onClick={() => toggle(`compose.${n}.decompose2`)} readOnly={readOnly} />
           </td>
         ))}
       </tr>
       <tr>
-        <td className="border border-black px-2 py-1 text-xs w-24">{decomp3Label}</td>
+        <td className="border-2 border-black px-2 py-1 text-xs w-24">{decomp3Label}</td>
         {nums.map(n => (
-          <td key={`${n}-d3`} className="border border-black p-0">
+          <td key={`${n}-d3`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.decompose3} onClick={() => toggle(`compose.${n}.decompose3`)} readOnly={readOnly} />
           </td>
         ))}
@@ -320,7 +367,7 @@ function ComposeGrid({ data, toggle, readOnly, lang }) {
   );
 
   return (
-    <div className="border border-black">
+    <div className="border-2 border-black">
       <SectionHeader title={title} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -330,11 +377,11 @@ function ComposeGrid({ data, toggle, readOnly, lang }) {
           </tbody>
         </table>
       </div>
-      <div className="border-t border-black p-3">
+      <div className="border-t-2 border-black p-3">
         <p className="text-xs font-bold mb-2">{countingLabel}____</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {PERIODS.map(p => (
-            <div key={p} className="border border-black rounded px-2 py-1 text-xs">
+            <div key={p} className="border-2 border-black rounded px-2 py-1 text-xs">
               <span className="font-bold">{p} 9 Weeks:</span>
               <input
                 type="text"
@@ -353,17 +400,37 @@ function ComposeGrid({ data, toggle, readOnly, lang }) {
   );
 }
 
-// ── Paw logo ──────────────────────────────────────────────────────────────────
-function PawLogo() {
+// ── Print header (visible only during print) ──────────────────────────────────
+function PrintHeader({ student, lang, class_name }) {
   return (
-    <div className="w-14 h-14 rounded-full bg-white border-2 border-black flex items-center justify-center shrink-0">
-      <svg viewBox="0 0 100 100" className="w-10 h-10">
-        <ellipse cx="50" cy="65" rx="22" ry="18" fill="#FF0000"/>
-        <circle cx="30" cy="42" r="9" fill="#FF0000"/>
-        <circle cx="70" cy="42" r="9" fill="#FF0000"/>
-        <circle cx="38" cy="28" r="7" fill="#FF0000"/>
-        <circle cx="62" cy="28" r="7" fill="#FF0000"/>
-      </svg>
+    <div className="flex items-center gap-3 mb-3 pb-2 border-b-2 border-black">
+      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-14 h-14 object-contain shrink-0" />
+      <div className="flex-1">
+        <h1 className="text-base font-black">WESTWOOD ELEMENTARY</h1>
+        <p className="text-xs font-bold text-gray-600">
+          {lang === 'es' ? 'FORMULARIO DE INFORMACIÓN DEL ESTUDIANTE' : 'STUDENT INFORMATION FORM'}
+        </p>
+        <p className="text-xs mt-1">
+          <span className="font-bold">{lang === 'es' ? 'Nombre:' : 'Name:'}</span> {student?.name || '—'}
+          <span className="font-bold ml-3">ID:</span> {student?.barcode_number || '—'}
+          <span className="font-bold ml-3">{lang === 'es' ? 'Maestro(a):' : 'Teacher:'}</span> {class_name || student?.class_name || '—'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Grid sections (reused for screen + print) ─────────────────────────────────
+function DashboardSections({ data, toggle, readOnly, lang }) {
+  return (
+    <div className="space-y-4">
+      {lang === 'es' ? (
+        <SpanishLetterGrid data={data} toggle={toggle} readOnly={readOnly} />
+      ) : (
+        <EnglishLetterGrid data={data} toggle={toggle} readOnly={readOnly} />
+      )}
+      <NumbersGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
+      <ComposeGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
     </div>
   );
 }
@@ -383,15 +450,18 @@ export default function StudentDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [data, setData] = useState(createEmptyData());
   const [saving, setSaving] = useState(false);
+  const [printingAll, setPrintingAll] = useState(false);
+  const [printAllData, setPrintAllData] = useState(null);
   const [lang, setLang] = useState('es');
 
-  // Load class options from ClassConfig
+  // Load class options
   useEffect(() => {
     base44.entities.ClassConfig.list().then(configs => {
       setClassOptions(configs.map(c => c.class_name).filter(Boolean).sort());
     }).catch(e => console.warn('Load classes failed:', e));
   }, []);
 
+  // Load students when class selected
   useEffect(() => {
     const cls = selectedClass || classParam;
     if (cls) {
@@ -406,6 +476,7 @@ export default function StudentDashboard() {
     }
   }, [selectedClass, classParam]);
 
+  // Set language from student
   useEffect(() => {
     if (selectedStudentId) {
       const student = students.find(s => s.id === selectedStudentId);
@@ -474,13 +545,50 @@ export default function StudentDashboard() {
     }
   };
 
+  const handlePrint = () => {
+    document.body.classList.add('dashboard-printing');
+    window.print();
+    setTimeout(() => document.body.classList.remove('dashboard-printing'), 500);
+  };
+
+  const handlePrintAll = async () => {
+    if (!students.length) return;
+    setPrintingAll(true);
+    try {
+      const allData = [];
+      for (const student of students) {
+        let dData = createEmptyData();
+        try {
+          const list = await base44.entities.StudentDashboard.filter({ student_id: student.id, school_year: ACTIVE_SCHOOL_YEAR });
+          if (list.length > 0 && list[0].dashboard_data) {
+            dData = JSON.parse(list[0].dashboard_data);
+          }
+        } catch (e) {}
+        allData.push({ student, data: dData, lang: student.language || 'es' });
+      }
+      setPrintAllData(allData);
+      setTimeout(() => {
+        document.body.classList.add('dashboard-printing');
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('dashboard-printing');
+          setPrintAllData(null);
+        }, 500);
+      }, 300);
+    } finally {
+      setPrintingAll(false);
+    }
+  };
+
   const readOnly = urlParams.get('readonly') === 'true';
+  const selectedStudent = students.find(s => s.id === selectedStudentId);
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 bg-white z-10">
+      {/* ── Screen header (hidden on print) ── */}
+      <div className="no-print border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 bg-white z-10">
         <div className="flex items-center gap-3">
-          <PawLogo />
+          <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-16 h-16 object-contain shrink-0" />
           <div>
             <h1 className="text-lg font-black">WESTWOOD ELEMENTARY</h1>
             <p className="text-sm font-bold text-gray-600">
@@ -488,16 +596,36 @@ export default function StudentDashboard() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !selectedStudentId}
-          className="px-4 py-2 rounded-lg font-bold text-white text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <div className="flex items-center gap-2">
+          {students.length > 0 && (
+            <button
+              onClick={handlePrintAll}
+              disabled={printingAll}
+              className="px-3 py-2 rounded-lg font-bold text-white text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" /> {printingAll ? 'Loading…' : 'Print All'}
+            </button>
+          )}
+          {selectedStudentId && (
+            <button
+              onClick={handlePrint}
+              className="px-3 py-2 rounded-lg font-bold border border-gray-300 hover:bg-gray-100 text-sm flex items-center gap-1.5"
+            >
+              <Printer className="w-4 h-4" /> Print
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !selectedStudentId}
+            className="px-4 py-2 rounded-lg font-bold text-white text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
 
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2 items-center">
+      {/* ── Class/student picker (hidden on print) ── */}
+      <div className="no-print px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2 items-center">
         <select
           value={selectedClass}
           onChange={(e) => { setSelectedClass(e.target.value); setSelectedStudentId(''); setStudents([]); }}
@@ -522,27 +650,30 @@ export default function StudentDashboard() {
         )}
       </div>
 
+      {/* ── Student info bar (hidden on print) ── */}
       {selectedStudentId && (
-        <div className="px-4 py-2 border-b border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-          <div><span className="font-bold">{lang === 'es' ? 'Nombre:' : 'Name:'}</span> {students.find(s => s.id === selectedStudentId)?.name || '—'}</div>
-          <div><span className="font-bold">ID:</span> {students.find(s => s.id === selectedStudentId)?.barcode_number || '—'}</div>
+        <div className="no-print px-4 py-2 border-b border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+          <div><span className="font-bold">{lang === 'es' ? 'Nombre:' : 'Name:'}</span> {selectedStudent?.name || '—'}</div>
+          <div><span className="font-bold">ID:</span> {selectedStudent?.barcode_number || '—'}</div>
           <div><span className="font-bold">{lang === 'es' ? 'Maestro(a):' : 'Teacher:'}</span> {selectedClass || classParam || '—'}</div>
-          <div><span className="font-bold">{lang === 'es' ? 'Grado:' : 'Grade:'}</span> {students.find(s => s.id === selectedStudentId)?.grade || 'K'}</div>
+          <div><span className="font-bold">{lang === 'es' ? 'Grado:' : 'Grade:'}</span> {selectedStudent?.grade || 'K'}</div>
         </div>
       )}
 
+      {/* ── Print-only header for single print ── */}
+      {selectedStudentId && !printAllData && (
+        <div className="hidden print:block px-4 pt-2">
+          <PrintHeader student={selectedStudent} lang={lang} class_name={selectedClass || classParam} />
+        </div>
+      )}
+
+      {/* ── Main grid content ── */}
       {selectedStudentId ? (
-        <div className="p-4 space-y-4 max-w-[1400px] mx-auto">
-          {lang === 'es' ? (
-            <SpanishLetterGrid data={data} toggle={toggle} readOnly={readOnly} />
-          ) : (
-            <EnglishLetterGrid data={data} toggle={toggle} readOnly={readOnly} />
-          )}
-          <NumbersGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
-          <ComposeGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
+        <div className={`p-4 max-w-[1400px] mx-auto ${printAllData ? 'print:hidden' : ''}`}>
+          <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
         </div>
       ) : (
-        <div className="max-w-md mx-auto mt-20 text-center text-gray-500">
+        <div className="no-print max-w-md mx-auto mt-20 text-center text-gray-500">
           {!selectedClass ? (
             <p>Select a class above to load students.</p>
           ) : selectedClass && students.length === 0 ? (
@@ -550,6 +681,18 @@ export default function StudentDashboard() {
           ) : (
             <p>Select a student above to view their dashboard.</p>
           )}
+        </div>
+      )}
+
+      {/* ── Print All container (hidden on screen, visible on print) ── */}
+      {printAllData && (
+        <div className="hidden print:block">
+          {printAllData.map(({ student, data: dData, lang: dLang }, idx) => (
+            <div key={idx} className="print:break-after-page px-4 py-2">
+              <PrintHeader student={student} lang={dLang} class_name={selectedClass || classParam} />
+              <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} />
+            </div>
+          ))}
         </div>
       )}
     </div>

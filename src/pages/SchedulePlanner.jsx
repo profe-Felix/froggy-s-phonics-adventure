@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Trash2, GripVertical, Clock, Eye, Pencil, Save, X } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Clock, Eye, Pencil, Save, X, Printer } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { WESTWOOD_LOGO_URL } from '@/lib/westwoodLogo';
 
 // ── Time helpers ─────────────────────────────────────────────────────────────
 function parseTime(str, period = 'AM') {
@@ -60,15 +61,7 @@ const DEFAULT_ROWS = [
 // ── Paw logo ──────────────────────────────────────────────────────────────────
 function PawLogo() {
   return (
-    <div className="w-12 h-12 rounded-full bg-white border-2 border-black flex items-center justify-center shrink-0">
-      <svg viewBox="0 0 100 100" className="w-8 h-8">
-        <ellipse cx="50" cy="65" rx="22" ry="18" fill="#FF0000"/>
-        <circle cx="30" cy="42" r="9" fill="#FF0000"/>
-        <circle cx="70" cy="42" r="9" fill="#FF0000"/>
-        <circle cx="38" cy="28" r="7" fill="#FF0000"/>
-        <circle cx="62" cy="28" r="7" fill="#FF0000"/>
-      </svg>
-    </div>
+    <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-16 h-16 object-contain shrink-0" />
   );
 }
 
@@ -270,7 +263,25 @@ function ViewMode({ schedule }) {
   return (
     <div className="max-w-4xl mx-auto p-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 no-print">
+        <PawLogo />
+        <div>
+          <h1 className="text-xl font-black text-black">{schedule.teacher_name || 'Teacher'}</h1>
+          <p className="text-sm font-bold text-black">{schedule.title || 'Daily Schedule'}</p>
+        </div>
+        <button
+          onClick={() => {
+            document.body.classList.add('dashboard-printing');
+            window.print();
+            setTimeout(() => document.body.classList.remove('dashboard-printing'), 500);
+          }}
+          className="ml-auto px-3 py-1.5 rounded-lg text-sm font-bold border border-gray-300 hover:bg-gray-100 flex items-center gap-1.5"
+        >
+          <Printer className="w-4 h-4" /> Print
+        </button>
+      </div>
+      {/* Print-only header */}
+      <div className="hidden print:flex items-center gap-3 mb-4">
         <PawLogo />
         <div>
           <h1 className="text-xl font-black text-black">{schedule.teacher_name || 'Teacher'}</h1>
@@ -402,7 +413,7 @@ export default function SchedulePlanner() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      <div className="no-print bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <h1 className="text-lg font-black flex items-center gap-2">
           <Clock className="w-5 h-5" /> Schedule Planner
         </h1>
