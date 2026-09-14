@@ -202,7 +202,7 @@
   }
   .page-preview {
     border: none !important;
-    padding: 0 !important;
+    padding: 0.25in 0.5in !important;
     min-height: 0 !important;
     width: auto !important;
     box-shadow: none !important;

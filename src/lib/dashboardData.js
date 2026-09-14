@@ -69,17 +69,30 @@ export function computePeriods(lastLetters) {
   const periods = [];
 
   for (let p = 0; p < 4; p++) {
-    const target = (lastLetters?.[PERIODS[p]] || DEFAULT_LAST_LETTERS[p]).toLowerCase().trim();
+    // Case-sensitive match: 'n' matches lowercase 'n' (index 19), not uppercase 'N' (index 18).
+    // This ensures both N and n stay in the same period when the user types 'n'.
+    const target = (lastLetters?.[PERIODS[p]] || DEFAULT_LAST_LETTERS[p]).trim();
     let endIdx = -1;
 
     for (let i = cursor; i < FULL_SEQUENCE.length; i++) {
-      if (FULL_SEQUENCE[i].d.toLowerCase() === target) {
+      if (FULL_SEQUENCE[i].d === target) {
         endIdx = i;
         break;
       }
     }
 
-    // If not found, try the default
+    // If not found with case-sensitive match, try case-insensitive as fallback
+    if (endIdx === -1) {
+      const targetLower = target.toLowerCase();
+      for (let i = cursor; i < FULL_SEQUENCE.length; i++) {
+        if (FULL_SEQUENCE[i].d.toLowerCase() === targetLower) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+
+    // If still not found, try the default
     if (endIdx === -1) {
       for (let i = cursor; i < FULL_SEQUENCE.length; i++) {
         if (FULL_SEQUENCE[i].d.toLowerCase() === DEFAULT_LAST_LETTERS[p]) {
