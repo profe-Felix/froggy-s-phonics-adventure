@@ -9,8 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import BackButton from '@/components/ui/BackButton';
-
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+import { useClassNames } from '@/hooks/useClassNames';
 
 
 
@@ -45,6 +44,7 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
 
 export default function TeacherNotebookDashboard({ onBack }) {
   const qc = useQueryClient();
+  const { classList } = useClassNames();
   const [className, setClassName] = useState(null);
   const [tab, setTab] = useState('assignments');
   const [dragging, setDragging] = useState(false);
@@ -188,7 +188,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
           <p className="text-indigo-300 text-sm">Select your class to continue</p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          {CLASS_NAMES.map(c => (
+          {classList.map(c => (
             <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => setClassName(c)}
               className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
               style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
@@ -209,7 +209,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="px-3 py-1.5 rounded-xl font-bold text-white border border-indigo-500"
           style={{ background: '#1a1a2e' }}>
-          {CLASS_NAMES.map(c => <option key={c} value={c}>Class {c}</option>)}
+          {classList.map(c => <option key={c} value={c}>Class {c}</option>)}
         </select>
       </div>
 

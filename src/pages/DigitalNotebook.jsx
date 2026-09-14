@@ -6,8 +6,8 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
+import { useClassNames } from '@/hooks/useClassNames';
 
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
 // Map class name aliases to canonical names
@@ -17,12 +17,19 @@ const CLASS_MAP = {
   'campos': 'Campos', 'c': 'Campos',
 };
 
-function parseClassParam(raw) {
+function parseClassParam(raw, classList) {
   if (!raw) return null;
-  return CLASS_MAP[raw.toLowerCase()] || (raw.charAt(0).toUpperCase() + raw.slice(1));
+  const lower = raw.toLowerCase();
+  // Check alias map first
+  if (CLASS_MAP[lower]) return CLASS_MAP[lower];
+  // Match against actual class names (case-insensitive)
+  const match = classList.find(c => c.toLowerCase() === lower);
+  if (match) return match;
+  // Fallback: capitalize
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function StudentLogin({ onEnter, preselectedClass }) {
+function StudentLogin({ onEnter, preselectedClass, classList }) {
   const [className, setClassName] = useState(preselectedClass || null);
   const [studentNumber, setStudentNumber] = useState(null);
 
@@ -31,7 +38,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
       <div className="flex flex-col items-center gap-6 py-10 px-4">
         <h2 className="text-2xl font-black text-white">Select Your Class</h2>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          {CLASS_NAMES.map(c => (
+          {classList.map(c => (
             <motion.button key={c} whileTap={{ scale: 0.9 }} onClick={() => setClassName(c)}
               className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
               style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
@@ -66,7 +73,7 @@ function StudentLogin({ onEnter, preselectedClass }) {
 }
 
 // Class picker shown when assignment link has no class pre-selected
-function ClassPicker({ onSelect, title }) {
+function ClassPicker({ onSelect, title, classList }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#0f0f1a' }}>
       <div className="text-center">
@@ -75,7 +82,7 @@ function ClassPicker({ onSelect, title }) {
         <p className="text-indigo-300 text-sm">Select your class to continue</p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
-        {CLASS_NAMES.map(c => (
+        {classList.map(c => (
           <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => onSelect(c)}
             className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
             style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
@@ -90,8 +97,9 @@ function ClassPicker({ onSelect, title }) {
 export default function DigitalNotebook() {
   const params = new URLSearchParams(window.location.search);
   const isTeacherMode = params.get('mode') === 'teacher';
+  const { classList } = useClassNames();
 
-  const urlClass = parseClassParam(params.get('class'));
+  const urlClass = parseClassParam(params.get('class'), classList);
   const urlAssignment = params.get('assignment') || params.get('Assignment') || null;
   const urlNumber = parseInt(params.get('number') || params.get('student'));
   const urlPage = parseInt(params.get('page')) || null;
@@ -106,6 +114,7 @@ export default function DigitalNotebook() {
   const [showQR, setShowQR] = useState(false);
   const [qrClass, setQrClass] = useState('');
 
+  // Auto-resolve from URL params so refresh keeps the student on their page
   useEffect(() => {
     if (autoResolved) return;
     if (urlClass && !isNaN(urlNumber) && urlNumber > 0) {
@@ -118,9 +127,22 @@ export default function DigitalNotebook() {
     }
   }, [urlClass, urlNumber, urlAssignment, autoResolved, isTeacherMode]);
 
+  // Persist student state to URL so refresh stays on the same page
+  useEffect(() => {
+    if (role === 'student' && studentInfo) {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set('class', studentInfo.className);
+      sp.set('number', studentInfo.number);
+      if (studentInfo.directAssignment) sp.set('assignment', studentInfo.directAssignment);
+      if (studentInfo.directPage) sp.set('page', studentInfo.directPage);
+      const newUrl = `${window.location.pathname}?${sp.toString()}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+  }, [role, studentInfo]);
+
   // If assignment link: show class picker, then student number picker, then go straight to notebook
   if (isAssignmentLink && !pickedClass) {
-    return <ClassPicker title={urlAssignment} onSelect={(c) => { setPickedClass(c); setRole('student'); }} />;
+    return <ClassPicker title={urlAssignment} classList={classList} onSelect={(c) => { setPickedClass(c); setRole('student'); }} />;
   }
 
   if (isAssignmentLink && pickedClass && !studentInfo) {
@@ -133,6 +155,7 @@ export default function DigitalNotebook() {
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
           preselectedClass={pickedClass}
+          classList={classList}
         />
       </div>
     );
@@ -172,7 +195,7 @@ export default function DigitalNotebook() {
                   onChange={e => setQrClass(e.target.value)}
                   className="border-2 border-gray-300 rounded-xl px-3 py-2 text-base font-bold">
                   <option value="">All classes</option>
-                  {CLASS_NAMES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {classList.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="flex justify-center mb-4">
@@ -197,6 +220,7 @@ export default function DigitalNotebook() {
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
           preselectedClass={urlClass}
+          classList={classList}
         />
       </div>
     );
