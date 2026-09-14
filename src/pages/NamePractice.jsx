@@ -23,7 +23,21 @@ export default function NamePractice() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const settingIdRef = useRef(null);
+
+  // Scale the 8.5in page-preview down to fit the viewport so it looks like a
+  // centered page with margins instead of overflowing to the right edge.
+  useEffect(() => {
+    const updateZoom = () => {
+      const available = window.innerWidth - 48; // 24px breathing room each side
+      const pageWidthPx = 8.5 * 96; // 8.5in at 96dpi
+      setZoom(Math.min(1, available / pageWidthPx));
+    };
+    updateZoom();
+    window.addEventListener('resize', updateZoom);
+    return () => window.removeEventListener('resize', updateZoom);
+  }, []);
 
   // Shared guide settings (emoji/fence ratios) — same as letter/word tracing
   const guideHook = useTracingGuideSettings();
@@ -192,9 +206,9 @@ export default function NamePractice() {
         <TracingGuideTuner {...guideHook} />
       </header>
 
-      <main className="py-8 flex justify-center print:block print:py-0">
+      <main className="py-8 print:block print:py-0">
         {students === null ? (
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <div className="flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : visible.length === 0 ? (
           <div className="text-center text-muted-foreground py-20">No students.</div>
         ) : allStudents ? (
@@ -202,22 +216,29 @@ export default function NamePractice() {
             {visible.map((s, i) => (
               <div
                 key={s.id}
-                style={i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : undefined}
+                className="np-zoom-container"
+                style={{ '--np-zoom': zoom, ...(i < visible.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : {}) }}
               >
-                <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-                  emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
-                  emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
-                  fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
-                  fenceOffsetRatio={gs.fenceOffsetRatio} />
+                <div className="np-scale-wrap" style={{ '--np-zoom': zoom }}>
+                  <NamePracticeSheet student={s} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
+                    emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+                    emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+                    fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+                    fenceOffsetRatio={gs.fenceOffsetRatio} />
+                </div>
               </div>
             ))}
           </div>
         ) : selected ? (
-          <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
-            emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
-            emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
-            fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
-            fenceOffsetRatio={gs.fenceOffsetRatio} />
+          <div className="np-zoom-container" style={{ '--np-zoom': zoom }}>
+            <div className="np-scale-wrap" style={{ '--np-zoom': zoom }}>
+              <NamePracticeSheet student={selected} mode={mode} fontSize={effFont} lineSize={effLine} offset={effOffset}
+                emojiHeightFactor={gs.emojiHeightFactor} emojiFeetFactor={gs.emojiFeetFactor}
+                emojiSpacingRatio={gs.emojiSpacingRatio} emojiXRatio={gs.emojiXRatio}
+                fenceGapRatio={gs.fenceGapRatio} fenceWidthRatio={gs.fenceWidthRatio}
+                fenceOffsetRatio={gs.fenceOffsetRatio} />
+            </div>
+          </div>
         ) : null}
       </main>
     </div>

@@ -207,6 +207,13 @@
     width: auto !important;
     box-shadow: none !important;
   }
+  .np-zoom-container {
+    width: auto !important;
+  }
+  .np-scale-wrap {
+    transform: none !important;
+    width: auto !important;
+  }
   .practice-sheet {
     padding: 0.1in 0 !important;
   }
@@ -403,6 +410,20 @@
   background: #fff;
   border: 1px solid #cbd5e1;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+}
+
+/* Zoom-to-fit wrapper for NamePractice on-screen preview.
+   Scales the 8.5in page down to fit the viewport so it looks like a
+   centered page with margins instead of bleeding to the right edge.
+   Print mode resets the transform and width (see @media print). */
+.np-zoom-container {
+  width: calc(8.5in * var(--np-zoom, 1));
+  margin: 0 auto;
+}
+.np-scale-wrap {
+  transform: scale(var(--np-zoom, 1));
+  transform-origin: top left;
+  width: 8.5in;
 }
 .page-break-indicator {
   border-top: 2px dashed #94a3b8;
