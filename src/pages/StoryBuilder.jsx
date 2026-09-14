@@ -11,9 +11,7 @@ import LaserOverlay from '@/components/notebook/LaserOverlay';
 import FloatingMicWidget from '@/components/notebook/FloatingMicWidget';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import BackButton from '@/components/ui/BackButton';
-
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
-const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
+import ClassStudentPicker from '@/components/game/ClassStudentPicker';
 
 function defaultStoryName() {
   const now = new Date();
@@ -29,34 +27,6 @@ const TEMPLATES = [
   { id: 'story_web', label: '🕸 Story web' },
   { id: 'border', label: '🖼 Border' },
 ];
-
-function StudentLogin({ onEnter, preselectedClass }) {
-  const [className, setClassName] = useState(preselectedClass || null);
-  if (!className) return (
-    <div className="flex flex-col items-center gap-6 py-10 px-4">
-      <h2 className="text-2xl font-black text-white">📖 Select Your Class</h2>
-      <div className="flex flex-col gap-3 w-full max-w-xs">
-        {CLASS_NAMES.map(c => (
-          <motion.button key={c} whileTap={{ scale: 0.9 }} onClick={() => setClassName(c)}
-            className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
-            style={{ background: '#7c3aed', border: '3px solid #a78bfa' }}>{c}</motion.button>
-        ))}
-      </div>
-    </div>
-  );
-  return (
-    <div className="flex flex-col items-center gap-6 py-10 px-4">
-      <h2 className="text-2xl font-black text-white">Class {className} — Your Number</h2>
-      <div className="grid grid-cols-5 gap-2 max-w-sm">
-        {STUDENT_NUMBERS.map(n => (
-          <motion.button key={n} whileTap={{ scale: 0.85 }} onClick={() => onEnter(className, n)}
-            className="w-14 h-14 rounded-2xl font-black text-white text-xl shadow-lg"
-            style={{ background: '#6d28d9', border: '2px solid #7c3aed' }}>{n}</motion.button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const [pages, setPages] = useState(story.pages || [{ id: 'p1', template: 'blank', strokes_data: null }]);
@@ -794,12 +764,14 @@ export default function StoryBuilder(props = {}) {
 
   if (!studentInfo) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: '#0d0d1a' }}>
-        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#7c3aed', background: '#1a1a2e' }}>
-          <h1 className="text-lg font-black text-white">📖 Story Builder</h1>
-        </div>
-        <StudentLogin onEnter={(cls, num) => setStudentInfo({ className: cls, number: num })} preselectedClass={className} />
-      </div>
+      <ClassStudentPicker
+        icon="📖"
+        title="Story Builder"
+        titleFrom="#7c3aed"
+        titleTo="#a78bfa"
+        preselectedClass={className}
+        onSelect={(cls, num) => setStudentInfo({ className: cls, number: num })}
+      />
     );
   }
 
