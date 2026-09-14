@@ -7,8 +7,10 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
+import { useClassColors } from '@/hooks/useClassColors';
 
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
+const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
 
 // Map class name aliases to canonical names
 const CLASS_MAP = {
@@ -30,25 +32,41 @@ function parseClassParam(raw, classList) {
 }
 
 function StudentLogin({ onEnter, preselectedClass, classList }) {
+  const { colorFor, groupedClasses } = useClassColors();
   const [className, setClassName] = useState(preselectedClass || null);
-  const [studentNumber, setStudentNumber] = useState(null);
+  const groups = groupedClasses();
 
   if (!className) {
     return (
       <div className="flex flex-col items-center gap-6 py-10 px-4">
         <h2 className="text-2xl font-black text-white">Select Your Class</h2>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          {classList.map(c => (
-            <motion.button key={c} whileTap={{ scale: 0.9 }} onClick={() => setClassName(c)}
-              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
-              style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
-              {c}
-            </motion.button>
-          ))}
+        <div className="flex flex-col gap-6 w-full max-w-md">
+          {['kinder', 'first'].map(grade =>
+            groups[grade]?.length ? (
+              <div key={grade}>
+                <h3 className="text-center text-indigo-300 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {groups[grade].map(cls => {
+                    const c = colorFor(cls);
+                    return (
+                      <motion.button key={cls} whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.06 }}
+                        onClick={() => setClassName(cls)}
+                        className="aspect-square rounded-3xl text-white font-extrabold text-lg shadow-xl ring-2 ring-white/40"
+                        style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
+                        {cls}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null
+          )}
         </div>
       </div>
     );
   }
+
+  const c = colorFor(className);
 
   return (
     <div className="flex flex-col items-center gap-6 py-10 px-4">
@@ -58,12 +76,12 @@ function StudentLogin({ onEnter, preselectedClass, classList }) {
         )}
         <h2 className="text-2xl font-black text-white">Class {className} — Your Number</h2>
       </div>
-      <div className="grid grid-cols-5 gap-2 max-w-sm">
+      <div className="grid grid-cols-5 sm:grid-cols-6 gap-2.5 max-w-sm">
         {STUDENT_NUMBERS.map(n => (
-          <motion.button key={n} whileTap={{ scale: 0.85 }}
+          <motion.button key={n} whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.1 }}
             onClick={() => onEnter(className, n)}
-            className="w-14 h-14 rounded-2xl font-black text-white text-xl shadow-lg"
-            style={{ background: '#2563eb', border: '2px solid #4338ca' }}>
+            className="aspect-square rounded-2xl text-white font-extrabold text-xl shadow-lg ring-1 ring-white/30"
+            style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
             {n}
           </motion.button>
         ))}
@@ -74,6 +92,8 @@ function StudentLogin({ onEnter, preselectedClass, classList }) {
 
 // Class picker shown when assignment link has no class pre-selected
 function ClassPicker({ onSelect, title, classList }) {
+  const { colorFor, groupedClasses } = useClassColors();
+  const groups = groupedClasses();
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#0f0f1a' }}>
       <div className="text-center">
@@ -81,14 +101,27 @@ function ClassPicker({ onSelect, title, classList }) {
         <h1 className="text-2xl font-black text-white mb-1">{title}</h1>
         <p className="text-indigo-300 text-sm">Select your class to continue</p>
       </div>
-      <div className="flex flex-col gap-3 w-full max-w-xs">
-        {classList.map(c => (
-          <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => onSelect(c)}
-            className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
-            style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
-            {c}
-          </motion.button>
-        ))}
+      <div className="flex flex-col gap-6 w-full max-w-md">
+        {['kinder', 'first'].map(grade =>
+          groups[grade]?.length ? (
+            <div key={grade}>
+              <h3 className="text-center text-indigo-300 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {groups[grade].map(cls => {
+                  const c = colorFor(cls);
+                  return (
+                    <motion.button key={cls} whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.06 }}
+                      onClick={() => onSelect(cls)}
+                      className="aspect-square rounded-3xl text-white font-extrabold text-lg shadow-xl ring-2 ring-white/40"
+                      style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
+                      {cls}
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null
+        )}
       </div>
     </div>
   );

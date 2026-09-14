@@ -30,23 +30,26 @@ function getYouTubeEmbedUrl(url) {
   return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1` : null;
 }
 
-function AssignmentPicker({ assignments, onSelect }) {
+function AssignmentPicker({ assignments, onSelect, className }) {
   return (
     <div className="min-h-screen flex flex-col items-center py-8 px-4" style={{ background: '#0f0f1a' }}>
       <h2 className="text-2xl font-black text-white mb-6">📓 Your Assignments</h2>
       {assignments.length === 0 && <p className="text-indigo-400">No active assignments right now.</p>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full max-w-2xl">
         {assignments.map((a) => (
           <motion.button
             key={a.id}
-            whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
             onClick={() => onSelect(a)}
-            className="rounded-2xl p-5 text-left flex flex-col gap-2 hover:scale-105 transition-all"
+            className="aspect-[4/3] rounded-3xl p-4 text-left flex flex-col justify-between shadow-xl ring-1 ring-white/20"
             style={{ background: '#1a1a2e', border: '2px solid #4338ca' }}
           >
             <span className="text-3xl">📄</span>
-            <p className="font-black text-white text-lg">{a.title}</p>
-            <p className="text-xs text-indigo-300">{a.page_mode === 'locked' ? '🔒 Teacher-paced' : '🆓 Self-paced'}</p>
+            <div>
+              <p className="font-black text-white text-base leading-tight">{a.title}</p>
+              <p className="text-xs text-indigo-300 mt-1">{a.page_mode === 'locked' ? '🔒 Teacher-paced' : '🆓 Self-paced'}</p>
+            </div>
           </motion.button>
         ))}
       </div>
@@ -523,8 +526,18 @@ localDirtyRef.current = false;
     setCurrentPage(clamped);
   };
 
+  // Keep URL in sync with current assignment + page so teachers can copy direct links
+  useEffect(() => {
+    if (!selectedAssignment) return;
+    const sp = new URLSearchParams(window.location.search);
+    sp.set('assignment', selectedAssignment.title);
+    sp.set('page', String(currentPage));
+    const newUrl = `${window.location.pathname}?${sp.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+  }, [currentPage, selectedAssignment]);
+
   if (!selectedAssignment) {
-    return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} />;
+    return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} className={className} />;
   }
 
   return (
