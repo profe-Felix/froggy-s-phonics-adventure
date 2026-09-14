@@ -3,13 +3,18 @@ import LaserRecordView from './LaserRecordView';
 import TeacherInstructionAnnotator from './TeacherInstructionAnnotator';
 import AssessmentTab from '@/components/assessment/AssessmentTab';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 import ReplayModal from './ReplayModal';
 import StudentThumbnail from './StudentThumbnail';
+import StudentLoginShell from '@/components/game/StudentLoginShell';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
+import { useClassColors } from '@/hooks/useClassColors';
+
+const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
 
 
 
@@ -45,6 +50,7 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
 export default function TeacherNotebookDashboard({ onBack }) {
   const qc = useQueryClient();
   const { classList } = useClassNames();
+  const { colorFor, groupedClasses } = useClassColors();
   const [className, setClassName] = useState(null);
   const [tab, setTab] = useState('assignments');
   const [dragging, setDragging] = useState(false);
@@ -180,23 +186,53 @@ export default function TeacherNotebookDashboard({ onBack }) {
 
   // Class picker gate — must select before entering
   if (!className) {
+    const groups = groupedClasses();
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#0f0f1a' }}>
-        <div className="text-center">
-          <div className="text-5xl mb-3">📓</div>
-          <h1 className="text-2xl font-black text-white mb-1">Digital Notebook</h1>
-          <p className="text-indigo-300 text-sm">Select your class to continue</p>
-        </div>
-        <div className="flex flex-col gap-3 w-full max-w-xs">
-          {classList.map(c => (
-            <motion.button key={c} whileTap={{ scale: 0.92 }} onClick={() => setClassName(c)}
-              className="w-full py-5 rounded-2xl text-2xl font-black text-white shadow-xl"
-              style={{ background: '#4338ca', border: '3px solid #9333ea' }}>
-              {c}
-            </motion.button>
-          ))}
-        </div>
-        <button onClick={onBack} className="text-indigo-400 hover:text-white font-bold text-sm">← Back</button>
+      <div className="relative">
+        <button
+          onClick={onBack}
+          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-slate-700"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <StudentLoginShell
+          icon="📓"
+          title="Digital Notebook"
+          titleFrom="#4f46e5"
+          titleTo="#7c3aed"
+          subtitle="Select your class to continue"
+        >
+          <div className="flex flex-col gap-6">
+            {['kinder', 'first'].map(grade =>
+              groups[grade]?.length ? (
+                <div key={grade}>
+                  <h2 className="text-center text-slate-500 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    {groups[grade].map((cls, i) => {
+                      const c = colorFor(cls);
+                      return (
+                        <motion.button
+                          key={cls}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.05 }}
+                          whileHover={{ scale: 1.06 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setClassName(cls)}
+                          className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
+                          style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+                        >
+                          <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">🌿</span>
+                          <span className="relative z-10">{cls}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null
+            )}
+          </div>
+        </StudentLoginShell>
       </div>
     );
   }
@@ -286,10 +322,14 @@ export default function TeacherNotebookDashboard({ onBack }) {
                     className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${a.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-indigo-900 hover:text-indigo-300'}`}>
                     {a.shared_across_classes ? '🌐' : '🔒'}
                   </button>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold
-                    ${a.status === 'active' ? 'bg-green-700 text-green-200' : a.status === 'closed' ? 'bg-gray-700 text-gray-300' : 'bg-indigo-900 text-indigo-300'}`}>
+                  <button
+                    onClick={() => updateAssignment.mutate({ id: a.id, data: { status: a.status === 'active' ? 'draft' : 'active' } })}
+                    className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition-all hover:scale-105
+                      ${a.status === 'active' ? 'bg-green-700 text-green-200 hover:bg-green-800' : a.status === 'closed' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-indigo-900 text-indigo-300 hover:bg-indigo-800'}`}
+                    title={a.status === 'active' ? 'Click to disable (set to draft)' : 'Click to enable (set to active)'}
+                  >
                     {a.status}
-                  </span>
+                  </button>
                   <button
                     onClick={async () => {
                       if (!confirm(`Delete "${a.title}"?`)) return;
