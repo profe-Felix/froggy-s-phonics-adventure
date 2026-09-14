@@ -5,7 +5,7 @@ export default function NamePracticeSheet({ student, mode = 'first', fontSize = 
   const tokens = (student?.student_name || student?.name || '').trim().split(/\s+/).filter(Boolean);
   const first = tokens[0] || '';
   const last = tokens.length > 1 ? tokens[tokens.length - 1] : '';
-  const rows = mode === 'firstlast' ? [first, last, first, last] : [first, first, first, first];
+  const rows = mode === 'firstlast' ? [first, last, first, last, first, last] : [first, first, first, first, first, first];
 
   // GuideKeyVisual viewBox — sized in hundredths of an inch so the aspect
   // ratio matches the practice-set. Wider than the old 2in so the fence

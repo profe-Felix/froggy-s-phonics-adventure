@@ -8,7 +8,7 @@ const MAX_UNDO_ACTIONS = 50;
 // device originally drew them.
 const REFERENCE_WIDTH = 1200;
 
-function drawStroke(ctx, s, w, h) {
+function drawStroke(ctx, s, w, h, forceAlpha) {
   if (!s.pts || s.pts.length === 0) return;
   ctx.save();
   ctx.lineCap = 'round';
@@ -20,7 +20,7 @@ function drawStroke(ctx, s, w, h) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = s.color;
     ctx.lineWidth = Math.max(1, lw * 2.5);
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = forceAlpha ?? 0.35;
   } else if (s.tool === 'eraser_object') {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.strokeStyle = '#000';
@@ -223,8 +223,31 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (!c) return;
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, width, height);
-    for (const s of strokes.current) drawStroke(ctx, s, width, height);
-    if (current.current) drawStroke(ctx, current.current, width, height);
+
+    const allStrokes = [...strokes.current];
+    if (current.current) allStrokes.push(current.current);
+
+    // Render highlighter strokes on an offscreen canvas at full opacity, then
+    // composite the whole layer at 0.35 alpha. This prevents overlapping strokes
+    // (going over the same area again) from compounding into a darker, messy blob.
+    if (allStrokes.some(s => s.tool === 'highlighter')) {
+      const dpr = window.devicePixelRatio || 1;
+      const off = document.createElement('canvas');
+      off.width = Math.max(1, Math.round(width * dpr));
+      off.height = Math.max(1, Math.round(height * dpr));
+      const offCtx = off.getContext('2d');
+      offCtx.scale(dpr, dpr);
+      for (const s of allStrokes) {
+        if (s.tool === 'highlighter') drawStroke(offCtx, s, width, height, 1);
+      }
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(off, 0, 0, width, height);
+      ctx.globalAlpha = 1;
+    }
+
+    for (const s of allStrokes) {
+      if (s.tool !== 'highlighter') drawStroke(ctx, s, width, height);
+    }
   };
 
   useEffect(() => {

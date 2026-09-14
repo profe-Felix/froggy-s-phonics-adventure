@@ -15,6 +15,12 @@ import BackButton from '@/components/ui/BackButton';
 const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
 const STUDENT_NUMBERS = Array.from({ length: 30 }, (_, i) => i + 1);
 
+function defaultStoryName() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}`;
+}
+
 const TEMPLATES = [
   { id: 'blank', label: '⬜ Blank' },
   { id: 'lined', label: '📄 Lined' },
@@ -59,7 +65,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const [saving, setSaving] = useState(false);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#1e3a8a');
-  const [size, setSize] = useState(4);
+  const [size, setSize] = useState(7);
   const [side, setSide] = useState('left');
   const [addingMic, setAddingMic] = useState(false);
   const [floatingMics, setFloatingMics] = useState([]);
@@ -697,7 +703,7 @@ export default function StoryBuilder(props = {}) {
 
   const [studentInfo, setStudentInfo] = useState(null);
   const [selectedStory, setSelectedStory] = useState(null);
-  const [newTitle, setNewTitle] = useState('');
+  const [newTitle, setNewTitle] = useState(defaultStoryName);
   const [autoResolved, setAutoResolved] = useState(false);
 
   useEffect(() => {
@@ -737,7 +743,7 @@ export default function StoryBuilder(props = {}) {
       status: 'in_progress',
       last_active: new Date().toISOString(),
     });
-    setNewTitle('');
+    setNewTitle(defaultStoryName());
     setSelectedStory(story);
     refetch();
   };
@@ -808,7 +814,7 @@ export default function StoryBuilder(props = {}) {
       <div className="p-4 max-w-xl mx-auto w-full">
         <div className="flex gap-2 mb-4">
           <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
-            placeholder="New story title…"
+            placeholder="Story title…"
             onKeyDown={e => e.key === 'Enter' && createStory()}
             className="flex-1 px-3 py-2 rounded-xl border border-violet-600 text-white text-sm"
             style={{ background: '#1a1a2e' }} />

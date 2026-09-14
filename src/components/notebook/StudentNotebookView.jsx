@@ -68,7 +68,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const [currentPage, setCurrentPage] = useState(1);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#4338ca');
-  const [size, setSize] = useState(4);
+  const [size, setSize] = useState(7);
   const [side, setSide] = useState('left');
   const [fitMode, setFitMode] = useState(() => {
     if (typeof window !== 'undefined' && window.innerHeight > window.innerWidth) {
