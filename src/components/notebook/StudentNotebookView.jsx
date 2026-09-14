@@ -16,6 +16,8 @@ import CutPiecesLayer from './CutPiecesLayer';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import useCutPaste from '@/hooks/useCutPaste';
 import BackButton from '@/components/ui/BackButton';
+import { QRCodeSVG } from 'qrcode.react';
+import { useClassNames } from '@/hooks/useClassNames';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -59,6 +61,9 @@ function AssignmentPicker({ assignments, onSelect, className }) {
 
 export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName, directPage, extraHeaderContent }) {
   const qc = useQueryClient();
+  const { classList } = useClassNames();
+  const [showQR, setShowQR] = useState(false);
+  const [qrClass, setQrClass] = useState('');
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [tool, setTool] = useState('pen');
@@ -565,6 +570,14 @@ localDirtyRef.current = false;
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
         {extraHeaderContent}
         <button
+          onClick={() => setShowQR(true)}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shrink-0"
+          style={{ background: '#0d9488' }}
+          title="Share QR code for this page"
+        >
+          📱 QR
+        </button>
+        <button
           onClick={async () => {
             await saveStrokes();
           }}
@@ -889,6 +902,35 @@ localDirtyRef.current = false;
           maxPage={maxPage}
           onGo={goToPage}
         />
+      )}
+
+      {showQR && selectedAssignment && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setShowQR(false)}>
+          <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <p className="font-black text-2xl mb-1">📱 Share Page {currentPage}</p>
+            <p className="text-sm text-gray-500 mb-4">{selectedAssignment.title}</p>
+            <div className="flex items-center gap-3 mb-5 justify-center">
+              <span className="text-base font-bold text-gray-700">Class:</span>
+              <select value={qrClass || className}
+                onChange={e => setQrClass(e.target.value)}
+                className="border-2 border-gray-300 rounded-xl px-3 py-2 text-base font-bold">
+                <option value="">All classes</option>
+                {classList.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-center mb-4">
+              <QRCodeSVG
+                value={`${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(selectedAssignment.title)}&class=${qrClass || className}&page=${currentPage}`}
+                size={320}
+                level="M"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mb-5 break-all">
+              {window.location.origin}/DigitalNotebook?assignment={encodeURIComponent(selectedAssignment.title)}&class={qrClass || className}&page={currentPage}
+            </p>
+            <button onClick={() => setShowQR(false)} className="border-2 border-gray-300 bg-white rounded-2xl px-8 py-3 text-base font-bold hover:bg-gray-50">Close</button>
+          </div>
+        </div>
       )}
     </div>
   );

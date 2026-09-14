@@ -7,7 +7,6 @@ import StudentNotebookView from '../components/notebook/StudentNotebookView';
 import StudentLoginShell from '@/components/game/StudentLoginShell';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-import { QRCodeSVG } from 'qrcode.react';
 import { useClassNames } from '@/hooks/useClassNames';
 import { useClassColors } from '@/hooks/useClassColors';
 
@@ -198,8 +197,6 @@ export default function DigitalNotebook() {
   const [studentInfo, setStudentInfo] = useState(null);
   const [pickedClass, setPickedClass] = useState(urlClass || null);
   const [autoResolved, setAutoResolved] = useState(false);
-  const [showQR, setShowQR] = useState(false);
-  const [qrClass, setQrClass] = useState('');
 
   // Auto-resolve from URL params so refresh keeps the student on their page
   useEffect(() => {
@@ -255,47 +252,14 @@ export default function DigitalNotebook() {
   }
 
   if (role === 'student' && studentInfo) {
-    const qrUrl = `${window.location.origin}/DigitalNotebook?assignment=${encodeURIComponent(urlAssignment || studentInfo.directAssignment || '')}&class=${qrClass || studentInfo.className}&page=${urlPage || 1}&SY=${ACTIVE_SCHOOL_YEAR}`;
     return (
-      <>
-        <StudentNotebookView
-          studentNumber={studentInfo.number}
-          className={studentInfo.className}
-          directAssignmentName={studentInfo.directAssignment || null}
-          directPage={studentInfo.directPage || null}
-          onBack={() => { setStudentInfo(null); setRole(null); setPickedClass(urlClass || null); }}
-          extraHeaderContent={
-            urlAssignment ? (
-              <button onClick={() => setShowQR(true)}
-                className="px-2 py-1 rounded-lg text-xs font-bold border border-indigo-500 text-indigo-300 hover:bg-indigo-900 shrink-0">
-                📱 QR
-              </button>
-            ) : null
-          }
-        />
-        {showQR && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setShowQR(false)}>
-            <div className="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-              <p className="font-black text-2xl mb-1">📓 Share Assignment QR</p>
-              <p className="text-sm text-gray-500 mb-4">{urlAssignment}</p>
-              <div className="flex items-center gap-3 mb-5 justify-center">
-                <span className="text-base font-bold text-gray-700">Class:</span>
-                <select value={qrClass || studentInfo.className}
-                  onChange={e => setQrClass(e.target.value)}
-                  className="border-2 border-gray-300 rounded-xl px-3 py-2 text-base font-bold">
-                  <option value="">All classes</option>
-                  {classList.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="flex justify-center mb-4">
-                <QRCodeSVG value={qrUrl} size={320} level="M" />
-              </div>
-              <p className="text-xs text-gray-400 mb-5 break-all">{qrUrl}</p>
-              <button onClick={() => setShowQR(false)} className="border-2 border-gray-300 bg-white rounded-2xl px-8 py-3 text-base font-bold hover:bg-gray-50">Close</button>
-            </div>
-          </div>
-        )}
-      </>
+      <StudentNotebookView
+        studentNumber={studentInfo.number}
+        className={studentInfo.className}
+        directAssignmentName={studentInfo.directAssignment || null}
+        directPage={studentInfo.directPage || null}
+        onBack={() => { setStudentInfo(null); setRole(null); setPickedClass(urlClass || null); }}
+      />
     );
   }
 
