@@ -34,7 +34,7 @@ function drawStroke(ctx, s, w, h, forceAlpha) {
   } else {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = Math.max(1, lw);
+    ctx.lineWidth = Math.max(1, lw * 1.5);
     ctx.globalAlpha = 1;
   }
 
