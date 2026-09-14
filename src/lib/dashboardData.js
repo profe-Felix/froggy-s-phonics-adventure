@@ -3,80 +3,121 @@
 export const EN_LETTERS_ROW1 = ['A','B','C','D','E','F','G','H','I','J','K','L','M'];
 export const EN_LETTERS_ROW2 = ['N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 
-// Spanish letters grouped by 9-week period, each period split into modules.
-// Each module has a name + its letters. The grid renders a module header row
-// that overarches (colSpans) the letters belonging to that module.
-// {d: display, k: unique data key, p?: phoneme, bl?: black out Letra, tl?: thin left border}
-export const ES_PERIODS = [
-  {
-    label: '1as 9 sem',
-    defaultDate: 'oct. 10',
-    modules: [
-      { name: 'Módulo 1', letters: [
-        {d:'O',k:'O'},{d:'o',k:'o',tl:1},{d:'I',k:'I'},{d:'i',k:'i',tl:1},
-        {d:'A',k:'A'},{d:'a',k:'a',tl:1},{d:'U',k:'U'},{d:'u',k:'u',tl:1},
-        {d:'E',k:'E'},{d:'e',k:'e',tl:1},{d:'M',k:'M'},{d:'m',k:'m',tl:1},
-      ]},
-      { name: 'Módulo 2', letters: [
-        {d:'P',k:'P'},{d:'p',k:'p',tl:1},{d:'S',k:'S'},{d:'s',k:'s',tl:1},
-        {d:'L',k:'L'},{d:'l',k:'l',tl:1},{d:'N',k:'N'},{d:'n',k:'n',tl:1},
-      ]},
-    ],
-  },
-  {
-    label: '2as 9 sem',
-    defaultDate: 'dic. 19',
-    modules: [
-      { name: 'Módulo 3', letters: [
-        {d:'D',k:'D'},{d:'d',k:'d',tl:1},{d:'T',k:'T'},{d:'t',k:'t',tl:1},
-      ]},
-      { name: 'Módulo 4', letters: [
-        {d:'F',k:'F'},{d:'f',k:'f',tl:1},{d:'B',k:'B'},{d:'b',k:'b',tl:1},
-        {d:'R_',k:'R_'},{d:'r',k:'r',tl:1},
-      ]},
-      { name: 'Módulo 5', letters: [
-        {d:'C',k:'C',p:'/k/'},{d:'c',k:'c',p:'/k/',tl:1},
-        {d:'Q',k:'Q'},{d:'q',k:'q',tl:1},{d:'V',k:'V'},{d:'v',k:'v',tl:1},
-      ]},
-    ],
-  },
-  {
-    label: '3as 9 sem',
-    defaultDate: 'mar. 6',
-    modules: [
-      { name: 'Módulo 5', letters: [
-        {d:'R_',k:'R_'},{d:'r',k:'r',tl:1},
-      ]},
-      { name: 'Módulo 6', letters: [
-        {d:'Ll',k:'Ll',bl:1},{d:'ll',k:'ll',bl:1,tl:1},
-        {d:'G',k:'G',p:'/g/'},{d:'g',k:'g',p:'/g/',tl:1},
-        {d:'Y',k:'Y'},{d:'y',k:'y',tl:1},{d:'Z',k:'Z'},{d:'z',k:'z',tl:1},
-      ]},
-      { name: 'Módulo 7', letters: [
-        {d:'H',k:'H'},{d:'h',k:'h',tl:1},{d:'J',k:'J'},{d:'j',k:'j',tl:1},
-        {d:'C',k:'C_s',p:'/s/',bl:1},{d:'c',k:'c_s',p:'/s/',bl:1,tl:1},
-        {d:'Ñ',k:'Ñ'},{d:'ñ',k:'ñ',tl:1},
-        {d:'G',k:'G_j',p:'/j/',bl:1},{d:'g',k:'g_j',p:'/j/',bl:1,tl:1},
-      ]},
-    ],
-  },
-  {
-    label: '4as 9 sem',
-    defaultDate: 'may. 22',
-    modules: [
-      { name: 'Módulo 7', letters: [
-        {d:'Ch',k:'Ch',bl:1},{d:'ch',k:'ch',bl:1,tl:1},
-      ]},
-      { name: 'Módulo 8', letters: [
-        {d:'K',k:'K'},{d:'k',k:'k',tl:1},{d:'X',k:'X'},{d:'x',k:'x',tl:1},
-        {d:'W',k:'W'},{d:'w',k:'w',tl:1},
-      ]},
-    ],
-  },
+// Full curriculum sequence — ordered list of all Spanish letters with module numbers.
+// The última letra setting for each period determines where the sequence is cut.
+// {d: display, k: unique data key, m: module number, p?: phoneme, bl?: black out, tl?: thin left}
+export const FULL_SEQUENCE = [
+  // Módulo 1
+  {d:'O',k:'O',m:1},{d:'o',k:'o',m:1,tl:1},
+  {d:'I',k:'I',m:1},{d:'i',k:'i',m:1,tl:1},
+  {d:'A',k:'A',m:1},{d:'a',k:'a',m:1,tl:1},
+  {d:'U',k:'U',m:1},{d:'u',k:'u',m:1,tl:1},
+  {d:'E',k:'E',m:1},{d:'e',k:'e',m:1,tl:1},
+  {d:'M',k:'M',m:1},{d:'m',k:'m',m:1,tl:1},
+  // Módulo 2
+  {d:'P',k:'P',m:2},{d:'p',k:'p',m:2,tl:1},
+  {d:'S',k:'S',m:2},{d:'s',k:'s',m:2,tl:1},
+  {d:'L',k:'L',m:2},{d:'l',k:'l',m:2,tl:1},
+  {d:'N',k:'N',m:2},{d:'n',k:'n',m:2,tl:1},
+  // Módulo 3
+  {d:'D',k:'D',m:3},{d:'d',k:'d',m:3,tl:1},
+  {d:'T',k:'T',m:3},{d:'t',k:'t',m:3,tl:1},
+  // Módulo 4
+  {d:'F',k:'F',m:4},{d:'f',k:'f',m:4,tl:1},
+  {d:'B',k:'B',m:4},{d:'b',k:'b',m:4,tl:1},
+  {d:'R_',k:'R_',m:4},{d:'r',k:'r',m:4,tl:1},
+  // Módulo 5
+  {d:'C',k:'C',p:'/k/',m:5},{d:'c',k:'c',p:'/k/',m:5,tl:1},
+  {d:'Q',k:'Q',m:5},{d:'q',k:'q',m:5,tl:1},
+  {d:'V',k:'V',m:5},{d:'v',k:'v',m:5,tl:1},
+  // Módulo 5 (review)
+  {d:'R_',k:'R_',m:5},{d:'r',k:'r',m:5,tl:1},
+  // Módulo 6
+  {d:'Ll',k:'Ll',bl:1,m:6},{d:'ll',k:'ll',bl:1,m:6,tl:1},
+  {d:'G',k:'G',p:'/g/',m:6},{d:'g',k:'g',p:'/g/',m:6,tl:1},
+  {d:'Y',k:'Y',m:6},{d:'y',k:'y',m:6,tl:1},
+  {d:'Z',k:'Z',m:6},{d:'z',k:'z',m:6,tl:1},
+  // Módulo 7
+  {d:'H',k:'H',m:7},{d:'h',k:'h',m:7,tl:1},
+  {d:'J',k:'J',m:7},{d:'j',k:'j',m:7,tl:1},
+  {d:'C',k:'C_s',p:'/s/',bl:1,m:7},{d:'c',k:'c_s',p:'/s/',bl:1,m:7,tl:1},
+  {d:'Ñ',k:'Ñ',m:7},{d:'ñ',k:'ñ',m:7,tl:1},
+  {d:'G',k:'G_j',p:'/j/',bl:1,m:7},{d:'g',k:'g_j',p:'/j/',bl:1,m:7,tl:1},
+  // Módulo 7 (review)
+  {d:'Ch',k:'Ch',bl:1,m:7},{d:'ch',k:'ch',bl:1,m:7,tl:1},
+  // Módulo 8
+  {d:'K',k:'K',m:8},{d:'k',k:'k',m:8,tl:1},
+  {d:'X',k:'X',m:8},{d:'x',k:'x',m:8,tl:1},
+  {d:'W',k:'W',m:8},{d:'w',k:'w',m:8,tl:1},
 ];
 
-// Flatten all letters across all modules for createEmptyData
-export const ALL_ES_LETTERS = ES_PERIODS.flatMap(p => p.modules.flatMap(m => m.letters));
+// Period metadata (labels + default end dates) — letters are computed dynamically.
+export const ES_PERIOD_INFO = [
+  { label: '1as 9 sem', defaultDate: 'oct. 10' },
+  { label: '2as 9 sem', defaultDate: 'dic. 19' },
+  { label: '3as 9 sem', defaultDate: 'mar. 6' },
+  { label: '4as 9 sem', defaultDate: 'may. 22' },
+];
+
+// Default última letra for each period (used when no setting is saved).
+const DEFAULT_LAST_LETTERS = ['n', 'v', 'ñ', 'w'];
+
+// Compute which letters belong to each 9-week period based on the última letra settings.
+// Returns an array of 4 arrays, each containing the letters for that period.
+export function computePeriods(lastLetters) {
+  let cursor = 0;
+  const periods = [];
+
+  for (let p = 0; p < 4; p++) {
+    const target = (lastLetters?.[PERIODS[p]] || DEFAULT_LAST_LETTERS[p]).toLowerCase().trim();
+    let endIdx = -1;
+
+    for (let i = cursor; i < FULL_SEQUENCE.length; i++) {
+      if (FULL_SEQUENCE[i].d.toLowerCase() === target) {
+        endIdx = i;
+        break;
+      }
+    }
+
+    // If not found, try the default
+    if (endIdx === -1) {
+      for (let i = cursor; i < FULL_SEQUENCE.length; i++) {
+        if (FULL_SEQUENCE[i].d.toLowerCase() === DEFAULT_LAST_LETTERS[p]) {
+          endIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (endIdx === -1) {
+      // Still not found — include everything remaining (last period fallback)
+      periods.push(FULL_SEQUENCE.slice(cursor));
+      cursor = FULL_SEQUENCE.length;
+    } else {
+      periods.push(FULL_SEQUENCE.slice(cursor, endIdx + 1));
+      cursor = endIdx + 1;
+    }
+  }
+
+  return periods;
+}
+
+// Group consecutive letters by module — returns [{name: 'Módulo 1', module: 1, letters: [...]}]
+export function groupByModule(letters) {
+  const groups = [];
+  for (const l of letters) {
+    const last = groups[groups.length - 1];
+    if (last && last.module === l.m) {
+      last.letters.push(l);
+    } else {
+      groups.push({ name: `Módulo ${l.m}`, module: l.m, letters: [l] });
+    }
+  }
+  return groups;
+}
+
+// Backward compat — all possible letter keys for createEmptyData
+export const ALL_ES_LETTERS = FULL_SEQUENCE;
 
 export const NUMBERS_ROW1 = ['0','1','2','3','4','5','6','7','8','9','10'];
 export const NUMBERS_ROW2 = ['11','12','13','14','15','16','17','18','19','20'];

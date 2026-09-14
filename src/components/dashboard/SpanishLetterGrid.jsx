@@ -1,5 +1,5 @@
 import React from 'react';
-import { ES_PERIODS, PERIODS } from '@/lib/dashboardData';
+import { ES_PERIOD_INFO, computePeriods, groupByModule, PERIODS } from '@/lib/dashboardData';
 import { CheckCell, InlineToggle } from './CheckCell';
 
 function SectionHeader({ title }) {
@@ -40,68 +40,75 @@ function InlineInitialsBox({ period, value, onChange, readOnly }) {
 }
 
 export function SpanishLetterGrid({ data, toggle, readOnly }) {
+  // Dynamically compute which letters belong to each period based on última letra settings.
+  const periods = computePeriods(data.lastLetterLearned);
+
   return (
     <div className="border-2 border-black">
       <SectionHeader title="Identificación de letras y sonidos" />
-      {ES_PERIODS.map((period, pi) => {
+      {periods.map((periodLetters, pi) => {
+        const info = ES_PERIOD_INFO[pi];
         const periodKey = PERIODS[pi];
-        const allLetters = period.modules.flatMap(m => m.letters);
+        const modules = groupByModule(periodLetters);
+        const allLetters = periodLetters;
         return (
           <div key={pi} className="border-b-2 border-black last:border-b-0">
-            {/* Period header: label + editable end date only (última letra is in settings) */}
-            <div className="flex items-center gap-2 px-2 py-1 bg-gray-100 border-b border-black text-xs font-bold">
-              <span>{period.label}:</span>
+            {/* Period header: label + editable end date only */}
+            <div className="flex items-center gap-2 px-2 py-0.5 bg-gray-100 border-b border-black text-xs font-bold">
+              <span>{info.label}:</span>
               <span>Terminan</span>
               <input
                 type="text"
-                value={data.periodDates?.[periodKey] ?? period.defaultDate}
+                value={data.periodDates?.[periodKey] ?? info.defaultDate}
                 onChange={(e) => toggle(`periodDates.${periodKey}`, e.target.value, true)}
                 readOnly={readOnly}
                 className="w-20 border-b border-gray-400 outline-none bg-transparent"
               />
             </div>
             {/* Letter table with module overarch headers */}
-            <table className="w-full border-collapse">
-              <tbody>
-                {/* Module header row — each module name spans its letter columns */}
-                <tr>
-                  <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16"></td>
-                  {period.modules.map((m, mi) => (
-                    <td key={mi} colSpan={m.letters.length} className="border-2 border-black text-center font-bold text-xs py-1 bg-gray-50">
-                      {m.name}
-                    </td>
-                  ))}
-                </tr>
-                {/* Letter row */}
-                <tr>
-                  <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16"></td>
-                  {allLetters.map((l, ci) => (
-                    <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-1 min-w-[1.6rem]"
-                      style={cellBorderStyle(allLetters, ci)}>
-                      <div className="font-bold text-sm leading-tight">{l.d}</div>
-                      {l.p && <div className="text-[10px] font-normal text-gray-600 leading-tight">{l.p}</div>}
-                    </td>
-                  ))}
-                </tr>
-                {/* Skill rows */}
-                {SKILL_ROWS.map(sr => (
-                  <tr key={`${pi}-${sr.key}`}>
-                    <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16">{sr.label}</td>
-                    {allLetters.map((l, ci) => (
-                      <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
-                        style={cellBorderStyle(allLetters, ci)}>
-                        <CheckCell
-                          checked={data.letters[l.k]?.[sr.key]}
-                          onClick={() => toggle(`letters.${l.k}.${sr.key}`)}
-                          readOnly={readOnly}
-                          blackedOut={sr.key === 'upper' && l.bl}
-                        />
+            {allLetters.length > 0 && (
+              <table className="w-full border-collapse">
+                <tbody>
+                  {/* Module header row — each module name spans its letter columns */}
+                  <tr>
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14"></td>
+                    {modules.map((m, mi) => (
+                      <td key={mi} colSpan={m.letters.length} className="border-2 border-black text-center font-bold text-xs py-0.5 bg-gray-50">
+                        {m.name}
                       </td>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  {/* Letter row */}
+                  <tr>
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14"></td>
+                    {allLetters.map((l, ci) => (
+                      <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0.5"
+                        style={{ ...cellBorderStyle(allLetters, ci), minWidth: l.p ? '2.2rem' : '1.2rem' }}>
+                        <div className="font-bold text-sm leading-tight">{l.d}</div>
+                        {l.p && <div className="text-[10px] font-normal text-gray-600 leading-tight whitespace-nowrap">{l.p}</div>}
+                      </td>
+                    ))}
+                  </tr>
+                  {/* Skill rows — compact, just tall enough for the checkmark */}
+                  {SKILL_ROWS.map(sr => (
+                    <tr key={`${pi}-${sr.key}`}>
+                      <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14">{sr.label}</td>
+                      {allLetters.map((l, ci) => (
+                        <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
+                          style={cellBorderStyle(allLetters, ci)}>
+                          <CheckCell
+                            checked={data.letters[l.k]?.[sr.key]}
+                            onClick={() => toggle(`letters.${l.k}.${sr.key}`)}
+                            readOnly={readOnly}
+                            blackedOut={sr.key === 'upper' && l.bl}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         );
       })}

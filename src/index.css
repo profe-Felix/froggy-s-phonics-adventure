@@ -159,11 +159,12 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
 }
 
+@page {
+  size: letter portrait;
+  margin: 0.5in;
+}
+
 @media print {
-  @page {
-    size: letter portrait;
-    margin: 0.25in;
-  }
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -402,6 +403,20 @@
   background: #fff;
   border: 1px solid #cbd5e1;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+}
+.page-break-indicator {
+  border-top: 2px dashed #94a3b8;
+  margin: 1.5rem 0;
+  text-align: center;
+  position: relative;
+}
+.page-break-indicator span {
+  background: #f1f5f9;
+  padding: 0 8px;
+  font-size: 10px;
+  color: #64748b;
+  position: relative;
+  top: -10px;
 }
 .practice-sheet {
   --f: 1in;

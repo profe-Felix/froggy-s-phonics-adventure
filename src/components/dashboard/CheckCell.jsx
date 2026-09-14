@@ -10,17 +10,16 @@ export function CheckCell({ checked, onClick, readOnly, blackedOut }) {
     <button
       onClick={readOnly ? undefined : onClick}
       disabled={readOnly}
-      className={`w-full min-h-7 py-1 flex items-center justify-center transition ${
+      className={`w-full min-h-5 py-0.5 flex items-center justify-center transition ${
         checked ? 'text-black' : 'text-transparent hover:bg-gray-100'
       } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
     >
-      <span className="text-base font-bold leading-none">✓</span>
+      <span className="text-sm font-bold leading-none">✓</span>
     </button>
   );
 }
 
 // InlineToggle — label: ____ where the underline toggles a black check.
-// Used for the "Conoce..." / "Forma..." summary line.
 export function InlineToggle({ label, checked, onClick, readOnly }) {
   return (
     <span className="font-bold whitespace-nowrap text-xs">

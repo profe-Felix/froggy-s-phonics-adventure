@@ -59,14 +59,14 @@ export function EnglishLetterGrid({ data, toggle, readOnly }) {
         <table className="w-full border-collapse">
           <tbody>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20"></td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16"></td>
               {allLetters.map(l => (
-                <td key={l} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{l}</td>
+                <td key={l} className="border-2 border-black text-center font-bold text-sm px-0.5" style={{minWidth: '1.4rem'}}>{l}</td>
               ))}
             </tr>
             {rows.map(row => (
               <tr key={row.key}>
-                <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{row.label}</td>
+                <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{row.label}</td>
                 {allLetters.map(l => (
                   <td key={`${l}-${row.key}`} className="border-2 border-black p-0">
                     <CheckCell checked={data.letters[l]?.[row.key]} onClick={() => toggle(`letters.${l}.${row.key}`)} readOnly={readOnly} />
@@ -109,13 +109,13 @@ export function NumbersGrid({ data, toggle, readOnly, lang }) {
         <table className="w-full border-collapse">
           <tbody>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{canLabel}</td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{canLabel}</td>
               {NUMBERS_ROW1.map(n => (
-                <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+                <td key={n} className="border-2 border-black text-center font-bold text-sm px-0.5" style={{minWidth: '1.4rem'}}>{n}</td>
               ))}
             </tr>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{readLabel}</td>
               {NUMBERS_ROW1.map(n => (
                 <td key={`${n}-r`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.read} onClick={() => toggle(`numbers.${n}.read`)} readOnly={readOnly} />
@@ -123,7 +123,7 @@ export function NumbersGrid({ data, toggle, readOnly, lang }) {
               ))}
             </tr>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{writeLabel}</td>
               {NUMBERS_ROW1.map(n => (
                 <td key={`${n}-w`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.write} onClick={() => toggle(`numbers.${n}.write`)} readOnly={readOnly} />
@@ -131,13 +131,13 @@ export function NumbersGrid({ data, toggle, readOnly, lang }) {
               ))}
             </tr>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20"></td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16"></td>
               {NUMBERS_ROW2.map(n => (
-                <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+                <td key={n} className="border-2 border-black text-center font-bold text-sm px-0.5" style={{minWidth: '1.4rem'}}>{n}</td>
               ))}
             </tr>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{readLabel}</td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{readLabel}</td>
               {NUMBERS_ROW2.map(n => (
                 <td key={`${n}-r`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.read} onClick={() => toggle(`numbers.${n}.read`)} readOnly={readOnly} />
@@ -145,7 +145,7 @@ export function NumbersGrid({ data, toggle, readOnly, lang }) {
               ))}
             </tr>
             <tr>
-              <td className="border-2 border-black px-2 py-1 text-xs font-bold w-20">{writeLabel}</td>
+              <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-16">{writeLabel}</td>
               {NUMBERS_ROW2.map(n => (
                 <td key={`${n}-w`} className="border-2 border-black p-0">
                   <CheckCell checked={data.numbers[n]?.write} onClick={() => toggle(`numbers.${n}.write`)} readOnly={readOnly} />
@@ -179,13 +179,13 @@ export function ComposeGrid({ data, toggle, readOnly, lang }) {
   const renderBlock = (nums) => (
     <>
       <tr>
-        <td className="border-2 border-black px-2 py-1 text-xs font-bold w-24">{canLabel}</td>
+        <td className="border-2 border-black px-1 py-0.5 text-[10px] font-bold w-32 whitespace-nowrap">{canLabel}</td>
         {nums.map(n => (
-          <td key={n} className="border-2 border-black text-center font-bold text-sm px-1 min-w-[1.8rem]">{n}</td>
+          <td key={n} className="border-2 border-black text-center font-bold text-sm px-0.5" style={{minWidth: '1.4rem'}}>{n}</td>
         ))}
       </tr>
       <tr>
-        <td className="border-2 border-black px-2 py-1 text-xs w-24">{composeLabel}</td>
+        <td className="border-2 border-black px-1 py-0.5 text-[10px] w-32 whitespace-nowrap">{composeLabel}</td>
         {nums.map(n => (
           <td key={`${n}-c`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.compose} onClick={() => toggle(`compose.${n}.compose`)} readOnly={readOnly} />
@@ -193,7 +193,7 @@ export function ComposeGrid({ data, toggle, readOnly, lang }) {
         ))}
       </tr>
       <tr>
-        <td className="border-2 border-black px-2 py-1 text-xs w-24">{decomp2Label}</td>
+        <td className="border-2 border-black px-1 py-0.5 text-[10px] w-32 whitespace-nowrap">{decomp2Label}</td>
         {nums.map(n => (
           <td key={`${n}-d2`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.decompose2} onClick={() => toggle(`compose.${n}.decompose2`)} readOnly={readOnly} />
@@ -201,7 +201,7 @@ export function ComposeGrid({ data, toggle, readOnly, lang }) {
         ))}
       </tr>
       <tr>
-        <td className="border-2 border-black px-2 py-1 text-xs w-24">{decomp3Label}</td>
+        <td className="border-2 border-black px-1 py-0.5 text-[10px] w-32 whitespace-nowrap">{decomp3Label}</td>
         {nums.map(n => (
           <td key={`${n}-d3`} className="border-2 border-black p-0">
             <CheckCell checked={data.compose[n]?.decompose3} onClick={() => toggle(`compose.${n}.decompose3`)} readOnly={readOnly} />

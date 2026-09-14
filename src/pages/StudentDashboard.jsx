@@ -17,6 +17,11 @@ function DashboardSections({ data, toggle, readOnly, lang, frontBack }) {
           <EnglishLetterGrid data={data} toggle={toggle} readOnly={readOnly} />
         )}
       </div>
+      {frontBack && (
+        <div className="no-print page-break-indicator">
+          <span>Page break — Back of page</span>
+        </div>
+      )}
       <NumbersGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
       <ComposeGrid data={data} toggle={toggle} readOnly={readOnly} lang={lang} />
     </div>
