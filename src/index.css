@@ -202,7 +202,7 @@
   }
   .page-preview {
     border: none !important;
-    padding: 0.25in 0.5in !important;
+    padding: 0 !important;
     min-height: 0 !important;
     width: auto !important;
     box-shadow: none !important;
@@ -404,7 +404,7 @@
 .page-preview {
   width: 8.5in;
   min-height: 11in;
-  padding: 0.25in;
+  padding: 0.15in;
   box-sizing: border-box;
   margin: 0 auto;
   background: #fff;
@@ -452,7 +452,7 @@
   --pfence: #000000;
   --pgrass: #43a047;
   --pdirt: #795548;
-  width: 8in;
+  width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
