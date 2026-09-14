@@ -67,7 +67,7 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
             </div>
             {/* Letter table with module overarch headers */}
             {allLetters.length > 0 && (
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse table-fixed">
                 <tbody>
                   {/* Module header row — each module name spans its letter columns */}
                   <tr>
@@ -83,7 +83,7 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                     <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14"></td>
                     {allLetters.map((l, ci) => (
                       <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0.5"
-                        style={{ ...cellBorderStyle(allLetters, ci), minWidth: l.p ? '2.2rem' : '1.2rem' }}>
+                        style={{ ...cellBorderStyle(allLetters, ci), minWidth: '1.6rem' }}>
                         <div className="font-bold text-sm leading-tight whitespace-nowrap">
                           {l.d}{l.p && <span className="text-[10px] font-normal text-gray-600 ml-0.5">{l.p}</span>}
                         </div>

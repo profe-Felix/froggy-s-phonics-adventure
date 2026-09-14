@@ -274,7 +274,7 @@ function ViewMode({ schedule }) {
   );
 
   return (
-    <div className="py-4">
+    <div className="pb-4 print:py-0">
       <div className="page-preview">
         {/* Header — centered and big, Century Schoolbook font */}
         <div className="no-print relative">
@@ -337,7 +337,7 @@ function ViewMode({ schedule }) {
           );
         })}
       </div>
-        <p className="text-center mt-4 font-bold" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif', fontSize: '18px'}}>
+        <p className="text-center mt-4 font-bold italic" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif', fontSize: '18px'}}>
           Charting the course for Every child!
         </p>
       </div>
@@ -421,7 +421,7 @@ export default function SchedulePlanner() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 print:bg-white">
       {/* Top bar */}
       <div className="no-print bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <h1 className="text-lg font-black flex items-center gap-2">
