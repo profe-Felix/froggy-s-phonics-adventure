@@ -263,8 +263,8 @@ function ViewMode({ schedule }) {
   const subtitle = (schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual';
 
   const HeaderBlock = () => (
-    <div className="flex items-center justify-center relative py-4">
-      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-24 h-24 object-contain absolute left-0 top-1/2 -translate-y-1/2" />
+    <div className="flex items-center justify-center relative py-4 border-[4px] border-black">
+      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-24 h-24 object-contain absolute left-2 top-1/2 -translate-y-1/2" />
       <div className="text-center">
         <h1 className="text-3xl font-bold text-red-700 leading-tight" style={centurySchoolbook}>{schedule.teacher_name || 'Teacher'}</h1>
         <h2 className="text-3xl font-bold leading-tight" style={centurySchoolbook}>Daily Schedule</h2>
@@ -296,8 +296,8 @@ function ViewMode({ schedule }) {
           <HeaderBlock />
         </div>
 
-      {/* Table — wrapped in thick black border like the reference image */}
-      <div className="border-[3px] border-black">
+      {/* Table */}
+      <div>
         {/* Header row */}
         <div className="grid grid-cols-3 bg-[#FF0000] text-white font-black uppercase text-sm">
           <div className="px-3 py-2 text-center border-r border-white/30">TIME</div>

@@ -10,8 +10,8 @@ export function DashboardHeader({ student, lang, class_name }) {
       <div className="flex items-center justify-center relative py-3">
         <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-20 h-20 object-contain absolute left-2 top-1/2 -translate-y-1/2" />
         <div className="text-center">
-          <h1 className="text-3xl font-bold leading-tight" style={{ fontFamily: '"Century Schoolbook", "Times New Roman", serif' }}>WESTWOOD ELEMENTARY</h1>
-          <p className="text-2xl font-bold leading-tight mt-0.5" style={{ fontFamily: '"Century Schoolbook", "Times New Roman", serif' }}>FORMULARIO DE INFORMACIÓN DEL ESTUDIANTE</p>
+          <h1 className="font-bold leading-tight" style={{ fontFamily: '"Happy Monkey", cursive', fontSize: '26px' }}>WESTWOOD ELEMENTARY</h1>
+          <p className="font-bold leading-tight mt-0.5" style={{ fontFamily: '"Happy Monkey", cursive', fontSize: '14px' }}>FORMULARIO DE INFORMACIÓN DEL ESTUDIANTE</p>
         </div>
       </div>
       {/* Info row — bordered cells, Name gets more space */}

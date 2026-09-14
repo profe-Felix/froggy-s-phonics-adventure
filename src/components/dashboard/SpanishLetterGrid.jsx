@@ -84,8 +84,9 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                     {allLetters.map((l, ci) => (
                       <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0.5"
                         style={{ ...cellBorderStyle(allLetters, ci), minWidth: l.p ? '2.2rem' : '1.2rem' }}>
-                        <div className="font-bold text-sm leading-tight">{l.d}</div>
-                        {l.p && <div className="text-[10px] font-normal text-gray-600 leading-tight whitespace-nowrap">{l.p}</div>}
+                        <div className="font-bold text-sm leading-tight whitespace-nowrap">
+                          {l.d}{l.p && <span className="text-[10px] font-normal text-gray-600 ml-0.5">{l.p}</span>}
+                        </div>
                       </td>
                     ))}
                   </tr>

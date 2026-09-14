@@ -263,11 +263,9 @@ export default function StudentDashboard() {
       {selectedStudentId ? (
         <div className="py-4">
           <div className={`page-preview ${printAllData ? 'print:hidden' : ''}`}>
-            <div className="border-[3px] border-black">
-              <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
-              <div className="mt-4">
-                <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
-              </div>
+            <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
+            <div className="mt-4">
+              <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
             </div>
           </div>
         </div>
@@ -288,11 +286,9 @@ export default function StudentDashboard() {
         <div className="hidden print:block">
           {printAllData.map(({ student, data: dData, lang: dLang }, idx) => (
             <div key={idx} className="page-preview print:break-after-page">
-              <div className="border-[3px] border-black">
-                <PrintHeader student={student} lang={dLang} class_name={className} />
-                <div className="mt-4">
-                  <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} frontBack={frontBack} />
-                </div>
+              <PrintHeader student={student} lang={dLang} class_name={className} />
+              <div className="mt-4">
+                <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} frontBack={frontBack} />
               </div>
             </div>
           ))}
