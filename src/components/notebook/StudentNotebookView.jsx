@@ -96,6 +96,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const pendingSavePageRef = useRef(null);
+  const pendingSaveDataRef = useRef(null);
   const latestSessionRef = useRef(null);
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false); // 👈 ADD THIS LINE
@@ -292,33 +293,37 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     }
   }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
 
-  const saveStrokes = useCallback(async (pageOverride) => {
+  const saveStrokes = useCallback(async (pageOverride, preCapturedData) => {
     if (!canvasRef.current) return;
+
+    // Capture strokes NOW — before any await — so a page change can't
+    // cause us to save the wrong page's ink onto the wrong page.
+    const savePage = pageOverride ?? currentPageRef.current;
+    const strokeData = preCapturedData || canvasRef.current.getStrokes();
 
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
-      pendingSavePageRef.current = pageOverride ?? currentPageRef.current;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
 
     if (saveInFlightRef.current) {
       pendingSaveRef.current = true;
-      pendingSavePageRef.current = pageOverride ?? currentPageRef.current;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
 
     const activeSession = latestSessionRef.current;
     if (!activeSession) return;
 
-    // Always use the ref so we capture the page that was actually visible when drawn
-    const savePage = pageOverride ?? currentPageRef.current;
     const saveDraftKey = `notebook-draft-${activeSession.id}-${savePage}`;
 
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
-      const strokeData = canvasRef.current.getStrokes();
       const payload = {
         ...strokeData,
         canvasWidth: pdfRenderedSize?.w || canvasSize.w,
@@ -326,8 +331,17 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         normalized: true,
       };
 
+      // Fetch latest session to merge — prevents overwriting other tabs' pages
+      let baseStrokesByPage = activeSession.strokes_by_page || {};
+      try {
+        const freshSession = await base44.entities.NotebookSession.get(activeSession.id);
+        if (freshSession?.strokes_by_page) {
+          baseStrokesByPage = freshSession.strokes_by_page;
+        }
+      } catch { /* use local version */ }
+
       const updated = {
-        ...(activeSession.strokes_by_page || {}),
+        ...baseStrokesByPage,
         [String(savePage)]: JSON.stringify(payload),
       };
 
@@ -339,8 +353,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         last_active: new Date().toISOString(),
       });
 
-localStorage.removeItem(saveDraftKey);
-localDirtyRef.current = false;
+      localStorage.removeItem(saveDraftKey);
+      localDirtyRef.current = false;
 
       const nextSession = {
         ...activeSession,
@@ -357,11 +371,12 @@ localDirtyRef.current = false;
 
       if (pendingSaveRef.current) {
         const queuedPage = pendingSavePageRef.current;
-
+        const queuedData = pendingSaveDataRef.current;
         pendingSaveRef.current = false;
         pendingSavePageRef.current = null;
+        pendingSaveDataRef.current = null;
 
-        void saveStrokes(queuedPage);
+        void saveStrokes(queuedPage, queuedData);
       }
     }
   }, [pdfRenderedSize, canvasSize]);
@@ -449,6 +464,49 @@ localDirtyRef.current = false;
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [saveStrokes]);
+
+  // Poll server for session updates from other devices/tabs
+  useEffect(() => {
+    if (!session?.id) return;
+
+    const interval = setInterval(async () => {
+      if (isDrawingRef.current) return;
+      if (saveInFlightRef.current) return;
+      if (localDirtyRef.current) return;
+
+      try {
+        const fresh = await base44.entities.NotebookSession.get(session.id);
+        if (!fresh) return;
+
+        const pageKey = String(currentPageRef.current);
+        const serverStroke = fresh.strokes_by_page?.[pageKey];
+        const localStroke = latestSessionRef.current?.strokes_by_page?.[pageKey];
+
+        // Only reload if server has different data for current page
+        if (serverStroke && serverStroke !== localStroke) {
+          const mergedSession = {
+            ...latestSessionRef.current,
+            ...fresh,
+            strokes_by_page: fresh.strokes_by_page || {},
+          };
+          latestSessionRef.current = mergedSession;
+          setSession(mergedSession);
+
+          // Directly reload canvas with server data
+          if (canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
+            try {
+              const parsed = typeof serverStroke === 'string' ? JSON.parse(serverStroke) : serverStroke;
+              canvasRef.current.loadStrokes(parsed);
+            } catch { /* skip bad payload */ }
+          }
+        }
+      } catch {
+        // silent polling failure
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [session?.id]);
 
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];

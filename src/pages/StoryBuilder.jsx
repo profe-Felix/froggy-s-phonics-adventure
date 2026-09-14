@@ -49,6 +49,8 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const loadedKeyRef = useRef(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
+  const pendingSavePageRef = useRef(null);
+  const pendingSaveDataRef = useRef(null);
   const latestStoryRef = useRef(null);
   const isDrawingRef = useRef(false);
   const currentPageIdxRef = useRef(currentPageIdx);
@@ -165,23 +167,31 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   // Save current strokes — save in BOTH places:
   // 1. strokes_by_page for teacher/replay systems
   // 2. pages[n].strokes_data because StoryAssignment already uses pages
-  const saveStrokes = useCallback(async (pageOverride) => {
+  const saveStrokes = useCallback(async (pageOverride, preCapturedData) => {
     if (!canvasRef.current) return;
+
+    // Capture strokes NOW — before any await — so a page change can't
+    // cause us to save the wrong page's ink onto the wrong page.
+    const savePage = pageOverride ?? currentPageIdxRef.current;
+    const strokeData = preCapturedData || canvasRef.current.getStrokes();
 
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
 
     if (saveInFlightRef.current) {
       pendingSaveRef.current = true;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
 
     const activeStory = latestStoryRef.current;
     if (!activeStory) return;
 
-    const savePage = pageOverride ?? currentPageIdxRef.current;
     const saveDraftKey = `story-draft-${activeStory.id}-${savePage}`;
     const sizeNow = canvasSizeRef.current;
 
@@ -189,8 +199,6 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     setSaving(true);
 
     try {
-      const strokeData = canvasRef.current.getStrokes();
-
       const payload = {
         ...strokeData,
         canvasWidth: sizeNow.w,
@@ -200,12 +208,21 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
       const payloadString = JSON.stringify(payload);
 
+      // Fetch latest story to merge — prevents overwriting other tabs' pages
+      let baseStrokesByPage = activeStory.strokes_by_page || {};
+      let basePages = latestStoryRef.current?.pages || pages;
+      try {
+        const freshStory = await base44.entities.StoryAssignment.get(activeStory.id);
+        if (freshStory?.strokes_by_page) baseStrokesByPage = freshStory.strokes_by_page;
+        if (freshStory?.pages) basePages = freshStory.pages;
+      } catch { /* use local version */ }
+
       const updatedStrokesByPage = {
-        ...(activeStory.strokes_by_page || {}),
+        ...baseStrokesByPage,
         [String(savePage)]: payloadString,
       };
 
-      const updatedPages = (pages || []).map((page, idx) =>
+      const updatedPages = (basePages || []).map((page, idx) =>
         idx === savePage
           ? { ...page, strokes_data: payloadString }
           : page
@@ -236,16 +253,17 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       localDirtyRef.current = false;
       lastLocalSaveAtRef.current = Date.now();
       lastAppliedServerStrokeRef.current[String(savePage)] = payloadString;
-
-      localStorage.removeItem(saveDraftKey);
-      
     } finally {
       saveInFlightRef.current = false;
       setSaving(false);
 
       if (pendingSaveRef.current) {
         pendingSaveRef.current = false;
-        void saveStrokes();
+        const queuedPage = pendingSavePageRef.current;
+        const queuedData = pendingSaveDataRef.current;
+        pendingSavePageRef.current = null;
+        pendingSaveDataRef.current = null;
+        void saveStrokes(queuedPage, queuedData);
       }
     }
   }, [pages]);
