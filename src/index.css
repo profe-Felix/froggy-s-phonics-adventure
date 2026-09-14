@@ -164,6 +164,10 @@
     size: letter portrait;
     margin: 0.25in;
   }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .no-print {
     display: none !important;
   }

@@ -263,11 +263,12 @@ function ViewMode({ schedule }) {
   return (
     <div className="max-w-4xl mx-auto p-4">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4 no-print">
+      <div className="flex items-center gap-4 mb-4 no-print">
         <PawLogo />
         <div>
-          <h1 className="text-xl font-black text-black">{schedule.teacher_name || 'Teacher'}</h1>
-          <p className="text-sm font-bold text-black">{schedule.title || 'Daily Schedule'}</p>
+          <h1 className="text-2xl font-bold text-red-700" style={{fontFamily: 'serif'}}>{schedule.teacher_name || 'Teacher'}</h1>
+          <h2 className="text-xl font-bold leading-tight" style={{fontFamily: 'serif'}}>Daily Schedule</h2>
+          <p className="text-lg leading-tight" style={{fontFamily: 'serif'}}>{(schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual'}</p>
         </div>
         <button
           onClick={() => {
@@ -281,11 +282,12 @@ function ViewMode({ schedule }) {
         </button>
       </div>
       {/* Print-only header */}
-      <div className="hidden print:flex items-center gap-3 mb-4">
+      <div className="hidden print:flex items-center gap-4 mb-4">
         <PawLogo />
         <div>
-          <h1 className="text-xl font-black text-black">{schedule.teacher_name || 'Teacher'}</h1>
-          <p className="text-sm font-bold text-black">{schedule.title || 'Daily Schedule'}</p>
+          <h1 className="text-2xl font-bold text-red-700" style={{fontFamily: 'serif'}}>{schedule.teacher_name || 'Teacher'}</h1>
+          <h2 className="text-xl font-bold leading-tight" style={{fontFamily: 'serif'}}>Daily Schedule</h2>
+          <p className="text-lg leading-tight" style={{fontFamily: 'serif'}}>{(schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual'}</p>
         </div>
       </div>
 
@@ -331,6 +333,9 @@ function ViewMode({ schedule }) {
           );
         })}
       </div>
+      <p className="text-center italic mt-4 text-base" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif'}}>
+        Charting the course for Every child!
+      </p>
     </div>
   );
 }
