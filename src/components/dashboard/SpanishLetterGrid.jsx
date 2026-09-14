@@ -71,7 +71,7 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                 <tbody>
                   {/* Module header row — each module name spans its letter columns */}
                   <tr>
-                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14"></td>
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20"></td>
                     {modules.map((m, mi) => (
                       <td key={mi} colSpan={m.letters.length} className="border-2 border-black text-center font-bold text-xs py-0.5 bg-gray-50">
                         {m.name}
@@ -80,10 +80,10 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                   </tr>
                   {/* Letter row */}
                   <tr>
-                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14"></td>
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20"></td>
                     {allLetters.map((l, ci) => (
-                      <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0.5"
-                        style={{ ...cellBorderStyle(allLetters, ci), minWidth: '1.6rem' }}>
+                      <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0"
+                        style={{ ...cellBorderStyle(allLetters, ci) }}>
                         <div className="font-bold text-sm leading-tight whitespace-nowrap">
                           {l.d}{l.p && <span className="text-[10px] font-normal text-gray-600 ml-0.5">{l.p}</span>}
                         </div>
@@ -93,7 +93,7 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                   {/* Skill rows — compact, just tall enough for the checkmark */}
                   {SKILL_ROWS.map(sr => (
                     <tr key={`${pi}-${sr.key}`}>
-                      <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-14">{sr.label}</td>
+                      <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20">{sr.label}</td>
                       {allLetters.map((l, ci) => (
                         <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
                           style={cellBorderStyle(allLetters, ci)}>

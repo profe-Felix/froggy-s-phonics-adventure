@@ -338,7 +338,7 @@ function ViewMode({ schedule }) {
         })}
       </div>
         <p className="text-center mt-4 font-bold italic" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif', fontSize: '18px'}}>
-          Charting the course for Every child!
+          "Charting the course for Every child!"
         </p>
       </div>
     </div>
