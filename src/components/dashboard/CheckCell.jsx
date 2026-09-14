@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Green background (#92D050) + black checkmark when checked.
+// Black checkmark on white when checked. No green background (saves ink).
 // Blacked-out cells (digraphs, 2nd occurrence Letra) render solid black.
 export function CheckCell({ checked, onClick, readOnly, blackedOut }) {
   if (blackedOut) {
@@ -11,11 +11,30 @@ export function CheckCell({ checked, onClick, readOnly, blackedOut }) {
       onClick={readOnly ? undefined : onClick}
       disabled={readOnly}
       className={`w-full min-h-7 py-1 flex items-center justify-center transition ${
-        checked ? 'bg-[#92D050] text-black' : 'text-transparent hover:bg-gray-100'
+        checked ? 'text-black' : 'text-transparent hover:bg-gray-100'
       } ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
     >
       <span className="text-base font-bold leading-none">✓</span>
     </button>
+  );
+}
+
+// InlineToggle — label: ____ where the underline toggles a black check.
+// Used for the "Conoce..." / "Forma..." summary line.
+export function InlineToggle({ label, checked, onClick, readOnly }) {
+  return (
+    <span className="font-bold whitespace-nowrap text-xs">
+      {label}:
+      <button
+        onClick={readOnly ? undefined : onClick}
+        disabled={readOnly}
+        className={`inline-block w-8 ml-1 border-b-2 border-black text-center leading-tight ${
+          readOnly ? 'cursor-default' : 'cursor-pointer'
+        }`}
+      >
+        {checked ? '✓' : '\u00A0'}
+      </button>
+    </span>
   );
 }
 

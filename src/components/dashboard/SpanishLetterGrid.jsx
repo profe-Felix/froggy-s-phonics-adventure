@@ -1,6 +1,6 @@
 import React from 'react';
 import { ES_PERIODS, PERIODS } from '@/lib/dashboardData';
-import { CheckCell } from './CheckCell';
+import { CheckCell, InlineToggle } from './CheckCell';
 
 function SectionHeader({ title }) {
   return (
@@ -23,24 +23,18 @@ const SKILL_ROWS = [
   { label: 'Formación', key: 'formation' },
 ];
 
-function ParentInitialsRow({ data, toggle, path, readOnly }) {
+// Inline initials box — label and input on the SAME line inside a bordered box.
+function InlineInitialsBox({ period, value, onChange, readOnly }) {
   return (
-    <div className="border-t-2 border-black p-2">
-      <p className="text-xs font-bold mb-1">Iniciales de los padres</p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {PERIODS.map(p => (
-          <div key={p} className="border-2 border-black rounded px-2 py-1 text-xs">
-            <span className="font-bold">{p} 9 Weeks:</span>
-            <input
-              type="text"
-              value={data?.[p] || ''}
-              onChange={(e) => toggle(`${path}.${p}`, e.target.value, true)}
-              readOnly={readOnly}
-              className="w-full border-b border-gray-400 outline-none bg-transparent mt-0.5"
-            />
-          </div>
-        ))}
-      </div>
+    <div className="border-2 border-black px-2 py-1 text-xs flex items-center gap-1">
+      <span className="font-bold whitespace-nowrap">{period} 9 Weeks:</span>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+        className="flex-1 border-b border-black outline-none bg-transparent min-w-0"
+      />
     </div>
   );
 }
@@ -51,10 +45,11 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
       <SectionHeader title="Identificación de letras y sonidos" />
       {ES_PERIODS.map((period, pi) => {
         const periodKey = PERIODS[pi];
+        const allLetters = period.modules.flatMap(m => m.letters);
         return (
           <div key={pi} className="border-b-2 border-black last:border-b-0">
-            {/* Period header: label, editable end date, modules, last letter learned */}
-            <div className="flex flex-wrap items-center gap-2 px-2 py-1 bg-gray-100 border-b border-black text-xs font-bold">
+            {/* Period header: label + editable end date only (última letra is in settings) */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-gray-100 border-b border-black text-xs font-bold">
               <span>{period.label}:</span>
               <span>Terminan</span>
               <input
@@ -64,36 +59,37 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
                 readOnly={readOnly}
                 className="w-20 border-b border-gray-400 outline-none bg-transparent"
               />
-              <span className="ml-auto">{period.modules}</span>
-              <span>Última letra:</span>
-              <input
-                type="text"
-                value={data.lastLetterLearned?.[periodKey] ?? ''}
-                onChange={(e) => toggle(`lastLetterLearned.${periodKey}`, e.target.value, true)}
-                readOnly={readOnly}
-                className="w-12 border-b border-gray-400 outline-none bg-transparent"
-                placeholder="—"
-              />
             </div>
-            {/* Letter table */}
+            {/* Letter table with module overarch headers */}
             <table className="w-full border-collapse">
               <tbody>
+                {/* Module header row — each module name spans its letter columns */}
                 <tr>
                   <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16"></td>
-                  {period.letters.map((l, ci) => (
+                  {period.modules.map((m, mi) => (
+                    <td key={mi} colSpan={m.letters.length} className="border-2 border-black text-center font-bold text-xs py-1 bg-gray-50">
+                      {m.name}
+                    </td>
+                  ))}
+                </tr>
+                {/* Letter row */}
+                <tr>
+                  <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16"></td>
+                  {allLetters.map((l, ci) => (
                     <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-1 min-w-[1.6rem]"
-                      style={cellBorderStyle(period.letters, ci)}>
+                      style={cellBorderStyle(allLetters, ci)}>
                       <div className="font-bold text-sm leading-tight">{l.d}</div>
                       {l.p && <div className="text-[10px] font-normal text-gray-600 leading-tight">{l.p}</div>}
                     </td>
                   ))}
                 </tr>
+                {/* Skill rows */}
                 {SKILL_ROWS.map(sr => (
                   <tr key={`${pi}-${sr.key}`}>
                     <td className="border-2 border-black px-2 py-1 text-xs font-bold w-16">{sr.label}</td>
-                    {period.letters.map((l, ci) => (
+                    {allLetters.map((l, ci) => (
                       <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
-                        style={cellBorderStyle(period.letters, ci)}>
+                        style={cellBorderStyle(allLetters, ci)}>
                         <CheckCell
                           checked={data.letters[l.k]?.[sr.key]}
                           onClick={() => toggle(`letters.${l.k}.${sr.key}`)}
@@ -109,22 +105,28 @@ export function SpanishLetterGrid({ data, toggle, readOnly }) {
           </div>
         );
       })}
-      {/* Compact summary line */}
-      <div className="flex flex-wrap items-center gap-4 px-3 py-1.5 border-t-2 border-black text-xs">
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} /> Conoce todas las mayúsculas
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allLower} onClick={() => toggle('allLower')} readOnly={readOnly} /> Conoce todas las minúsculas
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allSounds} onClick={() => toggle('allSounds')} readOnly={readOnly} /> Conoce todos los sonidos
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allFormation} onClick={() => toggle('allFormation')} readOnly={readOnly} /> Forma todas las letras correctamente
-        </label>
+      {/* Single-line summary with inline toggle underlines */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-t-2 border-black">
+        <InlineToggle label="Conoce todas las mayúsculas" checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} />
+        <InlineToggle label="Conoce todas las minúsculas" checked={data.allLower} onClick={() => toggle('allLower')} readOnly={readOnly} />
+        <InlineToggle label="Conoce todos los sonidos" checked={data.allSounds} onClick={() => toggle('allSounds')} readOnly={readOnly} />
+        <InlineToggle label="Forma todas las letras correctamente" checked={data.allFormation} onClick={() => toggle('allFormation')} readOnly={readOnly} />
       </div>
-      <ParentInitialsRow data={data.parentInitials?.letters} toggle={toggle} path="parentInitials.letters" readOnly={readOnly} />
+      {/* Parent initials — inline boxes on a single row */}
+      <div className="border-t-2 border-black p-2">
+        <p className="text-xs font-bold mb-1">Iniciales de los padres</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PERIODS.map(p => (
+            <InlineInitialsBox
+              key={p}
+              period={p}
+              value={data.parentInitials?.letters?.[p]}
+              onChange={(v) => toggle(`parentInitials.letters.${p}`, v, true)}
+              readOnly={readOnly}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-import { createEmptyData } from '@/lib/dashboardData';
+import { createEmptyData, PERIODS } from '@/lib/dashboardData';
 import { DashboardHeader, PrintHeader } from '@/components/dashboard/DashboardHeader';
 import { SpanishLetterGrid } from '@/components/dashboard/SpanishLetterGrid';
 import { EnglishLetterGrid, NumbersGrid, ComposeGrid } from '@/components/dashboard/MathGrids';
-import { Printer, Users, FileText } from 'lucide-react';
+import { Printer, Users, FileText, Settings } from 'lucide-react';
 
 function DashboardSections({ data, toggle, readOnly, lang, frontBack }) {
   return (
@@ -39,6 +39,7 @@ export default function StudentDashboard() {
   const [printingAll, setPrintingAll] = useState(false);
   const [printAllData, setPrintAllData] = useState(null);
   const [frontBack, setFrontBack] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [lang] = useState('es');
 
   useEffect(() => {
@@ -161,7 +162,7 @@ export default function StudentDashboard() {
   const className = selectedClass || classParam;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-100">
       {/* Toolbar (hidden on print) */}
       <div className="no-print border-b border-gray-200 px-4 py-2 flex items-center justify-between sticky top-0 bg-white z-10">
         <div className="flex items-center gap-2">
@@ -188,6 +189,14 @@ export default function StudentDashboard() {
           >
             <FileText className="w-4 h-4" /> Front & Back: {frontBack ? 'ON' : 'OFF'}
           </button>
+          {selectedStudentId && (
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className={`px-3 py-1.5 rounded-lg font-bold text-sm border flex items-center gap-1.5 ${showSettings ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-300 hover:bg-gray-100'}`}
+            >
+              <Settings className="w-4 h-4" /> Settings
+            </button>
+          )}
         </div>
         <button
           onClick={handleSave}
@@ -224,12 +233,35 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* Main content */}
+      {/* Settings panel — última letra per period (not printed) */}
+      {showSettings && selectedStudentId && (
+        <div className="no-print bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+          <p className="text-xs font-bold mb-2 text-yellow-800">Configuración: Última letra aprendida (no se imprime)</p>
+          <div className="flex flex-wrap gap-3">
+            {PERIODS.map((p, i) => (
+              <div key={p} className="flex items-center gap-1">
+                <label className="text-xs font-bold whitespace-nowrap">{p} 9 Weeks:</label>
+                <input
+                  type="text"
+                  value={data.lastLetterLearned?.[p] || ''}
+                  onChange={(e) => toggle(`lastLetterLearned.${p}`, e.target.value, true)}
+                  className="w-12 border border-gray-300 rounded px-1 py-0.5 text-xs"
+                  placeholder="—"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main content — sheet preview wrapper */}
       {selectedStudentId ? (
-        <div className={`p-4 max-w-[1400px] mx-auto ${printAllData ? 'print:hidden' : ''}`}>
-          <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
-          <div className="mt-4">
-            <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
+        <div className="py-4">
+          <div className={`page-preview ${printAllData ? 'print:hidden' : ''}`}>
+            <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
+            <div className="mt-4">
+              <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
+            </div>
           </div>
         </div>
       ) : (
@@ -244,11 +276,11 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Print All container (hidden on screen, visible on print) */}
+      {/* Print All container — each student on its own page-preview sheet */}
       {printAllData && (
         <div className="hidden print:block">
           {printAllData.map(({ student, data: dData, lang: dLang }, idx) => (
-            <div key={idx} className="print:break-after-page px-4 py-2">
+            <div key={idx} className="page-preview print:break-after-page">
               <PrintHeader student={student} lang={dLang} class_name={className} />
               <div className="mt-4">
                 <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} frontBack={frontBack} />

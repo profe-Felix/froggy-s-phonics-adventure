@@ -1,6 +1,6 @@
 import React from 'react';
 import { EN_LETTERS_ROW1, EN_LETTERS_ROW2, NUMBERS_ROW1, NUMBERS_ROW2, COMPOSE_ROW1, COMPOSE_ROW2, PERIODS } from '@/lib/dashboardData';
-import { CheckCell } from './CheckCell';
+import { CheckCell, InlineToggle } from './CheckCell';
 
 export function SectionHeader({ title }) {
   return (
@@ -10,24 +10,35 @@ export function SectionHeader({ title }) {
   );
 }
 
-export function ParentInitialsRow({ label, data, toggle, path, readOnly }) {
+// Inline initials box — label and input on the SAME line inside a bordered box.
+function InlineInitialsBox({ period, value, onChange, readOnly }) {
   return (
-    <div className="border-t-2 border-black p-2">
-      <p className="text-xs font-bold mb-1">{label}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {PERIODS.map(p => (
-          <div key={p} className="border-2 border-black rounded px-2 py-1 text-xs">
-            <span className="font-bold">{p} 9 Weeks:</span>
-            <input
-              type="text"
-              value={data?.[p] || ''}
-              onChange={(e) => toggle(`${path}.${p}`, e.target.value, true)}
-              readOnly={readOnly}
-              className="w-full border-b border-gray-400 outline-none bg-transparent mt-0.5"
-            />
-          </div>
-        ))}
-      </div>
+    <div className="border-2 border-black px-2 py-1 text-xs flex items-center gap-1">
+      <span className="font-bold whitespace-nowrap">{period} 9 Weeks:</span>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+        className="flex-1 border-b border-black outline-none bg-transparent min-w-0"
+      />
+    </div>
+  );
+}
+
+// Inline counting box — "0 - ____" format on the same line as the label.
+function InlineCountingBox({ period, value, onChange, readOnly }) {
+  return (
+    <div className="border-2 border-black px-2 py-1 text-xs flex items-center gap-1">
+      <span className="font-bold whitespace-nowrap">{period} 9 Weeks:</span>
+      <span className="font-bold">0 -</span>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+        className="flex-1 border-b border-black outline-none bg-transparent min-w-0"
+      />
     </div>
   );
 }
@@ -66,21 +77,20 @@ export function EnglishLetterGrid({ data, toggle, readOnly }) {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap gap-4 px-3 py-1.5 border-t-2 border-black text-xs">
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} /> Knows all upper case
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allLower} onClick={() => toggle('allLower')} readOnly={readOnly} /> Knows all lower case
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allSounds} onClick={() => toggle('allSounds')} readOnly={readOnly} /> Knows all sounds
-        </label>
-        <label className="flex items-center gap-1.5 font-bold">
-          <CheckCell checked={data.allFormation} onClick={() => toggle('allFormation')} readOnly={readOnly} /> Forms all letters correctly
-        </label>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-t-2 border-black">
+        <InlineToggle label="Knows all upper case" checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} />
+        <InlineToggle label="Knows all lower case" checked={data.allLower} onClick={() => toggle('allLower')} readOnly={readOnly} />
+        <InlineToggle label="Knows all sounds" checked={data.allSounds} onClick={() => toggle('allSounds')} readOnly={readOnly} />
+        <InlineToggle label="Forms all letters correctly" checked={data.allFormation} onClick={() => toggle('allFormation')} readOnly={readOnly} />
       </div>
-      <ParentInitialsRow label="Parent Initials each 9 weeks" data={data.parentInitials?.letters} toggle={toggle} path="parentInitials.letters" readOnly={readOnly} />
+      <div className="border-t-2 border-black p-2">
+        <p className="text-xs font-bold mb-1">Parent Initials each 9 weeks</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PERIODS.map(p => (
+            <InlineInitialsBox key={p} period={p} value={data.parentInitials?.letters?.[p]} onChange={(v) => toggle(`parentInitials.letters.${p}`, v, true)} readOnly={readOnly} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -145,7 +155,14 @@ export function NumbersGrid({ data, toggle, readOnly, lang }) {
           </tbody>
         </table>
       </div>
-      <ParentInitialsRow label={initialsLabel} data={data.parentInitials?.numbers} toggle={toggle} path="parentInitials.numbers" readOnly={readOnly} />
+      <div className="border-t-2 border-black p-2">
+        <p className="text-xs font-bold mb-1">{initialsLabel}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PERIODS.map(p => (
+            <InlineInitialsBox key={p} period={p} value={data.parentInitials?.numbers?.[p]} onChange={(v) => toggle(`parentInitials.numbers.${p}`, v, true)} readOnly={readOnly} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -205,24 +222,23 @@ export function ComposeGrid({ data, toggle, readOnly, lang }) {
           </tbody>
         </table>
       </div>
+      {/* Counting: "Puedo contar desde 0 hasta" inline with 9-week boxes showing "0 - ____" */}
       <div className="border-t-2 border-black p-2">
-        <p className="text-xs font-bold mb-1">{countingLabel}____</p>
+        <p className="text-xs font-bold mb-1">{countingLabel}</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {PERIODS.map(p => (
-            <div key={p} className="border-2 border-black rounded px-2 py-1 text-xs">
-              <span className="font-bold">{p} 9 Weeks:</span>
-              <input
-                type="text"
-                value={data.counting?.[p] || ''}
-                onChange={(e) => toggle(`counting.${p}`, e.target.value, true)}
-                readOnly={readOnly}
-                className="w-full border-b border-gray-400 outline-none bg-transparent mt-0.5"
-              />
-            </div>
+            <InlineCountingBox key={p} period={p} value={data.counting?.[p]} onChange={(v) => toggle(`counting.${p}`, v, true)} readOnly={readOnly} />
           ))}
         </div>
       </div>
-      <ParentInitialsRow label={initialsLabel} data={data.parentInitials?.compose} toggle={toggle} path="parentInitials.compose" readOnly={readOnly} />
+      <div className="border-t-2 border-black p-2">
+        <p className="text-xs font-bold mb-1">{initialsLabel}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {PERIODS.map(p => (
+            <InlineInitialsBox key={p} period={p} value={data.parentInitials?.compose?.[p]} onChange={(v) => toggle(`parentInitials.compose.${p}`, v, true)} readOnly={readOnly} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -259,37 +259,42 @@ function SetupMode({ schedule, setSchedule, onSave, saving, classOptions }) {
 // ── View Mode (formatted table like the image) ────────────────────────────────
 function ViewMode({ schedule }) {
   const times = calculateTimes(schedule.start_time, schedule.start_period, schedule.rows);
+  const happyMonkey = { fontFamily: '"Happy Monkey", cursive' };
+  const subtitle = (schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual';
+
+  const HeaderBlock = () => (
+    <div className="flex items-center justify-center relative py-4">
+      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-24 h-24 object-contain absolute left-0 top-1/2 -translate-y-1/2" />
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-red-700 leading-tight" style={happyMonkey}>{schedule.teacher_name || 'Teacher'}</h1>
+        <h2 className="text-3xl font-bold leading-tight" style={happyMonkey}>Daily Schedule</h2>
+        <p className="text-xl leading-tight" style={happyMonkey}>{subtitle}</p>
+      </div>
+      <div className="w-24 hidden print:block" />
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-4 no-print">
-        <PawLogo />
-        <div>
-          <h1 className="text-2xl font-bold text-red-700" style={{fontFamily: 'serif'}}>{schedule.teacher_name || 'Teacher'}</h1>
-          <h2 className="text-xl font-bold leading-tight" style={{fontFamily: 'serif'}}>Daily Schedule</h2>
-          <p className="text-lg leading-tight" style={{fontFamily: 'serif'}}>{(schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual'}</p>
+    <div className="py-4">
+      <div className="page-preview">
+        {/* Header — centered and big, Happy Monkey font */}
+        <div className="no-print">
+          <HeaderBlock />
+          <button
+            onClick={() => {
+              document.body.classList.add('dashboard-printing');
+              window.print();
+              setTimeout(() => document.body.classList.remove('dashboard-printing'), 500);
+            }}
+            className="absolute right-4 top-4 px-3 py-1.5 rounded-lg text-sm font-bold border border-gray-300 hover:bg-gray-100 flex items-center gap-1.5"
+          >
+            <Printer className="w-4 h-4" /> Print
+          </button>
         </div>
-        <button
-          onClick={() => {
-            document.body.classList.add('dashboard-printing');
-            window.print();
-            setTimeout(() => document.body.classList.remove('dashboard-printing'), 500);
-          }}
-          className="ml-auto px-3 py-1.5 rounded-lg text-sm font-bold border border-gray-300 hover:bg-gray-100 flex items-center gap-1.5"
-        >
-          <Printer className="w-4 h-4" /> Print
-        </button>
-      </div>
-      {/* Print-only header */}
-      <div className="hidden print:flex items-center gap-4 mb-4">
-        <PawLogo />
-        <div>
-          <h1 className="text-2xl font-bold text-red-700" style={{fontFamily: 'serif'}}>{schedule.teacher_name || 'Teacher'}</h1>
-          <h2 className="text-xl font-bold leading-tight" style={{fontFamily: 'serif'}}>Daily Schedule</h2>
-          <p className="text-lg leading-tight" style={{fontFamily: 'serif'}}>{(schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual'}</p>
+        {/* Print-only header */}
+        <div className="hidden print:block">
+          <HeaderBlock />
         </div>
-      </div>
 
       {/* Table */}
       <div className="border-2 border-black rounded-lg overflow-hidden">
@@ -333,9 +338,10 @@ function ViewMode({ schedule }) {
           );
         })}
       </div>
-      <p className="text-center italic mt-4 text-base" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif'}}>
-        Charting the course for Every child!
-      </p>
+        <p className="text-center italic mt-4 text-base" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif'}}>
+          Charting the course for Every child!
+        </p>
+      </div>
     </div>
   );
 }
