@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 import TeacherNotebookDashboard from '../components/notebook/TeacherNotebookDashboard';
 import StudentNotebookView from '../components/notebook/StudentNotebookView';
+import StudentLoginShell from '@/components/game/StudentLoginShell';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { QRCodeSVG } from 'qrcode.react';
-import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
 import { useClassColors } from '@/hooks/useClassColors';
 
@@ -31,29 +33,65 @@ function parseClassParam(raw, classList) {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function StudentLogin({ onEnter, preselectedClass, classList }) {
-  const { colorFor, groupedClasses } = useClassColors();
+function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
+  const { colorFor, groupedClasses, loading } = useClassColors();
   const [className, setClassName] = useState(preselectedClass || null);
   const groups = groupedClasses();
 
-  if (!className) {
-    return (
-      <div className="flex flex-col items-center gap-6 py-10 px-4">
-        <h2 className="text-2xl font-black text-white">Select Your Class</h2>
-        <div className="flex flex-col gap-6 w-full max-w-md">
+  const { data: classStudents = [] } = useQuery({
+    queryKey: ['notebook-login-students', className],
+    queryFn: () => base44.entities.Student.filter({ class_name: className, school_year: ACTIVE_SCHOOL_YEAR }),
+    enabled: !!className,
+  });
+  const photoByNumber = new Map(
+    classStudents.filter(s => s.photo_url).map(s => [s.student_number, s.photo_url])
+  );
+
+  const subtitle = !className ? (
+    'Choose your class!'
+  ) : (
+    <span className="inline-flex items-center gap-2">
+      {!preselectedClass && (
+        <button onClick={() => setClassName(null)} className="text-slate-400 hover:text-slate-600 transition" aria-label="back">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+      )}
+      Class <strong className="text-slate-700">{className}</strong> — pick your number!
+    </span>
+  );
+
+  return (
+    <StudentLoginShell
+      icon="📓"
+      title="Digital Notebook"
+      titleFrom="#4f46e5"
+      titleTo="#7c3aed"
+      subtitle={subtitle}
+      loading={!className && loading}
+    >
+      {!className ? (
+        <div className="flex flex-col gap-6">
           {['kinder', 'first'].map(grade =>
             groups[grade]?.length ? (
               <div key={grade}>
-                <h3 className="text-center text-indigo-300 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {groups[grade].map(cls => {
+                <h2 className="text-center text-slate-500 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  {groups[grade].map((cls, i) => {
                     const c = colorFor(cls);
                     return (
-                      <motion.button key={cls} whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.06 }}
+                      <motion.button
+                        key={cls}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        whileHover={{ scale: 1.06 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => setClassName(cls)}
-                        className="aspect-square rounded-3xl text-white font-extrabold text-lg shadow-xl ring-2 ring-white/40"
-                        style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
-                        {cls}
+                        className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
+                        style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+                      >
+                        <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">🌿</span>
+                        <span className="relative z-10">{cls}</span>
                       </motion.button>
                     );
                   })}
@@ -62,59 +100,75 @@ function StudentLogin({ onEnter, preselectedClass, classList }) {
             ) : null
           )}
         </div>
-      </div>
-    );
-  }
-
-  const c = colorFor(className);
-
-  return (
-    <div className="flex flex-col items-center gap-6 py-10 px-4">
-      <div className="flex items-center gap-3">
-        {!preselectedClass && (
-          <button onClick={() => setClassName(null)} className="text-indigo-300 hover:text-white font-bold">←</button>
-        )}
-        <h2 className="text-2xl font-black text-white">Class {className} — Your Number</h2>
-      </div>
-      <div className="grid grid-cols-5 sm:grid-cols-6 gap-2.5 max-w-sm">
-        {STUDENT_NUMBERS.map(n => (
-          <motion.button key={n} whileTap={{ scale: 0.9 }} whileHover={{ scale: 1.1 }}
-            onClick={() => onEnter(className, n)}
-            className="aspect-square rounded-2xl text-white font-extrabold text-xl shadow-lg ring-1 ring-white/30"
-            style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
-            {n}
-          </motion.button>
-        ))}
-      </div>
-    </div>
+      ) : (
+        <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-10 gap-2.5 sm:gap-3">
+          {STUDENT_NUMBERS.map((num, i) => {
+            const c = colorFor(className);
+            const photo = photoByNumber.get(num);
+            return (
+              <motion.button
+                key={num}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: Math.min(i * 0.015, 0.4) }}
+                whileHover={{ scale: 1.12, y: -2 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => onEnter(className, num)}
+                className="relative aspect-square rounded-2xl text-white font-extrabold text-xl sm:text-2xl shadow-lg ring-1 ring-white/30 overflow-hidden"
+                style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+              >
+                {photo ? (
+                  <>
+                    <img src={photo} alt={`${num}`} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <span className="absolute bottom-0.5 right-1 text-[10px] sm:text-xs font-black bg-black/45 px-1.5 py-0.5 rounded-md leading-none">{num}</span>
+                  </>
+                ) : (
+                  <span className="relative z-10">{num}</span>
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
+    </StudentLoginShell>
   );
 }
 
 // Class picker shown when assignment link has no class pre-selected
 function ClassPicker({ onSelect, title, classList }) {
-  const { colorFor, groupedClasses } = useClassColors();
+  const { colorFor, groupedClasses, loading } = useClassColors();
   const groups = groupedClasses();
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-6" style={{ background: '#0f0f1a' }}>
-      <div className="text-center">
-        <div className="text-5xl mb-3">📓</div>
-        <h1 className="text-2xl font-black text-white mb-1">{title}</h1>
-        <p className="text-indigo-300 text-sm">Select your class to continue</p>
-      </div>
-      <div className="flex flex-col gap-6 w-full max-w-md">
+    <StudentLoginShell
+      icon="📓"
+      title="Digital Notebook"
+      titleFrom="#4f46e5"
+      titleTo="#7c3aed"
+      subtitle={title || 'Select your class to continue'}
+      loading={loading}
+    >
+      <div className="flex flex-col gap-6">
         {['kinder', 'first'].map(grade =>
           groups[grade]?.length ? (
             <div key={grade}>
-              <h3 className="text-center text-indigo-300 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {groups[grade].map(cls => {
+              <h2 className="text-center text-slate-500 font-extrabold text-lg mb-3">{GRADE_LABELS[grade]}</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                {groups[grade].map((cls, i) => {
                   const c = colorFor(cls);
                   return (
-                    <motion.button key={cls} whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.06 }}
+                    <motion.button
+                      key={cls}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.05 }}
+                      whileHover={{ scale: 1.06 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => onSelect(cls)}
-                      className="aspect-square rounded-3xl text-white font-extrabold text-lg shadow-xl ring-2 ring-white/40"
-                      style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}>
-                      {cls}
+                      className="group relative aspect-square sm:aspect-[4/3] rounded-3xl text-white font-extrabold text-lg sm:text-2xl shadow-xl ring-2 ring-white/40"
+                      style={{ backgroundImage: `linear-gradient(to bottom right, ${c.from}, ${c.to})` }}
+                    >
+                      <span className="absolute top-2 left-3 text-lg sm:text-xl opacity-70 group-hover:opacity-100 transition">🌿</span>
+                      <span className="relative z-10">{cls}</span>
                     </motion.button>
                   );
                 })}
@@ -123,7 +177,7 @@ function ClassPicker({ onSelect, title, classList }) {
           ) : null
         )}
       </div>
-    </div>
+    </StudentLoginShell>
   );
 }
 
@@ -180,11 +234,13 @@ export default function DigitalNotebook() {
 
   if (isAssignmentLink && pickedClass && !studentInfo) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
-        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-          <BackButton tone="indigo" onClick={() => setPickedClass(null)} />
-          <h1 className="text-lg font-black text-white">📓 {urlAssignment}</h1>
-        </div>
+      <div className="relative">
+        <button
+          onClick={() => setPickedClass(null)}
+          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-slate-700"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
           preselectedClass={pickedClass}
@@ -245,11 +301,13 @@ export default function DigitalNotebook() {
 
   if (role === 'student' && !studentInfo) {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: '#0f0f1a' }}>
-        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
-          <BackButton tone="indigo" onClick={() => setRole(null)} />
-          <h1 className="text-lg font-black text-white">📓 Digital Notebook</h1>
-        </div>
+      <div className="relative">
+        <button
+          onClick={() => setRole(null)}
+          className="fixed top-4 left-4 z-50 w-10 h-10 rounded-full bg-white/90 hover:bg-white shadow-lg flex items-center justify-center text-slate-700"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <StudentLogin
           onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
           preselectedClass={urlClass}
