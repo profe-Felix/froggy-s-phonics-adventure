@@ -14,8 +14,8 @@ export function DashboardHeader({ student, lang, class_name }) {
           <p className="font-bold leading-tight mt-0.5" style={{ fontFamily: '"Happy Monkey", cursive', fontSize: '14px' }}>FORMULARIO DE INFORMACIÓN DEL ESTUDIANTE</p>
         </div>
       </div>
-      {/* Info row — bordered cells, Name gets more space */}
-      <div className="border-2 border-black grid grid-cols-[3fr_1fr_1.5fr_0.7fr] text-sm">
+      {/* Info row — bordered cells, balanced widths */}
+      <div className="border-2 border-black grid grid-cols-[2.5fr_0.8fr_2fr_1.2fr] text-sm">
         <div className="border-r-2 border-black px-2 py-1">
           <span className="font-bold">Nombre:</span> {student?.name || '—'}
         </div>

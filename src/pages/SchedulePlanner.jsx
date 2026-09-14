@@ -263,14 +263,13 @@ function ViewMode({ schedule }) {
   const subtitle = (schedule.title || 'Daily Schedule Kindergarten Bilingual').replace(/^Daily Schedule\s*/i, '') || 'Kindergarten Bilingual';
 
   const HeaderBlock = () => (
-    <div className="flex items-center justify-center relative py-4 border-[4px] border-black">
-      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-24 h-24 object-contain absolute left-2 top-1/2 -translate-y-1/2" />
+    <div className="flex items-center justify-center gap-4 py-4 border-[4px] border-black">
+      <img src={WESTWOOD_LOGO_URL} alt="Westwood Elementary" className="w-24 h-24 object-contain shrink-0" />
       <div className="text-center">
         <h1 className="text-3xl font-bold text-red-700 leading-tight" style={centurySchoolbook}>{schedule.teacher_name || 'Teacher'}</h1>
         <h2 className="text-3xl font-bold leading-tight" style={centurySchoolbook}>Daily Schedule</h2>
         <p className="text-3xl font-bold leading-tight" style={centurySchoolbook}>{subtitle}</p>
       </div>
-      <div className="w-24 hidden print:block" />
     </div>
   );
 
@@ -296,8 +295,8 @@ function ViewMode({ schedule }) {
           <HeaderBlock />
         </div>
 
-      {/* Table */}
-      <div>
+      {/* Table — thin left/right borders, gap below header */}
+      <div className="mt-4 border-l border-r border-black">
         {/* Header row */}
         <div className="grid grid-cols-3 bg-[#FF0000] text-white font-black uppercase text-sm">
           <div className="px-3 py-2 text-center border-r border-white/30">TIME</div>
@@ -338,7 +337,7 @@ function ViewMode({ schedule }) {
           );
         })}
       </div>
-        <p className="text-center italic mt-4 text-base" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif'}}>
+        <p className="text-center mt-4 font-bold" style={{fontFamily: '"Century Schoolbook", "Times New Roman", serif', fontSize: '18px'}}>
           Charting the course for Every child!
         </p>
       </div>

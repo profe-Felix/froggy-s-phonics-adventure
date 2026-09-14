@@ -262,7 +262,7 @@ export default function StudentDashboard() {
       {/* Main content — sheet preview wrapper */}
       {selectedStudentId ? (
         <div className="py-4">
-          <div className={`page-preview ${printAllData ? 'print:hidden' : ''}`}>
+          <div className={`page-preview ${printAllData ? 'print:hidden' : ''}`} style={{ border: 'none' }}>
             <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
             <div className="mt-4">
               <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
@@ -285,7 +285,7 @@ export default function StudentDashboard() {
       {printAllData && (
         <div className="hidden print:block">
           {printAllData.map(({ student, data: dData, lang: dLang }, idx) => (
-            <div key={idx} className="page-preview print:break-after-page">
+            <div key={idx} className="page-preview print:break-after-page" style={{ border: 'none' }}>
               <PrintHeader student={student} lang={dLang} class_name={className} />
               <div className="mt-4">
                 <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} frontBack={frontBack} />
