@@ -5,7 +5,7 @@
 
 const HEADER_MAP: Record<string, string> = {
   'name': 'name', 'student name': 'name', 'student': 'name', 'student_name': 'name',
-  'id': 'barcode_number', 'id number': 'barcode_number', 'id_number': 'barcode_number',
+  'id': 'number_raw', 'id number': 'barcode_number', 'id_number': 'barcode_number',
   'barcode': 'barcode_number', 'barcode number': 'barcode_number', 'barcode_number': 'barcode_number',
   'number': 'number_raw', 'no': 'number_raw', 'num': 'number_raw', '#': 'number_raw',
   'class': 'class_name', 'class name': 'class_name', 'class_name': 'class_name',
@@ -126,6 +126,16 @@ export async function fetchSheetStudents(sheetUrl: string): Promise<SheetStudent
       (obj as any)[key] = val;
     }
     if (!obj.name && !obj.student_number && !obj.barcode_number) continue;
+    // Reconciliation: if barcode_number is a small integer (1-30) and no
+    // student_number was set, it's really a student number (e.g. an "ID"
+    // column with values 1-30). Move it so upsert matches the right slot.
+    if (obj.barcode_number && !obj.student_number) {
+      const bn = parseInt(String(obj.barcode_number), 10);
+      if (!isNaN(bn) && bn >= 1 && bn <= 30) {
+        obj.student_number = bn;
+        delete obj.barcode_number;
+      }
+    }
     if (!obj.class_name && obj.homeroom) obj.class_name = obj.homeroom;
     students.push(obj);
   }
