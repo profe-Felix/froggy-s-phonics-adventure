@@ -312,10 +312,16 @@ export default function TeacherNotebookDashboard({ onBack }) {
                 <div>
                   <p className="font-black text-white">{a.title}</p>
                   <p className="text-xs text-indigo-300">
-                    {a.status} • {a.page_mode} mode • {a.pdf_page_count || a.page_count || a.page_range_end || '?'} pages
+                    {a.status} • {a.page_mode} mode • {a.pdf_page_count || a.page_count || a.page_range_end || '?'} pages{a.hidden ? ' • 🙈 hidden' : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <button
+                    title={a.hidden ? 'Hidden from students — click to show in assignment list' : 'Visible to students — click to hide from list (QR link still works)'}
+                    onClick={() => updateAssignment.mutate({ id: a.id, data: { hidden: !a.hidden } })}
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${a.hidden ? 'bg-gray-700 text-gray-500 hover:bg-gray-600' : 'bg-teal-700 text-teal-200 hover:bg-teal-600'}`}>
+                    {a.hidden ? '🙈' : '👁'}
+                  </button>
                   <button
                     title={a.shared_across_classes ? 'Shared with all classes — click to unshare' : 'Share with all classes'}
                     onClick={() => updateAssignment.mutate({ id: a.id, data: { shared_across_classes: !a.shared_across_classes } })}

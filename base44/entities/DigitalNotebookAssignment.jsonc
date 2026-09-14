@@ -78,6 +78,11 @@
       "type": "boolean",
       "default": false,
       "description": "If true, this assignment is visible in the shared library for all classes"
+    },
+    "hidden": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this assignment is hidden from the student assignment picker list. Students can still access it via a direct QR link (URL with ?assignment=Title)."
     }
   },
   "required": [

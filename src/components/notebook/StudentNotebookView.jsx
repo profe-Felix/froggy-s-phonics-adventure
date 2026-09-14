@@ -542,7 +542,8 @@ localDirtyRef.current = false;
   }, [currentPage, selectedAssignment]);
 
   if (!selectedAssignment) {
-    return <AssignmentPicker assignments={assignments} onSelect={setSelectedAssignment} className={className} />;
+    const visibleAssignments = assignments.filter(a => !a.hidden);
+    return <AssignmentPicker assignments={visibleAssignments} onSelect={setSelectedAssignment} className={className} />;
   }
 
   return (
