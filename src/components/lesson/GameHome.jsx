@@ -21,6 +21,7 @@ const FREE_MODES = [
   { mode: 'sight_words_easy', label: 'Sight Words', emoji: '👁️' },
   { mode: 'missing_letter', label: 'Missing Letter', emoji: '🔤' },
   { mode: 'syllable_count', label: 'Counting Syllables', emoji: '👏' },
+  { mode: 'spanish_reading', label: 'Spanish Reading', emoji: '📖', spanishOnly: true },
 ];
 
 export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete, barcodeLogin }) {
