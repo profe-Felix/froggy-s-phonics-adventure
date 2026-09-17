@@ -112,6 +112,32 @@ const getSentenceWords = (sentence) =>
     .toLowerCase()
     .match(/[a-záéíóúüñ]+/gi) || [];
 
+const determinerMatchesNoun = (determiner, noun) => {
+  if (!determiner || !noun) return false;
+
+  if (!determiner.number || !noun.number) return false;
+
+  if (determiner.number !== noun.number) return false;
+
+  if (determiner.determiner_type === 'possessive') {
+    return true;
+  }
+
+  if (
+    determiner.determiner_type === 'definite_article' ||
+    determiner.determiner_type === 'indefinite_article' ||
+    determiner.determiner_type === 'possessive_agreeing'
+  ) {
+    return (
+      !!determiner.gender &&
+      !!noun.gender &&
+      determiner.gender === noun.gender
+    );
+  }
+
+  return false;
+};
+
 const isEligibleReadingItem = (item, sectionKey, literacy) => {
   const text = getItemText(item).trim();
   if (!text) return false;
@@ -157,6 +183,45 @@ const collectSectionItems = (listsData, sectionKey) => {
       return aNum - bNum;
     })
     .flatMap(key => section[key]?.new || []);
+};
+
+const buildEligiblePhrases = (dictionary, literacy) => {
+  const unlockedSightWords = new Set(
+    (literacy?.sightWords || []).map(normalizeSpanish)
+  );
+
+  const nouns = (dictionary || []).filter(record =>
+    record.active !== false &&
+    record.part_of_speech === 'noun' &&
+    !!record.number &&
+    !!record.gender &&
+    canDecodeWord(record.word, literacy?.graphemes || [])
+  );
+
+  const determiners = (dictionary || []).filter(record =>
+    record.active !== false &&
+    record.part_of_speech === 'determiner' &&
+    !!record.determiner_type &&
+    unlockedSightWords.has(normalizeSpanish(record.word))
+  );
+
+  const phrases = [];
+
+  determiners.forEach(determiner => {
+    nouns.forEach(noun => {
+      if (!determinerMatchesNoun(determiner, noun)) return;
+
+      phrases.push({
+        text: `${determiner.word} ${noun.word}`,
+        determiner: determiner.word,
+        noun: noun.word,
+      });
+    });
+  });
+
+  return uniqueNormalized(
+    phrases.map(phrase => phrase.text)
+  ).map(text => ({ text }));
 };
 
 const shuffleItems = (items) =>
@@ -418,6 +483,7 @@ function SessionOverview({ sessions, onContinue }) {
 // ── Main component ──────────────────────────────────────────────────────────
 export default function SpanishReadingGame({ studentNumber, className, onBack, presetId, inlineItemsText, inlineSection, substeps, onComplete, teacherMode = false, lessonId, stepIndex }) {
   const [listsData, setListsData] = useState(null);
+  const [wordDictionary, setWordDictionary] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedModule, setSelectedModule] = useState(null);
   const [items, setItems] = useState([]);
@@ -453,18 +519,36 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       ? `${selectedSection || ''} Lesson ${literacyContext.currentLessonNumber}`
       : `${selectedSection || ''} M${selectedModule || ''}`;
 
-  // Load lists from Supabase
+  // Load reading lists and the teacher-managed Spanish Word Dictionary.
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
-      try {
-        const res = await fetch(SUPABASE_LISTS_URL);
-        const data = await res.json();
-        setListsData(data);
-      } catch {
-        setListsData({});
-      }
+      const [listsResult, dictionaryResult] = await Promise.allSettled([
+        fetch(SUPABASE_LISTS_URL).then(res => res.json()),
+        base44.entities.NounGender.list('-word', 500),
+      ]);
+
+      if (cancelled) return;
+
+      setListsData(
+        listsResult.status === 'fulfilled'
+          ? listsResult.value
+          : {}
+      );
+
+      setWordDictionary(
+        dictionaryResult.status === 'fulfilled'
+          ? (dictionaryResult.value || []).filter(record => record.active !== false)
+          : []
+      );
     };
+
     load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Find this student's current path lesson and build a cumulative literacy
@@ -672,15 +756,24 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     setSelectedModule(null);
     setRoundSessions([]);
 
-    const allItems = collectSectionItems(listsData, sectionKey);
+    const allItems =
+      sectionKey === 'Frases'
+        ? buildEligiblePhrases(
+            wordDictionary,
+            literacyContext.cumulative
+          )
+        : collectSectionItems(listsData, sectionKey);
 
-    const cumulativeEligible = allItems.filter(item =>
-      isEligibleReadingItem(
-        item,
-        sectionKey,
-        literacyContext.cumulative
-      )
-    );
+    const cumulativeEligible =
+      sectionKey === 'Frases'
+        ? allItems
+        : allItems.filter(item =>
+            isEligibleReadingItem(
+              item,
+              sectionKey,
+              literacyContext.cumulative
+            )
+          );
 
     // Decide whether an eligible item actually practices something NEW
     // from the student's current lesson.
@@ -705,6 +798,26 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
         return currentGraphemes.some(grapheme =>
           grapheme && normalizedText.includes(grapheme)
         );
+      }
+
+      // Generated phrases:
+      // focus the phrase if either:
+      //   1. its determiner/HFW was introduced this lesson, or
+      //   2. its noun uses a grapheme introduced this lesson.
+      if (sectionKey === 'Frases') {
+        const words = getSentenceWords(text);
+
+        return words.some(word => {
+          const normalizedWord = normalizeSpanish(word);
+
+          if (currentSightWords.includes(normalizedWord)) {
+            return true;
+          }
+
+          return currentGraphemes.some(grapheme =>
+            grapheme && normalizedWord.includes(grapheme)
+          );
+        });
       }
 
       // Sentences:
@@ -950,16 +1063,36 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
             {SECTIONS.map(sec => {
               const section = listsData[sec.key] || {};
               const moduleCount = Object.keys(section).filter(k => k.startsWith('M')).length;
+
+              const isDynamicProgressionSection =
+                sec.key === 'Frases' && !!literacyContext;
+
+              const isAvailable =
+                isDynamicProgressionSection || moduleCount > 0;
+
               return (
-                <motion.button key={sec.key} whileTap={{ scale: 0.97 }} onClick={() => handleSectionSelect(sec.key)}
+                <motion.button
+                  key={sec.key}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleSectionSelect(sec.key)}
                   className="w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold text-left px-3 sm:px-5 flex items-center justify-between"
-                  style={{ background: '#1a1a2e', border: '2px solid #4338ca', opacity: moduleCount === 0 ? 0.4 : 1 }}
-                  disabled={moduleCount === 0}>
+                  style={{
+                    background: '#1a1a2e',
+                    border: '2px solid #4338ca',
+                    opacity: isAvailable ? 1 : 0.4,
+                  }}
+                  disabled={!isAvailable}
+                >
                   <span className="text-white flex items-center gap-2">
                     <span className="text-xl sm:text-2xl">{sec.icon}</span>
                     <span className="text-sm sm:text-base">{sec.label}</span>
                   </span>
-                  <span className="text-indigo-400 text-[10px] sm:text-xs uppercase shrink-0 ml-2">{moduleCount} mod</span>
+
+                  <span className="text-indigo-400 text-[10px] sm:text-xs uppercase shrink-0 ml-2">
+                    {isDynamicProgressionSection
+                      ? `Lesson ${literacyContext.currentLessonNumber}`
+                      : `${moduleCount} mod`}
+                  </span>
                 </motion.button>
               );
             })}
