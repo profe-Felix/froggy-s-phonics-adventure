@@ -620,6 +620,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     setLoadingModule(true);
     setSelectedSection(sectionKey);
     setSelectedModule(null);
+    setRoundSessions([]);
 
     const allItems = collectSectionItems(listsData, sectionKey);
 
@@ -823,18 +824,22 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       attempt_date: today,
     });
 
-    const newCompleted = new Set(completedTexts);
-    newCompleted.add(itemText);
-    setCompletedTexts(newCompleted);
+    // Keep the complete daily history.
     setTodaySessions(prev => [newSession, ...prev]);
     setRefreshKey(k => k + 1);
 
-    // Auto-advance to next unread item
-    const nextUnreadIdx = items.findIndex(it => !newCompleted.has(getItemText(it)));
-    if (nextUnreadIdx !== -1) {
-      setCurrentIdx(nextUnreadIdx);
+    // Track this specific attempt in THIS practice round.
+    // Repeated syllables/words count as separate practice opportunities.
+    const updatedRoundSessions = [...roundSessions, newSession];
+    setRoundSessions(updatedRoundSessions);
+
+    // Move through the round by position instead of by item text.
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < items.length) {
+      setCurrentIdx(nextIdx);
     } else {
-      // All items done — show session overview for reflection
+      // All 10 practice opportunities are complete.
       setViewMode('overview');
     }
   };
@@ -968,8 +973,15 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
         </div>
       ) : viewMode === 'overview' ? (
         <SessionOverview
-          sessions={todaySessions}
-          onContinue={() => setViewMode('reading')}
+          sessions={roundSessions}
+          onContinue={() => {
+            setSelectedSection(null);
+            setSelectedModule(null);
+            setItems([]);
+            setCurrentIdx(0);
+            setRoundSessions([]);
+            setViewMode('reading');
+          }}
         />
       ) : currentItem ? (
         <div className="flex-1 overflow-hidden flex flex-col">
