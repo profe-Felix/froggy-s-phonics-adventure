@@ -29,7 +29,7 @@ const COLORS = [
 
 const SIZE_MIN = 2;
 const SIZE_MAX = 16;
-const SIZE_DEFAULT = 7;
+const SIZE_DEFAULT = 4;
 
 const TOOLS = [
   { id: 'pen', label: '✏️', title: 'Pen' },
