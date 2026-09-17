@@ -40,11 +40,18 @@ function blankLesson() {
     title: '',
     lesson_number: 1,
     class_name: '',
+    language: '',
     school_year: ACTIVE_SCHOOL_YEAR,
     subtitle: '',
     steps: [blankStep('letter_sounds')],
     active: true,
     assignment_type: 'class',
+    literacy_progression: {
+      graphemes: '',
+      sightWords: '',
+      pictureWords: '',
+      sentencePatterns: '',
+    },
   };
 }
 
@@ -510,6 +517,23 @@ export default function LessonEditor() {
   const [editing, setEditing] = useState(null); // lesson object being edited (new or existing)
   const [filterMode, setFilterMode] = useState('');
 
+  const getLiteracyProgression = (lesson) => {
+    if (lesson?.literacy_progression) {
+      return lesson.literacy_progression;
+    }
+
+    const stored = (lesson?.steps || []).find(
+      (s) => s?.config?.lessonLiteracy
+    )?.config?.lessonLiteracy;
+
+    return stored || {
+      graphemes: '',
+      sightWords: '',
+      pictureWords: '',
+      sentencePatterns: '',
+    };
+  };
+
   const { data: lessons = [] } = useQuery({
     queryKey: ['all-lessons'],
     queryFn: () => base44.entities.Lesson.list(),
@@ -552,22 +576,36 @@ export default function LessonEditor() {
 
   const save = async () => {
     if (!editing.title?.trim()) return alert('Please give the lesson a title.');
+
+    const literacy = editing.literacy_progression || getLiteracyProgression(editing);
+
+    const cleanSteps = (editing.steps || []).map(({ __new, ...s }) => ({
+      ...s,
+      config: {
+        ...(s.config || {}),
+        lessonLiteracy: literacy,
+      },
+    }));
+
     const payload = {
       title: editing.title.trim(),
       lesson_number: editing.assignment_type === 'guided' ? 0 : (editing.lesson_number || 1),
       class_name: editing.class_name || '',
+      language: editing.language || '',
       school_year: editing.school_year || ACTIVE_SCHOOL_YEAR,
       subtitle: editing.subtitle || '',
-      steps: (editing.steps || []).map(({ __new, ...s }) => s),
+      steps: cleanSteps,
       active: editing.active !== false,
       assignment_type: editing.assignment_type || 'class',
       assigned_students: editing.assignment_type === 'side_quest' ? (editing.assigned_students || []) : [],
     };
+
     if (editing.id) {
       await base44.entities.Lesson.update(editing.id, payload);
     } else {
       await base44.entities.Lesson.create(payload);
     }
+
     qc.invalidateQueries({ queryKey: ['all-lessons'] });
     qc.invalidateQueries({ queryKey: ['lessons'] });
     setEditing(null);
@@ -663,6 +701,110 @@ export default function LessonEditor() {
               </label>
             </div>
           </div>
+
+          {(editing.language === 'es' || !editing.language) && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
+              <div>
+                <h2 className="font-black text-gray-800">
+                  🇪🇸 Spanish Literacy Progression
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter only what is NEW in this lesson. Previous lessons will be
+                  automatically spiraled into practice.
+                </p>
+              </div>
+
+              <label className="text-xs text-gray-600 font-bold">
+                New sounds / graphemes
+                <input
+                  value={(editing.literacy_progression || getLiteracyProgression(editing)).graphemes || ''}
+                  onChange={e =>
+                    setEditing({
+                      ...editing,
+                      literacy_progression: {
+                        ...getLiteracyProgression(editing),
+                        ...(editing.literacy_progression || {}),
+                        graphemes: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="o, i, m"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+                />
+                <span className="block text-[10px] font-normal text-gray-400 mt-1">
+                  Example: o, i, m, p, s, ll, ch, qu
+                </span>
+              </label>
+
+              <label className="text-xs text-gray-600 font-bold">
+                New high-frequency words
+                <input
+                  value={(editing.literacy_progression || getLiteracyProgression(editing)).sightWords || ''}
+                  onChange={e =>
+                    setEditing({
+                      ...editing,
+                      literacy_progression: {
+                        ...getLiteracyProgression(editing),
+                        ...(editing.literacy_progression || {}),
+                        sightWords: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="el, la"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+                />
+                <span className="block text-[10px] font-normal text-gray-400 mt-1">
+                  These become fair game beginning with this lesson.
+                </span>
+              </label>
+
+              <label className="text-xs text-gray-600 font-bold">
+                New picture vocabulary
+                <textarea
+                  value={(editing.literacy_progression || getLiteracyProgression(editing)).pictureWords || ''}
+                  onChange={e =>
+                    setEditing({
+                      ...editing,
+                      literacy_progression: {
+                        ...getLiteracyProgression(editing),
+                        ...(editing.literacy_progression || {}),
+                        pictureWords: e.target.value,
+                      },
+                    })
+                  }
+                  rows={3}
+                  placeholder={'gato\nmesa\nzorro'}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+                />
+                <span className="block text-[10px] font-normal text-gray-400 mt-1">
+                  One per line. These may appear with a picture even before students can decode them.
+                </span>
+              </label>
+
+              <label className="text-xs text-gray-600 font-bold">
+                New phrase / sentence patterns
+                <textarea
+                  value={(editing.literacy_progression || getLiteracyProgression(editing)).sentencePatterns || ''}
+                  onChange={e =>
+                    setEditing({
+                      ...editing,
+                      literacy_progression: {
+                        ...getLiteracyProgression(editing),
+                        ...(editing.literacy_progression || {}),
+                        sentencePatterns: e.target.value,
+                      },
+                    })
+                  }
+                  rows={3}
+                  placeholder={'el {picture}\nla {picture}\nEl {picture} está en la {picture}.'}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono"
+                />
+                <span className="block text-[10px] font-normal text-gray-400 mt-1">
+                  One pattern per line. {'{picture}'} represents picture-supported vocabulary.
+                </span>
+              </label>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
             <label className="text-xs text-gray-600 font-bold">Lesson type
