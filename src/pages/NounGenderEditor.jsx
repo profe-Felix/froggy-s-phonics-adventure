@@ -85,22 +85,30 @@ export default function NounGenderEditor() {
 
   const setPartOfSpeech = useCallback(async (id, partOfSpeech) => {
     const usesAgreement =
-      partOfSpeech === 'noun' || partOfSpeech === 'adjective';
+      partOfSpeech === 'noun' ||
+      partOfSpeech === 'adjective' ||
+      partOfSpeech === 'determiner';
 
     const changes = usesAgreement
       ? {
           part_of_speech: partOfSpeech,
           article: partOfSpeech === 'noun' ? undefined : '',
+          determiner_type: partOfSpeech === 'determiner' ? undefined : '',
         }
       : {
           part_of_speech: partOfSpeech,
           gender: '',
           number: '',
           article: '',
+          determiner_type: '',
         };
 
     if (changes.article === undefined) {
       delete changes.article;
+    }
+
+    if (changes.determiner_type === undefined) {
+      delete changes.determiner_type;
     }
 
     setRecords((prev) =>
@@ -143,7 +151,10 @@ export default function NounGenderEditor() {
     const record = (records || []).find((r) => r.id === id);
     if (!record) return;
 
-    const article = record.gender ? articleFor(record.gender, number) : '';
+    const article =
+      record.part_of_speech === 'noun' && record.gender
+        ? articleFor(record.gender, number)
+        : '';
 
     setRecords((prev) =>
       (prev || []).map((r) =>
@@ -333,7 +344,8 @@ export default function NounGenderEditor() {
                       </select>
 
                       {(r.determiner_type === 'definite_article' ||
-                        r.determiner_type === 'indefinite_article') && (
+                        r.determiner_type === 'indefinite_article' ||
+                        r.determiner_type === 'possessive') && (
                         <>
                           <div className="flex gap-1.5 mb-1.5">
                             <button
@@ -358,28 +370,31 @@ export default function NounGenderEditor() {
                             </button>
                           </div>
 
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
-                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
-                                r.gender === 'masculine'
-                                  ? 'bg-blue-600 text-white border-blue-600'
-                                  : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
-                              }`}
-                            >
-                              Masculine
-                            </button>
-                            <button
-                              onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine', r.number || 'singular')}
-                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
-                                r.gender === 'feminine'
-                                  ? 'bg-pink-600 text-white border-pink-600'
-                                  : 'bg-white text-pink-600 border-pink-200 hover:border-pink-400'
-                              }`}
-                            >
-                              Feminine
-                            </button>
-                          </div>
+                          {(r.determiner_type === 'definite_article' ||
+                            r.determiner_type === 'indefinite_article') && (
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                  r.gender === 'masculine'
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
+                                }`}
+                              >
+                                Masculine
+                              </button>
+                              <button
+                                onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine', r.number || 'singular')}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                  r.gender === 'feminine'
+                                    ? 'bg-pink-600 text-white border-pink-600'
+                                    : 'bg-white text-pink-600 border-pink-200 hover:border-pink-400'
+                                }`}
+                              >
+                                Feminine
+                              </button>
+                            </div>
+                          )}
                         </>
                       )}
                     </>
