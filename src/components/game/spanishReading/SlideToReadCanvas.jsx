@@ -128,20 +128,46 @@ function calculateLayout(
     : 0;
 
   const lineData = lines.map(line => {
-    const measurements = line.map(unit => {
-      const isPictureToken =
-        isPicturePhrase &&
-        unit.type === 'token' &&
-        String(unit.text || '').toLowerCase() === normalizedPhraseNoun;
+    const words = splitWords(line);
+    const measurements = [];
 
-      return {
-        unit,
-        isPictureToken,
-        width: isPictureToken
-          ? pictureWidth
-          : ctx.measureText(unit.text).width,
-      };
-    });
+    for (const word of words) {
+      const wordText = word.units
+        .map(unit => unit.text)
+        .join('');
+
+      const isPictureWord =
+        isPicturePhrase &&
+        wordText.toLowerCase() === normalizedPhraseNoun;
+
+      if (isPictureWord) {
+        measurements.push({
+          unit: {
+            type: 'token',
+            text: wordText,
+            chars: [{ color: 'green' }],
+          },
+          width: pictureWidth,
+          isPictureToken: true,
+        });
+      } else {
+        for (const unit of word.units) {
+          measurements.push({
+            unit,
+            width: ctx.measureText(unit.text).width,
+            isPictureToken: false,
+          });
+        }
+      }
+
+      if (word.space) {
+        measurements.push({
+          unit: word.space,
+          width: ctx.measureText(word.space.text).width,
+          isPictureToken: false,
+        });
+      }
+    }
 
     const lineWidth = measurements.reduce(
       (sum, measurement) => sum + measurement.width,
