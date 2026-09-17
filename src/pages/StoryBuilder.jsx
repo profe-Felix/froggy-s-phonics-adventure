@@ -586,6 +586,8 @@ useEffect(() => {
               onUndo={() => { canvasRef.current?.undo(); }}
               onClear={() => { canvasRef.current?.clearStrokes(); }}
               side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+              onAddMic={() => setAddingMic(v => !v)}
+              addingMic={addingMic}
             />
           </div>
         )}
