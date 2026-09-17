@@ -685,18 +685,10 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       item => !usesCurrentLessonContent(item)
     );
 
-    // Roughly 2/3 new/current focus and 1/3 spiral review.
-    // Duplicating the current pool gives new learning more opportunities
-    // without removing previously taught material.
-    let practicePool = [
-      ...shuffleItems(newItems),
-      ...shuffleItems(newItems),
-      ...shuffleItems(reviewItems),
-    ];
-
-    // Remove exact duplicate object/text occurrences only after weighting has
-    // done its job by interleaving the repeated current material.
-    practicePool = shuffleItems(practicePool);
+    // Build a fresh 10-item round:
+    // 7 current-lesson opportunities + 3 spiral-review opportunities.
+    // Repetition is intentional when the available pool is small.
+    let practicePool = buildPracticeRound(newItems, reviewItems);
 
     // Teacher-confirmed mastery is still useful:
     // mastered items stay available but drift toward the back of the session.
