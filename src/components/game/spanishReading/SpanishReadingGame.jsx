@@ -289,14 +289,20 @@ const buildEligiblePhrases = (dictionary, literacy) => {
     literacy?.sightWords || []
   );
 
-  // Concrete/content words still come from the teacher-managed dictionary.
-  // The dictionary tells us their grammatical properties.
+  const unlockedPictureWords = new Set(
+    uniqueNormalized(literacy?.pictureWords || []).map(normalizeSpanish)
+  );
+
+  // Pictured nouns do not have to be independently decodable.
+  // The lesson's pictureWords list decides which pictured nouns are unlocked,
+  // while the dictionary supplies their image and grammatical properties.
   const nouns = (dictionary || []).filter(record =>
     record.active !== false &&
     record.part_of_speech === 'noun' &&
     !!record.number &&
     !!record.gender &&
-    canDecodeWord(record.word, literacy?.graphemes || [])
+    !!record.image_url &&
+    unlockedPictureWords.has(normalizeSpanish(record.word))
   );
 
   // Function words do not need image-dictionary records.
@@ -316,13 +322,21 @@ const buildEligiblePhrases = (dictionary, literacy) => {
         text: `${determiner.word} ${noun.word}`,
         determiner: determiner.word,
         noun: noun.word,
+        nounImageUrl: noun.image_url,
       });
     });
   });
 
-  return uniqueNormalized(
-    phrases.map(phrase => phrase.text)
-  ).map(text => ({ text }));
+  const seen = new Set();
+
+  return phrases.filter(phrase => {
+    const key = normalizeSpanish(phrase.text);
+
+    if (!key || seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
 };
 
 const shuffleItems = (items) =>
@@ -1281,6 +1295,9 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
             itemId={getItemId(currentItem)}
             itemType={itemType}
             syllables={currentItem?.syllables}
+            phraseDeterminer={currentItem?.determiner}
+            phraseNoun={currentItem?.noun}
+            phraseNounImageUrl={currentItem?.nounImageUrl}
             onGrade={handleGrade}
             onBack={() => setViewMode('overview')}
           />
