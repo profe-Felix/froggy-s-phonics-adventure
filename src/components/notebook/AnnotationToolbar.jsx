@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const COLORS = [
   { label: 'Black', value: '#000000' },
@@ -47,12 +47,32 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
   const [showSizes, setShowSizes] = useState(false);
   const [sizeBtnPos, setSizeBtnPos] = useState(null);
   const sizeBtnRef = useRef(null);
+  const toolbarRef = useRef(null);
+
+  useEffect(() => {
+    if (!showColors && !showSizes) return;
+
+    const dismissPopovers = (e) => {
+      if (toolbarRef.current?.contains(e.target)) return;
+
+      setShowColors(false);
+      setShowSizes(false);
+    };
+
+    document.addEventListener('pointerdown', dismissPopovers);
+
+    return () => {
+      document.removeEventListener('pointerdown', dismissPopovers);
+    };
+  }, [showColors, showSizes]);
 
   const PICKER_W = 128;
   const SIZE_POPOVER_W = 180;
 
   return (
-    <div className="relative flex flex-col gap-0.5 p-1 rounded-2xl shadow-2xl shrink-0"
+    <div
+      ref={toolbarRef}
+      className="relative flex flex-col gap-0.5 p-1 rounded-2xl shadow-2xl shrink-0"
       style={{ background: '#1a1a2e', border: '2px solid #4338ca', maxHeight: '100%', overflowY: 'auto', overflowX: 'hidden' }}
     >
       {/* Swap side button */}
@@ -178,6 +198,24 @@ export default function AnnotationToolbar({ tool, setTool, color, setColor, size
           }}
         >
           <p className="text-indigo-300 text-xs font-bold text-center mb-2">Pen Size</p>
+
+          {/* Quick size choices */}
+          <div className="grid grid-cols-3 gap-1.5 mb-3">
+            {[2, 4, 7].map(preset => (
+              <button
+                key={preset}
+                onClick={() => setSize(preset)}
+                className={`py-1.5 rounded-lg text-xs font-black border transition-all ${
+                  size === preset
+                    ? 'bg-indigo-600 border-indigo-400 text-white'
+                    : 'bg-indigo-950 border-indigo-800 text-indigo-200 hover:bg-indigo-900'
+                }`}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+
           {/* Live preview line — shows actual thickness */}
           <div className="flex items-center justify-center mb-3 py-2" style={{ background: '#0f0f1a', borderRadius: 10 }}>
             <svg width="140" height="40" viewBox="0 0 140 40">
