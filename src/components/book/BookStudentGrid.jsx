@@ -64,7 +64,7 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
         </div>
 
         {/* Page display — contain-fit, fills remaining modal height */}
-        <div className="flex-1 overflow-hidden relative" ref={containerRef} style={{ background: '#fff' }}>
+        <div className="flex-1 overflow-hidden relative" style={{ background: '#fff' }}>
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%' }}>
             {isSpread ? (
               <>
@@ -74,7 +74,17 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
                 )}
               </>
             ) : (
-              <div style={{ flex: 1, height: '100%' }}>{renderPage(recording.page)}</div>
+              <div
+                ref={containerRef}
+                style={{
+                  position: 'relative',
+                  flex: 1,
+                  height: '100%',
+                  minWidth: 0,
+                }}
+              >
+                {renderPage(recording.page)}
+              </div>
             )}
             {laserData.length > 0 && containerSize.w > 0 && (
               <LaserReplayOverlay
