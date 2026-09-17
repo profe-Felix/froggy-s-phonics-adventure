@@ -22,6 +22,7 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
   const recording = useRef(false);
   const recordStart = useRef(0);
   const pauseStart = useRef(0);
+  const recordingRect = useRef(null);
   const fadeTimer = useRef(null);
   const pointerDown = useRef(false);
   const pointerType = useRef('mouse'); // 'mouse' | 'pen' | 'touch'
@@ -54,7 +55,20 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
   }, []);
 
   const getRelativePos = useCallback((clientX, clientY, el) => {
-    const rect = el.getBoundingClientRect();
+    const currentRect = el.getBoundingClientRect();
+
+    // While recording, keep the coordinate scale from the orientation/size
+    // where recording began, but follow the container's current screen
+    // position after an orientation/layout change.
+    const rect = recording.current && recordingRect.current
+      ? {
+          left: currentRect.left,
+          top: currentRect.top,
+          width: recordingRect.current.width,
+          height: recordingRect.current.height,
+        }
+      : currentRect;
+
     return {
       x: (clientX - rect.left) / rect.width,
       y: (clientY - rect.top) / rect.height,
@@ -138,8 +152,15 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
     rawTrail.current = [];
     recordStart.current = startTime || Date.now();
     pauseStart.current = 0;
+
+    // Lock the coordinate system to the container dimensions at the moment
+    // recording begins. This prevents an orientation change from changing
+    // the laser recording's coordinate system halfway through.
+    const el = containerRef?.current;
+    recordingRect.current = el ? el.getBoundingClientRect() : null;
+
     recording.current = true;
-  }, []);
+  }, [containerRef]);
 
   const pauseRecordingLaser = useCallback(() => {
     if (recording.current && !pauseStart.current) {
@@ -158,6 +179,7 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
 
   const stopRecordingLaser = useCallback(() => {
     recording.current = false;
+    recordingRect.current = null;
   }, []);
 
   const getLaserData = useCallback(() => {
