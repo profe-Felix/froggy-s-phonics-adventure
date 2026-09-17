@@ -62,7 +62,16 @@ export default function NounGenderEditor() {
       for (const w of bucketWords) {
         if (existing.has(w) || seen.has(w)) continue;
         seen.add(w);
-        toCreate.push({ word: w, image_url: bucketUrls.get(w) || '', part_of_speech: '', gender: '', article: '', number: '', active: true });
+        toCreate.push({
+          word: w,
+          image_url: bucketUrls.get(w) || '',
+          part_of_speech: '',
+          gender: '',
+          number: '',
+          article: '',
+          determiner_type: '',
+          active: true,
+        });
       }
 
       const parts = [];
@@ -84,32 +93,13 @@ export default function NounGenderEditor() {
   }, [records, load]);
 
   const setPartOfSpeech = useCallback(async (id, partOfSpeech) => {
-    const usesAgreement =
-      partOfSpeech === 'noun' ||
-      partOfSpeech === 'adjective' ||
-      partOfSpeech === 'determiner';
-
-    const changes = usesAgreement
-      ? {
-          part_of_speech: partOfSpeech,
-          article: partOfSpeech === 'noun' ? undefined : '',
-          determiner_type: partOfSpeech === 'determiner' ? undefined : '',
-        }
-      : {
-          part_of_speech: partOfSpeech,
-          gender: '',
-          number: '',
-          article: '',
-          determiner_type: '',
-        };
-
-    if (changes.article === undefined) {
-      delete changes.article;
-    }
-
-    if (changes.determiner_type === undefined) {
-      delete changes.determiner_type;
-    }
+    const changes = {
+      part_of_speech: partOfSpeech,
+      gender: '',
+      number: '',
+      article: '',
+      determiner_type: '',
+    };
 
     setRecords((prev) =>
       (prev || []).map((r) =>
@@ -261,7 +251,11 @@ export default function NounGenderEditor() {
               <option value="noun">Nouns</option>
               <option value="verb">Verbs</option>
               <option value="adjective">Adjectives</option>
+              <option value="determiner">Determiners</option>
+              <option value="pronoun">Pronouns</option>
               <option value="preposition">Prepositions</option>
+              <option value="adverb">Adverbs</option>
+              <option value="conjunction">Conjunctions</option>
               <option value="other">Other</option>
             </select>
             <button
