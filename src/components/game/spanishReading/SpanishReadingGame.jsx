@@ -579,28 +579,58 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       )
     );
 
-    const currentEligible = allItems.filter(item =>
-      isEligibleReadingItem(
-        item,
-        sectionKey,
-        {
-          ...literacyContext.cumulative,
-          graphemes: literacyContext.current.graphemes,
-          sightWords: literacyContext.current.sightWords,
-        }
-      )
-    );
+    // Decide whether an eligible item actually practices something NEW
+    // from the student's current lesson.
+    const currentGraphemes = literacyContext.current.graphemes.map(normalizeSpanish);
+    const currentSightWords = literacyContext.current.sightWords.map(normalizeSpanish);
 
-    const currentKeys = new Set(
-      currentEligible.map(item => normalizeSpanish(getItemText(item)))
-    );
+    const usesCurrentLessonContent = (item) => {
+      const text = getItemText(item);
+      const normalizedText = normalizeSpanish(text);
 
-    const newItems = cumulativeEligible.filter(item =>
-      currentKeys.has(normalizeSpanish(getItemText(item)))
-    );
+      // High-frequency-word section:
+      // focus items are the HFWs introduced in THIS lesson.
+      if (sectionKey === 'Palabras 💙') {
+        return currentSightWords.includes(normalizedText);
+      }
 
-    const reviewItems = cumulativeEligible.filter(item =>
-      !currentKeys.has(normalizeSpanish(getItemText(item)))
+      // Syllables / decodable words:
+      // the whole word must already be eligible through the cumulative
+      // progression, but it counts as NEW practice if it contains at least
+      // one grapheme introduced in this lesson.
+      if (sectionKey === 'Sílabas' || sectionKey === 'Palabras') {
+        return currentGraphemes.some(grapheme =>
+          grapheme && normalizedText.includes(grapheme)
+        );
+      }
+
+      // Sentences:
+      // focus the sentence if it contains either:
+      //   1. a HFW introduced this lesson, or
+      //   2. a decodable word using a grapheme introduced this lesson.
+      if (sectionKey === 'Oraciones') {
+        const words = getSentenceWords(text);
+
+        return words.some(word => {
+          const normalizedWord = normalizeSpanish(word);
+
+          if (currentSightWords.includes(normalizedWord)) {
+            return true;
+          }
+
+          return currentGraphemes.some(grapheme =>
+            grapheme && normalizedWord.includes(grapheme)
+          );
+        });
+      }
+
+      return false;
+    };
+
+    const newItems = cumulativeEligible.filter(usesCurrentLessonContent);
+
+    const reviewItems = cumulativeEligible.filter(
+      item => !usesCurrentLessonContent(item)
     );
 
     // Roughly 2/3 new/current focus and 1/3 spiral review.
