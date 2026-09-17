@@ -259,7 +259,7 @@ function playRecording(url) {
 }
 
 // ── Self-grade screen ────────────────────────────────────────────────────────
-function SelfGradeScreen({ recording, itemText, itemId, itemType, onGrade, onBack }) {
+function SelfGradeScreen({ recording, itemText, itemId, itemType, syllables, onGrade, onBack }) {
   const audioBlob = recording?.audioBlob;
   const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
   const [saving, setSaving] = useState(false);
