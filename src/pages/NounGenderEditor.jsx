@@ -153,8 +153,9 @@ export default function NounGenderEditor() {
 
   const filtered = useMemo(() => {
     let out = records || [];
-    if (filter === 'unassigned') out = out.filter((r) => !r.gender);
-    else if (filter !== 'all') out = out.filter((r) => r.gender === filter);
+    if (filter === 'unassigned') out = out.filter((r) => !r.part_of_speech);
+    else if (filter === 'masculine') out = out.filter((r) => r.part_of_speech === 'noun' && r.gender === 'masculine');
+    else if (filter === 'feminine') out = out.filter((r) => r.part_of_speech === 'noun' && r.gender === 'feminine');
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       out = out.filter((r) => r.word.toLowerCase().includes(q));
@@ -166,9 +167,11 @@ export default function NounGenderEditor() {
     const r = records || [];
     return {
       total: r.length,
-      masc: r.filter((x) => x.gender === 'masculine').length,
-      fem: r.filter((x) => x.gender === 'feminine').length,
-      unassigned: r.filter((x) => !x.gender).length,
+      nouns: r.filter((x) => x.part_of_speech === 'noun').length,
+      verbs: r.filter((x) => x.part_of_speech === 'verb').length,
+      adjectives: r.filter((x) => x.part_of_speech === 'adjective').length,
+      prepositions: r.filter((x) => x.part_of_speech === 'preposition').length,
+      unassigned: r.filter((x) => !x.part_of_speech).length,
     };
   }, [records]);
 
@@ -179,9 +182,9 @@ export default function NounGenderEditor() {
           <div className="flex items-center gap-3">
             <Link to="/TeacherHub" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">🔤 Noun Gender Library</h1>
+              <h1 className="text-lg font-semibold leading-tight">📚 Spanish Word Dictionary</h1>
               <p className="text-xs text-muted-foreground">
-                {loading ? 'Loading…' : `${stats.total} nouns · ${stats.masc} masc · ${stats.fem} fem · ${stats.unassigned} unassigned`}
+                {loading ? 'Loading…' : `${stats.total} words · ${stats.nouns} nouns · ${stats.verbs} verbs · ${stats.adjectives} adjectives · ${stats.prepositions} prepositions · ${stats.unassigned} unassigned`}
               </p>
             </div>
           </div>
@@ -240,7 +243,7 @@ export default function NounGenderEditor() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-gray-800 text-sm">{r.word}</span>
-                      {r.number === 'plural' && (
+                      {r.part_of_speech === 'noun' && r.number === 'plural' && (
                         <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full">plural</span>
                       )}
 
@@ -253,7 +256,7 @@ export default function NounGenderEditor() {
                       {r.active ? '👁️' : '🚫'}
                     </button>
                   </div>
-                  {(r.gender || r.number === 'plural') && (
+                  {r.part_of_speech === 'noun' && r.gender && r.number && (
                     <div className="text-xs text-gray-400 font-bold mb-1.5 text-center">
                       {r.article || articleFor(r.gender, r.number)} {r.word}
                     </div>
