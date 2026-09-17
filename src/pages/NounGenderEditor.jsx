@@ -10,43 +10,13 @@ import { markersToPretty } from '@/lib/lettersort/phonics';
 // feminine to each. The phrase game auto-generates el/la + noun phrases from
 // these assignments.
 
-// Auto-detect plurality from the word. Spanish plurals end in -s,
-// but many nouns are "invariable" — they end in -s in the singular too.
-const SINGULAR_S_WORDS = new Set([
-  'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
-  'crisis', 'paraguas', 'virus', 'tesis', 'microondas', 'cumpleanos',
-  'torax', 'atlas', 'oasis', 'analisis', 'enfasis', 'apocalipsis',
-  'axis', 'biceps', 'cactus', 'chassis', 'gas', 'bus', 'tos', 'res',
-  'mes', 'tis', 'pas', 'pies', 'dios', 'jueves', 'trajes',
-]);
-const detectNumber = (word) => {
-  const w = (word || '').toLowerCase().trim();
-  if (SINGULAR_S_WORDS.has(w)) return 'singular';
-  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return 'plural';
-  return 'singular';
-};
+// Number is assigned manually by the teacher.
+// Do not infer singular/plural from spelling.
 // Detect infinitive verbs — not nouns. We use a known-verbs whitelist rather
 // than a -ar/-er/-ir regex so real nouns like 'mujer', 'collar', 'altar',
 // 'azúcar' (which happen to end in those suffixes) are never false-flagged.
-const INFINITIVE_VERBS = new Set([
-  // -ar action verbs (likely to have pictures in a phonics bucket)
-  'saltar', 'nadar', 'cantar', 'bailar', 'pintar', 'cocinar', 'lavar', 'peinar',
-  'cortar', 'pegar', 'sacar', 'tocar', 'mirar', 'hablar', 'gritar', 'llorar',
-  'abrazar', 'besar', 'caminar', 'volar', 'patinar', 'esquiar', 'dibujar',
-  'trabajar', 'estudiar', 'ensenar', 'pensar', 'jugar', 'fregar', 'freir',
-  'asustar', 'barrer', 'cepillar', 'secar', 'duchar', 'banar', 'sentar',
-  // -er verbs
-  'comer', 'beber', 'leer', 'creer', 'romper', 'temer', 'aprender', 'vender',
-  'perder', 'volver', 'morder', 'sorprender', 'barrer', 'cocer', 'tejer',
-  // -ir verbs
-  'subir', 'dormir', 'escribir', 'vivir', 'salir', 'venir', 'decir', 'recibir',
-  'permitir', 'sufrir', 'existir', 'resistir', 'describir', 'inscribir',
-  'abrir', 'cerrar', 'reir', 'sonreir',
-  // irregular but common
-  'ser', 'estar', 'tener', 'poner', 'saber', 'querer', 'poder', 'deber',
-  'hacer', 'ir', 'ver', 'dar',
-]);
-const isInfinitiveVerb = (word) => INFINITIVE_VERBS.has((word || '').toLowerCase().trim());
+// Part of speech is assigned manually by the teacher.
+// Do not guess whether a word is a verb from its spelling.
 const articleFor = (gender, number = 'singular') => {
   if (gender === 'masculine') return number === 'plural' ? 'los' : 'el';
   if (gender === 'feminine') return number === 'plural' ? 'las' : 'la';
@@ -65,19 +35,6 @@ export default function NounGenderEditor() {
     setLoading(true);
     try {
       const all = await base44.entities.NounGender.list('-word', 500);
-      // Backfill: auto-detect number for records that don't have it yet
-      const needsBackfill = all.filter((r) => !r.number);
-      if (needsBackfill.length > 0) {
-        const updates = needsBackfill.map((r) => {
-          const num = detectNumber(r.word);
-          return { id: r.id, number: num, article: r.gender ? articleFor(r.gender, num) : '' };
-        });
-        await base44.entities.NounGender.bulkUpdate(updates);
-        const map = new Map(updates.map((u) => [u.id, u]));
-        all.forEach((r) => {
-          if (map.has(r.id)) { r.number = map.get(r.id).number; r.article = map.get(r.id).article; }
-        });
-      }
       setRecords(all);
     } catch {
       setRecords([]);
@@ -110,19 +67,8 @@ export default function NounGenderEditor() {
       for (const w of bucketWords) {
         if (existing.has(w) || seen.has(w)) continue;
         seen.add(w);
-        toCreate.push({ word: w, image_url: bucketUrls.get(w) || '', gender: '', article: '', number: detectNumber(w), active: true });
+        toCreate.push({ word: w, image_url: bucketUrls.get(w) || '', part_of_speech: '', gender: '', article: '', number: '', active: true });
       }
-      // Also re-detect number for existing records (fixes bad plural detection)
-      const toUpdate = current
-        .filter((r) => bucketWords.has(r.word.toLowerCase()))
-        .filter((r) => {
-          const correctNum = detectNumber(r.word);
-          return r.number !== correctNum;
-        })
-        .map((r) => {
-          const num = detectNumber(r.word);
-          return { id: r.id, number: num, article: r.gender ? articleFor(r.gender, num) : '' };
-        });
 
       const parts = [];
       if (toDelete.length > 0) {
@@ -133,10 +79,6 @@ export default function NounGenderEditor() {
         await base44.entities.NounGender.bulkCreate(toCreate);
         parts.push(`added ${toCreate.length} new`);
       }
-      if (toUpdate.length > 0) {
-        await base44.entities.NounGender.bulkUpdate(toUpdate);
-        parts.push(`fixed ${toUpdate.length} number`);
-      }
       setSeedMsg(parts.length > 0 ? parts.join(' · ') : 'Library is up to date — no changes.');
       await load();
     } catch (e) {
@@ -145,6 +87,21 @@ export default function NounGenderEditor() {
       setSeeding(false);
     }
   }, [records, load]);
+
+  const setPartOfSpeech = useCallback(async (id, partOfSpeech) => {
+    setRecords((prev) =>
+      (prev || []).map((r) =>
+        r.id === id ? { ...r, part_of_speech: partOfSpeech } : r
+      )
+    );
+
+    try {
+      await base44.entities.NounGender.update(id, { part_of_speech: partOfSpeech });
+    } catch {
+      void load();
+    }
+  }, [load]);
+
 
   const setGender = useCallback(async (id, gender, number) => {
     const article = articleFor(gender, number);
@@ -155,6 +112,26 @@ export default function NounGenderEditor() {
       void load();
     }
   }, [load]);
+
+  const setNumber = useCallback(async (id, number) => {
+    const record = (records || []).find((r) => r.id === id);
+    if (!record) return;
+
+    const article = record.gender ? articleFor(record.gender, number) : '';
+
+    setRecords((prev) =>
+      (prev || []).map((r) =>
+        r.id === id ? { ...r, number, article } : r
+      )
+    );
+
+    try {
+      await base44.entities.NounGender.update(id, { number, article });
+    } catch {
+      void load();
+    }
+  }, [records, load]);
+
 
   const toggleActive = useCallback(async (id, active) => {
     setRecords((prev) => (prev || []).map((r) => (r.id === id ? { ...r, active } : r)));
@@ -257,9 +234,7 @@ export default function NounGenderEditor() {
                       {r.number === 'plural' && (
                         <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-full">plural</span>
                       )}
-                      {isInfinitiveVerb(r.word) && (
-                        <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-1.5 py-0.5 rounded-full" title="Infinitive verb — not a noun">verb?</span>
-                      )}
+
                     </div>
                     <button
                       onClick={() => toggleActive(r.id, !r.active)}
@@ -274,6 +249,28 @@ export default function NounGenderEditor() {
                       {r.article || articleFor(r.gender, r.number)} {r.word}
                     </div>
                   )}
+                  <div className="flex gap-1.5 mb-1.5">
+                    <button
+                      onClick={() => setNumber(r.id, 'singular')}
+                      className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                        r.number === 'singular'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-emerald-600 border-emerald-200 hover:border-emerald-400'
+                      }`}
+                    >
+                      Singular
+                    </button>
+                    <button
+                      onClick={() => setNumber(r.id, 'plural')}
+                      className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                        r.number === 'plural'
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-white text-amber-600 border-amber-200 hover:border-amber-400'
+                      }`}
+                    >
+                      Plural
+                    </button>
+                  </div>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
