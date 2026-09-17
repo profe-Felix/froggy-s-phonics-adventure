@@ -249,9 +249,23 @@ export default function NounGenderEditor() {
                       {r.article || articleFor(r.gender, r.number)} {r.word}
                     </div>
                   )}
-                  <div className="flex gap-1.5 mb-1.5">
-                    <button
-                      onClick={() => setNumber(r.id, 'singular')}
+                  <select
+                    value={r.part_of_speech || ''}
+                    onChange={(e) => setPartOfSpeech(r.id, e.target.value)}
+                    className="w-full mb-1.5 rounded-lg border-2 border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-gray-700"
+                  >
+                    <option value="">Part of speech…</option>
+                    <option value="noun">Noun</option>
+                    <option value="verb">Verb</option>
+                    <option value="adjective">Adjective</option>
+                    <option value="preposition">Preposition</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {r.part_of_speech === 'noun' && (
+                    <>
+                      <div className="flex gap-1.5 mb-1.5">
+                        <button
+                          onClick={() => setNumber(r.id, 'singular')}
                       className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
                         r.number === 'singular'
                           ? 'bg-emerald-600 text-white border-emerald-600'
@@ -293,6 +307,8 @@ export default function NounGenderEditor() {
                       {r.number === 'plural' ? 'las' : 'la'} fem
                     </button>
                   </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
