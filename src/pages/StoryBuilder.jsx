@@ -35,7 +35,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const [saving, setSaving] = useState(false);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#1e3a8a');
-  const [size, setSize] = useState(7);
+  const [size, setSize] = useState(4);
   const [side, setSide] = useState('left');
   const [addingMic, setAddingMic] = useState(false);
   const [floatingMics, setFloatingMics] = useState([]);
@@ -298,11 +298,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     latestStoryRef.current = nextStory;
 
     await base44.entities.StoryAssignment.update(activeStory.id, {
-      pages: nextStory.pages || [],
-      strokes_by_page: nextStory.strokes_by_page || {},
       voice_notes_by_page: updatedVoiceNotes,
-      recordings_by_page: nextStory.recordings_by_page || {},
-      status: nextStory.status || 'in_progress',
       last_active: nextStory.last_active,
     });
 
