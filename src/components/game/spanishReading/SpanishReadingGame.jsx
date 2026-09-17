@@ -59,6 +59,8 @@ const normalizeSpanish = (text) =>
   String(text || '')
     .toLowerCase()
     .normalize('NFD')
+    .replace(/n\u0303/g, 'ñ')
+    .replace(/u\u0308/g, 'ü')
     .replace(/[\u0300-\u036f]/g, '');
 
 const uniqueNormalized = (items) => {
