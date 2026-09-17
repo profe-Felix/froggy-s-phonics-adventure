@@ -318,11 +318,15 @@ function renderCanvas(
           (li === activeLine && tokIdx < revealedCount);
 
         if (isPictureToken && phraseImage) {
-          const maxImageW = width * 0.9;
-          const maxImageH = Math.min(
-            canvasH * 0.28,
-            fontSize * 2.2
-          );
+          const maxImageW = width * 0.82;
+
+          // Keep the picture inside the normal letter-height area.
+          // This prevents it from extending down into the pills.
+          const imageTop = y - fontSize;
+          const imageBottom = y;
+          const availableImageH = imageBottom - imageTop;
+
+          const maxImageH = availableImageH * 0.92;
 
           const imageScale = Math.min(
             maxImageW / phraseImage.naturalWidth,
@@ -333,11 +337,8 @@ function renderCanvas(
           const imageH = phraseImage.naturalHeight * imageScale;
 
           const imageX = x + (width - imageW) / 2;
-
-          // Treat the picture like an inline word:
-          // vertically center it with the neighboring text.
-          const textCenterY = y - fontSize * 0.35;
-          const imageY = textCenterY - imageH / 2;
+          const imageY =
+            imageTop + (availableImageH - imageH) / 2;
 
           ctx.drawImage(
             phraseImage,
