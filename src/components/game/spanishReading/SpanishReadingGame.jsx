@@ -19,6 +19,146 @@ const SECTIONS = [
 const getItemText = (item) => typeof item === 'string' ? item : item?.text || '';
 const getItemId = (item) => typeof item === 'object' ? item?.id : undefined;
 
+const EMPTY_LITERACY = {
+  graphemes: [],
+  sightWords: [],
+  pictureWords: [],
+  sentencePatterns: [],
+};
+
+const splitLiteracyList = (value) => {
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+
+  return String(value || '')
+    .split(/[,\n]+/)
+    .map(v => v.trim())
+    .filter(Boolean);
+};
+
+const getLessonLiteracy = (lesson) => {
+  const direct = lesson?.literacy_progression;
+
+  const stored = (lesson?.steps || []).find(
+    step => step?.config?.lessonLiteracy
+  )?.config?.lessonLiteracy;
+
+  const raw = direct || stored || {};
+
+  return {
+    graphemes: splitLiteracyList(raw.graphemes),
+    sightWords: splitLiteracyList(raw.sightWords),
+    pictureWords: splitLiteracyList(raw.pictureWords),
+    sentencePatterns: String(raw.sentencePatterns || '')
+      .split('\n')
+      .map(v => v.trim())
+      .filter(Boolean),
+  };
+};
+
+const normalizeSpanish = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const uniqueNormalized = (items) => {
+  const seen = new Set();
+
+  return items.filter(item => {
+    const key = normalizeSpanish(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const canDecodeWord = (word, graphemes) => {
+  let remaining = normalizeSpanish(word)
+    .replace(/[^a-zñü]/g, '');
+
+  if (!remaining) return false;
+
+  const allowed = uniqueNormalized(graphemes)
+    .map(normalizeSpanish)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
+  if (!allowed.length) return false;
+
+  const memo = new Map();
+
+  const canFinish = (index) => {
+    if (index === remaining.length) return true;
+    if (memo.has(index)) return memo.get(index);
+
+    const works = allowed.some(
+      grapheme =>
+        remaining.startsWith(grapheme, index) &&
+        canFinish(index + grapheme.length)
+    );
+
+    memo.set(index, works);
+    return works;
+  };
+
+  return canFinish(0);
+};
+
+const getSentenceWords = (sentence) =>
+  String(sentence || '')
+    .toLowerCase()
+    .match(/[a-záéíóúüñ]+/gi) || [];
+
+const isEligibleReadingItem = (item, sectionKey, literacy) => {
+  const text = getItemText(item).trim();
+  if (!text) return false;
+
+  if (sectionKey === 'Palabras 💙') {
+    const target = normalizeSpanish(text);
+
+    return literacy.sightWords.some(
+      word => normalizeSpanish(word) === target
+    );
+  }
+
+  if (sectionKey === 'Sílabas' || sectionKey === 'Palabras') {
+    return canDecodeWord(text, literacy.graphemes);
+  }
+
+  if (sectionKey === 'Oraciones') {
+    const sightSet = new Set(
+      literacy.sightWords.map(normalizeSpanish)
+    );
+
+    return getSentenceWords(text).every(word => {
+      const normalized = normalizeSpanish(word);
+
+      return (
+        sightSet.has(normalized) ||
+        canDecodeWord(word, literacy.graphemes)
+      );
+    });
+  }
+
+  return false;
+};
+
+const collectSectionItems = (listsData, sectionKey) => {
+  const section = listsData?.[sectionKey] || {};
+
+  return Object.keys(section)
+    .filter(key => /^M\d+$/i.test(key))
+    .sort((a, b) => {
+      const aNum = parseInt(a.replace(/\D/g, '')) || 0;
+      const bNum = parseInt(b.replace(/\D/g, '')) || 0;
+      return aNum - bNum;
+    })
+    .flatMap(key => section[key]?.new || []);
+};
+
+const shuffleItems = (items) =>
+  [...items].sort(() => Math.random() - 0.5);
+
 function playRecording(url) {
   const v = document.createElement('video');
   v.src = url;
@@ -197,6 +337,12 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   const [loadingModule, setLoadingModule] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Student-specific literacy progression.
+  // Free-play Spanish Reading follows the student's current path lesson,
+  // not the class's furthest lesson.
+  const [literacyContext, setLiteracyContext] = useState(null);
+  const [loadingLiteracy, setLoadingLiteracy] = useState(true);
+
   // Driven mode: when a lesson step passes a preset or inline items, the game
   // skips the section/module picker and reads only those items.
   const [drivenItems, setDrivenItems] = useState(null);
@@ -219,6 +365,131 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     };
     load();
   }, []);
+
+  // Find this student's current path lesson and build a cumulative literacy
+  // progression from Lesson 1 through that lesson.
+  //
+  // IMPORTANT:
+  // The class may already have Lesson 8 available while this student is still
+  // working on Lesson 3. Free practice stays at Lesson 3 until the student
+  // completes it.
+  useEffect(() => {
+    if (!studentNumber || !className) {
+      setLiteracyContext(null);
+      setLoadingLiteracy(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLiteracyProgression = async () => {
+      setLoadingLiteracy(true);
+
+      try {
+        const [allLessons, progresses] = await Promise.all([
+          base44.entities.Lesson.filter({ active: true }),
+          base44.entities.LessonProgress.filter({
+            student_number: studentNumber,
+            class_name: className,
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        const pathLessons = (allLessons || [])
+          .filter(lesson =>
+            lesson.assignment_type !== 'guided' &&
+            lesson.assignment_type !== 'side_quest' &&
+            (!lesson.class_name || lesson.class_name === className) &&
+            (!lesson.language || lesson.language === 'es') &&
+            Number(lesson.lesson_number) > 0
+          )
+          .sort(
+            (a, b) =>
+              Number(a.lesson_number || 0) -
+              Number(b.lesson_number || 0)
+          );
+
+        if (!pathLessons.length) {
+          setLiteracyContext(null);
+          return;
+        }
+
+        const completedLessonIds = new Set(
+          (progresses || [])
+            .filter(progress => progress.completed)
+            .map(progress => String(progress.lesson_id))
+        );
+
+        // Same basic rule as the level path:
+        // current lesson = first path lesson the student has not completed.
+        const currentLesson =
+          pathLessons.find(
+            lesson => !completedLessonIds.has(String(lesson.id))
+          ) ||
+          pathLessons[pathLessons.length - 1];
+
+        const currentNumber = Number(currentLesson.lesson_number || 1);
+
+        const availableLessons = pathLessons.filter(
+          lesson => Number(lesson.lesson_number || 0) <= currentNumber
+        );
+
+        const cumulative = {
+          ...EMPTY_LITERACY,
+          graphemes: [],
+          sightWords: [],
+          pictureWords: [],
+          sentencePatterns: [],
+        };
+
+        availableLessons.forEach(lesson => {
+          const literacy = getLessonLiteracy(lesson);
+
+          cumulative.graphemes.push(...literacy.graphemes);
+          cumulative.sightWords.push(...literacy.sightWords);
+          cumulative.pictureWords.push(...literacy.pictureWords);
+          cumulative.sentencePatterns.push(...literacy.sentencePatterns);
+        });
+
+        cumulative.graphemes = uniqueNormalized(cumulative.graphemes);
+        cumulative.sightWords = uniqueNormalized(cumulative.sightWords);
+        cumulative.pictureWords = uniqueNormalized(cumulative.pictureWords);
+        cumulative.sentencePatterns = [...new Set(cumulative.sentencePatterns)];
+
+        const current = getLessonLiteracy(currentLesson);
+
+        setLiteracyContext({
+          currentLesson,
+          currentLessonNumber: currentNumber,
+          cumulative,
+          current: {
+            ...current,
+            graphemes: uniqueNormalized(current.graphemes),
+            sightWords: uniqueNormalized(current.sightWords),
+            pictureWords: uniqueNormalized(current.pictureWords),
+            sentencePatterns: [...new Set(current.sentencePatterns)],
+          },
+        });
+      } catch (error) {
+        console.error('Could not load Spanish literacy progression:', error);
+
+        if (!cancelled) {
+          setLiteracyContext(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLiteracy(false);
+        }
+      }
+    };
+
+    loadLiteracyProgression();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [studentNumber, className]);
 
   // Resolve a lesson-step preset or inline items into a driven item list.
   useEffect(() => {
@@ -287,6 +558,103 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey, selectedSection, isDriven]);
 
+  // Free-play reading pool based on the student's literacy lesson.
+  //
+  // New/current-lesson material is intentionally repeated in the pool so it
+  // appears more often, while earlier material continues to spiral.
+  const loadProgressionSection = async (sectionKey) => {
+    if (!listsData || !literacyContext) return;
+
+    setLoadingModule(true);
+    setSelectedSection(sectionKey);
+    setSelectedModule(null);
+
+    const allItems = collectSectionItems(listsData, sectionKey);
+
+    const cumulativeEligible = allItems.filter(item =>
+      isEligibleReadingItem(
+        item,
+        sectionKey,
+        literacyContext.cumulative
+      )
+    );
+
+    const currentEligible = allItems.filter(item =>
+      isEligibleReadingItem(
+        item,
+        sectionKey,
+        {
+          ...literacyContext.cumulative,
+          graphemes: literacyContext.current.graphemes,
+          sightWords: literacyContext.current.sightWords,
+        }
+      )
+    );
+
+    const currentKeys = new Set(
+      currentEligible.map(item => normalizeSpanish(getItemText(item)))
+    );
+
+    const newItems = cumulativeEligible.filter(item =>
+      currentKeys.has(normalizeSpanish(getItemText(item)))
+    );
+
+    const reviewItems = cumulativeEligible.filter(item =>
+      !currentKeys.has(normalizeSpanish(getItemText(item)))
+    );
+
+    // Roughly 2/3 new/current focus and 1/3 spiral review.
+    // Duplicating the current pool gives new learning more opportunities
+    // without removing previously taught material.
+    let practicePool = [
+      ...shuffleItems(newItems),
+      ...shuffleItems(newItems),
+      ...shuffleItems(reviewItems),
+    ];
+
+    // Remove exact duplicate object/text occurrences only after weighting has
+    // done its job by interleaving the repeated current material.
+    practicePool = shuffleItems(practicePool);
+
+    // Teacher-confirmed mastery is still useful:
+    // mastered items stay available but drift toward the back of the session.
+    try {
+      const sessions = await base44.entities.SpanishReadingSession.filter({
+        student_number: studentNumber,
+        class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      });
+
+      const mastered = new Set(
+        (sessions || [])
+          .filter(session => session.teacher_grade === 'correct')
+          .map(session => normalizeSpanish(session.item_text))
+      );
+
+      const needsPractice = practicePool.filter(
+        item => !mastered.has(normalizeSpanish(getItemText(item)))
+      );
+
+      const masteredItems = practicePool.filter(
+        item => mastered.has(normalizeSpanish(getItemText(item)))
+      );
+
+      practicePool = [
+        ...shuffleItems(needsPractice),
+        ...shuffleItems(masteredItems),
+      ];
+    } catch {
+      // Reading still works if mastery history cannot be loaded.
+    }
+
+    setItems(practicePool);
+    setCurrentIdx(0);
+    setViewMode('reading');
+    setLoadingModule(false);
+    fetchCompleted();
+  };
+
+
   // Load module with mastery-based sorting: items the teacher marked correct
   // are deprioritized (placed last) so students focus on what they need to learn
   const loadModule = async (sectionKey, moduleNum) => {
@@ -323,12 +691,22 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   };
 
   const handleSectionSelect = (sectionKey) => {
+    if (literacyContext) {
+      loadProgressionSection(sectionKey);
+      return;
+    }
+
+    // Legacy fallback for classes/lessons that do not yet have literacy
+    // progression configured.
     setSelectedSection(sectionKey);
+
     const section = listsData?.[sectionKey] || {};
+
     const moduleNums = Object.keys(section)
       .map(k => parseInt(k.replace(/\D/g, '')))
       .filter(n => !isNaN(n) && n > 0)
       .sort((a, b) => a - b);
+
     if (moduleNums.length > 0) {
       setSelectedModule(moduleNums[0]);
       loadModule(sectionKey, moduleNums[0]);
@@ -388,7 +766,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   };
 
   // ── Loading ──
-  if (!listsData) {
+  if (!listsData || loadingLiteracy) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a3e 100%)' }}>
         <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -424,7 +802,20 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
           </div>
         </div>
         <div className="flex flex-col items-center gap-3 sm:gap-4 px-3 sm:px-4 py-4 sm:py-6 w-full max-w-md mx-auto">
-          <p className="text-white font-black text-base sm:text-lg">Choose a List</p>
+          <div className="text-center">
+            <p className="text-white font-black text-base sm:text-lg">
+              Choose a List
+            </p>
+
+            {literacyContext && (
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-600/30 border border-indigo-500">
+                <span className="text-sm">⭐</span>
+                <span className="text-indigo-100 text-xs font-black">
+                  Lesson {literacyContext.currentLessonNumber}
+                </span>
+              </div>
+            )}
+          </div>
           <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             {SECTIONS.map(sec => {
               const section = listsData[sec.key] || {};
@@ -465,7 +856,12 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
         <button onClick={() => { if (isDriven) { onBack?.(); return; } setSelectedSection(null); setSelectedModule(null); setViewMode('reading'); }}
           className="text-indigo-300 hover:text-white font-bold text-xs sm:text-sm shrink-0">{isDriven ? '← Lesson' : '← Lists'}</button>
         <span className="text-white font-black text-xs sm:text-sm flex-1 text-center truncate min-w-0 px-1">
-          {sectionConfig?.icon} {isDriven ? (drivenListName || selectedSection) : `${selectedSection} · M${selectedModule}`}
+          {sectionConfig?.icon}{' '}
+          {isDriven
+            ? (drivenListName || selectedSection)
+            : literacyContext
+              ? `${selectedSection} · Lesson ${literacyContext.currentLessonNumber}`
+              : `${selectedSection} · M${selectedModule}`}
         </span>
         <button onClick={() => setViewMode('overview')}
           className={`text-xs sm:text-sm font-bold shrink-0 px-2 py-1 rounded-lg transition ${viewMode === 'overview' ? 'bg-indigo-600 text-white' : 'text-indigo-300 hover:text-white'}`}
@@ -478,7 +874,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       </div>
 
       {/* Module pills — hidden when driven by a lesson preset/inline items */}
-      {!isDriven && (
+      {!isDriven && !literacyContext && (
         <div className="flex gap-1 sm:gap-1.5 px-2 sm:px-4 py-1.5 sm:py-2 overflow-x-auto shrink-0" style={{ background: '#1a1a2e' }}>
           {moduleNums.map(m => (
             <button key={m} onClick={() => handleModuleSelect(m)}
