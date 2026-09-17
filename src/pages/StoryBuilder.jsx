@@ -302,7 +302,6 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       last_active: nextStory.last_active,
     });
 
-    await onSaveRef.current(nextStory);
   }, []);
 
   const handleCanvasClick = (e) => {
