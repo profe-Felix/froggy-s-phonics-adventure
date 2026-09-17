@@ -170,16 +170,26 @@ export default function NounGenderEditor() {
   }, [records, load]);
 
   const setDeterminerType = useCallback(async (id, determinerType) => {
+    const usesGender =
+      determinerType === 'definite_article' ||
+      determinerType === 'indefinite_article' ||
+      determinerType === 'possessive_agreeing';
+
+    const changes = usesGender
+      ? { determiner_type: determinerType }
+      : {
+          determiner_type: determinerType,
+          gender: '',
+        };
+
     setRecords((prev) =>
       (prev || []).map((r) =>
-        r.id === id ? { ...r, determiner_type: determinerType } : r
+        r.id === id ? { ...r, ...changes } : r
       )
     );
 
     try {
-      await base44.entities.NounGender.update(id, {
-        determiner_type: determinerType,
-      });
+      await base44.entities.NounGender.update(id, changes);
     } catch {
       void load();
     }
@@ -339,13 +349,15 @@ export default function NounGenderEditor() {
                         <option value="">Determiner type…</option>
                         <option value="definite_article">Definite article</option>
                         <option value="indefinite_article">Indefinite article</option>
-                        <option value="possessive">Possessive</option>
+                        <option value="possessive">Possessive — number only (mi, tu, su)</option>
+                        <option value="possessive_agreeing">Possessive — gender + number (nuestro)</option>
                         <option value="other">Other determiner</option>
                       </select>
 
                       {(r.determiner_type === 'definite_article' ||
                         r.determiner_type === 'indefinite_article' ||
-                        r.determiner_type === 'possessive') && (
+                        r.determiner_type === 'possessive' ||
+                        r.determiner_type === 'possessive_agreeing') && (
                         <>
                           <div className="flex gap-1.5 mb-1.5">
                             <button
@@ -371,7 +383,8 @@ export default function NounGenderEditor() {
                           </div>
 
                           {(r.determiner_type === 'definite_article' ||
-                            r.determiner_type === 'indefinite_article') && (
+                            r.determiner_type === 'indefinite_article' ||
+                            r.determiner_type === 'possessive_agreeing') && (
                             <div className="flex gap-1.5">
                               <button
                                 onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
