@@ -84,15 +84,16 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
                 }}
               >
                 {renderPage(recording.page)}
+
+                {laserData.length > 0 && containerSize.w > 0 && (
+                  <LaserReplayOverlay
+                    laserData={laserData}
+                    audioRef={audioRef}
+                    containerWidth={containerSize.w}
+                    containerHeight={containerSize.h}
+                  />
+                )}
               </div>
-            )}
-            {laserData.length > 0 && containerSize.w > 0 && (
-              <LaserReplayOverlay
-                laserData={laserData}
-                audioRef={audioRef}
-                containerWidth={containerSize.w}
-                containerHeight={containerSize.h}
-              />
             )}
           </div>
         </div>
