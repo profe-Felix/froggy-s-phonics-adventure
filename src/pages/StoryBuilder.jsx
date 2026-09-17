@@ -528,14 +528,6 @@ useEffect(() => {
         {pages.length > 1 && (
           <button onClick={deletePage} className="px-3 py-1.5 rounded-xl font-bold text-xs text-red-300 border border-red-800">🗑 Delete</button>
         )}
-        {/* Add mic button */}
-        <button
-          onClick={() => setAddingMic(v => !v)}
-          className="px-3 py-1.5 rounded-xl font-bold text-xs text-white"
-          style={{ background: addingMic ? '#f59e0b' : '#374151', border: addingMic ? '2px solid #fbbf24' : '2px solid #6b7280' }}
-        >
-          {addingMic ? '📍 Tap to place mic' : '🎙+ Add Mic'}
-        </button>
         {/* Page thumbnails */}
         <div className="flex gap-1 ml-auto overflow-x-auto">
           {pages.map((pg, i) => (
