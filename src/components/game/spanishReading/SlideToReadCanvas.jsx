@@ -336,7 +336,7 @@ function startSliderReplay(audioEl, sliderData, setActiveLine, setThumbX, onDone
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function SlideToReadCanvas({
-  text, itemId, itemType, onGrade, onBack, theme = 'default',
+  text, itemId, itemType, syllables, onGrade, onBack, theme = 'default',
   demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel,
   onRecordingComplete,
   // Replay mode: when replayData ({audioUrl, sliderData, continuityData}) is provided, the canvas
