@@ -1045,6 +1045,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
             text={itemText}
             itemId={getItemId(currentItem)}
             itemType={itemType}
+            syllables={currentItem?.syllables}
             onGrade={handleGrade}
             onBack={() => setViewMode('overview')}
           />
