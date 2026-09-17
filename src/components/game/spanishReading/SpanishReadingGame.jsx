@@ -159,6 +159,52 @@ const collectSectionItems = (listsData, sectionKey) => {
 const shuffleItems = (items) =>
   [...items].sort(() => Math.random() - 0.5);
 
+const PRACTICE_ROUND_SIZE = 10;
+const CURRENT_LESSON_TARGET = 7;
+
+const pickPracticeItems = (source, count) => {
+  if (!source.length || count <= 0) return [];
+
+  const result = [];
+  let shuffled = shuffleItems(source);
+  let index = 0;
+
+  while (result.length < count) {
+    if (index >= shuffled.length) {
+      shuffled = shuffleItems(source);
+      index = 0;
+    }
+
+    result.push(shuffled[index]);
+    index += 1;
+  }
+
+  return result;
+};
+
+const buildPracticeRound = (newItems, reviewItems) => {
+  if (!newItems.length && !reviewItems.length) return [];
+
+  let currentCount = newItems.length ? CURRENT_LESSON_TARGET : 0;
+  let reviewCount = reviewItems.length
+    ? PRACTICE_ROUND_SIZE - currentCount
+    : 0;
+
+  if (!reviewItems.length) {
+    currentCount = PRACTICE_ROUND_SIZE;
+  }
+
+  if (!newItems.length) {
+    currentCount = 0;
+    reviewCount = PRACTICE_ROUND_SIZE;
+  }
+
+  return shuffleItems([
+    ...pickPracticeItems(newItems, currentCount),
+    ...pickPracticeItems(reviewItems, reviewCount),
+  ]);
+};
+
 function playRecording(url) {
   const v = document.createElement('video');
   v.src = url;
