@@ -79,7 +79,14 @@ function wrapLines(ctx, units, maxWidth, fontSize) {
 }
 
 // ── Layout ───────────────────────────────────────────────────────────────────
-function calculateLayout(ctx, units, canvasW, canvasH) {
+function calculateLayout(
+  ctx,
+  units,
+  canvasW,
+  canvasH,
+  isPicturePhrase = false,
+  phraseNoun = ''
+) {
   const padding = Math.max(16, canvasW * 0.06);
   const contentW = canvasW - padding * 2;
 
@@ -90,39 +97,116 @@ function calculateLayout(ctx, units, canvasW, canvasH) {
 
   let fontSize = 16, lines = null, lineHeight = 22;
   const maxFs = Math.min(140, canvasH * 0.45, contentW * 0.28);
+
   for (let fs = maxFs; fs >= 14; fs -= 1) {
     const wrapped = wrapLines(ctx, units, contentW, fs);
     const lh = fs * 1.35 + clusterSpace;
-    if (wrapped.length * lh <= canvasH - padding * 2) { fontSize = fs; lines = wrapped; lineHeight = lh; break; }
+
+    if (wrapped.length * lh <= canvasH - padding * 2) {
+      fontSize = fs;
+      lines = wrapped;
+      lineHeight = lh;
+      break;
+    }
   }
-  if (!lines) { lines = wrapLines(ctx, units, contentW, 14); lineHeight = 14 * 1.35 + clusterSpace; fontSize = 14; }
+
+  if (!lines) {
+    lines = wrapLines(ctx, units, contentW, 14);
+    lineHeight = 14 * 1.35 + clusterSpace;
+    fontSize = 14;
+  }
 
   ctx.font = `bold ${fontSize}px Andika, sans-serif`;
 
+  const normalizedPhraseNoun = String(phraseNoun || '').toLowerCase();
+
+  const pictureWidth = isPicturePhrase
+    ? Math.min(
+        Math.max(fontSize * 1.8, canvasW * 0.18),
+        canvasW * 0.28
+      )
+    : 0;
+
   const lineData = lines.map(line => {
-    const lineWidth = line.reduce((s, u) => s + ctx.measureText(u.text).width, 0);
+    const measurements = line.map(unit => {
+      const isPictureToken =
+        isPicturePhrase &&
+        unit.type === 'token' &&
+        String(unit.text || '').toLowerCase() === normalizedPhraseNoun;
+
+      return {
+        unit,
+        isPictureToken,
+        width: isPictureToken
+          ? pictureWidth
+          : ctx.measureText(unit.text).width,
+      };
+    });
+
+    const lineWidth = measurements.reduce(
+      (sum, measurement) => sum + measurement.width,
+      0
+    );
+
     const startX = (canvasW - lineWidth) / 2;
     const tokenPositions = [];
-    let x = startX, tokIdx = 0;
-    for (const unit of line) {
-      const w = ctx.measureText(unit.text).width;
+
+    let x = startX;
+    let tokIdx = 0;
+
+    for (const measurement of measurements) {
+      const { unit, width, isPictureToken } = measurement;
+
       if (unit.type === 'token') {
-        tokenPositions.push({ unit, x, width: w, tokenIdx: tokIdx });
+        tokenPositions.push({
+          unit,
+          x,
+          width,
+          tokenIdx: tokIdx,
+          isPictureToken,
+        });
         tokIdx++;
       }
-      x += w;
+
+      x += width;
     }
-    return { units: line, tokenPositions, tokenCount: tokIdx, width: lineWidth, startX };
+
+    return {
+      units: line,
+      measurements,
+      tokenPositions,
+      tokenCount: tokIdx,
+      width: lineWidth,
+      startX,
+    };
   });
 
   const blockH = lineData.length * lineHeight;
-  const textStartY = Math.max(padding + fontSize, (canvasH - blockH) / 2 + fontSize);
-  const totalTokens = lineData.reduce((s, l) => s + l.tokenCount, 0);
+  const textStartY = Math.max(
+    padding + fontSize,
+    (canvasH - blockH) / 2 + fontSize
+  );
+
+  const totalTokens = lineData.reduce(
+    (sum, line) => sum + line.tokenCount,
+    0
+  );
 
   return {
-    fontSize, lineHeight, padding, contentW,
-    lines: lineData, totalTokens, textStartY,
-    pillH, sliderH, thumbR, clusterSpace, canvasW, canvasH,
+    fontSize,
+    lineHeight,
+    padding,
+    contentW,
+    lines: lineData,
+    totalTokens,
+    textStartY,
+    pillH,
+    sliderH,
+    thumbR,
+    clusterSpace,
+    canvasW,
+    canvasH,
+    pictureWidth,
   };
 }
 
@@ -186,47 +270,6 @@ function renderCanvas(
 
   ctx.font = `bold ${fontSize}px Andika, sans-serif`;
 
-  // Phrase picture scaffold:
-  // keep all words on the same baseline and center the picture above the noun.
-  if (phraseImage && phraseNoun && lines.length === 1) {
-    const line = lines[0];
-    const nounText = String(phraseNoun);
-    const fullText = line.units.map(unit => unit.text).join('');
-    const nounStart = fullText.toLowerCase().lastIndexOf(nounText.toLowerCase());
-
-    if (nounStart >= 0) {
-      const beforeNoun = fullText.slice(0, nounStart);
-      const nounX = line.startX + ctx.measureText(beforeNoun).width;
-      const nounWidth = ctx.measureText(nounText).width;
-      const nounCenterX = nounX + nounWidth / 2;
-
-      const maxImageW = Math.min(
-        Math.max(nounWidth * 2.2, fontSize * 1.8),
-        canvasW * 0.28
-      );
-      const maxImageH = Math.min(canvasH * 0.32, fontSize * 2.5);
-
-      const imageScale = Math.min(
-        maxImageW / phraseImage.naturalWidth,
-        maxImageH / phraseImage.naturalHeight,
-        1
-      );
-
-      const imageW = phraseImage.naturalWidth * imageScale;
-      const imageH = phraseImage.naturalHeight * imageScale;
-      const imageX = nounCenterX - imageW / 2;
-      const imageY = textStartY - fontSize - imageH - Math.max(12, fontSize * 0.18);
-
-      ctx.drawImage(
-        phraseImage,
-        imageX,
-        Math.max(8, imageY),
-        imageW,
-        imageH
-      );
-    }
-  }
-
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const y = textStartY + li * lineHeight;
@@ -234,19 +277,67 @@ function renderCanvas(
     let tokIdx = 0;
     let prevRevealed = li < activeLine;
 
-    for (const unit of line.units) {
-      const w = ctx.measureText(unit.text).width;
+    const measurements = line.measurements || line.units.map(unit => ({
+      unit,
+      width: ctx.measureText(unit.text).width,
+      isPictureToken: false,
+    }));
+
+    for (const measurement of measurements) {
+      const { unit, width, isPictureToken } = measurement;
+
       if (unit.type === 'token') {
-        const isRevealed = li < activeLine || (li === activeLine && tokIdx < revealedCount);
-        ctx.fillStyle = isRevealed ? tc.textRevealed : tc.textUnrevealed;
-        ctx.fillText(unit.text, x, y);
+        const isRevealed =
+          li < activeLine ||
+          (li === activeLine && tokIdx < revealedCount);
+
+        if (isPictureToken && phraseImage) {
+          const maxImageW = width * 0.9;
+          const maxImageH = Math.min(
+            canvasH * 0.28,
+            fontSize * 2.2
+          );
+
+          const imageScale = Math.min(
+            maxImageW / phraseImage.naturalWidth,
+            maxImageH / phraseImage.naturalHeight
+          );
+
+          const imageW = phraseImage.naturalWidth * imageScale;
+          const imageH = phraseImage.naturalHeight * imageScale;
+
+          const imageX = x + (width - imageW) / 2;
+
+          // The bottom of the picture sits just above the text baseline area.
+          const imageBottom = y - fontSize * 0.12;
+          const imageY = imageBottom - imageH;
+
+          ctx.drawImage(
+            phraseImage,
+            imageX,
+            Math.max(8, imageY),
+            imageW,
+            imageH
+          );
+        } else if (!isPictureToken) {
+          ctx.fillStyle = isRevealed
+            ? tc.textRevealed
+            : tc.textUnrevealed;
+
+          ctx.fillText(unit.text, x, y);
+        }
+
         prevRevealed = isRevealed;
         tokIdx++;
       } else {
-        ctx.fillStyle = prevRevealed ? tc.textRevealed : tc.textUnrevealed;
+        ctx.fillStyle = prevRevealed
+          ? tc.textRevealed
+          : tc.textUnrevealed;
+
         ctx.fillText(unit.text, x, y);
       }
-      x += w;
+
+      x += width;
     }
   }
 
@@ -433,6 +524,13 @@ export default function SlideToReadCanvas({
   const stopReplayRef = useRef(null);
 
   const units = useMemo(() => parseText(text), [text]);
+
+  const isPicturePhrase =
+    itemType === 'phrase' &&
+    !!phraseDeterminer &&
+    !!phraseNoun &&
+    !!phraseNounImageUrl;
+
   const [phraseImage, setPhraseImage] = useState(null);
 
   useEffect(() => {
@@ -491,7 +589,14 @@ export default function SlideToReadCanvas({
   useEffect(() => {
     const ctx = ctxRef.current;
     if (!ctx || canvasSize.w === 0) return;
-    layoutRef.current = calculateLayout(ctx, units, canvasSize.w, canvasSize.h);
+    layoutRef.current = calculateLayout(
+      ctx,
+      units,
+      canvasSize.w,
+      canvasSize.h,
+      isPicturePhrase,
+      phraseNoun
+    );
     const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
     renderCanvas(
       ctx,
@@ -517,6 +622,7 @@ export default function SlideToReadCanvas({
     theme,
     phraseImage,
     phraseNoun,
+    isPicturePhrase,
   ]);
 
   // ── Reset on text change ──
