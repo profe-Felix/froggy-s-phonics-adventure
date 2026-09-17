@@ -334,6 +334,12 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   const [viewMode, setViewMode] = useState('reading'); // 'reading' | 'overview'
   const [completedTexts, setCompletedTexts] = useState(new Set());
   const [todaySessions, setTodaySessions] = useState([]);
+
+  // Attempts made during the current practice round only.
+  // Today's previous attempts stay saved for history/mastery,
+  // but they will not make a new round automatically complete.
+  const [roundSessions, setRoundSessions] = useState([]);
+
   const [loadingModule, setLoadingModule] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
