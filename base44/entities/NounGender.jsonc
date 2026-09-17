@@ -4,32 +4,51 @@
   "properties": {
     "word": {
       "type": "string",
-      "description": "The noun word (lowercase pretty form, e.g. 'mesa', 'arbol')."
+      "description": "Spanish word in its actual written form."
     },
     "image_url": {
       "type": "string",
       "format": "uri",
-      "description": "Picture URL from the letter-sort image bucket. Seeded automatically when the editor scans the bucket.",
+      "description": "Picture URL from the letter-sort image bucket.",
       "default": ""
+    },
+    "part_of_speech": {
+      "type": "string",
+      "enum": [
+        "",
+        "noun",
+        "verb",
+        "adjective",
+        "determiner",
+        "pronoun",
+        "preposition",
+        "adverb",
+        "conjunction",
+        "other"
+      ],
+      "default": "",
+      "description": "Teacher-assigned Spanish part of speech. Never inferred from spelling."
     },
     "gender": {
       "type": "string",
       "enum": [
         "",
         "masculine",
-        "feminine"
+        "feminine",
+        "common"
       ],
       "default": "",
-      "description": "Grammatical gender. Empty = not yet assigned. Drives article+noun phrase auto-generation (masculine \u2192 el/los, feminine \u2192 la/las)."
+      "description": "Teacher-assigned grammatical gender or agreement compatibility when applicable."
     },
     "number": {
       "type": "string",
       "enum": [
+        "",
         "singular",
         "plural"
       ],
-      "default": "singular",
-      "description": "Grammatical number. Auto-detected from the word (Spanish plurals end in -s). Drives article selection: singular \u2192 el/la, plural \u2192 los/las."
+      "default": "",
+      "description": "Teacher-assigned grammatical number or agreement compatibility when applicable."
     },
     "article": {
       "type": "string",
@@ -41,12 +60,25 @@
         "las"
       ],
       "default": "",
-      "description": "Definite article. Auto-derived from gender + number (masculine singular\u2192el, masculine plural\u2192los, feminine singular\u2192la, feminine plural\u2192las) but editable for exceptions like 'el agua', 'la mano'."
+      "description": "Definite article associated with a noun when applicable."
+    },
+    "determiner_type": {
+      "type": "string",
+      "enum": [
+        "",
+        "definite_article",
+        "indefinite_article",
+        "possessive",
+        "possessive_agreeing",
+        "other"
+      ],
+      "default": "",
+      "description": "Teacher-assigned determiner subtype when part_of_speech is determiner."
     },
     "active": {
       "type": "boolean",
       "default": true,
-      "description": "If false, this noun is excluded from phrase generation and picture cards."
+      "description": "If false, this word is excluded from generated literacy activities."
     }
   },
   "required": [
