@@ -216,10 +216,6 @@ export default function NounGenderEditor() {
     const r = records || [];
     return {
       total: r.length,
-      nouns: r.filter((x) => x.part_of_speech === 'noun').length,
-      verbs: r.filter((x) => x.part_of_speech === 'verb').length,
-      adjectives: r.filter((x) => x.part_of_speech === 'adjective').length,
-      prepositions: r.filter((x) => x.part_of_speech === 'preposition').length,
       unassigned: r.filter((x) => !x.part_of_speech).length,
     };
   }, [records]);
@@ -233,7 +229,7 @@ export default function NounGenderEditor() {
             <div>
               <h1 className="text-lg font-semibold leading-tight">📚 Spanish Word Dictionary</h1>
               <p className="text-xs text-muted-foreground">
-                {loading ? 'Loading…' : `${stats.total} words · ${stats.nouns} nouns · ${stats.verbs} verbs · ${stats.adjectives} adjectives · ${stats.prepositions} prepositions · ${stats.unassigned} unassigned`}
+                {loading ? 'Loading…' : `${stats.total} words · ${stats.unassigned} unclassified`}
               </p>
             </div>
           </div>
