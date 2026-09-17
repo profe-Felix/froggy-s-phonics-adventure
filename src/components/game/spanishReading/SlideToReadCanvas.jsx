@@ -155,7 +155,20 @@ function getClusterY(layout, activeLineIdx) {
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
-function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, canvasH, theme = 'default', inkContinuity = 0, replayContinuity = null) {
+function renderCanvas(
+  ctx,
+  layout,
+  activeLine,
+  thumbX,
+  isRecording,
+  canvasW,
+  canvasH,
+  theme = 'default',
+  inkContinuity = 0,
+  replayContinuity = null,
+  phraseImage = null,
+  phraseNoun = ''
+) {
   const tc = THEMES[theme] || THEMES.default;
   ctx.fillStyle = tc.bg;
   ctx.fillRect(0, 0, canvasW, canvasH);
@@ -172,6 +185,47 @@ function renderCanvas(ctx, layout, activeLine, thumbX, isRecording, canvasW, can
   }
 
   ctx.font = `bold ${fontSize}px Andika, sans-serif`;
+
+  // Phrase picture scaffold:
+  // keep all words on the same baseline and center the picture above the noun.
+  if (phraseImage && phraseNoun && lines.length === 1) {
+    const line = lines[0];
+    const nounText = String(phraseNoun);
+    const fullText = line.units.map(unit => unit.text).join('');
+    const nounStart = fullText.toLowerCase().lastIndexOf(nounText.toLowerCase());
+
+    if (nounStart >= 0) {
+      const beforeNoun = fullText.slice(0, nounStart);
+      const nounX = line.startX + ctx.measureText(beforeNoun).width;
+      const nounWidth = ctx.measureText(nounText).width;
+      const nounCenterX = nounX + nounWidth / 2;
+
+      const maxImageW = Math.min(
+        Math.max(nounWidth * 2.2, fontSize * 1.8),
+        canvasW * 0.28
+      );
+      const maxImageH = Math.min(canvasH * 0.32, fontSize * 2.5);
+
+      const imageScale = Math.min(
+        maxImageW / phraseImage.naturalWidth,
+        maxImageH / phraseImage.naturalHeight,
+        1
+      );
+
+      const imageW = phraseImage.naturalWidth * imageScale;
+      const imageH = phraseImage.naturalHeight * imageScale;
+      const imageX = nounCenterX - imageW / 2;
+      const imageY = textStartY - fontSize - imageH - Math.max(12, fontSize * 0.18);
+
+      ctx.drawImage(
+        phraseImage,
+        imageX,
+        Math.max(8, imageY),
+        imageW,
+        imageH
+      );
+    }
+  }
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
@@ -336,7 +390,9 @@ function startSliderReplay(audioEl, sliderData, setActiveLine, setThumbX, onDone
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function SlideToReadCanvas({
-  text, itemId, itemType, syllables, onGrade, onBack, theme = 'default',
+  text, itemId, itemType, syllables,
+  phraseDeterminer, phraseNoun, phraseNounImageUrl,
+  onGrade, onBack, theme = 'default',
   demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel,
   onRecordingComplete,
   // Replay mode: when replayData ({audioUrl, sliderData, continuityData}) is provided, the canvas
@@ -377,6 +433,31 @@ export default function SlideToReadCanvas({
   const stopReplayRef = useRef(null);
 
   const units = useMemo(() => parseText(text), [text]);
+  const [phraseImage, setPhraseImage] = useState(null);
+
+  useEffect(() => {
+    if (!phraseNounImageUrl) {
+      setPhraseImage(null);
+      return;
+    }
+
+    let cancelled = false;
+    const image = new Image();
+
+    image.onload = () => {
+      if (!cancelled) setPhraseImage(image);
+    };
+
+    image.onerror = () => {
+      if (!cancelled) setPhraseImage(null);
+    };
+
+    image.src = phraseNounImageUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phraseNounImageUrl]);
 
   useEffect(() => { activeLineRef.current = activeLine; }, [activeLine]);
   useEffect(() => { thumbXRef.current = thumbX; }, [thumbX]);
@@ -412,8 +493,31 @@ export default function SlideToReadCanvas({
     if (!ctx || canvasSize.w === 0) return;
     layoutRef.current = calculateLayout(ctx, units, canvasSize.w, canvasSize.h);
     const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
-    renderCanvas(ctx, layoutRef.current, activeLine, thumbX, showInteractive, canvasSize.w, canvasSize.h, theme);
-  }, [units, canvasSize, activeLine, thumbX, recordingState, isReplaying, theme]);
+    renderCanvas(
+      ctx,
+      layoutRef.current,
+      activeLine,
+      thumbX,
+      showInteractive,
+      canvasSize.w,
+      canvasSize.h,
+      theme,
+      0,
+      null,
+      phraseImage,
+      phraseNoun
+    );
+  }, [
+    units,
+    canvasSize,
+    activeLine,
+    thumbX,
+    recordingState,
+    isReplaying,
+    theme,
+    phraseImage,
+    phraseNoun,
+  ]);
 
   // ── Reset on text change ──
   useEffect(() => {
