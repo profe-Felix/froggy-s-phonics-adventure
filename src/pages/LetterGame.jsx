@@ -14,6 +14,7 @@ import LetterTracingMode from '../components/game/modes/LetterTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
+import WordSentenceBuilder from '../pages/WordSentenceBuilder';
 import SentencesMode from '../components/game/modes/SentencesMode';
 import MissingLetterMode from '../components/game/modes/MissingLetterMode';
 import NameTracingMode from '../components/game/modes/NameTracingMode';
@@ -689,6 +690,13 @@ export default function LetterGame() {
           studentNumber={selectedStudent?.number}
           className={selectedStudent?.class_name}
           onBack={handleBackToModes}
+        />
+      )}
+
+      {currentMode === 'word_builder' && (
+        <WordSentenceBuilder
+          embedStudent={selectedStudent?.number}
+          embedClass={selectedStudent?.class_name}
         />
       )}
       {currentMode === 'storybuilder' && (
