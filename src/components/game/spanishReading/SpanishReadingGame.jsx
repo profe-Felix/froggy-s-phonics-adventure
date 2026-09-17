@@ -404,7 +404,11 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
   const [drivenListName, setDrivenListName] = useState('');
 
   const isDriven = !!drivenItems;
-  const activeListName = isDriven ? drivenListName : `${selectedSection || ''} M${selectedModule || ''}`;
+  const activeListName = isDriven
+    ? drivenListName
+    : literacyContext
+      ? `${selectedSection || ''} Lesson ${literacyContext.currentLessonNumber}`
+      : `${selectedSection || ''} M${selectedModule || ''}`;
 
   // Load lists from Supabase
   useEffect(() => {
@@ -445,6 +449,7 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
           base44.entities.LessonProgress.filter({
             student_number: studentNumber,
             class_name: className,
+            school_year: ACTIVE_SCHOOL_YEAR,
           }),
         ]);
 
@@ -977,6 +982,11 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
         <SessionOverview
           sessions={roundSessions}
           onContinue={() => {
+            if (roundSessions.length < items.length) {
+              setViewMode('reading');
+              return;
+            }
+
             setSelectedSection(null);
             setSelectedModule(null);
             setItems([]);
