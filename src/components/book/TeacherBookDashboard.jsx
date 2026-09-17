@@ -385,7 +385,13 @@ export default function TeacherBookDashboard({ onBack }) {
               </div>
             </div>
             <BookStudentGrid
-              books={books}
+              books={[
+                ...books,
+                ...sharedBooks.filter(
+                  b => b.class_name !== className &&
+                       !books.some(localBook => localBook.id === b.id)
+                )
+              ]}
               className={className}
               reviewDate={reviewDate}
             />
