@@ -27,6 +27,105 @@ const EMPTY_LITERACY = {
   sentencePatterns: [],
 };
 
+// Grammatical metadata for common Spanish function words.
+// These words are NOT automatically unlocked.
+// A word can only be used when it appears in the student's cumulative
+// literacy progression, such as the lesson's sightWords list.
+const SPANISH_DETERMINERS = {
+  el: {
+    word: 'el',
+    part_of_speech: 'determiner',
+    determiner_type: 'definite_article',
+    gender: 'masculine',
+    number: 'singular',
+  },
+  la: {
+    word: 'la',
+    part_of_speech: 'determiner',
+    determiner_type: 'definite_article',
+    gender: 'feminine',
+    number: 'singular',
+  },
+  los: {
+    word: 'los',
+    part_of_speech: 'determiner',
+    determiner_type: 'definite_article',
+    gender: 'masculine',
+    number: 'plural',
+  },
+  las: {
+    word: 'las',
+    part_of_speech: 'determiner',
+    determiner_type: 'definite_article',
+    gender: 'feminine',
+    number: 'plural',
+  },
+  un: {
+    word: 'un',
+    part_of_speech: 'determiner',
+    determiner_type: 'indefinite_article',
+    gender: 'masculine',
+    number: 'singular',
+  },
+  una: {
+    word: 'una',
+    part_of_speech: 'determiner',
+    determiner_type: 'indefinite_article',
+    gender: 'feminine',
+    number: 'singular',
+  },
+  unos: {
+    word: 'unos',
+    part_of_speech: 'determiner',
+    determiner_type: 'indefinite_article',
+    gender: 'masculine',
+    number: 'plural',
+  },
+  unas: {
+    word: 'unas',
+    part_of_speech: 'determiner',
+    determiner_type: 'indefinite_article',
+    gender: 'feminine',
+    number: 'plural',
+  },
+  mi: {
+    word: 'mi',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'singular',
+  },
+  mis: {
+    word: 'mis',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'plural',
+  },
+  tu: {
+    word: 'tu',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'singular',
+  },
+  tus: {
+    word: 'tus',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'plural',
+  },
+  su: {
+    word: 'su',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'singular',
+  },
+  sus: {
+    word: 'sus',
+    part_of_speech: 'determiner',
+    determiner_type: 'possessive',
+    number: 'plural',
+  },
+};
+
 const splitLiteracyList = (value) => {
   if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
 
@@ -186,10 +285,12 @@ const collectSectionItems = (listsData, sectionKey) => {
 };
 
 const buildEligiblePhrases = (dictionary, literacy) => {
-  const unlockedSightWords = new Set(
-    (literacy?.sightWords || []).map(normalizeSpanish)
+  const unlockedSightWords = uniqueNormalized(
+    literacy?.sightWords || []
   );
 
+  // Concrete/content words still come from the teacher-managed dictionary.
+  // The dictionary tells us their grammatical properties.
   const nouns = (dictionary || []).filter(record =>
     record.active !== false &&
     record.part_of_speech === 'noun' &&
@@ -198,12 +299,12 @@ const buildEligiblePhrases = (dictionary, literacy) => {
     canDecodeWord(record.word, literacy?.graphemes || [])
   );
 
-  const determiners = (dictionary || []).filter(record =>
-    record.active !== false &&
-    record.part_of_speech === 'determiner' &&
-    !!record.determiner_type &&
-    unlockedSightWords.has(normalizeSpanish(record.word))
-  );
+  // Function words do not need image-dictionary records.
+  // Their grammar is built in, but the lesson progression still decides
+  // whether each exact word has been unlocked for this student.
+  const determiners = unlockedSightWords
+    .map(word => SPANISH_DETERMINERS[normalizeSpanish(word)])
+    .filter(Boolean);
 
   const phrases = [];
 
