@@ -312,7 +312,8 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     const y_pct = (src.clientY - rect.top) / rect.height;
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
     const updated = [...floatingMics, newMic];
-    void saveMics(updated);
+    setFloatingMics(updated);
+    saveMics(updated);
     setAddingMic(false);
   };
 
