@@ -5,18 +5,13 @@ import { base44 } from '@/api/base44Client';
 import { listAllImagesJpg } from '@/lib/lettersort/storage';
 import { markersToPretty } from '@/lib/lettersort/phonics';
 
-// Noun Gender Editor — scans the letter-sort image bucket, seeds a NounGender
-// record for every noun picture found, and lets the teacher assign masculine /
-// feminine to each. The phrase game auto-generates el/la + noun phrases from
-// these assignments.
-
-// Number is assigned manually by the teacher.
-// Do not infer singular/plural from spelling.
-// Detect infinitive verbs — not nouns. We use a known-verbs whitelist rather
-// than a -ar/-er/-ir regex so real nouns like 'mujer', 'collar', 'altar',
-// 'azúcar' (which happen to end in those suffixes) are never false-flagged.
-// Part of speech is assigned manually by the teacher.
-// Do not guess whether a word is a verb from its spelling.
+// Spanish Word Dictionary — scans the letter-sort image bucket and creates
+// a dictionary record for each pictured word. The teacher explicitly assigns
+// grammatical information used by reading, phrase, and sentence activities.
+//
+// Do not infer grammatical information from spelling. Part of speech, number,
+// gender, and future grammatical metadata are assigned explicitly by the teacher.
+// Each record represents the actual written word form stored in the image library.
 const articleFor = (gender, number = 'singular') => {
   if (gender === 'masculine') return number === 'plural' ? 'los' : 'el';
   if (gender === 'feminine') return number === 'plural' ? 'las' : 'la';
@@ -28,7 +23,7 @@ export default function NounGenderEditor() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
-  const [filter, setFilter] = useState('all'); // all | unassigned | masculine | feminine
+  const [filter, setFilter] = useState('all'); // all | unassigned | noun | verb | adjective | determiner | pronoun | preposition | adverb | conjunction | other
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
@@ -45,7 +40,7 @@ export default function NounGenderEditor() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Sync: scan bucket, add new nouns AND remove records for deleted images
+  // Sync: scan bucket, add new words AND remove records for deleted images
   const sync = useCallback(async () => {
     setSeeding(true);
     setSeedMsg('');
@@ -89,14 +84,24 @@ export default function NounGenderEditor() {
   }, [records, load]);
 
   const setPartOfSpeech = useCallback(async (id, partOfSpeech) => {
-    const changes = partOfSpeech === 'noun'
-      ? { part_of_speech: partOfSpeech }
+    const usesAgreement =
+      partOfSpeech === 'noun' || partOfSpeech === 'adjective';
+
+    const changes = usesAgreement
+      ? {
+          part_of_speech: partOfSpeech,
+          article: partOfSpeech === 'noun' ? undefined : '',
+        }
       : {
           part_of_speech: partOfSpeech,
           gender: '',
           number: '',
           article: '',
         };
+
+    if (changes.article === undefined) {
+      delete changes.article;
+    }
 
     setRecords((prev) =>
       (prev || []).map((r) =>
@@ -113,14 +118,26 @@ export default function NounGenderEditor() {
 
 
   const setGender = useCallback(async (id, gender, number) => {
-    const article = articleFor(gender, number);
-    setRecords((prev) => (prev || []).map((r) => (r.id === id ? { ...r, gender, article } : r)));
+    const record = (records || []).find((r) => r.id === id);
+    if (!record) return;
+
+    const article =
+      record.part_of_speech === 'noun'
+        ? articleFor(gender, number)
+        : '';
+
+    setRecords((prev) =>
+      (prev || []).map((r) =>
+        r.id === id ? { ...r, gender, article } : r
+      )
+    );
+
     try {
       await base44.entities.NounGender.update(id, { gender, article });
     } catch {
       void load();
     }
-  }, [load]);
+  }, [records, load]);
 
   const setNumber = useCallback(async (id, number) => {
     const record = (records || []).find((r) => r.id === id);
@@ -141,6 +158,22 @@ export default function NounGenderEditor() {
     }
   }, [records, load]);
 
+  const setDeterminerType = useCallback(async (id, determinerType) => {
+    setRecords((prev) =>
+      (prev || []).map((r) =>
+        r.id === id ? { ...r, determiner_type: determinerType } : r
+      )
+    );
+
+    try {
+      await base44.entities.NounGender.update(id, {
+        determiner_type: determinerType,
+      });
+    } catch {
+      void load();
+    }
+  }, [load]);
+
 
   const toggleActive = useCallback(async (id, active) => {
     setRecords((prev) => (prev || []).map((r) => (r.id === id ? { ...r, active } : r)));
@@ -153,13 +186,18 @@ export default function NounGenderEditor() {
 
   const filtered = useMemo(() => {
     let out = records || [];
-    if (filter === 'unassigned') out = out.filter((r) => !r.part_of_speech);
-    else if (filter === 'masculine') out = out.filter((r) => r.part_of_speech === 'noun' && r.gender === 'masculine');
-    else if (filter === 'feminine') out = out.filter((r) => r.part_of_speech === 'noun' && r.gender === 'feminine');
+
+    if (filter === 'unassigned') {
+      out = out.filter((r) => !r.part_of_speech);
+    } else if (filter !== 'all') {
+      out = out.filter((r) => r.part_of_speech === filter);
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       out = out.filter((r) => r.word.toLowerCase().includes(q));
     }
+
     return out.sort((a, b) => a.word.localeCompare(b.word, 'es'));
   }, [records, filter, search]);
 
@@ -198,9 +236,12 @@ export default function NounGenderEditor() {
             />
             <select value={filter} onChange={(e) => setFilter(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
               <option value="all">All</option>
-              <option value="unassigned">Unassigned</option>
-              <option value="masculine">Masculine</option>
-              <option value="feminine">Feminine</option>
+              <option value="unassigned">Unclassified</option>
+              <option value="noun">Nouns</option>
+              <option value="verb">Verbs</option>
+              <option value="adjective">Adjectives</option>
+              <option value="preposition">Prepositions</option>
+              <option value="other">Other</option>
             </select>
             <button
               onClick={sync}
@@ -226,7 +267,7 @@ export default function NounGenderEditor() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
-            <p className="mb-3">No nouns yet. Click <strong>Scan bucket</strong> to seed from the letter-sort image library.</p>
+            <p className="mb-3">No words found. Click <strong>Sync library</strong> to import words from the letter-sort image library.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -270,10 +311,80 @@ export default function NounGenderEditor() {
                     <option value="noun">Noun</option>
                     <option value="verb">Verb</option>
                     <option value="adjective">Adjective</option>
+                    <option value="determiner">Determiner</option>
+                    <option value="pronoun">Pronoun</option>
                     <option value="preposition">Preposition</option>
+                    <option value="adverb">Adverb</option>
+                    <option value="conjunction">Conjunction</option>
                     <option value="other">Other</option>
                   </select>
-                  {r.part_of_speech === 'noun' && (
+                  {r.part_of_speech === 'determiner' && (
+                    <>
+                      <select
+                        value={r.determiner_type || ''}
+                        onChange={(e) => setDeterminerType(r.id, e.target.value)}
+                        className="w-full mb-1.5 rounded-lg border-2 border-violet-200 bg-white px-2 py-1.5 text-xs font-bold text-gray-700"
+                      >
+                        <option value="">Determiner type…</option>
+                        <option value="definite_article">Definite article</option>
+                        <option value="indefinite_article">Indefinite article</option>
+                        <option value="possessive">Possessive</option>
+                        <option value="other">Other determiner</option>
+                      </select>
+
+                      {(r.determiner_type === 'definite_article' ||
+                        r.determiner_type === 'indefinite_article') && (
+                        <>
+                          <div className="flex gap-1.5 mb-1.5">
+                            <button
+                              onClick={() => setNumber(r.id, 'singular')}
+                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                r.number === 'singular'
+                                  ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : 'bg-white text-emerald-600 border-emerald-200 hover:border-emerald-400'
+                              }`}
+                            >
+                              Singular
+                            </button>
+                            <button
+                              onClick={() => setNumber(r.id, 'plural')}
+                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                r.number === 'plural'
+                                  ? 'bg-amber-600 text-white border-amber-600'
+                                  : 'bg-white text-amber-600 border-amber-200 hover:border-amber-400'
+                              }`}
+                            >
+                              Plural
+                            </button>
+                          </div>
+
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => setGender(r.id, r.gender === 'masculine' ? '' : 'masculine', r.number || 'singular')}
+                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                r.gender === 'masculine'
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
+                              }`}
+                            >
+                              Masculine
+                            </button>
+                            <button
+                              onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine', r.number || 'singular')}
+                              className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                                r.gender === 'feminine'
+                                  ? 'bg-pink-600 text-white border-pink-600'
+                                  : 'bg-white text-pink-600 border-pink-200 hover:border-pink-400'
+                              }`}
+                            >
+                              Feminine
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                  {(r.part_of_speech === 'noun' || r.part_of_speech === 'adjective') && (
                     <>
                       <div className="flex gap-1.5 mb-1.5">
                         <button
@@ -306,7 +417,9 @@ export default function NounGenderEditor() {
                           : 'bg-white text-blue-600 border-blue-200 hover:border-blue-400'
                       }`}
                     >
-                      {r.number === 'plural' ? 'los' : 'el'} masc
+                      {r.part_of_speech === 'noun'
+                        ? `${r.number === 'plural' ? 'los' : 'el'} masc`
+                        : 'Masculine'}
                     </button>
                     <button
                       onClick={() => setGender(r.id, r.gender === 'feminine' ? '' : 'feminine', r.number || 'singular')}
@@ -316,8 +429,22 @@ export default function NounGenderEditor() {
                           : 'bg-white text-pink-600 border-pink-200 hover:border-pink-400'
                       }`}
                     >
-                      {r.number === 'plural' ? 'las' : 'la'} fem
+                      {r.part_of_speech === 'noun'
+                        ? `${r.number === 'plural' ? 'las' : 'la'} fem`
+                        : 'Feminine'}
                     </button>
+                    {r.part_of_speech === 'adjective' && (
+                      <button
+                        onClick={() => setGender(r.id, r.gender === 'common' ? '' : 'common', r.number || 'singular')}
+                        className={`flex-1 rounded-lg py-1.5 text-xs font-bold border-2 transition ${
+                          r.gender === 'common'
+                            ? 'bg-violet-600 text-white border-violet-600'
+                            : 'bg-white text-violet-600 border-violet-200 hover:border-violet-400'
+                        }`}
+                      >
+                        Either
+                      </button>
+                    )}
                   </div>
                     </>
                   )}
