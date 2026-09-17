@@ -334,14 +334,15 @@ function renderCanvas(
 
           const imageX = x + (width - imageW) / 2;
 
-          // The bottom of the picture sits just above the text baseline area.
-          const imageBottom = y - fontSize * 0.12;
-          const imageY = imageBottom - imageH;
+          // Treat the picture like an inline word:
+          // vertically center it with the neighboring text.
+          const textCenterY = y - fontSize * 0.35;
+          const imageY = textCenterY - imageH / 2;
 
           ctx.drawImage(
             phraseImage,
             imageX,
-            Math.max(8, imageY),
+            imageY,
             imageW,
             imageH
           );
