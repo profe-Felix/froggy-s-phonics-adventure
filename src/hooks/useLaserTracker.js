@@ -129,6 +129,13 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
       setTrailPoints([]);
     };
 
+    // Prevent pen/stylus long-press from opening the browser's
+    // right-click/context menu over the laser surface.
+    const onContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    el.addEventListener('contextmenu', onContextMenu);
     el.addEventListener('pointerdown', onPointerDown);
     el.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
@@ -136,6 +143,7 @@ export default function useLaserTracker({ containerRef, enabled = true }) {
 
     return () => {
       el.style.touchAction = prevTouchAction;
+      el.removeEventListener('contextmenu', onContextMenu);
       el.removeEventListener('pointerdown', onPointerDown);
       el.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
