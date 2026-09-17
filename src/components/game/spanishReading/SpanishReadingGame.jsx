@@ -164,6 +164,9 @@ const shuffleItems = (items) =>
 const PRACTICE_ROUND_SIZE = 10;
 const CURRENT_LESSON_TARGET = 7;
 
+const SYLLABLE_LINES_PER_ROUND = 4;
+const SYLLABLES_PER_LINE = 5;
+
 const pickPracticeItems = (source, count) => {
   if (!source.length || count <= 0) return [];
 
@@ -205,6 +208,45 @@ const buildPracticeRound = (newItems, reviewItems) => {
     ...pickPracticeItems(newItems, currentCount),
     ...pickPracticeItems(reviewItems, reviewCount),
   ]);
+};
+
+const buildSyllableFluencyRound = (newItems, reviewItems) => {
+  const totalSyllables = SYLLABLE_LINES_PER_ROUND * SYLLABLES_PER_LINE;
+
+  let currentCount = newItems.length
+    ? Math.round(totalSyllables * 0.7)
+    : 0;
+
+  let reviewCount = reviewItems.length
+    ? totalSyllables - currentCount
+    : 0;
+
+  if (!reviewItems.length) {
+    currentCount = totalSyllables;
+  }
+
+  if (!newItems.length) {
+    currentCount = 0;
+    reviewCount = totalSyllables;
+  }
+
+  const syllables = shuffleItems([
+    ...pickPracticeItems(newItems, currentCount),
+    ...pickPracticeItems(reviewItems, reviewCount),
+  ]);
+
+  const lines = [];
+
+  for (let i = 0; i < syllables.length; i += SYLLABLES_PER_LINE) {
+    const line = syllables.slice(i, i + SYLLABLES_PER_LINE);
+
+    lines.push({
+      text: line.map(getItemText).join('   '),
+      syllables: line,
+    });
+  }
+
+  return lines;
 };
 
 function playRecording(url) {
@@ -693,10 +735,11 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
       item => !usesCurrentLessonContent(item)
     );
 
-    // Build a fresh 10-item round:
-    // 7 current-lesson opportunities + 3 spiral-review opportunities.
-    // Repetition is intentional when the available pool is small.
-    let practicePool = buildPracticeRound(newItems, reviewItems);
+    // Sílabas uses 4 fluency lines of 5 syllables each.
+    // Other sections use the regular 10-item practice round.
+    let practicePool = sectionKey === 'Sílabas'
+      ? buildSyllableFluencyRound(newItems, reviewItems)
+      : buildPracticeRound(newItems, reviewItems);
 
     // Teacher-confirmed mastery is still useful:
     // mastered items stay available but drift toward the back of the session.
