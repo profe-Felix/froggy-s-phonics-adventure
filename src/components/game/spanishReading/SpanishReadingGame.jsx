@@ -13,6 +13,7 @@ const SECTIONS = [
   { key: 'Sílabas', label: 'Sílabas', icon: '🔤', type: 'word' },
   { key: 'Palabras 💙', label: 'Palabras HF', icon: '💙', type: 'word' },
   { key: 'Palabras', label: 'Palabras', icon: '📖', type: 'word' },
+  { key: 'Frases', label: 'Frases', icon: '🧩', type: 'phrase' },
   { key: 'Oraciones', label: 'Oraciones', icon: '📝', type: 'sentence' },
 ];
 
