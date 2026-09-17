@@ -89,14 +89,23 @@ export default function NounGenderEditor() {
   }, [records, load]);
 
   const setPartOfSpeech = useCallback(async (id, partOfSpeech) => {
+    const changes = partOfSpeech === 'noun'
+      ? { part_of_speech: partOfSpeech }
+      : {
+          part_of_speech: partOfSpeech,
+          gender: '',
+          number: '',
+          article: '',
+        };
+
     setRecords((prev) =>
       (prev || []).map((r) =>
-        r.id === id ? { ...r, part_of_speech: partOfSpeech } : r
+        r.id === id ? { ...r, ...changes } : r
       )
     );
 
     try {
-      await base44.entities.NounGender.update(id, { part_of_speech: partOfSpeech });
+      await base44.entities.NounGender.update(id, changes);
     } catch {
       void load();
     }
