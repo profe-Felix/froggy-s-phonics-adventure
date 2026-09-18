@@ -92,6 +92,7 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const [currentPage, setCurrentPage] = useState(startPage);
   const [twoPerPage, setTwoPerPage] = useState(false);
   const containerRef = useRef(null);
+  const recordingViewportRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const audioRef = useRef(null);
 
@@ -207,7 +208,19 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
   const handleStartRecord = async () => {
     try {
       const started = await startRecording();
-      if (started) laserTracker.startRecordingLaser(getRecordingStartTime());
+
+      if (started) {
+        const rect = containerRef.current?.getBoundingClientRect();
+
+        recordingViewportRef.current = rect
+          ? {
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+            }
+          : null;
+
+        laserTracker.startRecordingLaser(getRecordingStartTime());
+      }
     } catch (e) {
       // Mic permission denied or no mic available — show a friendly message
       // instead of an unhandled rejection. The hook already reset to idle.
@@ -277,6 +290,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           laser_data: ld,
           recorded_at: new Date().toISOString(),
           is_spread: twoPerPage,
+          laser_coordinate_space: 'book-reader-viewport-v1',
+          laser_viewport_width: recordingViewportRef.current?.width || containerSize.w,
+          laser_viewport_height: recordingViewportRef.current?.height || containerSize.h,
         };
 
         // Fresh upsert: find this student's session(s) for today before writing.
