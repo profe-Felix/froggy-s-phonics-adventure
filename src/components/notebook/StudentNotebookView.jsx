@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -104,7 +104,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
   const currentPageRef = useRef(currentPage);
-  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useLayoutEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
 
   useEffect(() => {
     const applyAutoFit = () => {
@@ -259,12 +259,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     latestSessionRef.current = session;
   }, [session]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
-
-    // Do not reload/clear while the student is drawing.
-    if (isDrawingRef.current) return;
-    if (localDirtyRef.current) return;
 
     // IMPORTANT:
     // Do NOT include pdfRenderedSize in the key.
@@ -272,7 +268,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const key = `${session.id}-${currentPage}`;
     if (loadedKeyRef.current === key) return;
 
+    // A different page must always replace the long-lived canvas immediately.
+    // Never let dirty/drawing flags from the page we just left suppress this
+    // load; otherwise its ink remains in memory and can be saved on this page.
     loadedKeyRef.current = key;
+    localDirtyRef.current = false;
 
     const pageData = session.strokes_by_page?.[String(currentPage)];
     const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
@@ -603,6 +603,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
     localDirtyRef.current = false;
     loadedKeyRef.current = null;
+    currentPageRef.current = clamped;
     setCurrentPage(clamped);
   };
 
