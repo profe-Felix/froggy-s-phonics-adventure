@@ -4,7 +4,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
-const CLASS_NAMES = ['Felix', 'Valero', 'Campos'];
+const CLASS_NAMES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight Words Spelling', sentences: 'Sentences' };
 
 function StrokeReplayCanvas({ strokesData, mode }) {
