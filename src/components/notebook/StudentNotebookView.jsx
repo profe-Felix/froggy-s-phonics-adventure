@@ -353,7 +353,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       });
 
       localStorage.removeItem(saveDraftKey);
-      localDirtyRef.current = false;
+      localDirtyRef.current = pendingSaveRef.current;
 
       const nextSession = {
         ...activeSession,
