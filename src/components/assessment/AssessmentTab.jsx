@@ -6,7 +6,7 @@ import AssessmentTemplateEditor from './AssessmentTemplateEditor';
 import AssessmentStudentGrid from './AssessmentStudentGrid';
 import AssessmentStudentView from './AssessmentStudentView';
 
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const CLASS_NAMES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 const getPdfPageCount = async (file) => {
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc =
