@@ -1230,7 +1230,7 @@ export default function WordSentenceBuilder({ embedStudent, embedClass, embedPre
               <select value={qrTeacherClass} onChange={e=>setQrTeacherClass(e.target.value)}
                 className="border border-gray-300 rounded-lg px-2 py-1 text-sm font-bold text-gray-700 bg-white">
                 <option value="">Clase: todas</option>
-                {['Felix','Valero','Campos'].map(c=>(
+                {['Schwarz', 'Felix', 'Valero', 'Gutierrez'].map(c=>(
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -1431,7 +1431,7 @@ export default function WordSentenceBuilder({ embedStudent, embedClass, embedPre
 }
 
 // ─── Student login flow ───────────────────────────────────────────────────────
-const CLASSES = ['Felix', 'Valero', 'Campos'];
+const CLASSES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 
 function StudentLoginFlow({ searchParams }) {
   const urlClass = searchParams.get('class');
