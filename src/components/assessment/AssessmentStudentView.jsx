@@ -49,6 +49,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
   const pendingSavePageRef = useRef(null);
+  const pendingSaveDataRef = useRef(null);
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
   const latestRecordRef = useRef(record);
@@ -57,6 +58,38 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const pageChangeInFlightRef = useRef(false);
 
   useEffect(() => { currentPageIdxRef.current = currentPageIdx; }, [currentPageIdx]);
+
+  const currentPageData = pages[currentPageIdx];
+
+  // PDF pages report their rendered size themselves. Blank and image pages also
+  // need live measurements so ink remains aligned through orientation changes.
+  useEffect(() => {
+    const wrapper = pdfWrapperRef.current;
+    if (!wrapper || !currentPageData || currentPageData.type === 'pdf') return;
+
+    const sync = () => {
+      const pageEl = wrapper.firstElementChild;
+      const rect = pageEl?.getBoundingClientRect();
+
+      if (rect?.width > 0 && rect?.height > 0) {
+        setPdfRenderedSize({
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+        });
+      }
+    };
+
+    sync();
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(wrapper);
+
+    if (wrapper.firstElementChild) {
+      observer.observe(wrapper.firstElementChild);
+    }
+
+    return () => observer.disconnect();
+  }, [currentPageIdx, currentPageData?.id, currentPageData?.type, currentPageData?.url]);
 
   useEffect(() => {
     latestRecordRef.current = record;
@@ -132,47 +165,60 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     }
   }, [record, currentPageIdx]);
 
-  const saveStrokes = useCallback(async (pageOverride) => {
+  const saveStrokes = useCallback(async (pageOverride, preCapturedData) => {
     if (!canvasRef.current) return;
     if (!pdfRenderedSize?.w || !pdfRenderedSize?.h) return;
 
+    const rec = latestRecordRef.current;
+    if (!rec) return;
+
+    // Capture the page and its ink before any asynchronous work begins.
+    const savePage = pageOverride ?? currentPageIdxRef.current;
+    const strokeData = preCapturedData || canvasRef.current.getStrokes();
+    const payload = {
+      ...strokeData,
+      canvasWidth: pdfRenderedSize.w,
+      canvasHeight: pdfRenderedSize.h,
+      normalized: true,
+    };
+
+    const saveDraftKey = `assessment-draft-${rec.id}-${savePage}`;
+
+    // Save the recovery copy immediately, before any network request.
+    localStorage.setItem(saveDraftKey, JSON.stringify(payload));
+
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
-      pendingSavePageRef.current = pageOverride ?? currentPageIdxRef.current;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
 
     if (saveInFlightRef.current) {
       pendingSaveRef.current = true;
-      pendingSavePageRef.current = pageOverride ?? currentPageIdxRef.current;
+      pendingSavePageRef.current = savePage;
+      pendingSaveDataRef.current = strokeData;
       return;
     }
-
-    const rec = latestRecordRef.current;
-    if (!rec) return;
-
-    const savePage = pageOverride ?? currentPageIdxRef.current;
-    const saveDraftKey = `assessment-draft-${rec.id}-${savePage}`;
 
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
-      const strokeData = canvasRef.current.getStrokes();
-      const payload = {
-        ...strokeData,
-        canvasWidth: pdfRenderedSize?.w,
-        canvasHeight: pdfRenderedSize?.h,
-        normalized: true,
-      };
+      // Merge with the newest server record so another page is not overwritten.
+      let baseStrokes = rec.strokes_by_page || {};
+
+      try {
+        const fresh = await base44.entities.AssessmentRecord.get(rec.id);
+        baseStrokes = fresh?.strokes_by_page || baseStrokes;
+      } catch {
+        // Use the latest local record if the refresh fails.
+      }
 
       const updated = {
-        ...(rec.strokes_by_page || {}),
+        ...baseStrokes,
         [String(savePage)]: JSON.stringify(payload),
       };
-
-      // Local safety backup first. If Base44 fails, refresh will still restore the strokes.
-      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
       await base44.entities.AssessmentRecord.update(rec.id, {
         strokes_by_page: updated,
@@ -180,7 +226,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
       });
 
       localStorage.removeItem(saveDraftKey);
-      localDirtyRef.current = false;
+      localDirtyRef.current = pendingSaveRef.current;
 
       const nextRecord = {
         ...rec,
@@ -196,11 +242,13 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
       if (pendingSaveRef.current) {
         const queuedPage = pendingSavePageRef.current;
+        const queuedData = pendingSaveDataRef.current;
 
         pendingSaveRef.current = false;
         pendingSavePageRef.current = null;
+        pendingSaveDataRef.current = null;
 
-        void saveStrokes(queuedPage);
+        void saveStrokes(queuedPage, queuedData);
       }
     }
   }, [onRecordUpdate, pdfRenderedSize]);
@@ -361,23 +409,35 @@ export default function AssessmentStudentView({ record, template, studentNumber,
     setCurrentPageIdx(0);
 
     requestAnimationFrame(() => {
-      canvasRef.current?.clearStrokes();
+      canvasRef.current?.loadStrokes(null);
       loadedKeyRef.current = null;
       localDirtyRef.current = false;
     });
   };
 
-  const saveFloatingMics = useCallback(async (mics) => {
+  const saveFloatingMics = useCallback(async (mics, pageOverride = currentPageIdxRef.current) => {
     const rec = latestRecordRef.current;
     if (!rec) return;
 
-    // Save current ink first so mic updates do not accidentally preserve an older strokes_by_page object.
-    await saveStrokes(currentPageIdxRef.current);
+    // Do not let the microphone update race an older ink save.
+    while (saveInFlightRef.current) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
 
-    const freshRec = latestRecordRef.current;
+    // Capture and save the ink from the same page receiving the microphone.
+    const strokeSnapshot = canvasRef.current?.getStrokes();
+    await saveStrokes(pageOverride, strokeSnapshot);
+
+    let freshRec = latestRecordRef.current;
     if (!freshRec) return;
 
-    const key = `mics_${currentPageIdxRef.current}`;
+    try {
+      freshRec = await base44.entities.AssessmentRecord.get(freshRec.id) || freshRec;
+    } catch {
+      // Use the latest local record if refreshing fails.
+    }
+
+    const key = `mics_${pageOverride}`;
     const updated = {
       ...(freshRec.strokes_by_page || {}),
       [key]: JSON.stringify(mics),
@@ -430,7 +490,7 @@ export default function AssessmentStudentView({ record, template, studentNumber,
 
     setFloatingMics(updated);
     setAddingMic(false);
-    void saveFloatingMics(updated);
+    void saveFloatingMics(updated, currentPageIdxRef.current);
   };
 
   const handlePasteImage = async (file) => {
@@ -482,7 +542,6 @@ export default function AssessmentStudentView({ record, template, studentNumber,
   const laserTrackerRef = useRef(laserTracker);
   useEffect(() => { laserTrackerRef.current = laserTracker; });
 
-  const currentPageData = pages[currentPageIdx];
   const currentPastedImages = pastedImages[String(currentPageIdx)] || [];
   const snapshots = record.snapshots || [];
 
