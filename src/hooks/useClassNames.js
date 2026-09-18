@@ -7,7 +7,7 @@ import { base44 } from '@/api/base44Client';
 //
 // Falls back to a sensible default list while ClassConfig records load (or if
 // none exist yet) so dashboards never render empty on first load.
-export const FALLBACK_CLASSES = ['Felix', 'Valero', 'Gutierrez', 'Schwarz'];
+export const FALLBACK_CLASSES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 
 export function useClassNames() {
   const queryClient = useQueryClient();
