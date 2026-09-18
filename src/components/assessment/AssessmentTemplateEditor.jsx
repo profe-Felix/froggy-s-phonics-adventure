@@ -26,6 +26,7 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const pageWrapperRef = useRef(null);
 
   const getPdfPageCount = async (file) => {
     const pdfjsLib = await import('pdfjs-dist');
@@ -51,13 +52,51 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
   // Load strokes when switching pages
   useEffect(() => {
     if (!canvasRef.current || !currentPage || !renderedSize) return;
+
     const raw = strokesByPage[String(currentPageIdx)];
+
     if (raw) {
-      try { canvasRef.current.loadStrokes(JSON.parse(raw)); } catch { canvasRef.current.clearStrokes(); }
+      try {
+        canvasRef.current.loadStrokes(
+          typeof raw === 'string' ? JSON.parse(raw) : raw
+        );
+      } catch {
+        canvasRef.current.loadStrokes(null);
+      }
     } else {
-      canvasRef.current.clearStrokes();
+      canvasRef.current.loadStrokes(null);
     }
   }, [currentPageIdx, renderedSize]);
+
+  // Blank and image pages need the same resize/orientation tracking as PDF
+  // pages. Measure the displayed page, never the image's natural pixel size.
+  useEffect(() => {
+    const wrapper = pageWrapperRef.current;
+    if (!wrapper || !currentPage || currentPage.type === 'pdf') return;
+
+    const sync = () => {
+      const pageEl = wrapper.firstElementChild;
+      const rect = pageEl?.getBoundingClientRect();
+
+      if (rect?.width > 0 && rect?.height > 0) {
+        setRenderedSize({
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+        });
+      }
+    };
+
+    sync();
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(wrapper);
+
+    if (wrapper.firstElementChild) {
+      observer.observe(wrapper.firstElementChild);
+    }
+
+    return () => observer.disconnect();
+  }, [currentPageIdx, currentPage?.id, currentPage?.type, currentPage?.url]);
 
   const saveCurrentPageStrokes = useCallback(() => {
     if (!canvasRef.current || !renderedSize) return;
@@ -92,9 +131,33 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
 
   const removePage = (idx) => {
     if (pages.length <= 1) return;
+
+    saveCurrentPageStrokes();
+
     const newPages = pages.filter((_, i) => i !== idx);
+
+    setStrokesByPage(prev => {
+      const next = {};
+
+      Object.entries(prev).forEach(([key, value]) => {
+        const oldIdx = Number(key);
+
+        if (oldIdx === idx) return;
+
+        next[String(oldIdx > idx ? oldIdx - 1 : oldIdx)] = value;
+      });
+
+      return next;
+    });
+
     setPages(newPages);
-    if (currentPageIdx >= newPages.length) setCurrentPageIdx(newPages.length - 1);
+    setRenderedSize(null);
+
+    if (currentPageIdx > idx) {
+      setCurrentPageIdx(currentPageIdx - 1);
+    } else if (currentPageIdx >= newPages.length) {
+      setCurrentPageIdx(newPages.length - 1);
+    }
   };
 
   const handleUploadPageFile = async (file, type) => {
@@ -146,7 +209,7 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
     <div className="flex flex-col h-full w-full" style={{ background: '#0f0f1a', color: 'white' }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca' }}>
-        <button onClick={onBack} className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
+        <button onClick={async () => { await handleSave(); onBack(); }} className="text-indigo-300 hover:text-white font-bold text-sm">← Back</button>
         <p className="flex-1 text-white font-black text-sm truncate">✏️ {template.title}</p>
         <div className="flex gap-1">
           {['draw', 'audio', 'pages'].map(t => (
@@ -208,7 +271,7 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
             )}
             <div ref={containerRef} className="flex-1 overflow-auto" style={{ background: '#e8e8e8', position: 'relative' }}>
               {currentPage ? (
-                <div style={{ position: 'relative', display: 'block', width: '100%' }}>
+                <div ref={pageWrapperRef} style={{ position: 'relative', display: 'block', width: '100%' }}>
                   {currentPage.type === 'blank' ? (
                     <div style={{ width: '100%', paddingBottom: '129%', background: 'white', position: 'relative' }}>
                       {/* blank page */}
@@ -221,8 +284,19 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
                         onRendered={(w, h) => setRenderedSize({ w, h })}
                       />
                     ) : (
-                      <img src={currentPage.url} alt="page" style={{ width: '100%', display: 'block' }}
-                        onLoad={e => setRenderedSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
+                      <img
+                        src={currentPage.url}
+                        alt="page"
+                        style={{ width: '100%', display: 'block' }}
+                        onLoad={e => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+
+                          setRenderedSize({
+                            w: Math.round(rect.width),
+                            h: Math.round(rect.height),
+                          });
+                        }}
+                      />
                     )
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-3 p-8"
