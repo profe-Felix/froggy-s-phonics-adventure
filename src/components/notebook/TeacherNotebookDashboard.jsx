@@ -47,12 +47,20 @@ function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
   );
 }
 
-export default function TeacherNotebookDashboard({ onBack }) {
+export default function TeacherNotebookDashboard({
+  onBack,
+  initialClassName = null,
+  initialAssignmentRef = null,
+  initialTab = null,
+}) {
   const qc = useQueryClient();
   const { classList } = useClassNames();
   const { colorFor, groupedClasses } = useClassColors();
-  const [className, setClassName] = useState(null);
-  const [tab, setTab] = useState('assignments');
+  const [className, setClassName] = useState(initialClassName);
+  const [tab, setTab] = useState(
+    initialTab || (initialAssignmentRef ? 'students' : 'assignments')
+  );
+  const pendingAssignmentRef = useRef(initialAssignmentRef);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
@@ -66,12 +74,89 @@ export default function TeacherNotebookDashboard({ onBack }) {
   const [rangeEnd, setRangeEnd] = useState('');
   const [totalPages, setTotalPages] = useState('');
 
-  const { data: assignments = [] } = useQuery({
+  const { data: assignments = [], isFetched: assignmentsFetched } = useQuery({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
     enabled: !!className,
     refetchInterval: 5000,
   });
+
+  // Resolve a direct URL assignment or the same assignment after switching
+  // teachers. Match by ID first, then by title because each class may have its
+  // own copy of the same assignment with a different entity ID.
+  useEffect(() => {
+    const assignmentRef = pendingAssignmentRef.current;
+    if (!assignmentRef || !className || !assignmentsFetched) return;
+
+    const normalizedRef = String(assignmentRef).trim().toLowerCase();
+    const matchingAssignment = assignments.find((assignment) =>
+      assignment.id === assignmentRef ||
+      String(assignment.title || '').trim().toLowerCase() === normalizedRef
+    );
+
+    if (matchingAssignment) {
+      setSelectedAssignment(matchingAssignment);
+      setTab('students');
+      pendingAssignmentRef.current = null;
+    }
+  }, [assignments, assignmentsFetched, className]);
+
+  const updateTeacherUrl = (nextClass, assignmentRef, nextTab = tab) => {
+    const params = new URLSearchParams(window.location.search);
+
+    params.set('mode', 'teacher');
+
+    if (nextClass) {
+      params.set('class', nextClass);
+    } else {
+      params.delete('class');
+    }
+
+    if (assignmentRef) {
+      params.set('assignment', assignmentRef);
+    } else {
+      params.delete('assignment');
+    }
+
+    if (nextTab) {
+      params.set('tab', nextTab);
+    } else {
+      params.delete('tab');
+    }
+
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}?${params.toString()}`
+    );
+  };
+
+  const handleClassChange = (nextClass) => {
+    // Assignment IDs differ between class copies, so carry the title across.
+    const assignmentRef =
+      selectedAssignment?.title ||
+      pendingAssignmentRef.current ||
+      null;
+
+    pendingAssignmentRef.current = assignmentRef;
+
+    setReplaySession(null);
+    setReplayAssignment(null);
+    setReplayPage(null);
+    setGlobalViewPage(null);
+    setSelectedAssignment(null);
+    setClassName(nextClass);
+
+    if (assignmentRef) {
+      setTab('students');
+    }
+
+    updateTeacherUrl(
+      nextClass,
+      assignmentRef,
+      assignmentRef ? 'students' : tab
+    );
+  };
 
   const { data: sharedAssignments = [] } = useQuery({
     queryKey: ['notebook-shared'],
@@ -242,7 +327,7 @@ export default function TeacherNotebookDashboard({ onBack }) {
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: '#4338ca', background: '#1a1a2e' }}>
         <BackButton tone="indigo" onClick={onBack} />
         <h1 className="text-lg font-black text-white flex-1">📓 Digital Notebook</h1>
-        <select value={className} onChange={e => setClassName(e.target.value)}
+        <select value={className} onChange={e => handleClassChange(e.target.value)}
           className="px-3 py-1.5 rounded-xl font-bold text-white border border-indigo-500"
           style={{ background: '#1a1a2e' }}>
           {classList.map(c => <option key={c} value={c}>Class {c}</option>)}
