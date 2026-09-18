@@ -346,8 +346,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         [String(savePage)]: JSON.stringify(payload),
       };
 
-      localStorage.setItem(saveDraftKey, JSON.stringify(payload));
-
       await base44.entities.NotebookSession.update(activeSession.id, {
         strokes_by_page: updated,
         current_page: savePage,
