@@ -7,7 +7,7 @@ import StoryStudentThumbnail from './StoryStudentThumbnail';
 import StoryReplayModal from './StoryReplayModal';
 import BackButton from '@/components/ui/BackButton';
 
-const CLASS_NAMES = ['Campos', 'Felix', 'Valero'];
+const CLASS_NAMES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 
 export default function TeacherStoryDashboard({ onBack }) {
   const [className, setClassName] = useState('Felix');
