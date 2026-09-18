@@ -300,6 +300,19 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     // cause us to save the wrong page's ink onto the wrong page.
     const savePage = pageOverride ?? currentPageRef.current;
     const strokeData = preCapturedData || canvasRef.current.getStrokes();
+    const activeSession = latestSessionRef.current;
+    if (!activeSession) return;
+    const saveDraftKey = `notebook-draft-${activeSession.id}-${savePage}`;
+    const payload = {
+      ...strokeData,
+      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+      normalized: true,
+    };
+
+    // Write the local recovery copy before any await. This protects the
+    // student's ink if iPad/Safari suspends the page before Base44 finishes.
+    localStorage.setItem(saveDraftKey, JSON.stringify(payload));
 
     if (isDrawingRef.current) {
       pendingSaveRef.current = true;
@@ -315,22 +328,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       return;
     }
 
-    const activeSession = latestSessionRef.current;
-    if (!activeSession) return;
-
-    const saveDraftKey = `notebook-draft-${activeSession.id}-${savePage}`;
-
     saveInFlightRef.current = true;
     setSaving(true);
 
     try {
-      const payload = {
-        ...strokeData,
-        canvasWidth: pdfRenderedSize?.w || canvasSize.w,
-        canvasHeight: pdfRenderedSize?.h || canvasSize.h,
-        normalized: true,
-      };
-
       // Fetch latest session to merge — prevents overwriting other tabs' pages
       let baseStrokesByPage = activeSession.strokes_by_page || {};
       try {
