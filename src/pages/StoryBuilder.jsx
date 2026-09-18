@@ -28,6 +28,33 @@ const TEMPLATES = [
   { id: 'border', label: '🖼 Border' },
 ];
 
+function remapIndexedObject(source, index, action) {
+  const result = {};
+  Object.entries(source || {}).forEach(([key, value]) => {
+    const micMatch = key.match(/^mics_(\d+)$/);
+    const numeric = /^\d+$/.test(key);
+
+    if (!micMatch && !numeric) {
+      result[key] = value;
+      return;
+    }
+
+    const oldIndex = Number(micMatch ? micMatch[1] : key);
+    const prefix = micMatch ? 'mics_' : '';
+
+    if (action === 'delete' && oldIndex === index) return;
+
+    const newIndex =
+      action === 'delete'
+        ? (oldIndex > index ? oldIndex - 1 : oldIndex)
+        : (oldIndex >= index ? oldIndex + 1 : oldIndex);
+
+    result[`${prefix}${newIndex}`] = value;
+  });
+
+  return result;
+}
+
 function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const [pages, setPages] = useState(story.pages || [{ id: 'p1', template: 'blank', strokes_data: null }]);
   const [currentPageIdx, setCurrentPageIdx] = useState(0);
@@ -51,7 +78,7 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
   const pendingSaveRef = useRef(false);
   const pendingSavePageRef = useRef(null);
   const pendingSaveDataRef = useRef(null);
-  const latestStoryRef = useRef(null);
+  const latestStoryRef = useRef(story);
   const isDrawingRef = useRef(false);
   const currentPageIdxRef = useRef(currentPageIdx);
   const canvasSizeRef = useRef(canvasSize);
@@ -127,15 +154,12 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
 
     if (localDraft) {
       try {
-        canvasRef.current.clearStrokes();
         canvasRef.current.loadStrokes(JSON.parse(localDraft));
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else if (pageData) {
       try {
-        canvasRef.current.clearStrokes();
-
         const parsed = typeof pageData === 'string'
           ? JSON.parse(pageData)
           : pageData;
@@ -146,10 +170,10 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
         lastAppliedServerStrokeRef.current[String(currentPageIdx)] = pageData;
 
       } catch {
-        canvasRef.current.clearStrokes();
+        canvasRef.current.loadStrokes(null);
       }
     } else {
-      canvasRef.current.clearStrokes();
+      canvasRef.current.loadStrokes(null);
     }
 
     try {
@@ -243,14 +267,12 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       await base44.entities.StoryAssignment.update(activeStory.id, {
         pages: updatedPages,
         strokes_by_page: updatedStrokesByPage,
-        voice_notes_by_page: nextStory.voice_notes_by_page || {},
-        recordings_by_page: nextStory.recordings_by_page || {},
         status: nextStory.status || 'in_progress',
         last_active: nextStory.last_active,
       });
 
       localStorage.removeItem(saveDraftKey);
-      localDirtyRef.current = false;
+      localDirtyRef.current = pendingSaveRef.current;
       lastLocalSaveAtRef.current = Date.now();
       lastAppliedServerStrokeRef.current[String(savePage)] = payloadString;
     } finally {
@@ -277,13 +299,17 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
     void saveStrokes();
   }, [saveStrokes]);
 
-  const saveMics = useCallback(async (mics) => {
+  const saveMics = useCallback(async (mics, pageOverride = currentPageIdxRef.current) => {
+    // A mic is another annotation on the page. Persist ink first so the separate
+    // mic update can never race an older page payload.
+    await saveStrokes(pageOverride);
+
     const activeStory = latestStoryRef.current;
     if (!activeStory?.id) return;
 
     setFloatingMics(mics);
 
-    const key = `mics_${currentPageIdxRef.current}`;
+    const key = `mics_${pageOverride}`;
     const updatedVoiceNotes = {
       ...(activeStory.voice_notes_by_page || {}),
       [key]: JSON.stringify(mics),
@@ -302,29 +328,44 @@ function StoryEditor({ story, studentNumber, className, onBack, onSave }) {
       last_active: nextStory.last_active,
     });
 
-  }, []);
+  }, [saveStrokes]);
+
+  const lastMicTouchRef = useRef(0);
 
   const handleCanvasClick = (e) => {
     if (!addingMic || !canvasWrapperRef.current) return;
+
+    if (e.type === 'touchend') lastMicTouchRef.current = Date.now();
+    if (e.type === 'click' && Date.now() - lastMicTouchRef.current < 700) return;
+
+    e.preventDefault?.();
+    e.stopPropagation?.();
+
     const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = canvasWrapperRef.current.getBoundingClientRect();
     const x_pct = (src.clientX - rect.left) / rect.width;
     const y_pct = (src.clientY - rect.top) / rect.height;
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
     const updated = [...floatingMics, newMic];
+
     setFloatingMics(updated);
-    saveMics(updated);
+    void saveMics(updated, currentPageIdxRef.current);
     setAddingMic(false);
   };
 
   useEffect(() => {
     latestStoryRef.current = {
-      ...story,
+      ...(latestStoryRef.current || story),
       pages,
-      strokes_by_page: story.strokes_by_page || {},
-      voice_notes_by_page: story.voice_notes_by_page || {},
     };
-  }, [story, pages]);
+  }, [pages]);
+
+  useEffect(() => {
+    latestStoryRef.current = {
+      ...(latestStoryRef.current || {}),
+      ...story,
+    };
+  }, [story]);
 
   // Auto-save local work
 useEffect(() => {
@@ -392,7 +433,6 @@ useEffect(() => {
 
       if (serverStroke && canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
         try {
-          canvasRef.current.clearStrokes();
           canvasRef.current.loadStrokes(
             typeof serverStroke === 'string' ? JSON.parse(serverStroke) : serverStroke
           );
@@ -448,13 +488,25 @@ useEffect(() => {
     const activeStory = latestStoryRef.current || story;
     const newPage = { id: `p${Date.now()}`, template: 'blank' };
     const insertAt = currentPageIdxRef.current + 1;
-    const updated = [...pages.slice(0, insertAt), newPage, ...pages.slice(insertAt)];
+    const basePages = activeStory.pages || pages;
+    const updated = [...basePages.slice(0, insertAt), newPage, ...basePages.slice(insertAt)];
+    const nextStrokes = remapIndexedObject(activeStory.strokes_by_page, insertAt, 'insert');
+    const nextVoiceNotes = remapIndexedObject(activeStory.voice_notes_by_page, insertAt, 'insert');
+    const nextRecordings = remapIndexedObject(activeStory.recordings_by_page, insertAt, 'insert');
 
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(insertAt);
 
-    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
+    const nextStory = {
+      ...activeStory,
+      pages: updated,
+      strokes_by_page: nextStrokes,
+      voice_notes_by_page: nextVoiceNotes,
+      recordings_by_page: nextRecordings,
+      last_active: new Date().toISOString(),
+    };
+
     latestStoryRef.current = nextStory;
     await onSaveRef.current(nextStory);
   };
@@ -463,16 +515,41 @@ useEffect(() => {
     await saveStrokes();
 
     const activeStory = latestStoryRef.current || story;
-    const pg = pages[currentPageIdxRef.current];
+    const basePages = activeStory.pages || pages;
+    const sourceIdx = currentPageIdxRef.current;
+    const pg = basePages[sourceIdx];
     const dup = { ...pg, id: `p${Date.now()}` };
-    const insertAt = currentPageIdxRef.current + 1;
-    const updated = [...pages.slice(0, insertAt), dup, ...pages.slice(insertAt)];
+    const insertAt = sourceIdx + 1;
+    const updated = [...basePages.slice(0, insertAt), dup, ...basePages.slice(insertAt)];
+    const nextStrokes = remapIndexedObject(activeStory.strokes_by_page, insertAt, 'insert');
+    const nextVoiceNotes = remapIndexedObject(activeStory.voice_notes_by_page, insertAt, 'insert');
+    const nextRecordings = remapIndexedObject(activeStory.recordings_by_page, insertAt, 'insert');
+
+    if (activeStory.strokes_by_page?.[String(sourceIdx)] !== undefined) {
+      nextStrokes[String(insertAt)] = activeStory.strokes_by_page[String(sourceIdx)];
+    }
+
+    if (activeStory.voice_notes_by_page?.[`mics_${sourceIdx}`] !== undefined) {
+      nextVoiceNotes[`mics_${insertAt}`] = activeStory.voice_notes_by_page[`mics_${sourceIdx}`];
+    }
+
+    if (activeStory.recordings_by_page?.[String(sourceIdx)] !== undefined) {
+      nextRecordings[String(insertAt)] = activeStory.recordings_by_page[String(sourceIdx)];
+    }
 
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(insertAt);
 
-    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
+    const nextStory = {
+      ...activeStory,
+      pages: updated,
+      strokes_by_page: nextStrokes,
+      voice_notes_by_page: nextVoiceNotes,
+      recordings_by_page: nextRecordings,
+      last_active: new Date().toISOString(),
+    };
+
     latestStoryRef.current = nextStory;
     await onSaveRef.current(nextStory);
   };
@@ -484,14 +561,23 @@ useEffect(() => {
 
     const activeStory = latestStoryRef.current || story;
     const deleteIdx = currentPageIdxRef.current;
-    const updated = pages.filter((_, i) => i !== deleteIdx);
+    const basePages = activeStory.pages || pages;
+    const updated = basePages.filter((_, i) => i !== deleteIdx);
     const nextIdx = Math.max(0, deleteIdx - 1);
 
     setPages(updated);
     loadedKeyRef.current = null;
     setCurrentPageIdx(nextIdx);
 
-    const nextStory = { ...activeStory, pages: updated, last_active: new Date().toISOString() };
+    const nextStory = {
+      ...activeStory,
+      pages: updated,
+      strokes_by_page: remapIndexedObject(activeStory.strokes_by_page, deleteIdx, 'delete'),
+      voice_notes_by_page: remapIndexedObject(activeStory.voice_notes_by_page, deleteIdx, 'delete'),
+      recordings_by_page: remapIndexedObject(activeStory.recordings_by_page, deleteIdx, 'delete'),
+      last_active: new Date().toISOString(),
+    };
+
     latestStoryRef.current = nextStory;
     await onSaveRef.current(nextStory);
   };
