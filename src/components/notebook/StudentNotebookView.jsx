@@ -99,7 +99,8 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const pendingSaveDataRef = useRef(null);
   const latestSessionRef = useRef(null);
   const isDrawingRef = useRef(false);
-  const localDirtyRef = useRef(false); // 👈 ADD THIS LINE
+  const localDirtyRef = useRef(false);
+  const lastMicTouchRef = useRef(0);
 
   // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
   const currentPageRef = useRef(currentPage);
@@ -542,16 +543,30 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     try { setFloatingMics(JSON.parse(micsForPage)); } catch { setFloatingMics([]); }
   }, [session?.id, currentPage]);
 
-  const saveFloatingMics = useCallback(async (mics) => {
-    if (!session) return;
-    const key = `mics_${currentPage}`;
-    const updated = { ...(session.voice_notes_by_page || {}), [key]: JSON.stringify(mics) };
-    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
-    setSession(s => ({ ...s, voice_notes_by_page: updated }));
-  }, [session, currentPage]);
+  const saveFloatingMics = useCallback(async (mics, pageOverride = currentPageRef.current) => {
+    const activeSession = latestSessionRef.current;
+    if (!activeSession) return;
+    const key = `mics_${pageOverride}`;
+    let baseVoiceNotes = activeSession.voice_notes_by_page || {};
+    try {
+      const fresh = await base44.entities.NotebookSession.get(activeSession.id);
+      baseVoiceNotes = fresh?.voice_notes_by_page || baseVoiceNotes;
+    } catch { /* merge with the latest local session */ }
+    const updated = { ...baseVoiceNotes, [key]: JSON.stringify(mics) };
+    await base44.entities.NotebookSession.update(activeSession.id, { voice_notes_by_page: updated });
+    const nextSession = { ...latestSessionRef.current, voice_notes_by_page: updated };
+    latestSessionRef.current = nextSession;
+    setSession(nextSession);
+  }, []);
 
   const handlePageClickForMic = (e) => {
     if (!addingMic || !pdfWrapperRef.current) return;
+    if (e.type === 'touchend') lastMicTouchRef.current = Date.now();
+    if (e.type === 'click' && Date.now() - lastMicTouchRef.current < 700) return;
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    const page = currentPageRef.current;
+    const strokeSnapshot = canvasRef.current?.getStrokes();
     const src = e.changedTouches ? e.changedTouches[0] : e;
     const rect = pdfWrapperRef.current.getBoundingClientRect();
     const x_pct = (src.clientX - rect.left) / rect.width;
@@ -559,7 +574,10 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const newMic = { id: `mic-${Date.now()}`, x_pct, y_pct, audio_url: null, laser_data: null, label: '', role: 'student' };
     const updated = [...floatingMics, newMic];
     setFloatingMics(updated);
-    saveFloatingMics(updated);
+    void (async () => {
+      await saveStrokes(page, strokeSnapshot);
+      await saveFloatingMics(updated, page);
+    })();
     setAddingMic(false);
   };
 
