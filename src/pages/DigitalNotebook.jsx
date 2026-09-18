@@ -187,6 +187,7 @@ export default function DigitalNotebook() {
 
   const urlClass = parseClassParam(params.get('class'), classList);
   const urlAssignment = params.get('assignment') || params.get('Assignment') || null;
+  const urlTeacherTab = params.get('tab') || null;
   const urlNumber = parseInt(params.get('number') || params.get('student'));
   const urlPage = parseInt(params.get('page')) || null;
 
@@ -248,7 +249,14 @@ export default function DigitalNotebook() {
   }
 
   if (role === 'teacher') {
-    return <TeacherNotebookDashboard onBack={() => setRole(null)} />;
+    return (
+      <TeacherNotebookDashboard
+        onBack={() => setRole(null)}
+        initialClassName={urlClass}
+        initialAssignmentRef={urlAssignment}
+        initialTab={urlTeacherTab}
+      />
+    );
   }
 
   if (role === 'student' && studentInfo) {
