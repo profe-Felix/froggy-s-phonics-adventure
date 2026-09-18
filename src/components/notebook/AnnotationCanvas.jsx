@@ -732,15 +732,21 @@ const onTouchStart = (e) => {
       c.removeEventListener('touchend', onTouchEnd);
       c.removeEventListener('touchcancel', onTouchCancel);
       c.removeEventListener('contextmenu', onContextMenu);
-      current.current = null;
-      drawing.current = false;
+      // A resize/orientation/tool change re-registers these listeners. Commit an
+      // in-progress gesture before cleanup instead of silently dropping it.
+      if (drawing.current) {
+        onMouseUp();
+      }
     };
   }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd, scrollContainerRef]);
 
   useImperativeHandle(ref, () => ({
     getStrokes: () => ({
-      strokes: strokes.current,
-      history: history.current,
+      // Return a true snapshot. Save requests may be queued while the student
+      // keeps drawing, so exposing the live arrays can move later ink into the
+      // wrong page's pending save.
+      strokes: strokes.current.map(cloneStroke),
+      history: history.current.map(cloneStroke),
       historyVersion: 2,
     }),
 
