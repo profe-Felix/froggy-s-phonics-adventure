@@ -25,6 +25,50 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     ? (typeof recording.laser_data === 'string' ? JSON.parse(recording.laser_data) : recording.laser_data)
     : [];
 
+  const recordedWidth = Number(recording.laser_viewport_width);
+  const recordedHeight = Number(recording.laser_viewport_height);
+
+  const hasRecordedViewport =
+    recording.laser_coordinate_space === 'book-reader-viewport-v1' &&
+    Number.isFinite(recordedWidth) &&
+    Number.isFinite(recordedHeight) &&
+    recordedWidth > 0 &&
+    recordedHeight > 0;
+
+  const playbackSurfaceSize = (() => {
+    // Older recordings do not have viewport metadata. Keep their legacy
+    // full-container playback behavior rather than guessing a conversion.
+    if (
+      !hasRecordedViewport ||
+      containerSize.w <= 0 ||
+      containerSize.h <= 0
+    ) {
+      return {
+        width: '100%',
+        height: '100%',
+      };
+    }
+
+    const recordedAspect = recordedWidth / recordedHeight;
+    const availableAspect = containerSize.w / containerSize.h;
+
+    if (availableAspect > recordedAspect) {
+      const height = containerSize.h;
+
+      return {
+        width: Math.round(height * recordedAspect),
+        height,
+      };
+    }
+
+    const width = containerSize.w;
+
+    return {
+      width,
+      height: Math.round(width / recordedAspect),
+    };
+  })();
+
   useEffect(() => {
     if (audioRef.current) audioRef.current.load();
   }, [recIdx]);
@@ -63,19 +107,54 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
           <button onClick={onClose} className="text-teal-300 font-bold text-lg ml-4">✕</button>
         </div>
 
-        {/* Page display — contain-fit, fills remaining modal height */}
-        <div className="flex-1 overflow-hidden relative" style={{ background: '#fff' }}>
-          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%' }}>
+        {/* Page display — recreate the student's recorded viewport shape so the
+            PDF/image letterboxing and laser coordinate system remain identical. */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden relative flex items-center justify-center"
+          style={{ background: '#fff' }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              width: playbackSurfaceSize.width,
+              height: playbackSurfaceSize.height,
+              maxWidth: '100%',
+              maxHeight: '100%',
+              flexShrink: 0,
+              overflow: 'hidden',
+              background: '#fff',
+            }}
+          >
             {isSpread ? (
               <>
-                <div style={{ flex: 1, minWidth: 0, height: '100%' }}>{renderPage(recording.page)}</div>
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    height: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {renderPage(recording.page)}
+                </div>
+
                 {recording.page + 1 <= totalPages && (
-                  <div style={{ flex: 1, minWidth: 0, height: '100%' }}>{renderPage(recording.page + 1)}</div>
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      height: '100%',
+                      position: 'relative',
+                    }}
+                  >
+                    {renderPage(recording.page + 1)}
+                  </div>
                 )}
               </>
             ) : (
               <div
-                ref={containerRef}
                 style={{
                   position: 'relative',
                   flex: 1,
@@ -84,16 +163,16 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
                 }}
               >
                 {renderPage(recording.page)}
-
-                {laserData.length > 0 && containerSize.w > 0 && (
-                  <LaserReplayOverlay
-                    laserData={laserData}
-                    audioRef={audioRef}
-                    containerWidth={containerSize.w}
-                    containerHeight={containerSize.h}
-                  />
-                )}
               </div>
+            )}
+
+            {laserData.length > 0 && containerSize.w > 0 && (
+              <LaserReplayOverlay
+                laserData={laserData}
+                audioRef={audioRef}
+                containerWidth={playbackSurfaceSize.width}
+                containerHeight={playbackSurfaceSize.height}
+              />
             )}
           </div>
         </div>
@@ -125,7 +204,7 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
 // ── Student row in grid ───────────────────────────────────────────────────────
 function StudentSessionCard({ session, book, onReview }) {
   const pages = session.pages_completed || [];
-  const totalPages = book.pdf_page_count || 1;
+  const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
   const recs = session.recordings || [];
 
   return (
