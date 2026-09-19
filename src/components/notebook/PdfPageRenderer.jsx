@@ -81,6 +81,140 @@ function getCachedPdfPage(pdfUrl, document, pageNumber) {
   return pageCache.get(key);
 }
 
+
+const rasterCache = new Map();
+const rasterPromiseCache = new Map();
+const MAX_CACHED_RASTERS = 3;
+
+function getRasterCacheKey(
+  pdfUrl,
+  pageNumber,
+  displayWidth,
+  displayHeight,
+  dpr
+) {
+  const backingWidth = Math.max(
+    1,
+    Math.floor(displayWidth * dpr)
+  );
+
+  const backingHeight = Math.max(
+    1,
+    Math.floor(displayHeight * dpr)
+  );
+
+  return `${pdfUrl}::${pageNumber}::${backingWidth}x${backingHeight}`;
+}
+
+function getCachedRaster(key) {
+  if (!rasterCache.has(key)) return null;
+
+  const cachedCanvas = rasterCache.get(key);
+
+  // Move recently used renders to the end of the Map.
+  rasterCache.delete(key);
+  rasterCache.set(key, cachedCanvas);
+
+  return cachedCanvas;
+}
+
+function trimRasterCache(protectedKey) {
+  while (rasterCache.size > MAX_CACHED_RASTERS) {
+    const oldestKey = rasterCache.keys().next().value;
+
+    if (!oldestKey) return;
+
+    if (oldestKey === protectedKey) {
+      const protectedCanvas = rasterCache.get(oldestKey);
+      rasterCache.delete(oldestKey);
+      rasterCache.set(oldestKey, protectedCanvas);
+      continue;
+    }
+
+    const oldCanvas = rasterCache.get(oldestKey);
+
+    if (oldCanvas) {
+      // Release the large pixel backing store before dropping the reference.
+      oldCanvas.width = 1;
+      oldCanvas.height = 1;
+    }
+
+    rasterCache.delete(oldestKey);
+  }
+}
+
+function renderPageToCachedRaster({
+  key,
+  page,
+  displayWidth,
+  displayHeight,
+  dpr,
+}) {
+  const cachedCanvas = getCachedRaster(key);
+
+  if (cachedCanvas) {
+    return Promise.resolve(cachedCanvas);
+  }
+
+  if (rasterPromiseCache.has(key)) {
+    return rasterPromiseCache.get(key);
+  }
+
+  const renderPromise = (async () => {
+    const naturalViewport = page.getViewport({ scale: 1 });
+    const scale = displayWidth / naturalViewport.width;
+    const viewport = page.getViewport({ scale });
+
+    const offscreenCanvas = document.createElement('canvas');
+
+    offscreenCanvas.width = Math.max(
+      1,
+      Math.floor(displayWidth * dpr)
+    );
+
+    offscreenCanvas.height = Math.max(
+      1,
+      Math.floor(displayHeight * dpr)
+    );
+
+    const context = offscreenCanvas.getContext('2d', {
+      alpha: false,
+    });
+
+    context.setTransform(
+      dpr,
+      0,
+      0,
+      dpr,
+      0,
+      0
+    );
+
+    const task = page.render({
+      canvasContext: context,
+      viewport,
+    });
+
+    await task.promise;
+
+    rasterCache.set(key, offscreenCanvas);
+    trimRasterCache(key);
+
+    return offscreenCanvas;
+  })()
+    .catch((error) => {
+      rasterCache.delete(key);
+      throw error;
+    })
+    .finally(() => {
+      rasterPromiseCache.delete(key);
+    });
+
+  rasterPromiseCache.set(key, renderPromise);
+
+  return renderPromise;
+}
+
 /**
  * PdfPageRenderer
  * fitMode: 'width' (default) — scale to container width (original behavior for notebook)
@@ -100,7 +234,6 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
-  const renderTask = useRef(null);
   const renderedKey = useRef('');
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [loading, setLoading] = useState(true);
@@ -217,99 +350,256 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight]);
 
-  // Load the page and render the crisp backing store. Re-runs on page / url /
-  // size / fit changes; the visible canvas keeps its current pixels (CSS-scaled)
-  // until the offscreen render is ready to swap in.
+  // Render the visible page from the completed-raster cache when possible.
+  // Afterward, pre-render neighboring pages at the same fit and DPR.
   useEffect(() => {
     if (!pdfUrl || containerSize.w < 10) return;
+
     let cancelled = false;
-    const key = `${pdfUrl}:${pageNumber}`;
-    const isNewPage = renderedKey.current !== key;
+    const visibleKey = `${pdfUrl}:${pageNumber}`;
+    const isNewPage = renderedKey.current !== visibleKey;
+
+    const calculatePageDimensions = (page) => {
+      const viewport = page.getViewport({ scale: 1 });
+      const availableW = targetWidth || containerSize.w;
+      const availableH = targetHeight || containerSize.h;
+
+      let scale;
+
+      if (fitMode === 'height' && availableH > 10) {
+        scale = availableH / viewport.height;
+      } else if (fillHeight && availableH > 10) {
+        scale = Math.min(
+          availableH / viewport.height,
+          availableW / viewport.width
+        );
+      } else if (
+        fitMode === 'contain' &&
+        availableH > 10
+      ) {
+        scale = Math.min(
+          availableW / viewport.width,
+          availableH / viewport.height
+        );
+      } else {
+        scale = availableW / viewport.width;
+      }
+
+      return {
+        naturalWidth: viewport.width,
+        naturalHeight: viewport.height,
+        w: viewport.width * scale,
+        h: viewport.height * scale,
+      };
+    };
+
+    const copyRasterToVisibleCanvas = (
+      raster,
+      displayWidth,
+      displayHeight
+    ) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      canvas.width = raster.width;
+      canvas.height = raster.height;
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
+
+      const context = canvas.getContext('2d', {
+        alpha: false,
+      });
+
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      context.drawImage(raster, 0, 0);
+    };
 
     setError(null);
-    if (isNewPage) setLoading(true);
+
     (async () => {
       try {
-        const doc = await getCachedPdfDocument(pdfUrl);
+        const document = await getCachedPdfDocument(pdfUrl);
         if (cancelled) return;
 
         const safePageNumber = Math.max(
           1,
-          Math.min(doc.numPages, pageNumber)
+          Math.min(document.numPages, pageNumber)
         );
 
         const page = await getCachedPdfPage(
           pdfUrl,
-          doc,
+          document,
           safePageNumber
         );
+
         if (cancelled) return;
 
-        const canvas = canvasRef.current;
+        const dimensions = calculatePageDimensions(page);
 
-        // Warm only the next page. The bounded cache ensures this happens once
-        // per page instead of on every resize or fit-mode change.
-        if (safePageNumber < doc.numPages) {
-          void getCachedPdfPage(
-            pdfUrl,
-            doc,
-            safePageNumber + 1
-          ).catch(() => {
-            // A failed preload must not affect the current page.
-          });
+        naturalSizeRef.current = {
+          width: dimensions.naturalWidth,
+          height: dimensions.naturalHeight,
+        };
+
+        // Report the authoritative display size before rasterization finishes.
+        // This allows saved ink to load without waiting for the PDF pixels.
+        reportRenderedSize(
+          dimensions.w,
+          dimensions.h
+        );
+
+        const visibleCanvas = canvasRef.current;
+
+        if (visibleCanvas) {
+          visibleCanvas.style.width = `${dimensions.w}px`;
+          visibleCanvas.style.height = `${dimensions.h}px`;
         }
-        
-        if (!canvas) return;
 
-        const viewport = page.getViewport({ scale: 1 });
-        naturalSizeRef.current = { width: viewport.width, height: viewport.height };
+        const dpr = Math.min(
+          window.devicePixelRatio || 1,
+          3
+        );
 
-        const dims = computeDisplaySize();
-        if (!dims) return;
+        const rasterKey = getRasterCacheKey(
+          pdfUrl,
+          safePageNumber,
+          dimensions.w,
+          dimensions.h,
+          dpr
+        );
 
-        // Keep the displayed size correct while we re-render the backing store.
-        canvas.style.width = dims.w + 'px';
-        canvas.style.height = dims.h + 'px';
+        const immediatelyCachedRaster =
+          getCachedRaster(rasterKey);
 
-        const scale = dims.w / viewport.width;
-        const scaled = page.getViewport({ scale });
+        if (immediatelyCachedRaster) {
+          copyRasterToVisibleCanvas(
+            immediatelyCachedRaster,
+            dimensions.w,
+            dimensions.h
+          );
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          renderedKey.current = visibleKey;
+          setLoading(false);
+        } else {
+          if (isNewPage) {
+            setLoading(true);
+          }
 
-        // Render offscreen so the visible canvas keeps its current pixels until
-        // the new render is ready to swap in (no blank flash).
-        const off = document.createElement('canvas');
-        off.width = Math.floor(scaled.width * dpr);
-        off.height = Math.floor(scaled.height * dpr);
-        const offCtx = off.getContext('2d');
-        offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          const raster = await renderPageToCachedRaster({
+            key: rasterKey,
+            page,
+            displayWidth: dimensions.w,
+            displayHeight: dimensions.h,
+            dpr,
+          });
 
-        if (renderTask.current) renderTask.current.cancel();
+          if (cancelled) return;
 
-        renderTask.current = page.render({
-          canvasContext: offCtx,
-          viewport: scaled,
-        });
+          copyRasterToVisibleCanvas(
+            raster,
+            dimensions.w,
+            dimensions.h
+          );
 
-        await renderTask.current.promise;
-        if (cancelled) return;
+          renderedKey.current = visibleKey;
+          setLoading(false);
+        }
 
-        canvas.width = off.width;
-        canvas.height = off.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(off, 0, 0);
+        // Pre-render neighboring pages only after the visible page is ready.
+        // The next page is prioritized because students usually move forward.
+        const warmPage = async (neighborPageNumber) => {
+          if (
+            neighborPageNumber < 1 ||
+            neighborPageNumber > document.numPages
+          ) {
+            return;
+          }
 
-        renderedKey.current = key;
-        setLoading(false);
-        // Re-sync only if the displayed dimensions actually changed.
-        reportRenderedSize(dims.w, dims.h);
-      } catch (e) {
-        if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
+          const neighborPage = await getCachedPdfPage(
+            pdfUrl,
+            document,
+            neighborPageNumber
+          );
+
+          const neighborDimensions =
+            calculatePageDimensions(neighborPage);
+
+          const neighborKey = getRasterCacheKey(
+            pdfUrl,
+            neighborPageNumber,
+            neighborDimensions.w,
+            neighborDimensions.h,
+            dpr
+          );
+
+          if (
+            rasterCache.has(neighborKey) ||
+            rasterPromiseCache.has(neighborKey)
+          ) {
+            return;
+          }
+
+          await renderPageToCachedRaster({
+            key: neighborKey,
+            page: neighborPage,
+            displayWidth: neighborDimensions.w,
+            displayHeight: neighborDimensions.h,
+            dpr,
+          });
+        };
+
+        const warmNeighbors = async () => {
+          try {
+            await warmPage(safePageNumber + 1);
+            await warmPage(safePageNumber - 1);
+          } catch {
+            // Background rendering must never affect the visible page.
+          }
+        };
+
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(
+            () => {
+              void warmNeighbors();
+            },
+            { timeout: 800 }
+          );
+        } else {
+          window.setTimeout(() => {
+            void warmNeighbors();
+          }, 100);
+        }
+      } catch (error) {
+        if (
+          !cancelled &&
+          error?.name !== 'RenderingCancelledException'
+        ) {
+          setError('Failed to load PDF');
+        }
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, containerSize.w, containerSize.h, fitMode, fillHeight, renderScale, targetWidth, targetHeight]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    pdfUrl,
+    pageNumber,
+    containerSize.w,
+    containerSize.h,
+    fitMode,
+    fillHeight,
+    renderScale,
+    targetWidth,
+    targetHeight,
+  ]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
