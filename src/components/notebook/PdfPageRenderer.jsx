@@ -4,6 +4,82 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 const pdfCache = new Map();
+const pageCache = new Map();
+const MAX_CACHED_PAGES = 16;
+
+function getPageCacheKey(pdfUrl, pageNumber) {
+  return `${pdfUrl}::${pageNumber}`;
+}
+
+function trimPageCache(protectedKey) {
+  while (pageCache.size > MAX_CACHED_PAGES) {
+    const oldestKey = pageCache.keys().next().value;
+
+    if (!oldestKey) return;
+
+    if (oldestKey === protectedKey) {
+      const protectedValue = pageCache.get(oldestKey);
+      pageCache.delete(oldestKey);
+      pageCache.set(oldestKey, protectedValue);
+      continue;
+    }
+
+    pageCache.delete(oldestKey);
+  }
+}
+
+function getCachedPdfDocument(pdfUrl) {
+  if (!pdfCache.has(pdfUrl)) {
+    const documentPromise = pdfjsLib.getDocument({
+      url: pdfUrl,
+      withCredentials: false,
+      disableAutoFetch: false,
+      disableStream: false,
+    }).promise.catch((error) => {
+      pdfCache.delete(pdfUrl);
+
+      for (const key of pageCache.keys()) {
+        if (key.startsWith(`${pdfUrl}::`)) {
+          pageCache.delete(key);
+        }
+      }
+
+      throw error;
+    });
+
+    pdfCache.set(pdfUrl, documentPromise);
+  }
+
+  return pdfCache.get(pdfUrl);
+}
+
+function getCachedPdfPage(pdfUrl, document, pageNumber) {
+  const safePageNumber = Math.max(
+    1,
+    Math.min(document.numPages, pageNumber)
+  );
+
+  const key = getPageCacheKey(pdfUrl, safePageNumber);
+
+  if (!pageCache.has(key)) {
+    const pagePromise = document
+      .getPage(safePageNumber)
+      .catch((error) => {
+        pageCache.delete(key);
+        throw error;
+      });
+
+    pageCache.set(key, pagePromise);
+    trimPageCache(key);
+  } else {
+    // Move recently used pages to the end of the Map.
+    const cachedPromise = pageCache.get(key);
+    pageCache.delete(key);
+    pageCache.set(key, cachedPromise);
+  }
+
+  return pageCache.get(key);
+}
 
 /**
  * PdfPageRenderer
@@ -166,10 +242,27 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           Math.min(doc.numPages, pageNumber)
         );
 
-        const page = await doc.getPage(safePageNumber);
+        const page = await getCachedPdfPage(
+          pdfUrl,
+          doc,
+          safePageNumber
+        );
         if (cancelled) return;
 
         const canvas = canvasRef.current;
+
+        // Warm only the next page. The bounded cache ensures this happens once
+        // per page instead of on every resize or fit-mode change.
+        if (safePageNumber < doc.numPages) {
+          void getCachedPdfPage(
+            pdfUrl,
+            doc,
+            safePageNumber + 1
+          ).catch(() => {
+            // A failed preload must not affect the current page.
+          });
+        }
+        
         if (!canvas) return;
 
         const viewport = page.getViewport({ scale: 1 });
