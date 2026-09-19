@@ -6,6 +6,14 @@ import LessonStepper from './LessonStepper';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
 
+const WEEKDAYS = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+];
+
 // Free-play fallback shown when no lesson is assigned to the class.
 function FreePlayFallback({ onFreePlay, onLogout, studentData }) {
   return (
@@ -80,6 +88,7 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -97,7 +106,11 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
   useEffect(() => {
     if (!initialLessonId || !myLessons.length) return;
     const idx = myLessons.findIndex((l) => l.id === initialLessonId);
-    if (idx >= 0) setLessonIdx(idx);
+
+    if (idx >= 0) {
+      setLessonIdx(idx);
+      setSelectedDay(null);
+    }
   }, [initialLessonId, myLessons]);
 
   if (!myLessons.length) {
@@ -105,6 +118,143 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
   }
 
   const currentLesson = myLessons[Math.min(lessonIdx, myLessons.length - 1)];
+
+  const dailyLessons = WEEKDAYS.map(({ value, label }) => {
+    const savedDailyLesson = (currentLesson?.daily_lessons || []).find(
+      (dailyLesson) => dailyLesson.day === value
+    );
+
+    return {
+      day: value,
+      label,
+      active: savedDailyLesson?.active !== false,
+      module_number: savedDailyLesson?.module_number || 1,
+      curriculum_lesson_number:
+        savedDailyLesson?.curriculum_lesson_number || 1,
+      title: savedDailyLesson?.title || '',
+      steps: savedDailyLesson?.steps || [],
+    };
+  });
+
+  const hasDailyLessons =
+    Array.isArray(currentLesson?.daily_lessons) &&
+    currentLesson.daily_lessons.length > 0;
+
+  const selectedDailyLesson = dailyLessons.find(
+    (dailyLesson) => dailyLesson.day === selectedDay
+  );
+
+  if (hasDailyLessons && !selectedDailyLesson) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-indigo-100 to-white p-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-3 mb-5">
+            <button
+              onClick={onBack}
+              className="w-10 h-10 rounded-full bg-white text-indigo-700 shadow flex items-center justify-center hover:bg-indigo-50"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            <div>
+              <h1 className="text-2xl font-black text-indigo-900">
+                Week {currentLesson.lesson_number || ''}
+              </h1>
+              <p className="text-sm text-gray-600">
+                {currentLesson.subtitle || currentLesson.title}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {dailyLessons.map((dailyLesson) => {
+              const activityCount = dailyLesson.steps.length;
+              const canOpen =
+                dailyLesson.active !== false && activityCount > 0;
+
+              return (
+                <button
+                  key={dailyLesson.day}
+                  type="button"
+                  disabled={!canOpen}
+                  onClick={() => canOpen && setSelectedDay(dailyLesson.day)}
+                  className={[
+                    'rounded-3xl border-4 p-5 text-left shadow-md transition',
+                    canOpen
+                      ? 'bg-white border-white hover:scale-[1.02] hover:shadow-lg'
+                      : 'bg-gray-100 border-white opacity-65 cursor-not-allowed',
+                  ].join(' ')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xl font-black text-gray-800">
+                        {dailyLesson.label}
+                      </p>
+
+                      {dailyLesson.active !== false ? (
+                        <p className="text-sm font-black text-indigo-600 mt-1">
+                          M{dailyLesson.module_number}.L{dailyLesson.curriculum_lesson_number}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-bold text-gray-500 mt-1">
+                          No school
+                        </p>
+                      )}
+                    </div>
+
+                    <span className="text-3xl">
+                      {dailyLesson.active === false ? '🏫' : '📚'}
+                    </span>
+                  </div>
+
+                  {dailyLesson.active !== false && (
+                    <>
+                      {dailyLesson.title && (
+                        <p className="text-sm font-bold text-gray-700 mt-3">
+                          {dailyLesson.title}
+                        </p>
+                      )}
+
+                      <p className="text-xs text-gray-500 mt-2">
+                        {activityCount > 0
+                          ? `${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
+                          : 'No activities assigned yet'}
+                      </p>
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasDailyLessons && selectedDailyLesson) {
+    const dailyLessonTitle =
+      selectedDailyLesson.title ||
+      `${selectedDailyLesson.label} • M${selectedDailyLesson.module_number}.L${selectedDailyLesson.curriculum_lesson_number}`;
+
+    return (
+      <LessonStepper
+        key={`${currentLesson.id}-${selectedDailyLesson.day}`}
+        studentData={studentData}
+        selectedStudent={selectedStudent}
+        lesson={{
+          ...currentLesson,
+          title: dailyLessonTitle,
+        }}
+        steps={selectedDailyLesson.steps}
+        lessonId={`${currentLesson.id}:${selectedDailyLesson.day}`}
+        onBack={() => setSelectedDay(null)}
+        onLessonComplete={onLessonComplete}
+        onUpdateProgress={onUpdateProgress}
+        onStudentPatch={onStudentPatch}
+      />
+    );
+  }
+
   const steps = currentLesson?.steps || [];
 
   return (
