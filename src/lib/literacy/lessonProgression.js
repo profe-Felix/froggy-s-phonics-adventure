@@ -151,3 +151,67 @@ export function normalizeLessonLiteracy(lesson) {
     ],
   };
 }
+
+export function buildStudentLiteracyContext({
+  lessons,
+  progresses,
+  className,
+  language = 'es',
+}) {
+  const pathLessons = (lessons || [])
+    .filter(
+      (lesson) =>
+        lesson.assignment_type !== 'guided' &&
+        lesson.assignment_type !== 'side_quest' &&
+        (
+          !lesson.class_name ||
+          lesson.class_name === className
+        ) &&
+        (
+          !lesson.language ||
+          lesson.language === language
+        ) &&
+        Number(lesson.lesson_number) > 0
+    )
+    .sort(
+      (a, b) =>
+        Number(a.lesson_number || 0) -
+        Number(b.lesson_number || 0)
+    );
+
+  if (!pathLessons.length) {
+    return null;
+  }
+
+  const completedLessonIds = new Set(
+    (progresses || [])
+      .filter((progress) => progress.completed)
+      .map((progress) => String(progress.lesson_id))
+  );
+
+  const currentLesson =
+    pathLessons.find(
+      (lesson) =>
+        !completedLessonIds.has(String(lesson.id))
+    ) ||
+    pathLessons[pathLessons.length - 1];
+
+  const currentLessonNumber = Number(
+    currentLesson.lesson_number || 1
+  );
+
+  const availableLessons = pathLessons.filter(
+    (lesson) =>
+      Number(lesson.lesson_number || 0) <=
+      currentLessonNumber
+  );
+
+  return {
+    currentLesson,
+    currentLessonNumber,
+    cumulative:
+      buildCumulativeLiteracy(availableLessons),
+    current:
+      normalizeLessonLiteracy(currentLesson),
+  };
+}
