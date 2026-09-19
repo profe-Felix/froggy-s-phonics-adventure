@@ -7,7 +7,13 @@ import { base44 } from '@/api/base44Client';
  * pdfWrapperRef: ref to the element that renders the PDF (used to capture pixel region).
  * session / currentPage / onSessionUpdate: for persistence.
  */
-export default function useCutPaste({ pdfWrapperRef, session, currentPage, onSessionUpdate }) {
+export default function useCutPaste({
+  pdfWrapperRef,
+  session,
+  currentPage,
+  onSessionUpdate,
+  onSavePieces,
+}) {
   const [pieces, setPieces] = useState([]);
   const [selectedPieceId, setSelectedPieceId] = useState(null);
   const [clipboard, setClipboard] = useState(null); // piece data ready to paste on another page
@@ -33,14 +39,27 @@ export default function useCutPaste({ pdfWrapperRef, session, currentPage, onSes
   // ── Persist pieces to session ────────────────────────────────────────────
   const savePieces = useCallback(async (newPieces, sess, page) => {
     if (!sess) return;
+
+    if (onSavePieces) {
+      await onSavePieces(newPieces, page);
+      return;
+    }
+
     const key = `cut_pieces_${page}`;
     const updated = {
       ...(sess.voice_notes_by_page || {}),
       [key]: JSON.stringify(newPieces),
     };
-    await base44.entities.NotebookSession.update(sess.id, { voice_notes_by_page: updated });
+
+    await base44.entities.NotebookSession.update(
+      sess.id,
+      {
+        voice_notes_by_page: updated,
+      }
+    );
+
     onSessionUpdate?.(updated);
-  }, [onSessionUpdate]);
+  }, [onSavePieces, onSessionUpdate]);
 
   // ── Capture a region of the PDF as an image ──────────────────────────────
   const captureRegion = useCallback(async ({ x, y, w, h }) => {
