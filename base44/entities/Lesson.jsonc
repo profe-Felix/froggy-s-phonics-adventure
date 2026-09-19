@@ -62,6 +62,58 @@
       "default": [],
       "description": "For side quests: the specific students assigned. Each entry is { class_name, student_number }."
     },
+    "daily_lessons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday"
+            ],
+            "description": "Weekday scheduling slot for this curriculum lesson"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "False means no school or no assignment for this weekday"
+          },
+          "module_number": {
+            "type": "integer",
+            "default": 1,
+            "description": "Curriculum module number, such as 2 in M2.L1"
+          },
+          "curriculum_lesson_number": {
+            "type": "integer",
+            "default": 1,
+            "description": "Lesson number within the module, such as 1 in M2.L1"
+          },
+          "title": {
+            "type": "string",
+            "default": "",
+            "description": "Optional teacher-facing title for the daily lesson"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "default": [],
+            "description": "Ordered activity steps assigned to this daily curriculum lesson"
+          }
+        },
+        "required": [
+          "day"
+        ]
+      },
+      "default": [],
+      "description": "Monday through Friday curriculum lessons scheduled inside this week"
+    },
     "steps": {
       "type": "array",
       "items": {
