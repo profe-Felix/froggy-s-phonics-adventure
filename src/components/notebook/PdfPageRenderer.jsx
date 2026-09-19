@@ -3,7 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-const pdfCache = {};
+const pdfCache = new Map();
 
 /**
  * PdfPageRenderer
@@ -31,17 +31,72 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
   // Natural page size at scale 1. Cached after first load so we can compute the
   // display size synchronously on every resize (before any await).
   const naturalSizeRef = useRef(null);
+  const lastReportedSizeRef = useRef({ w: 0, h: 0 });
+  const resizeFrameRef = useRef(null);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const obs = new ResizeObserver(entries => {
+
+    const obs = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
-      if (width > 10) setContainerSize({ w: Math.round(width), h: Math.round(height) });
+      const nextWidth = Math.round(width);
+      const nextHeight = Math.round(height);
+
+      if (nextWidth <= 10) return;
+
+      if (resizeFrameRef.current) {
+        cancelAnimationFrame(resizeFrameRef.current);
+      }
+
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        setContainerSize((current) => {
+          if (
+            current.w === nextWidth &&
+            current.h === nextHeight
+          ) {
+            return current;
+          }
+
+          return {
+            w: nextWidth,
+            h: nextHeight,
+          };
+        });
+      });
     });
+
     obs.observe(el);
-    return () => obs.disconnect();
+
+    return () => {
+      obs.disconnect();
+
+      if (resizeFrameRef.current) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
   }, []);
+
+  const reportRenderedSize = (width, height) => {
+    const previous = lastReportedSizeRef.current;
+
+    if (
+      Math.abs(previous.w - width) < 0.1 &&
+      Math.abs(previous.h - height) < 0.1
+    ) {
+      return;
+    }
+
+    lastReportedSizeRef.current = {
+      w: width,
+      h: height,
+    };
+
+    if (onRendered) {
+      onRendered(width, height);
+    }
+  };
 
   // Figure out the target display size (px) for the current container + fit mode,
   // using the cached page aspect ratio. Returns null until the page is known.
@@ -58,7 +113,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     } else if (fitMode === 'contain' && availableH > 10) {
       scale = Math.min(availableW / vp.width, availableH / vp.height);
     } else {
-      scale = containerSize.w / vp.width;
+      scale = availableW / vp.width;
     }
     return { w: vp.width * scale, h: vp.height * scale };
   };
@@ -72,7 +127,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     if (!dims || !canvas) return;
     canvas.style.width = dims.w + 'px';
     canvas.style.height = dims.h + 'px';
-    if (onRendered) onRendered(dims.w, dims.h);
+    reportRenderedSize(dims.w, dims.h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight]);
 
@@ -89,22 +144,29 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     if (isNewPage) setLoading(true);
     (async () => {
       try {
-        if (!pdfCache[pdfUrl]) {
-          pdfCache[pdfUrl] = pdfjsLib.getDocument({
+        if (!pdfCache.has(pdfUrl)) {
+          const documentPromise = pdfjsLib.getDocument({
             url: pdfUrl,
             withCredentials: false,
             disableAutoFetch: false,
             disableStream: false,
-          }).promise;
+          }).promise.catch((loadError) => {
+            pdfCache.delete(pdfUrl);
+            throw loadError;
+          });
+
+          pdfCache.set(pdfUrl, documentPromise);
         }
-        const doc = await pdfCache[pdfUrl];
+
+        const doc = await pdfCache.get(pdfUrl);
         if (cancelled) return;
 
-        const totalPages = doc.numPages;
-        if (pageNumber < totalPages) doc.getPage(pageNumber + 1).catch(() => {});
-        if (pageNumber > 1) doc.getPage(pageNumber - 1).catch(() => {});
+        const safePageNumber = Math.max(
+          1,
+          Math.min(doc.numPages, pageNumber)
+        );
 
-        const page = await doc.getPage(pageNumber);
+        const page = await doc.getPage(safePageNumber);
         if (cancelled) return;
 
         const canvas = canvasRef.current;
@@ -123,7 +185,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const scale = dims.w / viewport.width;
         const scaled = page.getViewport({ scale });
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 3);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         // Render offscreen so the visible canvas keeps its current pixels until
         // the new render is ready to swap in (no blank flash).
@@ -150,9 +212,8 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         renderedKey.current = key;
         setLoading(false);
-        // Re-sync the ink layer now that the freshly-rendered page is in place
-        // (same display size; this just ensures the parent has the final dims).
-        if (onRendered) onRendered(dims.w, dims.h);
+        // Re-sync only if the displayed dimensions actually changed.
+        reportRenderedSize(dims.w, dims.h);
       } catch (e) {
         if (e?.name !== 'RenderingCancelledException') setError('Failed to load PDF');
       }
