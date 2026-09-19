@@ -16,6 +16,55 @@ import { useClassColors } from '@/hooks/useClassColors';
 
 const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
 
+function getAssignmentPageBounds(assignment) {
+  const total = Math.max(
+    1,
+    Number(
+      assignment?.pdf_page_count ||
+      assignment?.page_count ||
+      assignment?.page_range_end ||
+      1
+    )
+  );
+
+  const limitActive =
+    assignment?.page_mode === 'locked' ||
+    assignment?.limit_pages;
+
+  if (!limitActive) {
+    return {
+      total,
+      min: 1,
+      max: total,
+    };
+  }
+
+  const requestedMin = Number(assignment?.page_range_start || 1);
+  const requestedMax = Number(assignment?.page_range_end || total);
+
+  const min = Math.max(1, Math.min(total, requestedMin));
+  const max = Math.max(min, Math.min(total, requestedMax));
+
+  return {
+    total,
+    min,
+    max,
+  };
+}
+
+function getEffectiveLockedPage(assignment) {
+  const bounds = getAssignmentPageBounds(assignment);
+  const requestedPage = Number(
+    assignment?.locked_page ||
+    bounds.min
+  );
+
+  return Math.max(
+    bounds.min,
+    Math.min(bounds.max, requestedPage)
+  );
+}
+
 
 
 function StudentCard({ session, assignment, onViewWork, onReplayStrokes }) {
@@ -230,27 +279,97 @@ export default function TeacherNotebookDashboard({
     setTotalPages(selectedAssignment?.pdf_page_count ?? selectedAssignment?.page_count ?? '');
   }, [selectedAssignment?.id]);
 
-  const setPageMode = (mode) => {
+  const setPageMode = async (mode) => {
     if (!selectedAssignment) return;
-    const effectiveTotalPagesLocal =
-      selectedAssignment.pdf_page_count ||
-      selectedAssignment.page_count ||
-      selectedAssignment.page_range_end ||
-      1;
-    const safeLockedPage = Math.max(1, Math.min(effectiveTotalPagesLocal,
-      selectedAssignment.locked_page || selectedAssignment.page_range_start || 1));
-    // When switching to free: clear locked_page so students aren't force-navigated away
+
+    const nextAssignment = {
+      ...selectedAssignment,
+      page_mode: mode,
+    };
+
     const data = mode === 'locked'
-      ? { page_mode: mode, locked_page: safeLockedPage }
-      : { page_mode: mode, locked_page: null };
-    updateAssignment.mutate({ id: selectedAssignment.id, data });
-    setSelectedAssignment(a => ({ ...a, ...data }));
+      ? {
+          page_mode: 'locked',
+          locked_page: getEffectiveLockedPage(nextAssignment),
+        }
+      : {
+          page_mode: 'free',
+          locked_page: null,
+        };
+
+    setSelectedAssignment((current) => ({
+      ...current,
+      ...data,
+    }));
+
+    try {
+      const updated = await base44.entities.DigitalNotebookAssignment.update(
+        selectedAssignment.id,
+        data
+      );
+
+      setSelectedAssignment((current) =>
+        current?.id === selectedAssignment.id
+          ? { ...current, ...updated }
+          : current
+      );
+
+      qc.invalidateQueries({
+        queryKey: ['notebook-assignments', className],
+      });
+    } catch (error) {
+      console.error('Unable to change notebook page mode', error);
+
+      setSelectedAssignment((current) =>
+        current?.id === selectedAssignment.id
+          ? selectedAssignment
+          : current
+      );
+    }
   };
 
-  const setLockedPage = (page) => {
-    const clamped = Math.max(1, Math.min(effectiveTotalPages, page));
-    updateAssignment.mutate({ id: selectedAssignment.id, data: { locked_page: clamped } });
-    setSelectedAssignment(a => ({ ...a, locked_page: clamped }));
+  const setLockedPage = async (page) => {
+    if (!selectedAssignment) return;
+
+    const bounds = getAssignmentPageBounds(selectedAssignment);
+    const clamped = Math.max(
+      bounds.min,
+      Math.min(bounds.max, Number(page) || bounds.min)
+    );
+
+    setSelectedAssignment((current) => ({
+      ...current,
+      page_mode: 'locked',
+      locked_page: clamped,
+    }));
+
+    try {
+      const updated = await base44.entities.DigitalNotebookAssignment.update(
+        selectedAssignment.id,
+        {
+          page_mode: 'locked',
+          locked_page: clamped,
+        }
+      );
+
+      setSelectedAssignment((current) =>
+        current?.id === selectedAssignment.id
+          ? { ...current, ...updated }
+          : current
+      );
+
+      qc.invalidateQueries({
+        queryKey: ['notebook-assignments', className],
+      });
+    } catch (error) {
+      console.error('Unable to lock notebook page', error);
+
+      setSelectedAssignment((current) =>
+        current?.id === selectedAssignment.id
+          ? selectedAssignment
+          : current
+      );
+    }
   };
 
   const setStatus = (status) => {
