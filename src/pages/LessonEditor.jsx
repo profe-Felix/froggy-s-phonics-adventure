@@ -568,7 +568,7 @@ export default function LessonEditor() {
       }
       qc.invalidateQueries({ queryKey: ['all-lessons'] });
       qc.invalidateQueries({ queryKey: ['lessons'] });
-      alert(`Imported ${arr.length} lesson(s).`);
+      alert(`Imported ${arr.length} week(s).`);
     } catch (e) {
       alert('Import failed: ' + (e?.message || 'invalid JSON'));
     }
@@ -624,7 +624,7 @@ export default function LessonEditor() {
     const maxNum = Math.max(0, ...lessons.map((x) => x.lesson_number || 0));
     await base44.entities.Lesson.create({
       ...payload,
-      title: (l.title || 'Lesson') + ' (copy)',
+      title: (l.title || 'Week') + ' (copy)',
       lesson_number: l.assignment_type === 'guided' ? 0 : maxNum + 1,
       steps: (l.steps || []).map((s) => ({ ...s })),
     });
@@ -651,9 +651,9 @@ export default function LessonEditor() {
       <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
         <div className="max-w-2xl mx-auto p-4">
           <button onClick={() => setEditing(null)} className="text-indigo-600 hover:underline font-bold text-sm mb-3 inline-flex items-center gap-1">
-            <ArrowLeft className="w-4 h-4" /> All lessons
+            <ArrowLeft className="w-4 h-4" /> All weeks
           </button>
-          <h1 className="text-2xl font-black text-gray-800 mb-4">{editing.id ? 'Edit Lesson' : 'New Lesson'}</h1>
+          <h1 className="text-2xl font-black text-gray-800 mb-4">{editing.id ? 'Edit Week' : 'New Week'}</h1>
 
           <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
             <div className="grid grid-cols-2 gap-3">
@@ -663,7 +663,7 @@ export default function LessonEditor() {
                   className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
               </label>
               {(editing.assignment_type || 'class') !== 'guided' ? (
-                <label className="text-xs text-gray-600 font-bold">Lesson number
+                <label className="text-xs text-gray-600 font-bold">Week number
                   <input type="number" min={1} value={editing.lesson_number || 1}
                     onChange={e => setEditing({ ...editing, lesson_number: parseInt(e.target.value) || 1 })}
                     className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
@@ -709,7 +709,7 @@ export default function LessonEditor() {
                   🇪🇸 Spanish Literacy Progression
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Enter only what is NEW in this lesson. Previous lessons will be
+                  Enter only what is NEW this week. Previous weeks will be
                   automatically spiraled into practice.
                 </p>
               </div>
@@ -754,7 +754,7 @@ export default function LessonEditor() {
                   className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
                 />
                 <span className="block text-[10px] font-normal text-gray-400 mt-1">
-                  These become fair game beginning with this lesson.
+                  These become available beginning with this week.
                 </span>
               </label>
 
@@ -807,14 +807,14 @@ export default function LessonEditor() {
           )}
 
           <div className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3 mb-4">
-            <label className="text-xs text-gray-600 font-bold">Lesson type
+            <label className="text-xs text-gray-600 font-bold">Assignment type
               <select value={editing.assignment_type || 'class'}
                 onChange={e => {
                   const t = e.target.value;
                   setEditing({ ...editing, assignment_type: t, ...(t === 'guided' ? { lesson_number: 0 } : {}) });
                 }}
                 className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
-                <option value="class">Path lesson (on the level path)</option>
+                <option value="class">Week (on the level path)</option>
                 <option value="guided">Guided practice (live or self-paced, not on the path)</option>
                 <option value="side_quest">Small group (assign to specific students)</option>
               </select>
@@ -857,7 +857,7 @@ export default function LessonEditor() {
 
           <button onClick={save}
             className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center justify-center gap-2">
-            <Save className="w-5 h-5" /> Save Lesson
+            <Save className="w-5 h-5" /> Save Week
           </button>
         </div>
       </div>
@@ -869,7 +869,7 @@ export default function LessonEditor() {
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black text-gray-800">📚 Lesson Planner</h1>
+            <h1 className="text-3xl font-black text-gray-800">📚 Weekly Lesson Planner</h1>
             <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold text-gray-700">
               <option value="">All activities</option>
@@ -889,14 +889,14 @@ export default function LessonEditor() {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
             <button onClick={() => setEditing(blankLesson())}
               className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow hover:bg-indigo-700 inline-flex items-center gap-1">
-              <Plus className="w-4 h-4" /> New Lesson
+              <Plus className="w-4 h-4" /> New Week
             </button>
           </div>
         </div>
 
         {sorted.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
-            No lessons yet. Create your first lesson!
+            No weeks yet. Create your first week!
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -907,7 +907,7 @@ export default function LessonEditor() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-xs font-bold text-indigo-500">
-                        {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : `Lesson ${l.lesson_number || ''}`}
+                        {l.assignment_type === 'guided' ? 'Guided practice' : l.assignment_type === 'side_quest' ? 'Small group' : `Week ${l.lesson_number || ''}`}
                       </p>
                       <h3 className="text-lg font-black text-gray-800">{l.title}</h3>
                       <p className="text-xs text-gray-500">{l.subtitle}</p>
