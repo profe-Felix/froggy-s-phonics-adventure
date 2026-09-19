@@ -536,6 +536,7 @@ export default function LessonEditor() {
   const CLASSES = ['', ...classList];
   const [editing, setEditing] = useState(null); // lesson object being edited (new or existing)
   const [filterMode, setFilterMode] = useState('');
+  const [expandedDay, setExpandedDay] = useState('monday');
 
   const getLiteracyProgression = (lesson) => {
     if (lesson?.literacy_progression) {
@@ -691,6 +692,27 @@ export default function LessonEditor() {
         ),
       });
     };
+
+    const setDailyLessonSteps = (day, nextSteps) => {
+      updateDailyLesson(day, { steps: nextSteps });
+    };
+
+    const moveDailyStep = (day, index, direction) => {
+      const dailyLesson = dailyLessons.find((item) => item.day === day);
+      const dailySteps = dailyLesson?.steps || [];
+      const nextIndex = index + direction;
+
+      if (nextIndex < 0 || nextIndex >= dailySteps.length) return;
+
+      const nextSteps = [...dailySteps];
+      [nextSteps[index], nextSteps[nextIndex]] = [
+        nextSteps[nextIndex],
+        nextSteps[index],
+      ];
+
+      setDailyLessonSteps(day, nextSteps);
+    };
+
     const moveStep = (i, dir) => {
       const j = i + dir;
       if (j < 0 || j >= steps.length) return;
