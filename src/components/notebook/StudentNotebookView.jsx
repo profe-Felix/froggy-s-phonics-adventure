@@ -420,7 +420,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       const nextSession = {
         ...activeSession,
+        ...latestSessionRef.current,
         strokes_by_page: updated,
+        current_page:
+          latestSessionRef.current?.current_page ??
+          currentPageRef.current,
         last_active: new Date().toISOString(),
       };
 
@@ -692,42 +696,66 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
     navigationInFlightRef.current = true;
 
+    // Capture the old page before changing any refs or React state.
+    const strokeSnapshot = canvasRef.current?.getStrokes();
+    const activeSession = latestSessionRef.current;
+    const updatedAt = new Date().toISOString();
+
+    // saveStrokes writes the local recovery draft synchronously before its
+    // first await. Keep its promise so navigation can happen immediately.
+    const savePromise = saveStrokes(
+      fromPage,
+      strokeSnapshot
+    );
+
+    // Switch the visible page immediately. The old page's immutable stroke
+    // snapshot continues saving in the background.
+    localDirtyRef.current = false;
+    loadedKeyRef.current = null;
+    setPdfRenderedSize(null);
+    currentPageRef.current = targetPage;
+    setCurrentPage(targetPage);
+
+    if (activeSession) {
+      const optimisticSession = {
+        ...latestSessionRef.current,
+        current_page: targetPage,
+        last_active: updatedAt,
+      };
+
+      latestSessionRef.current = optimisticSession;
+      setSession(optimisticSession);
+    }
+
     try {
-      // Capture the page now, before any asynchronous save or state change.
-      const strokeSnapshot = canvasRef.current?.getStrokes();
-
-      await saveStrokes(fromPage, strokeSnapshot);
-
-      localDirtyRef.current = false;
-      loadedKeyRef.current = null;
-      currentPageRef.current = targetPage;
-      setCurrentPage(targetPage);
-
-      const activeSession = latestSessionRef.current;
+      const tasks = [savePromise];
 
       if (activeSession) {
-        const updatedAt = new Date().toISOString();
-
-        try {
-          await base44.entities.NotebookSession.update(
+        tasks.push(
+          base44.entities.NotebookSession.update(
             activeSession.id,
             {
               current_page: targetPage,
               last_active: updatedAt,
             }
-          );
+          )
+        );
+      }
 
-          const nextSession = {
-            ...latestSessionRef.current,
-            current_page: targetPage,
-            last_active: updatedAt,
-          };
+      const results = await Promise.allSettled(tasks);
+      const pageUpdateResult =
+        activeSession
+          ? results[1]
+          : null;
 
-          latestSessionRef.current = nextSession;
-          setSession(nextSession);
-        } catch (error) {
-          console.error('Unable to update notebook page', error);
-        }
+      if (
+        pageUpdateResult &&
+        pageUpdateResult.status === 'rejected'
+      ) {
+        console.error(
+          'Unable to update notebook page',
+          pageUpdateResult.reason
+        );
       }
     } finally {
       navigationInFlightRef.current = false;
