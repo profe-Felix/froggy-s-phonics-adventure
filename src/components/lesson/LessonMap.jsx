@@ -209,8 +209,22 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {dailyLessons.map((dailyLesson) => {
               const activityCount = dailyLesson.steps.length;
+
               const canOpen =
-                dailyLesson.active !== false && activityCount > 0;
+                dailyLesson.active !== false &&
+                activityCount > 0;
+
+              const requiredDayIndex =
+                requiredDailyLessons.findIndex(
+                  (requiredDay) =>
+                    requiredDay.day === dailyLesson.day
+                );
+
+              const isComplete =
+                requiredDayIndex >= 0 &&
+                (weekProgress?.completed_steps || []).includes(
+                  requiredDayIndex
+                );
 
               return (
                 <button
@@ -220,9 +234,11 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
                   onClick={() => canOpen && setSelectedDay(dailyLesson.day)}
                   className={[
                     'rounded-3xl border-4 p-5 text-left shadow-md transition',
-                    canOpen
-                      ? 'bg-white border-white hover:scale-[1.02] hover:shadow-lg'
-                      : 'bg-gray-100 border-white opacity-65 cursor-not-allowed',
+                    isComplete
+                      ? 'bg-green-50 border-green-300 hover:scale-[1.02] hover:shadow-lg'
+                      : canOpen
+                        ? 'bg-white border-white hover:scale-[1.02] hover:shadow-lg'
+                        : 'bg-gray-100 border-white opacity-65 cursor-not-allowed',
                   ].join(' ')}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -243,7 +259,11 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
                     </div>
 
                     <span className="text-3xl">
-                      {dailyLesson.active === false ? '🏫' : '📚'}
+                      {isComplete
+                        ? '✅'
+                        : dailyLesson.active === false
+                          ? '🏫'
+                          : '📚'}
                     </span>
                   </div>
 
@@ -255,10 +275,19 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
                         </p>
                       )}
 
-                      <p className="text-xs text-gray-500 mt-2">
-                        {activityCount > 0
-                          ? `${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
-                          : 'No activities assigned yet'}
+                      <p
+                        className={[
+                          'text-xs mt-2',
+                          isComplete
+                            ? 'font-black text-green-600'
+                            : 'text-gray-500',
+                        ].join(' ')}
+                      >
+                        {isComplete
+                          ? `Complete • ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
+                          : activityCount > 0
+                            ? `${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
+                            : 'No activities assigned yet'}
                       </p>
                     </>
                   )}
