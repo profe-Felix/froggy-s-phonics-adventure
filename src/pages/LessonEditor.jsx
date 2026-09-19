@@ -35,6 +35,25 @@ function blankStep(mode = 'letter_sounds') {
   };
 }
 
+const WEEKDAYS = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+];
+
+function blankDailyLesson(day) {
+  return {
+    day,
+    active: true,
+    module_number: 1,
+    curriculum_lesson_number: 1,
+    title: '',
+    steps: [],
+  };
+}
+
 function blankLesson() {
   return {
     title: '',
@@ -43,6 +62,7 @@ function blankLesson() {
     language: '',
     school_year: ACTIVE_SCHOOL_YEAR,
     subtitle: '',
+    daily_lessons: WEEKDAYS.map(({ value }) => blankDailyLesson(value)),
     steps: [blankStep('letter_sounds')],
     active: true,
     assignment_type: 'class',
@@ -587,6 +607,21 @@ export default function LessonEditor() {
       },
     }));
 
+    const cleanDailyLessons = (editing.daily_lessons || []).map((dailyLesson) => ({
+      day: dailyLesson.day,
+      active: dailyLesson.active !== false,
+      module_number: Number(dailyLesson.module_number) || 1,
+      curriculum_lesson_number: Number(dailyLesson.curriculum_lesson_number) || 1,
+      title: dailyLesson.title || '',
+      steps: (dailyLesson.steps || []).map(({ __new, ...step }) => ({
+        ...step,
+        config: {
+          ...(step.config || {}),
+          lessonLiteracy: literacy,
+        },
+      })),
+    }));
+
     const payload = {
       title: editing.title.trim(),
       lesson_number: editing.assignment_type === 'guided' ? 0 : (editing.lesson_number || 1),
@@ -594,6 +629,7 @@ export default function LessonEditor() {
       language: editing.language || '',
       school_year: editing.school_year || ACTIVE_SCHOOL_YEAR,
       subtitle: editing.subtitle || '',
+      daily_lessons: cleanDailyLessons,
       steps: cleanSteps,
       active: editing.active !== false,
       assignment_type: editing.assignment_type || 'class',
