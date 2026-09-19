@@ -7,8 +7,8 @@ import RecordingsProgressBar from './RecordingsProgressBar';
 import ParentLedReadingPlayer from './ParentLedReadingPlayer';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
 import {
-  EMPTY_LITERACY,
-  getLessonLiteracy,
+  buildCumulativeLiteracy,
+  normalizeLessonLiteracy,
   normalizeSpanish,
   uniqueNormalized,
   canDecodeWord,
@@ -657,41 +657,17 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
           lesson => Number(lesson.lesson_number || 0) <= currentNumber
         );
 
-        const cumulative = {
-          ...EMPTY_LITERACY,
-          graphemes: [],
-          sightWords: [],
-          pictureWords: [],
-          sentencePatterns: [],
-        };
+        const cumulative =
+          buildCumulativeLiteracy(availableLessons);
 
-        availableLessons.forEach(lesson => {
-          const literacy = getLessonLiteracy(lesson);
-
-          cumulative.graphemes.push(...literacy.graphemes);
-          cumulative.sightWords.push(...literacy.sightWords);
-          cumulative.pictureWords.push(...literacy.pictureWords);
-          cumulative.sentencePatterns.push(...literacy.sentencePatterns);
-        });
-
-        cumulative.graphemes = uniqueNormalized(cumulative.graphemes);
-        cumulative.sightWords = uniqueNormalized(cumulative.sightWords);
-        cumulative.pictureWords = uniqueNormalized(cumulative.pictureWords);
-        cumulative.sentencePatterns = [...new Set(cumulative.sentencePatterns)];
-
-        const current = getLessonLiteracy(currentLesson);
+        const current =
+          normalizeLessonLiteracy(currentLesson);
 
         setLiteracyContext({
           currentLesson,
           currentLessonNumber: currentNumber,
           cumulative,
-          current: {
-            ...current,
-            graphemes: uniqueNormalized(current.graphemes),
-            sightWords: uniqueNormalized(current.sightWords),
-            pictureWords: uniqueNormalized(current.pictureWords),
-            sentencePatterns: [...new Set(current.sentencePatterns)],
-          },
+          current,
         });
       } catch (error) {
         console.error('Could not load Spanish literacy progression:', error);
