@@ -82,17 +82,34 @@ export function useLessonProgress(studentNumber, className, lessonId) {
   };
 
   const markStepComplete = async (stepIndex, totalSteps) => {
-    if (!progress) return;
-    if ((progress.completed_steps || []).includes(stepIndex)) return;
-    const completed_steps = [...(progress.completed_steps || []), stepIndex];
+    if (!progress) return null;
+
+    if ((progress.completed_steps || []).includes(stepIndex)) {
+      return progress;
+    }
+
+    const completed_steps = [
+      ...(progress.completed_steps || []),
+      stepIndex,
+    ];
+
     const completed = completed_steps.length >= totalSteps;
-    const current_step = completed ? totalSteps - 1 : Math.max(progress.current_step || 0, stepIndex + 1);
-    const updated = await base44.entities.LessonProgress.update(progress.id, {
-      completed_steps,
-      current_step,
-      completed,
-    });
+
+    const current_step = completed
+      ? Math.max(totalSteps - 1, 0)
+      : Math.max(progress.current_step || 0, stepIndex + 1);
+
+    const updated = await base44.entities.LessonProgress.update(
+      progress.id,
+      {
+        completed_steps,
+        current_step,
+        completed,
+      }
+    );
+
     qc.setQueryData(key, updated);
+    return updated;
   };
 
   // Persist within-activity progress (e.g. which counting items were already
