@@ -922,6 +922,7 @@ export default function LessonEditor() {
                 {WEEKDAYS.map(({ value, label }) => {
                   const dailyLesson = dailyLessons.find((item) => item.day === value);
                   const isActive = dailyLesson?.active !== false;
+                  const dailySteps = dailyLesson?.steps || [];
 
                   return (
                     <div
@@ -998,6 +999,88 @@ export default function LessonEditor() {
                               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
                             />
                           </label>
+
+                          <div className="col-span-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDay(expandedDay === value ? null : value)
+                              }
+                              className="w-full flex items-center justify-between rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <span>
+                                Activities ({dailySteps.length})
+                              </span>
+                              <span>
+                                {expandedDay === value ? 'Hide' : 'Edit'}
+                              </span>
+                            </button>
+                          </div>
+
+                          {expandedDay === value && (
+                            <div className="col-span-2 border-t border-indigo-100 pt-3">
+                              <div className="flex items-center justify-between gap-3 mb-3">
+                                <div>
+                                  <p className="text-sm font-black text-gray-700">
+                                    {label} activities
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    M{dailyLesson.module_number || 1}.L{dailyLesson.curriculum_lesson_number || 1}
+                                  </p>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setDailyLessonSteps(value, [
+                                      ...dailySteps,
+                                      blankStep('letter_sounds'),
+                                    ])
+                                  }
+                                  className="text-sm font-bold text-indigo-600 inline-flex items-center gap-1 hover:underline"
+                                >
+                                  <Plus className="w-4 h-4" /> Add step
+                                </button>
+                              </div>
+
+                              <div className="flex flex-col gap-2">
+                                {dailySteps.map((step, index) => (
+                                  <StepEditor
+                                    key={index}
+                                    step={step}
+                                    index={index}
+                                    total={dailySteps.length}
+                                    lessonClass={editing.class_name}
+                                    onChange={(next) =>
+                                      setDailyLessonSteps(
+                                        value,
+                                        dailySteps.map((item, itemIndex) =>
+                                          itemIndex === index ? next : item
+                                        )
+                                      )
+                                    }
+                                    onRemove={() =>
+                                      setDailyLessonSteps(
+                                        value,
+                                        dailySteps.filter(
+                                          (_, itemIndex) => itemIndex !== index
+                                        )
+                                      )
+                                    }
+                                    onMove={(direction) =>
+                                      moveDailyStep(value, index, direction)
+                                    }
+                                  />
+                                ))}
+
+                                {dailySteps.length === 0 && (
+                                  <p className="text-sm text-gray-400 text-center py-4">
+                                    No activities yet. Add the first step above.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
