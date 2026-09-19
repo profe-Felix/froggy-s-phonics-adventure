@@ -215,14 +215,47 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   });
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    let animationFrame = null;
+
     const obs = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
-      setCanvasSize({ w: Math.round(width), h: Math.round(height) });
+      const nextWidth = Math.round(width);
+      const nextHeight = Math.round(height);
+
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+
+      animationFrame = requestAnimationFrame(() => {
+        setCanvasSize((current) => {
+          if (
+            current.w === nextWidth &&
+            current.h === nextHeight
+          ) {
+            return current;
+          }
+
+          return {
+            w: nextWidth,
+            h: nextHeight,
+          };
+        });
+      });
     });
-    obs.observe(containerRef.current);
-    return () => obs.disconnect();
-  }, [selectedAssignment]);
+
+    obs.observe(container);
+
+    return () => {
+      obs.disconnect();
+
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [selectedAssignment?.id]);
 
   useEffect(() => {
     if (!selectedAssignment) return;
@@ -408,6 +441,26 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       }
     }
   }, [pdfRenderedSize, canvasSize]);
+
+  const handlePdfRendered = useCallback((width, height) => {
+    const nextWidth = Math.round(width * 100) / 100;
+    const nextHeight = Math.round(height * 100) / 100;
+
+    setPdfRenderedSize((current) => {
+      if (
+        current &&
+        Math.abs(current.w - nextWidth) < 0.1 &&
+        Math.abs(current.h - nextHeight) < 0.1
+      ) {
+        return current;
+      }
+
+      return {
+        w: nextWidth,
+        h: nextHeight,
+      };
+    });
+  }, []);
 
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
@@ -907,7 +960,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
                     alignSelf="flex-start"
                     targetWidth={canvasSize.w}
                     targetHeight={canvasSize.h}
-                    onRendered={(w, h) => setPdfRenderedSize({ w, h })}
+                    onRendered={handlePdfRendered}
                   />
                 {pdfRenderedSize && (
                   <AnnotationCanvas
