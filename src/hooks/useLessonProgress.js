@@ -109,6 +109,17 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     );
 
     qc.setQueryData(key, updated);
+
+    if (completed) {
+      await qc.invalidateQueries({
+        queryKey: [
+          'lesson-progress-all',
+          String(studentNumber),
+          className,
+        ],
+      });
+    }
+
     return updated;
   };
 
