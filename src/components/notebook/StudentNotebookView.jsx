@@ -32,6 +32,55 @@ function getYouTubeEmbedUrl(url) {
   return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1` : null;
 }
 
+function getAssignmentPageBounds(assignment) {
+  const total = Math.max(
+    1,
+    Number(
+      assignment?.pdf_page_count ||
+      assignment?.page_count ||
+      assignment?.page_range_end ||
+      1
+    )
+  );
+
+  const limitActive =
+    assignment?.page_mode === 'locked' ||
+    assignment?.limit_pages;
+
+  if (!limitActive) {
+    return {
+      total,
+      min: 1,
+      max: total,
+    };
+  }
+
+  const requestedMin = Number(assignment?.page_range_start || 1);
+  const requestedMax = Number(assignment?.page_range_end || total);
+
+  const min = Math.max(1, Math.min(total, requestedMin));
+  const max = Math.max(min, Math.min(total, requestedMax));
+
+  return {
+    total,
+    min,
+    max,
+  };
+}
+
+function getEffectiveLockedPage(assignment) {
+  const bounds = getAssignmentPageBounds(assignment);
+  const requestedPage = Number(
+    assignment?.locked_page ||
+    bounds.min
+  );
+
+  return Math.max(
+    bounds.min,
+    Math.min(bounds.max, requestedPage)
+  );
+}
+
 function AssignmentPicker({ assignments, onSelect, className }) {
   return (
     <div className="min-h-screen flex flex-col items-center py-8 px-4" style={{ background: '#0f0f1a' }}>
@@ -101,6 +150,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
   const lastMicTouchRef = useRef(0);
+  const navigationInFlightRef = useRef(false);
 
   // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
   const currentPageRef = useRef(currentPage);
@@ -146,50 +196,19 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     loadedKeyRef.current = null;
   }, [session?.id]);
 
-  useQuery({
+  const { data: polledAssignment = null } = useQuery({
     queryKey: ['student-notebook-poll', selectedAssignment?.id],
     queryFn: async () => {
       const fresh = await base44.entities.DigitalNotebookAssignment.filter({
         class_name: className,
         status: 'active',
       });
-      const a = fresh.find((x) => x.id === selectedAssignment?.id);
-      if (!a) return null;
 
-      const limitActive = a.page_mode === 'locked' || a.limit_pages;
-      const pdfMaxPage = a.pdf_page_count || a.page_count || 1;
-      const minAllowed = limitActive ? (a.page_range_start || 1) : 1;
-      const maxAllowed = limitActive
-        ? Math.min(a.page_range_end || pdfMaxPage, pdfMaxPage)
-        : pdfMaxPage;
-      // Guard: locked_page must be within valid range
-
-      if (a.page_mode === 'locked' && a.locked_page != null) {
-        const locked = Math.max(minAllowed, Math.min(maxAllowed, a.locked_page));
-        if (locked !== currentPage) {
-          await saveStrokes(currentPage);
-          loadedKeyRef.current = null;
-          setCurrentPage(locked);
-        }
-      } else {
-        if (currentPage < minAllowed) {
-          loadedKeyRef.current = null;
-          setCurrentPage(minAllowed);
-        }
-        if (currentPage > maxAllowed) {
-          loadedKeyRef.current = null;
-          setCurrentPage(maxAllowed);
-        }
-      }
-
-      if (a.broadcast_video && a.broadcast_video !== broadcastUrl) {
-        setBroadcastUrl(a.broadcast_video);
-        setShowBroadcast(true);
-      } else if (!a.broadcast_video) {
-        setBroadcastUrl(null);
-        setShowBroadcast(false);
-      }
-      return a;
+      return (
+        fresh.find((assignment) =>
+          assignment.id === selectedAssignment?.id
+        ) || null
+      );
     },
     enabled: !!selectedAssignment,
     refetchInterval: 3000,
@@ -232,25 +251,36 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
         const page = activeSession.current_page || 1;
         const desiredPage =
           selectedAssignment.page_mode === 'locked'
-            ? (selectedAssignment.locked_page || 1)
-            : (directPage || page);
-        setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
+            ? getEffectiveLockedPage(selectedAssignment)
+            : Math.max(
+                minAllowed,
+                Math.min(maxAllowed, directPage || page)
+              );
+
+        currentPageRef.current = desiredPage;
+        setCurrentPage(desiredPage);
       } else {
+        const desiredPage =
+          selectedAssignment.page_mode === 'locked'
+            ? getEffectiveLockedPage(selectedAssignment)
+            : Math.max(
+                minAllowed,
+                Math.min(maxAllowed, directPage || 1)
+              );
+
         const newSession = await base44.entities.NotebookSession.create({
           assignment_id: selectedAssignment.id,
           class_name: className,
           student_number: studentNumber,
           school_year: ACTIVE_SCHOOL_YEAR,
-          current_page: directPage || 1,
+          current_page: desiredPage,
           strokes_by_page: {},
         });
+
         setSession(newSession);
         latestSessionRef.current = newSession;
-        const desiredPage =
-          selectedAssignment.page_mode === 'locked'
-            ? (selectedAssignment.locked_page || 1)
-            : (directPage || 1);
-        setCurrentPage(Math.max(minAllowed, Math.min(maxAllowed, desiredPage)));
+        currentPageRef.current = desiredPage;
+        setCurrentPage(desiredPage);
       }
     })();
   }, [selectedAssignment, className, studentNumber]);
@@ -349,7 +379,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       await base44.entities.NotebookSession.update(activeSession.id, {
         strokes_by_page: updated,
-        current_page: savePage,
         last_active: new Date().toISOString(),
       });
 
@@ -359,7 +388,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
       const nextSession = {
         ...activeSession,
         strokes_by_page: updated,
-        current_page: savePage,
         last_active: new Date().toISOString(),
       };
 
@@ -581,31 +609,115 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     setAddingMic(false);
   };
 
-  const limitActive = selectedAssignment?.page_mode === 'locked' || selectedAssignment?.limit_pages;
-  const minPage = limitActive ? (selectedAssignment?.page_range_start || 1) : 1;
-  // pdf_page_count / page_count is the ground truth; page_range_end is a limit, not the total
-  const pdfTotal =
-    selectedAssignment?.pdf_page_count ||
-    selectedAssignment?.page_count ||
-    1;
-  const maxPage = limitActive
-    ? Math.min(selectedAssignment?.page_range_end || pdfTotal, pdfTotal)
-    : pdfTotal;
+  const pageBounds = getAssignmentPageBounds(selectedAssignment);
+  const minPage = pageBounds.min;
+  const maxPage = pageBounds.max;
+  const pdfTotal = pageBounds.total;
+  const isPageLocked = selectedAssignment?.page_mode === 'locked';
 
-  const goToPage = async (p) => {
-    const clamped = Math.max(minPage, Math.min(maxPage, p));
-    if (clamped === currentPageRef.current) return;
+  const goToPage = async (requestedPage, assignmentOverride = null) => {
+    const effectiveAssignment =
+      assignmentOverride ||
+      selectedAssignment;
+
+    if (!effectiveAssignment) return;
+    if (navigationInFlightRef.current) return;
+
+    const bounds = getAssignmentPageBounds(effectiveAssignment);
+
+    const targetPage =
+      effectiveAssignment.page_mode === 'locked'
+        ? getEffectiveLockedPage(effectiveAssignment)
+        : Math.max(
+            bounds.min,
+            Math.min(bounds.max, Number(requestedPage) || bounds.min)
+          );
 
     const fromPage = currentPageRef.current;
 
-    // Save the page we are leaving, but do not trap navigation forever.
-    await saveStrokes(fromPage);
+    if (targetPage === fromPage) return;
 
-    localDirtyRef.current = false;
-    loadedKeyRef.current = null;
-    currentPageRef.current = clamped;
-    setCurrentPage(clamped);
+    navigationInFlightRef.current = true;
+
+    try {
+      // Capture the page now, before any asynchronous save or state change.
+      const strokeSnapshot = canvasRef.current?.getStrokes();
+
+      await saveStrokes(fromPage, strokeSnapshot);
+
+      localDirtyRef.current = false;
+      loadedKeyRef.current = null;
+      currentPageRef.current = targetPage;
+      setCurrentPage(targetPage);
+
+      const activeSession = latestSessionRef.current;
+
+      if (activeSession) {
+        const updatedAt = new Date().toISOString();
+
+        try {
+          await base44.entities.NotebookSession.update(
+            activeSession.id,
+            {
+              current_page: targetPage,
+              last_active: updatedAt,
+            }
+          );
+
+          const nextSession = {
+            ...latestSessionRef.current,
+            current_page: targetPage,
+            last_active: updatedAt,
+          };
+
+          latestSessionRef.current = nextSession;
+          setSession(nextSession);
+        } catch (error) {
+          console.error('Unable to update notebook page', error);
+        }
+      }
+    } finally {
+      navigationInFlightRef.current = false;
+    }
   };
+
+  useEffect(() => {
+    if (!polledAssignment) return;
+    if (polledAssignment.id !== selectedAssignment?.id) return;
+
+    setSelectedAssignment((current) =>
+      current?.id === polledAssignment.id
+        ? { ...current, ...polledAssignment }
+        : current
+    );
+
+    if (
+      polledAssignment.broadcast_video &&
+      polledAssignment.broadcast_video !== broadcastUrl
+    ) {
+      setBroadcastUrl(polledAssignment.broadcast_video);
+      setShowBroadcast(true);
+    } else if (!polledAssignment.broadcast_video) {
+      setBroadcastUrl(null);
+      setShowBroadcast(false);
+    }
+
+    const bounds = getAssignmentPageBounds(polledAssignment);
+
+    const targetPage =
+      polledAssignment.page_mode === 'locked'
+        ? getEffectiveLockedPage(polledAssignment)
+        : Math.max(
+            bounds.min,
+            Math.min(bounds.max, currentPageRef.current)
+          );
+
+    if (targetPage !== currentPageRef.current) {
+      void goToPage(targetPage, polledAssignment);
+    }
+    // A new polled assignment snapshot is the trigger for reconciliation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polledAssignment]);
 
   // Keep URL in sync with current assignment + page so teachers can copy direct links
   useEffect(() => {
