@@ -678,7 +678,27 @@ export default function LessonEditor() {
       ...payload,
       title: (l.title || 'Week') + ' (copy)',
       lesson_number: l.assignment_type === 'guided' ? 0 : maxNum + 1,
-      steps: (l.steps || []).map((s) => ({ ...s })),
+      daily_lessons: (l.daily_lessons || []).map((dailyLesson) => ({
+        ...dailyLesson,
+        steps: (dailyLesson.steps || []).map((step) => ({
+          ...step,
+          completion: {
+            ...(step.completion || {}),
+          },
+          config: {
+            ...(step.config || {}),
+          },
+        })),
+      })),
+      steps: (l.steps || []).map((step) => ({
+        ...step,
+        completion: {
+          ...(step.completion || {}),
+        },
+        config: {
+          ...(step.config || {}),
+        },
+      })),
     });
     qc.invalidateQueries({ queryKey: ['all-lessons'] });
     qc.invalidateQueries({ queryKey: ['lessons'] });
@@ -1167,8 +1187,39 @@ export default function LessonEditor() {
                     {l.language && <span className="font-bold text-indigo-500">{l.language === 'es' ? '🇪🇸 ES' : '🇺🇸 EN'}</span>}
                   </div>
                   <div className="flex gap-2 mt-1">
-                    <button onClick={() => setEditing({ ...l, steps: (l.steps || []).map(s => ({ ...s })) })}
-                      className="flex-1 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200">Edit</button>
+                    <button
+                      onClick={() =>
+                        setEditing({
+                          ...l,
+                          daily_lessons: (l.daily_lessons || []).map(
+                            (dailyLesson) => ({
+                              ...dailyLesson,
+                              steps: (dailyLesson.steps || []).map((step) => ({
+                                ...step,
+                                completion: {
+                                  ...(step.completion || {}),
+                                },
+                                config: {
+                                  ...(step.config || {}),
+                                },
+                              })),
+                            })
+                          ),
+                          steps: (l.steps || []).map((step) => ({
+                            ...step,
+                            completion: {
+                              ...(step.completion || {}),
+                            },
+                            config: {
+                              ...(step.config || {}),
+                            },
+                          })),
+                        })
+                      }
+                      className="flex-1 py-2 bg-indigo-100 text-indigo-700 font-bold rounded-xl hover:bg-indigo-200"
+                    >
+                      Edit
+                    </button>
                     <button onClick={() => duplicate(l)}
                       className="px-3 py-2 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-100" title="Duplicate"><Copy className="w-4 h-4" /></button>
                     <button onClick={() => remove(l.id)}
