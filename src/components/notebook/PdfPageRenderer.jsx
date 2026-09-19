@@ -174,6 +174,16 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     }
   };
 
+  useEffect(() => {
+    // A new page must report its authoritative dimensions even when they are
+    // numerically identical to the previous page. The notebook may be waiting
+    // for that notification to synchronize its annotation layer.
+    lastReportedSizeRef.current = {
+      w: 0,
+      h: 0,
+    };
+  }, [pdfUrl, pageNumber]);
+
   // Figure out the target display size (px) for the current container + fit mode,
   // using the cached page aspect ratio. Returns null until the page is known.
   const computeDisplaySize = () => {
@@ -220,21 +230,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     if (isNewPage) setLoading(true);
     (async () => {
       try {
-        if (!pdfCache.has(pdfUrl)) {
-          const documentPromise = pdfjsLib.getDocument({
-            url: pdfUrl,
-            withCredentials: false,
-            disableAutoFetch: false,
-            disableStream: false,
-          }).promise.catch((loadError) => {
-            pdfCache.delete(pdfUrl);
-            throw loadError;
-          });
-
-          pdfCache.set(pdfUrl, documentPromise);
-        }
-
-        const doc = await pdfCache.get(pdfUrl);
+        const doc = await getCachedPdfDocument(pdfUrl);
         if (cancelled) return;
 
         const safePageNumber = Math.max(
