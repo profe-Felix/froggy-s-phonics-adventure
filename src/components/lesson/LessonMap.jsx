@@ -102,6 +102,18 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
     [lessons, className]
   );
 
+  const currentLesson =
+    myLessons[Math.min(lessonIdx, myLessons.length - 1)] || null;
+
+  const {
+    progress: weekProgress,
+    markStepComplete: markWeekdayComplete,
+  } = useLessonProgress(
+    selectedStudent?.number,
+    selectedStudent?.class_name,
+    currentLesson?.id
+  );
+
   // When opened from a level puck, jump straight to that lesson.
   useEffect(() => {
     if (!initialLessonId || !myLessons.length) return;
@@ -116,8 +128,6 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
   if (!myLessons.length) {
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;
   }
-
-  const currentLesson = myLessons[Math.min(lessonIdx, myLessons.length - 1)];
 
   const dailyLessons = WEEKDAYS.map(({ value, label }) => {
     const savedDailyLesson = (currentLesson?.daily_lessons || []).find(
@@ -136,6 +146,12 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
     };
   });
 
+  const requiredDailyLessons = dailyLessons.filter(
+    (dailyLesson) =>
+      dailyLesson.active !== false &&
+      dailyLesson.steps.length > 0
+  );
+
   const hasDailyLessons =
     Array.isArray(currentLesson?.daily_lessons) &&
     currentLesson.daily_lessons.length > 0;
@@ -143,6 +159,30 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
   const selectedDailyLesson = dailyLessons.find(
     (dailyLesson) => dailyLesson.day === selectedDay
   );
+
+  const handleDailyLessonComplete = async () => {
+    if (!selectedDailyLesson) return;
+
+    const requiredDayIndex = requiredDailyLessons.findIndex(
+      (dailyLesson) =>
+        dailyLesson.day === selectedDailyLesson.day
+    );
+
+    if (requiredDayIndex < 0) return;
+
+    const updatedWeekProgress = await markWeekdayComplete(
+      requiredDayIndex,
+      requiredDailyLessons.length
+    );
+
+    const weekJustCompleted =
+      updatedWeekProgress?.completed &&
+      !weekProgress?.completed;
+
+    if (weekJustCompleted) {
+      onLessonComplete?.(currentLesson.lesson_number);
+    }
+  };
 
   if (hasDailyLessons && !selectedDailyLesson) {
     return (
@@ -248,7 +288,7 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
         steps={selectedDailyLesson.steps}
         lessonId={`${currentLesson.id}:${selectedDailyLesson.day}`}
         onBack={() => setSelectedDay(null)}
-        onLessonComplete={onLessonComplete}
+        onLessonComplete={handleDailyLessonComplete}
         onUpdateProgress={onUpdateProgress}
         onStudentPatch={onStudentPatch}
       />
