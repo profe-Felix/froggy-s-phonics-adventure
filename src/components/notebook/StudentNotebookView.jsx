@@ -148,6 +148,7 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const latestSessionRef = useRef(null);
   const pendingPageCommitRef = useRef(null);
   const pageCommitPromiseRef = useRef(null);
+  const voiceNotesWritePromiseRef = useRef(Promise.resolve());  
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
   const lastMicTouchRef = useRef(0);
@@ -606,20 +607,101 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     void saveStrokes(page);
   }, [saveStrokes]);
   
-  const saveVoiceNote = useCallback(async (url) => {
-    if (!session) return;
-    const updated = { ...(session.voice_notes_by_page || {}), [String(currentPage)]: url };
-    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
-    setSession((s) => ({ ...s, voice_notes_by_page: updated }));
-  }, [session, currentPage]);
+  const updateVoiceNotes = useCallback((sessionId, mutateVoiceNotes) => {
+    if (!sessionId) {
+      return Promise.resolve();
+    }
 
-  const deleteVoiceNote = useCallback(async () => {
-    if (!session) return;
-    const updated = { ...(session.voice_notes_by_page || {}) };
-    delete updated[String(currentPage)];
-    await base44.entities.NotebookSession.update(session.id, { voice_notes_by_page: updated });
-    setSession((s) => ({ ...s, voice_notes_by_page: updated }));
-  }, [session, currentPage]);
+    const writePromise = voiceNotesWritePromiseRef.current
+      .catch(() => {
+        // Allow later writes to continue after an earlier failure.
+      })
+      .then(async () => {
+        const activeSession = latestSessionRef.current;
+
+        if (!activeSession || activeSession.id !== sessionId) {
+          return;
+        }
+
+        let baseVoiceNotes =
+          activeSession.voice_notes_by_page || {};
+
+        try {
+          const freshSession =
+            await base44.entities.NotebookSession.get(sessionId);
+
+          if (freshSession?.voice_notes_by_page) {
+            baseVoiceNotes =
+              freshSession.voice_notes_by_page;
+          }
+        } catch {
+          // Fall back to the latest local session data.
+        }
+
+        const updatedVoiceNotes =
+          mutateVoiceNotes({ ...baseVoiceNotes });
+
+        await base44.entities.NotebookSession.update(
+          sessionId,
+          {
+            voice_notes_by_page: updatedVoiceNotes,
+          }
+        );
+
+        const currentSession = latestSessionRef.current;
+
+        if (
+          !currentSession ||
+          currentSession.id !== sessionId
+        ) {
+          return;
+        }
+
+        const nextSession = {
+          ...currentSession,
+          voice_notes_by_page: updatedVoiceNotes,
+        };
+
+        latestSessionRef.current = nextSession;
+        setSession(nextSession);
+      });
+
+    voiceNotesWritePromiseRef.current = writePromise;
+
+    return writePromise;
+  }, []);
+
+  const saveVoiceNote = useCallback((url) => {
+    const activeSession = latestSessionRef.current;
+
+    if (!activeSession) return Promise.resolve();
+
+    const pageKey = String(currentPageRef.current);
+
+    return updateVoiceNotes(
+      activeSession.id,
+      (voiceNotes) => ({
+        ...voiceNotes,
+        [pageKey]: url,
+      })
+    );
+  }, [updateVoiceNotes]);
+
+  const deleteVoiceNote = useCallback(() => {
+    const activeSession = latestSessionRef.current;
+
+    if (!activeSession) return Promise.resolve();
+
+    const pageKey = String(currentPageRef.current);
+
+    return updateVoiceNotes(
+      activeSession.id,
+      (voiceNotes) => {
+        delete voiceNotes[pageKey];
+        return voiceNotes;
+      }
+    );
+  }, [updateVoiceNotes]);
 
   useEffect(() => {
     if (!session) return;
@@ -729,21 +811,27 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     try { setFloatingMics(JSON.parse(micsForPage)); } catch { setFloatingMics([]); }
   }, [session?.id, currentPage]);
 
-  const saveFloatingMics = useCallback(async (mics, pageOverride = currentPageRef.current) => {
+  const saveFloatingMics = useCallback((
+    mics,
+    pageOverride = currentPageRef.current
+  ) => {
     const activeSession = latestSessionRef.current;
-    if (!activeSession) return;
+
+    if (!activeSession) {
+      return Promise.resolve();
+    }
+
     const key = `mics_${pageOverride}`;
-    let baseVoiceNotes = activeSession.voice_notes_by_page || {};
-    try {
-      const fresh = await base44.entities.NotebookSession.get(activeSession.id);
-      baseVoiceNotes = fresh?.voice_notes_by_page || baseVoiceNotes;
-    } catch { /* merge with the latest local session */ }
-    const updated = { ...baseVoiceNotes, [key]: JSON.stringify(mics) };
-    await base44.entities.NotebookSession.update(activeSession.id, { voice_notes_by_page: updated });
-    const nextSession = { ...latestSessionRef.current, voice_notes_by_page: updated };
-    latestSessionRef.current = nextSession;
-    setSession(nextSession);
-  }, []);
+    const serializedMics = JSON.stringify(mics);
+
+    return updateVoiceNotes(
+      activeSession.id,
+      (voiceNotes) => ({
+        ...voiceNotes,
+        [key]: serializedMics,
+      })
+    );
+  }, [updateVoiceNotes]);
 
   const handlePageClickForMic = (e) => {
     if (!addingMic || !pdfWrapperRef.current) return;
