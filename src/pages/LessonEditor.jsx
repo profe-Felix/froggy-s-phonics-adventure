@@ -63,7 +63,7 @@ function blankLesson() {
     school_year: ACTIVE_SCHOOL_YEAR,
     subtitle: '',
     daily_lessons: WEEKDAYS.map(({ value }) => blankDailyLesson(value)),
-    steps: [blankStep('letter_sounds')],
+    steps: [],
     active: true,
     assignment_type: 'class',
     literacy_progression: {
@@ -674,9 +674,6 @@ export default function LessonEditor() {
   }
 
   if (editing) {
-    const steps = editing.steps || [];
-    const setSteps = (next) => setEditing({ ...editing, steps: next });
-
     const dailyLessons = WEEKDAYS.map(({ value }) =>
       (editing.daily_lessons || []).find((dailyLesson) => dailyLesson.day === value) ||
       blankDailyLesson(value)
@@ -711,14 +708,6 @@ export default function LessonEditor() {
       ];
 
       setDailyLessonSteps(day, nextSteps);
-    };
-
-    const moveStep = (i, dir) => {
-      const j = i + dir;
-      if (j < 0 || j >= steps.length) return;
-      const next = [...steps];
-      [next[i], next[j]] = [next[j], next[i]];
-      setSteps(next);
     };
 
     return (
@@ -1089,26 +1078,6 @@ export default function LessonEditor() {
               </div>
             </div>
           )}
-
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-black text-gray-700">Steps ({steps.length})</h2>
-            <button onClick={() => setSteps([...steps, blankStep('letter_sounds')])}
-              className="text-sm font-bold text-indigo-600 inline-flex items-center gap-1 hover:underline">
-              <Plus className="w-4 h-4" /> Add step
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-2 mb-6">
-            {steps.map((s, i) => (
-              <StepEditor key={i} step={s} index={i} total={steps.length}
-                lessonClass={editing.class_name}
-                onChange={(next) => setSteps(steps.map((x, j) => j === i ? next : x))}
-                onRemove={() => setSteps(steps.filter((_, j) => j !== i))}
-                onMove={(dir) => moveStep(i, dir)}
-              />
-            ))}
-            {steps.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No steps yet — add one above.</p>}
-          </div>
 
           <button onClick={save}
             className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center justify-center gap-2">
