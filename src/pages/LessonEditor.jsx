@@ -54,6 +54,21 @@ function blankDailyLesson(day) {
   };
 }
 
+function getAssignmentSteps(lesson) {
+  if (
+    lesson?.assignment_type === 'class' &&
+    Array.isArray(lesson?.daily_lessons)
+  ) {
+    return lesson.daily_lessons.flatMap((dailyLesson) =>
+      dailyLesson?.active === false
+        ? []
+        : (dailyLesson?.steps || [])
+    );
+  }
+
+  return lesson?.steps || [];
+}
+
 function blankLesson() {
   return {
     title: '',
@@ -1124,8 +1139,13 @@ export default function LessonEditor() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {sorted.filter(l => !filterMode || (l.steps || []).some(s => s.mode === filterMode)).map(l => {
-              const done = (l.steps || []).length;
+            {sorted.filter((lesson) =>
+              !filterMode ||
+              getAssignmentSteps(lesson).some(
+                (step) => step.mode === filterMode
+              )
+            ).map((l) => {
+              const activityCount = getAssignmentSteps(l).length;
               return (
                 <div key={l.id} className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
@@ -1139,7 +1159,9 @@ export default function LessonEditor() {
                     {!l.active && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">hidden</span>}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>{done} steps</span>
+                    <span>
+                      {activityCount} {activityCount === 1 ? 'activity' : 'activities'}
+                    </span>
                     <span>•</span>
                     <span>{l.class_name || 'All classes'}</span>
                     {l.language && <span className="font-bold text-indigo-500">{l.language === 'es' ? '🇪🇸 ES' : '🇺🇸 EN'}</span>}
