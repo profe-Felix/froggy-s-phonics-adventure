@@ -792,11 +792,33 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   });
 
   // ── Cut & Paste ─────────────────────────────────────────────────────────
+  const saveCutPieces = useCallback((
+    pieces,
+    pageOverride = currentPageRef.current
+  ) => {
+    const activeSession = latestSessionRef.current;
+
+    if (!activeSession) {
+      return Promise.resolve();
+    }
+
+    const key = `cut_pieces_${pageOverride}`;
+    const serializedPieces = JSON.stringify(pieces);
+
+    return updateVoiceNotes(
+      activeSession.id,
+      (voiceNotes) => ({
+        ...voiceNotes,
+        [key]: serializedPieces,
+      })
+    );
+  }, [updateVoiceNotes]);
+
   const cutPaste = useCutPaste({
     pdfWrapperRef,
     session,
     currentPage,
-    onSessionUpdate: (updated) => setSession(s => ({ ...s, voice_notes_by_page: updated })),
+    onSavePieces: saveCutPieces,
   });
 
   // Sync cut pieces whenever page or session changes
