@@ -143,10 +143,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   const saveTimer = useRef(null);
   const loadedKeyRef = useRef(null);
   const saveInFlightRef = useRef(false);
-  const pendingSaveRef = useRef(false);
-  const pendingSavePageRef = useRef(null);
-  const pendingSaveDataRef = useRef(null);
+  const pendingSavesRef = useRef(new Map());
+  const saveDrainPromiseRef = useRef(null);
   const latestSessionRef = useRef(null);
+  const pendingPageCommitRef = useRef(null);
+  const pageCommitPromiseRef = useRef(null);
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
   const lastMicTouchRef = useRef(0);
@@ -357,93 +358,193 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     }
   }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
 
-  const saveStrokes = useCallback(async (pageOverride, preCapturedData) => {
-    if (!canvasRef.current) return;
+  const saveStrokes = useCallback((pageOverride, preCapturedData) => {
+    if (!canvasRef.current) {
+      return Promise.resolve();
+    }
 
-    // Capture strokes NOW — before any await — so a page change can't
-    // cause us to save the wrong page's ink onto the wrong page.
-    const savePage = pageOverride ?? currentPageRef.current;
-    const strokeData = preCapturedData || canvasRef.current.getStrokes();
-    const activeSession = latestSessionRef.current;
-    if (!activeSession) return;
-    const saveDraftKey = `notebook-draft-${activeSession.id}-${savePage}`;
+    // Capture the page and strokes before any asynchronous work.
+    const savePage =
+      pageOverride ??
+      currentPageRef.current;
+
+    const strokeData =
+      preCapturedData ??
+      canvasRef.current.getStrokes();
+
+    const activeSession =
+      latestSessionRef.current;
+
+    if (!activeSession) {
+      return Promise.resolve();
+    }
+
+    const pageKey = String(savePage);
+    const saveDraftKey =
+      `notebook-draft-${activeSession.id}-${savePage}`;
+
     const payload = {
       ...strokeData,
-      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
-      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
+      canvasWidth:
+        pdfRenderedSize?.w ||
+        canvasSize.w,
+      canvasHeight:
+        pdfRenderedSize?.h ||
+        canvasSize.h,
       normalized: true,
     };
 
-    // Write the local recovery copy before any await. This protects the
-    // student's ink if iPad/Safari suspends the page before Base44 finishes.
-    localStorage.setItem(saveDraftKey, JSON.stringify(payload));
+    // Create the local recovery copy before any network request.
+    localStorage.setItem(
+      saveDraftKey,
+      JSON.stringify(payload)
+    );
 
+    localDirtyRef.current = true;
+
+    // A newer save may replace an older pending save for the same page,
+    // but it cannot replace a save belonging to another page.
+    pendingSavesRef.current.set(pageKey, {
+      page: savePage,
+      pageKey,
+      payload,
+      draftKey: saveDraftKey,
+      sessionId: activeSession.id,
+    });
+
+    // Do not begin network work in the middle of a stroke.
+    // handleStrokeEnd will call saveStrokes again with the final data.
     if (isDrawingRef.current) {
-      pendingSaveRef.current = true;
-      pendingSavePageRef.current = savePage;
-      pendingSaveDataRef.current = strokeData;
-      return;
+      return Promise.resolve();
     }
 
-    if (saveInFlightRef.current) {
-      pendingSaveRef.current = true;
-      pendingSavePageRef.current = savePage;
-      pendingSaveDataRef.current = strokeData;
-      return;
+    // A worker is already processing the queue.
+    if (saveDrainPromiseRef.current) {
+      return saveDrainPromiseRef.current;
     }
 
-    saveInFlightRef.current = true;
-    setSaving(true);
+    const drainPromise = (async () => {
+      saveInFlightRef.current = true;
+      setSaving(true);
 
-    try {
-      // Fetch latest session to merge — prevents overwriting other tabs' pages
-      let baseStrokesByPage = activeSession.strokes_by_page || {};
       try {
-        const freshSession = await base44.entities.NotebookSession.get(activeSession.id);
-        if (freshSession?.strokes_by_page) {
-          baseStrokesByPage = freshSession.strokes_by_page;
+        while (pendingSavesRef.current.size > 0) {
+          const nextEntry =
+            pendingSavesRef.current.entries().next().value;
+
+          if (!nextEntry) break;
+
+          const [
+            queuedPageKey,
+            queuedSave,
+          ] = nextEntry;
+
+          // Remove this version before saving. If the page changes again while
+          // the request is running, a newer entry will be added for that page.
+          pendingSavesRef.current.delete(
+            queuedPageKey
+          );
+
+          const currentSession =
+            latestSessionRef.current;
+
+          if (
+            !currentSession ||
+            currentSession.id !==
+              queuedSave.sessionId
+          ) {
+            continue;
+          }
+
+          let baseStrokesByPage =
+            currentSession.strokes_by_page || {};
+
+          try {
+            const freshSession =
+              await base44.entities.NotebookSession.get(
+                queuedSave.sessionId
+              );
+
+            if (freshSession?.strokes_by_page) {
+              baseStrokesByPage =
+                freshSession.strokes_by_page;
+            }
+          } catch {
+            // Use the latest local session if the merge read fails.
+          }
+
+          const updatedStrokesByPage = {
+            ...baseStrokesByPage,
+            [queuedPageKey]: JSON.stringify(
+              queuedSave.payload
+            ),
+          };
+
+          try {
+            const savedAt =
+              new Date().toISOString();
+
+            await base44.entities.NotebookSession.update(
+              queuedSave.sessionId,
+              {
+                strokes_by_page:
+                  updatedStrokesByPage,
+                last_active: savedAt,
+              }
+            );
+
+            // If a newer version of this page was queued during the request,
+            // keep its recovery draft until that newer version is saved.
+            if (
+              !pendingSavesRef.current.has(
+                queuedPageKey
+              )
+            ) {
+              localStorage.removeItem(
+                queuedSave.draftKey
+              );
+            }
+
+            const nextSession = {
+              ...currentSession,
+              ...latestSessionRef.current,
+              strokes_by_page:
+                updatedStrokesByPage,
+              current_page:
+                latestSessionRef.current
+                  ?.current_page ??
+                currentPageRef.current,
+              last_active: savedAt,
+            };
+
+            latestSessionRef.current =
+              nextSession;
+
+            setSession(nextSession);
+          } catch (error) {
+            // Keep the local draft after a failed server save.
+            console.error(
+              `Unable to save notebook page ${queuedSave.page}`,
+              error
+            );
+          }
         }
-      } catch { /* use local version */ }
+      } finally {
+        saveInFlightRef.current = false;
+        saveDrainPromiseRef.current = null;
 
-      const updated = {
-        ...baseStrokesByPage,
-        [String(savePage)]: JSON.stringify(payload),
-      };
+        localDirtyRef.current =
+          pendingSavesRef.current.size > 0 ||
+          isDrawingRef.current;
 
-      await base44.entities.NotebookSession.update(activeSession.id, {
-        strokes_by_page: updated,
-        last_active: new Date().toISOString(),
-      });
-
-      localStorage.removeItem(saveDraftKey);
-      localDirtyRef.current = pendingSaveRef.current;
-
-      const nextSession = {
-        ...activeSession,
-        ...latestSessionRef.current,
-        strokes_by_page: updated,
-        current_page:
-          latestSessionRef.current?.current_page ??
-          currentPageRef.current,
-        last_active: new Date().toISOString(),
-      };
-
-      latestSessionRef.current = nextSession;
-      setSession(nextSession);
-    } finally {
-      saveInFlightRef.current = false;
-      setSaving(false);
-
-      if (pendingSaveRef.current) {
-        const queuedPage = pendingSavePageRef.current;
-        const queuedData = pendingSaveDataRef.current;
-        pendingSaveRef.current = false;
-        pendingSavePageRef.current = null;
-        pendingSaveDataRef.current = null;
-
-        void saveStrokes(queuedPage, queuedData);
+        setSaving(false);
       }
-    }
+    })();
+
+    saveDrainPromiseRef.current =
+      drainPromise;
+
+    return drainPromise;
   }, [pdfRenderedSize, canvasSize]);
 
   const handlePdfRendered = useCallback((width, height) => {
@@ -666,6 +767,73 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     setAddingMic(false);
   };
 
+  const commitSessionPage = useCallback((sessionId, page) => {
+    if (!sessionId) {
+      return Promise.resolve();
+    }
+
+    // While one page update is running, retain only the newest requested page.
+    pendingPageCommitRef.current = {
+      sessionId,
+      page,
+    };
+
+    if (pageCommitPromiseRef.current) {
+      return pageCommitPromiseRef.current;
+    }
+
+    const commitPromise = (async () => {
+      try {
+        while (pendingPageCommitRef.current) {
+          const pendingCommit =
+            pendingPageCommitRef.current;
+
+          pendingPageCommitRef.current = null;
+
+          const updatedAt =
+            new Date().toISOString();
+
+          try {
+            await base44.entities.NotebookSession.update(
+              pendingCommit.sessionId,
+              {
+                current_page:
+                  pendingCommit.page,
+                last_active: updatedAt,
+              }
+            );
+
+            // Keep local state on the newest visible page even if this request
+            // was for an earlier page.
+            const nextSession = {
+              ...latestSessionRef.current,
+              current_page:
+                currentPageRef.current,
+              last_active: updatedAt,
+            };
+
+            latestSessionRef.current =
+              nextSession;
+
+            setSession(nextSession);
+          } catch (error) {
+            console.error(
+              'Unable to commit notebook page',
+              error
+            );
+          }
+        }
+      } finally {
+        pageCommitPromiseRef.current = null;
+      }
+    })();
+
+    pageCommitPromiseRef.current =
+      commitPromise;
+
+    return commitPromise;
+  }, []);
+
   const pageBounds = getAssignmentPageBounds(selectedAssignment);
   const minPage = pageBounds.min;
   const maxPage = pageBounds.max;
@@ -731,31 +899,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
       if (activeSession) {
         tasks.push(
-          base44.entities.NotebookSession.update(
+          commitSessionPage(
             activeSession.id,
-            {
-              current_page: targetPage,
-              last_active: updatedAt,
-            }
+            targetPage
           )
         );
       }
 
-      const results = await Promise.allSettled(tasks);
-      const pageUpdateResult =
-        activeSession
-          ? results[1]
-          : null;
-
-      if (
-        pageUpdateResult &&
-        pageUpdateResult.status === 'rejected'
-      ) {
-        console.error(
-          'Unable to update notebook page',
-          pageUpdateResult.reason
-        );
-      }
+      await Promise.allSettled(tasks);
     } finally {
       navigationInFlightRef.current = false;
     }
