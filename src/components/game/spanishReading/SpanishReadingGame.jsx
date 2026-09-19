@@ -7,8 +7,7 @@ import RecordingsProgressBar from './RecordingsProgressBar';
 import ParentLedReadingPlayer from './ParentLedReadingPlayer';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
 import {
-  buildCumulativeLiteracy,
-  normalizeLessonLiteracy,
+  buildStudentLiteracyContext,
   normalizeSpanish,
   uniqueNormalized,
   canDecodeWord,
@@ -618,57 +617,15 @@ export default function SpanishReadingGame({ studentNumber, className, onBack, p
 
         if (cancelled) return;
 
-        const pathLessons = (allLessons || [])
-          .filter(lesson =>
-            lesson.assignment_type !== 'guided' &&
-            lesson.assignment_type !== 'side_quest' &&
-            (!lesson.class_name || lesson.class_name === className) &&
-            (!lesson.language || lesson.language === 'es') &&
-            Number(lesson.lesson_number) > 0
-          )
-          .sort(
-            (a, b) =>
-              Number(a.lesson_number || 0) -
-              Number(b.lesson_number || 0)
-          );
+        const literacyContext =
+          buildStudentLiteracyContext({
+            lessons: allLessons,
+            progresses,
+            className,
+            language: 'es',
+          });
 
-        if (!pathLessons.length) {
-          setLiteracyContext(null);
-          return;
-        }
-
-        const completedLessonIds = new Set(
-          (progresses || [])
-            .filter(progress => progress.completed)
-            .map(progress => String(progress.lesson_id))
-        );
-
-        // Same basic rule as the level path:
-        // current lesson = first path lesson the student has not completed.
-        const currentLesson =
-          pathLessons.find(
-            lesson => !completedLessonIds.has(String(lesson.id))
-          ) ||
-          pathLessons[pathLessons.length - 1];
-
-        const currentNumber = Number(currentLesson.lesson_number || 1);
-
-        const availableLessons = pathLessons.filter(
-          lesson => Number(lesson.lesson_number || 0) <= currentNumber
-        );
-
-        const cumulative =
-          buildCumulativeLiteracy(availableLessons);
-
-        const current =
-          normalizeLessonLiteracy(currentLesson);
-
-        setLiteracyContext({
-          currentLesson,
-          currentLessonNumber: currentNumber,
-          cumulative,
-          current,
-        });
+        setLiteracyContext(literacyContext);
       } catch (error) {
         console.error('Could not load Spanish literacy progression:', error);
 
