@@ -712,7 +712,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     // snapshot continues saving in the background.
     localDirtyRef.current = false;
     loadedKeyRef.current = null;
-    setPdfRenderedSize(null);
     currentPageRef.current = targetPage;
     setCurrentPage(targetPage);
 
