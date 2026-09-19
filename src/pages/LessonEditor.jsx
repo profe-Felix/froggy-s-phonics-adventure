@@ -675,6 +675,22 @@ export default function LessonEditor() {
   if (editing) {
     const steps = editing.steps || [];
     const setSteps = (next) => setEditing({ ...editing, steps: next });
+
+    const dailyLessons = WEEKDAYS.map(({ value }) =>
+      (editing.daily_lessons || []).find((dailyLesson) => dailyLesson.day === value) ||
+      blankDailyLesson(value)
+    );
+
+    const updateDailyLesson = (day, patch) => {
+      setEditing({
+        ...editing,
+        daily_lessons: dailyLessons.map((dailyLesson) =>
+          dailyLesson.day === day
+            ? { ...dailyLesson, ...patch }
+            : dailyLesson
+        ),
+      });
+    };
     const moveStep = (i, dir) => {
       const j = i + dir;
       if (j < 0 || j >= steps.length) return;
@@ -870,6 +886,104 @@ export default function LessonEditor() {
               </p>
             )}
           </div>
+
+          {(editing.assignment_type || 'class') === 'class' && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+              <div className="mb-3">
+                <h2 className="font-black text-gray-700">Daily lessons</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Assign one curriculum lesson to each school day. Turn off a day for holidays or days with no assignment.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {WEEKDAYS.map(({ value, label }) => {
+                  const dailyLesson = dailyLessons.find((item) => item.day === value);
+                  const isActive = dailyLesson?.active !== false;
+
+                  return (
+                    <div
+                      key={value}
+                      className={`rounded-xl border p-3 ${
+                        isActive
+                          ? 'border-indigo-100 bg-indigo-50/50'
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                          <p className="font-black text-gray-800">{label}</p>
+                          {isActive && (
+                            <p className="text-xs font-bold text-indigo-600">
+                              M{dailyLesson.module_number || 1}.L{dailyLesson.curriculum_lesson_number || 1}
+                            </p>
+                          )}
+                        </div>
+
+                        <label className="inline-flex items-center gap-2 text-xs font-bold text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={!isActive}
+                            onChange={(e) =>
+                              updateDailyLesson(value, { active: !e.target.checked })
+                            }
+                          />
+                          No school / no assignment
+                        </label>
+                      </div>
+
+                      {isActive && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs text-gray-600 font-bold">
+                            Module
+                            <input
+                              type="number"
+                              min={1}
+                              value={dailyLesson.module_number || 1}
+                              onChange={(e) =>
+                                updateDailyLesson(value, {
+                                  module_number: parseInt(e.target.value) || 1,
+                                })
+                              }
+                              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                            />
+                          </label>
+
+                          <label className="text-xs text-gray-600 font-bold">
+                            Lesson
+                            <input
+                              type="number"
+                              min={1}
+                              max={20}
+                              value={dailyLesson.curriculum_lesson_number || 1}
+                              onChange={(e) =>
+                                updateDailyLesson(value, {
+                                  curriculum_lesson_number: parseInt(e.target.value) || 1,
+                                })
+                              }
+                              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                            />
+                          </label>
+
+                          <label className="text-xs text-gray-600 font-bold col-span-2">
+                            Daily lesson title
+                            <input
+                              value={dailyLesson.title || ''}
+                              onChange={(e) =>
+                                updateDailyLesson(value, { title: e.target.value })
+                              }
+                              placeholder="Optional title"
+                              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-black text-gray-700">Steps ({steps.length})</h2>
