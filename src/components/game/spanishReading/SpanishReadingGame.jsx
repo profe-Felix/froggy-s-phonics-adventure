@@ -6,6 +6,13 @@ import SlideToReadCanvas from './SlideToReadCanvas';
 import RecordingsProgressBar from './RecordingsProgressBar';
 import ParentLedReadingPlayer from './ParentLedReadingPlayer';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
+import {
+  EMPTY_LITERACY,
+  getLessonLiteracy,
+  normalizeSpanish,
+  uniqueNormalized,
+  canDecodeWord,
+} from '@/lib/literacy/lessonProgression';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -19,13 +26,6 @@ const SECTIONS = [
 
 const getItemText = (item) => typeof item === 'string' ? item : item?.text || '';
 const getItemId = (item) => typeof item === 'object' ? item?.id : undefined;
-
-const EMPTY_LITERACY = {
-  graphemes: [],
-  sightWords: [],
-  pictureWords: [],
-  sentencePatterns: [],
-};
 
 // Grammatical metadata for common Spanish function words.
 // These words are NOT automatically unlocked.
@@ -126,85 +126,6 @@ const SPANISH_DETERMINERS = {
   },
 };
 
-const splitLiteracyList = (value) => {
-  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
-
-  return String(value || '')
-    .split(/[,\n]+/)
-    .map(v => v.trim())
-    .filter(Boolean);
-};
-
-const getLessonLiteracy = (lesson) => {
-  const direct = lesson?.literacy_progression;
-
-  const stored = (lesson?.steps || []).find(
-    step => step?.config?.lessonLiteracy
-  )?.config?.lessonLiteracy;
-
-  const raw = direct || stored || {};
-
-  return {
-    graphemes: splitLiteracyList(raw.graphemes),
-    sightWords: splitLiteracyList(raw.sightWords),
-    pictureWords: splitLiteracyList(raw.pictureWords),
-    sentencePatterns: String(raw.sentencePatterns || '')
-      .split('\n')
-      .map(v => v.trim())
-      .filter(Boolean),
-  };
-};
-
-const normalizeSpanish = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/n\u0303/g, 'ñ')
-    .replace(/u\u0308/g, 'ü')
-    .replace(/[\u0300-\u036f]/g, '');
-
-const uniqueNormalized = (items) => {
-  const seen = new Set();
-
-  return items.filter(item => {
-    const key = normalizeSpanish(item);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-};
-
-const canDecodeWord = (word, graphemes) => {
-  let remaining = normalizeSpanish(word)
-    .replace(/[^a-zñü]/g, '');
-
-  if (!remaining) return false;
-
-  const allowed = uniqueNormalized(graphemes)
-    .map(normalizeSpanish)
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
-
-  if (!allowed.length) return false;
-
-  const memo = new Map();
-
-  const canFinish = (index) => {
-    if (index === remaining.length) return true;
-    if (memo.has(index)) return memo.get(index);
-
-    const works = allowed.some(
-      grapheme =>
-        remaining.startsWith(grapheme, index) &&
-        canFinish(index + grapheme.length)
-    );
-
-    memo.set(index, works);
-    return works;
-  };
-
-  return canFinish(0);
-};
 
 const getSentenceWords = (sentence) =>
   String(sentence || '')
