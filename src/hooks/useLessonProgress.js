@@ -81,7 +81,11 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     qc.invalidateQueries({ queryKey: key });
   };
 
-  const markStepComplete = async (stepIndex, totalSteps) => {
+  const markStepComplete = async (
+    stepIndex,
+    totalSteps,
+    requiredStepIndexes = null
+  ) => {
     if (!progress) return null;
 
     if ((progress.completed_steps || []).includes(stepIndex)) {
@@ -93,7 +97,11 @@ export function useLessonProgress(studentNumber, className, lessonId) {
       stepIndex,
     ];
 
-    const completed = completed_steps.length >= totalSteps;
+    const completed = Array.isArray(requiredStepIndexes)
+      ? requiredStepIndexes.every((requiredIndex) =>
+          completed_steps.includes(requiredIndex)
+        )
+      : completed_steps.length >= totalSteps;
 
     const current_step = completed
       ? Math.max(totalSteps - 1, 0)
