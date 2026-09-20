@@ -8,9 +8,14 @@
     "class_name": {
       "type": "string"
     },
+    "catalog_book_id": {
+      "type": "string",
+      "default": "",
+      "description": "ID of the permanent BookCatalog record for this book"
+    },
     "module": {
       "type": "string",
-      "description": "Module folder e.g. M1, M2 \u2026 M9",
+      "description": "Module folder e.g. M1, M2 … M9",
       "default": ""
     },
     "cover_image_url": {
