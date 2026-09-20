@@ -51,12 +51,215 @@ export const FULL_SEQUENCE = [
   {d:'W',k:'W',m:8},{d:'w',k:'w',m:8,tl:1},
 ];
 
+// Official Spanish high-frequency words.
+// module_number and curriculum_lesson_number match the M#.L#
+// assigned to an individual pathway day.
+export const ES_SIGHT_WORD_SEQUENCE = [
+  // Módulo 1
+  {
+    module_number: 1,
+    curriculum_lesson_number: 1,
+    words: ['el', 'la'],
+  },
+  {
+    module_number: 1,
+    curriculum_lesson_number: 5,
+    words: ['un', 'una'],
+  },
+  {
+    module_number: 1,
+    curriculum_lesson_number: 11,
+    words: ['en', 'las'],
+  },
+  {
+    module_number: 1,
+    curriculum_lesson_number: 16,
+    words: ['de', 'y'],
+  },
+
+  // Módulo 2
+  {
+    module_number: 2,
+    curriculum_lesson_number: 1,
+    words: ['aquí', 'está', 'los'],
+  },
+  {
+    module_number: 2,
+    curriculum_lesson_number: 6,
+    words: ['con', 'dos', 'sube'],
+  },
+  {
+    module_number: 2,
+    curriculum_lesson_number: 11,
+    words: ['bajo', 'hay', 'no'],
+  },
+  {
+    module_number: 2,
+    curriculum_lesson_number: 16,
+    words: ['del', 'encima', 'le'],
+  },
+
+  // Módulo 3
+  {
+    module_number: 3,
+    curriculum_lesson_number: 1,
+    words: ['dice', 'también', 'tiene'],
+  },
+  {
+    module_number: 3,
+    curriculum_lesson_number: 6,
+    words: ['agua', 'pero', 'su'],
+  },
+  {
+    module_number: 3,
+    curriculum_lesson_number: 11,
+    words: ['hacia', 'que', 'vamos'],
+  },
+  {
+    module_number: 3,
+    curriculum_lesson_number: 16,
+    words: ['después', 'trabaja', 'va'],
+  },
+
+  // Módulo 4
+  {
+    module_number: 4,
+    curriculum_lesson_number: 1,
+    words: ['ahora', 'hoy', 'papá'],
+  },
+  {
+    module_number: 4,
+    curriculum_lesson_number: 6,
+    words: ['mucho', 'piensa', 'qué'],
+  },
+  {
+    module_number: 4,
+    curriculum_lesson_number: 11,
+    words: ['se', 'tengo', 'todavía'],
+  },
+  {
+    module_number: 4,
+    curriculum_lesson_number: 16,
+    words: ['bosque', 'ir', 'noche'],
+  },
+
+  // Módulo 5
+  {
+    module_number: 5,
+    curriculum_lesson_number: 1,
+    words: ['flor', 'hasta', 'quiere'],
+  },
+  {
+    module_number: 5,
+    curriculum_lesson_number: 6,
+    words: ['idea', 'hacer', 'yo'],
+  },
+  {
+    module_number: 5,
+    curriculum_lesson_number: 11,
+    words: ['gusta', 'juntar', 'lleva'],
+  },
+  {
+    module_number: 5,
+    curriculum_lesson_number: 16,
+    words: ['grande', 'hermano', 'tiempo'],
+  },
+
+  // Módulo 6
+  {
+    module_number: 6,
+    curriculum_lesson_number: 1,
+    words: ['barco', 'estrellas', 'sobre'],
+  },
+  {
+    module_number: 6,
+    curriculum_lesson_number: 6,
+    words: ['hace', 'mejor', 'yo'],
+  },
+  {
+    module_number: 6,
+    curriculum_lesson_number: 11,
+    words: ['cumpleaños', 'ha', 'muy'],
+  },
+  {
+    module_number: 6,
+    curriculum_lesson_number: 16,
+    words: ['ella', 'pregunta', 'siempre'],
+  },
+
+  // Módulo 7
+  {
+    module_number: 7,
+    curriculum_lesson_number: 1,
+    words: ['aprender', 'dentro', 'pequeño'],
+  },
+  {
+    module_number: 7,
+    curriculum_lesson_number: 6,
+    words: ['animales', 'gracias', 'madre'],
+  },
+  {
+    module_number: 7,
+    curriculum_lesson_number: 11,
+    words: ['cómo', 'cuando', 'encuentra'],
+  },
+  {
+    module_number: 7,
+    curriculum_lesson_number: 16,
+    words: ['libro', 'nuevo', 'primero'],
+  },
+
+  // Módulo 8
+  {
+    module_number: 8,
+    curriculum_lesson_number: 1,
+    words: ['más', 'música', 'quienes'],
+  },
+  {
+    module_number: 8,
+    curriculum_lesson_number: 6,
+    words: ['letra', 'nombre', 'todo'],
+  },
+  {
+    module_number: 8,
+    curriculum_lesson_number: 11,
+    words: ['crecer', 'material', 'tierra'],
+  },
+  {
+    module_number: 8,
+    curriculum_lesson_number: 16,
+    words: ['cosa', 'grupo', 'tarea'],
+  },
+
+  // Módulo 9
+  {
+    module_number: 9,
+    curriculum_lesson_number: 1,
+    words: ['clase', 'escribir', 'pronto'],
+  },
+  {
+    module_number: 9,
+    curriculum_lesson_number: 6,
+    words: ['desde', 'ejemplo', 'hablar'],
+  },
+  {
+    module_number: 9,
+    curriculum_lesson_number: 11,
+    words: ['completa', 'importante', 'observa'],
+  },
+  {
+    module_number: 9,
+    curriculum_lesson_number: 16,
+    words: ['árboles', 'buscan', 'guarda'],
+  },
+];
+
 // Period metadata (labels + default end dates) — letters are computed dynamically.
 export const ES_PERIOD_INFO = [
-  { label: '1as 9 sem', defaultDate: 'oct. 10' },
-  { label: '2as 9 sem', defaultDate: 'dic. 19' },
-  { label: '3as 9 sem', defaultDate: 'mar. 6' },
-  { label: '4as 9 sem', defaultDate: 'may. 22' },
+  { label: '1as 9 sem', defaultDate: 'oct. 09' },
+  { label: '2as 9 sem', defaultDate: 'dic. 18' },
+  { label: '3as 9 sem', defaultDate: 'mar. 05' },
+  { label: '4as 9 sem', defaultDate: 'may. 21' },
 ];
 
 // Default última letra for each period (used when no setting is saved).
