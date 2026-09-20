@@ -61,31 +61,88 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   // studentNumber used for queue mastery check below
   const [selectedModule, setSelectedModule] = useState('All');
 
-  // Fetch this class's active books PLUS books from linked classes
-  // (shares_books_from on ClassConfig). Lets e.g. Valero & Gutierrez see
-  // Felix's books without duplicating records.
+  // Load active books using explicit class access and language.
+  // The old shares_books_from setting remains only as a temporary fallback
+  // until its access rules are copied into available_to_classes.
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['books-linked', className],
     queryFn: async () => {
-      const configs = await base44.entities.ClassConfig.filter({ class_name: className });
-      const linkedFrom = configs[0]?.shares_books_from || [];
-      const sources = Array.from(new Set([className, ...linkedFrom]));
-      const results = await Promise.all(
-        sources.map(src => base44.entities.BookAssignment.filter({ class_name: src, status: 'active' }))
-      );
-      // Dedupe by normalized TITLE, not just id. "Add to my class" and manual
-      // sync create separate BookAssignment records (different ids) with the
-      // same title — dedupe-by-id left both visible. The class's own books are
-      // fetched first (className is first in sources), so the local copy wins
-      // over a shared-from copy.
+      const [
+        classConfigs,
+        activeBooks,
+      ] = await Promise.all([
+        base44.entities.ClassConfig.filter({
+          class_name: className,
+        }),
+        base44.entities.BookAssignment.filter(
+          {
+            status: 'active',
+          },
+          '-created_date',
+          1000
+        ),
+      ]);
+
+      const classConfig = classConfigs[0] || null;
+      const classLanguage =
+        classConfig?.language || 'es';
+
+      const legacySources =
+        Array.isArray(
+          classConfig?.shares_books_from
+        )
+          ? classConfig.shares_books_from
+          : [];
+
+      const eligibleBooks = activeBooks.filter(book => {
+        const allowedClasses =
+          Array.isArray(
+            book.available_to_classes
+          )
+            ? book.available_to_classes
+            : [];
+
+        const hasExplicitAccess =
+          allowedClasses.includes(className);
+
+        const hasLegacyOwnerAccess =
+          allowedClasses.length === 0 &&
+          book.class_name === className;
+
+        const hasTemporaryLinkedAccess =
+          legacySources.includes(book.class_name);
+
+        const bookLanguage =
+          book.language || 'es';
+
+        const languageMatches =
+          bookLanguage === classLanguage ||
+          bookLanguage === 'bilingual';
+
+        return (
+          languageMatches &&
+          (
+            hasExplicitAccess ||
+            hasLegacyOwnerAccess ||
+            hasTemporaryLinkedAccess
+          )
+        );
+      });
+
       const seen = new Set();
       const merged = [];
-      for (const list of results) {
-        for (const b of list) {
-          const key = (b.title || '').toLowerCase().trim();
-          if (key && !seen.has(key)) { seen.add(key); merged.push(b); }
-        }
+
+      for (const book of eligibleBooks) {
+        const key =
+          book.catalog_book_id ||
+          (book.title || '').toLowerCase().trim();
+
+        if (!key || seen.has(key)) continue;
+
+        seen.add(key);
+        merged.push(book);
       }
+
       return merged;
     },
     refetchInterval: 10000,
