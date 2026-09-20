@@ -25,7 +25,18 @@ const FREE_MODES = [
   { mode: 'word_builder', label: 'Word Building', emoji: '🧩', spanishOnly: true },
 ];
 
-export default function GameHome({ studentData, selectedStudent, onStartStep, onPlayMode, onLogout, onStudentPatch, onUpdateProgress, onLessonComplete, barcodeLogin }) {
+export default function GameHome({
+  studentData,
+  selectedStudent,
+  onStartStep,
+  onPlayMode,
+  onLogout,
+  onStudentPatch,
+  onUpdateProgress,
+  onLessonComplete,
+  barcodeLogin,
+  accessContext = 'school',
+}) {
   const { tracingOnlyFor } = useClassColors();
   const isTracingOnly = tracingOnlyFor(studentData?.class_name);
 
@@ -109,6 +120,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             onLessonComplete={onLessonComplete}
             onUpdateProgress={onUpdateProgress}
             onStudentPatch={onStudentPatch}
+            accessContext={accessContext}
           />
         )}
 
@@ -131,6 +143,7 @@ export default function GameHome({ studentData, selectedStudent, onStartStep, on
             onLessonComplete={onLessonComplete}
             onUpdateProgress={onUpdateProgress}
             onStudentPatch={onStudentPatch}
+            accessContext={accessContext}
           />
         )}
 
