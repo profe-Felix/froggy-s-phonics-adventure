@@ -705,7 +705,16 @@ export default function TeacherBookDashboard({ onBack }) {
                       : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
                     <div className="flex-1">
                       <p className="font-black text-white text-sm">{b.title}</p>
-                      <p className="text-teal-400 text-xs">From class {b.class_name} · {b.pdf_page_count || '?'} pages {b.module ? `· ${b.module}` : ''}</p>
+                      <p className="text-teal-400 text-xs">
+                        {(b.language || 'es') === 'en'
+                          ? 'English'
+                          : (b.language || 'es') === 'bilingual'
+                            ? 'Bilingual'
+                            : 'Spanish'}
+                        {' · '}
+                        {b.pdf_page_count || '?'} pages
+                        {b.module ? ` · ${b.module}` : ''}
+                      </p>
                     </div>
                     <button
                       onClick={async () => {
