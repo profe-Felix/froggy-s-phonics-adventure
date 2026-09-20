@@ -30,7 +30,12 @@ function blankStep(mode = 'letter_sounds') {
     title: m?.label || 'New Step',
     emoji: m?.emoji || '',
     color: 'sky',
-    completion: { type: m?.defaultCompletion || 'view', target: m?.defaultTarget || 1 },
+    live_scope: 'both',
+    access_scope: 'both',
+    completion: {
+      type: m?.defaultCompletion || 'view',
+      target: m?.defaultTarget || 1,
+    },
     config: {},
   };
 }
@@ -337,13 +342,39 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
         </div>
       )}
 
-      <label className="text-xs text-gray-600 font-bold">Availability
-        <select value={step.live_scope || 'both'} onChange={e => update({ live_scope: e.target.value })}
-          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
-          <option value="both">Both (independent + live lesson)</option>
-          <option value="live_only">Live lesson only</option>
-        </select>
-      </label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <label className="text-xs text-gray-600 font-bold">
+          Where students can do this
+          <select
+            value={step.access_scope || 'both'}
+            onChange={(e) =>
+              update({ access_scope: e.target.value })
+            }
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+          >
+            <option value="both">School and home</option>
+            <option value="school_only">School only</option>
+          </select>
+        </label>
+
+        <label className="text-xs text-gray-600 font-bold">
+          Lesson setting
+          <select
+            value={step.live_scope || 'both'}
+            onChange={(e) =>
+              update({ live_scope: e.target.value })
+            }
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+          >
+            <option value="both">
+              Independent and live lesson
+            </option>
+            <option value="live_only">
+              Live lesson only
+            </option>
+          </select>
+        </label>
+      </div>
 
       {step.mode === 'video' && (
         <label className="text-xs text-gray-600 font-bold">Video
