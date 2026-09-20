@@ -31,7 +31,29 @@ export default function TeacherBookDashboard({ onBack }) {
 
   const { data: books = [] } = useQuery({
     queryKey: ['books-all', className],
-    queryFn: () => base44.entities.BookAssignment.filter({ class_name: className }),
+    queryFn: async () => {
+      const allBooks =
+        await base44.entities.BookAssignment.list(
+          '-created_date',
+          1000
+        );
+
+      return allBooks.filter(book => {
+        const allowedClasses = Array.isArray(
+          book.available_to_classes
+        )
+          ? book.available_to_classes
+          : [];
+
+        // New structure: use the explicit access list.
+        if (allowedClasses.includes(className)) {
+          return true;
+        }
+
+        // Backward compatibility while migration is unfinished.
+        return book.class_name === className;
+      });
+    },
     refetchInterval: 10000,
   });
 
@@ -90,6 +112,8 @@ export default function TeacherBookDashboard({ onBack }) {
         title: newTitle.trim(),
         class_name: className,
         catalog_book_id: catalogBook.id,
+        available_to_classes: [className],
+        school_year: ACTIVE_SCHOOL_YEAR,
         pdf_url: isPdf ? file_url : null,
         cover_image_url: !isPdf ? file_url : null,
         pdf_page_count: pageCount,
@@ -147,6 +171,14 @@ export default function TeacherBookDashboard({ onBack }) {
 
     await base44.entities.BookAssignment.update(book.id, {
       catalog_book_id: catalogBook.id,
+      available_to_classes:
+        Array.isArray(book.available_to_classes) &&
+        book.available_to_classes.length > 0
+          ? book.available_to_classes
+          : [book.class_name].filter(Boolean),
+      school_year:
+        book.school_year ||
+        ACTIVE_SCHOOL_YEAR,
     });
 
     qc.invalidateQueries(['books-all', className]);
