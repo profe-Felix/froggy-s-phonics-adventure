@@ -157,11 +157,21 @@ export default function LessonMap({
     };
   });
 
-  const requiredDailyLessons = dailyLessons.filter(
-    (dailyLesson) =>
+  const isStepAvailable = (step) =>
+    step.live_scope !== 'live_only' &&
+    (
+      accessContext !== 'home' ||
+      step.access_scope !== 'school_only'
+    );
+
+  const requiredDayIndexes = dailyLessons
+    .map((dailyLesson, weekdayIndex) =>
       dailyLesson.active !== false &&
-      dailyLesson.steps.length > 0
-  );
+      dailyLesson.steps.some(isStepAvailable)
+        ? weekdayIndex
+        : null
+    )
+    .filter((weekdayIndex) => weekdayIndex !== null);
 
   const hasDailyLessons =
     Array.isArray(currentLesson?.daily_lessons) &&
@@ -174,16 +184,21 @@ export default function LessonMap({
   const handleDailyLessonComplete = async () => {
     if (!selectedDailyLesson) return;
 
-    const requiredDayIndex = requiredDailyLessons.findIndex(
-      (dailyLesson) =>
-        dailyLesson.day === selectedDailyLesson.day
+    const weekdayIndex = WEEKDAYS.findIndex(
+      ({ value }) => value === selectedDailyLesson.day
     );
 
-    if (requiredDayIndex < 0) return;
+    if (
+      weekdayIndex < 0 ||
+      !requiredDayIndexes.includes(weekdayIndex)
+    ) {
+      return;
+    }
 
     const updatedWeekProgress = await markWeekdayComplete(
-      requiredDayIndex,
-      requiredDailyLessons.length
+      weekdayIndex,
+      requiredDayIndexes.length,
+      requiredDayIndexes
     );
 
     const weekJustCompleted =
@@ -220,13 +235,7 @@ export default function LessonMap({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {dailyLessons.map((dailyLesson) => {
               const availableSteps =
-                dailyLesson.steps.filter((step) =>
-                  step.live_scope !== 'live_only' &&
-                  (
-                    accessContext !== 'home' ||
-                    step.access_scope !== 'school_only'
-                  )
-                );
+                dailyLesson.steps.filter(isStepAvailable);
 
               const activityCount = availableSteps.length;
 
@@ -234,16 +243,15 @@ export default function LessonMap({
                 dailyLesson.active !== false &&
                 activityCount > 0;
 
-              const requiredDayIndex =
-                requiredDailyLessons.findIndex(
-                  (requiredDay) =>
-                    requiredDay.day === dailyLesson.day
-                );
+              const weekdayIndex = WEEKDAYS.findIndex(
+                ({ value }) => value === dailyLesson.day
+              );
 
               const isComplete =
-                requiredDayIndex >= 0 &&
+                canOpen &&
+                weekdayIndex >= 0 &&
                 (weekProgress?.completed_steps || []).includes(
-                  requiredDayIndex
+                  weekdayIndex
                 );
 
               return (
