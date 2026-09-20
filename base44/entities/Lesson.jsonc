@@ -184,6 +184,15 @@
             "default": "both",
             "description": "both = step appears in independent student lessons AND live lessons. live_only = step only appears during teacher-led live lessons (skipped in independent flow)."
           },
+          "access_scope": {
+            "type": "string",
+            "enum": [
+              "both",
+              "school_only"
+            ],
+            "default": "both",
+            "description": "both = activity is available at school and through Home QR access. school_only = activity is hidden when the student enters through a Home QR."
+          },
           "completion": {
             "type": "object",
             "properties": {
