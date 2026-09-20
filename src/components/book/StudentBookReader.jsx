@@ -89,6 +89,7 @@ export default function StudentBookReader({
   onShowQR,
   initialPage,
   onRecordingSaved,
+  recordingPages,
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -109,6 +110,32 @@ export default function StudentBookReader({
   const today = todayLocal();
 
   const recKey = twoPerPage ? spreadKey(currentPage) : currentPage;
+
+  // When recordingPages is undefined, preserve the original reader behavior
+  // and allow recording on every page. An explicit array means the book has
+  // permanent recording-page settings.
+  const hasRecordingPageRules =
+    Array.isArray(recordingPages);
+
+  const visiblePageNumbers = twoPerPage
+    ? [
+        currentPage,
+        currentPage + 1 <= totalPages
+          ? currentPage + 1
+          : null,
+      ].filter(Boolean)
+    : [currentPage];
+
+  const requiredVisiblePages =
+    hasRecordingPageRules
+      ? visiblePageNumbers.filter(page =>
+          recordingPages.includes(page)
+        )
+      : visiblePageNumbers;
+
+  const canRecordCurrentView =
+    !hasRecordingPageRules ||
+    requiredVisiblePages.length > 0;
 
   // Sort newest-first so if duplicate sessions exist (a known past bug), the
   // newest one — which has the latest recording — is preferred.
@@ -215,6 +242,8 @@ export default function StudentBookReader({
   // button-press while audio currentTime started after getUserMedia finished
   // (200-500ms later), putting the laser trail ahead of the audio.
   const handleStartRecord = async () => {
+    if (!canRecordCurrentView) return;
+
     try {
       const started = await startRecording();
 
@@ -655,13 +684,27 @@ export default function StudentBookReader({
 
         {/* Center: recording controls */}
         <div className="flex-1 min-w-0">
-          {/* IDLE — no recording */}
-          {recState === 'idle' && !spreadRecording && (
-            <button onClick={handleStartRecord}
+          {/* IDLE — no recording, current page is enabled */}
+          {recState === 'idle' &&
+            !spreadRecording &&
+            canRecordCurrentView && (
+            <button
+              onClick={handleStartRecord}
               className="w-full py-1.5 rounded-lg font-black text-white text-sm"
-              style={{ background: '#dc2626' }}>
-              ⏺ Record Pg {twoPerPage && currentPage + 1 <= totalPages ? `${currentPage}–${currentPage + 1}` : currentPage}
+              style={{ background: '#dc2626' }}
+            >
+              ⏺ Record Pg{' '}
+              {requiredVisiblePages.join('–')}
             </button>
+          )}
+
+          {/* IDLE — this page does not require a recording */}
+          {recState === 'idle' &&
+            !spreadRecording &&
+            !canRecordCurrentView && (
+            <div className="w-full py-1.5 text-center text-teal-300 text-xs font-bold">
+              No recording needed on this page
+            </div>
           )}
 
           {/* STARTING — mic warming up (prevents double-tap) */}
