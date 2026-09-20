@@ -103,6 +103,43 @@ export default function LessonModeRouter({
     target: 1,
   };
 
+  const requiresBookRecordings =
+    step?.mode === 'book_reading' &&
+    step?.config?.bookCompletion === 'recordings';
+
+  const recordingStartPage =
+    Number(step?.config?.recordingStartPage) || 2;
+
+  const recordingEndPage =
+    Math.max(
+      recordingStartPage,
+      Number(step?.config?.recordingEndPage) || 7
+    );
+
+  const requiredBookPages = requiresBookRecordings
+    ? Array.from(
+        {
+          length:
+            recordingEndPage - recordingStartPage + 1,
+        },
+        (_, index) => recordingStartPage + index
+      )
+    : [];
+
+  const savedBookActivityState =
+    getActivityState?.(stepIndex) || {};
+
+  const recordedBookPages = Array.isArray(
+    savedBookActivityState.recordedPages
+  )
+    ? savedBookActivityState.recordedPages
+    : [];
+
+  const recordedRequiredPageCount =
+    requiredBookPages.filter((page) =>
+      recordedBookPages.includes(page)
+    ).length;
+
   const isLetterTracing =
     step?.mode === 'letter_tracing';
 
@@ -685,7 +722,8 @@ export default function LessonModeRouter({
       if (
         !completedOnceRef.current &&
         comp.type === 'view' &&
-        !liveMode
+        !liveMode &&
+        !requiresBookRecordings
       ) {
         if (isReplayRun) {
           finishReplayRun();
@@ -698,6 +736,7 @@ export default function LessonModeRouter({
     }, [
       comp.type,
       liveMode,
+      requiresBookRecordings,
       isReplayRun,
       finishReplayRun,
       finishFirstRun,
@@ -739,6 +778,60 @@ export default function LessonModeRouter({
       finishReplayRun,
       finishFirstRun,
     ]);
+
+  const handleBookRecordingSaved =
+    useCallback(
+      async (newPages) => {
+        if (
+          !requiresBookRecordings ||
+          !Array.isArray(newPages)
+        ) {
+          return;
+        }
+
+        const previousState =
+          getActivityState?.(stepIndex) || {};
+
+        const previousPages = Array.isArray(
+          previousState.recordedPages
+        )
+          ? previousState.recordedPages
+          : [];
+
+        const recordedPages = Array.from(
+          new Set([
+            ...previousPages,
+            ...newPages.map(Number),
+          ])
+        ).sort((a, b) => a - b);
+
+        await saveActivityState?.(stepIndex, {
+          ...previousState,
+          recordedPages,
+        });
+
+        const allRequiredPagesRecorded =
+          requiredBookPages.every((page) =>
+            recordedPages.includes(page)
+          );
+
+        if (allRequiredPagesRecorded) {
+          completeStep({
+            correctCount: requiredBookPages.length,
+            totalItems: requiredBookPages.length,
+            recordedPages,
+          });
+        }
+      },
+      [
+        requiresBookRecordings,
+        getActivityState,
+        saveActivityState,
+        stepIndex,
+        requiredBookPages,
+        completeStep,
+      ]
+    );
 
   // Begin a genuine fresh replay.
   const startReplay =
@@ -852,8 +945,10 @@ export default function LessonModeRouter({
     : 0;
 
   const goalText =
-    isTracingMode
-      ? isReplayRun
+    requiresBookRecordings
+      ? `🎙️ Record pages ${recordingStartPage}–${recordingEndPage} — ${recordedRequiredPageCount}/${requiredBookPages.length}`
+      : isTracingMode
+        ? isReplayRun
         ? `✍️ Practice again — ${attemptTarget} to finish`
         : `✍️ Trace ${attemptTarget} to finish`
       : isMastery
@@ -1108,6 +1203,9 @@ export default function LessonModeRouter({
             }
             onBack={
               wrappedBack
+            }
+            onRecordingSaved={
+              handleBookRecordingSaved
             }
           />
         );
