@@ -20,6 +20,176 @@ export default function ClassManager() {
   const { classList, addClass, removeClass } = useClassNames();
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [
+    migratingBookAccess,
+    setMigratingBookAccess,
+  ] = useState(false);
+
+  const migrateBookSharingToAccessLists =
+    async () => {
+      const confirmed = window.confirm(
+        'Convert the old “books from another class” rules into permanent class access lists?\n\n' +
+        'Books will be updated before the old sharing rules are removed.'
+      );
+
+      if (!confirmed) return;
+
+      setMigratingBookAccess(true);
+
+      try {
+        const [
+          allConfigs,
+          allAssignments,
+        ] = await Promise.all([
+          base44.entities.ClassConfig.list(
+            '-updated_date',
+            100
+          ),
+          base44.entities.BookAssignment.list(
+            '-created_date',
+            1000
+          ),
+        ]);
+
+        const configByClass = new Map(
+          allConfigs.map(config => [
+            config.class_name,
+            config,
+          ])
+        );
+
+        const updatedCatalogIds = new Set();
+
+        let assignmentsUpdated = 0;
+        let accessLinksAdded = 0;
+        let oldRulesCleared = 0;
+
+        for (const assignment of allAssignments) {
+          const ownerClass =
+            assignment.class_name;
+
+          if (!ownerClass) continue;
+
+          const ownerConfig =
+            configByClass.get(ownerClass);
+
+          const assignmentLanguage =
+            assignment.language ||
+            ownerConfig?.language ||
+            'es';
+
+          const linkedClasses = allConfigs
+            .filter(config =>
+              Array.isArray(
+                config.shares_books_from
+              ) &&
+              config.shares_books_from.includes(
+                ownerClass
+              )
+            )
+            .map(config => config.class_name)
+            .filter(Boolean);
+
+          const currentClasses =
+            Array.isArray(
+              assignment.available_to_classes
+            )
+              ? assignment.available_to_classes
+              : [];
+
+          const availableToClasses =
+            Array.from(
+              new Set([
+                ownerClass,
+                ...currentClasses,
+                ...linkedClasses,
+              ].filter(Boolean))
+            );
+
+          accessLinksAdded +=
+            availableToClasses.filter(
+              classToAdd =>
+                !currentClasses.includes(
+                  classToAdd
+                )
+            ).length;
+
+          await base44.entities.BookAssignment.update(
+            assignment.id,
+            {
+              available_to_classes:
+                availableToClasses,
+              language: assignmentLanguage,
+            }
+          );
+
+          assignmentsUpdated += 1;
+
+          if (
+            assignment.catalog_book_id &&
+            !updatedCatalogIds.has(
+              assignment.catalog_book_id
+            )
+          ) {
+            await base44.entities.BookCatalog.update(
+              assignment.catalog_book_id,
+              {
+                language:
+                  assignmentLanguage,
+              }
+            );
+
+            updatedCatalogIds.add(
+              assignment.catalog_book_id
+            );
+          }
+        }
+
+        // Clear old sharing only after every book
+        // assignment was updated successfully.
+        for (const config of allConfigs) {
+          if (
+            !Array.isArray(
+              config.shares_books_from
+            ) ||
+            config.shares_books_from.length === 0
+          ) {
+            continue;
+          }
+
+          await base44.entities.ClassConfig.update(
+            config.id,
+            {
+              shares_books_from: [],
+            }
+          );
+
+          oldRulesCleared += 1;
+        }
+
+        alert(
+          `Book access migration complete.\n\n` +
+          `${assignmentsUpdated} assignments updated\n` +
+          `${accessLinksAdded} class access links added\n` +
+          `${updatedCatalogIds.size} catalog languages updated\n` +
+          `${oldRulesCleared} old sharing rules cleared`
+        );
+
+        window.location.reload();
+      } catch (error) {
+        console.error(
+          'Book access migration failed',
+          error
+        );
+
+        alert(
+          'The migration stopped before the old sharing rules were cleared. ' +
+          'Completed book updates are safe, and you can run it again.'
+        );
+      } finally {
+        setMigratingBookAccess(false);
+      }
+    };
 
   const handleAdd = async () => {
     const name = newName.trim();
@@ -39,9 +209,20 @@ export default function ClassManager() {
         <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Classes</h2>
         <span className="text-xs text-slate-400 font-bold">{classList.length} classes</span>
       </div>
-      <p className="text-xs text-slate-500 mb-4">
+      <p className="text-xs text-slate-500 mb-3">
         Add a teacher's class here and it shows up in every dashboard automatically. Set color, grade, and language per class.
       </p>
+
+      <button
+        type="button"
+        onClick={migrateBookSharingToAccessLists}
+        disabled={migratingBookAccess}
+        className="mb-4 px-3 py-2 rounded-lg text-xs font-bold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+      >
+        {migratingBookAccess
+          ? 'Converting book access…'
+          : 'Convert old book sharing'}
+      </button>
 
       <div className="flex flex-col divide-y divide-slate-100">
         {classList.map((cls) => {
