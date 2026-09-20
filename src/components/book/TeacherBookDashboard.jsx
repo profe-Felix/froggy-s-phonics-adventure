@@ -444,10 +444,22 @@ export default function TeacherBookDashboard({ onBack }) {
             ))}
 
             {/* Shared library from other classes */}
-            {sharedBooks.filter(b => b.class_name !== className).length > 0 && (
+            {sharedBooks.filter(b =>
+              b.class_name !== className &&
+              !(
+                Array.isArray(b.available_to_classes) &&
+                b.available_to_classes.includes(className)
+              )
+            ).length > 0 && (
               <div className="mt-2">
                 <p className="text-teal-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
-                {sharedBooks.filter(b => b.class_name !== className).map(b => (
+                {sharedBooks.filter(b =>
+                  b.class_name !== className &&
+                  !(
+                    Array.isArray(b.available_to_classes) &&
+                    b.available_to_classes.includes(className)
+                  )
+                ).map(b => (
                   <div key={b.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
                     style={{ background: '#0a2e2c', border: '1px dashed #0d9488' }}>
                     {b.cover_image_url
@@ -460,65 +472,52 @@ export default function TeacherBookDashboard({ onBack }) {
                     <button
                       onClick={async () => {
                         try {
-                          let catalogBookId = b.catalog_book_id || '';
+                          const currentClasses =
+                            Array.isArray(b.available_to_classes) &&
+                            b.available_to_classes.length > 0
+                              ? b.available_to_classes
+                              : [b.class_name].filter(Boolean);
 
-                          if (!catalogBookId) {
-                            const catalogMatches = b.pdf_url
-                              ? await base44.entities.BookCatalog.filter({
-                                  pdf_url: b.pdf_url,
-                                })
-                              : await base44.entities.BookCatalog.filter({
-                                  cover_image_url: b.cover_image_url,
-                                });
+                          const availableToClasses = Array.from(
+                            new Set([
+                              ...currentClasses,
+                              className,
+                            ])
+                          );
 
-                            let catalogBook = catalogMatches[0] || null;
-
-                            if (!catalogBook) {
-                              catalogBook = await base44.entities.BookCatalog.create({
-                                title: b.title,
-                                pdf_url: b.pdf_url || null,
-                                cover_image_url: b.cover_image_url || null,
-                                pages: b.pages || [],
-                                pdf_page_count: b.pdf_page_count || 1,
-                                book_type: b.book_type || 'pdf',
-                                module: b.module || '',
-                                recording_pages: [],
-                                source_assignment_id: b.id,
-                              });
+                          await base44.entities.BookAssignment.update(
+                            b.id,
+                            {
+                              available_to_classes:
+                                availableToClasses,
+                              school_year:
+                                b.school_year ||
+                                ACTIVE_SCHOOL_YEAR,
                             }
+                          );
 
-                            catalogBookId = catalogBook.id;
+                          qc.invalidateQueries([
+                            'books-all',
+                            className,
+                          ]);
 
-                            await base44.entities.BookAssignment.update(b.id, {
-                              catalog_book_id: catalogBookId,
-                            });
-                          }
-
-                          await base44.entities.BookAssignment.create({
-                            title: b.title,
-                            class_name: className,
-                            catalog_book_id: catalogBookId,
-                            pdf_url: b.pdf_url,
-                            cover_image_url: b.cover_image_url,
-                            pages: b.pages || [],
-                            pdf_page_count: b.pdf_page_count,
-                            book_type: b.book_type || 'pdf',
-                            module: b.module || '',
-                            status: 'draft',
-                            teacher_annotations: [],
-                            shared_across_classes: false,
-                          });
-
-                          qc.invalidateQueries(['books-all', className]);
-                          qc.invalidateQueries(['books-shared']);
+                          qc.invalidateQueries([
+                            'books-shared',
+                          ]);
                         } catch (error) {
-                          console.error('Adding shared book failed', error);
-                          alert('The book could not be added to this class.');
+                          console.error(
+                            'Granting book access failed',
+                            error
+                          );
+
+                          alert(
+                            'Access to this book could not be updated.'
+                          );
                         }
                       }}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
                       style={{ background: '#0f766e', border: '1px solid #14b8a6' }}>
-                      + Add to my class
+                      + Give access to {className}
                     </button>
                   </div>
                 ))}
