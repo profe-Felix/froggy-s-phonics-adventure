@@ -20,6 +20,7 @@ export default function TeacherBookDashboard({ onBack }) {
   const [newModule, setNewModule] = useState('');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedCatalogBook, setSelectedCatalogBook] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -112,6 +113,46 @@ export default function TeacherBookDashboard({ onBack }) {
     }
   };
 
+  const ensureCatalogForBook = async (book) => {
+    if (!book) return null;
+
+    if (book.catalog_book_id) {
+      return base44.entities.BookCatalog.get(book.catalog_book_id);
+    }
+
+    const catalogMatches = book.pdf_url
+      ? await base44.entities.BookCatalog.filter({
+          pdf_url: book.pdf_url,
+        })
+      : await base44.entities.BookCatalog.filter({
+          cover_image_url: book.cover_image_url,
+        });
+
+    let catalogBook = catalogMatches[0] || null;
+
+    if (!catalogBook) {
+      catalogBook = await base44.entities.BookCatalog.create({
+        title: book.title,
+        pdf_url: book.pdf_url || null,
+        cover_image_url: book.cover_image_url || null,
+        pages: book.pages || [],
+        pdf_page_count: book.pdf_page_count || 1,
+        book_type: book.book_type || 'pdf',
+        module: book.module || '',
+        recording_pages: [],
+        source_assignment_id: book.id,
+      });
+    }
+
+    await base44.entities.BookAssignment.update(book.id, {
+      catalog_book_id: catalogBook.id,
+    });
+
+    qc.invalidateQueries(['books-all', className]);
+
+    return catalogBook;
+  };
+
   const handleDrop = async (e) => {
     e.preventDefault();
     setDragging(false);
@@ -179,7 +220,24 @@ export default function TeacherBookDashboard({ onBack }) {
               <motion.div key={b.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="rounded-2xl p-4 flex items-center gap-3 cursor-pointer"
                 style={{ background: selectedBook?.id === b.id ? '#14444022' : '#0f3d3a', border: `1px solid ${selectedBook?.id === b.id ? '#14b8a6' : '#0d9488'}` }}
-                onClick={() => { setSelectedBook(b); setTab('annotate'); }}>
+                onClick={async () => {
+                  setSelectedBook(b);
+                  setSelectedCatalogBook(null);
+                  setTab('annotate');
+
+                  try {
+                    const catalogBook = await ensureCatalogForBook(b);
+
+                    setSelectedCatalogBook(catalogBook);
+                    setSelectedBook(current => ({
+                      ...current,
+                      catalog_book_id: catalogBook?.id || '',
+                    }));
+                  } catch (error) {
+                    console.error('Loading book catalog failed', error);
+                    alert('The permanent book settings could not be loaded.');
+                  }
+                }}>
                 {b.cover_image_url
                   ? <img src={b.cover_image_url} alt={b.title} className="w-12 h-12 rounded-xl object-cover" />
                   : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
@@ -432,6 +490,114 @@ export default function TeacherBookDashboard({ onBack }) {
                       </button>
                     ))}
                   </div>
+
+                  <div
+                    className="rounded-2xl p-4 flex flex-col gap-3"
+                    style={{
+                      background: '#0f3d3a',
+                      border: '1px solid #0d9488',
+                    }}
+                  >
+                    <div>
+                      <p className="text-teal-200 font-bold text-sm">
+                        🎙 Recording — Required Pages
+                      </p>
+                      <p className="text-teal-400 text-xs mt-1">
+                        Select every page that contains text students should record.
+                        These choices stay with the permanent book for future classes
+                        and school years.
+                      </p>
+                    </div>
+
+                    {!selectedCatalogBook ? (
+                      <p className="text-teal-400 text-xs font-bold">
+                        Loading permanent book settings…
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {Array.from(
+                          {
+                            length:
+                              selectedBook.pdf_page_count ||
+                              selectedCatalogBook.pdf_page_count ||
+                              1,
+                          },
+                          (_, index) => index + 1
+                        ).map(pageNumber => {
+                          const enabled = (
+                            selectedCatalogBook.recording_pages || []
+                          ).includes(pageNumber);
+
+                          return (
+                            <button
+                              key={pageNumber}
+                              type="button"
+                              onClick={async () => {
+                                const currentPages =
+                                  selectedCatalogBook.recording_pages || [];
+
+                                const recordingPages = enabled
+                                  ? currentPages.filter(
+                                      page => page !== pageNumber
+                                    )
+                                  : [...currentPages, pageNumber].sort(
+                                      (a, b) => a - b
+                                    );
+
+                                try {
+                                  await base44.entities.BookCatalog.update(
+                                    selectedCatalogBook.id,
+                                    {
+                                      recording_pages: recordingPages,
+                                    }
+                                  );
+
+                                  setSelectedCatalogBook(current => ({
+                                    ...current,
+                                    recording_pages: recordingPages,
+                                  }));
+
+                                  qc.invalidateQueries([
+                                    'book-catalog',
+                                    selectedCatalogBook.id,
+                                  ]);
+                                } catch (error) {
+                                  console.error(
+                                    'Updating recording pages failed',
+                                    error
+                                  );
+
+                                  alert(
+                                    'The recording pages could not be saved.'
+                                  );
+                                }
+                              }}
+                              className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                                enabled
+                                  ? 'bg-teal-500 text-white'
+                                  : 'text-teal-400 border border-teal-700 hover:border-teal-400'
+                              }`}
+                              title={
+                                enabled
+                                  ? `Page ${pageNumber} requires a recording`
+                                  : `Page ${pageNumber} does not require a recording`
+                              }
+                            >
+                              {pageNumber}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {selectedCatalogBook &&
+                      (selectedCatalogBook.recording_pages || []).length === 0 && (
+                        <p className="text-amber-300 text-xs font-bold">
+                          No recording pages selected yet.
+                        </p>
+                      )}
+                  </div>
+
                   <TeacherBookAnnotator
                     book={selectedBook}
                     onUpdate={(updatedBook) => {
