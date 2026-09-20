@@ -8,6 +8,16 @@
     "class_name": {
       "type": "string"
     },
+    "language": {
+      "type": "string",
+      "enum": [
+        "es",
+        "en",
+        "bilingual"
+      ],
+      "default": "es",
+      "description": "Book language copied from the permanent catalog for filtering"
+    },
     "catalog_book_id": {
       "type": "string",
       "default": "",
