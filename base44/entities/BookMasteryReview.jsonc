@@ -1,0 +1,55 @@
+{
+  "name": "BookMasteryReview",
+  "type": "object",
+  "properties": {
+    "book_assignment_id": {
+      "type": "string"
+    },
+    "catalog_book_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "school_year": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "number"
+    },
+    "reading_session_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "practicing",
+        "needs_practice",
+        "mastered"
+      ],
+      "default": "practicing"
+    },
+    "teacher_feedback": {
+      "type": "string"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "coins_awarded": {
+      "type": "number",
+      "default": 0
+    },
+    "reward_issued": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "book_assignment_id",
+    "class_name",
+    "school_year",
+    "student_number",
+    "status"
+  ]
+}
