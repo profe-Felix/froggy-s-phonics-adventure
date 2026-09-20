@@ -60,6 +60,15 @@ export default function LessonModeRouter({
 
   const [done, setDone] = useState(alreadyDone);
 
+  const [
+    catalogRecordingPages,
+    setCatalogRecordingPages,
+  ] = useState([]);
+
+  useEffect(() => {
+    setCatalogRecordingPages([]);
+  }, [step?.config?.bookId]);
+
   // For letter_sort: first-try correct + total from the student's best round,
   // used to compute the coin reward: Math.round((firstTryCorrect / total) * 10).
   const [letterSortMistakes, setLetterSortMistakes] = useState(0);
@@ -103,28 +112,60 @@ export default function LessonModeRouter({
     target: 1,
   };
 
-  const requiresBookRecordings =
+  const usesCatalogRecordingPages =
     step?.mode === 'book_reading' &&
-    step?.config?.bookCompletion === 'recordings';
+    step?.config?.bookCompletion ===
+      'catalog_recordings';
+
+  const usesCustomRecordingRange =
+    step?.mode === 'book_reading' &&
+    step?.config?.bookCompletion ===
+      'recordings';
+
+  const requiresBookRecordings =
+    usesCatalogRecordingPages ||
+    usesCustomRecordingRange;
 
   const recordingStartPage =
-    Number(step?.config?.recordingStartPage) || 2;
+    Number(
+      step?.config?.recordingStartPage
+    ) || 2;
 
-  const recordingEndPage =
-    Math.max(
-      recordingStartPage,
-      Number(step?.config?.recordingEndPage) || 7
-    );
+  const recordingEndPage = Math.max(
+    recordingStartPage,
+    Number(
+      step?.config?.recordingEndPage
+    ) || 7
+  );
 
-  const requiredBookPages = requiresBookRecordings
-    ? Array.from(
-        {
-          length:
-            recordingEndPage - recordingStartPage + 1,
-        },
-        (_, index) => recordingStartPage + index
-      )
-    : [];
+  const customRequiredBookPages =
+    usesCustomRecordingRange
+      ? Array.from(
+          {
+            length:
+              recordingEndPage -
+              recordingStartPage +
+              1,
+          },
+          (_, index) =>
+            recordingStartPage + index
+        )
+      : [];
+
+  const requiredBookPages =
+    usesCatalogRecordingPages
+      ? Array.from(
+          new Set(
+            catalogRecordingPages
+              .map(Number)
+              .filter(
+                page =>
+                  Number.isInteger(page) &&
+                  page > 0
+              )
+          )
+        ).sort((a, b) => a - b)
+      : customRequiredBookPages;
 
   const savedBookActivityState =
     getActivityState?.(stepIndex) || {};
@@ -811,6 +852,7 @@ export default function LessonModeRouter({
         });
 
         const allRequiredPagesRecorded =
+          requiredBookPages.length > 0 &&
           requiredBookPages.every((page) =>
             recordedPages.includes(page)
           );
@@ -944,9 +986,16 @@ export default function LessonModeRouter({
       ))
     : 0;
 
+  const bookRecordingGoalText =
+    usesCatalogRecordingPages
+      ? requiredBookPages.length > 0
+        ? `🎙️ Record pages ${requiredBookPages.join(', ')} — ${recordedRequiredPageCount}/${requiredBookPages.length}`
+        : '🎙️ No recording pages are enabled for this book'
+      : `🎙️ Record pages ${recordingStartPage}–${recordingEndPage} — ${recordedRequiredPageCount}/${requiredBookPages.length}`;
+
   const goalText =
     requiresBookRecordings
-      ? `🎙️ Record pages ${recordingStartPage}–${recordingEndPage} — ${recordedRequiredPageCount}/${requiredBookPages.length}`
+      ? bookRecordingGoalText
       : isTracingMode
         ? isReplayRun
         ? `✍️ Practice again — ${attemptTarget} to finish`
@@ -1206,6 +1255,9 @@ export default function LessonModeRouter({
             }
             onRecordingSaved={
               handleBookRecordingSaved
+            }
+            onRequiredPagesLoaded={
+              setCatalogRecordingPages
             }
           />
         );
