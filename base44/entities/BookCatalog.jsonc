@@ -5,6 +5,16 @@
     "title": {
       "type": "string"
     },
+    "language": {
+      "type": "string",
+      "enum": [
+        "es",
+        "en",
+        "bilingual"
+      ],
+      "default": "es",
+      "description": "Primary language of this permanent catalog book"
+    },
     "pdf_url": {
       "type": "string",
       "description": "Permanent PDF source for this book"
