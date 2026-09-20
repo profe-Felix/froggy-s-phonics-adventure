@@ -35,6 +35,17 @@ export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
   const urlBarcode = urlParams.get('barcode');
+  const requestedContext = urlParams.get('context');
+
+  const accessContext =
+    requestedContext === 'school'
+      ? 'school'
+      : requestedContext === 'home'
+        ? 'home'
+        : urlBarcode
+          ? 'home'
+          : 'school';
+
   const rawClass = urlParams.get('class') || null;
   // Map all variations to canonical names
   const classMap = {
@@ -542,6 +553,7 @@ export default function LetterGame() {
     params.delete('number');
     params.delete('studentId');
     params.delete('barcode');
+    params.delete('context');
     const qs = params.toString();
     window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
   };
@@ -593,6 +605,7 @@ export default function LetterGame() {
           onPlayMode={handleModeSelect}
           onLogout={handleLogout}
           barcodeLogin={barcodeLogin}
+          accessContext={accessContext}
         />
       </>
     );
