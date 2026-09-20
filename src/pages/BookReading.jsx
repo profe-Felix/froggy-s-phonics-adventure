@@ -62,8 +62,6 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
   const [selectedModule, setSelectedModule] = useState('All');
 
   // Load active books using explicit class access and language.
-  // The old shares_books_from setting remains only as a temporary fallback
-  // until its access rules are copied into available_to_classes.
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['books-linked', className],
     queryFn: async () => {
@@ -83,16 +81,8 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
         ),
       ]);
 
-      const classConfig = classConfigs[0] || null;
       const classLanguage =
-        classConfig?.language || 'es';
-
-      const legacySources =
-        Array.isArray(
-          classConfig?.shares_books_from
-        )
-          ? classConfig.shares_books_from
-          : [];
+        classConfigs[0]?.language || 'es';
 
       const eligibleBooks = activeBooks.filter(book => {
         const allowedClasses =
@@ -102,15 +92,8 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
             ? book.available_to_classes
             : [];
 
-        const hasExplicitAccess =
+        const hasAccess =
           allowedClasses.includes(className);
-
-        const hasLegacyOwnerAccess =
-          allowedClasses.length === 0 &&
-          book.class_name === className;
-
-        const hasTemporaryLinkedAccess =
-          legacySources.includes(book.class_name);
 
         const bookLanguage =
           book.language || 'es';
@@ -119,14 +102,7 @@ function BookShelfWithAutoSelect({ className, studentNumber, onSelectBook, direc
           bookLanguage === classLanguage ||
           bookLanguage === 'bilingual';
 
-        return (
-          languageMatches &&
-          (
-            hasExplicitAccess ||
-            hasLegacyOwnerAccess ||
-            hasTemporaryLinkedAccess
-          )
-        );
+        return hasAccess && languageMatches;
       });
 
       const seen = new Set();
