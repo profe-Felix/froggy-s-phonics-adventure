@@ -18,6 +18,15 @@
       "default": "es",
       "description": "Book language copied from the permanent catalog for filtering"
     },
+    "grade": {
+      "type": "string",
+      "enum": [
+        "kinder",
+        "first"
+      ],
+      "default": "kinder",
+      "description": "Book grade copied from the permanent catalog for filtering"
+    },
     "catalog_book_id": {
       "type": "string",
       "default": "",
