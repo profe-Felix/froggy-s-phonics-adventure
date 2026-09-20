@@ -15,7 +15,10 @@ const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
 export default function TeacherBookDashboard({ onBack }) {
   const qc = useQueryClient();
-  const { classList: CLASS_NAMES } = useClassNames();
+  const {
+    classList: CLASS_NAMES,
+    configs: CLASS_CONFIGS,
+  } = useClassNames();
   const [className, setClassName] = useState(CLASS_NAMES[0] || 'Felix');
   const [newModule, setNewModule] = useState('');
   const [tab, setTab] = useState('books');
@@ -29,8 +32,26 @@ export default function TeacherBookDashboard({ onBack }) {
   const [qrBook, setQrBook] = useState(null);
   const [qrBookClass, setQrBookClass] = useState('Felix');
 
+  const classLanguage =
+    CLASS_CONFIGS.find(
+      config => config.class_name === className
+    )?.language || 'es';
+
+  const bookMatchesClassLanguage = book => {
+    const bookLanguage = book.language || 'es';
+
+    return (
+      bookLanguage === classLanguage ||
+      bookLanguage === 'bilingual'
+    );
+  };
+
   const { data: books = [] } = useQuery({
-    queryKey: ['books-all', className],
+    queryKey: [
+      'books-all',
+      className,
+      classLanguage,
+    ],
     queryFn: async () => {
       const allBooks =
         await base44.entities.BookAssignment.list(
@@ -39,18 +60,21 @@ export default function TeacherBookDashboard({ onBack }) {
         );
 
       return allBooks.filter(book => {
+        if (!bookMatchesClassLanguage(book)) {
+          return false;
+        }
+
         const allowedClasses = Array.isArray(
           book.available_to_classes
         )
           ? book.available_to_classes
           : [];
 
-        // New structure: use the explicit access list.
         if (allowedClasses.includes(className)) {
           return true;
         }
 
-        // Backward compatibility while migration is unfinished.
+        // Backward compatibility for older assignments.
         return book.class_name === className;
       });
     },
@@ -98,6 +122,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       const catalogBook = await base44.entities.BookCatalog.create({
         title: newTitle.trim(),
+        language: classLanguage,
         pdf_url: isPdf ? file_url : null,
         cover_image_url: !isPdf ? file_url : null,
         pages: [],
@@ -111,6 +136,7 @@ export default function TeacherBookDashboard({ onBack }) {
       const assignment = await base44.entities.BookAssignment.create({
         title: newTitle.trim(),
         class_name: className,
+        language: classLanguage,
         catalog_book_id: catalogBook.id,
         available_to_classes: [className],
         school_year: ACTIVE_SCHOOL_YEAR,
@@ -655,6 +681,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
             {/* Shared library from other classes */}
             {sharedBooks.filter(b =>
+              bookMatchesClassLanguage(b) &&
               b.class_name !== className &&
               !(
                 Array.isArray(b.available_to_classes) &&
@@ -664,6 +691,7 @@ export default function TeacherBookDashboard({ onBack }) {
               <div className="mt-2">
                 <p className="text-teal-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
                 {sharedBooks.filter(b =>
+                  bookMatchesClassLanguage(b) &&
                   b.class_name !== className &&
                   !(
                     Array.isArray(b.available_to_classes) &&
@@ -986,8 +1014,13 @@ export default function TeacherBookDashboard({ onBack }) {
               books={[
                 ...books,
                 ...sharedBooks.filter(
-                  b => b.class_name !== className &&
-                       !books.some(localBook => localBook.id === b.id)
+                  b =>
+                    bookMatchesClassLanguage(b) &&
+                    b.class_name !== className &&
+                    !books.some(
+                      localBook =>
+                        localBook.id === b.id
+                    )
                 )
               ]}
               className={className}
