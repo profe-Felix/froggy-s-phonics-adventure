@@ -61,26 +61,55 @@ export default function TeacherBookDashboard({ onBack }) {
 
   const uploadBook = async (file) => {
     if (!newTitle.trim()) return alert('Enter a book title first');
+
     setUploading(true);
-    const isPdf = file.type === 'application/pdf';
-    const [{ file_url }, pageCount] = await Promise.all([
-      base44.integrations.Core.UploadFile({ file }),
-      isPdf ? extractPageCount(file) : Promise.resolve(1),
-    ]);
-    await base44.entities.BookAssignment.create({
-      title: newTitle.trim(),
-      class_name: className,
-      pdf_url: isPdf ? file_url : null,
-      cover_image_url: !isPdf ? file_url : null,
-      pdf_page_count: pageCount,
-      book_type: isPdf ? 'pdf' : 'images',
-      module: newModule || '',
-      status: 'draft',
-      teacher_annotations: [],
-    });
-    setNewTitle('');
-    setUploading(false);
-    qc.invalidateQueries(['books-all', className]);
+
+    try {
+      const isPdf = file.type === 'application/pdf';
+
+      const [{ file_url }, pageCount] = await Promise.all([
+        base44.integrations.Core.UploadFile({ file }),
+        isPdf ? extractPageCount(file) : Promise.resolve(1),
+      ]);
+
+      const catalogBook = await base44.entities.BookCatalog.create({
+        title: newTitle.trim(),
+        pdf_url: isPdf ? file_url : null,
+        cover_image_url: !isPdf ? file_url : null,
+        pages: [],
+        pdf_page_count: pageCount,
+        book_type: isPdf ? 'pdf' : 'images',
+        module: newModule || '',
+        recording_pages: [],
+        source_assignment_id: '',
+      });
+
+      const assignment = await base44.entities.BookAssignment.create({
+        title: newTitle.trim(),
+        class_name: className,
+        catalog_book_id: catalogBook.id,
+        pdf_url: isPdf ? file_url : null,
+        cover_image_url: !isPdf ? file_url : null,
+        pdf_page_count: pageCount,
+        book_type: isPdf ? 'pdf' : 'images',
+        module: newModule || '',
+        status: 'draft',
+        teacher_annotations: [],
+      });
+
+      await base44.entities.BookCatalog.update(catalogBook.id, {
+        source_assignment_id: assignment.id,
+      });
+
+      setNewTitle('');
+      setNewModule('');
+      qc.invalidateQueries(['books-all', className]);
+    } catch (error) {
+      console.error('Book upload failed', error);
+      alert('The book could not be created. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleDrop = async (e) => {
@@ -221,19 +250,62 @@ export default function TeacherBookDashboard({ onBack }) {
                     </div>
                     <button
                       onClick={async () => {
-                        await base44.entities.BookAssignment.create({
-                          title: b.title,
-                          class_name: className,
-                          pdf_url: b.pdf_url,
-                          cover_image_url: b.cover_image_url,
-                          pdf_page_count: b.pdf_page_count,
-                          book_type: b.book_type || 'pdf',
-                          module: b.module || '',
-                          status: 'draft',
-                          teacher_annotations: [],
-                          shared_across_classes: false,
-                        });
-                        qc.invalidateQueries(['books-all', className]);
+                        try {
+                          let catalogBookId = b.catalog_book_id || '';
+
+                          if (!catalogBookId) {
+                            const catalogMatches = b.pdf_url
+                              ? await base44.entities.BookCatalog.filter({
+                                  pdf_url: b.pdf_url,
+                                })
+                              : await base44.entities.BookCatalog.filter({
+                                  cover_image_url: b.cover_image_url,
+                                });
+
+                            let catalogBook = catalogMatches[0] || null;
+
+                            if (!catalogBook) {
+                              catalogBook = await base44.entities.BookCatalog.create({
+                                title: b.title,
+                                pdf_url: b.pdf_url || null,
+                                cover_image_url: b.cover_image_url || null,
+                                pages: b.pages || [],
+                                pdf_page_count: b.pdf_page_count || 1,
+                                book_type: b.book_type || 'pdf',
+                                module: b.module || '',
+                                recording_pages: [],
+                                source_assignment_id: b.id,
+                              });
+                            }
+
+                            catalogBookId = catalogBook.id;
+
+                            await base44.entities.BookAssignment.update(b.id, {
+                              catalog_book_id: catalogBookId,
+                            });
+                          }
+
+                          await base44.entities.BookAssignment.create({
+                            title: b.title,
+                            class_name: className,
+                            catalog_book_id: catalogBookId,
+                            pdf_url: b.pdf_url,
+                            cover_image_url: b.cover_image_url,
+                            pages: b.pages || [],
+                            pdf_page_count: b.pdf_page_count,
+                            book_type: b.book_type || 'pdf',
+                            module: b.module || '',
+                            status: 'draft',
+                            teacher_annotations: [],
+                            shared_across_classes: false,
+                          });
+
+                          qc.invalidateQueries(['books-all', className]);
+                          qc.invalidateQueries(['books-shared']);
+                        } catch (error) {
+                          console.error('Adding shared book failed', error);
+                          alert('The book could not be added to this class.');
+                        }
                       }}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
                       style={{ background: '#0f766e', border: '1px solid #14b8a6' }}>
