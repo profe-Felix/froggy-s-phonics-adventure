@@ -414,7 +414,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
             {books.map(b => (
               <motion.div key={b.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="rounded-2xl p-4 flex items-center gap-3 cursor-pointer"
+                className="rounded-2xl p-3 grid grid-cols-[56px_minmax(0,1fr)] gap-x-3 gap-y-2 cursor-pointer"
                 style={{ background: selectedBook?.id === b.id ? '#14444022' : '#0f3d3a', border: `1px solid ${selectedBook?.id === b.id ? '#14b8a6' : '#0d9488'}` }}
                 onClick={async () => {
                   setSelectedBook(b);
@@ -437,22 +437,22 @@ export default function TeacherBookDashboard({ onBack }) {
                 {b.cover_image_url
                   ? <img src={b.cover_image_url} alt={b.title} className="w-12 h-12 rounded-xl object-cover" />
                   : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
-                <div className="flex-1">
-                  <p className="font-black text-white">{b.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-teal-400">
-                      {getBookClasses(b).includes(className)
-                        ? 'Assigned to this class'
-                        : 'Not assigned to this class'}
-                      {' · '}
-                      {b.status}
-                      {' · '}
-                      {b.pdf_page_count || '?'} pages
-                    </p>
-                    {b.module && <span className="text-xs text-teal-200 bg-teal-800 px-2 py-0.5 rounded-full">{b.module}</span>}
-                  </div>
+                <div className="min-w-0 self-center">
+                  <p className="font-black text-white leading-tight">{b.title}</p>
+                  <p className="text-xs text-teal-400 mt-1">
+                    {getBookClasses(b).includes(className)
+                      ? 'Assigned to this class'
+                      : 'Not assigned to this class'}
+                    {' · '}
+                    {b.status}
+                    {' · '}
+                    {b.pdf_page_count || '?'} pages
+                  </p>
                 </div>
-                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                <div
+                  className="col-span-2 flex items-center justify-end gap-2 flex-wrap"
+                  onClick={e => e.stopPropagation()}
+                >
                   <button
                     onClick={() => { setQrBook(b); setQrBookClass(className); }}
                     className="px-2 py-1 rounded-lg text-xs font-bold text-teal-300 border border-teal-700 hover:bg-teal-900"
@@ -478,7 +478,7 @@ export default function TeacherBookDashboard({ onBack }) {
                     onClick={() =>
                       toggleSelectedClassAccess(b)
                     }
-                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                    className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all hover:scale-105 ${
                       getBookClasses(b).includes(
                         className
                       )
@@ -498,7 +498,7 @@ export default function TeacherBookDashboard({ onBack }) {
                     onClick={() =>
                       toggleAllMatchingClassAccess(b)
                     }
-                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                    className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all hover:scale-105 ${
                       getMatchingClasses(b).length > 0 &&
                       getMatchingClasses(b).every(
                         matchingClass =>
