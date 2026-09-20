@@ -80,7 +80,16 @@ function TeacherSpeakerIcon({ annotation, containerSize }) {
   );
 }
 
-export default function StudentBookReader({ book, studentNumber, className, onBack, showQrButton = false, onShowQR, initialPage }) {
+export default function StudentBookReader({
+  book,
+  studentNumber,
+  className,
+  onBack,
+  showQrButton = false,
+  onShowQR,
+  initialPage,
+  onRecordingSaved,
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const restored = readRestore(className, studentNumber);
@@ -375,6 +384,9 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
           }
           return arr;
         });
+
+        onRecordingSaved?.(newPages);
+
         // Fire-and-forget: awaiting refetch here can return stale data (DB
         // eventual consistency) and overwrite the just-saved recording.
         refetch();
@@ -395,7 +407,21 @@ export default function StudentBookReader({ book, studentNumber, className, onBa
     if (saveInFlightRef.current) { try { await saveInFlightRef.current; } catch { /* swallow; our own try/catch handles ours */ } }
     saveInFlightRef.current = run();
     try { await saveInFlightRef.current; } finally { saveInFlightRef.current = null; }
-  }, [recKey, twoPerPage, totalPages, currentPage, laserTracker, resetRecorder, refetch, book, className, studentNumber, today, toast]);
+  }, [
+    recKey,
+    twoPerPage,
+    totalPages,
+    currentPage,
+    laserTracker,
+    resetRecorder,
+    refetch,
+    book,
+    className,
+    studentNumber,
+    today,
+    toast,
+    onRecordingSaved,
+  ]);
 
   // Navigate to a new page — stop+save any active recording first, then persist
   // the new page so a refresh returns here.
