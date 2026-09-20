@@ -6,7 +6,13 @@ import BookReading from '@/pages/BookReading';
 // Renders a book_reading lesson step. If the step has a specific book assigned
 // (step.config.bookId), open that book directly in the student reader. If no
 // book is assigned, fall back to the full class bookshelf.
-export default function BookReadingStep({ stepConfig, studentNumber, className, onBack }) {
+export default function BookReadingStep({
+  stepConfig,
+  studentNumber,
+  className,
+  onBack,
+  onRecordingSaved,
+}) {
   const bookId = stepConfig?.bookId;
 
   const { data: book, isLoading } = useQuery({
@@ -59,6 +65,7 @@ export default function BookReadingStep({ stepConfig, studentNumber, className, 
       studentNumber={studentNumber}
       className={className}
       onBack={onBack}
+      onRecordingSaved={onRecordingSaved}
     />
   );
 }
