@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { useClassNames } from '@/hooks/useClassNames';
 
 function normalizedTitle(book) {
   return String(book?.title || '')
@@ -21,10 +22,14 @@ function bookScore(
     score += 1000;
   }
 
-  // Prefer the copy assigned to this lesson's class.
+  // Prefer a book that students in this class
+  // can already access.
   if (
     lessonClass &&
-    book.class_name === lessonClass
+    Array.isArray(book.available_to_classes) &&
+    book.available_to_classes.includes(
+      lessonClass
+    )
   ) {
     score += 100;
   }
@@ -40,14 +45,30 @@ function bookScore(
   return score;
 }
 
-// Displays one option per title. BookAssignment
-// records are class-scoped, so duplicate class
-// copies of the same title are consolidated.
+// Displays books matching the lesson class's
+// language and grade. Class assignment controls
+// student access but does not limit teacher access.
 export default function BookPicker({
   value,
   onChange,
   lessonClass,
 }) {
+  const {
+    configs: CLASS_CONFIGS,
+  } = useClassNames();
+
+  const lessonClassConfig =
+    CLASS_CONFIGS.find(
+      config =>
+        config.class_name === lessonClass
+    );
+
+  const classLanguage =
+    lessonClassConfig?.language || 'es';
+
+  const classGrade =
+    lessonClassConfig?.grade || 'kinder';
+
   const {
     data: books = [],
     isLoading,
@@ -56,20 +77,60 @@ export default function BookPicker({
     queryFn: () =>
       base44.entities.BookAssignment.list(
         '-created_date',
-        200
+        1000
       ),
   });
+
+  const matchingBooks = useMemo(() => {
+    return books.filter(book => {
+      // Preserve a book already saved in an
+      // existing lesson, even if its metadata
+      // has not been updated yet.
+      if (book.id === value) {
+        return true;
+      }
+
+      // Without a selected class, allow the
+      // complete teacher library.
+      if (!lessonClass) {
+        return true;
+      }
+
+      const bookLanguage =
+        book.language || 'es';
+
+      const bookGrade =
+        book.grade || 'kinder';
+
+      const languageMatches =
+        bookLanguage === classLanguage ||
+        bookLanguage === 'bilingual';
+
+      return (
+        languageMatches &&
+        bookGrade === classGrade
+      );
+    });
+  }, [
+    books,
+    value,
+    lessonClass,
+    classLanguage,
+    classGrade,
+  ]);
 
   const uniqueBooks = useMemo(() => {
     const byTitle = new Map();
 
-    for (const book of books) {
+    for (const book of matchingBooks) {
       const titleKey = normalizedTitle(book);
 
-      // Keep untitled records separate instead of
-      // merging all of them into one blank option.
+      // The catalog ID is the permanent identity.
+      // Title is only a fallback for older books.
       const key =
-        titleKey || `untitled:${book.id}`;
+        book.catalog_book_id ||
+        titleKey ||
+        `untitled:${book.id}`;
 
       const current = byTitle.get(key);
 
@@ -97,7 +158,7 @@ export default function BookPicker({
         String(b.title || '')
       )
     );
-  }, [books, lessonClass, value]);
+  }, [matchingBooks, lessonClass, value]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -136,9 +197,8 @@ export default function BookPicker({
 
       {lessonClass && (
         <p className="text-[10px] text-gray-400">
-          The picker automatically
-          prefers the copy assigned to{' '}
-          <b>{lessonClass}</b>.
+          Showing books matching the language
+          and grade for <b>{lessonClass}</b>.
         </p>
       )}
     </div>
