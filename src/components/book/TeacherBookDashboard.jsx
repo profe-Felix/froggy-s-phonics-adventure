@@ -133,8 +133,9 @@ export default function TeacherBookDashboard({ onBack }) {
         school_year: ACTIVE_SCHOOL_YEAR,
         queue_order:
           data.queue_order ??
-          book.queue_order ??
-          0,
+          (useLegacyValues
+            ? book.queue_order ?? 0
+            : 0),
         mastered_students:
           data.mastered_students ??
           (useLegacyValues
@@ -172,8 +173,9 @@ export default function TeacherBookDashboard({ onBack }) {
         ...book,
         queue_order:
           settings?.queue_order ??
-          book.queue_order ??
-          0,
+          (useLegacyValues
+            ? book.queue_order ?? 0
+            : 0),
         mastered_students:
           settings?.mastered_students ??
           (useLegacyValues
