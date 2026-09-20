@@ -270,6 +270,21 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   // param. Without this, hitting back just bounces back into the reader.
   const [suppressAutoSelect, setSuppressAutoSelect] = useState(false);
 
+  const {
+    data: selectedCatalogBook,
+    isLoading: isCatalogLoading,
+  } = useQuery({
+    queryKey: [
+      'book-catalog',
+      selectedBook?.catalog_book_id,
+    ],
+    queryFn: () =>
+      base44.entities.BookCatalog.get(
+        selectedBook.catalog_book_id
+      ),
+    enabled: !!selectedBook?.catalog_book_id,
+  });
+
   // Only restore the last book+page on a page REFRESH (F5/reload) so students
   // don't waste time navigating back after an accidental refresh. On a fresh
   // entry (from the game menu) the library pops up instead. URL deep-links
@@ -329,6 +344,25 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
   }
 
   if (role === 'student' && studentInfo && selectedBook) {
+    if (
+      selectedBook.catalog_book_id &&
+      isCatalogLoading
+    ) {
+      return (
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: '#042f2e' }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-9 h-9 border-4 border-teal-400 border-t-transparent rounded-full animate-spin" />
+            <p className="text-teal-300 text-sm font-bold">
+              Loading book settings…
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     const qrUrl = `${window.location.origin}/BookReading?book=${encodeURIComponent(urlBook || selectedBook.title)}&class=${qrClass || studentInfo.className}&SY=${ACTIVE_SCHOOL_YEAR}`;
     return (
       <>
@@ -340,6 +374,11 @@ export default function BookReading({ prefillClass, prefillNumber, onBack }) {
           onBack={() => { setSelectedBook(null); setReaderInitialPage(null); setSuppressAutoSelect(true); }}
           showQrButton={!!urlBook}
           onShowQR={() => setShowQR(true)}
+          recordingPages={
+            selectedBook.catalog_book_id
+              ? selectedCatalogBook?.recording_pages || []
+              : undefined
+          }
         />
         {showQR && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[200] p-6" onClick={() => setShowQR(false)}>
