@@ -536,14 +536,31 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               <option value="view">
                 Open the book once
               </option>
+
+              <option
+                value="catalog_recordings"
+                disabled={!step.config?.bookId}
+              >
+                Record the book’s enabled pages
+              </option>
+
               <option
                 value="recordings"
                 disabled={!step.config?.bookId}
               >
-                Record all required pages
+                Record a custom page range
               </option>
             </select>
           </label>
+
+          {step.config?.bookCompletion ===
+            'catalog_recordings' && (
+            <p className="text-[10px] font-bold text-teal-700">
+              This activity uses the permanent recording pages selected in the
+              Teacher Book Dashboard. If those pages are updated later, this
+              lesson will automatically use the updated list.
+            </p>
+          )}
 
           {step.config?.bookCompletion ===
             'recordings' && (
