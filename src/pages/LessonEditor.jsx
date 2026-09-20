@@ -310,16 +310,31 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
             {COLOR_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         </label>
-        <label className="text-xs text-gray-600 font-bold col-span-1">Completion
-          <select value={step.completion.type} onChange={e => updateCompletion({ type: e.target.value })}
-            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
-            <option value="view">View / play once</option>
-            <option value="mastery">Mastery (N items)</option>
-          </select>
-        </label>
+        {step.mode !== 'book_reading' && (
+          <label className="text-xs text-gray-600 font-bold col-span-1">
+            Completion
+            <select
+              value={step.completion.type}
+              onChange={e =>
+                updateCompletion({
+                  type: e.target.value,
+                })
+              }
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+            >
+              <option value="view">
+                View / play once
+              </option>
+              <option value="mastery">
+                Mastery (N items)
+              </option>
+            </select>
+          </label>
+        )}
       </div>
 
-      {step.completion.type === 'mastery' && (
+      {step.mode !== 'book_reading' &&
+        step.completion.type === 'mastery' && (
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-gray-600 font-bold">Items to master
             <input type="number" min={1} value={step.completion.target}
@@ -459,13 +474,181 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
       )}
 
       {step.mode === 'book_reading' && (
-        <label className="text-xs text-gray-600 font-bold">Book
-          <BookPicker
-            value={step.config?.bookId}
-            lessonClass={lessonClass}
-            onChange={(bookId, bookTitle) => update({ config: { ...step.config, bookId, bookTitle } })}
-          />
-        </label>
+        <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
+          <label className="text-xs text-gray-600 font-bold">
+            Book
+            <BookPicker
+              value={step.config?.bookId}
+              lessonClass={lessonClass}
+              onChange={(bookId, bookTitle) =>
+                update({
+                  completion: {
+                    ...step.completion,
+                    type: 'view',
+                  },
+                  config: {
+                    ...step.config,
+                    bookId,
+                    bookTitle,
+                    // A recording requirement cannot work without
+                    // a specific assigned book.
+                    ...(!bookId
+                      ? {
+                          bookCompletion: 'view',
+                        }
+                      : {}),
+                  },
+                })
+              }
+            />
+          </label>
+
+          <label className="text-xs text-gray-600 font-bold">
+            How students finish
+            <select
+              value={
+                step.config?.bookCompletion ||
+                'view'
+              }
+              onChange={e =>
+                update({
+                  completion: {
+                    ...step.completion,
+                    type: 'view',
+                  },
+                  config: {
+                    ...step.config,
+                    bookCompletion:
+                      e.target.value,
+                    recordingStartPage:
+                      step.config
+                        ?.recordingStartPage ||
+                      2,
+                    recordingEndPage:
+                      step.config
+                        ?.recordingEndPage ||
+                      7,
+                  },
+                })
+              }
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+            >
+              <option value="view">
+                Open the book once
+              </option>
+              <option
+                value="recordings"
+                disabled={!step.config?.bookId}
+              >
+                Record all required pages
+              </option>
+            </select>
+          </label>
+
+          {step.config?.bookCompletion ===
+            'recordings' && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-gray-600 font-bold">
+                  First required page
+                  <input
+                    type="number"
+                    min={1}
+                    value={
+                      step.config
+                        ?.recordingStartPage ||
+                      2
+                    }
+                    onChange={e => {
+                      const startPage =
+                        Math.max(
+                          1,
+                          parseInt(
+                            e.target.value,
+                            10
+                          ) || 1
+                        );
+
+                      const currentEnd =
+                        Number(
+                          step.config
+                            ?.recordingEndPage
+                        ) || 7;
+
+                      update({
+                        config: {
+                          ...step.config,
+                          recordingStartPage:
+                            startPage,
+                          recordingEndPage:
+                            Math.max(
+                              startPage,
+                              currentEnd
+                            ),
+                        },
+                      });
+                    }}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+                  />
+                </label>
+
+                <label className="text-xs text-gray-600 font-bold">
+                  Last required page
+                  <input
+                    type="number"
+                    min={
+                      step.config
+                        ?.recordingStartPage ||
+                      2
+                    }
+                    value={
+                      step.config
+                        ?.recordingEndPage ||
+                      7
+                    }
+                    onChange={e => {
+                      const startPage =
+                        Number(
+                          step.config
+                            ?.recordingStartPage
+                        ) || 2;
+
+                      update({
+                        config: {
+                          ...step.config,
+                          recordingEndPage:
+                            Math.max(
+                              startPage,
+                              parseInt(
+                                e.target.value,
+                                10
+                              ) || startPage
+                            ),
+                        },
+                      });
+                    }}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+                  />
+                </label>
+              </div>
+
+              <p className="text-[10px] font-bold text-teal-700">
+                The activity completes only
+                after a saved recording exists
+                for every page in this range.
+                Two-page recordings count for
+                both pages.
+              </p>
+            </>
+          )}
+
+          {!step.config?.bookId && (
+            <p className="text-[10px] font-bold text-amber-700">
+              Select a specific book to use
+              recording-based completion.
+            </p>
+          )}
+        </div>
       )}
 
       {step.mode === 'activities' && (
