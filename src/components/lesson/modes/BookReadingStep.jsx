@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import StudentBookReader from '@/components/book/StudentBookReader';
@@ -12,6 +13,7 @@ export default function BookReadingStep({
   className,
   onBack,
   onRecordingSaved,
+  onRequiredPagesLoaded,
 }) {
   const bookId = stepConfig?.bookId;
 
@@ -20,6 +22,39 @@ export default function BookReadingStep({
     queryFn: () => base44.entities.BookAssignment.get(bookId),
     enabled: !!bookId,
   });
+
+  const {
+    data: catalogBook,
+    isLoading: isCatalogLoading,
+  } = useQuery({
+    queryKey: [
+      'book-catalog',
+      book?.catalog_book_id,
+    ],
+    queryFn: () =>
+      base44.entities.BookCatalog.get(
+        book.catalog_book_id
+      ),
+    enabled: !!book?.catalog_book_id,
+  });
+
+  useEffect(() => {
+    if (!book) return;
+
+    const recordingPages = Array.isArray(
+      catalogBook?.recording_pages
+    )
+      ? catalogBook.recording_pages
+      : [];
+
+    onRequiredPagesLoaded?.(
+      recordingPages
+    );
+  }, [
+    book,
+    catalogBook?.recording_pages,
+    onRequiredPagesLoaded,
+  ]);
 
   // No specific book assigned → full class bookshelf.
   if (!bookId) {
@@ -32,7 +67,13 @@ export default function BookReadingStep({
     );
   }
 
-  if (isLoading) {
+  if (
+    isLoading ||
+    (
+      book?.catalog_book_id &&
+      isCatalogLoading
+    )
+  ) {
     return (
       <div className="flex items-center justify-center h-full" style={{ background: '#042f2e' }}>
         <div className="w-8 h-8 border-4 border-teal-400 border-t-transparent rounded-full animate-spin" />
@@ -66,6 +107,9 @@ export default function BookReadingStep({
       className={className}
       onBack={onBack}
       onRecordingSaved={onRecordingSaved}
+      recordingPages={
+        catalogBook?.recording_pages || []
+      }
     />
   );
 }
