@@ -23,6 +23,7 @@ export default function TeacherBookDashboard({ onBack }) {
   const [selectedCatalogBook, setSelectedCatalogBook] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [migratingCatalog, setMigratingCatalog] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [reviewDate, setReviewDate] = useState(todayLocal());
   const [qrBook, setQrBook] = useState(null);
@@ -161,6 +162,105 @@ export default function TeacherBookDashboard({ onBack }) {
     await uploadBook(file);
   };
 
+  const migrateExistingBooksToCatalog = async () => {
+    const confirmed = window.confirm(
+      'Create permanent catalog records for all existing books? This will not delete or replace any books.'
+    );
+
+    if (!confirmed) return;
+
+    setMigratingCatalog(true);
+
+    try {
+      const [allAssignments, existingCatalogBooks] = await Promise.all([
+        base44.entities.BookAssignment.list('-created_date', 1000),
+        base44.entities.BookCatalog.list('-created_date', 1000),
+      ]);
+
+      const catalogBySource = new Map();
+
+      for (const catalogBook of existingCatalogBooks) {
+        const sourceKey =
+          catalogBook.pdf_url ||
+          catalogBook.cover_image_url ||
+          '';
+
+        if (sourceKey && !catalogBySource.has(sourceKey)) {
+          catalogBySource.set(sourceKey, catalogBook);
+        }
+      }
+
+      let assignmentsUpdated = 0;
+      let catalogsCreated = 0;
+      let alreadyLinked = 0;
+
+      for (const assignment of allAssignments) {
+        if (assignment.catalog_book_id) {
+          alreadyLinked += 1;
+          continue;
+        }
+
+        const sourceKey =
+          assignment.pdf_url ||
+          assignment.cover_image_url ||
+          '';
+
+        let catalogBook = sourceKey
+          ? catalogBySource.get(sourceKey)
+          : null;
+
+        if (!catalogBook) {
+          catalogBook = await base44.entities.BookCatalog.create({
+            title: assignment.title,
+            pdf_url: assignment.pdf_url || null,
+            cover_image_url: assignment.cover_image_url || null,
+            pages: assignment.pages || [],
+            pdf_page_count: assignment.pdf_page_count || 1,
+            book_type: assignment.book_type || 'pdf',
+            module: assignment.module || '',
+            recording_pages: [],
+            source_assignment_id: assignment.id,
+          });
+
+          catalogsCreated += 1;
+
+          if (sourceKey) {
+            catalogBySource.set(sourceKey, catalogBook);
+          }
+        }
+
+        await base44.entities.BookAssignment.update(
+          assignment.id,
+          {
+            catalog_book_id: catalogBook.id,
+          }
+        );
+
+        assignmentsUpdated += 1;
+      }
+
+      qc.invalidateQueries(['books-all', className]);
+      qc.invalidateQueries(['books-shared']);
+      qc.invalidateQueries(['book-picker-books']);
+      qc.invalidateQueries(['books-linked']);
+
+      alert(
+        `Book catalog migration complete.\n\n` +
+        `${catalogsCreated} catalog records created\n` +
+        `${assignmentsUpdated} assignments linked\n` +
+        `${alreadyLinked} assignments were already linked`
+      );
+    } catch (error) {
+      console.error('Book catalog migration failed', error);
+
+      alert(
+        'The migration stopped because of an error. Books already processed are safe. You can run the migration again to finish the remaining books.'
+      );
+    } finally {
+      setMigratingCatalog(false);
+    }
+  };
+
   const setStatus = (status) => {
     if (!selectedBook) return;
     updateBook.mutate({ id: selectedBook.id, data: { status } });
@@ -192,7 +292,26 @@ export default function TeacherBookDashboard({ onBack }) {
         {tab === 'books' && (
           <div className="max-w-2xl mx-auto flex flex-col gap-4">
             <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#0f3d3a', border: '1px solid #0d9488' }}>
-              <p className="font-bold text-teal-200 text-sm">Create New Book</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-bold text-teal-200 text-sm">
+                  Create New Book
+                </p>
+
+                <button
+                  type="button"
+                  onClick={migrateExistingBooksToCatalog}
+                  disabled={migratingCatalog || uploading}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-50"
+                  style={{
+                    background: '#0f766e',
+                    border: '1px solid #14b8a6',
+                  }}
+                >
+                  {migratingCatalog
+                    ? 'Migrating books…'
+                    : 'Build permanent catalog'}
+                </button>
+              </div>
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Book title…"
                 className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
                 style={{ background: '#042f2e' }} />
