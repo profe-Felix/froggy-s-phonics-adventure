@@ -10,7 +10,18 @@ import { stopAllAudio } from '@/lib/audio';
 // Replaces the old step-card grid so a lesson reads as one continuous activity.
 const NAVY = '#26264d';
 
-export default function LessonStepper({ studentData, selectedStudent, lesson, steps, lessonId, onBack, onLessonComplete, onUpdateProgress, onStudentPatch }) {
+export default function LessonStepper({
+  studentData,
+  selectedStudent,
+  lesson,
+  steps,
+  lessonId,
+  onBack,
+  onLessonComplete,
+  onUpdateProgress,
+  onStudentPatch,
+  accessContext = 'school',
+}) {
   const { progress, isLoading, createError, retry } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
@@ -21,10 +32,33 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
   // step before they ever see the "Step Complete" coin celebration.
   const didInitialLandRef = useRef(false);
 
-  // Filter out live_only steps — they only appear during teacher-led live lessons.
+  // Independent lessons never show live-only activities. Home sessions also
+  // hide activities marked school-only.
   const visibleSteps = steps
-    .map((s, originalIndex) => ({ step: s, originalIndex }))
-    .filter(({ step }) => step.live_scope !== 'live_only');
+    .map((step, originalIndex) => ({
+      step,
+      originalIndex,
+    }))
+    .filter(({ step }) =>
+      step.live_scope !== 'live_only'
+    )
+    .filter(({ step }) =>
+      accessContext !== 'home' ||
+      step.access_scope !== 'school_only'
+    );
+
+  const visibleOriginalIndexes = new Set(
+    visibleSteps.map(({ originalIndex }) => originalIndex)
+  );
+
+  const completedHiddenStepCount =
+    completedSteps.filter(
+      (completedIndex) =>
+        !visibleOriginalIndexes.has(completedIndex)
+    ).length;
+
+  const completionStepCount =
+    visibleSteps.length + completedHiddenStepCount;
 
   // useLayoutEffect (not useEffect) so the step jump happens BEFORE the
   // browser paints. With useEffect, step 0 briefly mounts → its audio
@@ -74,6 +108,29 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
           className="px-6 py-3 rounded-full bg-[#26264d] text-white font-bold text-base shadow-lg active:scale-95"
         >
           Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (visibleSteps.length === 0) {
+    return (
+      <div className="h-screen bg-[#dae2f3] flex flex-col items-center justify-center gap-4 p-6">
+        <div className="text-5xl">🏫</div>
+
+        <h1 className="text-xl font-black text-[#26264d] text-center">
+          No activities available at home
+        </h1>
+
+        <p className="text-sm text-gray-600 text-center max-w-sm">
+          This lesson contains school-only activities. Complete them with your teacher at school.
+        </p>
+
+        <button
+          onClick={onBack}
+          className="px-6 py-3 rounded-full bg-white text-[#26264d] font-bold shadow"
+        >
+          Go back
         </button>
       </div>
     );
@@ -140,7 +197,7 @@ export default function LessonStepper({ studentData, selectedStudent, lesson, st
             step={step}
             stepIndex={curOriginalIndex}
             lessonId={lessonId}
-            totalSteps={steps.length}
+            totalSteps={completionStepCount}
             studentData={studentData}
             selectedStudent={selectedStudent}
             onUpdateProgress={onUpdateProgress}
