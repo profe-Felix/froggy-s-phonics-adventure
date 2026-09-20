@@ -84,7 +84,18 @@ function StepCard({ step, index, status, onStart }) {
   );
 }
 
-export default function LessonMap({ studentData, selectedStudent, onUpdateProgress, onStudentPatch, onLogout, onFreePlay, initialLessonId, onBack, onLessonComplete }) {
+export default function LessonMap({
+  studentData,
+  selectedStudent,
+  onUpdateProgress,
+  onStudentPatch,
+  onLogout,
+  onFreePlay,
+  initialLessonId,
+  onBack,
+  onLessonComplete,
+  accessContext = 'school',
+}) {
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -208,7 +219,16 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {dailyLessons.map((dailyLesson) => {
-              const activityCount = dailyLesson.steps.length;
+              const availableSteps =
+                dailyLesson.steps.filter((step) =>
+                  step.live_scope !== 'live_only' &&
+                  (
+                    accessContext !== 'home' ||
+                    step.access_scope !== 'school_only'
+                  )
+                );
+
+              const activityCount = availableSteps.length;
 
               const canOpen =
                 dailyLesson.active !== false &&
@@ -287,7 +307,10 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
                           ? `Complete • ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
                           : activityCount > 0
                             ? `${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
-                            : 'No activities assigned yet'}
+                            : accessContext === 'home' &&
+                              dailyLesson.steps.length > 0
+                              ? 'School activities only'
+                              : 'No activities assigned yet'}
                       </p>
                     </>
                   )}
@@ -320,6 +343,7 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
         onLessonComplete={handleDailyLessonComplete}
         onUpdateProgress={onUpdateProgress}
         onStudentPatch={onStudentPatch}
+        accessContext={accessContext}
       />
     );
   }
@@ -338,6 +362,7 @@ export default function LessonMap({ studentData, selectedStudent, onUpdateProgre
       onLessonComplete={onLessonComplete}
       onUpdateProgress={onUpdateProgress}
       onStudentPatch={onStudentPatch}
+      accessContext={accessContext}
     />
   );
 }
