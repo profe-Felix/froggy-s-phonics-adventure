@@ -1,0 +1,45 @@
+{
+  "name": "BookClassSettings",
+  "type": "object",
+  "properties": {
+    "book_assignment_id": {
+      "type": "string",
+      "description": "ID of the canonical BookAssignment"
+    },
+    "catalog_book_id": {
+      "type": "string",
+      "description": "Permanent BookCatalog identity"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class that owns these queue and student settings"
+    },
+    "school_year": {
+      "type": "string",
+      "description": "School year for these class-specific settings"
+    },
+    "queue_order": {
+      "type": "number",
+      "default": 0
+    },
+    "mastered_students": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "default": []
+    },
+    "assigned_students": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "book_assignment_id",
+    "class_name",
+    "school_year"
+  ]
+}
