@@ -13,9 +13,22 @@
       "default": "",
       "description": "ID of the permanent BookCatalog record for this book"
     },
+    "available_to_classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Classes allowed to use this book assignment"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year in which this book assignment is active"
+    },
     "module": {
       "type": "string",
-      "description": "Module folder e.g. M1, M2 … M9",
+      "description": "Module folder e.g. M1, M2 \u2026 M9",
       "default": ""
     },
     "cover_image_url": {
