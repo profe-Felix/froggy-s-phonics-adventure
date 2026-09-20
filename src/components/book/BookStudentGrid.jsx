@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
@@ -8,10 +8,49 @@ import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 
 // ── Review Modal ──────────────────────────────────────────────────────────────
 function ReviewModal({ session, initialRecording, book, onClose }) {
+  const qc = useQueryClient();
   const audioRef = useRef(null);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [reviewStatus, setReviewStatus] = useState('practicing');
+  const [teacherFeedback, setTeacherFeedback] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
   const totalPages = book.pdf_page_count || 1;
+
+  const {
+    data: reviews = [],
+    isLoading: isReviewLoading,
+  } = useQuery({
+    queryKey: [
+      'book-mastery-review',
+      book.id,
+      session.class_name,
+      session.student_number,
+      ACTIVE_SCHOOL_YEAR,
+    ],
+    queryFn: () =>
+      base44.entities.BookMasteryReview.filter({
+        book_assignment_id: book.id,
+        class_name: session.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        student_number: session.student_number,
+      }),
+  });
+
+  const existingReview = reviews[0] || null;
+
+  useEffect(() => {
+    if (!existingReview) return;
+
+    setReviewStatus(
+      existingReview.status || 'practicing'
+    );
+
+    setTeacherFeedback(
+      existingReview.teacher_feedback || ''
+    );
+  }, [existingReview?.id]);
 
   const allRecs = [...(session.recordings || [])].sort((a, b) => a.page - b.page);
   const [recIdx, setRecIdx] = useState(() => {
@@ -83,6 +122,185 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     return () => obs.disconnect();
   }, []);
 
+  const saveReview = async () => {
+    if (
+      reviewStatus !== 'needs_practice' &&
+      reviewStatus !== 'mastered'
+    ) {
+      alert(
+        'Choose Keep practicing or Mastered first.'
+      );
+      return;
+    }
+
+    setSavingReview(true);
+    setReviewMessage('');
+
+    try {
+      const alreadyRewarded =
+        existingReview?.reward_issued === true ||
+        Number(existingReview?.coins_awarded || 0) >= 50;
+
+      const reviewData = {
+        book_assignment_id: book.id,
+        catalog_book_id:
+          book.catalog_book_id || '',
+        class_name: session.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        student_number:
+          session.student_number,
+        reading_session_id: session.id,
+        status: reviewStatus,
+        teacher_feedback:
+          teacherFeedback.trim(),
+        reviewed_at: new Date().toISOString(),
+        coins_awarded:
+          existingReview?.coins_awarded || 0,
+        reward_issued:
+          existingReview?.reward_issued || false,
+      };
+
+      let savedReview;
+
+      if (existingReview) {
+        savedReview =
+          await base44.entities.BookMasteryReview.update(
+            existingReview.id,
+            reviewData
+          );
+      } else {
+        savedReview =
+          await base44.entities.BookMasteryReview.create(
+            reviewData
+          );
+      }
+
+      const settingsMatches =
+        await base44.entities.BookClassSettings.filter({
+          book_assignment_id: book.id,
+          class_name: session.class_name,
+          school_year: ACTIVE_SCHOOL_YEAR,
+        });
+
+      const existingSettings =
+        settingsMatches[0] || null;
+
+      const currentMastered =
+        existingSettings?.mastered_students || [];
+
+      const nextMastered =
+        reviewStatus === 'mastered'
+          ? Array.from(
+              new Set([
+                ...currentMastered,
+                session.student_number,
+              ])
+            )
+          : currentMastered.filter(
+              studentNumber =>
+                studentNumber !==
+                session.student_number
+            );
+
+      if (existingSettings) {
+        await base44.entities.BookClassSettings.update(
+          existingSettings.id,
+          {
+            mastered_students: nextMastered,
+          }
+        );
+      } else {
+        await base44.entities.BookClassSettings.create({
+          book_assignment_id: book.id,
+          catalog_book_id:
+            book.catalog_book_id || '',
+          class_name: session.class_name,
+          school_year: ACTIVE_SCHOOL_YEAR,
+          queue_order: 0,
+          mastered_students: nextMastered,
+          assigned_students: [],
+        });
+      }
+
+      let coinsAdded = false;
+
+      if (
+        reviewStatus === 'mastered' &&
+        !alreadyRewarded
+      ) {
+        const students =
+          await base44.entities.Student.filter({
+            class_name: session.class_name,
+            school_year: ACTIVE_SCHOOL_YEAR,
+          });
+
+        const student = students.find(
+          candidate =>
+            candidate.student_number ===
+            session.student_number
+        );
+
+        if (!student) {
+          throw new Error(
+            `Student #${session.student_number} was not found in class ${session.class_name}.`
+          );
+        }
+
+        await base44.entities.Student.update(
+          student.id,
+          {
+            coins:
+              Number(student.coins || 0) + 50,
+          }
+        );
+
+        await base44.entities.BookMasteryReview.update(
+          savedReview.id,
+          {
+            coins_awarded: 50,
+            reward_issued: true,
+          }
+        );
+
+        coinsAdded = true;
+      }
+
+      qc.invalidateQueries([
+        'book-mastery-review',
+        book.id,
+        session.class_name,
+        session.student_number,
+        ACTIVE_SCHOOL_YEAR,
+      ]);
+
+      qc.invalidateQueries([
+        'book-class-settings',
+        session.class_name,
+        ACTIVE_SCHOOL_YEAR,
+      ]);
+
+      setReviewMessage(
+        reviewStatus === 'mastered'
+          ? coinsAdded
+            ? 'Mastered — 50 coins awarded!'
+            : 'Mastered — reward was already awarded.'
+          : 'Saved — the student should keep practicing.'
+      );
+    } catch (error) {
+      console.error(
+        'Could not save book review',
+        error
+      );
+
+      alert(
+        error?.message ||
+          'The review could not be saved.'
+      );
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
   const renderPage = (pageNum) => {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
@@ -97,7 +315,7 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" style={{ background: 'rgba(0,0,0,0.88)' }} onClick={onClose}>
       <motion.div initial={{ scale: 0.92 }} animate={{ scale: 1 }}
         className="rounded-2xl overflow-hidden flex flex-col w-full max-w-3xl"
-        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '95vh', height: '90vh' }}
+        style={{ background: '#0f3d3a', border: '2px solid #0d9488', maxHeight: '95vh', height: '95vh' }}
         onClick={e => e.stopPropagation()}>
 
         <div className="flex items-center justify-between px-4 py-2 shrink-0" style={{ background: '#042f2e', borderBottom: '1px solid #0d9488' }}>
@@ -177,24 +395,166 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
           </div>
         </div>
 
-        <div className="p-3 shrink-0 flex flex-col gap-2" style={{ background: '#042f2e', borderTop: '1px solid #0d9488' }}>
-          <audio ref={audioRef} controls src={recording.audio_url} className="w-full" style={{ height: 36 }} />
+        <div
+          className="p-3 shrink-0 flex flex-col gap-2"
+          style={{
+            background: '#042f2e',
+            borderTop: '1px solid #0d9488',
+          }}
+        >
+          <audio
+            ref={audioRef}
+            controls
+            src={recording.audio_url}
+            className="w-full"
+            style={{ height: 36 }}
+          />
+
           {laserData.length > 0 && (
-            <p className="text-teal-400 text-xs">🔴 Laser replays with audio{isSpread ? ' (2-page spread)' : ''}</p>
+            <p className="text-teal-400 text-xs">
+              🔴 Laser replays with audio
+              {isSpread ? ' (2-page spread)' : ''}
+            </p>
           )}
+
           {allRecs.length > 1 && (
             <div className="flex items-center gap-2">
-              <button onClick={() => setRecIdx(i => Math.max(0, i - 1))} disabled={recIdx === 0}
+              <button
+                onClick={() =>
+                  setRecIdx(i =>
+                    Math.max(0, i - 1)
+                  )
+                }
+                disabled={recIdx === 0}
                 className="px-4 py-1 rounded-xl font-bold text-white disabled:opacity-30 text-sm"
-                style={{ background: '#0d9488' }}>‹</button>
+                style={{ background: '#0d9488' }}
+              >
+                ‹
+              </button>
+
               <span className="flex-1 text-center text-teal-300 text-xs font-bold">
-                Recording {recIdx + 1} / {allRecs.length}
+                Recording {recIdx + 1} /{' '}
+                {allRecs.length}
               </span>
-              <button onClick={() => setRecIdx(i => Math.min(allRecs.length - 1, i + 1))} disabled={recIdx === allRecs.length - 1}
+
+              <button
+                onClick={() =>
+                  setRecIdx(i =>
+                    Math.min(
+                      allRecs.length - 1,
+                      i + 1
+                    )
+                  )
+                }
+                disabled={
+                  recIdx === allRecs.length - 1
+                }
                 className="px-4 py-1 rounded-xl font-bold text-white disabled:opacity-30 text-sm"
-                style={{ background: '#0d9488' }}>›</button>
+                style={{ background: '#0d9488' }}
+              >
+                ›
+              </button>
             </div>
           )}
+
+          <div
+            className="rounded-xl p-3 flex flex-col gap-2"
+            style={{
+              background: '#0f3d3a',
+              border: '1px solid #0d9488',
+            }}
+          >
+            <p className="text-white text-sm font-black">
+              Teacher review
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={
+                  isReviewLoading ||
+                  savingReview
+                }
+                onClick={() =>
+                  setReviewStatus(
+                    'needs_practice'
+                  )
+                }
+                className={`py-2 rounded-xl text-sm font-bold disabled:opacity-50 ${
+                  reviewStatus ===
+                  'needs_practice'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-700 text-gray-200'
+                }`}
+              >
+                🔁 Keep practicing
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  isReviewLoading ||
+                  savingReview
+                }
+                onClick={() =>
+                  setReviewStatus('mastered')
+                }
+                className={`py-2 rounded-xl text-sm font-bold disabled:opacity-50 ${
+                  reviewStatus === 'mastered'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-700 text-gray-200'
+                }`}
+              >
+                ✅ Mastered
+              </button>
+            </div>
+
+            <textarea
+              value={teacherFeedback}
+              onChange={event =>
+                setTeacherFeedback(
+                  event.target.value
+                )
+              }
+              disabled={
+                isReviewLoading ||
+                savingReview
+              }
+              rows={2}
+              maxLength={500}
+              placeholder="Optional feedback for the student…"
+              className="w-full rounded-xl px-3 py-2 text-sm text-white border border-teal-700 disabled:opacity-50"
+              style={{
+                background: '#042f2e',
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={saveReview}
+              disabled={
+                isReviewLoading ||
+                savingReview
+              }
+              className="w-full py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-black disabled:opacity-50"
+            >
+              {savingReview
+                ? 'Saving…'
+                : 'Save review'}
+            </button>
+
+            {reviewMessage && (
+              <p
+                className={`text-xs font-bold text-center ${
+                  reviewStatus === 'mastered'
+                    ? 'text-green-300'
+                    : 'text-orange-300'
+                }`}
+              >
+                {reviewMessage}
+              </p>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>
