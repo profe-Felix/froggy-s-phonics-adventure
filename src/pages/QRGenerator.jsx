@@ -23,6 +23,7 @@ export default function QRGenerator() {
   const [generating, setGenerating] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [zoom, setZoom] = useState(1.4);
+  const [qrContext, setQrContext] = useState('school');
 
   const baseUrl = `${window.location.origin}/ID`;
 
@@ -107,6 +108,18 @@ export default function QRGenerator() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-600">
+              QR use
+              <select
+                value={qrContext}
+                onChange={(e) => setQrContext(e.target.value)}
+                className="bg-white border rounded-md px-3 py-2"
+              >
+                <option value="school">Classroom</option>
+                <option value="home">Home</option>
+              </select>
+            </label>
+
             <button onClick={selectAll} className="flex items-center gap-1.5 text-sm bg-white border rounded-md px-3 py-2 hover:bg-gray-50 font-medium text-muted-foreground">
               <CheckCheck className="w-4 h-4" /> All
             </button>
@@ -207,7 +220,9 @@ export default function QRGenerator() {
                     {Array.from({ length: CARDS_PER_SHEET }).map((_, ci) => {
                       const s = sheetStudents[ci];
                       if (!s) return <div key={ci} className="qr-card qr-card--empty" />;
-                      const url = `${baseUrl}?barcode=${encodeURIComponent(s.barcode_number)}`;
+                      const url =
+                        `${baseUrl}?barcode=${encodeURIComponent(s.barcode_number)}` +
+                        `&context=${encodeURIComponent(qrContext)}`;
                       return (
                         <div key={ci} className="qr-card">
                           <QRCodeSVG value={url} size={100} />
