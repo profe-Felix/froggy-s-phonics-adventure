@@ -82,6 +82,116 @@ export default function TeacherBookDashboard({ onBack }) {
     book.available_to_classes.includes(className)
   );
 
+  const {
+    data: bookClassSettings = [],
+  } = useQuery({
+    queryKey: [
+      'book-class-settings',
+      className,
+      ACTIVE_SCHOOL_YEAR,
+    ],
+    queryFn: () =>
+      base44.entities.BookClassSettings.filter({
+        class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      }),
+    enabled: Boolean(className),
+  });
+
+  const getBookClassSettings = book =>
+    bookClassSettings.find(
+      settings =>
+        settings.book_assignment_id === book.id
+    );
+
+  const saveBookClassSettings = useMutation({
+    mutationFn: async ({ book, data }) => {
+      const matches =
+        await base44.entities.BookClassSettings.filter({
+          book_assignment_id: book.id,
+          class_name: className,
+          school_year: ACTIVE_SCHOOL_YEAR,
+        });
+
+      const existing = matches[0];
+
+      if (existing) {
+        return base44.entities.BookClassSettings.update(
+          existing.id,
+          data
+        );
+      }
+
+      const useLegacyValues =
+        book.class_name === className;
+
+      return base44.entities.BookClassSettings.create({
+        book_assignment_id: book.id,
+        catalog_book_id:
+          book.catalog_book_id || '',
+        class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        queue_order:
+          data.queue_order ??
+          book.queue_order ??
+          0,
+        mastered_students:
+          data.mastered_students ??
+          (useLegacyValues
+            ? book.mastered_students || []
+            : []),
+        assigned_students:
+          data.assigned_students ??
+          (useLegacyValues
+            ? book.assigned_students || []
+            : []),
+      });
+    },
+    onSuccess: () =>
+      qc.invalidateQueries([
+        'book-class-settings',
+        className,
+        ACTIVE_SCHOOL_YEAR,
+      ]),
+  });
+
+  const queueBooks = assignedBooks
+    .filter(
+      book =>
+        book.status === 'active' ||
+        book.status === 'draft'
+    )
+    .map(book => {
+      const settings =
+        getBookClassSettings(book);
+
+      const useLegacyValues =
+        book.class_name === className;
+
+      return {
+        ...book,
+        queue_order:
+          settings?.queue_order ??
+          book.queue_order ??
+          0,
+        mastered_students:
+          settings?.mastered_students ??
+          (useLegacyValues
+            ? book.mastered_students || []
+            : []),
+        assigned_students:
+          settings?.assigned_students ??
+          (useLegacyValues
+            ? book.assigned_students || []
+            : []),
+      };
+    })
+    .sort(
+      (a, b) =>
+        (a.queue_order || 0) -
+        (b.queue_order || 0)
+    );
+
   const updateBook = useMutation({
     mutationFn: ({ id, data }) => base44.entities.BookAssignment.update(id, data),
     onSuccess: () => qc.invalidateQueries(['books-all', className]),
@@ -569,88 +679,238 @@ export default function TeacherBookDashboard({ onBack }) {
 
         {tab === 'queue' && (
           <div className="max-w-2xl mx-auto flex flex-col gap-4">
-            <p className="text-teal-300 text-sm">Arrange books in reading order. Mark students as "mastered" to let them advance to the next book in the queue.</p>
+            <p className="text-teal-300 text-sm">
+              Arrange books in reading order. Mark students as
+              "mastered" to let them advance to the next book in
+              this class's queue.
+            </p>
 
-            {/* Active books sorted by queue_order */}
-            {[...assignedBooks].filter(b => b.status === 'active' || b.status === 'draft').sort((a, b) => (a.queue_order || 0) - (b.queue_order || 0)).map((b, idx, arr) => (
-              <div key={b.id} className="rounded-2xl p-4 flex flex-col gap-3"
-                style={{ background: '#0f3d3a', border: '1px solid #0d9488' }}>
+            {queueBooks.map((b, idx, arr) => (
+              <div
+                key={b.id}
+                className="rounded-2xl p-4 flex flex-col gap-3"
+                style={{
+                  background: '#0f3d3a',
+                  border: '1px solid #0d9488',
+                }}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col gap-1">
-                    <button disabled={idx === 0}
+                    <button
+                      disabled={idx === 0}
                       onClick={() => {
-                        const prev = arr[idx - 1];
-                        updateBook.mutate({ id: b.id, data: { queue_order: prev.queue_order || idx - 1 } });
-                        updateBook.mutate({ id: prev.id, data: { queue_order: b.queue_order || idx } });
+                        const previousBook =
+                          arr[idx - 1];
+
+                        saveBookClassSettings.mutate({
+                          book: b,
+                          data: {
+                            queue_order: idx - 1,
+                          },
+                        });
+
+                        saveBookClassSettings.mutate({
+                          book: previousBook,
+                          data: {
+                            queue_order: idx,
+                          },
+                        });
                       }}
-                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20">▲</button>
-                    <button disabled={idx === arr.length - 1}
+                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20"
+                    >
+                      ▲
+                    </button>
+
+                    <button
+                      disabled={idx === arr.length - 1}
                       onClick={() => {
-                        const next = arr[idx + 1];
-                        updateBook.mutate({ id: b.id, data: { queue_order: next.queue_order || idx + 1 } });
-                        updateBook.mutate({ id: next.id, data: { queue_order: b.queue_order || idx } });
+                        const nextBook =
+                          arr[idx + 1];
+
+                        saveBookClassSettings.mutate({
+                          book: b,
+                          data: {
+                            queue_order: idx + 1,
+                          },
+                        });
+
+                        saveBookClassSettings.mutate({
+                          book: nextBook,
+                          data: {
+                            queue_order: idx,
+                          },
+                        });
                       }}
-                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20">▼</button>
+                      className="text-teal-300 hover:text-white font-bold text-xs disabled:opacity-20"
+                    >
+                      ▼
+                    </button>
                   </div>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shrink-0"
-                    style={{ background: '#0d9488', color: 'white' }}>{idx + 1}</div>
-                  {b.cover_image_url
-                    ? <img src={b.cover_image_url} alt={b.title} className="w-10 h-10 rounded-xl object-cover shrink-0" />
-                    : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: '#0f766e' }}>📖</div>}
+
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center font-black text-lg shrink-0"
+                    style={{
+                      background: '#0d9488',
+                      color: 'white',
+                    }}
+                  >
+                    {idx + 1}
+                  </div>
+
+                  {b.cover_image_url ? (
+                    <img
+                      src={b.cover_image_url}
+                      alt={b.title}
+                      className="w-10 h-10 rounded-xl object-cover shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+                      style={{
+                        background: '#0f766e',
+                      }}
+                    >
+                      📖
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-white text-sm truncate">{b.title}</p>
-                    <p className="text-teal-400 text-xs">{b.status} · {b.pdf_page_count || '?'} pages</p>
+                    <p className="font-black text-white text-sm truncate">
+                      {b.title}
+                    </p>
+                    <p className="text-teal-400 text-xs">
+                      {b.status}
+                      {' · '}
+                      {b.pdf_page_count || '?'} pages
+                      {' · '}
+                      Class {className}
+                    </p>
                   </div>
                 </div>
 
-                {/* Mastery grid */}
                 <div>
-                  <p className="text-teal-300 text-xs font-bold mb-1.5">✅ Mastered (can advance to next book):</p>
+                  <p className="text-teal-300 text-xs font-bold mb-1.5">
+                    ✅ Mastered for {className}:
+                  </p>
+
                   <div className="flex flex-wrap gap-1.5">
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(n => {
-                      const mastered = (b.mastered_students || []).includes(n);
+                    {Array.from(
+                      { length: 30 },
+                      (_, i) => i + 1
+                    ).map(n => {
+                      const mastered = (
+                        b.mastered_students || []
+                      ).includes(n);
+
                       return (
-                        <button key={n}
+                        <button
+                          key={n}
                           onClick={() => {
-                            const current = b.mastered_students || [];
-                            const next = mastered ? current.filter(s => s !== n) : [...current, n];
-                            updateBook.mutate({ id: b.id, data: { mastered_students: next } });
+                            const current =
+                              b.mastered_students || [];
+
+                            const next = mastered
+                              ? current.filter(
+                                  studentNumber =>
+                                    studentNumber !== n
+                                )
+                              : [...current, n];
+
+                            saveBookClassSettings.mutate({
+                              book: b,
+                              data: {
+                                mastered_students: next,
+                              },
+                            });
                           }}
-                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${mastered ? 'bg-green-600 text-white' : 'text-teal-500 border border-teal-800 hover:border-teal-500'}`}>
+                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
+                            mastered
+                              ? 'bg-green-600 text-white'
+                              : 'text-teal-500 border border-teal-800 hover:border-teal-500'
+                          }`}
+                        >
                           {n}
                         </button>
                       );
                     })}
                   </div>
-                  {(b.mastered_students || []).length > 0 && (
+
+                  {(b.mastered_students || []).length >
+                    0 && (
                     <p className="text-green-400 text-xs mt-1 font-bold">
-                      {(b.mastered_students || []).length} student{(b.mastered_students || []).length !== 1 ? 's' : ''} mastered → can read next book
+                      {
+                        (b.mastered_students || [])
+                          .length
+                      }{' '}
+                      student
+                      {(b.mastered_students || [])
+                        .length !== 1
+                        ? 's'
+                        : ''}{' '}
+                      mastered in {className}
                     </p>
                   )}
                 </div>
 
-                {/* Individual assignment — empty = all students, non-empty = only those students */}
                 <div>
-                  <p className="text-teal-300 text-xs font-bold mb-1.5">👤 Assigned to (empty = all students):</p>
+                  <p className="text-teal-300 text-xs font-bold mb-1.5">
+                    👤 Assigned in {className} (empty = all
+                    students):
+                  </p>
+
                   <div className="flex flex-wrap gap-1.5">
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(n => {
-                      const assigned = (b.assigned_students || []).includes(n);
+                    {Array.from(
+                      { length: 30 },
+                      (_, i) => i + 1
+                    ).map(n => {
+                      const assigned = (
+                        b.assigned_students || []
+                      ).includes(n);
+
                       return (
-                        <button key={n}
+                        <button
+                          key={n}
                           onClick={() => {
-                            const current = b.assigned_students || [];
-                            const next = assigned ? current.filter(s => s !== n) : [...current, n];
-                            updateBook.mutate({ id: b.id, data: { assigned_students: next } });
+                            const current =
+                              b.assigned_students || [];
+
+                            const next = assigned
+                              ? current.filter(
+                                  studentNumber =>
+                                    studentNumber !== n
+                                )
+                              : [...current, n];
+
+                            saveBookClassSettings.mutate({
+                              book: b,
+                              data: {
+                                assigned_students: next,
+                              },
+                            });
                           }}
-                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${assigned ? 'bg-indigo-600 text-white' : 'text-teal-500 border border-teal-800 hover:border-teal-500'}`}>
+                          className={`w-7 h-7 rounded-lg font-bold text-xs transition-all ${
+                            assigned
+                              ? 'bg-indigo-600 text-white'
+                              : 'text-teal-500 border border-teal-800 hover:border-teal-500'
+                          }`}
+                        >
                           {n}
                         </button>
                       );
                     })}
                   </div>
-                  {(b.assigned_students || []).length > 0 && (
+
+                  {(b.assigned_students || []).length >
+                    0 && (
                     <button
-                      onClick={() => updateBook.mutate({ id: b.id, data: { assigned_students: [] } })}
+                      onClick={() =>
+                        saveBookClassSettings.mutate({
+                          book: b,
+                          data: {
+                            assigned_students: [],
+                          },
+                        })
+                      }
                       className="text-teal-400 text-xs font-bold mt-1 hover:text-white underline"
                     >
                       Clear (assign to all)
@@ -660,8 +920,10 @@ export default function TeacherBookDashboard({ onBack }) {
               </div>
             ))}
 
-            {assignedBooks.filter(b => b.status === 'active' || b.status === 'draft').length === 0 && (
-              <p className="text-teal-400 text-center mt-8">No active books yet. Create books in the Books tab.</p>
+            {queueBooks.length === 0 && (
+              <p className="text-teal-400 text-center mt-8">
+                No books are assigned to this class's queue yet.
+              </p>
             )}
           </div>
         )}
