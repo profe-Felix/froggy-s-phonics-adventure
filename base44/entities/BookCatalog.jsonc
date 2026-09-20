@@ -1,0 +1,64 @@
+{
+  "name": "BookCatalog",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "Permanent PDF source for this book"
+    },
+    "cover_image_url": {
+      "type": "string",
+      "description": "Permanent cover image for this book"
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "default": [],
+      "description": "Array of {page_number, image_url} for image-based books"
+    },
+    "pdf_page_count": {
+      "type": "integer",
+      "default": 1
+    },
+    "book_type": {
+      "type": "string",
+      "enum": [
+        "pdf",
+        "images"
+      ],
+      "default": "pdf"
+    },
+    "module": {
+      "type": "string",
+      "default": "",
+      "description": "Module folder such as M1, M2, or M3"
+    },
+    "recording_pages": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": [],
+      "description": "Permanent list of pages on which students should make recordings"
+    },
+    "source_assignment_id": {
+      "type": "string",
+      "default": "",
+      "description": "Original BookAssignment used when this catalog record was created"
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
