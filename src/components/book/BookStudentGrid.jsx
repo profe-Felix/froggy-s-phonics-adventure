@@ -137,9 +137,27 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
     setReviewMessage('');
 
     try {
+      // Recheck immediately before saving so a
+      // recently created review cannot be duplicated.
+      const latestReviews =
+        await base44.entities.BookMasteryReview.filter({
+          book_assignment_id: book.id,
+          class_name: session.class_name,
+          school_year: ACTIVE_SCHOOL_YEAR,
+          student_number:
+            session.student_number,
+        });
+
+      const currentReview =
+        latestReviews[0] ||
+        existingReview ||
+        null;
+
       const alreadyRewarded =
-        existingReview?.reward_issued === true ||
-        Number(existingReview?.coins_awarded || 0) >= 50;
+        currentReview?.reward_issued === true ||
+        Number(
+          currentReview?.coins_awarded || 0
+        ) >= 50;
 
       const reviewData = {
         book_assignment_id: book.id,
@@ -155,17 +173,17 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
           teacherFeedback.trim(),
         reviewed_at: new Date().toISOString(),
         coins_awarded:
-          existingReview?.coins_awarded || 0,
+          currentReview?.coins_awarded || 0,
         reward_issued:
-          existingReview?.reward_issued || false,
+          currentReview?.reward_issued || false,
       };
 
       let savedReview;
 
-      if (existingReview) {
+      if (currentReview) {
         savedReview =
           await base44.entities.BookMasteryReview.update(
-            existingReview.id,
+            currentReview.id,
             reviewData
           );
       } else {
@@ -396,7 +414,7 @@ function ReviewModal({ session, initialRecording, book, onClose }) {
         </div>
 
         <div
-          className="p-3 shrink-0 flex flex-col gap-2"
+          className="p-3 shrink-0 flex flex-col gap-2 max-h-[55vh] overflow-y-auto"
           style={{
             background: '#042f2e',
             borderTop: '1px solid #0d9488',
