@@ -82,12 +82,6 @@ export default function TeacherBookDashboard({ onBack }) {
     book.available_to_classes.includes(className)
   );
 
-  const { data: sharedBooks = [] } = useQuery({
-    queryKey: ['books-shared'],
-    queryFn: () => base44.entities.BookAssignment.filter({ shared_across_classes: true }),
-    refetchInterval: 30000,
-  });
-
   const updateBook = useMutation({
     mutationFn: ({ id, data }) => base44.entities.BookAssignment.update(id, data),
     onSuccess: () => qc.invalidateQueries(['books-all', className]),
@@ -95,7 +89,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
   const deleteBook = useMutation({
     mutationFn: (id) => base44.entities.BookAssignment.delete(id),
-    onSuccess: () => { qc.invalidateQueries(['books-all', className]); qc.invalidateQueries(['books-shared']); setSelectedBook(null); },
+    onSuccess: () => { qc.invalidateQueries(['books-all', className]); setSelectedBook(null); },
   });
 
   const extractPageCount = async (file) => {
@@ -227,6 +221,140 @@ export default function TeacherBookDashboard({ onBack }) {
     await uploadBook(file);
   };
 
+  const getBookClasses = book =>
+    Array.isArray(book.available_to_classes)
+      ? book.available_to_classes
+      : [];
+
+  const getMatchingClasses = book => {
+    const bookLanguage = book.language || 'es';
+    const bookGrade = book.grade || 'kinder';
+
+    return CLASS_CONFIGS
+      .filter(config => {
+        const gradeMatches =
+          (config.grade || 'kinder') ===
+          bookGrade;
+
+        const languageMatches =
+          bookLanguage === 'bilingual' ||
+          (config.language || 'es') ===
+            bookLanguage;
+
+        return gradeMatches && languageMatches;
+      })
+      .map(config => config.class_name)
+      .filter(Boolean);
+  };
+
+  const toggleSelectedClassAccess =
+    async book => {
+      const currentClasses =
+        getBookClasses(book);
+
+      const alreadyAssigned =
+        currentClasses.includes(className);
+
+      const availableToClasses =
+        alreadyAssigned
+          ? currentClasses.filter(
+              currentClass =>
+                currentClass !== className
+            )
+          : Array.from(
+              new Set([
+                ...currentClasses,
+                className,
+              ])
+            );
+
+      await base44.entities.BookAssignment.update(
+        book.id,
+        {
+          available_to_classes:
+            availableToClasses,
+        }
+      );
+
+      qc.invalidateQueries([
+        'books-all',
+        className,
+      ]);
+
+      qc.invalidateQueries([
+        'books-linked',
+        className,
+      ]);
+    };
+
+  const toggleAllMatchingClassAccess =
+    async book => {
+      const currentClasses =
+        getBookClasses(book);
+
+      const matchingClasses =
+        getMatchingClasses(book);
+
+      const allMatchingAssigned =
+        matchingClasses.length > 0 &&
+        matchingClasses.every(
+          matchingClass =>
+            currentClasses.includes(
+              matchingClass
+            )
+        );
+
+      let availableToClasses;
+
+      if (allMatchingAssigned) {
+        // Turn off the group scope but keep the
+        // currently selected class assigned.
+        availableToClasses =
+          currentClasses.filter(
+            currentClass =>
+              !matchingClasses.includes(
+                currentClass
+              ) ||
+              currentClass === className
+          );
+
+        if (
+          !availableToClasses.includes(
+            className
+          )
+        ) {
+          availableToClasses.push(className);
+        }
+      } else {
+        availableToClasses = Array.from(
+          new Set([
+            ...currentClasses,
+            ...matchingClasses,
+          ])
+        );
+      }
+
+      await base44.entities.BookAssignment.update(
+        book.id,
+        {
+          available_to_classes:
+            availableToClasses,
+          shared_across_classes:
+            !allMatchingAssigned,
+        }
+      );
+
+      qc.invalidateQueries([
+        'books-all',
+        className,
+      ]);
+
+      qc.invalidateQueries([
+        'books-linked',
+        className,
+      ]);
+    };
+
   const setStatus = (status) => {
     if (!selectedBook) return;
     updateBook.mutate({ id: selectedBook.id, data: { status } });
@@ -312,7 +440,15 @@ export default function TeacherBookDashboard({ onBack }) {
                 <div className="flex-1">
                   <p className="font-black text-white">{b.title}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-teal-400">{b.status} · {b.pdf_page_count || '?'} pages</p>
+                    <p className="text-xs text-teal-400">
+                      {getBookClasses(b).includes(className)
+                        ? 'Assigned to this class'
+                        : 'Not assigned to this class'}
+                      {' · '}
+                      {b.status}
+                      {' · '}
+                      {b.pdf_page_count || '?'} pages
+                    </p>
                     {b.module && <span className="text-xs text-teal-200 bg-teal-800 px-2 py-0.5 rounded-full">{b.module}</span>}
                   </div>
                 </div>
@@ -332,10 +468,69 @@ export default function TeacherBookDashboard({ onBack }) {
                     {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                   <button
-                    title={b.shared_across_classes ? 'Shared with all classes — click to unshare' : 'Share with all classes'}
-                    onClick={() => updateBook.mutate({ id: b.id, data: { shared_across_classes: !b.shared_across_classes } })}
-                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${b.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-teal-900 hover:text-teal-300'}`}>
-                    {b.shared_across_classes ? '🌐 Shared' : '🔒 Private'}
+                    title={
+                      getBookClasses(b).includes(
+                        className
+                      )
+                        ? `Remove student access for ${className}`
+                        : `Give student access to ${className}`
+                    }
+                    onClick={() =>
+                      toggleSelectedClassAccess(b)
+                    }
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                      getBookClasses(b).includes(
+                        className
+                      )
+                        ? 'bg-teal-700 text-teal-100'
+                        : 'bg-gray-700 text-gray-300'
+                    }`}
+                  >
+                    {getBookClasses(b).includes(
+                      className
+                    )
+                      ? `✓ ${className}`
+                      : `+ ${className}`}
+                  </button>
+
+                  <button
+                    title="Assign this book to every class with the same language and grade"
+                    onClick={() =>
+                      toggleAllMatchingClassAccess(b)
+                    }
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${
+                      getMatchingClasses(b).length > 0 &&
+                      getMatchingClasses(b).every(
+                        matchingClass =>
+                          getBookClasses(b).includes(
+                            matchingClass
+                          )
+                      )
+                        ? 'bg-yellow-600 text-yellow-100'
+                        : 'bg-gray-700 text-gray-300'
+                    }`}
+                  >
+                    {getMatchingClasses(b).length > 0 &&
+                    getMatchingClasses(b).every(
+                      matchingClass =>
+                        getBookClasses(b).includes(
+                          matchingClass
+                        )
+                    )
+                      ? `🌐 All ${
+                          (b.language || 'es') === 'en'
+                            ? 'English'
+                            : (b.language || 'es') ===
+                                'bilingual'
+                              ? 'Bilingual'
+                              : 'Spanish'
+                        } ${
+                          (b.grade || 'kinder') ===
+                          'first'
+                            ? '1st Grade'
+                            : 'Kinder'
+                        }`
+                      : '🌐 Assign all matching'}
                   </button>
                   <button
                     onClick={() => {
@@ -350,107 +545,25 @@ export default function TeacherBookDashboard({ onBack }) {
                     {b.status}
                   </button>
                   <button
-                    onClick={() => { if (confirm(`Remove "${b.title}" from class ${className}? This unassigns it from this class's library.`)) deleteBook.mutate(b.id); }}
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Permanently delete "${b.title}"?\n\n` +
+                          'This removes the canonical book for every class. ' +
+                          'Use the class access button instead if you only want to remove student access.'
+                        )
+                      ) {
+                        deleteBook.mutate(b.id);
+                      }
+                    }}
                     className="px-2 py-1 rounded-full text-xs font-bold bg-red-900 text-red-200 hover:bg-red-700 transition-all hover:scale-105"
-                    title="Unassign this book from this class"
+                    title="Permanently delete this book for every class"
                   >
                     🗑
                   </button>
                 </div>
               </motion.div>
             ))}
-
-            {/* Shared library from other classes */}
-            {sharedBooks.filter(b =>
-              bookMatchesClassLanguage(b) &&
-              b.class_name !== className &&
-              !(
-                Array.isArray(b.available_to_classes) &&
-                b.available_to_classes.includes(className)
-              )
-            ).length > 0 && (
-              <div className="mt-2">
-                <p className="text-teal-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
-                {sharedBooks.filter(b =>
-                  bookMatchesClassLanguage(b) &&
-                  b.class_name !== className &&
-                  !(
-                    Array.isArray(b.available_to_classes) &&
-                    b.available_to_classes.includes(className)
-                  )
-                ).map(b => (
-                  <div key={b.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
-                    style={{ background: '#0a2e2c', border: '1px dashed #0d9488' }}>
-                    {b.cover_image_url
-                      ? <img src={b.cover_image_url} alt={b.title} className="w-12 h-12 rounded-xl object-cover" />
-                      : <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: '#0f766e' }}>📖</div>}
-                    <div className="flex-1">
-                      <p className="font-black text-white text-sm">{b.title}</p>
-                      <p className="text-teal-400 text-xs">
-                        {(b.language || 'es') === 'en'
-                          ? 'English'
-                          : (b.language || 'es') === 'bilingual'
-                            ? 'Bilingual'
-                            : 'Spanish'}
-                        {' · '}
-                        {b.pdf_page_count || '?'} pages
-                        {b.module ? ` · ${b.module}` : ''}
-                      </p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const currentClasses =
-                            Array.isArray(b.available_to_classes) &&
-                            b.available_to_classes.length > 0
-                              ? b.available_to_classes
-                              : [b.class_name].filter(Boolean);
-
-                          const availableToClasses = Array.from(
-                            new Set([
-                              ...currentClasses,
-                              className,
-                            ])
-                          );
-
-                          await base44.entities.BookAssignment.update(
-                            b.id,
-                            {
-                              available_to_classes:
-                                availableToClasses,
-                              school_year:
-                                b.school_year ||
-                                ACTIVE_SCHOOL_YEAR,
-                            }
-                          );
-
-                          qc.invalidateQueries([
-                            'books-all',
-                            className,
-                          ]);
-
-                          qc.invalidateQueries([
-                            'books-shared',
-                          ]);
-                        } catch (error) {
-                          console.error(
-                            'Granting book access failed',
-                            error
-                          );
-
-                          alert(
-                            'Access to this book could not be updated.'
-                          );
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
-                      style={{ background: '#0f766e', border: '1px solid #14b8a6' }}>
-                      + Give access to {className}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -547,7 +660,7 @@ export default function TeacherBookDashboard({ onBack }) {
               </div>
             ))}
 
-            {books.filter(b => b.status === 'active' || b.status === 'draft').length === 0 && (
+            {assignedBooks.filter(b => b.status === 'active' || b.status === 'draft').length === 0 && (
               <p className="text-teal-400 text-center mt-8">No active books yet. Create books in the Books tab.</p>
             )}
           </div>
