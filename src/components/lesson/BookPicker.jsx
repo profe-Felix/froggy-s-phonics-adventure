@@ -130,9 +130,6 @@ export default function BookPicker({
             value={book.id}
           >
             {book.title}
-            {book.class_name
-              ? ` · ${book.class_name}`
-              : ''}
           </option>
         ))}
       </select>
