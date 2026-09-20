@@ -194,9 +194,11 @@ export default function TeacherBookDashboard({ onBack }) {
     await uploadBook(file);
   };
 
-  const migrateExistingBooksToCatalog = async () => {
+  const consolidateBooksIntoFelix = async () => {
     const confirmed = window.confirm(
-      'Create permanent catalog records for all existing books? This will not delete or replace any books.'
+      'Consolidate duplicate book assignments into the Felix versions?\n\n' +
+      'This will update lessons and saved reading sessions before deleting duplicate assignments. ' +
+      'Books without a Felix version will be skipped.'
     );
 
     if (!confirmed) return;
@@ -204,89 +206,297 @@ export default function TeacherBookDashboard({ onBack }) {
     setMigratingCatalog(true);
 
     try {
-      const [allAssignments, existingCatalogBooks] = await Promise.all([
-        base44.entities.BookAssignment.list('-created_date', 1000),
-        base44.entities.BookCatalog.list('-created_date', 1000),
+      const [
+        allAssignments,
+        allLessons,
+      ] = await Promise.all([
+        base44.entities.BookAssignment.list(
+          '-created_date',
+          1000
+        ),
+        base44.entities.Lesson.list(),
       ]);
 
-      const catalogBySource = new Map();
-
-      for (const catalogBook of existingCatalogBooks) {
-        const sourceKey =
-          catalogBook.pdf_url ||
-          catalogBook.cover_image_url ||
-          '';
-
-        if (sourceKey && !catalogBySource.has(sourceKey)) {
-          catalogBySource.set(sourceKey, catalogBook);
-        }
-      }
-
-      let assignmentsUpdated = 0;
-      let catalogsCreated = 0;
-      let alreadyLinked = 0;
+      const assignmentsByCatalog = new Map();
 
       for (const assignment of allAssignments) {
-        if (assignment.catalog_book_id) {
-          alreadyLinked += 1;
+        if (!assignment.catalog_book_id) continue;
+
+        if (
+          !assignmentsByCatalog.has(
+            assignment.catalog_book_id
+          )
+        ) {
+          assignmentsByCatalog.set(
+            assignment.catalog_book_id,
+            []
+          );
+        }
+
+        assignmentsByCatalog
+          .get(assignment.catalog_book_id)
+          .push(assignment);
+      }
+
+      const replaceBookIdInSteps = (
+        steps,
+        oldBookId,
+        newBookId
+      ) => {
+        let changed = false;
+
+        const nextSteps = (steps || []).map(step => {
+          if (step?.config?.bookId !== oldBookId) {
+            return step;
+          }
+
+          changed = true;
+
+          return {
+            ...step,
+            config: {
+              ...(step.config || {}),
+              bookId: newBookId,
+            },
+          };
+        });
+
+        return {
+          steps: nextSteps,
+          changed,
+        };
+      };
+
+      let lessons = [...allLessons];
+      let groupsConsolidated = 0;
+      let assignmentsDeleted = 0;
+      let assignmentsSkipped = 0;
+      let lessonsUpdated = 0;
+      let sessionsUpdated = 0;
+
+      for (
+        const [catalogBookId, assignments]
+        of assignmentsByCatalog.entries()
+      ) {
+        if (assignments.length < 2) continue;
+
+        const felixAssignment = assignments.find(
+          assignment =>
+            String(
+              assignment.class_name || ''
+            ).trim().toLowerCase() === 'felix'
+        );
+
+        if (!felixAssignment) {
+          assignmentsSkipped += assignments.length;
           continue;
         }
 
-        const sourceKey =
-          assignment.pdf_url ||
-          assignment.cover_image_url ||
-          '';
+        const duplicates = assignments.filter(
+          assignment =>
+            assignment.id !== felixAssignment.id
+        );
 
-        let catalogBook = sourceKey
-          ? catalogBySource.get(sourceKey)
-          : null;
-
-        if (!catalogBook) {
-          catalogBook = await base44.entities.BookCatalog.create({
-            title: assignment.title,
-            pdf_url: assignment.pdf_url || null,
-            cover_image_url: assignment.cover_image_url || null,
-            pages: assignment.pages || [],
-            pdf_page_count: assignment.pdf_page_count || 1,
-            book_type: assignment.book_type || 'pdf',
-            module: assignment.module || '',
-            recording_pages: [],
-            source_assignment_id: assignment.id,
-          });
-
-          catalogsCreated += 1;
-
-          if (sourceKey) {
-            catalogBySource.set(sourceKey, catalogBook);
-          }
-        }
+        const mergedClasses = Array.from(
+          new Set(
+            assignments.flatMap(assignment => [
+              assignment.class_name,
+              ...(
+                Array.isArray(
+                  assignment.available_to_classes
+                )
+                  ? assignment.available_to_classes
+                  : []
+              ),
+            ]).filter(Boolean)
+          )
+        );
 
         await base44.entities.BookAssignment.update(
-          assignment.id,
+          felixAssignment.id,
           {
-            catalog_book_id: catalogBook.id,
+            available_to_classes: mergedClasses,
+            school_year:
+              felixAssignment.school_year ||
+              ACTIVE_SCHOOL_YEAR,
+            shared_across_classes:
+              assignments.some(
+                assignment =>
+                  assignment.shared_across_classes
+              ),
           }
         );
 
-        assignmentsUpdated += 1;
+        await base44.entities.BookCatalog.update(
+          catalogBookId,
+          {
+            source_assignment_id:
+              felixAssignment.id,
+          }
+        );
+
+        for (const duplicate of duplicates) {
+          for (let index = 0; index < lessons.length; index += 1) {
+            const lesson = lessons[index];
+
+            const topLevelResult =
+              replaceBookIdInSteps(
+                lesson.steps,
+                duplicate.id,
+                felixAssignment.id
+              );
+
+            let dailyLessonsChanged = false;
+
+            const nextDailyLessons = (
+              lesson.daily_lessons || []
+            ).map(dailyLesson => {
+              const dailyResult =
+                replaceBookIdInSteps(
+                  dailyLesson.steps,
+                  duplicate.id,
+                  felixAssignment.id
+                );
+
+              if (!dailyResult.changed) {
+                return dailyLesson;
+              }
+
+              dailyLessonsChanged = true;
+
+              return {
+                ...dailyLesson,
+                steps: dailyResult.steps,
+              };
+            });
+
+            if (
+              topLevelResult.changed ||
+              dailyLessonsChanged
+            ) {
+              await base44.entities.Lesson.update(
+                lesson.id,
+                {
+                  steps: topLevelResult.steps,
+                  daily_lessons:
+                    nextDailyLessons,
+                }
+              );
+
+              lessons[index] = {
+                ...lesson,
+                steps: topLevelResult.steps,
+                daily_lessons:
+                  nextDailyLessons,
+              };
+
+              lessonsUpdated += 1;
+            }
+          }
+
+          const duplicateSessions =
+            await base44.entities.BookReadingSession.filter(
+              {
+                book_id: duplicate.id,
+              },
+              '-created_date',
+              1000
+            );
+
+          for (const session of duplicateSessions) {
+            await base44.entities.BookReadingSession.update(
+              session.id,
+              {
+                book_id: felixAssignment.id,
+              }
+            );
+
+            sessionsUpdated += 1;
+          }
+
+          const lessonStillReferencesDuplicate =
+            lessons.some(lesson => {
+              const topLevelReference = (
+                lesson.steps || []
+              ).some(
+                step =>
+                  step?.config?.bookId ===
+                  duplicate.id
+              );
+
+              const dailyReference = (
+                lesson.daily_lessons || []
+              ).some(dailyLesson =>
+                (dailyLesson.steps || []).some(
+                  step =>
+                    step?.config?.bookId ===
+                    duplicate.id
+                )
+              );
+
+              return (
+                topLevelReference ||
+                dailyReference
+              );
+            });
+
+          if (lessonStillReferencesDuplicate) {
+            assignmentsSkipped += 1;
+            continue;
+          }
+
+          const remainingSessions =
+            await base44.entities.BookReadingSession.filter(
+              {
+                book_id: duplicate.id,
+              },
+              '-created_date',
+              1
+            );
+
+          if (remainingSessions.length > 0) {
+            assignmentsSkipped += 1;
+            continue;
+          }
+
+          await base44.entities.BookAssignment.delete(
+            duplicate.id
+          );
+
+          assignmentsDeleted += 1;
+        }
+
+        groupsConsolidated += 1;
       }
 
-      qc.invalidateQueries(['books-all', className]);
+      qc.invalidateQueries([
+        'books-all',
+        className,
+      ]);
       qc.invalidateQueries(['books-shared']);
       qc.invalidateQueries(['book-picker-books']);
       qc.invalidateQueries(['books-linked']);
+      qc.invalidateQueries(['all-lessons']);
+      qc.invalidateQueries(['lessons']);
+      qc.invalidateQueries(['book-sessions']);
 
       alert(
-        `Book catalog migration complete.\n\n` +
-        `${catalogsCreated} catalog records created\n` +
-        `${assignmentsUpdated} assignments linked\n` +
-        `${alreadyLinked} assignments were already linked`
+        `Felix book consolidation complete.\n\n` +
+        `${groupsConsolidated} book groups consolidated\n` +
+        `${assignmentsDeleted} duplicate assignments deleted\n` +
+        `${lessonsUpdated} lesson records updated\n` +
+        `${sessionsUpdated} reading sessions redirected\n` +
+        `${assignmentsSkipped} assignments skipped for safety`
       );
     } catch (error) {
-      console.error('Book catalog migration failed', error);
+      console.error(
+        'Felix book consolidation failed',
+        error
+      );
 
       alert(
-        'The migration stopped because of an error. Books already processed are safe. You can run the migration again to finish the remaining books.'
+        'The consolidation stopped because of an error. ' +
+        'Completed updates are safe, and you can run it again to finish.'
       );
     } finally {
       setMigratingCatalog(false);
@@ -331,7 +541,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
                 <button
                   type="button"
-                  onClick={migrateExistingBooksToCatalog}
+                  onClick={consolidateBooksIntoFelix}
                   disabled={migratingCatalog || uploading}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-50"
                   style={{
@@ -340,8 +550,8 @@ export default function TeacherBookDashboard({ onBack }) {
                   }}
                 >
                   {migratingCatalog
-                    ? 'Migrating books…'
-                    : 'Build permanent catalog'}
+                    ? 'Consolidating books…'
+                    : 'Consolidate into Felix'}
                 </button>
               </div>
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Book title…"
