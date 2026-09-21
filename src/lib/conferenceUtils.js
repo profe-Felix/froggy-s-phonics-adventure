@@ -28,7 +28,7 @@ export function formatLongDate(
     if (language === 'es') {
       return format(
         date,
-        "EEEE d 'de' MMMM",
+        "EEEE, d 'de' MMMM",
         { locale: es }
       );
     }
