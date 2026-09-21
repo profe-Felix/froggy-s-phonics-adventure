@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react';
-import { Calendar, Clock, CheckCircle2, User, Phone, ImageDown } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  CheckCircle2,
+  User,
+  Phone,
+  Share2,
+} from 'lucide-react';
 import { minutesToTime, formatLongDate, buildCalendarUrl } from '@/lib/conferenceUtils';
 
 export default function BookingConfirmation({ slot, conference, onRestart }) {
@@ -14,47 +21,142 @@ export default function BookingConfirmation({ slot, conference, onRestart }) {
     studentName: slot.student_name,
   });
 
-  // Render the confirmation card to a PNG and trigger a download.
-  // On Android this saves straight to the gallery/Downloads; on iOS Safari
-  // the image opens in a new tab where a long-press → "Save to Photos" works.
-  const saveToPictures = async () => {
+  const saveOrSharePicture = async () => {
     if (!cardRef.current || saving) return;
+
     setSaving(true);
+
     try {
-      const { default: html2canvas } = await import('html2canvas');
-      const canvas = await html2canvas(cardRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-      });
-      const dataUrl = canvas.toDataURL('image/png');
-      const filename = `conference-${slot.date}.png`;
-      // Try a blob download (works on Android + desktop)
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-      }, 'image/png');
-      // iOS Safari ignores the download attribute — open the image so the
-      // user can long-press → "Save to Photos". We detect iOS and pop a tab.
-      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      if (isIOS) {
-        const w = window.open('');
-        if (w) {
-          w.document.write(
-            `<title>${filename}</title><img src="${dataUrl}" style="max-width:100%">`
-          );
-          w.document.close();
+      const { default: html2canvas } =
+        await import('html2canvas');
+
+      const canvas = await html2canvas(
+        cardRef.current,
+        {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
         }
+      );
+
+      const blob = await new Promise(
+        (resolve, reject) => {
+          canvas.toBlob(
+            (result) => {
+              if (result) {
+                resolve(result);
+              } else {
+                reject(
+                  new Error(
+                    'Could not create the confirmation image.'
+                  )
+                );
+              }
+            },
+            'image/png',
+            1
+          );
+        }
+      );
+
+      const filename =
+        `conference-${slot.date}.png`;
+
+      const imageFile = new File(
+        [blob],
+        filename,
+        {
+          type: 'image/png',
+        }
+      );
+
+      const canShareImage =
+        typeof navigator.share ===
+          'function' &&
+        typeof navigator.canShare ===
+          'function' &&
+        navigator.canShare({
+          files: [imageFile],
+        });
+
+      if (canShareImage) {
+        await navigator.share({
+          title:
+            'Conference appointment',
+          text:
+            'Save or share your conference appointment.',
+          files: [imageFile],
+        });
+
+        return;
       }
-    } catch (e) {
-      console.error(e);
+
+      const imageUrl =
+        URL.createObjectURL(blob);
+
+      const isIOS =
+        /iphone|ipad|ipod/i.test(
+          navigator.userAgent
+        );
+
+      if (isIOS) {
+        const imageWindow =
+          window.open(
+            imageUrl,
+            '_blank'
+          );
+
+        if (!imageWindow) {
+          window.location.href =
+            imageUrl;
+        }
+
+        setTimeout(
+          () =>
+            URL.revokeObjectURL(
+              imageUrl
+            ),
+          60000
+        );
+
+        return;
+      }
+
+      const downloadLink =
+        document.createElement('a');
+
+      downloadLink.href = imageUrl;
+      downloadLink.download =
+        filename;
+
+      document.body.appendChild(
+        downloadLink
+      );
+
+      downloadLink.click();
+      downloadLink.remove();
+
+      setTimeout(
+        () =>
+          URL.revokeObjectURL(
+            imageUrl
+          ),
+        5000
+      );
+    } catch (error) {
+      if (
+        error?.name !==
+        'AbortError'
+      ) {
+        console.error(
+          'Could not share confirmation:',
+          error
+        );
+
+        alert(
+          'We could not create the picture. Please take a screenshot of the confirmation.'
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -102,12 +204,19 @@ export default function BookingConfirmation({ slot, conference, onRestart }) {
         <a href={calUrl} target="_blank" rel="noreferrer" className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold active:scale-95 transition inline-block">
           Add to Google Calendar
         </a>
-        <button onClick={saveToPictures} disabled={saving} className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold disabled:opacity-50 active:scale-95 transition">
-          <ImageDown className="w-4 h-4" />
-          {saving ? 'Saving…' : 'Save to Pictures'}
-        </button>
-        <button onClick={() => window.print()} className="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold active:scale-95 transition">
-          Print / Screenshot
+        <button
+          type="button"
+          onClick={
+            saveOrSharePicture
+          }
+          disabled={saving}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold disabled:opacity-50 active:scale-95 transition"
+        >
+          <Share2 className="w-4 h-4" />
+
+          {saving
+            ? 'Creating picture…'
+            : 'Save or share picture'}
         </button>
       </div>
 
