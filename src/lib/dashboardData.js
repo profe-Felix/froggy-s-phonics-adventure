@@ -446,3 +446,84 @@ export function createEmptyData() {
   }
   return data;
 }
+
+// Merge saved dashboard data with the newest structure.
+// Also converts old sight-word Boolean values into
+// separate reading and writing values.
+export function mergeDashboardData(savedData) {
+  const defaults = createEmptyData();
+
+  if (
+    !savedData ||
+    typeof savedData !== 'object'
+  ) {
+    return defaults;
+  }
+
+  const sightWords = {
+    ...(defaults.sightWords || {}),
+  };
+
+  for (const [word, mastery] of Object.entries(
+    savedData.sightWords || {}
+  )) {
+    if (typeof mastery === 'boolean') {
+      sightWords[word] = {
+        read: mastery,
+        write: false,
+      };
+    } else {
+      sightWords[word] = {
+        read: Boolean(mastery?.read),
+        write: Boolean(mastery?.write),
+      };
+    }
+  }
+
+  return {
+    ...defaults,
+    ...savedData,
+
+    letters: {
+      ...defaults.letters,
+      ...(savedData.letters || {}),
+    },
+
+    sightWords,
+
+    numbers: {
+      ...defaults.numbers,
+      ...(savedData.numbers || {}),
+    },
+
+    compose: {
+      ...defaults.compose,
+      ...(savedData.compose || {}),
+    },
+
+    counting: {
+      ...defaults.counting,
+      ...(savedData.counting || {}),
+    },
+
+    parentInitials: {
+      letters: {
+        ...defaults.parentInitials.letters,
+        ...(savedData.parentInitials?.letters ||
+          {}),
+      },
+
+      numbers: {
+        ...defaults.parentInitials.numbers,
+        ...(savedData.parentInitials?.numbers ||
+          {}),
+      },
+
+      compose: {
+        ...defaults.parentInitials.compose,
+        ...(savedData.parentInitials?.compose ||
+          {}),
+      },
+    },
+  };
+}
