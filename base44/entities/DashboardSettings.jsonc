@@ -1,0 +1,114 @@
+{
+  "name": "DashboardSettings",
+  "type": "object",
+  "properties": {
+    "school_year": {
+      "type": "string",
+      "description": "School year these Student Dashboard settings apply to, such as 26-27"
+    },
+    "period_dates": {
+      "type": "object",
+      "properties": {
+        "1st": {
+          "type": "string"
+        },
+        "2nd": {
+          "type": "string"
+        },
+        "3rd": {
+          "type": "string"
+        },
+        "4th": {
+          "type": "string"
+        }
+      },
+      "default": {},
+      "description": "End dates shared by every class for the four reporting periods"
+    },
+    "es_last_letter_learned": {
+      "type": "object",
+      "properties": {
+        "1st": {
+          "type": "string"
+        },
+        "2nd": {
+          "type": "string"
+        },
+        "3rd": {
+          "type": "string"
+        },
+        "4th": {
+          "type": "string"
+        }
+      },
+      "default": {},
+      "description": "Spanish letter cutoffs shared by Spanish and bilingual classes"
+    },
+    "es_last_sight_word_learned": {
+      "type": "object",
+      "properties": {
+        "1st": {
+          "type": "string"
+        },
+        "2nd": {
+          "type": "string"
+        },
+        "3rd": {
+          "type": "string"
+        },
+        "4th": {
+          "type": "string"
+        }
+      },
+      "default": {},
+      "description": "Spanish sight-word cutoffs shared by Spanish and bilingual classes"
+    },
+    "en_last_letter_learned": {
+      "type": "object",
+      "properties": {
+        "1st": {
+          "type": "string"
+        },
+        "2nd": {
+          "type": "string"
+        },
+        "3rd": {
+          "type": "string"
+        },
+        "4th": {
+          "type": "string"
+        }
+      },
+      "default": {},
+      "description": "English letter cutoffs shared by English classes"
+    },
+    "en_last_sight_word_learned": {
+      "type": "object",
+      "properties": {
+        "1st": {
+          "type": "string"
+        },
+        "2nd": {
+          "type": "string"
+        },
+        "3rd": {
+          "type": "string"
+        },
+        "4th": {
+          "type": "string"
+        }
+      },
+      "default": {},
+      "description": "English sight-word cutoffs shared by English classes"
+    }
+  },
+  "required": [
+    "school_year"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}
