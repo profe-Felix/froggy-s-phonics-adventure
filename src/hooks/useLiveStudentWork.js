@@ -65,7 +65,17 @@ export function useLiveStudentReporter(sessionId, student, step, stepIndex, stud
   const recordIdRef = useRef(null);
   const ctxRef = useRef({ step, stepIndex, studentData });
   ctxRef.current = { step, stepIndex, studentData };
-  const studentKey = student ? `${student.class_name}:${student.number}` : null;
+  const studentClass =
+    student?.class_name || '';
+
+  const studentNumber =
+    student?.number ?? null;
+
+  const studentKey =
+    studentClass &&
+    studentNumber !== null
+      ? `${studentClass}:${studentNumber}`
+      : null;
 
   const report = useCallback(
     async (status, extra) => {
@@ -95,8 +105,8 @@ export function useLiveStudentReporter(sessionId, student, step, stepIndex, stud
             const created = await base44.entities.LiveStudentWork.create({
               session_id: sessionId,
               student_key: studentKey,
-              class_name: student.class_name,
-              student_number: student.number,
+              class_name: studentClass,
+              student_number: studentNumber,
               ...payload,
             });
             recordIdRef.current = created.id;
@@ -104,7 +114,12 @@ export function useLiveStudentReporter(sessionId, student, step, stepIndex, stud
         }
       } catch { /* best-effort */ }
     },
-    [sessionId, studentKey, student]
+    [
+      sessionId,
+      studentKey,
+      studentClass,
+      studentNumber,
+    ]
   );
 
   // Heartbeat while active in the try phase; mark idle when it ends.
