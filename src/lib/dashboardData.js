@@ -318,6 +318,63 @@ export function computePeriods(lastLetters) {
   return periods;
 }
 
+// Convert the sight-word introduction groups into one ordered sequence.
+//
+// The key includes the module so repeated words such as "yo" in Módulo 5
+// and Módulo 6 remain distinguishable when used as 9-week cutoffs.
+// Official mastery is still stored once per word in data.sightWords.
+export function getSightWordSequence() {
+  return ES_SIGHT_WORD_SEQUENCE.flatMap((introduction) =>
+    introduction.words.map((word) => ({
+      key: `${introduction.module_number}:${word}`,
+      word,
+      module_number: introduction.module_number,
+      curriculum_lesson_number:
+        introduction.curriculum_lesson_number,
+    }))
+  );
+}
+
+// Divide the ordered sight-word sequence among the four 9-week sections.
+// Each selected cutoff is the last visible curriculum word in that period.
+export function computeSightWordPeriods(lastSightWordLearned) {
+  const sequence = getSightWordSequence();
+  const periods = [];
+  let cursor = 0;
+
+  for (let periodIndex = 0; periodIndex < PERIODS.length; periodIndex++) {
+    const periodKey = PERIODS[periodIndex];
+    const cutoffKey = lastSightWordLearned?.[periodKey] || '';
+
+    // Until a cutoff is selected, leave this section empty.
+    // The final period receives all remaining words.
+    if (!cutoffKey) {
+      if (periodIndex === PERIODS.length - 1) {
+        periods.push(sequence.slice(cursor));
+        cursor = sequence.length;
+      } else {
+        periods.push([]);
+      }
+      continue;
+    }
+
+    const relativeEndIndex = sequence
+      .slice(cursor)
+      .findIndex((item) => item.key === cutoffKey);
+
+    if (relativeEndIndex === -1) {
+      periods.push([]);
+      continue;
+    }
+
+    const endIndex = cursor + relativeEndIndex;
+    periods.push(sequence.slice(cursor, endIndex + 1));
+    cursor = endIndex + 1;
+  }
+
+  return periods;
+}
+
 // Group consecutive letters by module — returns [{name: 'Módulo 1', module: 1, letters: [...]}]
 export function groupByModule(letters) {
   const groups = [];
@@ -350,6 +407,7 @@ export function createEmptyData() {
     allFormation: false,
     periodDates: { '1st': 'oct. 10', '2nd': 'dic. 19', '3rd': 'mar. 6', '4th': 'may. 22' },
     lastLetterLearned: { '1st': '', '2nd': '', '3rd': '', '4th': '' },
+    lastSightWordLearned: { '1st': '', '2nd': '', '3rd': '', '4th': '' },
     numbers: {},
     compose: {},
     counting: { '1st': '', '2nd': '', '3rd': '', '4th': '' },
