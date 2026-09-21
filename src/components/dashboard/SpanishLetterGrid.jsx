@@ -2,7 +2,6 @@ import React from 'react';
 import {
   ES_PERIOD_INFO,
   computePeriods,
-  computeSightWordPeriods,
   groupByModule,
   PERIODS,
 } from '@/lib/dashboardData';
@@ -194,11 +193,6 @@ export function SpanishLetterGrid({
     data.lastLetterLearned
   );
 
-  const sightWordPeriods =
-    computeSightWordPeriods(
-      data.lastSightWordLearned
-    );
-
   return (
     <div className="border-2 border-black">
       <SectionHeader title="Identificación de letras y sonidos" />
@@ -209,8 +203,6 @@ export function SpanishLetterGrid({
         const modules =
           groupByModule(periodLetters);
         const allLetters = periodLetters;
-        const periodSightWords =
-          sightWordPeriods[pi] || [];
 
         return (
           <div
@@ -338,13 +330,6 @@ export function SpanishLetterGrid({
                 </tbody>
               </table>
             )}
-
-            <SightWordSection
-              words={periodSightWords}
-              data={data}
-              toggle={toggle}
-              readOnly={readOnly}
-            />
           </div>
         );
       })}
