@@ -90,7 +90,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
 
   // Polling safety net — realtime subscriptions can miss events when a student's
   // tab is backgrounded or the network blips, which left students stuck on the
-  // old step while the teacher moved on. Every 3s we re-fetch the session and
+  // old step while the teacher moved on. Every 20s we re-fetch the session and
   // reconcile: exit if the teacher ended the lesson, jump to the teacher's
   // current step/phase if we fell behind, and re-seed the broadcast so the
   // mirror catches up. This also guarantees late joiners land on the correct
@@ -128,7 +128,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       } catch { /* best-effort */ }
     };
     tick(); // run immediately so late joiners reconcile at mount
-    const iv = setInterval(tick, 3000);
+    const iv = setInterval(tick, 20000);
     return () => { alive = false; clearInterval(iv); };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
