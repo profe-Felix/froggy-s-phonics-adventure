@@ -219,12 +219,35 @@ export default function StudentDashboard() {
         const next = JSON.parse(JSON.stringify(previous));
         let object = next;
 
-        for (let index = 0; index < parts.length - 1; index++) {
-          if (!object[parts[index]]) {
-            object[parts[index]] = {};
+        for (
+          let index = 0;
+          index < parts.length - 1;
+          index++
+        ) {
+          const key = parts[index];
+          const existingValue = object[key];
+
+          if (
+            !existingValue ||
+            typeof existingValue !== 'object'
+          ) {
+            // Upgrade an older sight-word Boolean into
+            // separate reading and writing results.
+            if (
+              root === 'sightWords' &&
+              index === 1 &&
+              typeof existingValue === 'boolean'
+            ) {
+              object[key] = {
+                read: existingValue,
+                write: false,
+              };
+            } else {
+              object[key] = {};
+            }
           }
 
-          object = object[parts[index]];
+          object = object[key];
         }
 
         const lastKey = parts[parts.length - 1];
