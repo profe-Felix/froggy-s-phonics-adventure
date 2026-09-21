@@ -23,12 +23,19 @@ export function formatLongDate(
   language = 'en'
 ) {
   try {
+    const date = parseISO(iso);
+
+    if (language === 'es') {
+      return format(
+        date,
+        "EEEE d 'de' MMMM",
+        { locale: es }
+      );
+    }
+
     return format(
-      parseISO(iso),
-      'EEEE, MMMM d',
-      language === 'es'
-        ? { locale: es }
-        : undefined
+      date,
+      'EEEE, MMMM d'
     );
   } catch {
     return iso;
