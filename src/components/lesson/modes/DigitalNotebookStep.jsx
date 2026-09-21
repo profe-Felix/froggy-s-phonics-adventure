@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
 import {
-  BookOpen,
+  useMemo,
+  useState,
+} from 'react';
+
+import {
   Check,
-  ExternalLink,
 } from 'lucide-react';
+
+import StudentNotebookView from '@/components/notebook/StudentNotebookView';
 
 function expandCustomPages(
   customPages,
@@ -17,11 +21,16 @@ function expandCustomPages(
     .filter(Boolean)
     .forEach((part) => {
       if (part.includes('-')) {
-        const [rawStart, rawEnd] =
-          part.split('-');
+        const [
+          rawStart,
+          rawEnd,
+        ] = part.split('-');
 
-        const start = Number(rawStart);
-        const end = Number(rawEnd);
+        const start =
+          Number(rawStart);
+
+        const end =
+          Number(rawEnd);
 
         if (
           Number.isInteger(start) &&
@@ -74,7 +83,8 @@ function getSelectedPages(config) {
   );
 
   const selection =
-    config?.pageSelection || 'single';
+    config?.pageSelection ||
+    'single';
 
   if (selection === 'all') {
     return Array.from(
@@ -84,17 +94,23 @@ function getSelectedPages(config) {
   }
 
   if (selection === 'range') {
-    const first = Math.max(
-      1,
-      Number(config?.pageStart) || 1
+    const first = Math.min(
+      maxPage,
+      Math.max(
+        1,
+        Number(
+          config?.pageStart
+        ) || 1
+      )
     );
 
     const last = Math.min(
       maxPage,
       Math.max(
         first,
-        Number(config?.pageEnd) ||
-          first
+        Number(
+          config?.pageEnd
+        ) || first
       )
     );
 
@@ -103,7 +119,8 @@ function getSelectedPages(config) {
         length:
           last - first + 1,
       },
-      (_, index) => first + index
+      (_, index) =>
+        first + index
     );
   }
 
@@ -124,7 +141,9 @@ function getSelectedPages(config) {
       maxPage,
       Math.max(
         1,
-        Number(config?.pageStart) || 1
+        Number(
+          config?.pageStart
+        ) || 1
       )
     ),
   ];
@@ -140,58 +159,17 @@ export default function DigitalNotebookStep({
     useState(false);
 
   const selectedPages = useMemo(
-    () => getSelectedPages(stepConfig),
+    () =>
+      getSelectedPages(stepConfig),
     [stepConfig]
   );
 
   const assignmentTitle =
-    stepConfig?.assignmentTitle || '';
+    stepConfig?.assignmentTitle ||
+    '';
 
   const firstPage =
     selectedPages[0] || 1;
-
-  const notebookUrl = useMemo(() => {
-    if (
-      !assignmentTitle ||
-      !className ||
-      !studentNumber
-    ) {
-      return '';
-    }
-
-    const params =
-      new URLSearchParams();
-
-    params.set(
-      'assignment',
-      assignmentTitle
-    );
-
-    params.set('class', className);
-
-    params.set(
-      'number',
-      String(studentNumber)
-    );
-
-    params.set(
-      'page',
-      String(firstPage)
-    );
-
-    params.set(
-      'lessonPages',
-      selectedPages.join(',')
-    );
-
-    return `/DigitalNotebook?${params.toString()}`;
-  }, [
-    assignmentTitle,
-    className,
-    studentNumber,
-    firstPage,
-    selectedPages,
-  ]);
 
   if (!assignmentTitle) {
     return (
@@ -232,77 +210,53 @@ export default function DigitalNotebookStep({
     );
   }
 
-  const pageDescription =
-    selectedPages.length === 1
-      ? `Page ${selectedPages[0]}`
-      : `Pages ${selectedPages.join(
-          ', '
-        )}`;
+  const finishButton = (
+    <button
+      type="button"
+      disabled={completing}
+      onClick={() => {
+        if (completing) return;
+
+        setCompleting(true);
+
+        onComplete?.({
+          correctCount:
+            selectedPages.length,
+          totalItems:
+            selectedPages.length,
+          pages: selectedPages,
+        });
+      }}
+      className="px-3 py-2 rounded-xl bg-green-500 text-white font-black text-xs inline-flex items-center gap-1 disabled:opacity-60"
+    >
+      <Check className="w-4 h-4" />
+
+      {completing
+        ? 'Done!'
+        : 'Finish notebook'}
+    </button>
+  );
 
   return (
-    <div className="h-full flex flex-col bg-indigo-50">
-      <div className="shrink-0 bg-white border-b border-indigo-100 px-3 py-2 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <BookOpen className="w-5 h-5 text-indigo-600 shrink-0" />
-
-          <div className="min-w-0">
-            <p className="font-black text-indigo-950 text-sm truncate">
-              {assignmentTitle}
-            </p>
-
-            <p className="text-[11px] text-indigo-600 truncate">
-              {pageDescription}
-            </p>
-          </div>
-        </div>
-
-        <a
-          href={notebookUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="px-3 py-2 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-xs inline-flex items-center gap-1"
-        >
-          <ExternalLink className="w-4 h-4" />
-          Open full screen
-        </a>
-
-        <button
-          type="button"
-          disabled={completing}
-          onClick={() => {
-            if (completing) return;
-
-            setCompleting(true);
-
-            onComplete?.({
-              correctCount:
-                selectedPages.length,
-              totalItems:
-                selectedPages.length,
-              pages: selectedPages,
-            });
-          }}
-          className="px-4 py-2 rounded-xl bg-green-500 text-white font-black text-xs inline-flex items-center gap-1 disabled:opacity-60"
-        >
-          <Check className="w-4 h-4" />
-
-          {completing
-            ? 'Done!'
-            : 'Finish notebook'}
-        </button>
-      </div>
-
-      <div className="flex-1 min-h-0 p-2">
-        <iframe
-          src={notebookUrl}
-          title={
-            assignmentTitle ||
-            'Digital Notebook'
-          }
-          className="w-full h-full border-0 rounded-xl bg-white"
-          allow="microphone; camera"
-        />
-      </div>
+    <div className="h-full min-h-0 overflow-hidden">
+      <StudentNotebookView
+        studentNumber={
+          studentNumber
+        }
+        className={
+          className
+        }
+        directAssignmentName={
+          assignmentTitle
+        }
+        directPage={
+          firstPage
+        }
+        onBack={() => {}}
+        extraHeaderContent={
+          finishButton
+        }
+      />
     </div>
   );
 }
