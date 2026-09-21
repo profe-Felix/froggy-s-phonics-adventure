@@ -49,6 +49,7 @@ export default function LessonModeRouter({
   isLast = false,
   liveMode = false,
   teacherMode = false,
+  embeddedMode = false,
 }) {
   const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
@@ -1258,6 +1259,9 @@ export default function LessonModeRouter({
             }
             onRequiredPagesLoaded={
               setCatalogRecordingPages
+            }
+            embedded={
+              embeddedMode
             }
           />
         );
