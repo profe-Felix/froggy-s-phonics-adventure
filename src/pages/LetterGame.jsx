@@ -136,11 +136,13 @@ export default function LetterGame() {
         });
     },
 
-    enabled: !!studentData,
+    enabled: !!studentData && !liveSession,
 
-    // Check frequently so stale banners disappear quickly once the
-    // 90-second timeout has been reached.
-    refetchInterval: 3000,
+    // Once the student joins, LiveLessonStudent handles synchronization.
+    // This slower check is only for detecting a new session from home.
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
+    retry: false,
   });
 
   // Detect active live DICTATION sessions for this student's class.
@@ -154,8 +156,13 @@ export default function LetterGame() {
         school_year: studentData?.school_year || ACTIVE_SCHOOL_YEAR,
         active: true,
       }),
-    enabled: !!studentData && !!selectedStudent?.class_name,
-    refetchInterval: 3000,
+    enabled:
+      !!studentData &&
+      !!selectedStudent?.class_name &&
+      !liveSession,
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
+    retry: false,
   });
 
   // Detect active tracing lock for this student's class. When locked, the
@@ -167,8 +174,13 @@ export default function LetterGame() {
       class_name: selectedStudent?.class_name,
       active: true,
     }),
-    enabled: !!studentData && !!selectedStudent?.class_name,
-    refetchInterval: 3000,
+    enabled:
+      !!studentData &&
+      !!selectedStudent?.class_name &&
+      !liveSession,
+    refetchInterval: 20000,
+    refetchIntervalInBackground: false,
+    retry: false,
   });
   const activeTracingLock = tracingLocks[0];
 
