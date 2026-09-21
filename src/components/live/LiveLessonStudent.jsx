@@ -8,6 +8,55 @@ import { useLiveStudentReporter } from '@/hooks/useLiveStudentWork';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { Eye, Lock, Unlock, CheckCircle2, Radio, Footprints } from 'lucide-react';
 
+const LIVE_WEEKDAYS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+function getLiveLessonSteps(lesson) {
+  if (!lesson) {
+    return [];
+  }
+
+  if (
+    lesson.assignment_type === 'class' &&
+    Array.isArray(lesson.daily_lessons)
+  ) {
+    const today =
+      LIVE_WEEKDAYS[new Date().getDay()];
+
+    const todayLesson =
+      lesson.daily_lessons.find(
+        (dailyLesson) =>
+          dailyLesson.day === today &&
+          dailyLesson.active !== false &&
+          Array.isArray(dailyLesson.steps) &&
+          dailyLesson.steps.length > 0
+      );
+
+    if (todayLesson) {
+      return todayLesson.steps;
+    }
+
+    const firstActiveLesson =
+      lesson.daily_lessons.find(
+        (dailyLesson) =>
+          dailyLesson.active !== false &&
+          Array.isArray(dailyLesson.steps) &&
+          dailyLesson.steps.length > 0
+      );
+
+    return firstActiveLesson?.steps || [];
+  }
+
+  return lesson.steps || [];
+}
+
 // Student view for a live guided lesson. Subscribes to the teacher's session
 // and renders the current step. When phase=watch, students are locked (watching
 // a broadcast video or a "waiting" screen). When phase=try, the activity is
@@ -83,7 +132,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     return () => { alive = false; clearInterval(iv); };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const steps = lesson?.steps || [];
+  const steps = getLiveLessonSteps(lesson);
   const teacherStep = localSession?.current_step || 0;
   const phase = localSession?.phase || 'watch';
   const releaseMode = localSession?.release_mode || 'stay';
