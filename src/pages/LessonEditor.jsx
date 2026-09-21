@@ -97,6 +97,25 @@ function blankLesson() {
 
 function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
+
+  const {
+    data: notebookAssignments = [],
+    isLoading: notebookAssignmentsLoading,
+  } = useQuery({
+    queryKey: [
+      'lesson-editor-notebook-assignments',
+      lessonClass,
+    ],
+    queryFn: () =>
+      base44.entities.DigitalNotebookAssignment.filter({
+        class_name: lessonClass,
+        status: 'active',
+      }),
+    enabled:
+      step.mode === 'digital_notebook' &&
+      Boolean(lessonClass),
+  });
+
   const { list: letterSortList } = useLetterSortPresets();
   const { list: missingLetterList } = useMissingLetterPresets();
   const { list: spanishReadingList, refresh: refreshSpanishReadingPresets } = useSpanishReadingPresets();
@@ -158,7 +177,294 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
         </label>
       </div>
 
-      {step.mode === 'letter_sort' ? (
+      {step.mode === 'digital_notebook' ? (
+        <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
+          {!lessonClass ? (
+            <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-lg p-3">
+              Select a class for this lesson before choosing a Digital Notebook assignment.
+            </p>
+          ) : (
+            <>
+              <label className="text-xs text-gray-600 font-bold">
+                Digital Notebook assignment
+
+                <select
+                  value={
+                    step.config?.assignmentId ||
+                    ''
+                  }
+                  onChange={(e) => {
+                    const assignment =
+                      notebookAssignments.find(
+                        (item) =>
+                          item.id ===
+                          e.target.value
+                      );
+
+                    update({
+                      config: {
+                        ...step.config,
+                        assignmentId:
+                          assignment?.id || '',
+                        assignmentTitle:
+                          assignment?.title || '',
+                        assignmentPageCount:
+                          assignment?.pdf_page_count ||
+                          1,
+                        pageSelection:
+                          step.config
+                            ?.pageSelection ||
+                          'single',
+                        pageStart:
+                          step.config
+                            ?.pageStart || 1,
+                        pageEnd:
+                          step.config
+                            ?.pageEnd || 1,
+                        customPages:
+                          step.config
+                            ?.customPages || '',
+                      },
+                    });
+                  }}
+                  disabled={
+                    notebookAssignmentsLoading
+                  }
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                >
+                  <option value="">
+                    {notebookAssignmentsLoading
+                      ? 'Loading assignments…'
+                      : '— select an assignment —'}
+                  </option>
+
+                  {notebookAssignments.map(
+                    (assignment) => (
+                      <option
+                        key={assignment.id}
+                        value={assignment.id}
+                      >
+                        {assignment.title}
+                        {' · '}
+                        {assignment.pdf_page_count ||
+                          1}
+                        {' pages'}
+                      </option>
+                    )
+                  )}
+                </select>
+              </label>
+
+              {!notebookAssignmentsLoading &&
+                notebookAssignments.length ===
+                  0 && (
+                  <p className="text-xs text-amber-700">
+                    This class does not have any active Digital Notebook assignments.
+                  </p>
+                )}
+
+              {step.config?.assignmentId && (
+                <>
+                  <label className="text-xs text-gray-600 font-bold">
+                    Pages for this lesson step
+
+                    <select
+                      value={
+                        step.config
+                          ?.pageSelection ||
+                        'single'
+                      }
+                      onChange={(e) =>
+                        update({
+                          config: {
+                            ...step.config,
+                            pageSelection:
+                              e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                    >
+                      <option value="single">
+                        Single page
+                      </option>
+
+                      <option value="range">
+                        Page range
+                      </option>
+
+                      <option value="custom">
+                        Custom pages
+                      </option>
+
+                      <option value="all">
+                        All pages
+                      </option>
+                    </select>
+                  </label>
+
+                  {(step.config
+                    ?.pageSelection ||
+                    'single') ===
+                    'single' && (
+                    <label className="text-xs text-gray-600 font-bold">
+                      Page number
+
+                      <input
+                        type="number"
+                        min="1"
+                        max={
+                          step.config
+                            ?.assignmentPageCount ||
+                          undefined
+                        }
+                        value={
+                          step.config
+                            ?.pageStart || 1
+                        }
+                        onChange={(e) => {
+                          const page =
+                            Math.max(
+                              1,
+                              Number(
+                                e.target.value
+                              ) || 1
+                            );
+
+                          update({
+                            config: {
+                              ...step.config,
+                              pageStart: page,
+                              pageEnd: page,
+                            },
+                          });
+                        }}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                      />
+                    </label>
+                  )}
+
+                  {step.config
+                    ?.pageSelection ===
+                    'range' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-xs text-gray-600 font-bold">
+                        First page
+
+                        <input
+                          type="number"
+                          min="1"
+                          max={
+                            step.config
+                              ?.assignmentPageCount ||
+                            undefined
+                          }
+                          value={
+                            step.config
+                              ?.pageStart || 1
+                          }
+                          onChange={(e) =>
+                            update({
+                              config: {
+                                ...step.config,
+                                pageStart:
+                                  Math.max(
+                                    1,
+                                    Number(
+                                      e.target
+                                        .value
+                                    ) || 1
+                                  ),
+                              },
+                            })
+                          }
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                        />
+                      </label>
+
+                      <label className="text-xs text-gray-600 font-bold">
+                        Last page
+
+                        <input
+                          type="number"
+                          min="1"
+                          max={
+                            step.config
+                              ?.assignmentPageCount ||
+                            undefined
+                          }
+                          value={
+                            step.config
+                              ?.pageEnd || 1
+                          }
+                          onChange={(e) =>
+                            update({
+                              config: {
+                                ...step.config,
+                                pageEnd:
+                                  Math.max(
+                                    1,
+                                    Number(
+                                      e.target
+                                        .value
+                                    ) || 1
+                                  ),
+                              },
+                            })
+                          }
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {step.config
+                    ?.pageSelection ===
+                    'custom' && (
+                    <label className="text-xs text-gray-600 font-bold">
+                      Custom pages
+
+                      <input
+                        value={
+                          step.config
+                            ?.customPages ||
+                          ''
+                        }
+                        onChange={(e) =>
+                          update({
+                            config: {
+                              ...step.config,
+                              customPages:
+                                e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Example: 1, 3, 5-8"
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+                      />
+
+                      <span className="block text-[10px] text-gray-400 mt-1">
+                        Separate pages with commas. Use a hyphen for a range.
+                      </span>
+                    </label>
+                  )}
+
+                  <p className="text-[10px] text-indigo-600 font-bold">
+                    Assignment:{' '}
+                    {step.config
+                      ?.assignmentTitle}
+                    {' · '}
+                    {step.config
+                      ?.assignmentPageCount ||
+                      1}
+                    {' total pages'}
+                  </p>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      ) : step.mode === 'letter_sort' ? (
         <div className="flex flex-col gap-1">
           <label className="text-xs text-gray-600 font-bold">Preset
             <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
