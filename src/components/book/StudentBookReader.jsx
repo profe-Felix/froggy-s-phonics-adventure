@@ -90,6 +90,7 @@ export default function StudentBookReader({
   initialPage,
   onRecordingSaved,
   recordingPages,
+  embedded = false,
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -598,10 +599,18 @@ export default function StudentBookReader({
       className="flex flex-col"
       style={{
         background: '#042f2e',
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100dvh',
+        ...(embedded
+          ? {
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+            }
+          : {
+              position: 'fixed',
+              inset: 0,
+              width: '100vw',
+              height: '100dvh',
+            }),
         zIndex: isFullscreen ? 9999 : 'auto',
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -611,7 +620,12 @@ export default function StudentBookReader({
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488', paddingTop: 'env(safe-area-inset-top)' }}>
-        <BackButton tone="teal" onClick={handleBack} />
+        {!embedded && (
+          <BackButton
+            tone="teal"
+            onClick={handleBack}
+          />
+        )}
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold shrink-0">#{studentNumber}</span>
         <button onClick={handleToggle2Up}
