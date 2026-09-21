@@ -11,6 +11,55 @@ import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
 import { useClassNames } from '@/hooks/useClassNames';
 
+const LIVE_WEEKDAYS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+function getLiveLessonSteps(lesson) {
+  if (!lesson) {
+    return [];
+  }
+
+  if (
+    lesson.assignment_type === 'class' &&
+    Array.isArray(lesson.daily_lessons)
+  ) {
+    const today =
+      LIVE_WEEKDAYS[new Date().getDay()];
+
+    const todayLesson =
+      lesson.daily_lessons.find(
+        (dailyLesson) =>
+          dailyLesson.day === today &&
+          dailyLesson.active !== false &&
+          Array.isArray(dailyLesson.steps) &&
+          dailyLesson.steps.length > 0
+      );
+
+    if (todayLesson) {
+      return todayLesson.steps;
+    }
+
+    const firstActiveLesson =
+      lesson.daily_lessons.find(
+        (dailyLesson) =>
+          dailyLesson.active !== false &&
+          Array.isArray(dailyLesson.steps) &&
+          dailyLesson.steps.length > 0
+      );
+
+    return firstActiveLesson?.steps || [];
+  }
+
+  return lesson.steps || [];
+}
+
 function genCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from(
@@ -238,7 +287,9 @@ export default function LiveLesson() {
   };
 
   const advance = (dir) => {
-    const steps = selectedLesson?.steps || [];
+    const steps = getLiveLessonSteps(
+      selectedLesson
+    );
 
     if (!steps.length) return;
 
@@ -374,7 +425,7 @@ export default function LiveLesson() {
                     key={l.id}
                     value={l.id}
                   >
-                    {l.title} · {l.assignment_type === 'guided' ? 'Guided' : l.assignment_type === 'side_quest' ? 'Small group' : 'Path'} · {(l.steps || []).length} steps
+                    {l.title} · {l.assignment_type === 'guided' ? 'Guided' : l.assignment_type === 'side_quest' ? 'Small group' : 'Path'} · {getLiveLessonSteps(l).length} steps
                   </option>
                 ))}
               </select>
@@ -495,7 +546,9 @@ export default function LiveLesson() {
   }
 
   // ---------- LIVE CONTROL SCREEN ----------
-  const steps = selectedLesson?.steps || [];
+  const steps = getLiveLessonSteps(
+    selectedLesson
+  );
 
   const currentStep =
     steps[session.current_step || 0];
