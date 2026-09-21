@@ -1,4 +1,5 @@
 import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Convert minutes-from-midnight to a readable 12h time, e.g. 750 -> "12:30 pm".
 export function minutesToTime(min) {
@@ -17,9 +18,18 @@ export function timeToMinutes(t) {
 }
 
 // Format an ISO date ("YYYY-MM-DD") as a long readable weekday + date.
-export function formatLongDate(iso) {
+export function formatLongDate(
+  iso,
+  language = 'en'
+) {
   try {
-    return format(parseISO(iso), 'EEEE, MMMM d');
+    return format(
+      parseISO(iso),
+      'EEEE, MMMM d',
+      language === 'es'
+        ? { locale: es }
+        : undefined
+    );
   } catch {
     return iso;
   }
