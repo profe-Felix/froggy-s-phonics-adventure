@@ -15,7 +15,18 @@ const TABS = [
   { id: 'writing', label: 'Writing', icon: '✍️', Comp: SpellingWritingDashboard },
   { id: 'wordbuilder', label: 'Word Builder', icon: '🧩', Comp: WordBuilderDashboard },
   { id: 'prizes', label: 'Prizes', icon: '🎡', Comp: PrizeDashboard },
-  { id: 'lessons', label: 'Lessons', icon: '📚', Comp: Lessons },
+  {
+    id: 'trackers',
+    label: 'Trackers',
+    icon: '✅',
+    Comp: SightWordTracker,
+  },
+  {
+    id: 'lessons',
+    label: 'Lessons',
+    icon: '📚',
+    Comp: Lessons,
+  },
 ];
 
 export default function TeacherHub() {
