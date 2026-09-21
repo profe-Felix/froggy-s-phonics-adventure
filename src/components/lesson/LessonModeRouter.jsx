@@ -27,6 +27,7 @@ import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
 import VideoStep from '@/components/lesson/modes/VideoStep';
 import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
 import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
+import DigitalNotebookStep from '@/components/lesson/modes/DigitalNotebookStep';
 import WordTracingMode from '@/components/game/modes/WordTracingMode';
 import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
 import { buildBlendingSubstepsForWords } from '@/lib/blendingLetters';
@@ -1422,6 +1423,26 @@ export default function LessonModeRouter({
             }
             title={
               step.title
+            }
+          />
+        );
+
+      case 'digital_notebook':
+        return (
+          <DigitalNotebookStep
+            stepConfig={
+              step?.config
+            }
+            studentNumber={
+              selectedStudent?.number ||
+              studentData?.number
+            }
+            className={
+              selectedStudent?.class_name ||
+              studentData?.class_name
+            }
+            onComplete={
+              completeStep
             }
           />
         );
