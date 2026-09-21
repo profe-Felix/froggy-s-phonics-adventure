@@ -7,6 +7,30 @@ import { SpanishLetterGrid } from '@/components/dashboard/SpanishLetterGrid';
 import { EnglishLetterGrid, NumbersGrid, ComposeGrid } from '@/components/dashboard/MathGrids';
 import { Printer, Users, FileText, Settings } from 'lucide-react';
 
+function createDefaultReportSettings() {
+  const defaults = createEmptyData();
+
+  return {
+    period_dates: { ...defaults.periodDates },
+    es_last_letter_learned: { ...defaults.lastLetterLearned },
+    es_last_sight_word_learned: {
+      ...defaults.lastSightWordLearned,
+    },
+    en_last_letter_learned: {
+      '1st': '',
+      '2nd': '',
+      '3rd': '',
+      '4th': '',
+    },
+    en_last_sight_word_learned: {
+      '1st': '',
+      '2nd': '',
+      '3rd': '',
+      '4th': '',
+    },
+  };
+}
+
 function DashboardSections({ data, toggle, readOnly, lang, frontBack }) {
   return (
     <div className="space-y-4">
@@ -35,6 +59,7 @@ export default function StudentDashboard() {
   const readOnly = urlParams.get('readonly') === 'true';
 
   const [classOptions, setClassOptions] = useState([]);
+  const [classConfigs, setClassConfigs] = useState([]);
   const [selectedClass, setSelectedClass] = useState(classParam || '');
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(studentParam || '');
@@ -45,12 +70,84 @@ export default function StudentDashboard() {
   const [printAllData, setPrintAllData] = useState(null);
   const [frontBack, setFrontBack] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [lang] = useState('es');
+  const [settingsRecord, setSettingsRecord] = useState(null);
+  const [reportSettings, setReportSettings] = useState(
+    createDefaultReportSettings
+  );
+
+  const activeClassName = selectedClass || classParam;
+  const activeClassConfig = classConfigs.find(
+    (config) => config.class_name === activeClassName
+  );
+  const lang = activeClassConfig?.language || 'es';
 
   useEffect(() => {
-    base44.entities.ClassConfig.list().then(configs => {
-      setClassOptions(configs.map(c => c.class_name).filter(Boolean).sort());
-    }).catch(e => console.warn('Load classes failed:', e));
+    base44.entities.ClassConfig.list()
+      .then((configs) => {
+        setClassConfigs(configs);
+        setClassOptions(
+          configs
+            .map((config) => config.class_name)
+            .filter(Boolean)
+            .sort()
+        );
+      })
+      .catch((error) =>
+        console.warn('Load classes failed:', error)
+      );
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReportSettings() {
+      try {
+        const records =
+          await base44.entities.StudentDashboardSettings.filter({
+            school_year: ACTIVE_SCHOOL_YEAR,
+          });
+
+        if (cancelled) return;
+
+        const saved = records[0] || null;
+        const defaults = createDefaultReportSettings();
+
+        setSettingsRecord(saved);
+        setReportSettings({
+          period_dates: {
+            ...defaults.period_dates,
+            ...(saved?.period_dates || {}),
+          },
+          es_last_letter_learned: {
+            ...defaults.es_last_letter_learned,
+            ...(saved?.es_last_letter_learned || {}),
+          },
+          es_last_sight_word_learned: {
+            ...defaults.es_last_sight_word_learned,
+            ...(saved?.es_last_sight_word_learned || {}),
+          },
+          en_last_letter_learned: {
+            ...defaults.en_last_letter_learned,
+            ...(saved?.en_last_letter_learned || {}),
+          },
+          en_last_sight_word_learned: {
+            ...defaults.en_last_sight_word_learned,
+            ...(saved?.en_last_sight_word_learned || {}),
+          },
+        });
+      } catch (error) {
+        console.warn(
+          'Load Student Dashboard settings failed:',
+          error
+        );
+      }
+    }
+
+    loadReportSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -86,26 +183,91 @@ export default function StudentDashboard() {
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
-  const toggle = useCallback((path, value, isText = false) => {
-    setData(prev => {
-      const next = JSON.parse(JSON.stringify(prev));
+  const toggle = useCallback(
+    (path, value, isText = false) => {
       const parts = path.split('.');
-      let obj = next;
-      for (let i = 0; i < parts.length - 1; i++) {
-        if (!obj[parts[i]]) obj[parts[i]] = {};
-        obj = obj[parts[i]];
+      const root = parts[0];
+      const period = parts[1];
+
+      const globalSection =
+        root === 'periodDates'
+          ? 'period_dates'
+          : root === 'lastLetterLearned'
+            ? `${lang}_last_letter_learned`
+            : root === 'lastSightWordLearned'
+              ? `${lang}_last_sight_word_learned`
+              : '';
+
+      if (globalSection && period) {
+        setReportSettings((previous) => ({
+          ...previous,
+          [globalSection]: {
+            ...(previous[globalSection] || {}),
+            [period]: value,
+          },
+        }));
+        return;
       }
-      const lastKey = parts[parts.length - 1];
-      obj[lastKey] = isText ? value : !obj[lastKey];
-      return next;
-    });
-  }, []);
+
+      setData((previous) => {
+        const next = JSON.parse(JSON.stringify(previous));
+        let object = next;
+
+        for (let index = 0; index < parts.length - 1; index++) {
+          if (!object[parts[index]]) {
+            object[parts[index]] = {};
+          }
+
+          object = object[parts[index]];
+        }
+
+        const lastKey = parts[parts.length - 1];
+        object[lastKey] = isText
+          ? value
+          : !object[lastKey];
+
+        return next;
+      });
+    },
+    [lang]
+  );
 
   const handleSave = async () => {
     if (!selectedStudentId) return;
     setSaving(true);
     try {
-      const student = students.find(s => s.id === selectedStudentId);
+      const settingsPayload = {
+        school_year: ACTIVE_SCHOOL_YEAR,
+        period_dates: reportSettings.period_dates,
+        es_last_letter_learned:
+          reportSettings.es_last_letter_learned,
+        es_last_sight_word_learned:
+          reportSettings.es_last_sight_word_learned,
+        en_last_letter_learned:
+          reportSettings.en_last_letter_learned,
+        en_last_sight_word_learned:
+          reportSettings.en_last_sight_word_learned,
+      };
+
+      if (settingsRecord?.id) {
+        await base44.entities.StudentDashboardSettings.update(
+          settingsRecord.id,
+          settingsPayload
+        );
+      } else {
+        const createdSettings =
+          await base44.entities.StudentDashboardSettings.create(
+            settingsPayload
+          );
+
+        setSettingsRecord(createdSettings);
+      }
+
+      const student = students.find(
+        (studentRecord) =>
+          studentRecord.id === selectedStudentId
+      );
+
       const payload = {
         student_id: selectedStudentId,
         student_number: student?.student_number,
@@ -163,8 +325,23 @@ export default function StudentDashboard() {
     }
   };
 
-  const selectedStudent = students.find(s => s.id === selectedStudentId);
+  const selectedStudent = students.find(
+    (student) => student.id === selectedStudentId
+  );
   const className = selectedClass || classParam;
+
+  const displayData = {
+    ...data,
+    periodDates: reportSettings.period_dates,
+    lastLetterLearned:
+      lang === 'en'
+        ? reportSettings.en_last_letter_learned
+        : reportSettings.es_last_letter_learned,
+    lastSightWordLearned:
+      lang === 'en'
+        ? reportSettings.en_last_sight_word_learned
+        : reportSettings.es_last_sight_word_learned,
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
