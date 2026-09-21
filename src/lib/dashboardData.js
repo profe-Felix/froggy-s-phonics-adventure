@@ -430,7 +430,10 @@ export function createEmptyData() {
   for (const introduction of ES_SIGHT_WORD_SEQUENCE) {
     for (const word of introduction.words) {
       if (!(word in data.sightWords)) {
-        data.sightWords[word] = false;
+        data.sightWords[word] = {
+          read: false,
+          write: false,
+        };
       }
     }
   }
