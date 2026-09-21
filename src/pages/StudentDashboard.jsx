@@ -3,15 +3,12 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import {
   createEmptyData,
-  getSightWordSequence,
   PERIODS,
 } from '@/lib/dashboardData';
 import { DashboardHeader, PrintHeader } from '@/components/dashboard/DashboardHeader';
 import { SpanishLetterGrid } from '@/components/dashboard/SpanishLetterGrid';
 import { EnglishLetterGrid, NumbersGrid, ComposeGrid } from '@/components/dashboard/MathGrids';
 import { Printer, Users, FileText, Settings } from 'lucide-react';
-
-const SIGHT_WORD_OPTIONS = getSightWordSequence();
 
 function createDefaultReportSettings() {
   const defaults = createEmptyData();
@@ -460,7 +457,7 @@ export default function StudentDashboard() {
               Student Dashboard Settings
             </p>
             <p className="text-xs text-yellow-700">
-              Dates apply to every class. Curriculum cutoffs apply to all{' '}
+              Dates apply to every class. Letter cutoffs apply to all{' '}
               {lang === 'es' ? 'Spanish/bilingual' : 'English'} classes.
               Press Save when finished.
             </p>
@@ -476,7 +473,7 @@ export default function StudentDashboard() {
                   {period} 9 Weeks
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <label className="text-xs font-bold text-gray-600">
                     End date
                     <input
@@ -512,38 +509,6 @@ export default function StudentDashboard() {
                       className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm font-normal text-gray-800"
                     />
                   </label>
-
-                  {lang === 'es' && (
-                    <label className="text-xs font-bold text-gray-600">
-                      Last sight word
-                      <select
-                        value={
-                          displayData.lastSightWordLearned?.[period] ||
-                          ''
-                        }
-                        onChange={(event) =>
-                          toggle(
-                            `lastSightWordLearned.${period}`,
-                            event.target.value,
-                            true
-                          )
-                        }
-                        className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-800"
-                      >
-                        <option value="">Not set</option>
-
-                        {SIGHT_WORD_OPTIONS.map((item) => (
-                          <option
-                            key={item.key}
-                            value={item.key}
-                          >
-                            M{item.module_number}.L
-                            {item.curriculum_lesson_number} — {item.word}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
                 </div>
               </div>
             ))}
