@@ -168,7 +168,6 @@ export default function LiveLesson() {
         const s = sessionRef.current;
         if (!s?.id) return;
         await base44.entities.LiveLessonSession.update(s.id, {
-          active: true,
           current_step: s.current_step ?? 0,
           phase: s.phase || 'watch',
           release_mode: s.release_mode || 'stay',
