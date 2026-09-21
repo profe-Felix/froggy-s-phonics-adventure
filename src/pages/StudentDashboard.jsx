@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-import { createEmptyData, PERIODS } from '@/lib/dashboardData';
+import {
+  createEmptyData,
+  getSightWordSequence,
+  PERIODS,
+} from '@/lib/dashboardData';
 import { DashboardHeader, PrintHeader } from '@/components/dashboard/DashboardHeader';
 import { SpanishLetterGrid } from '@/components/dashboard/SpanishLetterGrid';
 import { EnglishLetterGrid, NumbersGrid, ComposeGrid } from '@/components/dashboard/MathGrids';
 import { Printer, Users, FileText, Settings } from 'lucide-react';
+
+const SIGHT_WORD_OPTIONS = getSightWordSequence();
 
 function createDefaultReportSettings() {
   const defaults = createEmptyData();
@@ -415,21 +421,99 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* Settings panel — última letra per period (not printed) */}
+      {/* Global Student Dashboard settings for this school year */}
       {showSettings && selectedStudentId && (
         <div className="no-print bg-yellow-50 border-b border-yellow-200 px-4 py-3">
-          <p className="text-xs font-bold mb-2 text-yellow-800">Configuración: Última letra aprendida (no se imprime)</p>
-          <div className="flex flex-wrap gap-3">
-            {PERIODS.map((p, i) => (
-              <div key={p} className="flex items-center gap-1">
-                <label className="text-xs font-bold whitespace-nowrap">{p} 9 Weeks:</label>
-                <input
-                  type="text"
-                  value={displayData.lastLetterLearned?.[p] || ''}
-                  onChange={(e) => toggle(`lastLetterLearned.${p}`, e.target.value, true)}
-                  className="w-12 border border-gray-300 rounded px-1 py-0.5 text-xs"
-                  placeholder="—"
-                />
+          <div className="mb-3">
+            <p className="text-sm font-black text-yellow-900">
+              Student Dashboard Settings
+            </p>
+            <p className="text-xs text-yellow-700">
+              Dates apply to every class. Curriculum cutoffs apply to all{' '}
+              {lang === 'es' ? 'Spanish/bilingual' : 'English'} classes.
+              Press Save when finished.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {PERIODS.map((period) => (
+              <div
+                key={period}
+                className="rounded-lg border border-yellow-200 bg-white p-3"
+              >
+                <p className="text-xs font-black text-gray-800 mb-2">
+                  {period} 9 Weeks
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="text-xs font-bold text-gray-600">
+                    End date
+                    <input
+                      type="text"
+                      value={displayData.periodDates?.[period] || ''}
+                      onChange={(event) =>
+                        toggle(
+                          `periodDates.${period}`,
+                          event.target.value,
+                          true
+                        )
+                      }
+                      placeholder="oct. 9"
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm font-normal text-gray-800"
+                    />
+                  </label>
+
+                  <label className="text-xs font-bold text-gray-600">
+                    Last letter
+                    <input
+                      type="text"
+                      value={
+                        displayData.lastLetterLearned?.[period] || ''
+                      }
+                      onChange={(event) =>
+                        toggle(
+                          `lastLetterLearned.${period}`,
+                          event.target.value,
+                          true
+                        )
+                      }
+                      placeholder="—"
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm font-normal text-gray-800"
+                    />
+                  </label>
+
+                  {lang === 'es' && (
+                    <label className="text-xs font-bold text-gray-600">
+                      Last sight word
+                      <select
+                        value={
+                          displayData.lastSightWordLearned?.[period] ||
+                          ''
+                        }
+                        onChange={(event) =>
+                          toggle(
+                            `lastSightWordLearned.${period}`,
+                            event.target.value,
+                            true
+                          )
+                        }
+                        className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm font-normal text-gray-800"
+                      >
+                        <option value="">Not set</option>
+
+                        {SIGHT_WORD_OPTIONS.map((item) => (
+                          <option
+                            key={item.key}
+                            value={item.key}
+                          >
+                            M{item.module_number}.L
+                            {item.curriculum_lesson_number} — {item.word}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
               </div>
             ))}
           </div>
