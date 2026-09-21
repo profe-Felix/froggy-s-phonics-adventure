@@ -566,10 +566,10 @@ export default function LiveLesson() {
     session.release_mode || 'stay';
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900 text-white overflow-hidden">
+    <div className="relative h-screen bg-slate-900 text-white overflow-hidden">
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-950/70 border-b border-slate-800 shrink-0">
+      <div className="fixed top-0 inset-x-0 z-[10000] h-14 flex items-center justify-between gap-3 px-4 bg-slate-950 border-b border-slate-700 shadow-xl overflow-x-auto">
 
         <div className="flex items-center gap-3 min-w-0">
 
@@ -694,7 +694,26 @@ export default function LiveLesson() {
       </div>
 
       {/* Main modeling area */}
-      <div className="flex-1 min-h-0 overflow-auto bg-slate-900">
+      <div
+        className="fixed inset-x-0 top-14 bottom-14 z-0 overflow-auto bg-slate-900"
+        data-live-lesson-stage
+      >
+
+        <div
+          className={`fixed right-3 top-[4.25rem] z-[10001] pointer-events-none rounded-full px-3 py-1.5 text-xs font-black shadow-lg border ${
+            releaseMode === 'lesson'
+              ? 'bg-violet-600 text-white border-violet-300'
+              : isLocked
+                ? 'bg-amber-500 text-slate-950 border-amber-200'
+                : 'bg-green-500 text-slate-950 border-green-200'
+          }`}
+        >
+          {releaseMode === 'lesson'
+            ? 'STUDENTS: OWN PACE'
+            : isLocked
+              ? 'STUDENTS: WATCHING'
+              : 'STUDENTS: RELEASED'}
+        </div>
 
         {showDashboard ? (
           <TryDashboard
@@ -713,7 +732,7 @@ export default function LiveLesson() {
       </div>
 
       {/* Bottom step toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-slate-950/70 border-t border-slate-800 shrink-0">
+      <div className="fixed bottom-0 inset-x-0 z-[10000] h-14 flex items-center gap-2 px-3 bg-slate-950 border-t border-slate-700 shadow-xl">
 
         <button
           onClick={() => advance(-1)}
@@ -774,7 +793,7 @@ export default function LiveLesson() {
       {/* QR + join code popover */}
       {showQR && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          className="fixed inset-0 z-[11000] flex items-center justify-center bg-black/60"
           onClick={() =>
             setShowQR(false)
           }
