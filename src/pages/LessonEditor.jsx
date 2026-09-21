@@ -195,10 +195,9 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
 
       {step.mode === 'digital_notebook' ? (
         <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
-          <>
-            <p className="text-[11px] text-indigo-700 bg-indigo-50 rounded-lg p-2">
-              The student’s class will be selected automatically from the lesson URL.
-            </p>
+          <p className="text-[11px] text-indigo-700 bg-indigo-50 rounded-lg p-2">
+            The student’s class will be selected automatically from the lesson URL.
+          </p>
               <label className="text-xs text-gray-600 font-bold">
                 Digital Notebook assignment
 
@@ -269,14 +268,14 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               </label>
 
               {!notebookAssignmentsLoading &&
-                notebookAssignments.length ===
+                notebookAssignmentChoices.length ===
                   0 && (
                   <p className="text-xs text-amber-700">
-                    This class does not have any active Digital Notebook assignments.
+                    There are no active Digital Notebook assignments.
                   </p>
                 )}
 
-              {step.config?.assignmentId && (
+              {step.config?.assignmentTitle && (
                 <>
                   <label className="text-xs text-gray-600 font-bold">
                     Pages for this lesson step
@@ -474,7 +473,6 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
                   </p>
                 </>
               )}
-            </>
         </div>
       ) : step.mode === 'letter_sort' ? (
         <div className="flex flex-col gap-1">
