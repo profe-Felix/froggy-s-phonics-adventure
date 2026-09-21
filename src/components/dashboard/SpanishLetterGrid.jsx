@@ -1,5 +1,11 @@
 import React from 'react';
-import { ES_PERIOD_INFO, computePeriods, groupByModule, PERIODS } from '@/lib/dashboardData';
+import {
+  ES_PERIOD_INFO,
+  computePeriods,
+  computeSightWordPeriods,
+  groupByModule,
+  PERIODS,
+} from '@/lib/dashboardData';
 import { CheckCell, InlineToggle } from './CheckCell';
 
 function SectionHeader({ title }) {
@@ -12,8 +18,18 @@ function SectionHeader({ title }) {
 
 function cellBorderStyle(letters, ci) {
   const style = {};
-  if (letters[ci].tl) style.borderLeftWidth = '1px';
-  if (ci < letters.length - 1 && letters[ci + 1].tl) style.borderRightWidth = '1px';
+
+  if (letters[ci].tl) {
+    style.borderLeftWidth = '1px';
+  }
+
+  if (
+    ci < letters.length - 1 &&
+    letters[ci + 1].tl
+  ) {
+    style.borderRightWidth = '1px';
+  }
+
   return style;
 }
 
@@ -23,15 +39,24 @@ const SKILL_ROWS = [
   { label: 'Formación', key: 'formation' },
 ];
 
-// Inline initials box — label and input on the SAME line inside a bordered box.
-function InlineInitialsBox({ period, value, onChange, readOnly }) {
+function InlineInitialsBox({
+  period,
+  value,
+  onChange,
+  readOnly,
+}) {
   return (
     <div className="border-2 border-black px-2 py-1 text-xs flex items-center gap-1">
-      <span className="font-bold whitespace-nowrap">{period} 9 Weeks:</span>
+      <span className="font-bold whitespace-nowrap">
+        {period} 9 Weeks:
+      </span>
+
       <input
         type="text"
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
         readOnly={readOnly}
         className="flex-1 border-b border-black outline-none bg-transparent min-w-0"
       />
@@ -39,97 +64,311 @@ function InlineInitialsBox({ period, value, onChange, readOnly }) {
   );
 }
 
-export function SpanishLetterGrid({ data, toggle, readOnly }) {
-  // Dynamically compute which letters belong to each period based on última letra settings.
-  const periods = computePeriods(data.lastLetterLearned);
+function groupSightWordsByModule(words) {
+  const groups = [];
+
+  for (const item of words) {
+    const previousGroup =
+      groups[groups.length - 1];
+
+    if (
+      previousGroup &&
+      previousGroup.module_number ===
+        item.module_number
+    ) {
+      previousGroup.words.push(item);
+    } else {
+      groups.push({
+        module_number: item.module_number,
+        words: [item],
+      });
+    }
+  }
+
+  return groups;
+}
+
+function SightWordSection({
+  words,
+  data,
+  toggle,
+  readOnly,
+}) {
+  if (!words.length) {
+    return null;
+  }
+
+  const moduleGroups =
+    groupSightWordsByModule(words);
+
+  return (
+    <div className="border-t-2 border-black">
+      <div className="grid grid-cols-[8rem_1fr]">
+        <div className="border-r-2 border-black bg-gray-50 px-2 py-2 text-xs font-bold">
+          Palabras frecuentes
+        </div>
+
+        <div className="divide-y divide-black">
+          {moduleGroups.map((group) => (
+            <div
+              key={group.module_number}
+              className="grid grid-cols-[5rem_1fr]"
+            >
+              <div className="border-r border-black bg-gray-50 px-2 py-2 text-center text-xs font-bold">
+                Módulo {group.module_number}
+              </div>
+
+              <div className="flex flex-wrap gap-x-4 gap-y-2 px-3 py-2">
+                {group.words.map((item) => (
+                  <label
+                    key={item.key}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold"
+                  >
+                    <span>{item.word}</span>
+
+                    <input
+                      type="checkbox"
+                      checked={Boolean(
+                        data.sightWords?.[
+                          item.word
+                        ]
+                      )}
+                      onChange={() =>
+                        toggle(
+                          `sightWords.${item.word}`
+                        )
+                      }
+                      disabled={readOnly}
+                      className="h-4 w-4 accent-green-600 disabled:opacity-100"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SpanishLetterGrid({
+  data,
+  toggle,
+  readOnly,
+}) {
+  const periods = computePeriods(
+    data.lastLetterLearned
+  );
+
+  const sightWordPeriods =
+    computeSightWordPeriods(
+      data.lastSightWordLearned
+    );
 
   return (
     <div className="border-2 border-black">
       <SectionHeader title="Identificación de letras y sonidos" />
+
       {periods.map((periodLetters, pi) => {
         const info = ES_PERIOD_INFO[pi];
         const periodKey = PERIODS[pi];
-        const modules = groupByModule(periodLetters);
+        const modules =
+          groupByModule(periodLetters);
         const allLetters = periodLetters;
+        const periodSightWords =
+          sightWordPeriods[pi] || [];
+
         return (
-          <div key={pi} className="border-b-2 border-black last:border-b-0">
-            {/* Period header: label + editable end date only */}
+          <div
+            key={pi}
+            className="border-b-2 border-black last:border-b-0"
+          >
             <div className="flex items-center gap-2 px-2 py-0.5 bg-gray-100 border-b border-black text-xs font-bold">
               <span>{info.label}:</span>
               <span>Terminan</span>
+
               <input
                 type="text"
-                value={data.periodDates?.[periodKey] ?? info.defaultDate}
-                onChange={(e) => toggle(`periodDates.${periodKey}`, e.target.value, true)}
+                value={
+                  data.periodDates?.[
+                    periodKey
+                  ] ?? info.defaultDate
+                }
+                onChange={(event) =>
+                  toggle(
+                    `periodDates.${periodKey}`,
+                    event.target.value,
+                    true
+                  )
+                }
                 readOnly={readOnly}
                 className="w-20 border-b border-gray-400 outline-none bg-transparent"
               />
             </div>
-            {/* Letter table with module overarch headers */}
+
             {allLetters.length > 0 && (
               <table className="w-full border-collapse table-fixed">
                 <tbody>
-                  {/* Module header row — each module name spans its letter columns */}
                   <tr>
-                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20"></td>
-                    {modules.map((m, mi) => (
-                      <td key={mi} colSpan={m.letters.length} className="border-2 border-black text-center font-bold text-xs py-0.5 bg-gray-50">
-                        {m.name}
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20" />
+
+                    {modules.map((module, mi) => (
+                      <td
+                        key={mi}
+                        colSpan={
+                          module.letters.length
+                        }
+                        className="border-2 border-black text-center font-bold text-xs py-0.5 bg-gray-50"
+                      >
+                        {module.name}
                       </td>
                     ))}
                   </tr>
-                  {/* Letter row */}
+
                   <tr>
-                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20"></td>
-                    {allLetters.map((l, ci) => (
-                      <td key={`${l.k}-${ci}`} className="border-2 border-black text-center px-0"
-                        style={{ ...cellBorderStyle(allLetters, ci) }}>
-                        <div className="font-bold text-sm leading-tight whitespace-nowrap">
-                          {l.d}{l.p && <span className="text-[10px] font-normal text-gray-600 ml-0.5">{l.p}</span>}
-                        </div>
-                      </td>
-                    ))}
-                  </tr>
-                  {/* Skill rows — compact, just tall enough for the checkmark */}
-                  {SKILL_ROWS.map(sr => (
-                    <tr key={`${pi}-${sr.key}`}>
-                      <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20">{sr.label}</td>
-                      {allLetters.map((l, ci) => (
-                        <td key={`${l.k}-${ci}-${sr.key}`} className="border-2 border-black p-0"
-                          style={cellBorderStyle(allLetters, ci)}>
-                          <CheckCell
-                            checked={data.letters[l.k]?.[sr.key]}
-                            onClick={() => toggle(`letters.${l.k}.${sr.key}`)}
-                            readOnly={readOnly}
-                            blackedOut={sr.key === 'upper' && l.bl}
-                          />
+                    <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20" />
+
+                    {allLetters.map(
+                      (letter, ci) => (
+                        <td
+                          key={`${letter.k}-${ci}`}
+                          className="border-2 border-black text-center px-0"
+                          style={{
+                            ...cellBorderStyle(
+                              allLetters,
+                              ci
+                            ),
+                          }}
+                        >
+                          <div className="font-bold text-sm leading-tight whitespace-nowrap">
+                            {letter.d}
+
+                            {letter.p && (
+                              <span className="text-[10px] font-normal text-gray-600 ml-0.5">
+                                {letter.p}
+                              </span>
+                            )}
+                          </div>
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                      )
+                    )}
+                  </tr>
+
+                  {SKILL_ROWS.map(
+                    (skillRow) => (
+                      <tr
+                        key={`${pi}-${skillRow.key}`}
+                      >
+                        <td className="border-2 border-black px-1 py-0.5 text-xs font-bold w-20">
+                          {skillRow.label}
+                        </td>
+
+                        {allLetters.map(
+                          (letter, ci) => (
+                            <td
+                              key={`${letter.k}-${ci}-${skillRow.key}`}
+                              className="border-2 border-black p-0"
+                              style={cellBorderStyle(
+                                allLetters,
+                                ci
+                              )}
+                            >
+                              <CheckCell
+                                checked={
+                                  data.letters?.[
+                                    letter.k
+                                  ]?.[
+                                    skillRow.key
+                                  ]
+                                }
+                                onClick={() =>
+                                  toggle(
+                                    `letters.${letter.k}.${skillRow.key}`
+                                  )
+                                }
+                                readOnly={
+                                  readOnly
+                                }
+                                blackedOut={
+                                  skillRow.key ===
+                                    'upper' &&
+                                  letter.bl
+                                }
+                              />
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             )}
+
+            <SightWordSection
+              words={periodSightWords}
+              data={data}
+              toggle={toggle}
+              readOnly={readOnly}
+            />
           </div>
         );
       })}
-      {/* Single-line summary with inline toggle underlines */}
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-t-2 border-black">
-        <InlineToggle label="Conoce todas las mayúsculas" checked={data.allUpper} onClick={() => toggle('allUpper')} readOnly={readOnly} />
-        <InlineToggle label="Conoce todas las minúsculas" checked={data.allLower} onClick={() => toggle('allLower')} readOnly={readOnly} />
-        <InlineToggle label="Conoce todos los sonidos" checked={data.allSounds} onClick={() => toggle('allSounds')} readOnly={readOnly} />
-        <InlineToggle label="Forma todas las letras correctamente" checked={data.allFormation} onClick={() => toggle('allFormation')} readOnly={readOnly} />
+        <InlineToggle
+          label="Conoce todas las mayúsculas"
+          checked={data.allUpper}
+          onClick={() => toggle('allUpper')}
+          readOnly={readOnly}
+        />
+
+        <InlineToggle
+          label="Conoce todas las minúsculas"
+          checked={data.allLower}
+          onClick={() => toggle('allLower')}
+          readOnly={readOnly}
+        />
+
+        <InlineToggle
+          label="Conoce todos los sonidos"
+          checked={data.allSounds}
+          onClick={() => toggle('allSounds')}
+          readOnly={readOnly}
+        />
+
+        <InlineToggle
+          label="Forma todas las letras correctamente"
+          checked={data.allFormation}
+          onClick={() =>
+            toggle('allFormation')
+          }
+          readOnly={readOnly}
+        />
       </div>
-      {/* Parent initials — inline boxes on a single row */}
+
       <div className="border-t-2 border-black p-2">
-        <p className="text-xs font-bold mb-1">Iniciales de los padres</p>
+        <p className="text-xs font-bold mb-1">
+          Iniciales de los padres
+        </p>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {PERIODS.map(p => (
+          {PERIODS.map((period) => (
             <InlineInitialsBox
-              key={p}
-              period={p}
-              value={data.parentInitials?.letters?.[p]}
-              onChange={(v) => toggle(`parentInitials.letters.${p}`, v, true)}
+              key={period}
+              period={period}
+              value={
+                data.parentInitials
+                  ?.letters?.[period]
+              }
+              onChange={(value) =>
+                toggle(
+                  `parentInitials.letters.${period}`,
+                  value,
+                  true
+                )
+              }
               readOnly={readOnly}
             />
           ))}
