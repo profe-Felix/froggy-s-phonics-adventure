@@ -425,7 +425,7 @@ export default function StudentDashboard() {
                 <label className="text-xs font-bold whitespace-nowrap">{p} 9 Weeks:</label>
                 <input
                   type="text"
-                  value={data.lastLetterLearned?.[p] || ''}
+                  value={displayData.lastLetterLearned?.[p] || ''}
                   onChange={(e) => toggle(`lastLetterLearned.${p}`, e.target.value, true)}
                   className="w-12 border border-gray-300 rounded px-1 py-0.5 text-xs"
                   placeholder="—"
@@ -442,7 +442,7 @@ export default function StudentDashboard() {
           <div className={`page-preview ${printAllData ? 'print:hidden' : ''}`} style={{ border: 'none' }}>
             <DashboardHeader student={selectedStudent} lang={lang} class_name={className} />
             <div className="mt-4">
-              <DashboardSections data={data} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
+              <DashboardSections data={displayData} toggle={toggle} readOnly={readOnly} lang={lang} frontBack={frontBack} />
             </div>
           </div>
         </div>
