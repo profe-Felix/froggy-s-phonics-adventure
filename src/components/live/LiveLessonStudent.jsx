@@ -128,7 +128,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       } catch { /* best-effort */ }
     };
     tick(); // run immediately so late joiners reconcile at mount
-    const iv = setInterval(tick, 20000);
+    const iv = setInterval(tick, 4000);
     return () => { alive = false; clearInterval(iv); };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
