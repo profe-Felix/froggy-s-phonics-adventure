@@ -401,6 +401,7 @@ export const PERIODS = ['1st', '2nd', '3rd', '4th'];
 export function createEmptyData() {
   const data = {
     letters: {},
+    sightWords: {},
     allUpper: false,
     allLower: false,
     allSounds: false,
@@ -423,6 +424,17 @@ export function createEmptyData() {
   for (const l of ALL_ES_LETTERS) {
     data.letters[l.k] = { upper: false, lower: false, sound: false, formation: false };
   }
+
+  // Create one official mastery value for every sight word.
+  // Repeated curriculum appearances, such as "yo", share one mastery value.
+  for (const introduction of ES_SIGHT_WORD_SEQUENCE) {
+    for (const word of introduction.words) {
+      if (!(word in data.sightWords)) {
+        data.sightWords[word] = false;
+      }
+    }
+  }
+
   for (const n of [...NUMBERS_ROW1, ...NUMBERS_ROW2]) {
     data.numbers[n] = { read: false, write: false };
   }
