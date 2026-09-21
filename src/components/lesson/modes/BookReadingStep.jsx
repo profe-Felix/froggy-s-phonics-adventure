@@ -14,6 +14,7 @@ export default function BookReadingStep({
   onBack,
   onRecordingSaved,
   onRequiredPagesLoaded,
+  embedded = false,
 }) {
   const bookId = stepConfig?.bookId;
 
@@ -110,6 +111,7 @@ export default function BookReadingStep({
       recordingPages={
         catalogBook?.recording_pages || []
       }
+      embedded={embedded}
     />
   );
 }
