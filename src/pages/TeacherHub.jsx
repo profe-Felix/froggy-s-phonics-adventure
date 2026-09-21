@@ -7,6 +7,7 @@ import SpellingWritingDashboard from './SpellingWritingDashboard';
 import WordBuilderDashboard from './WordBuilderDashboard';
 import PrizeDashboard from './PrizeDashboard';
 import Lessons from './Lessons';
+import SightWordTracker from './SightWordTracker';
 
 const TABS = [
   { id: 'progress', label: 'Progress', icon: '📊', Comp: Dashboard },
