@@ -359,18 +359,26 @@ export default function StudentDashboard() {
   );
   const className = selectedClass || classParam;
 
-  const displayData = {
-    ...data,
+  const applyReportSettings = (
+    studentData,
+    dashboardLanguage
+  ) => ({
+    ...studentData,
     periodDates: reportSettings.period_dates,
     lastLetterLearned:
-      lang === 'en'
+      dashboardLanguage === 'en'
         ? reportSettings.en_last_letter_learned
         : reportSettings.es_last_letter_learned,
     lastSightWordLearned:
-      lang === 'en'
+      dashboardLanguage === 'en'
         ? reportSettings.en_last_sight_word_learned
         : reportSettings.es_last_sight_word_learned,
-  };
+  });
+
+  const displayData = applyReportSettings(
+    data,
+    lang
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
@@ -572,7 +580,13 @@ export default function StudentDashboard() {
             <div key={idx} className="page-preview print:break-after-page" style={{ border: 'none' }}>
               <PrintHeader student={student} lang={dLang} class_name={className} />
               <div className="mt-4">
-                <DashboardSections data={dData} toggle={() => {}} readOnly={true} lang={dLang} frontBack={frontBack} />
+                <DashboardSections
+                  data={applyReportSettings(dData, dLang)}
+                  toggle={() => {}}
+                  readOnly={true}
+                  lang={dLang}
+                  frontBack={frontBack}
+                />
               </div>
             </div>
           ))}
