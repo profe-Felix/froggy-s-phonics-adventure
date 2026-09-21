@@ -104,17 +104,33 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
   } = useQuery({
     queryKey: [
       'lesson-editor-notebook-assignments',
-      lessonClass,
     ],
     queryFn: () =>
       base44.entities.DigitalNotebookAssignment.filter({
-        class_name: lessonClass,
         status: 'active',
       }),
     enabled:
-      step.mode === 'digital_notebook' &&
-      Boolean(lessonClass),
+      step.mode === 'digital_notebook',
   });
+
+  const notebookAssignmentChoices =
+    Array.from(
+      new Map(
+        notebookAssignments
+          .filter(
+            (assignment) =>
+              assignment.title?.trim()
+          )
+          .map((assignment) => [
+            assignment.title
+              .trim()
+              .toLowerCase(),
+            assignment,
+          ])
+      ).values()
+    ).sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
 
   const { list: letterSortList } = useLetterSortPresets();
   const { list: missingLetterList } = useMissingLetterPresets();
@@ -179,33 +195,30 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
 
       {step.mode === 'digital_notebook' ? (
         <div className="flex flex-col gap-3 rounded-xl bg-white/60 p-3">
-          {!lessonClass ? (
-            <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-lg p-3">
-              Select a class for this lesson before choosing a Digital Notebook assignment.
+          <>
+            <p className="text-[11px] text-indigo-700 bg-indigo-50 rounded-lg p-2">
+              The student’s class will be selected automatically from the lesson URL.
             </p>
-          ) : (
-            <>
               <label className="text-xs text-gray-600 font-bold">
                 Digital Notebook assignment
 
                 <select
                   value={
-                    step.config?.assignmentId ||
+                    step.config?.assignmentTitle ||
                     ''
                   }
                   onChange={(e) => {
                     const assignment =
-                      notebookAssignments.find(
+                      notebookAssignmentChoices.find(
                         (item) =>
-                          item.id ===
+                          item.title ===
                           e.target.value
                       );
 
                     update({
                       config: {
                         ...step.config,
-                        assignmentId:
-                          assignment?.id || '',
+                        assignmentId: '',
                         assignmentTitle:
                           assignment?.title || '',
                         assignmentPageCount:
@@ -238,11 +251,11 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
                       : '— select an assignment —'}
                   </option>
 
-                  {notebookAssignments.map(
+                  {notebookAssignmentChoices.map(
                     (assignment) => (
                       <option
-                        key={assignment.id}
-                        value={assignment.id}
+                        key={assignment.title}
+                        value={assignment.title}
                       >
                         {assignment.title}
                         {' · '}
@@ -462,7 +475,6 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
                 </>
               )}
             </>
-          )}
         </div>
       ) : step.mode === 'letter_sort' ? (
         <div className="flex flex-col gap-1">
