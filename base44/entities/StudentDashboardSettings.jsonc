@@ -1,5 +1,5 @@
 {
-  "name": "DashboardSettings",
+  "name": "StudentDashboardSettings",
   "type": "object",
   "properties": {
     "school_year": {
