@@ -60,6 +60,7 @@ export default function Student30Preview({ step, stepIndex, lesson, className })
           onBack={() => {}}
           stepperMode
           liveMode
+          embeddedMode
         />
       </div>
     </div>
