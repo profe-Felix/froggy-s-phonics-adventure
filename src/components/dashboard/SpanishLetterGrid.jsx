@@ -105,7 +105,10 @@ function SightWordSection({
     <div className="border-t-2 border-black">
       <div className="grid grid-cols-[8rem_1fr]">
         <div className="border-r-2 border-black bg-gray-50 px-2 py-2 text-xs font-bold">
-          Palabras frecuentes
+          <div>Palabras frecuentes</div>
+          <div className="mt-1 text-[9px] font-normal text-gray-600">
+            L = Lee · E = Escribe
+          </div>
         </div>
 
         <div className="divide-y divide-black">
@@ -119,30 +122,60 @@ function SightWordSection({
               </div>
 
               <div className="flex flex-wrap gap-x-4 gap-y-2 px-3 py-2">
-                {group.words.map((item) => (
-                  <label
-                    key={item.key}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold"
-                  >
-                    <span>{item.word}</span>
+                {group.words.map((item) => {
+                  const mastery =
+                    data.sightWords?.[item.word];
 
-                    <input
-                      type="checkbox"
-                      checked={Boolean(
-                        data.sightWords?.[
-                          item.word
-                        ]
-                      )}
-                      onChange={() =>
-                        toggle(
-                          `sightWords.${item.word}`
-                        )
-                      }
-                      disabled={readOnly}
-                      className="h-4 w-4 accent-green-600 disabled:opacity-100"
-                    />
-                  </label>
-                ))}
+                  const canRead =
+                    mastery === true ||
+                    mastery?.read === true;
+
+                  const canWrite =
+                    mastery?.write === true;
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-0.5"
+                    >
+                      <span className="mr-0.5 text-sm font-semibold">
+                        {item.word}
+                      </span>
+
+                      <label className="inline-flex items-center gap-0.5 text-[10px] font-bold text-gray-600">
+                        L
+                        <input
+                          type="checkbox"
+                          checked={canRead}
+                          onChange={() =>
+                            toggle(
+                              `sightWords.${item.word}.read`
+                            )
+                          }
+                          disabled={readOnly}
+                          aria-label={`Lee ${item.word}`}
+                          className="h-3.5 w-3.5 accent-green-600 disabled:opacity-100"
+                        />
+                      </label>
+
+                      <label className="inline-flex items-center gap-0.5 text-[10px] font-bold text-gray-600">
+                        E
+                        <input
+                          type="checkbox"
+                          checked={canWrite}
+                          onChange={() =>
+                            toggle(
+                              `sightWords.${item.word}.write`
+                            )
+                          }
+                          disabled={readOnly}
+                          aria-label={`Escribe ${item.word}`}
+                          className="h-3.5 w-3.5 accent-blue-600 disabled:opacity-100"
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
