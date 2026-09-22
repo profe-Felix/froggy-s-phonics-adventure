@@ -23,11 +23,23 @@ export function useLiveBroadcast(sessionId) {
     base44.entities.LiveLessonSession.get(sessionId)
       .then((s) => { if (alive && s?.broadcast_state) setBroadcast(s.broadcast_state); })
       .catch(() => {});
-    const unsub = base44.entities.LiveLessonSession.subscribe((event) => {
-      if (event.data?.id === sessionId && event.data?.broadcast_state) {
-        setBroadcast(event.data.broadcast_state);
-      }
-    });
+    const unsub =
+      base44.entities.LiveLessonSession.subscribe(
+        (event) => {
+          const eventId =
+            event.id ||
+            event.data?.id;
+
+          if (
+            eventId === sessionId &&
+            event.data?.broadcast_state
+          ) {
+            setBroadcast(
+              event.data.broadcast_state
+            );
+          }
+        }
+      );
     return () => { alive = false; unsub?.(); };
   }, [sessionId]);
 
