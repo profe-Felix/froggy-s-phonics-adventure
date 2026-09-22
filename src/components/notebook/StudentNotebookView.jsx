@@ -176,10 +176,29 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
 
   const draftKey = session ? `notebook-draft-${session.id}-${currentPage}` : null;
 
-  const { data: assignments = [] } = useQuery({
-    queryKey: ['student-notebook-assignments', className],
-    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className, status: 'active' }),
-    refetchInterval: 5000,
+  const {
+    data: assignments = [],
+  } = useQuery({
+    queryKey: [
+      'student-notebook-assignments',
+      className,
+    ],
+
+    queryFn: () =>
+      base44.entities.DigitalNotebookAssignment.filter({
+        class_name: className,
+        status: 'active',
+      }),
+
+    enabled: Boolean(className),
+
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+
+    refetchInterval: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 
   useEffect(() => {
@@ -715,47 +734,118 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     };
   }, [saveStrokes]);
 
-  // Poll server for session updates from other devices/tabs
+  // Realtime synchronization for changes made in another device or tab.
   useEffect(() => {
-    if (!session?.id) return;
+    const sessionId = session?.id;
 
-    const interval = setInterval(async () => {
+    if (!sessionId) return;
+
+    const applySessionUpdate = (fresh) => {
+      if (!fresh || fresh.id !== sessionId) {
+        return;
+      }
+
       if (isDrawingRef.current) return;
       if (saveInFlightRef.current) return;
       if (localDirtyRef.current) return;
 
-      try {
-        const fresh = await base44.entities.NotebookSession.get(session.id);
-        if (!fresh) return;
+      const pageKey = String(
+        currentPageRef.current
+      );
 
-        const pageKey = String(currentPageRef.current);
-        const serverStroke = fresh.strokes_by_page?.[pageKey];
-        const localStroke = latestSessionRef.current?.strokes_by_page?.[pageKey];
+      const serverStroke =
+        fresh.strokes_by_page?.[pageKey];
 
-        // Only reload if server has different data for current page
-        if (serverStroke && serverStroke !== localStroke) {
-          const mergedSession = {
-            ...latestSessionRef.current,
-            ...fresh,
-            strokes_by_page: fresh.strokes_by_page || {},
-          };
-          latestSessionRef.current = mergedSession;
-          setSession(mergedSession);
+      const localStroke =
+        latestSessionRef.current
+          ?.strokes_by_page?.[pageKey];
 
-          // Directly reload canvas with server data
-          if (canvasRef.current && !isDrawingRef.current && !localDirtyRef.current) {
-            try {
-              const parsed = typeof serverStroke === 'string' ? JSON.parse(serverStroke) : serverStroke;
-              canvasRef.current.loadStrokes(parsed);
-            } catch { /* skip bad payload */ }
+      if (
+        serverStroke &&
+        serverStroke !== localStroke
+      ) {
+        const mergedSession = {
+          ...latestSessionRef.current,
+          ...fresh,
+          strokes_by_page:
+            fresh.strokes_by_page || {},
+        };
+
+        latestSessionRef.current =
+          mergedSession;
+
+        setSession(mergedSession);
+
+        if (
+          canvasRef.current &&
+          !isDrawingRef.current &&
+          !localDirtyRef.current
+        ) {
+          try {
+            const parsed =
+              typeof serverStroke ===
+              'string'
+                ? JSON.parse(serverStroke)
+                : serverStroke;
+
+            canvasRef.current.loadStrokes(
+              parsed
+            );
+          } catch {
+            // Skip malformed drawing data.
           }
         }
-      } catch {
-        // silent polling failure
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
+    const unsubscribe =
+      base44.entities.NotebookSession.subscribe(
+        (event) => {
+          if (
+            event.data?.id !== sessionId ||
+            event.type === 'delete'
+          ) {
+            return;
+          }
+
+          applySessionUpdate(event.data);
+        }
+      );
+
+    const reconcileWhenVisible =
+      async () => {
+        if (
+          document.visibilityState !==
+          'visible'
+        ) {
+          return;
+        }
+
+        try {
+          const fresh =
+            await base44.entities.NotebookSession.get(
+              sessionId
+            );
+
+          applySessionUpdate(fresh);
+        } catch {
+          // Realtime remains the primary synchronization path.
+        }
+      };
+
+    document.addEventListener(
+      'visibilitychange',
+      reconcileWhenVisible
+    );
+
+    return () => {
+      unsubscribe?.();
+
+      document.removeEventListener(
+        'visibilitychange',
+        reconcileWhenVisible
+      );
+    };
   }, [session?.id]);
 
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
