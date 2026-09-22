@@ -158,9 +158,16 @@ export default function LetterGame() {
       Boolean(studentData) &&
       !liveSession,
 
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 0,
+
+    // Realtime invalidation is primary. This is a fallback for public student
+    // sessions that connect to the socket but do not receive entity events.
+    refetchInterval: liveSession
+      ? false
+      : 5000,
+
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 
@@ -220,41 +227,16 @@ export default function LetterGame() {
 
     const unsubscribe =
       base44.entities.LiveLessonSession.subscribe(
-        (event) => {
-          const candidate =
-            event.data;
-
-          if (
-            event.type === 'delete' ||
-            !candidate?.active
-          ) {
-            setLiveSession(
-              (current) =>
-                current?.id ===
-                candidate?.id
-                  ? null
-                  : current
-            );
-
-            return;
-          }
-
-          if (
-            !isForStudent(candidate)
-          ) {
-            return;
-          }
-
-          setLiveSession(
-            (current) =>
-              current?.id ===
-              candidate.id
-                ? {
-                    ...current,
-                    ...candidate,
-                  }
-                : candidate
-          );
+        () => {
+          // Do not depend on the realtime event payload.
+          // Public Base44 events may omit fields required for matching.
+          queryClient.invalidateQueries({
+            queryKey: [
+              'live-sessions',
+              studentClass,
+              liveCode,
+            ],
+          });
         }
       );
 
