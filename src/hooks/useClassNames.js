@@ -11,9 +11,25 @@ export const FALLBACK_CLASSES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 
 export function useClassNames() {
   const queryClient = useQueryClient();
-  const { data: configs = [], isLoading } = useQuery({
-    queryKey: ['class-configs-for-names'],
-    queryFn: () => base44.entities.ClassConfig.list('-updated_date', 100),
+  const {
+    data: configs = [],
+    isLoading,
+  } = useQuery({
+    queryKey: ['class-configs'],
+
+    queryFn: () =>
+      base44.entities.ClassConfig.list(
+        '-updated_date',
+        100
+      ),
+
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    retry: false,
   });
 
   const names = configs.map((c) => c.class_name).filter(Boolean);
@@ -26,8 +42,9 @@ export function useClassNames() {
     } else {
       await base44.entities.ClassConfig.create({ class_name, color, grade, language });
     }
-    queryClient.invalidateQueries({ queryKey: ['class-configs-for-names'] });
-    queryClient.invalidateQueries({ queryKey: ['class-colors'] });
+    queryClient.invalidateQueries({
+      queryKey: ['class-configs'],
+    });
   };
 
   const removeClass = async (class_name) => {
@@ -35,8 +52,9 @@ export function useClassNames() {
     if (existing) {
       await base44.entities.ClassConfig.delete(existing.id);
     }
-    queryClient.invalidateQueries({ queryKey: ['class-configs-for-names'] });
-    queryClient.invalidateQueries({ queryKey: ['class-colors'] });
+    queryClient.invalidateQueries({
+      queryKey: ['class-configs'],
+    });
   };
 
   return { classList, configs, isLoading, addClass, removeClass };
