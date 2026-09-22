@@ -109,7 +109,11 @@ export default function LiveLesson() {
     if (!session?.id) return;
 
     const unsub = base44.entities.LiveLessonSession.subscribe((event) => {
-      if (event.data?.id !== session.id) return;
+      const eventId =
+        event.id ||
+        event.data?.id;
+
+      if (eventId !== session.id) return;
 
       if (event.type === 'delete' || !event.data?.active) {
         setSession(null);
