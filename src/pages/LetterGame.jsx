@@ -102,8 +102,14 @@ export default function LetterGame() {
   //
   // This prevents forgotten/closed teacher tabs from leaving the
   // "Your teacher started a Live Lesson!" banner stuck on student devices.
-  const { data: activeLiveSessions = [] } = useQuery({
-    queryKey: ['live-sessions', selectedStudent?.class_name, liveCode],
+  const {
+    data: activeLiveSessions = [],
+  } = useQuery({
+    queryKey: [
+      'live-sessions',
+      selectedStudent?.class_name,
+      liveCode,
+    ],
 
     queryFn: async () => {
       const sessions =
@@ -112,38 +118,155 @@ export default function LetterGame() {
         });
 
       const now = Date.now();
-      const STALE_AFTER_MS = 90 * 1000;
+      const STALE_AFTER_MS =
+        90 * 1000;
 
       return (sessions || [])
-        .filter(session => {
-          // Base44 automatically updates updated_date whenever the teacher
-          // heartbeat touches this session.
+        .filter((candidate) => {
           const lastUpdate =
-            session.updated_date ||
-            session.started_at;
+            candidate.updated_date ||
+            candidate.started_at;
 
           if (!lastUpdate) return false;
 
           const age =
-            now - new Date(lastUpdate).getTime();
+            now -
+            new Date(
+              lastUpdate
+            ).getTime();
 
           return age < STALE_AFTER_MS;
         })
         .sort((a, b) => {
-          const ta = new Date(a.updated_date || a.started_at || 0).getTime();
-          const tb = new Date(b.updated_date || b.started_at || 0).getTime();
-          return tb - ta;
+          const aTime = new Date(
+            a.updated_date ||
+              a.started_at ||
+              0
+          ).getTime();
+
+          const bTime = new Date(
+            b.updated_date ||
+              b.started_at ||
+              0
+          ).getTime();
+
+          return bTime - aTime;
         });
     },
 
-    enabled: !!studentData && !liveSession,
+    enabled:
+      Boolean(studentData) &&
+      !liveSession,
 
-    // Once the student joins, LiveLessonStudent handles synchronization.
-    // This slower check is only for detecting a new session from home.
-    refetchInterval: 20000,
-    refetchIntervalInBackground: false,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
     retry: false,
   });
+
+  // Immediately enter a Live Lesson started after the student logs in.
+  useEffect(() => {
+    if (!studentData) return;
+
+    const studentClass =
+      selectedStudent?.class_name;
+
+    const studentNumber =
+      selectedStudent?.number;
+
+    if (!studentClass) return;
+
+    const isForStudent = (
+      candidate
+    ) => {
+      if (
+        !candidate ||
+        !candidate.active
+      ) {
+        return false;
+      }
+
+      if (
+        liveCode &&
+        candidate.code === liveCode
+      ) {
+        return true;
+      }
+
+      if (
+        candidate.class_name !==
+        studentClass
+      ) {
+        return false;
+      }
+
+      if (
+        !candidate.target_students ||
+        candidate.target_students
+          .length === 0
+      ) {
+        return true;
+      }
+
+      return candidate.target_students.some(
+        (target) =>
+          target.class_name ===
+            studentClass &&
+          Number(
+            target.student_number
+          ) === Number(studentNumber)
+      );
+    };
+
+    const unsubscribe =
+      base44.entities.LiveLessonSession.subscribe(
+        (event) => {
+          const candidate =
+            event.data;
+
+          if (
+            event.type === 'delete' ||
+            !candidate?.active
+          ) {
+            setLiveSession(
+              (current) =>
+                current?.id ===
+                candidate?.id
+                  ? null
+                  : current
+            );
+
+            return;
+          }
+
+          if (
+            !isForStudent(candidate)
+          ) {
+            return;
+          }
+
+          setLiveSession(
+            (current) =>
+              current?.id ===
+              candidate.id
+                ? {
+                    ...current,
+                    ...candidate,
+                  }
+                : candidate
+          );
+        }
+      );
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [
+    studentData,
+    selectedStudent?.class_name,
+    selectedStudent?.number,
+    liveCode,
+  ]);
 
   // Detect active live DICTATION sessions for this student's class.
   // When the teacher starts a live dictation, redirect the student straight
