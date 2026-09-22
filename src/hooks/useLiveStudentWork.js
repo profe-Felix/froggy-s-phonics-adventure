@@ -12,7 +12,7 @@ import { base44 } from '@/api/base44Client';
 // working and how they're doing. Marks itself idle when the try phase ends or the
 // student leaves.
 
-const HEARTBEAT_MS = 5000;
+const HEARTBEAT_MS = 15000;
 
 // Build a small, render-ready snapshot from the student's mode_progress.
 function buildProgressSnapshot(mode, studentData) {
