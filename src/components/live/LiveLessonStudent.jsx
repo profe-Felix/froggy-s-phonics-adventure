@@ -142,7 +142,15 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
 
     const unsubscribe =
       base44.entities.LiveLessonSession.subscribe(
-        () => {
+        (event) => {
+          const eventId =
+            event.id ||
+            event.data?.id;
+
+          if (eventId !== sessionId) {
+            return;
+          }
+
           void refreshSession();
         }
       );
