@@ -297,42 +297,65 @@ export default function LiveLesson() {
       0,
       Math.min(
         steps.length - 1,
-        (session.current_step || 0) + dir
+        (session.current_step || 0) +
+          dir
       )
     );
 
-    clearBroadcast();
+    clearBroadcast(false);
 
     updateSession({
       current_step: next,
       phase: 'watch',
+      broadcast_state: {},
     });
   };
 
   const goToStep = (i) => {
-    clearBroadcast();
+    clearBroadcast(false);
 
     updateSession({
       current_step: i,
       phase: 'watch',
+      broadcast_state: {},
     });
   };
 
-  const setPhase = (p) => {
-    if (p === 'try') {
-      clearBroadcast();
+  const setPhase = (nextPhase) => {
+    if (nextPhase === 'try') {
+      clearBroadcast(false);
+
+      updateSession({
+        phase: 'try',
+        broadcast_state: {},
+      });
+
+      return;
     }
 
     updateSession({
-      phase: p,
+      phase: 'watch',
     });
   };
 
-  const setReleaseMode = (m) => {
-    // Lesson mode releases students to work independently, so there's no
-    // broadcast to mirror. Together mode locks them on the teacher's step.
-    if (m === 'lesson') clearBroadcast();
-    updateSession({ release_mode: m });
+  const setReleaseMode = (
+    nextMode
+  ) => {
+    if (nextMode === 'lesson') {
+      clearBroadcast(false);
+
+      updateSession({
+        release_mode: 'lesson',
+        broadcast_state: {},
+      });
+
+      return;
+    }
+
+    updateSession({
+      release_mode: 'stay',
+      phase: 'watch',
+    });
   };
 
   const endSession = async () => {
