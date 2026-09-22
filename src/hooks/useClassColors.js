@@ -30,9 +30,25 @@ const FALLBACK = CLASS_COLOR_PALETTE.emerald;
 // are all data-driven from the stored records.
 export function useClassColors() {
   const queryClient = useQueryClient();
-  const { data: configs = [], isLoading } = useQuery({
-    queryKey: ['class-colors'],
-    queryFn: () => base44.entities.ClassConfig.list('-updated_date', 100),
+  const {
+    data: configs = [],
+    isLoading,
+  } = useQuery({
+    queryKey: ['class-configs'],
+
+    queryFn: () =>
+      base44.entities.ClassConfig.list(
+        '-updated_date',
+        100
+      ),
+
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    retry: false,
   });
 
   const byName = {};
@@ -62,7 +78,9 @@ export function useClassColors() {
     } else {
       await base44.entities.ClassConfig.create({ class_name: cls, color });
     }
-    queryClient.invalidateQueries({ queryKey: ['class-colors'] });
+    queryClient.invalidateQueries({
+      queryKey: ['class-configs'],
+    });
   };
 
   return { colorFor, languageFor, gradeFor, tracingOnlyFor, sharesBooksFromFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading };
