@@ -1361,6 +1361,9 @@ export default function LessonModeRouter({
             className={
               className
             }
+            studentData={
+              activityStudentData
+            }
             presetId={
               step?.config?.preset
             }
