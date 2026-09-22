@@ -539,7 +539,13 @@ function ProblemZone({
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export default function WordSentenceBuilder({ embedStudent, embedClass, embedPreset, embedPresetObject } = {}) {
+export default function WordSentenceBuilder({
+  embedStudent,
+  embedClass,
+  embedStudentData,
+  embedPreset,
+  embedPresetObject,
+} = {}) {
   const [searchParams] = useSearchParams();
   // When embedded as a lesson step, inject the logged-in student's context
   // so the builder runs in student mode without a separate login.
@@ -551,7 +557,69 @@ export default function WordSentenceBuilder({ embedStudent, embedClass, embedPre
     if (embedPreset) p.set('preset', embedPreset);
     return p;
   }, [searchParams, embedStudent, embedClass, embedPreset]);
-  const { config, loading } = usePreset(effectiveParams, embedPresetObject);
+  const { config, loading } = usePreset(
+    effectiveParams,
+    embedPresetObject
+  );
+
+  // The Letter Tracing progression is our current definition of
+  // "letters this student has already been taught."
+  //
+  // mastered_items contains fully completed letters.
+  // learning_items contains introduced letters still being practiced.
+  // We combine them because both groups have already been introduced.
+  const tracingLetters = useMemo(() => {
+    const tracingProgress =
+      embedStudentData?.mode_progress?.letter_tracing;
+
+    const introduced = [
+      ...(tracingProgress?.mastered_items || []),
+      ...(tracingProgress?.learning_items || []),
+    ];
+
+    const normalized = introduced
+      .map((letter) =>
+        String(letter || '')
+          .trim()
+          .toLowerCase()
+      )
+      .filter((letter) =>
+        /^[a-zñü]$/.test(letter)
+      );
+
+    return [...new Set(normalized)];
+  }, [embedStudentData]);
+
+  const tracingLetterSet = useMemo(
+    () => new Set(tracingLetters),
+    [tracingLetters]
+  );
+
+  const canBuildFromTracingProgression =
+    useCallback(
+      (word) => {
+        const normalized = String(word || '')
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/n\u0303/g, 'ñ')
+          .replace(/u\u0308/g, 'ü')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zñü]/g, '');
+
+        if (
+          !normalized ||
+          tracingLetterSet.size === 0
+        ) {
+          return false;
+        }
+
+        return [...normalized].every((letter) =>
+          tracingLetterSet.has(letter)
+        );
+      },
+      [tracingLetterSet]
+    );
 
   const [problems, setProblems] = useState(() => [[]]);
   const [problemStates, setProblemStates] = useState(() => [null]);
