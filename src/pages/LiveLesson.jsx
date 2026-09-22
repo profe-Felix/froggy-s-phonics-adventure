@@ -167,11 +167,12 @@ export default function LiveLesson() {
       try {
         const s = sessionRef.current;
         if (!s?.id) return;
-        await base44.entities.LiveLessonSession.update(s.id, {
-          current_step: s.current_step ?? 0,
-          phase: s.phase || 'watch',
-          release_mode: s.release_mode || 'stay',
-        });
+        await base44.entities.LiveLessonSession.update(
+          s.id,
+          {
+            active: true,
+          }
+        );
       } catch {
         // Best effort only. A temporary network failure should
         // not interrupt the teacher's lesson.
