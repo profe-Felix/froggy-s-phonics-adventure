@@ -74,52 +74,120 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     enabled: !!session?.lesson_id,
   });
 
-  // Realtime subscription — follow the teacher's pace.
+  // Realtime events trigger an authoritative session fetch. This avoids
+  // depending on incomplete or differently shaped public event payloads.
   useEffect(() => {
     const sessionId = session?.id;
 
     if (!sessionId) return;
 
-    const unsubscribe =
-      base44.entities.LiveLessonSession.subscribe(
-        (event) => {
-          if (
-            event.data?.id !== sessionId
-          ) {
-            return;
-          }
+    let alive = true;
+    let refreshInFlight = false;
 
-          if (
-            event.type === 'delete' ||
-            !event.data?.active
-          ) {
-            onExit?.();
-            return;
-          }
+    const refreshSession = async () => {
+      if (
+        !alive ||
+        refreshInFlight
+      ) {
+        return;
+      }
 
-          setLocalSession((previous) => {
+      refreshInFlight = true;
+
+      try {
+        const fresh =
+          await base44.entities.LiveLessonSession.get(
+            sessionId
+          );
+
+        if (
+          !alive ||
+          !fresh
+        ) {
+          return;
+        }
+
+        if (!fresh.active) {
+          onExit?.();
+          return;
+        }
+
+        setLocalSession(
+          (previous) => {
             const previousStep =
               previous?.current_step ?? 0;
 
             const nextStep =
-              event.data.current_step ?? 0;
+              fresh.current_step ?? 0;
 
             if (
-              nextStep !== previousStep
+              nextStep !==
+              previousStep
             ) {
               refreshBroadcast();
             }
 
             return {
               ...previous,
-              ...event.data,
+              ...fresh,
             };
-          });
+          }
+        );
+      } catch {
+        // The safety check below will try again.
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const unsubscribe =
+      base44.entities.LiveLessonSession.subscribe(
+        () => {
+          void refreshSession();
         }
       );
 
+    const safetyInterval =
+      window.setInterval(
+        () => {
+          if (
+            document.visibilityState ===
+            'visible'
+          ) {
+            void refreshSession();
+          }
+        },
+        5000
+      );
+
+    const handleVisibilityChange =
+      () => {
+        if (
+          document.visibilityState ===
+          'visible'
+        ) {
+          void refreshSession();
+        }
+      };
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
     return () => {
+      alive = false;
+
       unsubscribe?.();
+
+      window.clearInterval(
+        safetyInterval
+      );
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
     };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
