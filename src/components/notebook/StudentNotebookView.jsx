@@ -801,8 +801,12 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const unsubscribe =
       base44.entities.NotebookSession.subscribe(
         (event) => {
+          const eventId =
+            event.id ||
+            event.data?.id;
+
           if (
-            event.data?.id !== sessionId ||
+            eventId !== sessionId ||
             event.type === 'delete'
           ) {
             return;
@@ -1151,7 +1155,11 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     const unsubscribe =
       base44.entities.DigitalNotebookAssignment.subscribe(
         (event) => {
-          if (event.data?.id !== assignmentId) {
+          const eventId =
+            event.id ||
+            event.data?.id;
+
+          if (eventId !== assignmentId) {
             return;
           }
 
@@ -1160,7 +1168,9 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
             return;
           }
 
-          void applyAssignmentUpdate(event.data);
+          void applyAssignmentUpdate(
+            event.data
+          );
         }
       );
 
