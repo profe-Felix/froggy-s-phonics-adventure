@@ -186,9 +186,8 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       }
     };
 
-    // One request ensures late joiners receive the latest state.
-    void reconcileSession();
-
+    // The session passed by LetterGame already contains the latest state.
+    // Reconcile only after a suspended tab becomes visible again.
     document.addEventListener(
       'visibilitychange',
       handleVisibilityChange
