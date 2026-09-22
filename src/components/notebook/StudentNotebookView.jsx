@@ -198,24 +198,6 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
     loadedKeyRef.current = null;
   }, [session?.id]);
 
-  const { data: polledAssignment = null } = useQuery({
-    queryKey: ['student-notebook-poll', selectedAssignment?.id],
-    queryFn: async () => {
-      const fresh = await base44.entities.DigitalNotebookAssignment.filter({
-        class_name: className,
-        status: 'active',
-      });
-
-      return (
-        fresh.find((assignment) =>
-          assignment.id === selectedAssignment?.id
-        ) || null
-      );
-    },
-    enabled: !!selectedAssignment,
-    refetchInterval: 3000,
-  });
-
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -1023,42 +1005,82 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   };
 
   useEffect(() => {
-    if (!polledAssignment) return;
-    if (polledAssignment.id !== selectedAssignment?.id) return;
+    const assignmentId = selectedAssignment?.id;
 
-    setSelectedAssignment((current) =>
-      current?.id === polledAssignment.id
-        ? { ...current, ...polledAssignment }
-        : current
-    );
+    if (!assignmentId) return;
 
-    if (
-      polledAssignment.broadcast_video &&
-      polledAssignment.broadcast_video !== broadcastUrl
-    ) {
-      setBroadcastUrl(polledAssignment.broadcast_video);
-      setShowBroadcast(true);
-    } else if (!polledAssignment.broadcast_video) {
-      setBroadcastUrl(null);
-      setShowBroadcast(false);
-    }
+    const applyAssignmentUpdate = async (freshAssignment) => {
+      if (
+        !freshAssignment ||
+        freshAssignment.id !== assignmentId
+      ) {
+        return;
+      }
 
-    const bounds = getAssignmentPageBounds(polledAssignment);
+      setSelectedAssignment((current) =>
+        current?.id === freshAssignment.id
+          ? {
+              ...current,
+              ...freshAssignment,
+            }
+          : current
+      );
 
-    const targetPage =
-      polledAssignment.page_mode === 'locked'
-        ? getEffectiveLockedPage(polledAssignment)
-        : Math.max(
-            bounds.min,
-            Math.min(bounds.max, currentPageRef.current)
-          );
+      if (freshAssignment.broadcast_video) {
+        setBroadcastUrl(
+          freshAssignment.broadcast_video
+        );
+        setShowBroadcast(true);
+      } else {
+        setBroadcastUrl(null);
+        setShowBroadcast(false);
+      }
 
-    if (targetPage !== currentPageRef.current) {
-      void goToPage(targetPage, polledAssignment);
-    }
-    // A new polled assignment snapshot is the trigger for reconciliation.
+      const bounds =
+        getAssignmentPageBounds(freshAssignment);
+
+      const targetPage =
+        freshAssignment.page_mode === 'locked'
+          ? getEffectiveLockedPage(freshAssignment)
+          : Math.max(
+              bounds.min,
+              Math.min(
+                bounds.max,
+                currentPageRef.current
+              )
+            );
+
+      if (targetPage !== currentPageRef.current) {
+        await goToPage(
+          targetPage,
+          freshAssignment
+        );
+      }
+    };
+
+    const unsubscribe =
+      base44.entities.DigitalNotebookAssignment.subscribe(
+        (event) => {
+          if (event.data?.id !== assignmentId) {
+            return;
+          }
+
+          if (event.type === 'delete') {
+            setSelectedAssignment(null);
+            return;
+          }
+
+          void applyAssignmentUpdate(event.data);
+        }
+      );
+
+    return () => {
+      unsubscribe?.();
+    };
+
+    // Subscribe again only when the selected assignment changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [polledAssignment]);
+  }, [selectedAssignment?.id]);
 
   // Keep URL in sync with current assignment + page so teachers can copy direct links
   useEffect(() => {
