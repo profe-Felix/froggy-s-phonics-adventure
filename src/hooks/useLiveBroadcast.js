@@ -60,13 +60,37 @@ export function useLiveBroadcast(sessionId) {
       .catch(() => {});
   }, [sessionId]);
 
-  // Clear broadcast (used on step advance / phase change to try).
-  const clear = useCallback(() => {
-    if (!sessionId) return;
-    pendingRef.current = null;
-    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
-    base44.entities.LiveLessonSession.update(sessionId, { broadcast_state: {} }).catch(() => {});
-  }, [sessionId]);
+  // Clear pending broadcast writes. Pass false when the caller will include
+  // broadcast_state in the same update as another session control change.
+  const clear = useCallback(
+    (persist = true) => {
+      pendingRef.current = null;
+      setBroadcast(null);
+
+      if (flushTimerRef.current) {
+        clearTimeout(
+          flushTimerRef.current
+        );
+
+        flushTimerRef.current = null;
+      }
+
+      if (
+        !sessionId ||
+        !persist
+      ) {
+        return Promise.resolve();
+      }
+
+      return base44.entities.LiveLessonSession.update(
+        sessionId,
+        {
+          broadcast_state: {},
+        }
+      );
+    },
+    [sessionId]
+  );
 
   return { broadcast, send, clear, refresh };
 }
