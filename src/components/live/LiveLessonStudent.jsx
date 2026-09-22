@@ -74,62 +74,134 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     enabled: !!session?.lesson_id,
   });
 
-  // Real-time subscription — follow the teacher's pace
+  // Realtime subscription — follow the teacher's pace.
   useEffect(() => {
-    if (!session?.id) return;
-    const unsub = base44.entities.LiveLessonSession.subscribe((event) => {
-      if (event.data?.id === session.id) {
-        setLocalSession(event.data);
-        if (event.type === 'delete' || !event.data?.active) {
-          onExit?.();
+    const sessionId = session?.id;
+
+    if (!sessionId) return;
+
+    const unsubscribe =
+      base44.entities.LiveLessonSession.subscribe(
+        (event) => {
+          if (
+            event.data?.id !== sessionId
+          ) {
+            return;
+          }
+
+          if (
+            event.type === 'delete' ||
+            !event.data?.active
+          ) {
+            onExit?.();
+            return;
+          }
+
+          setLocalSession((previous) => {
+            const previousStep =
+              previous?.current_step ?? 0;
+
+            const nextStep =
+              event.data.current_step ?? 0;
+
+            if (
+              nextStep !== previousStep
+            ) {
+              refreshBroadcast();
+            }
+
+            return {
+              ...previous,
+              ...event.data,
+            };
+          });
         }
-      }
-    });
-    return unsub;
-  }, [session?.id]);
+      );
 
-  // Polling safety net — realtime subscriptions can miss events when a student's
-  // tab is backgrounded or the network blips, which left students stuck on the
-  // old step while the teacher moved on. Every 20s we re-fetch the session and
-  // reconcile: exit if the teacher ended the lesson, jump to the teacher's
-  // current step/phase if we fell behind, and re-seed the broadcast so the
-  // mirror catches up. This also guarantees late joiners land on the correct
-  // step (their initial state comes from the fetch, not a possibly-stale cache).
+    return () => {
+      unsubscribe?.();
+    };
+  }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reconcile once when joining and whenever a suspended tab becomes visible.
+  // Realtime handles teacher changes while the page remains active.
   useEffect(() => {
-    if (!session?.id) return;
-    let alive = true;
-    const tick = async () => {
-      try {
-        const s = await base44.entities.LiveLessonSession.get(session.id);
-        if (!alive || !s) return;
+    const sessionId = session?.id;
 
-        const lastUpdate = s.updated_date || s.started_at;
+    if (!sessionId) return;
+
+    let alive = true;
+
+    const reconcileSession = async () => {
+      try {
+        const fresh =
+          await base44.entities.LiveLessonSession.get(
+            sessionId
+          );
+
+        if (!alive || !fresh) return;
+
+        const lastUpdate =
+          fresh.updated_date ||
+          fresh.started_at;
+
         const stale =
           !lastUpdate ||
-          Date.now() - new Date(lastUpdate).getTime() > 90 * 1000;
+          Date.now() -
+            new Date(lastUpdate).getTime() >
+            90 * 1000;
 
-        if (!s.active || stale) {
+        if (!fresh.active || stale) {
           onExit?.();
           return;
         }
-        setLocalSession((prev) => {
-          const prevStep = prev?.current_step ?? 0;
-          const prevPhase = prev?.phase ?? 'watch';
-          const newStep = s.current_step ?? 0;
-          const newPhase = s.phase ?? 'watch';
-          // Step changed → the teacher moved on. Re-seed the broadcast so the
-          // mirror reflects the new activity even if the subscription missed it.
-          if (newStep !== prevStep) refreshBroadcast();
-          if (newStep !== prevStep || newPhase !== prevPhase) {
-            return { ...prev, ...s };
+
+        setLocalSession((previous) => {
+          const previousStep =
+            previous?.current_step ?? 0;
+
+          const nextStep =
+            fresh.current_step ?? 0;
+
+          if (nextStep !== previousStep) {
+            refreshBroadcast();
           }
-          return prev;
+
+          return {
+            ...previous,
+            ...fresh,
+          };
         });
-      } catch { /* best-effort */ }
+      } catch {
+        // Realtime remains the primary update path.
+      }
     };
-    tick(); // run immediately so late joiners reconcile at mount
-    const iv = setInterval(tick, 4000);
-    return () => { alive = false; clearInterval(iv); };
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState ===
+        'visible'
+      ) {
+        void reconcileSession();
+      }
+    };
+
+    // One request ensures late joiners receive the latest state.
+    void reconcileSession();
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    );
+
+    return () => {
+      alive = false;
+
+      document.removeEventListener(
+        'visibilitychange',
+        handleVisibilityChange
+      );
+    };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const steps = getLiveLessonSteps(lesson);
