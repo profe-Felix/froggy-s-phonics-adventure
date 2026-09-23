@@ -18,7 +18,29 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Loader2,
+  Wand2,
 } from 'lucide-react';
+
+import {
+  SPELLING_WORDS,
+} from '@/components/data/spellingWords';
+
+import {
+  syllabifyEs,
+} from '@/lib/spanishSyllables';
+
+import {
+  getIntroducedGraphemesThrough,
+} from '@/lib/literacy/curriculumGraphemes';
+
+import {
+  canDecodeWord,
+} from '@/lib/literacy/lessonProgression';
+
+import {
+  getDefaultVoice,
+} from '@/lib/activities/ttsVoices';
 
 const GRADES = [
   { key: 'kinder', label: 'Kinder' },
@@ -78,6 +100,57 @@ function curriculumIndexToPosition(index) {
     lesson:
       safeIndex % 20 + 1,
   };
+}
+
+function getReleasedSyllables(
+  moduleNumber,
+  lessonNumber
+) {
+  const graphemes =
+    getIntroducedGraphemesThrough({
+      moduleNumber,
+      lessonNumber,
+    });
+
+  const seen = new Set();
+
+  return SPELLING_WORDS
+    .flatMap((word) =>
+      syllabifyEs(word)
+    )
+    .map((syllable) =>
+      String(syllable || '')
+        .trim()
+        .toLowerCase()
+    )
+    .filter(
+      (syllable) =>
+        syllable.length >= 2 &&
+        syllable.length <= 5 &&
+        /^[a-zñü]+$/.test(
+          syllable
+        )
+    )
+    .filter((syllable) =>
+      canDecodeWord(
+        syllable,
+        graphemes
+      )
+    )
+    .filter((syllable) => {
+      if (seen.has(syllable)) {
+        return false;
+      }
+
+      seen.add(syllable);
+      return true;
+    })
+    .sort((first, second) =>
+      first.localeCompare(
+        second,
+        'es'
+      )
+    );
 }
 
 // Teacher UI to add/remove/edit classes (teacher last names) and their color,
@@ -242,6 +315,21 @@ function CurriculumPositionControl({
   const [saving, setSaving] =
     useState(false);
 
+  const [
+    generatingAudio,
+    setGeneratingAudio,
+  ] = useState(false);
+
+  const [
+    audioProgress,
+    setAudioProgress,
+  ] = useState(null);
+
+  const [
+    audioResult,
+    setAudioResult,
+  ] = useState('');
+
   useEffect(() => {
     const nextPosition = {
       module: savedModule,
@@ -317,10 +405,95 @@ function CurriculumPositionControl({
       setActivePosition({
         ...draftPosition,
       });
+
+      setAudioResult('');
     } finally {
       setSaving(false);
     }
   };
+
+  const generateSyllableAudio =
+    async () => {
+      if (generatingAudio) {
+        return;
+      }
+
+      const syllables =
+        getReleasedSyllables(
+          activePosition.module,
+          activePosition.lesson
+        );
+
+      if (!syllables.length) {
+        setAudioResult(
+          'No syllables available'
+        );
+
+        return;
+      }
+
+      // Generate the reusable instruction only once,
+      // followed by every currently released syllable.
+      const audioTexts = [
+        'Construye la sílaba',
+        ...syllables,
+      ];
+
+      setGeneratingAudio(true);
+      setAudioResult('');
+
+      let successful = 0;
+
+      try {
+        const voice =
+          await getDefaultVoice();
+
+        for (
+          let index = 0;
+          index < audioTexts.length;
+          index += 1
+        ) {
+          const text =
+            audioTexts[index];
+
+          setAudioProgress({
+            current: index + 1,
+            total:
+              audioTexts.length,
+            text,
+          });
+
+          try {
+            const response =
+              await base44.functions.invoke(
+                'generateTts',
+                {
+                  text,
+                  lang: 'es',
+                  voice:
+                    voice ||
+                    undefined,
+                }
+              );
+
+            if (
+              response?.data?.url
+            ) {
+              successful += 1;
+            }
+          } catch {
+            // Continue generating the remaining clips.
+          }
+        }
+
+        setAudioResult(
+          `${successful}/${audioTexts.length} audio clips ready`
+        );
+      } finally {
+        setGeneratingAudio(false);
+        setAudioProgress(null);
+      }
+    };
 
   return (
     <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-2 py-1.5">
@@ -371,6 +544,39 @@ function CurriculumPositionControl({
           ? 'Saving…'
           : 'Set Active'}
       </button>
+
+      <button
+        type="button"
+        onClick={
+          generateSyllableAudio
+        }
+        disabled={
+          generatingAudio ||
+          hasChanges
+        }
+        className="flex items-center gap-1 rounded-lg border border-violet-300 bg-white px-2.5 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-40"
+        title={
+          hasChanges
+            ? 'Click Set Active before generating audio'
+            : 'Prepare all released syllable audio'
+        }
+      >
+        {generatingAudio ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Wand2 className="h-3.5 w-3.5" />
+        )}
+
+        {generatingAudio
+          ? `${audioProgress?.current || 0}/${audioProgress?.total || 0}`
+          : 'Prepare audio'}
+      </button>
+
+      {audioResult && (
+        <span className="text-[10px] font-bold text-green-700">
+          {audioResult}
+        </span>
+      )}
     </div>
   );
 }
