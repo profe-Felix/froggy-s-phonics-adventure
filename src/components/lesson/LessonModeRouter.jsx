@@ -1514,9 +1514,17 @@ export default function LessonModeRouter({
     <div
       className={`relative flex flex-col ${
         stepperMode
-          ? 'h-full'
+          ? 'h-full min-h-0 overflow-hidden'
           : 'h-screen'
       }`}
+      style={
+        stepperMode
+          ? {
+              transform: 'translateZ(0)',
+              contain: 'layout paint',
+            }
+          : undefined
+      }
     >
       {/* A new runKey gives Play Again a genuinely fresh child component. */}
       <React.Fragment
