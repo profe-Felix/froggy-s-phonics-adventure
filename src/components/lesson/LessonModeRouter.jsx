@@ -1371,6 +1371,10 @@ export default function LessonModeRouter({
             presetId={
               step?.config?.preset
             }
+            curriculumPosition={
+              step?.config
+                ?.curriculumPosition
+            }
           />
         );
 
