@@ -1189,6 +1189,10 @@ export default function LessonModeRouter({
             substeps={
               step?.config?.substeps
             }
+            curriculumPosition={
+              step?.config
+                ?.curriculumPosition
+            }
             onComplete={
               completeStep
             }
