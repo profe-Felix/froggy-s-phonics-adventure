@@ -573,22 +573,189 @@ export default function WordSentenceBuilder({
     embedPresetObject
   );
 
-  // Exact curriculum cutoff for the daily lesson.
-  //
-  // This controls spelling-pattern availability for this activity.
-  // For example, c-suave remains unavailable before the lesson that
-  // introduces ce/ci, even if the student already knows the letter c.
-  const curriculumGraphemes =
+  // Scheduled lesson activities carry their exact curriculum
+  // position. Free adaptive practice falls back to the active
+  // position saved for the student's class.
+  const [
+    classCurriculumPosition,
+    setClassCurriculumPosition,
+  ] = useState(null);
+
+  useEffect(() => {
+    const scheduledModule =
+      Number(
+        embedCurriculumPosition
+          ?.module_number
+      );
+
+    const scheduledLesson =
+      Number(
+        embedCurriculumPosition
+          ?.curriculum_lesson_number
+      );
+
+    const hasScheduledPosition =
+      Number.isInteger(
+        scheduledModule
+      ) &&
+      scheduledModule >= 1 &&
+      scheduledModule <= 9 &&
+      Number.isInteger(
+        scheduledLesson
+      ) &&
+      scheduledLesson >= 1 &&
+      scheduledLesson <= 20;
+
+    // The scheduled activity position always takes priority.
+    if (hasScheduledPosition) {
+      setClassCurriculumPosition(
+        null
+      );
+
+      return;
+    }
+
+    if (!embedClass) {
+      setClassCurriculumPosition(
+        null
+      );
+
+      return;
+    }
+
+    let cancelled = false;
+
+    base44.entities.ClassConfig
+      .filter({
+        class_name: embedClass,
+      })
+      .then((records) => {
+        if (cancelled) {
+          return;
+        }
+
+        const configRecord =
+          Array.isArray(records)
+            ? records[0]
+            : null;
+
+        const moduleNumber =
+          Number(
+            configRecord
+              ?.active_spanish_module
+          );
+
+        const lessonNumber =
+          Number(
+            configRecord
+              ?.active_spanish_lesson
+          );
+
+        const valid =
+          Number.isInteger(
+            moduleNumber
+          ) &&
+          moduleNumber >= 1 &&
+          moduleNumber <= 9 &&
+          Number.isInteger(
+            lessonNumber
+          ) &&
+          lessonNumber >= 1 &&
+          lessonNumber <= 20;
+
+        setClassCurriculumPosition(
+          valid
+            ? {
+                module_number:
+                  moduleNumber,
+
+                curriculum_lesson_number:
+                  lessonNumber,
+
+                key:
+                  `M${moduleNumber}.L${lessonNumber}`,
+              }
+            : null
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClassCurriculumPosition(
+            null
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    embedClass,
+    embedCurriculumPosition
+      ?.module_number,
+    embedCurriculumPosition
+      ?.curriculum_lesson_number,
+  ]);
+
+  const resolvedCurriculumPosition =
     useMemo(() => {
-      const moduleNumber =
+      const scheduledModule =
         Number(
           embedCurriculumPosition
             ?.module_number
         );
 
-      const lessonNumber =
+      const scheduledLesson =
         Number(
           embedCurriculumPosition
+            ?.curriculum_lesson_number
+        );
+
+      const hasScheduledPosition =
+        Number.isInteger(
+          scheduledModule
+        ) &&
+        scheduledModule >= 1 &&
+        scheduledModule <= 9 &&
+        Number.isInteger(
+          scheduledLesson
+        ) &&
+        scheduledLesson >= 1 &&
+        scheduledLesson <= 20;
+
+      if (hasScheduledPosition) {
+        return {
+          module_number:
+            scheduledModule,
+
+          curriculum_lesson_number:
+            scheduledLesson,
+
+          key:
+            `M${scheduledModule}.L${scheduledLesson}`,
+        };
+      }
+
+      return classCurriculumPosition;
+    }, [
+      embedCurriculumPosition
+        ?.module_number,
+      embedCurriculumPosition
+        ?.curriculum_lesson_number,
+      classCurriculumPosition,
+    ]);
+
+  const curriculumGraphemes =
+    useMemo(() => {
+      const moduleNumber =
+        Number(
+          resolvedCurriculumPosition
+            ?.module_number
+        );
+
+      const lessonNumber =
+        Number(
+          resolvedCurriculumPosition
             ?.curriculum_lesson_number
         );
 
@@ -596,11 +763,13 @@ export default function WordSentenceBuilder({
         !Number.isInteger(
           moduleNumber
         ) ||
-        moduleNumber <= 0 ||
+        moduleNumber < 1 ||
+        moduleNumber > 9 ||
         !Number.isInteger(
           lessonNumber
         ) ||
-        lessonNumber <= 0
+        lessonNumber < 1 ||
+        lessonNumber > 20
       ) {
         return [];
       }
@@ -610,77 +779,21 @@ export default function WordSentenceBuilder({
         lessonNumber,
       });
     }, [
-      embedCurriculumPosition
+      resolvedCurriculumPosition
         ?.module_number,
-      embedCurriculumPosition
+      resolvedCurriculumPosition
         ?.curriculum_lesson_number,
     ]);
 
-  // The Letter Tracing progression is our current definition of
-  // "letters this student has already been taught."
-  //
-  // mastered_items contains fully completed letters.
-  // learning_items contains introduced letters still being practiced.
-  // We combine them because both groups have already been introduced.
-  const tracingLetters = useMemo(() => {
-    const tracingProgress =
-      embedStudentData?.mode_progress?.letter_tracing;
-
-    const introduced = [
-      ...(tracingProgress?.mastered_items || []),
-      ...(tracingProgress?.learning_items || []),
-    ];
-
-    const normalized = introduced
-      .map((letter) =>
-        String(letter || '')
-          .trim()
-          .toLowerCase()
-      )
-      .filter((letter) =>
-        /^[a-zñü]$/.test(letter)
-      );
-
-    return [...new Set(normalized)];
-  }, [embedStudentData]);
-
-  const tracingLetterSet = useMemo(
-    () => new Set(tracingLetters),
-    [tracingLetters]
-  );
-
-  const canBuildFromTracingProgression =
-    useCallback(
-      (word) => {
-        const normalized = String(word || '')
-          .trim()
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/n\u0303/g, 'ñ')
-          .replace(/u\u0308/g, 'ü')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-zñü]/g, '');
-
-        if (
-          !normalized ||
-          tracingLetterSet.size === 0
-        ) {
-          return false;
-        }
-
-        return [...normalized].every((letter) =>
-          tracingLetterSet.has(letter)
-        );
-      },
-      [tracingLetterSet]
-    );
+  // Adaptive practice is limited by the curriculum position
+  // released by the teacher. Student performance determines
+  // the practice level within that released content.
 
   // Adaptive words are limited to letters already introduced through
   // Letter Tracing. Keep the first version focused on short, lowercase,
   // directly traceable Spanish words.
   const adaptiveWords = useMemo(() => {
     if (
-      tracingLetterSet.size === 0 ||
       curriculumGraphemes.length === 0
     ) {
       return [];
@@ -702,13 +815,7 @@ export default function WordSentenceBuilder({
           word.length >= 2 &&
           word.length <= 6
       )
-      // The student must have encountered every individual letter
-      // through Letter Tracing.
-      .filter(
-        canBuildFromTracingProgression
-      )
-
-      // The daily M#.L# position must also allow every spelling
+      // The active M#.L# position must allow every spelling
       // pattern used by the word.
       //
       // This enforces distinctions such as:
@@ -732,9 +839,7 @@ export default function WordSentenceBuilder({
         return a.localeCompare(b, 'es');
       });
   }, [
-    tracingLetterSet,
     curriculumGraphemes,
-    canBuildFromTracingProgression,
   ]);
 
   const [problems, setProblems] = useState(() => [[]]);
