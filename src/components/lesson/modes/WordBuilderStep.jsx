@@ -14,6 +14,7 @@ export default function WordBuilderStep({
   className,
   studentData,
   presetId,
+  curriculumPosition,
 }) {
   const preset = presetId
     ? getWordBuilderPreset(presetId)
@@ -27,6 +28,9 @@ export default function WordBuilderStep({
           embedClass={className}
           embedStudentData={studentData}
           embedPresetObject={preset}
+          embedCurriculumPosition={
+            curriculumPosition
+          }
         />
       </div>
 
