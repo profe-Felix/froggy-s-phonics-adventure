@@ -15,6 +15,18 @@
       "default": "",
       "description": "Cached lesson title for display"
     },
+    "lesson_day": {
+      "type": "string",
+      "enum": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday"
+      ],
+      "default": "",
+      "description": "Weekday selected by the teacher for this live lesson session"
+    },
     "class_name": {
       "type": "string",
       "default": "",
