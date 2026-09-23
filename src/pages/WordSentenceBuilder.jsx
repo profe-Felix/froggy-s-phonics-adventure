@@ -3,7 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-import { SPELLING_WORDS } from '@/components/data/spellingWords';
+import {
+  getIntroducedGraphemesThrough,
+} from '@/lib/literacy/curriculumGraphemes';
+
+import {
+  canDecodeWord,
+} from '@/lib/literacy/lessonProgression';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SUPABASE_PRESETS_URL =
@@ -546,6 +552,7 @@ export default function WordSentenceBuilder({
   embedStudentData,
   embedPreset,
   embedPresetObject,
+  embedCurriculumPosition,
 } = {}) {
   const [searchParams] = useSearchParams();
   // When embedded as a lesson step, inject the logged-in student's context
@@ -562,6 +569,49 @@ export default function WordSentenceBuilder({
     effectiveParams,
     embedPresetObject
   );
+
+  // Exact curriculum cutoff for the daily lesson.
+  //
+  // This controls spelling-pattern availability for this activity.
+  // For example, c-suave remains unavailable before the lesson that
+  // introduces ce/ci, even if the student already knows the letter c.
+  const curriculumGraphemes =
+    useMemo(() => {
+      const moduleNumber =
+        Number(
+          embedCurriculumPosition
+            ?.module_number
+        );
+
+      const lessonNumber =
+        Number(
+          embedCurriculumPosition
+            ?.curriculum_lesson_number
+        );
+
+      if (
+        !Number.isInteger(
+          moduleNumber
+        ) ||
+        moduleNumber <= 0 ||
+        !Number.isInteger(
+          lessonNumber
+        ) ||
+        lessonNumber <= 0
+      ) {
+        return [];
+      }
+
+      return getIntroducedGraphemesThrough({
+        moduleNumber,
+        lessonNumber,
+      });
+    }, [
+      embedCurriculumPosition
+        ?.module_number,
+      embedCurriculumPosition
+        ?.curriculum_lesson_number,
+    ]);
 
   // The Letter Tracing progression is our current definition of
   // "letters this student has already been taught."
@@ -626,7 +676,10 @@ export default function WordSentenceBuilder({
   // Letter Tracing. Keep the first version focused on short, lowercase,
   // directly traceable Spanish words.
   const adaptiveWords = useMemo(() => {
-    if (tracingLetterSet.size === 0) {
+    if (
+      tracingLetterSet.size === 0 ||
+      curriculumGraphemes.length === 0
+    ) {
       return [];
     }
 
@@ -646,7 +699,27 @@ export default function WordSentenceBuilder({
           word.length >= 2 &&
           word.length <= 6
       )
-      .filter(canBuildFromTracingProgression)
+      // The student must have encountered every individual letter
+      // through Letter Tracing.
+      .filter(
+        canBuildFromTracingProgression
+      )
+
+      // The daily M#.L# position must also allow every spelling
+      // pattern used by the word.
+      //
+      // This enforces distinctions such as:
+      //   ca/co/cu versus ce/ci
+      //   ga/go/gu versus ge/gi
+      //   gue/gui versus güe/güi
+      //   r-inicial, rr-medial, r-medial, and r-final
+      .filter((word) =>
+        canDecodeWord(
+          word,
+          curriculumGraphemes
+        )
+      )
+
       .sort((a, b) => {
         // Begin with shorter words, then keep the order predictable.
         if (a.length !== b.length) {
@@ -657,6 +730,7 @@ export default function WordSentenceBuilder({
       });
   }, [
     tracingLetterSet,
+    curriculumGraphemes,
     canBuildFromTracingProgression,
   ]);
 
