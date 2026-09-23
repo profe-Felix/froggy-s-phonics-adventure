@@ -36,6 +36,7 @@ export default function WordTracingCanvas({
   repetitions: repCount,
   fillHeight = false,
   startPointOnly = false,
+  minimumStrokeAccuracy = 0,
   onComplete,
   onAccuracy,
   onProgress,
@@ -209,28 +210,60 @@ export default function WordTracingCanvas({
   };
 
   const commitStroke = () => {
-    const completedPath = [...currentPathRef.current];
-    currentPathRef.current = [];
-    setDrawnPathsByLetter(prev => {
-      const next = { ...prev };
-      if (!next[letterIndex]) next[letterIndex] = [];
-      next[letterIndex] = [...next[letterIndex], completedPath];
-      return next;
-    });
-    setCurrentPath([]);
-    // A dot stroke has no shape to grade — any gesture that started on the
-    // tittle and lifted is a correct dot, so score it perfect. Otherwise the
-    // length/penalty math flags a short down-stroke as "rough" (amber <80%),
-    // breaking the clean streak needed to finish the word.
-    strokeAccuraciesRef.current.push(
-      startPointOnly
+    const completedPath = [
+      ...currentPathRef.current,
+    ];
+
+    const strokeScore =
+      startPointOnly || isDot
         ? 100
-        : isDot
-          ? 100
-          : strokeAccuracy(
-              completedPath,
-              densePath
-            )
+        : strokeAccuracy(
+            completedPath,
+            densePath
+          );
+
+    // Adaptive strict tracing must not advance on an
+    // amber or poorly formed stroke. The student must
+    // repeat this stroke until it reaches the requested
+    // accuracy.
+    if (
+      !startPointOnly &&
+      !isDot &&
+      minimumStrokeAccuracy > 0 &&
+      strokeScore <
+        minimumStrokeAccuracy
+    ) {
+      flashError();
+      restartStroke();
+      return;
+    }
+
+    currentPathRef.current = [];
+
+    setDrawnPathsByLetter(
+      (previous) => {
+        const next = {
+          ...previous,
+        };
+
+        if (!next[letterIndex]) {
+          next[letterIndex] = [];
+        }
+
+        next[letterIndex] = [
+          ...next[letterIndex],
+          completedPath,
+        ];
+
+        return next;
+      }
+    );
+
+    setCurrentPath([]);
+
+    // Dot strokes have no meaningful path shape to grade.
+    strokeAccuraciesRef.current.push(
+      strokeScore
     );
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
