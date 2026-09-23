@@ -108,7 +108,15 @@ function AssignmentPicker({ assignments, onSelect, className }) {
   );
 }
 
-export default function StudentNotebookView({ studentNumber, className, onBack, directAssignmentName, directPage, extraHeaderContent }) {
+export default function StudentNotebookView({
+  studentNumber,
+  className,
+  onBack,
+  directAssignmentName,
+  directPage,
+  extraHeaderContent,
+  embedded = false,
+}) {
   const qc = useQueryClient();
   const { classList } = useClassNames();
   const [showQR, setShowQR] = useState(false);
@@ -1198,7 +1206,14 @@ export default function StudentNotebookView({ studentNumber, className, onBack, 
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ background: '#0f0f1a' }}>
+    <div
+      className={
+        embedded
+          ? 'absolute inset-0 flex flex-col'
+          : 'fixed inset-0 flex flex-col'
+      }
+      style={{ background: '#0f0f1a' }}
+    >
       <div
         className="flex items-center gap-2 px-3 py-2 shrink-0"
         style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca', paddingTop: 'env(safe-area-inset-top)' }}
