@@ -1,7 +1,24 @@
-import { useState } from 'react';
-import { useClassColors, CLASS_COLOR_PALETTE } from '@/hooks/useClassColors';
-import { useClassNames } from '@/hooks/useClassNames';
-import { Trash2, Plus, Check } from 'lucide-react';
+import {
+  useEffect,
+  useState,
+} from 'react';
+
+import {
+  useClassColors,
+  CLASS_COLOR_PALETTE,
+} from '@/hooks/useClassColors';
+
+import {
+  useClassNames,
+} from '@/hooks/useClassNames';
+
+import {
+  Trash2,
+  Plus,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 
 const GRADES = [
   { key: 'kinder', label: 'Kinder' },
@@ -11,6 +28,57 @@ const LANGS = [
   { key: 'es', label: 'Spanish' },
   { key: 'en', label: 'English' },
 ];
+
+const FIRST_CURRICULUM_POSITION = 0;
+const LAST_CURRICULUM_POSITION =
+  9 * 20 - 1;
+
+function curriculumPositionToIndex(
+  moduleNumber,
+  lessonNumber
+) {
+  const safeModule =
+    Math.min(
+      9,
+      Math.max(
+        1,
+        Number(moduleNumber) || 1
+      )
+    );
+
+  const safeLesson =
+    Math.min(
+      20,
+      Math.max(
+        1,
+        Number(lessonNumber) || 1
+      )
+    );
+
+  return (
+    (safeModule - 1) * 20 +
+    (safeLesson - 1)
+  );
+}
+
+function curriculumIndexToPosition(index) {
+  const safeIndex =
+    Math.min(
+      LAST_CURRICULUM_POSITION,
+      Math.max(
+        FIRST_CURRICULUM_POSITION,
+        Number(index) || 0
+      )
+    );
+
+  return {
+    module:
+      Math.floor(safeIndex / 20) + 1,
+
+    lesson:
+      safeIndex % 20 + 1,
+  };
+}
 
 // Teacher UI to add/remove/edit classes (teacher last names) and their color,
 // grade, and language — so new teachers appear in every dashboard without a
@@ -94,6 +162,13 @@ export default function ClassManager() {
                 />
                 Tracing only
               </label>
+
+              {lang === 'es' && cfg && (
+                <CurriculumPositionControl
+                  config={cfg}
+                />
+              )}
+
               <button
                 onClick={() => { if (window.confirm(`Remove class "${cls}"? Students are NOT deleted — only the class config.`)) removeClass(cls); }}
                 className="ml-auto p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
@@ -127,9 +202,189 @@ export default function ClassManager() {
   );
 }
 
+function CurriculumPositionControl({
+  config,
+}) {
+  const savedModule =
+    Math.min(
+      9,
+      Math.max(
+        1,
+        Number(
+          config?.active_spanish_module
+        ) || 1
+      )
+    );
+
+  const savedLesson =
+    Math.min(
+      20,
+      Math.max(
+        1,
+        Number(
+          config?.active_spanish_lesson
+        ) || 1
+      )
+    );
+
+  const [draftPosition, setDraftPosition] =
+    useState({
+      module: savedModule,
+      lesson: savedLesson,
+    });
+
+  const [activePosition, setActivePosition] =
+    useState({
+      module: savedModule,
+      lesson: savedLesson,
+    });
+
+  const [saving, setSaving] =
+    useState(false);
+
+  useEffect(() => {
+    const nextPosition = {
+      module: savedModule,
+      lesson: savedLesson,
+    };
+
+    setDraftPosition(
+      nextPosition
+    );
+
+    setActivePosition(
+      nextPosition
+    );
+  }, [
+    savedModule,
+    savedLesson,
+  ]);
+
+  const draftIndex =
+    curriculumPositionToIndex(
+      draftPosition.module,
+      draftPosition.lesson
+    );
+
+  const activeIndex =
+    curriculumPositionToIndex(
+      activePosition.module,
+      activePosition.lesson
+    );
+
+  const hasChanges =
+    draftIndex !== activeIndex;
+
+  const move = (amount) => {
+    const nextIndex =
+      Math.min(
+        LAST_CURRICULUM_POSITION,
+        Math.max(
+          FIRST_CURRICULUM_POSITION,
+          draftIndex + amount
+        )
+      );
+
+    setDraftPosition(
+      curriculumIndexToPosition(
+        nextIndex
+      )
+    );
+  };
+
+  const save = async () => {
+    if (
+      !config?.id ||
+      !hasChanges
+    ) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await base44Update(
+        config.id,
+        {
+          active_spanish_module:
+            draftPosition.module,
+
+          active_spanish_lesson:
+            draftPosition.lesson,
+        }
+      );
+
+      setActivePosition({
+        ...draftPosition,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-2 py-1.5">
+      <span className="text-[10px] font-black uppercase tracking-wide text-indigo-500">
+        Active M{activePosition.module}.L{activePosition.lesson}
+      </span>
+
+      <button
+        type="button"
+        onClick={() => move(-1)}
+        disabled={
+          draftIndex ===
+          FIRST_CURRICULUM_POSITION
+        }
+        className="flex h-7 w-7 items-center justify-center rounded-lg border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-30"
+        title="Previous curriculum lesson"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      <span className="min-w-[62px] text-center text-sm font-black text-slate-800">
+        M{draftPosition.module}.L{draftPosition.lesson}
+      </span>
+
+      <button
+        type="button"
+        onClick={() => move(1)}
+        disabled={
+          draftIndex ===
+          LAST_CURRICULUM_POSITION
+        }
+        className="flex h-7 w-7 items-center justify-center rounded-lg border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-30"
+        title="Next curriculum lesson"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={
+          saving ||
+          !hasChanges
+        }
+        className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
+        {saving
+          ? 'Saving…'
+          : 'Set Active'}
+      </button>
+    </div>
+  );
+}
+
 // Helper to update a ClassConfig record (avoids importing base44 at top of this
 // presentational file repeatedly).
 import { base44 } from '@/api/base44Client';
-async function base44Update(id, data) {
-  await base44.entities.ClassConfig.update(id, data);
+
+async function base44Update(
+  id,
+  data
+) {
+  await base44.entities.ClassConfig.update(
+    id,
+    data
+  );
 }
