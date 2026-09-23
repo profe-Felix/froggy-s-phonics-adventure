@@ -1138,14 +1138,14 @@ export default function AdaptiveWordPractice({
         )}
 
         {stage === 'trace' && (
-          <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-violet-100 bg-white p-3 shadow-sm">
+          <div className="flex flex-col rounded-3xl border border-violet-100 bg-white p-3 shadow-sm">
             <div className="shrink-0 py-2 text-center">
               <h3 className="text-2xl font-black text-slate-800">
                 Traza la {targetTypeLabel} una vez
               </h3>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-x-auto">
+            <div className="h-[300px] overflow-x-auto sm:h-[360px]">
               <WordTracingCanvas
                 key={`trace-${canvasKey}`}
                 word={currentTarget}
@@ -1153,6 +1153,7 @@ export default function AdaptiveWordPractice({
                 lang="es"
                 repetitions={1}
                 fillHeight
+                minimumStrokeAccuracy={85}
                 onComplete={finishTrace}
               />
             </div>
@@ -1160,7 +1161,7 @@ export default function AdaptiveWordPractice({
         )}
 
         {stage === 'write' && (
-          <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-green-100 bg-white p-3 shadow-sm">
+          <div className="flex flex-col rounded-3xl border border-green-100 bg-white p-3 shadow-sm">
             <div className="shrink-0 py-2 text-center">
               <h3 className="text-2xl font-black text-slate-800">
                 Ahora escribe la {targetTypeLabel}
@@ -1171,7 +1172,7 @@ export default function AdaptiveWordPractice({
               </p>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-x-auto">
+            <div className="h-[300px] overflow-x-auto sm:h-[360px]">
               <WordTracingCanvas
                 key={`write-${canvasKey}`}
                 word={currentTarget}
