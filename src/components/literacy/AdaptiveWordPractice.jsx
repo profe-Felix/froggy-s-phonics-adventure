@@ -1153,7 +1153,6 @@ export default function AdaptiveWordPractice({
                 lang="es"
                 repetitions={1}
                 fillHeight
-                minimumStrokeAccuracy={85}
                 onComplete={finishTrace}
               />
             </div>
