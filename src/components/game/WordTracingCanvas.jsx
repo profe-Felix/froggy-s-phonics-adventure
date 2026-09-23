@@ -28,7 +28,18 @@ const FONEMA_INTERVAL_MS = 2000;
 // Renders a whole word on one canvas — letters laid out side by side so the
 // word reads as a connected unit. Students trace one letter at a time (same
 // validation as LetterTracingCanvas), then get an overall word-accuracy score.
-export default function WordTracingCanvas({ word, waypoints, lang = 'es', renderWidth = 400, repetitions: repCount, fillHeight = false, onComplete, onAccuracy, onProgress }) {
+export default function WordTracingCanvas({
+  word,
+  waypoints,
+  lang = 'es',
+  renderWidth = 400,
+  repetitions: repCount,
+  fillHeight = false,
+  startPointOnly = false,
+  onComplete,
+  onAccuracy,
+  onProgress,
+}) {
   const { settings: gs } = useTracingGuideSettings();
   const REPS = repCount && repCount > 0 ? repCount : REPETITIONS;
   const layoutResult = useMemo(
@@ -211,7 +222,16 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     // tittle and lifted is a correct dot, so score it perfect. Otherwise the
     // length/penalty math flags a short down-stroke as "rough" (amber <80%),
     // breaking the clean streak needed to finish the word.
-    strokeAccuraciesRef.current.push(isDot ? 100 : strokeAccuracy(completedPath, densePath));
+    strokeAccuraciesRef.current.push(
+      startPointOnly
+        ? 100
+        : isDot
+          ? 100
+          : strokeAccuracy(
+              completedPath,
+              densePath
+            )
+    );
     pathProgressRef.current = 0;
     offTravelRef.current = 0;
     postCompleteTravelRef.current = 0;
@@ -284,6 +304,23 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     e.preventDefault();
     if (!drawing || status !== 'tracing') return;
     const pos = getPos(e);
+
+    // Independent writing validates the authored starting point
+    // in handlePointerDown, then preserves the student's complete
+    // freehand movement without checking the hidden pathway.
+    if (startPointOnly) {
+      currentPathRef.current = [
+        ...currentPathRef.current,
+        pos,
+      ];
+
+      setCurrentPath(
+        currentPathRef.current
+      );
+
+      return;
+    }
+
     if (pendingCompleteRef.current) {
       // After reaching the end, only a small natural overshoot is allowed.
       // Track total travel distance after completion — circling back to close
@@ -420,7 +457,17 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
         }
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, strokes, densePath, scaleWord, isDot]);
+  }, [
+    drawing,
+    status,
+    strokeIndex,
+    waypointIndex,
+    strokes,
+    densePath,
+    scaleWord,
+    isDot,
+    startPointOnly,
+  ]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
@@ -428,16 +475,31 @@ export default function WordTracingCanvas({ word, waypoints, lang = 'es', render
     if (!drawing) return;
     setDrawing(false);
     stopFonema();
-    const reachedEnd = densePath.length > 1
-      ? coverageComplete(visitedRef.current, densePath.length) && pathProgressRef.current >= densePath.length - END_TOL
-      : true;
+    const reachedEnd =
+      startPointOnly ||
+      (
+        densePath.length > 1
+          ? coverageComplete(
+              visitedRef.current,
+              densePath.length
+            ) &&
+            pathProgressRef.current >=
+              densePath.length - END_TOL
+          : true
+      );
     if (reachedEnd) {
       commitStroke();
     } else {
       flashError();
       restartStroke();
     }
-  }, [drawing, densePath, strokeIndex, strokes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    drawing,
+    densePath,
+    strokeIndex,
+    strokes,
+    startPointOnly,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = () => {
     setLetterIndex(0);
@@ -633,8 +695,10 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         {/* Dirt line / descender (brown) */}
         <line x1="0" y1={0.90 * CANVAS_H} x2={totalW} y2={0.90 * CANVAS_H} stroke="#8d6e63" strokeWidth="1.5" strokeDasharray="6 6" opacity="0.85" />
 
-        {/* Guide paths for ALL letters — completed = green, current = colored, upcoming = grey */}
-        {wordLetters.map((ch, li) => {
+        {/* Strict tracing displays the authored pathways.
+            Independent writing hides them and retains only
+            the required starting point for each stroke. */}
+        {!startPointOnly && wordLetters.map((ch, li) => {
           const letterStrokes = waypoints[ch]?.strokes || [];
           return letterStrokes.map((stroke, si) => {
             const isCompleted = li < letterIndex;
@@ -674,7 +738,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
 
         {/* Moving direction guide — "Pac-Man pellets" that stay just ahead
             of the student's finger along the taught stroke path. */}
-        {guideDots.map((dot, i) => {
+        {!startPointOnly && guideDots.map((dot, i) => {
           const guideColor = '#FACC15';
 
           return (
@@ -693,7 +757,7 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
         })}
 
         {/* Direction arrow at the front of the Pac-Man trail */}
-        {guideArrow && (
+        {!startPointOnly && guideArrow && (
           <g
             transform={`translate(${guideArrow.x} ${guideArrow.y}) rotate(${guideArrow.angle})`}
             pointerEvents="none"
