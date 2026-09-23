@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { SPELLING_WORDS } from '@/components/data/spellingWords';
+import AdaptiveWordPractice from '@/components/literacy/AdaptiveWordPractice';
+
 import {
   getIntroducedGraphemesThrough,
 } from '@/lib/literacy/curriculumGraphemes';
@@ -1371,12 +1374,48 @@ export default function WordSentenceBuilder({
     </div>;
   }
 
-  if (searchParams.get('login')==='1' && !config.isStudent) {
-    return <StudentLoginFlow searchParams={searchParams} />;
+  if (
+    searchParams.get('login') === '1' &&
+    !config.isStudent
+  ) {
+    return (
+      <StudentLoginFlow
+        searchParams={searchParams}
+      />
+    );
   }
 
-  const { letters=[], syllables=[], words=[], punc=[], images=[], toggles={}, trayColumns=0, perRow=0 } = config;
-  const isStudent = config.isStudent;
+  // Embedded Word Builder activities without a preset use
+  // the adaptive Build → Trace → Write progression.
+  //
+  // Preset activities and the standalone teacher tool continue
+  // using the existing Word/Sentence Builder.
+  const isAdaptiveLesson =
+    embedStudent != null &&
+    !embedPreset &&
+    !embedPresetObject;
+
+  if (isAdaptiveLesson) {
+    return (
+      <AdaptiveWordPractice
+        words={adaptiveWords}
+      />
+    );
+  }
+
+  const {
+    letters = [],
+    syllables = [],
+    words = [],
+    punc = [],
+    images = [],
+    toggles = {},
+    trayColumns = 0,
+    perRow = 0,
+  } = config;
+
+  const isStudent =
+    config.isStudent;
 
   const letterTiles = letters.filter(l=>l!=='|').map(l=>createTile('text',l));
   const syllTiles = syllables.filter(s=>!['|','_','^','~'].includes(s)).map(s=>createTile('text',s));
