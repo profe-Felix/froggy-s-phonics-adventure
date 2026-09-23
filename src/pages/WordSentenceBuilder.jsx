@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { SPELLING_WORDS } from '@/components/data/spellingWords';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SUPABASE_PRESETS_URL =
@@ -620,6 +621,44 @@ export default function WordSentenceBuilder({
       },
       [tracingLetterSet]
     );
+
+  // Adaptive words are limited to letters already introduced through
+  // Letter Tracing. Keep the first version focused on short, lowercase,
+  // directly traceable Spanish words.
+  const adaptiveWords = useMemo(() => {
+    if (tracingLetterSet.size === 0) {
+      return [];
+    }
+
+    return [...new Set(SPELLING_WORDS)]
+      .map((word) =>
+        String(word || '')
+          .trim()
+          .toLowerCase()
+      )
+      // Accented characters need separate tracing waypoints. Leave those
+      // words out of the first version instead of displaying an untraceable
+      // character.
+      .filter((word) => /^[a-zñü]+$/.test(word))
+      // Avoid one-letter fragments and long words during initial practice.
+      .filter(
+        (word) =>
+          word.length >= 2 &&
+          word.length <= 6
+      )
+      .filter(canBuildFromTracingProgression)
+      .sort((a, b) => {
+        // Begin with shorter words, then keep the order predictable.
+        if (a.length !== b.length) {
+          return a.length - b.length;
+        }
+
+        return a.localeCompare(b, 'es');
+      });
+  }, [
+    tracingLetterSet,
+    canBuildFromTracingProgression,
+  ]);
 
   const [problems, setProblems] = useState(() => [[]]);
   const [problemStates, setProblemStates] = useState(() => [null]);
