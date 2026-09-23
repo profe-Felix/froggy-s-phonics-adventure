@@ -100,7 +100,7 @@ export const ES_GRAPHEME_CHART = {
   'M4.L3': [],
   'M4.L4': [],
   'M4.L5': [],
-  'M4.L6': ['r-inicial','rr-medial'], //r iniciall rr medial
+  'M4.L6': ['r-inicial','rr-medial'], //r inicial y rr medial
   'M4.L7': [],
   'M4.L8': [],
   'M4.L9': [],
