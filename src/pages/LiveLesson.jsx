@@ -685,7 +685,8 @@ export default function LiveLesson() {
 
   // ---------- LIVE CONTROL SCREEN ----------
   const steps = getLiveLessonSteps(
-    selectedLesson
+    selectedLesson,
+    session?.lesson_day || selectedLessonDay
   );
 
   const currentStep =
