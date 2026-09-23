@@ -12,6 +12,9 @@ import {
 
 import WordTracingCanvas from '@/components/game/WordTracingCanvas';
 
+const ROUND_SIZE = 10;
+const PASSING_ACCURACY = 80;
+
 const STAGES = [
   {
     key: 'build',
@@ -30,20 +33,13 @@ const STAGES = [
   },
 ];
 
-function shuffleTiles(word) {
-  const tiles = [...String(word || '')].map(
-    (letter, index) => ({
-      id:
-        `${letter}-${index}-${Math.random()
-          .toString(36)
-          .slice(2)}`,
-      letter,
-    })
-  );
+function shuffle(items) {
+  const result = [
+    ...(items || []),
+  ];
 
-  // Fisher–Yates shuffle.
   for (
-    let index = tiles.length - 1;
+    let index = result.length - 1;
     index > 0;
     index -= 1
   ) {
@@ -53,44 +49,137 @@ function shuffleTiles(word) {
       );
 
     [
-      tiles[index],
-      tiles[swapIndex],
+      result[index],
+      result[swapIndex],
     ] = [
-      tiles[swapIndex],
-      tiles[index],
+      result[swapIndex],
+      result[index],
     ];
   }
 
-  return tiles;
+  return result;
+}
+
+function buildRound(
+  source,
+  count = ROUND_SIZE
+) {
+  if (!source?.length) {
+    return [];
+  }
+
+  const round = [];
+  let available = shuffle(source);
+
+  while (round.length < count) {
+    if (!available.length) {
+      available = shuffle(source);
+    }
+
+    round.push(
+      available.shift()
+    );
+  }
+
+  return round;
+}
+
+function createLetterTiles(target) {
+  const tiles =
+    [...String(target || '')].map(
+      (letter, index) => ({
+        id:
+          `${letter}-${index}-${Math.random()
+            .toString(36)
+            .slice(2)}`,
+        letter,
+      })
+    );
+
+  return shuffle(tiles);
+}
+
+function isTraceable(
+  target,
+  waypoints
+) {
+  return [...String(target || '')]
+    .every((letter) => {
+      const strokes =
+        waypoints[
+          letter.toLowerCase()
+        ]?.strokes;
+
+      return (
+        Array.isArray(strokes) &&
+        strokes.length > 0
+      );
+    });
 }
 
 export default function AdaptiveWordPractice({
+  syllables = [],
   words = [],
   onWordComplete,
 }) {
   const [waypoints, setWaypoints] =
     useState(LETTER_WAYPOINTS);
 
-  const [wordIndex, setWordIndex] =
-    useState(0);
+  const [
+    practiceLevel,
+    setPracticeLevel,
+  ] = useState('syllables');
+
+  const [
+    roundTargets,
+    setRoundTargets,
+  ] = useState([]);
+
+  const [
+    targetIndex,
+    setTargetIndex,
+  ] = useState(0);
+
+  const [
+    roundResults,
+    setRoundResults,
+  ] = useState([]);
 
   const [stage, setStage] =
     useState('build');
 
-  const [availableTiles, setAvailableTiles] =
-    useState([]);
+  const [
+    availableTiles,
+    setAvailableTiles,
+  ] = useState([]);
 
-  const [builtTiles, setBuiltTiles] =
-    useState([]);
+  const [
+    builtTiles,
+    setBuiltTiles,
+  ] = useState([]);
 
-  const [buildError, setBuildError] =
-    useState(false);
+  const [
+    buildError,
+    setBuildError,
+  ] = useState(false);
 
-  const [canvasKey, setCanvasKey] =
-    useState(0);
+  const [
+    firstAttemptCorrect,
+    setFirstAttemptCorrect,
+  ] = useState(true);
 
-  // Load teacher-edited waypoint records and merge them
-  // over the bundled fallback waypoints.
+  const [
+    canvasKey,
+    setCanvasKey,
+  ] = useState(0);
+
+  const [
+    lastRoundSummary,
+    setLastRoundSummary,
+  ] = useState(null);
+
+  // Merge teacher-authored waypoints over the bundled
+  // fallback waypoint data.
   useEffect(() => {
     let cancelled = false;
 
@@ -128,22 +217,22 @@ export default function AdaptiveWordPractice({
                 Array.isArray(strokes) &&
                 strokes.length > 0
               ) {
-                merged[
+                const letter =
                   String(record.letter)
-                    .toLowerCase()
-                ] = {
+                    .trim()
+                    .toLowerCase();
+
+                merged[letter] = {
                   strokes,
                   hint:
                     record.hint ||
-                    previous[
-                      record.letter
-                    ]?.hint ||
+                    previous[letter]?.hint ||
                     '',
                 };
               }
             } catch {
-              // Ignore malformed teacher records and keep
-              // the bundled fallback for that letter.
+              // Keep the bundled fallback for malformed
+              // teacher records.
             }
           });
 
@@ -157,62 +246,118 @@ export default function AdaptiveWordPractice({
     };
   }, []);
 
-  // Do not offer a word unless every character has an
-  // authored tracing pathway.
-  const traceableWords = useMemo(
-    () =>
-      (words || []).filter((word) =>
-        [...String(word || '')].every(
-          (letter) =>
-            Array.isArray(
-              waypoints[
-                letter.toLowerCase()
-              ]?.strokes
-            ) &&
-            waypoints[
-              letter.toLowerCase()
-            ].strokes.length > 0
-        )
-      ),
-    [
-      words,
-      waypoints,
-    ]
-  );
+  const traceableSyllables =
+    useMemo(
+      () =>
+        (syllables || []).filter(
+          (syllable) =>
+            isTraceable(
+              syllable,
+              waypoints
+            )
+        ),
+      [
+        syllables,
+        waypoints,
+      ]
+    );
 
-  const currentWord =
-    traceableWords[
-      wordIndex %
-        Math.max(
-          traceableWords.length,
-          1
-        )
-    ] || '';
+  const traceableWords =
+    useMemo(
+      () =>
+        (words || []).filter(
+          (word) =>
+            isTraceable(
+              word,
+              waypoints
+            )
+        ),
+      [
+        words,
+        waypoints,
+      ]
+    );
 
-  const resetBuild = (word) => {
+  const resetTarget = (
+    target
+  ) => {
+    setStage('build');
+
     setAvailableTiles(
-      shuffleTiles(word)
+      createLetterTiles(target)
     );
 
     setBuiltTiles([]);
     setBuildError(false);
-  };
 
-  // Reset the activity whenever the target word changes.
-  useEffect(() => {
-    if (!currentWord) {
-      return;
-    }
-
-    setStage('build');
-    resetBuild(currentWord);
+    setFirstAttemptCorrect(
+      true
+    );
 
     setCanvasKey(
       (previous) => previous + 1
     );
-  }, [currentWord]);
+  };
 
-  const builtWord =
+  const beginRound = (
+    level,
+    pool
+  ) => {
+    const nextRound =
+      buildRound(
+        pool,
+        ROUND_SIZE
+      );
+
+    setPracticeLevel(level);
+    setRoundTargets(nextRound);
+    setTargetIndex(0);
+    setRoundResults([]);
+    setLastRoundSummary(null);
+
+    if (nextRound.length) {
+      resetTarget(
+        nextRound[0]
+      );
+    }
+  };
+
+  // Start with syllables. If no syllables can be traced,
+  // fall back to available words.
+  useEffect(() => {
+    if (roundTargets.length) {
+      return;
+    }
+
+    if (
+      traceableSyllables.length
+    ) {
+      beginRound(
+        'syllables',
+        traceableSyllables
+      );
+
+      return;
+    }
+
+    if (traceableWords.length) {
+      beginRound(
+        'words',
+        traceableWords
+      );
+    }
+  }, [
+    traceableSyllables,
+    traceableWords,
+    roundTargets.length,
+  ]);
+
+  const currentTarget =
+    roundTargets[
+      targetIndex
+    ] || '';
+
+  const builtTarget =
     builtTiles
       .map((tile) => tile.letter)
       .join('');
@@ -258,8 +403,18 @@ export default function AdaptiveWordPractice({
   };
 
   const checkBuild = () => {
-    if (builtWord !== currentWord) {
+    if (
+      builtTarget !==
+      currentTarget
+    ) {
       setBuildError(true);
+
+      // Any incorrect check means this target was not
+      // correct on the first attempt.
+      setFirstAttemptCorrect(
+        false
+      );
+
       return;
     }
 
@@ -279,55 +434,200 @@ export default function AdaptiveWordPractice({
     );
   };
 
-  const finishWrite = (accuracy) => {
-    onWordComplete?.({
-      word: currentWord,
-      accuracy,
-    });
+  const finishWrite = (
+    writingAccuracy
+  ) => {
+    const result = {
+      target:
+        currentTarget,
 
-    if (
-      traceableWords.length <= 1
-    ) {
-      setStage('build');
-      resetBuild(currentWord);
+      type:
+        practiceLevel ===
+        'syllables'
+          ? 'syllable'
+          : 'word',
 
-      setCanvasKey(
-        (previous) => previous + 1
+      buildCorrectFirstAttempt:
+        firstAttemptCorrect,
+
+      writingAccuracy,
+    };
+
+    const completedResults = [
+      ...roundResults,
+      result,
+    ];
+
+    onWordComplete?.(
+      result
+    );
+
+    const completedRound =
+      targetIndex >=
+      roundTargets.length - 1;
+
+    if (!completedRound) {
+      const nextIndex =
+        targetIndex + 1;
+
+      setRoundResults(
+        completedResults
+      );
+
+      setTargetIndex(
+        nextIndex
+      );
+
+      resetTarget(
+        roundTargets[
+          nextIndex
+        ]
       );
 
       return;
     }
 
-    setWordIndex(
-      (previous) =>
+    const correctCount =
+      completedResults.filter(
+        (item) =>
+          item
+            .buildCorrectFirstAttempt
+      ).length;
+
+    const accuracy =
+      Math.round(
         (
-          previous + 1
-        ) %
-        traceableWords.length
-    );
+          correctCount /
+          completedResults.length
+        ) *
+          100
+      );
+
+    const passed =
+      accuracy >=
+      PASSING_ACCURACY;
+
+    setLastRoundSummary({
+      level: practiceLevel,
+      correctCount,
+      total:
+        completedResults.length,
+      accuracy,
+      passed,
+    });
+
+    // Passing the syllable round advances the student
+    // to complete words when words are available.
+    if (
+      practiceLevel ===
+        'syllables' &&
+      passed &&
+      traceableWords.length
+    ) {
+      setTimeout(() => {
+        beginRound(
+          'words',
+          traceableWords
+        );
+      }, 1800);
+
+      return;
+    }
+
+    // Repeat the same instructional level with a newly
+    // shuffled round.
+    const nextPool =
+      practiceLevel ===
+      'syllables'
+        ? traceableSyllables
+        : traceableWords;
+
+    setTimeout(() => {
+      beginRound(
+        practiceLevel,
+        nextPool
+      );
+    }, 1800);
   };
 
-  if (!traceableWords.length) {
+  if (
+    !currentTarget &&
+    !roundTargets.length
+  ) {
     return (
-      <div className="h-full min-h-[420px] flex items-center justify-center bg-blue-50 p-6">
+      <div className="flex h-full min-h-[420px] items-center justify-center bg-blue-50 p-6">
         <div className="max-w-md rounded-3xl border border-blue-200 bg-white p-8 text-center shadow-sm">
           <div className="mb-3 text-5xl">
             🔤
           </div>
 
           <h2 className="text-xl font-black text-slate-800">
-            Todavía no hay palabras disponibles
+            Todavía no hay práctica disponible
           </h2>
 
           <p className="mt-2 text-sm font-medium text-slate-500">
-            La actividad aparecerá cuando las letras de una
-            palabra estén disponibles en la progresión y tengan
-            caminos de escritura.
+            El maestro debe establecer una posición curricular
+            que incluya suficientes letras para formar sílabas.
           </p>
         </div>
       </div>
     );
   }
+
+  if (lastRoundSummary) {
+    return (
+      <div className="flex h-full min-h-[520px] items-center justify-center bg-gradient-to-b from-blue-50 to-white p-6">
+        <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-8 text-center shadow-lg">
+          <div className="text-5xl">
+            {lastRoundSummary.passed
+              ? '🎉'
+              : '💪'}
+          </div>
+
+          <h2 className="mt-3 text-2xl font-black text-slate-800">
+            {lastRoundSummary.passed
+              ? '¡Muy bien!'
+              : '¡Sigamos practicando!'}
+          </h2>
+
+          <p className="mt-3 text-lg font-bold text-slate-600">
+            {
+              lastRoundSummary
+                .correctCount
+            }{' '}
+            de{' '}
+            {
+              lastRoundSummary
+                .total
+            }{' '}
+            correctas en el primer intento
+          </p>
+
+          <div className="mx-auto mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-2xl font-black text-blue-700">
+            {
+              lastRoundSummary
+                .accuracy
+            }%
+          </div>
+
+          <p className="mt-4 text-sm font-semibold text-slate-500">
+            {lastRoundSummary.level ===
+              'syllables' &&
+            lastRoundSummary.passed &&
+            traceableWords.length
+              ? 'Ahora practicarás palabras.'
+              : 'La próxima ronda comenzará pronto.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const targetTypeLabel =
+    practiceLevel ===
+    'syllables'
+      ? 'sílaba'
+      : 'palabra';
 
   return (
     <div className="h-full min-h-[520px] bg-gradient-to-b from-blue-50 to-white p-4">
@@ -335,12 +635,18 @@ export default function AdaptiveWordPractice({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-blue-100 bg-white px-5 py-4 shadow-sm">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-500">
-              Práctica de palabras
+              Práctica de {practiceLevel === 'syllables'
+                ? 'sílabas'
+                : 'palabras'}
             </p>
 
             <h2 className="mt-1 text-3xl font-black tracking-wide text-slate-800">
-              {currentWord}
+              {currentTarget}
             </h2>
+
+            <p className="mt-1 text-xs font-bold text-slate-400">
+              {targetIndex + 1} de {roundTargets.length}
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -392,18 +698,16 @@ export default function AdaptiveWordPractice({
 
         {stage === 'build' && (
           <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
-            <div className="mb-3 text-center">
-              <h3 className="text-2xl font-black text-slate-800">
-                Construye la palabra
-              </h3>
+            <h3 className="text-2xl font-black text-slate-800">
+              Construye la {targetTypeLabel}
+            </h3>
 
-              <p className="mt-1 text-sm font-semibold text-slate-500">
-                Toca las letras en el orden correcto.
-              </p>
-            </div>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              Toca las letras en el orden correcto.
+            </p>
 
             <div
-              className={`flex min-h-24 min-w-[280px] flex-wrap items-center justify-center gap-2 rounded-3xl border-4 border-dashed px-5 py-4 transition ${
+              className={`mt-5 flex min-h-24 min-w-[280px] flex-wrap items-center justify-center gap-2 rounded-3xl border-4 border-dashed px-5 py-4 ${
                 buildError
                   ? 'border-red-300 bg-red-50'
                   : 'border-blue-200 bg-blue-50'
@@ -411,7 +715,7 @@ export default function AdaptiveWordPractice({
             >
               {builtTiles.length === 0 && (
                 <span className="text-sm font-bold text-blue-300">
-                  La palabra va aquí
+                  La {targetTypeLabel} va aquí
                 </span>
               )}
 
@@ -426,7 +730,7 @@ export default function AdaptiveWordPractice({
                         index
                       )
                     }
-                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl border-2 border-blue-300 bg-white px-4 text-3xl font-black text-blue-700 shadow-sm transition hover:-translate-y-0.5"
+                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl border-2 border-blue-300 bg-white px-4 text-3xl font-black text-blue-700 shadow-sm"
                   >
                     {tile.letter}
                   </button>
@@ -449,7 +753,7 @@ export default function AdaptiveWordPractice({
                     onClick={() =>
                       chooseTile(tile)
                     }
-                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl bg-amber-300 px-4 text-3xl font-black text-amber-950 shadow-md transition hover:-translate-y-1 hover:bg-amber-200"
+                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl bg-amber-300 px-4 text-3xl font-black text-amber-950 shadow-md"
                   >
                     {tile.letter}
                   </button>
@@ -462,11 +766,11 @@ export default function AdaptiveWordPractice({
               onClick={checkBuild}
               disabled={
                 builtTiles.length !==
-                currentWord.length
+                currentTarget.length
               }
-              className="mt-8 rounded-2xl bg-blue-600 px-8 py-3 text-lg font-black text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="mt-8 rounded-2xl bg-blue-600 px-8 py-3 text-lg font-black text-white shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Revisar palabra
+              Revisar
             </button>
           </div>
         )}
@@ -475,18 +779,14 @@ export default function AdaptiveWordPractice({
           <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-violet-100 bg-white p-3 shadow-sm">
             <div className="shrink-0 py-2 text-center">
               <h3 className="text-2xl font-black text-slate-800">
-                Traza la palabra una vez
+                Traza la {targetTypeLabel} una vez
               </h3>
-
-              <p className="text-sm font-semibold text-slate-500">
-                Sigue el camino y comienza en cada punto.
-              </p>
             </div>
 
             <div className="min-h-0 flex-1 overflow-x-auto">
               <WordTracingCanvas
                 key={`trace-${canvasKey}`}
-                word={currentWord}
+                word={currentTarget}
                 waypoints={waypoints}
                 lang="es"
                 repetitions={1}
@@ -501,7 +801,7 @@ export default function AdaptiveWordPractice({
           <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-green-100 bg-white p-3 shadow-sm">
             <div className="shrink-0 py-2 text-center">
               <h3 className="text-2xl font-black text-slate-800">
-                Ahora escribe la palabra
+                Ahora escribe la {targetTypeLabel}
               </h3>
 
               <p className="text-sm font-semibold text-slate-500">
@@ -512,7 +812,7 @@ export default function AdaptiveWordPractice({
             <div className="min-h-0 flex-1 overflow-x-auto">
               <WordTracingCanvas
                 key={`write-${canvasKey}`}
-                word={currentWord}
+                word={currentTarget}
                 waypoints={waypoints}
                 lang="es"
                 repetitions={1}
