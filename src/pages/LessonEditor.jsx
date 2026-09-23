@@ -1170,20 +1170,77 @@ export default function LessonEditor() {
       },
     }));
 
-    const cleanDailyLessons = (editing.daily_lessons || []).map((dailyLesson) => ({
-      day: dailyLesson.day,
-      active: dailyLesson.active !== false,
-      module_number: Number(dailyLesson.module_number) || 1,
-      curriculum_lesson_number: Number(dailyLesson.curriculum_lesson_number) || 1,
-      title: dailyLesson.title || '',
-      steps: (dailyLesson.steps || []).map(({ __new, ...step }) => ({
-        ...step,
-        config: {
-          ...(step.config || {}),
-          lessonLiteracy: literacy,
-        },
-      })),
-    }));
+    const cleanDailyLessons =
+      (
+        editing.daily_lessons || []
+      ).map((dailyLesson) => {
+        const moduleNumber =
+          Number(
+            dailyLesson.module_number
+          ) || 1;
+
+        const lessonNumber =
+          Number(
+            dailyLesson
+              .curriculum_lesson_number
+          ) || 1;
+
+        const curriculumPosition = {
+          day:
+            dailyLesson.day,
+
+          module_number:
+            moduleNumber,
+
+          curriculum_lesson_number:
+            lessonNumber,
+
+          key:
+            `M${moduleNumber}.L${lessonNumber}`,
+        };
+
+        return {
+          day:
+            dailyLesson.day,
+
+          active:
+            dailyLesson.active !== false,
+
+          module_number:
+            moduleNumber,
+
+          curriculum_lesson_number:
+            lessonNumber,
+
+          title:
+            dailyLesson.title || '',
+
+          steps:
+            (
+              dailyLesson.steps || []
+            ).map(
+              ({
+                __new,
+                ...step
+              }) => ({
+                ...step,
+
+                config: {
+                  ...(step.config || {}),
+
+                  // Keep the old weekly fields temporarily for
+                  // backward compatibility. The curriculum
+                  // position below becomes the primary source
+                  // for grapheme availability.
+                  lessonLiteracy:
+                    literacy,
+
+                  curriculumPosition,
+                },
+              })
+            ),
+        };
+      });
 
     const payload = {
       title: editing.title.trim(),
