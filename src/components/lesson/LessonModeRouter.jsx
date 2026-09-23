@@ -1266,7 +1266,8 @@ export default function LessonModeRouter({
               setCatalogRecordingPages
             }
             embedded={
-              embeddedMode
+              embeddedMode ||
+              stepperMode
             }
           />
         );
