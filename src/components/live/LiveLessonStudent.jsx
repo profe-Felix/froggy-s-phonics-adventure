@@ -18,7 +18,7 @@ const LIVE_WEEKDAYS = [
   'saturday',
 ];
 
-function getLiveLessonSteps(lesson) {
+function getLiveLessonSteps(lesson, selectedDay = '') {
   if (!lesson) {
     return [];
   }
@@ -27,31 +27,34 @@ function getLiveLessonSteps(lesson) {
     lesson.assignment_type === 'class' &&
     Array.isArray(lesson.daily_lessons)
   ) {
-    const today =
-      LIVE_WEEKDAYS[new Date().getDay()];
+    const usableDailyLessons = lesson.daily_lessons.filter(
+      (dailyLesson) =>
+        dailyLesson.active !== false &&
+        Array.isArray(dailyLesson.steps) &&
+        dailyLesson.steps.length > 0
+    );
 
-    const todayLesson =
-      lesson.daily_lessons.find(
-        (dailyLesson) =>
-          dailyLesson.day === today &&
-          dailyLesson.active !== false &&
-          Array.isArray(dailyLesson.steps) &&
-          dailyLesson.steps.length > 0
+    if (selectedDay) {
+      const selectedDailyLesson = usableDailyLessons.find(
+        (dailyLesson) => dailyLesson.day === selectedDay
       );
+
+      if (selectedDailyLesson) {
+        return selectedDailyLesson.steps;
+      }
+    }
+
+    const today = LIVE_WEEKDAYS[new Date().getDay()];
+
+    const todayLesson = usableDailyLessons.find(
+      (dailyLesson) => dailyLesson.day === today
+    );
 
     if (todayLesson) {
       return todayLesson.steps;
     }
 
-    const firstActiveLesson =
-      lesson.daily_lessons.find(
-        (dailyLesson) =>
-          dailyLesson.active !== false &&
-          Array.isArray(dailyLesson.steps) &&
-          dailyLesson.steps.length > 0
-      );
-
-    return firstActiveLesson?.steps || [];
+    return usableDailyLessons[0]?.steps || [];
   }
 
   return lesson.steps || [];
@@ -199,7 +202,10 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     };
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const steps = getLiveLessonSteps(lesson);
+  const steps = getLiveLessonSteps(
+    lesson,
+    localSession?.lesson_day || session?.lesson_day || ''
+  );
   const teacherStep = localSession?.current_step || 0;
   const phase = localSession?.phase || 'watch';
   const releaseMode = localSession?.release_mode || 'stay';
