@@ -100,12 +100,12 @@ export const ES_GRAPHEME_CHART = {
   'M4.L3': [],
   'M4.L4': [],
   'M4.L5': [],
-  'M4.L6': ['r_','_rr_'], //r iniciall rr medial
+  'M4.L6': ['r-inicial','rr-medial'], //r iniciall rr medial
   'M4.L7': [],
   'M4.L8': [],
   'M4.L9': [],
   'M4.L10': [],
-  'M4.L11': ['c/k/'], //c fuerte: ca,co,cu 
+  'M4.L11': ['c-fuerte'], //c fuerte: ca,co,cu 
   'M4.L12': [],
   'M4.L13': [],
   'M4.L14': [],
@@ -124,7 +124,7 @@ export const ES_GRAPHEME_CHART = {
   'M5.L3': [],
   'M5.L4': [],
   'M5.L5': [],
-  'M5.L6': ['_r_','_r'], //r medial y r final
+  'M5.L6': ['r-medial','r-final'], //r medial y r final
   'M5.L7': [],
   'M5.L8': [],
   'M5.L9': [],
@@ -143,12 +143,12 @@ export const ES_GRAPHEME_CHART = {
   // ─────────────────────────────────────────────
   // Módulo 6
   // ─────────────────────────────────────────────
-  'M6.L1': ['g'], //g fuerte: ga,go,gu,gue,gui
+  'M6.L1': ['g-fuerte'], //g fuerte: ga,go,gu,gue,gui
   'M6.L2': [],
   'M6.L3': [],
   'M6.L4': [],
   'M6.L5': [],
-  'M6.L6': ['y_','z'], //y inicial
+  'M6.L6': ['y-inicial','z'], //y inicial
   'M6.L7': [],
   'M6.L8': [],
   'M6.L9': [],
@@ -158,7 +158,7 @@ export const ES_GRAPHEME_CHART = {
   'M6.L13': [],
   'M6.L14': [],
   'M6.L15': [],
-  'M6.L16': ['c/s/'], //c suave: ce, ci
+  'M6.L16': ['c-suave'], //c suave: ce, ci
   'M6.L17': [],
   'M6.L18': [],
   'M6.L19': [],
@@ -172,12 +172,12 @@ export const ES_GRAPHEME_CHART = {
   'M7.L3': [],
   'M7.L4': [],
   'M7.L5': [],
-  'M7.L6': ['g/j/'], //g suave: ge, gi
+  'M7.L6': ['g-suave'], //g suave: ge, gi
   'M7.L7': [],
   'M7.L8': [],
   'M7.L9': [],
   'M7.L10': [],
-  'M7.L11': ['ch','gü'], //g fuerte: güe, güi
+  'M7.L11': ['ch','g-diéresis'], //g fuerte: güe, güi
   'M7.L12': [],
   'M7.L13': [],
   'M7.L14': [],
