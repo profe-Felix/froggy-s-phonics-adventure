@@ -68,6 +68,20 @@
       },
       "default": [],
       "description": "Class names whose active books this class also sees in its bookshelf. e.g. ['Felix'] means this class sees all of Felix's active books in addition to its own. Used to share a book set across linked classes (e.g. Spanish classes) without duplicating book records."
+    },
+    "active_spanish_module": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9,
+      "default": 1,
+      "description": "The currently released Spanish curriculum module for this class."
+    },
+    "active_spanish_lesson": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 1,
+      "description": "The currently released Spanish curriculum lesson within the active module for this class."
     }
   },
   "required": [
