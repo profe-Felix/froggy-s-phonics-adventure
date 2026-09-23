@@ -13,6 +13,11 @@ import {
   canDecodeWord,
 } from '@/lib/literacy/lessonProgression';
 
+import {
+  getIntroducedGraphemesThrough,
+  getNewGraphemesAt,
+} from '@/lib/literacy/curriculumGraphemes';
+
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
 const SECTIONS = [
@@ -630,7 +635,7 @@ export default function SpanishReadingGame({
 
         if (cancelled) return;
 
-        const literacyContext =
+        const studentContext =
           buildStudentLiteracyContext({
             lessons: allLessons,
             progresses,
@@ -638,7 +643,101 @@ export default function SpanishReadingGame({
             language: 'es',
           });
 
-        setLiteracyContext(literacyContext);
+        const moduleNumber =
+          Number(
+            curriculumPosition
+              ?.module_number
+          );
+
+        const lessonNumber =
+          Number(
+            curriculumPosition
+              ?.curriculum_lesson_number
+          );
+
+        const hasCurriculumPosition =
+          Number.isInteger(moduleNumber) &&
+          moduleNumber > 0 &&
+          Number.isInteger(lessonNumber) &&
+          lessonNumber > 0;
+
+        if (!hasCurriculumPosition) {
+          // Old lessons that have not been resaved continue using
+          // their previous weekly literacy progression.
+          setLiteracyContext(
+            studentContext
+          );
+
+          return;
+        }
+
+        const cumulativeGraphemes =
+          getIntroducedGraphemesThrough({
+            moduleNumber,
+            lessonNumber,
+          });
+
+        const newGraphemes =
+          getNewGraphemesAt({
+            moduleNumber,
+            lessonNumber,
+          });
+
+        const emptyLiteracy = {
+          graphemes: [],
+          sightWords: [],
+          pictureWords: [],
+          sentencePatterns: [],
+        };
+
+        const curriculumContext = {
+          ...(studentContext || {}),
+
+          curriculumPosition: {
+            ...curriculumPosition,
+            module_number:
+              moduleNumber,
+            curriculum_lesson_number:
+              lessonNumber,
+            key:
+              `M${moduleNumber}.L${lessonNumber}`,
+          },
+
+          currentLessonNumber:
+            studentContext
+              ?.currentLessonNumber ||
+            1,
+
+          cumulative: {
+            ...emptyLiteracy,
+            ...(
+              studentContext
+                ?.cumulative || {}
+            ),
+
+            // The exact M#.L# chart replaces the old weekly
+            // grapheme accumulation.
+            graphemes:
+              cumulativeGraphemes,
+          },
+
+          current: {
+            ...emptyLiteracy,
+            ...(
+              studentContext
+                ?.current || {}
+            ),
+
+            // These are only the graphemes introduced at this
+            // exact curriculum position.
+            graphemes:
+              newGraphemes,
+          },
+        };
+
+        setLiteracyContext(
+          curriculumContext
+        );
       } catch (error) {
         console.error('Could not load Spanish literacy progression:', error);
 
@@ -657,7 +756,14 @@ export default function SpanishReadingGame({
     return () => {
       cancelled = true;
     };
-  }, [studentNumber, className]);
+  }, [
+    studentNumber,
+    className,
+    curriculumPosition
+      ?.module_number,
+    curriculumPosition
+      ?.curriculum_lesson_number,
+  ]);
 
   // Resolve a lesson-step preset or inline items into a driven item list.
   useEffect(() => {
