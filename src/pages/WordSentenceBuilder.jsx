@@ -14,6 +14,10 @@ import {
   canDecodeWord,
 } from '@/lib/literacy/lessonProgression';
 
+import {
+  syllabifyEs,
+} from '@/lib/spanishSyllables';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SUPABASE_PRESETS_URL =
   'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/wordbuilder/presets.json';
@@ -785,13 +789,125 @@ export default function WordSentenceBuilder({
         ?.curriculum_lesson_number,
     ]);
 
-  // Adaptive practice is limited by the curriculum position
-  // released by the teacher. Student performance determines
-  // the practice level within that released content.
+  // Build a syllable pool from real words in the word bank.
+  //
+  // We evaluate each extracted syllable independently. This allows
+  // a syllable such as "pia" to become available before every letter
+  // in the full source word "piano" has been released.
+  const adaptiveSyllables =
+    useMemo(() => {
+      if (
+        curriculumGraphemes.length === 0
+      ) {
+        return [];
+      }
 
-  // Adaptive words are limited to letters already introduced through
-  // Letter Tracing. Keep the first version focused on short, lowercase,
-  // directly traceable Spanish words.
+      const seen = new Set();
+
+      const complexityScore = (
+        syllable
+      ) => {
+        let score =
+          syllable.length;
+
+        // Closed syllables such as sol, al, and mil come
+        // after simple open syllables such as ma and pi.
+        if (
+          /[bcdfghjklmnñpqrstvwxyz]$/.test(
+            syllable
+          )
+        ) {
+          score += 10;
+        }
+
+        // Diphthongs and vowel combinations such as
+        // pia and cie come after simple CV syllables.
+        if (
+          /[aeiouü][aeiouü]/.test(
+            syllable
+          )
+        ) {
+          score += 5;
+        }
+
+        // Multi-letter spelling patterns receive a small
+        // additional complexity weight.
+        if (
+          /(ch|ll|rr|qu|gu)/.test(
+            syllable
+          )
+        ) {
+          score += 3;
+        }
+
+        return score;
+      };
+
+      return SPELLING_WORDS
+        .flatMap((word) =>
+          syllabifyEs(word)
+        )
+        .map((syllable) =>
+          String(syllable || '')
+            .trim()
+            .toLowerCase()
+        )
+
+        // Single-vowel syllables and accented characters are
+        // excluded from the first version. Accented letters need
+        // separate authored tracing paths before they can be used.
+        .filter(
+          (syllable) =>
+            syllable.length >= 2 &&
+            syllable.length <= 5 &&
+            /^[a-zñü]+$/.test(
+              syllable
+            )
+        )
+
+        // The extracted syllable itself must be allowed by the
+        // teacher's active curriculum position.
+        .filter((syllable) =>
+          canDecodeWord(
+            syllable,
+            curriculumGraphemes
+          )
+        )
+
+        .filter((syllable) => {
+          if (
+            seen.has(syllable)
+          ) {
+            return false;
+          }
+
+          seen.add(syllable);
+          return true;
+        })
+
+        .sort((first, second) => {
+          const complexityDifference =
+            complexityScore(first) -
+            complexityScore(second);
+
+          if (
+            complexityDifference !== 0
+          ) {
+            return complexityDifference;
+          }
+
+          return first.localeCompare(
+            second,
+            'es'
+          );
+        });
+    }, [
+      curriculumGraphemes,
+    ]);
+
+  // Words are limited by the same active curriculum ceiling.
+  // Student performance will determine when practice advances
+  // from generated syllables to complete words.
   const adaptiveWords = useMemo(() => {
     if (
       curriculumGraphemes.length === 0
@@ -1503,6 +1619,7 @@ export default function WordSentenceBuilder({
   if (isAdaptiveLesson) {
     return (
       <AdaptiveWordPractice
+        syllables={adaptiveSyllables}
         words={adaptiveWords}
       />
     );
