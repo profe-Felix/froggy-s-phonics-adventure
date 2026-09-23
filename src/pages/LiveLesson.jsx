@@ -21,7 +21,15 @@ const LIVE_WEEKDAYS = [
   'saturday',
 ];
 
-function getLiveLessonSteps(lesson) {
+const LIVE_DAY_OPTIONS = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+];
+
+function getLiveLessonSteps(lesson, selectedDay = '') {
   if (!lesson) {
     return [];
   }
@@ -30,31 +38,34 @@ function getLiveLessonSteps(lesson) {
     lesson.assignment_type === 'class' &&
     Array.isArray(lesson.daily_lessons)
   ) {
-    const today =
-      LIVE_WEEKDAYS[new Date().getDay()];
+    const usableDailyLessons = lesson.daily_lessons.filter(
+      (dailyLesson) =>
+        dailyLesson.active !== false &&
+        Array.isArray(dailyLesson.steps) &&
+        dailyLesson.steps.length > 0
+    );
 
-    const todayLesson =
-      lesson.daily_lessons.find(
-        (dailyLesson) =>
-          dailyLesson.day === today &&
-          dailyLesson.active !== false &&
-          Array.isArray(dailyLesson.steps) &&
-          dailyLesson.steps.length > 0
+    if (selectedDay) {
+      const selectedDailyLesson = usableDailyLessons.find(
+        (dailyLesson) => dailyLesson.day === selectedDay
       );
+
+      if (selectedDailyLesson) {
+        return selectedDailyLesson.steps;
+      }
+    }
+
+    const today = LIVE_WEEKDAYS[new Date().getDay()];
+
+    const todayLesson = usableDailyLessons.find(
+      (dailyLesson) => dailyLesson.day === today
+    );
 
     if (todayLesson) {
       return todayLesson.steps;
     }
 
-    const firstActiveLesson =
-      lesson.daily_lessons.find(
-        (dailyLesson) =>
-          dailyLesson.active !== false &&
-          Array.isArray(dailyLesson.steps) &&
-          dailyLesson.steps.length > 0
-      );
-
-    return firstActiveLesson?.steps || [];
+    return usableDailyLessons[0]?.steps || [];
   }
 
   return lesson.steps || [];
@@ -75,6 +86,7 @@ export default function LiveLesson() {
   const sessionRef = useRef(session);
   const { classList: CLASSES } = useClassNames();
   const [selectedLessonId, setSelectedLessonId] = useState('');
+  const [selectedLessonDay, setSelectedLessonDay] = useState('');
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');
   const [pickedStudents, setPickedStudents] = useState([]);
@@ -88,6 +100,53 @@ export default function LiveLesson() {
   });
 
   const selectedLesson = lessons.find(l => l.id === selectedLessonId);
+
+  const selectableDailyLessons =
+    selectedLesson?.assignment_type === 'class' &&
+    Array.isArray(selectedLesson?.daily_lessons)
+      ? LIVE_DAY_OPTIONS.map((dayOption) => {
+          const dailyLesson = selectedLesson.daily_lessons.find(
+            (item) => item.day === dayOption.value
+          );
+
+          return {
+            ...dayOption,
+            dailyLesson,
+          };
+        }).filter(
+          ({ dailyLesson }) =>
+            dailyLesson?.active !== false &&
+            Array.isArray(dailyLesson?.steps) &&
+            dailyLesson.steps.length > 0
+        )
+      : [];
+
+  useEffect(() => {
+    if (!selectableDailyLessons.length) {
+      setSelectedLessonDay('');
+      return;
+    }
+
+    const today = LIVE_WEEKDAYS[new Date().getDay()];
+
+    setSelectedLessonDay((currentDay) => {
+      const currentDayStillExists = selectableDailyLessons.some(
+        ({ value }) => value === currentDay
+      );
+
+      if (currentDayStillExists) {
+        return currentDay;
+      }
+
+      const todayExists = selectableDailyLessons.some(
+        ({ value }) => value === today
+      );
+
+      return todayExists
+        ? today
+        : selectableDailyLessons[0].value;
+    });
+  }, [selectedLessonId]);
 
   const { data: classStudents = [] } = useQuery({
     queryKey: ['class-students-live', className],
@@ -258,6 +317,7 @@ export default function LiveLesson() {
         code,
         lesson_id: selectedLessonId,
         lesson_title: selectedLesson?.title || '',
+        lesson_day: selectedLessonDay || '',
         class_name: className,
         school_year: ACTIVE_SCHOOL_YEAR,
         target_students: target,
@@ -292,7 +352,8 @@ export default function LiveLesson() {
 
   const advance = (dir) => {
     const steps = getLiveLessonSteps(
-      selectedLesson
+      selectedLesson,
+      session?.lesson_day || selectedLessonDay
     );
 
     if (!steps.length) return;
@@ -438,29 +499,73 @@ export default function LiveLesson() {
 
               <select
                 value={selectedLessonId}
-                onChange={e =>
-                  setSelectedLessonId(e.target.value)
-                }
+                onChange={(e) => {
+                  setSelectedLessonId(e.target.value);
+                  setSelectedLessonDay('');
+                }}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium"
               >
                 <option value="">
                   Select a lesson…
                 </option>
 
-                {lessons.map(l => (
+                {lessons.map((lesson) => (
                   <option
-                    key={l.id}
-                    value={l.id}
+                    key={lesson.id}
+                    value={lesson.id}
                   >
-                    {l.title} · {l.assignment_type === 'guided' ? 'Guided' : l.assignment_type === 'side_quest' ? 'Small group' : 'Path'} · {getLiveLessonSteps(l).length} steps
+                    {lesson.title} · {lesson.assignment_type === 'guided'
+                      ? 'Guided'
+                      : lesson.assignment_type === 'side_quest'
+                        ? 'Small group'
+                        : 'Path'}
                   </option>
                 ))}
               </select>
             </div>
 
+            {selectableDailyLessons.length > 0 && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  2. Pick a day
+                </label>
+
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {selectableDailyLessons.map(
+                    ({ value, label, dailyLesson }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSelectedLessonDay(value)}
+                        className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-bold transition ${
+                          selectedLessonDay === value
+                            ? 'bg-rose-500 text-white border-rose-500'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300'
+                        }`}
+                      >
+                        <span className="block">{label}</span>
+                        <span
+                          className={`block text-xs mt-1 ${
+                            selectedLessonDay === value
+                              ? 'text-rose-100'
+                              : 'text-indigo-600'
+                          }`}
+                        >
+                          M{dailyLesson.module_number || 1}.L
+                          {dailyLesson.curriculum_lesson_number || 1}
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                2. Pick a class
+                {selectableDailyLessons.length > 0
+                  ? '3. Pick a class'
+                  : '2. Pick a class'}
               </label>
 
               <div className="grid grid-cols-4 gap-2">
@@ -482,7 +587,9 @@ export default function LiveLesson() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                3. Who joins?
+                {selectableDailyLessons.length > 0
+                  ? '4. Who joins?'
+                  : '3. Who joins?'}
               </label>
 
               <div className="flex gap-2 mb-3">
@@ -556,7 +663,11 @@ export default function LiveLesson() {
               disabled={
                 !selectedLessonId ||
                 !className ||
-                starting
+                starting ||
+                (
+                  selectableDailyLessons.length > 0 &&
+                  !selectedLessonDay
+                )
               }
               className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black text-lg py-3"
             >
