@@ -119,6 +119,11 @@ export default function StudentNotebookView({
 }) {
   const qc = useQueryClient();
   const { classList } = useClassNames();
+
+  // Lesson activities provide extraHeaderContent for their Finish button.
+  // In that case, keep the notebook inside its parent instead of covering
+  // the entire Live Lesson screen.
+  const isEmbedded = embedded || Boolean(extraHeaderContent);
   const [showQR, setShowQR] = useState(false);
   const [qrClass, setQrClass] = useState('');
   const [selectedAssignment, setSelectedAssignment] = useState(null);
@@ -1208,8 +1213,8 @@ export default function StudentNotebookView({
   return (
     <div
       className={
-        embedded
-          ? 'absolute inset-0 flex flex-col'
+        isEmbedded
+          ? 'h-full min-h-0 flex flex-col'
           : 'fixed inset-0 flex flex-col'
       }
       style={{ background: '#0f0f1a' }}
