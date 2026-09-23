@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -10,7 +11,16 @@ import {
   LETTER_WAYPOINTS,
 } from '@/components/data/letterWaypoints';
 
+import {
+  Loader2,
+  Volume2,
+} from 'lucide-react';
+
 import WordTracingCanvas from '@/components/game/WordTracingCanvas';
+
+import {
+  getDefaultVoice,
+} from '@/lib/activities/ttsVoices';
 
 const ROUND_SIZE = 10;
 const PASSING_ACCURACY = 80;
@@ -84,19 +94,195 @@ function buildRound(
   return round;
 }
 
-function createLetterTiles(target) {
-  const tiles =
-    [...String(target || '')].map(
+function createLetterTiles(
+  target,
+  distractorPool
+) {
+  const targetLetters =
+    [...String(target || '')];
+
+  const correctTiles =
+    targetLetters.map(
       (letter, index) => ({
         id:
-          `${letter}-${index}-${Math.random()
+          `correct-${letter}-${index}-${Math.random()
             .toString(36)
             .slice(2)}`,
         letter,
       })
     );
 
-  return shuffle(tiles);
+  // Prefer letters that are not already in the target.
+  // All letters in distractorPool come from currently
+  // available, curriculum-approved syllables and words.
+  const preferredDistractors =
+    shuffle(
+      (distractorPool || []).filter(
+        (letter) =>
+          !targetLetters.includes(
+            letter
+          )
+      )
+    );
+
+  const fallbackDistractors =
+    shuffle(
+      distractorPool || []
+    );
+
+  const distractorCount =
+    Math.min(
+      4,
+      Math.max(
+        2,
+        targetLetters.length
+      )
+    );
+
+  const selectedDistractors = [];
+
+  for (
+    const letter of preferredDistractors
+  ) {
+    if (
+      selectedDistractors.length >=
+      distractorCount
+    ) {
+      break;
+    }
+
+    if (
+      !selectedDistractors.includes(
+        letter
+      )
+    ) {
+      selectedDistractors.push(
+        letter
+      );
+    }
+  }
+
+  for (
+    const letter of fallbackDistractors
+  ) {
+    if (
+      selectedDistractors.length >=
+      distractorCount
+    ) {
+      break;
+    }
+
+    if (
+      !selectedDistractors.includes(
+        letter
+      )
+    ) {
+      selectedDistractors.push(
+        letter
+      );
+    }
+  }
+
+  const distractorTiles =
+    selectedDistractors.map(
+      (letter, index) => ({
+        id:
+          `distractor-${letter}-${index}-${Math.random()
+            .toString(36)
+            .slice(2)}`,
+        letter,
+      })
+    );
+
+  return shuffle([
+    ...correctTiles,
+    ...distractorTiles,
+  ]);
+}
+
+const ttsUrlCache = new Map();
+
+async function getTtsUrl(
+  text,
+  voice
+) {
+  const cacheKey =
+    `${voice || 'default'}:${text}`;
+
+  if (
+    ttsUrlCache.has(cacheKey)
+  ) {
+    return ttsUrlCache.get(
+      cacheKey
+    );
+  }
+
+  const response =
+    await base44.functions.invoke(
+      'generateTts',
+      {
+        text,
+        lang: 'es',
+        voice:
+          voice || undefined,
+      }
+    );
+
+  const url =
+    response?.data?.url || '';
+
+  if (url) {
+    ttsUrlCache.set(
+      cacheKey,
+      url
+    );
+  }
+
+  return url;
+}
+
+function playAudioUrl(
+  url,
+  audioRef
+) {
+  return new Promise(
+    (resolve) => {
+      if (!url) {
+        resolve();
+        return;
+      }
+
+      try {
+        if (
+          audioRef.current
+        ) {
+          audioRef.current.pause();
+          audioRef.current.onended =
+            null;
+          audioRef.current.onerror =
+            null;
+        }
+
+        const audio =
+          new Audio(url);
+
+        audioRef.current =
+          audio;
+
+        audio.onended =
+          resolve;
+
+        audio.onerror =
+          resolve;
+
+        audio
+          .play()
+          .catch(resolve);
+      } catch {
+        resolve();
+      }
+    }
+  );
 }
 
 function isTraceable(
@@ -177,6 +363,17 @@ export default function AdaptiveWordPractice({
     lastRoundSummary,
     setLastRoundSummary,
   ] = useState(null);
+
+  const [
+    playingPrompt,
+    setPlayingPrompt,
+  ] = useState(false);
+
+  const audioRef =
+    useRef(null);
+
+  const promptRequestRef =
+    useRef(0);
 
   // Merge teacher-authored waypoints over the bundled
   // fallback waypoint data.
@@ -278,13 +475,42 @@ export default function AdaptiveWordPractice({
       ]
     );
 
+  // Distractors only come from characters that occur in
+  // curriculum-approved, traceable syllables or words.
+  const distractorLetters =
+    useMemo(() => {
+      const letters =
+        [
+          ...traceableSyllables,
+          ...traceableWords,
+        ].flatMap((target) =>
+          [...String(target || '')]
+        );
+
+      return [
+        ...new Set(letters),
+      ].filter((letter) =>
+        isTraceable(
+          letter,
+          waypoints
+        )
+      );
+    }, [
+      traceableSyllables,
+      traceableWords,
+      waypoints,
+    ]);
+
   const resetTarget = (
     target
   ) => {
     setStage('build');
 
     setAvailableTiles(
-      createLetterTiles(target)
+      createLetterTiles(
+        target,
+        distractorLetters
+      )
     );
 
     setBuiltTiles([]);
@@ -361,6 +587,109 @@ export default function AdaptiveWordPractice({
     builtTiles
       .map((tile) => tile.letter)
       .join('');
+
+  const playBuildPrompt =
+    async () => {
+      if (
+        !currentTarget ||
+        stage !== 'build'
+      ) {
+        return;
+      }
+
+      const requestId =
+        promptRequestRef.current + 1;
+
+      promptRequestRef.current =
+        requestId;
+
+      setPlayingPrompt(true);
+
+      try {
+        const voice =
+          await getDefaultVoice();
+
+        const instruction =
+          practiceLevel ===
+          'syllables'
+            ? 'Construye la sílaba'
+            : 'Construye la palabra';
+
+        const [
+          instructionUrl,
+          targetUrl,
+        ] = await Promise.all([
+          getTtsUrl(
+            instruction,
+            voice
+          ),
+
+          getTtsUrl(
+            currentTarget,
+            voice
+          ),
+        ]);
+
+        if (
+          promptRequestRef.current !==
+          requestId
+        ) {
+          return;
+        }
+
+        await playAudioUrl(
+          instructionUrl,
+          audioRef
+        );
+
+        if (
+          promptRequestRef.current !==
+          requestId
+        ) {
+          return;
+        }
+
+        await playAudioUrl(
+          targetUrl,
+          audioRef
+        );
+      } finally {
+        if (
+          promptRequestRef.current ===
+          requestId
+        ) {
+          setPlayingPrompt(false);
+        }
+      }
+    };
+
+  // Attempt automatic playback for each new Build target.
+  // If the browser blocks autoplay, the speaker button
+  // remains available.
+  useEffect(() => {
+    if (
+      !currentTarget ||
+      stage !== 'build'
+    ) {
+      return;
+    }
+
+    playBuildPrompt();
+  }, [
+    currentTarget,
+    practiceLevel,
+  ]);
+
+  useEffect(
+    () => () => {
+      promptRequestRef.current += 1;
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    },
+    []
+  );
 
   const chooseTile = (tile) => {
     setBuildError(false);
@@ -640,9 +969,42 @@ export default function AdaptiveWordPractice({
                 : 'palabras'}
             </p>
 
-            <h2 className="mt-1 text-3xl font-black tracking-wide text-slate-800">
-              {currentTarget}
-            </h2>
+            {stage === 'build' ? (
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={
+                    playBuildPrompt
+                  }
+                  disabled={
+                    playingPrompt
+                  }
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition hover:bg-blue-700 disabled:bg-blue-300"
+                  title="Escuchar otra vez"
+                  aria-label="Escuchar otra vez"
+                >
+                  {playingPrompt ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <Volume2 className="h-6 w-6" />
+                  )}
+                </button>
+
+                <div>
+                  <h2 className="text-xl font-black text-slate-800">
+                    Escucha y construye
+                  </h2>
+
+                  <p className="text-sm font-semibold text-slate-500">
+                    Toca el altavoz para escuchar otra vez.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <h2 className="mt-1 text-3xl font-black tracking-wide text-slate-800">
+                {currentTarget}
+              </h2>
+            )}
 
             <p className="mt-1 text-xs font-bold text-slate-400">
               {targetIndex + 1} de {roundTargets.length}
