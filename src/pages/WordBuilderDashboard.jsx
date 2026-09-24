@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-
-const CLASSES = ['Felix', 'Valero', 'Campos'];
+import { useClassNames } from '@/hooks/useClassNames';
 
 // ─── Replay viewer ────────────────────────────────────────────────────────────
 function ReplayViewer({ attempt, onClose }) {
@@ -160,13 +159,16 @@ function StudentCard({ studentNum, attempts, onReplay }) {
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 export default function WordBuilderDashboard() {
-  const [selectedClass, setSelectedClass] = useState('Felix');
+  const { classList } = useClassNames();
+  const [selectedClass, setSelectedClass] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('all');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [resultFilter, setResultFilter] = useState('all'); // all | correct | incorrect | pending
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [replayAttempt, setReplayAttempt] = useState(null);
+
+  useEffect(() => { if (!selectedClass && classList.length) setSelectedClass(classList[0]); }, [classList, selectedClass]);
 
   const { data: attempts = [], isLoading } = useQuery({
     queryKey: ['wb-attempts', selectedClass],
@@ -231,7 +233,7 @@ export default function WordBuilderDashboard() {
           <h1 className="text-xl font-black text-gray-800">🧩 Word Builder — Resultados</h1>
           <div className="flex-1" />
           <div className="flex gap-2 flex-wrap">
-            {CLASSES.map(c => (
+            {classList.map(c => (
               <button key={c} onClick={() => setSelectedClass(c)}
                 className={`px-4 py-1.5 rounded-full font-bold text-sm transition-all ${selectedClass===c ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-indigo-50'}`}>
                 Clase {c}

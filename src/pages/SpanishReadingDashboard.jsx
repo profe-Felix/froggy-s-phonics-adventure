@@ -3,8 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
-
-const CLASSES = ['Felix', 'Valero', 'Campos'];
+import { useClassNames } from '@/hooks/useClassNames';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -110,6 +109,7 @@ export default function SpanishReadingDashboard() {
   const [filterList, setFilterList] = useState('all');
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { classList } = useClassNames();
   const canManage = user && (user.role === 'admin' || user.role === 'teacher');
 
   const { data: sessions = [], isLoading } = useQuery({
@@ -163,7 +163,7 @@ export default function SpanishReadingDashboard() {
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Spanish Reading</h1>
         <p className="text-white/70 text-sm sm:text-base">Teacher Dashboard — Select a class</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-md sm:max-w-2xl">
-          {CLASSES.map(cls => (
+          {classList.map(cls => (
             <button key={cls} onClick={() => setSelectedClass(cls)}
               className="bg-white text-indigo-700 font-bold text-base sm:text-xl py-4 sm:py-5 rounded-2xl hover:bg-indigo-50 shadow-lg truncate">
               {cls}

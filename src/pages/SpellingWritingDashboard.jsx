@@ -3,8 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-
-const CLASS_NAMES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
+import { useClassNames } from '@/hooks/useClassNames';
 const MODE_LABELS = { spelling: 'Spelling Words', sight_words_spelling: 'Sight Words Spelling', sentences: 'Sentences' };
 
 function StrokeReplayCanvas({ strokesData, mode }) {
@@ -115,9 +114,12 @@ function StrokeReplayCanvas({ strokesData, mode }) {
 }
 
 export default function SpellingWritingDashboard() {
-  const [className, setClassName] = useState('Felix');
+  const { classList } = useClassNames();
+  const [className, setClassName] = useState('');
   const [mode, setMode] = useState('spelling');
   const [expandedStudent, setExpandedStudent] = useState(null);
+
+  useEffect(() => { if (!className && classList.length) setClassName(classList[0]); }, [classList, className]);
 
   const { data: samples = [], isLoading } = useQuery({
     queryKey: ['spelling-writing-samples', mode],
@@ -146,7 +148,7 @@ export default function SpellingWritingDashboard() {
 
         <div className="flex gap-3 flex-wrap mb-6">
           <div className="flex gap-1">
-            {CLASS_NAMES.map(c => (
+            {classList.map(c => (
               <button key={c} onClick={() => setClassName(c)}
                 className={`px-4 py-2 rounded-full font-bold text-sm ${className === c ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}>
                 Class {c}

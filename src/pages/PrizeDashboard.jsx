@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ALL_PRIZES } from '@/components/game/PrizeWheel';
 
-const CLASSES = ['Schwarz', 'Felix', 'Valero', 'Gutierrez'];
 const CUSHION_LIMIT = 6;
 const COINS_PER_SPIN = 100;
 
