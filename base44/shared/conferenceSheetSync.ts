@@ -151,6 +151,15 @@ async function sortSheetTab(spreadsheetId, tabTitle, token) {
   });
 
   const output = [HEADERS, ...deduped];
+
+  // Clear ALL existing data in A:H first — otherwise leftover rows below the
+  // written range survive as unsorted duplicates (Google Sheets values.update
+  // only touches cells inside the specified range, not rows beneath it).
+  await fetch(`${SHEETS_API}/${spreadsheetId}/values/${sheetRange(tabTitle, "A:H")}:clear`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+
   const writeRange = sheetRange(tabTitle, `A1:H${output.length}`);
   await fetch(`${SHEETS_API}/${spreadsheetId}/values/${writeRange}?valueInputOption=RAW`, {
     method: "PUT",
