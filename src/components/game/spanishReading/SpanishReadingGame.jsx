@@ -639,13 +639,14 @@ export default function SpanishReadingGame({
       setLoadingLiteracy(true);
 
       try {
-        const [allLessons, progresses] = await Promise.all([
+        const [allLessons, progresses, classConfigs] = await Promise.all([
           base44.entities.Lesson.filter({ active: true }),
           base44.entities.LessonProgress.filter({
             student_number: studentNumber,
             class_name: className,
             school_year: ACTIVE_SCHOOL_YEAR,
           }),
+          base44.entities.ClassConfig.list(),
         ]);
 
         if (cancelled) return;
@@ -677,11 +678,64 @@ export default function SpanishReadingGame({
           lessonNumber > 0;
 
         if (!hasCurriculumPosition) {
-          // Old lessons that have not been resaved continue using
-          // their previous weekly literacy progression.
-          setLiteracyContext(
-            studentContext
-          );
+          // Free-play mode: use the teacher-set class-wide active lesson
+          // (ClassConfig active_spanish_module / active_spanish_lesson) so
+          // reading follows whatever the teacher set in the hub, not the
+          // student's individual lesson progress (which defaults to L1).
+          const classConfig =
+            (classConfigs || []).find(
+              c => c.class_name === className
+            );
+
+          const activeModule =
+            Number(classConfig?.active_spanish_module) || 0;
+          const activeLesson =
+            Number(classConfig?.active_spanish_lesson) || 0;
+
+          if (activeModule > 0 && activeLesson > 0) {
+            const cumulativeGraphemes =
+              getIntroducedGraphemesThrough({
+                moduleNumber: activeModule,
+                lessonNumber: activeLesson,
+              });
+
+            const newGraphemes =
+              getNewGraphemesAt({
+                moduleNumber: activeModule,
+                lessonNumber: activeLesson,
+              });
+
+            const emptyLiteracy = {
+              graphemes: [],
+              sightWords: [],
+              pictureWords: [],
+              sentencePatterns: [],
+            };
+
+            setLiteracyContext({
+              ...(studentContext || {}),
+              curriculumPosition: {
+                module_number: activeModule,
+                curriculum_lesson_number: activeLesson,
+                key: `M${activeModule}.L${activeLesson}`,
+              },
+              currentLessonNumber: activeLesson,
+              cumulative: {
+                ...emptyLiteracy,
+                ...(studentContext?.cumulative || {}),
+                graphemes: cumulativeGraphemes,
+              },
+              current: {
+                ...emptyLiteracy,
+                ...(studentContext?.current || {}),
+                graphemes: newGraphemes,
+              },
+            });
+          } else {
+            // No ClassConfig active lesson set — fall back to the student's
+            // individual lesson progression.
+            setLiteracyContext(studentContext);
+          }
 
           return;
         }
