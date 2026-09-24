@@ -6,6 +6,7 @@ import { generateCode } from '@/lib/conferenceUtils';
 import ConferenceList from '@/components/conference/ConferenceList';
 import ConferenceForm from '@/components/conference/ConferenceForm';
 import ConferenceDetail from '@/components/conference/ConferenceDetail';
+import ConferenceSheetSetup from '@/components/conference/ConferenceSheetSetup';
 
 export default function ConferenceDashboard() {
   const { user } = useAuth();
@@ -45,6 +46,10 @@ export default function ConferenceDashboard() {
         >
           {showForm ? 'Cancel' : '+ New Conference'}
         </button>
+      </div>
+
+      <div className="mb-6">
+        <ConferenceSheetSetup />
       </div>
 
       {showForm && (

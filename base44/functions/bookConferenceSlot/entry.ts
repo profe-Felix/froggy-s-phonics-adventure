@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.44';
+import { waitUntil } from 'base44:runtime';
+import { syncSlotToSheet } from '../../shared/conferenceSheetSync.ts';
 
 // Public booking endpoint for parent-teacher conferences. Parents are
 // anonymous (they scanned a QR), so this runs as the service role to bypass
@@ -36,6 +38,7 @@ export default async function(req) {
       return Response.json({ success: false, reason: 'taken' });
     }
     if (slot && slot.status === 'booked' && slot.parent_name === parent_name) {
+      waitUntil(syncSlotToSheet(svc, slot, 'book').catch(() => {}));
       return Response.json({ success: true, slot });
     }
     return Response.json({ success: false, reason: 'taken' });

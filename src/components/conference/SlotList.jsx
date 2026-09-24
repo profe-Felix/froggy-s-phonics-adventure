@@ -8,11 +8,11 @@ export default function SlotList({ slots, conferenceId }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['conference-slots', conferenceId] });
 
   const cancelBooking = useMutation({
-    mutationFn: (id) => base44.entities.ConferenceSlot.update(id, { status: 'open', parent_name: '', student_name: '', parent_phone: '', booked_at: '' }),
+    mutationFn: (id) => base44.functions.invoke('manageConferenceSlot', { slot_id: id, action: 'cancel' }),
     onSuccess: invalidate,
   });
   const deleteSlot = useMutation({
-    mutationFn: (id) => base44.entities.ConferenceSlot.delete(id),
+    mutationFn: (id) => base44.functions.invoke('manageConferenceSlot', { slot_id: id, action: 'delete' }),
     onSuccess: invalidate,
   });
 
