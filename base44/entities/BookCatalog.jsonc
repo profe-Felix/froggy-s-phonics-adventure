@@ -69,6 +69,11 @@
       "type": "string",
       "default": "",
       "description": "Original BookAssignment used when this catalog record was created"
+    },
+    "word_bank_imported": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this book's text has been scanned and its words imported into the WordBank via the Import from books tool. Set automatically when a scan completes."
     }
   },
   "required": [

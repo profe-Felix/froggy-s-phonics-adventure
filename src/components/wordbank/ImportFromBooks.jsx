@@ -65,7 +65,7 @@ export default function ImportFromBooks({ onClose }) {
   };
 
   const selectAllBooks = () => {
-    setSelected(new Set(pdfBooks.map((b) => b.id)));
+    setSelected(new Set(pdfBooks.filter((b) => !b.word_bank_imported).map((b) => b.id)));
   };
 
   const scan = async () => {
@@ -132,6 +132,14 @@ export default function ImportFromBooks({ onClose }) {
           active: true,
         }));
       if (toCreate.length) await base44.entities.WordBank.bulkCreate(toCreate);
+      // Mark the scanned books as imported so they show a badge next time.
+      const scannedIds = pdfBooks.filter((b) => selected.has(b.id)).map((b) => b.id);
+      if (scannedIds.length) {
+        await base44.entities.BookCatalog.bulkUpdate(
+          scannedIds.map((id) => ({ id, word_bank_imported: true }))
+        );
+        qc.invalidateQueries({ queryKey: ['book-catalog-for-import'] });
+      }
       qc.invalidateQueries({ queryKey: ['word-bank'] });
       onClose?.();
     } finally {
@@ -165,21 +173,25 @@ export default function ImportFromBooks({ onClose }) {
               ) : (
                 <>
                   <button onClick={selectAllBooks} className="text-xs font-bold text-indigo-600 hover:underline mb-2">
-                    Select all {pdfBooks.length} books
+                    Select all {pdfBooks.filter((b) => !b.word_bank_imported).length} not-yet-imported books
                   </button>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {pdfBooks.map((b) => (
-                      <label key={b.id} className="flex items-center gap-2 p-2 rounded-lg border hover:bg-slate-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(b.id)}
-                          onChange={() => toggleBook(b.id)}
-                          className="shrink-0"
-                        />
-                        <span className="text-sm font-medium text-slate-700 truncate flex-1">{b.title}</span>
-                        <span className="text-xs text-slate-400 shrink-0">{b.pdf_page_count || '?'}p</span>
-                      </label>
-                    ))}
+                    {pdfBooks.map((b) => {
+                      const imported = b.word_bank_imported;
+                      return (
+                        <label key={b.id} className={`flex items-center gap-2 p-2 rounded-lg border hover:bg-slate-50 cursor-pointer ${imported ? 'bg-green-50/60' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(b.id)}
+                            onChange={() => toggleBook(b.id)}
+                            className="shrink-0"
+                          />
+                          <span className="text-sm font-medium text-slate-700 truncate flex-1">{b.title}</span>
+                          {imported && <span className="text-[10px] font-bold text-green-600 shrink-0">✓ imported</span>}
+                          <span className="text-xs text-slate-400 shrink-0">{b.pdf_page_count || '?'}p</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </>
               )}
