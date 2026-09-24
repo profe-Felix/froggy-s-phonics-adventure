@@ -8,6 +8,7 @@ import {
   TIER_LABELS,
 } from '@/lib/wordBankDifficulty';
 import ImportFromBooks from '@/components/wordbank/ImportFromBooks';
+import GenerateAudioButton from '@/components/wordbank/GenerateAudioButton';
 
 const TIER_COLORS = {
   1: 'bg-green-100 text-green-700 border-green-300',
@@ -92,6 +93,7 @@ export default function WordBank() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <GenerateAudioButton words={words} />
             <button
               onClick={() => setShowImport(true)}
               className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"
