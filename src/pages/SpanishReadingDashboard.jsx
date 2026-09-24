@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { useClassNames } from '@/hooks/useClassNames';
+import AvailablePracticePanel from '@/components/spanishreading/AvailablePracticePanel';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -200,6 +201,9 @@ export default function SpanishReadingDashboard() {
           </div>
         </div>
       )}
+
+      {/* Available practice based on grapheme progression */}
+      <AvailablePracticePanel className={selectedClass} />
 
       {/* Filters */}
       <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-b flex flex-wrap gap-2 items-center">

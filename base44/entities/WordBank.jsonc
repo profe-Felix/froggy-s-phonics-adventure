@@ -1,0 +1,81 @@
+{
+  "name": "WordBank",
+  "type": "object",
+  "properties": {
+    "word": {
+      "type": "string",
+      "description": "Spanish word in lowercase, e.g. 'samba'."
+    },
+    "syllables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Syllabified form, e.g. ['sam','ba']. Auto-computed via syllabifyEs on save."
+    },
+    "difficulty": {
+      "type": "integer",
+      "default": 1,
+      "description": "1=simple (CV/V syllables only), 2=intermediate (codas or diphthongs, no clusters), 3=complex (consonant cluster onsets like pl, br, tr). Auto-computed from the syllables."
+    },
+    "image_url": {
+      "type": "string",
+      "default": "",
+      "description": "Optional image URL for the word."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive words are hidden from available-practice filtering."
+    }
+  },
+  "required": [
+    "word"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
