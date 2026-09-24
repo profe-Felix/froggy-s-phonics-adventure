@@ -25,6 +25,19 @@ function minutesToTime(min) {
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+// Inverse of minutesToTime — parse "12:30 pm" back to minutes for sorting.
+function timeToMinutes(timeStr) {
+  if (!timeStr) return Infinity;
+  const m = String(timeStr).trim().match(/^(\d+):(\d+)\s*(am|pm)$/i);
+  if (!m) return Infinity;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const ampm = m[3].toLowerCase();
+  if (ampm === "pm" && h !== 12) h += 12;
+  if (ampm === "am" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
 // Google Sheets tab titles: max 100 chars.
 function sanitizeSheetTitle(name) {
   return String(name || "Teacher").slice(0, 100).trim() || "Teacher";
@@ -84,6 +97,40 @@ async function ensureSheetTab(spreadsheetId, tabTitle, token) {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [HEADERS] }),
+  });
+}
+
+// Re-read a tab, sort all data rows by Date (col A) then Time (col B),
+// and write them back so the sheet always shows meetings in chronological order.
+async function sortSheetTab(spreadsheetId, tabTitle, token) {
+  const range = sheetRange(tabTitle, "A:H");
+  const res = await fetch(`${SHEETS_API}/${spreadsheetId}/values/${range}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  const values = data.values || [];
+  if (values.length <= 2) return; // header + at most one row — already sorted
+
+  const header = values[0];
+  const rows = values.slice(1).map((row) => {
+    // Pad every row to 8 columns so the write is not ragged.
+    const padded = Array.isArray(row) ? [...row] : [];
+    while (padded.length < 8) padded.push("");
+    return padded.slice(0, 8);
+  });
+
+  rows.sort((a, b) => {
+    const dateA = a[0] || "";
+    const dateB = b[0] || "";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return timeToMinutes(a[1]) - timeToMinutes(b[1]);
+  });
+
+  await fetch(`${SHEETS_API}/${spreadsheetId}/values/${range}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ values: [header, ...rows] }),
   });
 }
 
@@ -147,6 +194,9 @@ export async function syncSlotToSheet(svc, slot, action) {
       }
     );
   }
+
+  // Keep the tab sorted by Date then Time so "who is next" is always visible.
+  await sortSheetTab(spreadsheetId, tabTitle, token);
 }
 
 // Batch-sync many slots at once (used by the migration / "sync all" button).
@@ -201,6 +251,9 @@ export async function syncSlotsBatchToSheet(svc, slots) {
       const errBody = await appendRes.text().catch(() => "");
       throw new Error(`Append failed for tab "${tabTitle}": ${appendRes.status} ${errBody}`);
     }
+
+    // Re-sort the tab so all rows are in chronological order after the append.
+    await sortSheetTab(spreadsheetId, tabTitle, token);
   }
 
   return { appended, skipped };
