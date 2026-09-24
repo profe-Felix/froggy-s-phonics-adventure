@@ -30,6 +30,8 @@ import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
 import LiveLessonStudent from '@/components/live/LiveLessonStudent';
 import { useClassColors } from '@/hooks/useClassColors';
+import { useCoinAward } from '@/hooks/useCoinAward';
+import { syllabifyEs } from '@/lib/spanishSyllables';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -603,6 +605,17 @@ export default function LetterGame() {
     try { await base44.entities.Student.update(studentData.id, patch); } catch {}
   };
 
+  // Award coins for each word/syllable completed in the free-play Word Builder.
+  const awardCoins = useCoinAward(studentData, handlePersistPatch);
+  const handleWordComplete = (result) => {
+    if (!result?.target) return;
+    const syllableCount =
+      result.type === 'syllable'
+        ? 1
+        : syllabifyEs(result.target).length;
+    awardCoins(syllableCount * 2);
+  };
+
   // Lesson rewards are now handled per step in LessonModeRouter.
   // Keep this callback because GameHome still expects onLessonComplete,
   // but completing the whole lesson no longer awards an extra 50 coins.
@@ -827,6 +840,8 @@ export default function LetterGame() {
         <WordSentenceBuilder
           embedStudent={selectedStudent?.number}
           embedClass={selectedStudent?.class_name}
+          embedStudentData={studentData}
+          onWordComplete={handleWordComplete}
         />
       )}
       {currentMode === 'storybuilder' && (
