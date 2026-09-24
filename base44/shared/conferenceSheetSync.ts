@@ -102,35 +102,60 @@ async function ensureSheetTab(spreadsheetId, tabTitle, token) {
 
 // Re-read a tab, sort all data rows by Date (col A) then Time (col B),
 // and write them back so the sheet always shows meetings in chronological order.
+// Also restores the header row if it was lost.
 async function sortSheetTab(spreadsheetId, tabTitle, token) {
-  const range = sheetRange(tabTitle, "A:H");
-  const res = await fetch(`${SHEETS_API}/${spreadsheetId}/values/${range}`, {
+  const readRange = sheetRange(tabTitle, "A:H");
+  const res = await fetch(`${SHEETS_API}/${spreadsheetId}/values/${readRange}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) return;
   const data = await res.json();
   const values = data.values || [];
-  if (values.length <= 2) return; // header + at most one row — already sorted
 
-  const header = values[0];
-  const rows = values.slice(1).map((row) => {
-    // Pad every row to 8 columns so the write is not ragged.
+  // Detect whether row 0 is the header; if not, we need to (re)add it.
+  const hasHeader = values.length > 0 && values[0] && values[0][0] === HEADERS[0];
+  const dataRows = (hasHeader ? values.slice(1) : values).map((row) => {
     const padded = Array.isArray(row) ? [...row] : [];
     while (padded.length < 8) padded.push("");
     return padded.slice(0, 8);
   });
 
-  rows.sort((a, b) => {
+  if (dataRows.length === 0) {
+    // No data rows — just ensure the header exists.
+    if (!hasHeader) {
+      await fetch(`${SHEETS_API}/${spreadsheetId}/values/${sheetRange(tabTitle, "A1")}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ values: [HEADERS] }),
+      });
+    }
+    return;
+  }
+
+  dataRows.sort((a, b) => {
     const dateA = a[0] || "";
     const dateB = b[0] || "";
     if (dateA !== dateB) return dateA.localeCompare(dateB);
     return timeToMinutes(a[1]) - timeToMinutes(b[1]);
   });
 
-  await fetch(`${SHEETS_API}/${spreadsheetId}/values/${range}`, {
+  // Remove duplicate rows (same slot ID), keeping the first sorted occurrence.
+  // Safe because slot IDs are unique per booking; duplicates are sync artifacts.
+  const seenIds = new Set();
+  const deduped = dataRows.filter((row) => {
+    const id = row[7];
+    if (!id) return true; // keep rows without a slot ID (shouldn't happen)
+    if (seenIds.has(id)) return false;
+    seenIds.add(id);
+    return true;
+  });
+
+  const output = [HEADERS, ...deduped];
+  const writeRange = sheetRange(tabTitle, `A1:H${output.length}`);
+  await fetch(`${SHEETS_API}/${spreadsheetId}/values/${writeRange}?valueInputOption=RAW`, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ values: [header, ...rows] }),
+    body: JSON.stringify({ values: output }),
   });
 }
 
@@ -143,7 +168,9 @@ async function findRowBySlotId(spreadsheetId, tabTitle, slotId, token) {
   if (!res.ok) return -1;
   const data = await res.json();
   const values = data.values || [];
-  for (let i = 1; i < values.length; i++) {
+  // Start at row 1 only if row 0 is the header; otherwise row 0 is data.
+  const start = values.length > 0 && values[0] && values[0][0] === HEADERS[0] ? 1 : 0;
+  for (let i = start; i < values.length; i++) {
     // Slot ID is the 8th column (index 7)
     if (values[i] && values[i][7] === slotId) return i + 1;
   }
@@ -226,7 +253,11 @@ export async function syncSlotsBatchToSheet(svc, slots) {
     });
     if (dataRes.ok) {
       const dataJson = await dataRes.json();
-      for (const row of (dataJson.values || []).slice(1)) {
+      const allRows = dataJson.values || [];
+      // Skip row 0 only if it's actually the header; if the header was lost,
+      // row 0 is a data row and its slot ID must be counted.
+      const dataStart = allRows.length > 0 && allRows[0] && allRows[0][0] === HEADERS[0] ? 1 : 0;
+      for (const row of allRows.slice(dataStart)) {
         // Slot ID is the 8th column (index 7)
         if (row && row[7]) existingIds.add(row[7]);
       }
@@ -234,25 +265,27 @@ export async function syncSlotsBatchToSheet(svc, slots) {
 
     const newSlots = teacherSlots.filter((s) => !existingIds.has(s.id));
     skipped += teacherSlots.length - newSlots.length;
-    if (!newSlots.length) continue;
 
-    const rows = newSlots.map((slot) => buildRow(slot, "book"));
-    const appendRange = sheetRange(tabTitle, "A:H");
-    const appendRes = await fetch(
-      `${SHEETS_API}/${spreadsheetId}/values/${appendRange}:append?insertDataOption=INSERT_ROWS&valueInputOption=RAW`,
-      {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ values: rows }),
-    });
-    if (appendRes.ok) {
-      appended += newSlots.length;
-    } else {
-      const errBody = await appendRes.text().catch(() => "");
-      throw new Error(`Append failed for tab "${tabTitle}": ${appendRes.status} ${errBody}`);
+    if (newSlots.length) {
+      const rows = newSlots.map((slot) => buildRow(slot, "book"));
+      const appendRange = sheetRange(tabTitle, "A:H");
+      const appendRes = await fetch(
+        `${SHEETS_API}/${spreadsheetId}/values/${appendRange}:append?insertDataOption=INSERT_ROWS&valueInputOption=RAW`,
+        {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ values: rows }),
+      });
+      if (appendRes.ok) {
+        appended += newSlots.length;
+      } else {
+        const errBody = await appendRes.text().catch(() => "");
+        throw new Error(`Append failed for tab "${tabTitle}": ${appendRes.status} ${errBody}`);
+      }
     }
 
-    // Re-sort the tab so all rows are in chronological order after the append.
+    // Always re-sort the tab (even when nothing was appended) so existing
+    // rows stay in chronological order after a "sync all" run.
     await sortSheetTab(spreadsheetId, tabTitle, token);
   }
 
