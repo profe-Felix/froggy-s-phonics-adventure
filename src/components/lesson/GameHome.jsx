@@ -23,6 +23,7 @@ const FREE_MODES = [
   { mode: 'syllable_count', label: 'Counting Syllables', emoji: '👏' },
   { mode: 'spanish_reading', label: 'Spanish Reading', emoji: '📖', spanishOnly: true },
   { mode: 'word_builder', label: 'Word Building', emoji: '🧩', spanishOnly: true },
+  { mode: 'storybuilder', label: 'Story Builder', emoji: '📖✏️' },
 ];
 
 export default function GameHome({
