@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { QRCodeSVG } from 'qrcode.react';
+import { Trash2 } from 'lucide-react';
 import SlotGenerator from '@/components/conference/SlotGenerator';
 import SlotList from '@/components/conference/SlotList';
 
 export default function ConferenceDetail({ conference, onBack }) {
   const queryClient = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { data: slots = [] } = useQuery({
     queryKey: ['conference-slots', conference.id],
     queryFn: async () => base44.entities.ConferenceSlot.filter({ conference_id: conference.id }, '-created_date', 500),
@@ -14,6 +17,20 @@ export default function ConferenceDetail({ conference, onBack }) {
   const toggleActive = useMutation({
     mutationFn: (active) => base44.entities.Conference.update(conference.id, { active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conferences'] }),
+  });
+
+  const deleteConference = useMutation({
+    mutationFn: async () => {
+      // Delete all slots for this conference first
+      await base44.entities.ConferenceSlot.deleteMany({ conference_id: conference.id });
+      // Then delete the conference itself
+      await base44.entities.Conference.delete(conference.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conferences'] });
+      queryClient.invalidateQueries({ queryKey: ['conference-slots', conference.id] });
+      onBack();
+    },
   });
 
   const signUpUrl = `${window.location.origin}/ConferenceSignUp?c=${conference.code}`;
@@ -31,12 +48,40 @@ export default function ConferenceDetail({ conference, onBack }) {
           <p className="text-slate-500">{conference.teacher_name}{conference.class_name ? ` · ${conference.class_name}` : ''}</p>
           <p className="text-sm text-slate-400 mt-1">{bookedCount} booked · {openCount} open · {slots.length} total</p>
         </div>
-        <button
-          onClick={() => toggleActive.mutate(!conference.active)}
-          className={`px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition ${conference.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}
-        >
-          {conference.active ? '● Active' : '○ Inactive'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => toggleActive.mutate(!conference.active)}
+            className={`px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition ${conference.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}
+          >
+            {conference.active ? '● Active' : '○ Inactive'}
+          </button>
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-bold">Delete this conference and all {slots.length} slots?</span>
+              <button
+                onClick={() => deleteConference.mutate()}
+                disabled={deleteConference.isPending}
+                className="px-3 py-2 bg-red-600 text-white rounded-xl font-bold text-sm active:scale-95 transition disabled:opacity-50"
+              >
+                {deleteConference.isPending ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-3 py-2 bg-slate-200 text-slate-600 rounded-xl font-bold text-sm active:scale-95 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-2 bg-red-50 text-red-600 rounded-xl active:scale-95 transition"
+              title="Delete conference"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mt-5 flex flex-col sm:flex-row items-center gap-5">
