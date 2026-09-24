@@ -276,8 +276,8 @@ const shuffleItems = (items) =>
 const PRACTICE_ROUND_SIZE = 10;
 const CURRENT_LESSON_TARGET = 7;
 
-const SYLLABLE_LINES_PER_ROUND = 4;
-const SYLLABLES_PER_LINE = 5;
+const SYLLABLE_LINES_PER_ROUND = 10;
+const SYLLABLES_PER_LINE = 1;
 
 const pickPracticeItems = (source, count) => {
   if (!source.length || count <= 0) return [];

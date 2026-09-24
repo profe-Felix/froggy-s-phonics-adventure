@@ -583,6 +583,22 @@ export default function AdaptiveWordPractice({
       targetIndex
     ] || '';
 
+  // Preload TTS for every target in the current round so the student
+  // never waits for audio generation when they reach each word/syllable.
+  // getTtsUrl caches the URL in ttsUrlCache — this just warms the cache.
+  useEffect(() => {
+    if (!roundTargets.length) return;
+    let cancelled = false;
+    (async () => {
+      const voice = await getDefaultVoice();
+      if (cancelled) return;
+      roundTargets.forEach((target) => {
+        if (target) getTtsUrl(target, voice);
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [roundTargets]);
+
   const builtTarget =
     builtTiles
       .map((tile) => tile.letter)

@@ -971,31 +971,11 @@ export default function SlideToReadCanvas({
               </>
             ) : (
               <>
-                {syllables?.length ? (
-                  <div className="flex items-center gap-2 flex-wrap justify-center">
-                    {syllables.map((syllable, index) => (
-                      <button
-                        key={index}
-                        onClick={() => playTts(
-                          typeof syllable === 'string' ? syllable : syllable?.text || '',
-                          'es',
-                          0.85
-                        )}
-                        className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-base sm:text-lg shadow transition active:scale-95"
-                        style={{ background: '#f87171' }}
-                        title="Escuchar sílaba"
-                      >
-                        🔊 {typeof syllable === 'string' ? syllable : syllable?.text || ''}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <button onClick={handlePlayAudio} disabled={playing}
-                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
-                    style={{ background: '#f87171' }}>
-                    🔊 Listen
-                  </button>
-                )}
+                <button onClick={handlePlayAudio} disabled={playing}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
+                  style={{ background: '#f87171' }}>
+                  🔊 Listen
+                </button>
                 {teacherMode && (
                   <button onClick={() => onSaveModel?.({ audioBlob, sliderData: sliderDataRef.current })}
                     className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"

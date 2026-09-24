@@ -58,6 +58,7 @@ import LegacyLetterReview from './pages/LegacyLetterReview';
 import SchedulePlanner from './pages/SchedulePlanner';
 import StudentDashboard from './pages/StudentDashboard';
 import WordBank from './pages/WordBank';
+import ClassQR from './pages/ClassQR';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -164,6 +165,7 @@ const AuthenticatedApp = () => {
       <Route path="/SchedulePlanner" element={<SchedulePlanner />} />
       <Route path="/StudentDashboard" element={<StudentDashboard />} />
       <Route path="/WordBank" element={<WordBank />} />
+      <Route path="/ClassQR" element={<ClassQR />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
