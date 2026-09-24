@@ -140,3 +140,19 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
     window.speechSynthesis?.speak(u);
   } catch { /* best-effort */ }
 }
+
+// Preload (generate + cache) TTS audio without playing it. Fire-and-forget:
+// call this when a practice round loads so audio is ready by the time the
+// student reaches each word. Reuses the same in-memory cache as playTts, and
+// the generateTts backend function caches to the Supabase audio bucket — so
+// the first student to hit a word generates it for everyone, forever.
+export async function preloadTts(text, lang = 'es') {
+  if (!text) return;
+  const key = `${lang}::${text}`;
+  if (ttsCache.has(key)) return;
+  try {
+    const res = await base44.functions.invoke('generateTts', { text, lang });
+    const url = res.data?.url;
+    if (url) ttsCache.set(key, url);
+  } catch { /* best-effort */ }
+}

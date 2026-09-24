@@ -5,7 +5,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import SlideToReadCanvas from './SlideToReadCanvas';
 import RecordingsProgressBar from './RecordingsProgressBar';
 import ParentLedReadingPlayer from './ParentLedReadingPlayer';
-import { AUDIO_BASE, playTts } from '@/lib/audio';
+import { AUDIO_BASE, playTts, preloadTts } from '@/lib/audio';
 import {
   buildStudentLiteracyContext,
   normalizeSpanish,
@@ -17,6 +17,12 @@ import {
   getIntroducedGraphemesThrough,
   getNewGraphemesAt,
 } from '@/lib/literacy/curriculumGraphemes';
+import {
+  computeAdaptiveLevel,
+  getAdaptiveRatio,
+  getMaxTier,
+} from '@/lib/literacy/adaptiveDifficulty';
+import { getDecodableWords } from '@/lib/wordBankDifficulty';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -293,10 +299,11 @@ const pickPracticeItems = (source, count) => {
   return result;
 };
 
-const buildPracticeRound = (newItems, reviewItems) => {
+const buildPracticeRound = (newItems, reviewItems, ratio = { new: 0.7, review: 0.3 }) => {
   if (!newItems.length && !reviewItems.length) return [];
 
-  let currentCount = newItems.length ? CURRENT_LESSON_TARGET : 0;
+  const newTarget = Math.round(PRACTICE_ROUND_SIZE * ratio.new);
+  let currentCount = newItems.length ? newTarget : 0;
   let reviewCount = reviewItems.length
     ? PRACTICE_ROUND_SIZE - currentCount
     : 0;
@@ -316,11 +323,11 @@ const buildPracticeRound = (newItems, reviewItems) => {
   ]);
 };
 
-const buildSyllableFluencyRound = (newItems, reviewItems) => {
+const buildSyllableFluencyRound = (newItems, reviewItems, ratio = { new: 0.7, review: 0.3 }) => {
   const totalSyllables = SYLLABLE_LINES_PER_ROUND * SYLLABLES_PER_LINE;
 
   let currentCount = newItems.length
-    ? Math.round(totalSyllables * 0.7)
+    ? Math.round(totalSyllables * ratio.new)
     : 0;
 
   let reviewCount = reviewItems.length
@@ -537,6 +544,7 @@ export default function SpanishReadingGame({
 }) {
   const [listsData, setListsData] = useState(null);
   const [wordDictionary, setWordDictionary] = useState([]);
+  const [wordBank, setWordBank] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
   const [selectedModule, setSelectedModule] = useState(null);
   const [items, setItems] = useState([]);
@@ -577,9 +585,10 @@ export default function SpanishReadingGame({
     let cancelled = false;
 
     const load = async () => {
-      const [listsResult, dictionaryResult] = await Promise.allSettled([
+      const [listsResult, dictionaryResult, wordBankResult] = await Promise.allSettled([
         fetch(SUPABASE_LISTS_URL).then(res => res.json()),
         base44.entities.NounGender.list('-word', 500),
+        base44.entities.WordBank.list('-updated_date', 2000),
       ]);
 
       if (cancelled) return;
@@ -593,6 +602,12 @@ export default function SpanishReadingGame({
       setWordDictionary(
         dictionaryResult.status === 'fulfilled'
           ? (dictionaryResult.value || []).filter(record => record.active !== false)
+          : []
+      );
+
+      setWordBank(
+        wordBankResult.status === 'fulfilled'
+          ? (wordBankResult.value || []).filter(record => record.active !== false)
           : []
       );
     };
@@ -844,13 +859,48 @@ export default function SpanishReadingGame({
     setSelectedModule(null);
     setRoundSessions([]);
 
-    const allItems =
+    // Fetch recent sessions to compute adaptive difficulty + mastery sorting.
+    let recentSessions = [];
+    try {
+      recentSessions = await base44.entities.SpanishReadingSession.filter({
+        student_number: studentNumber,
+        class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      });
+    } catch {}
+
+    const adaptiveLevel = computeAdaptiveLevel(recentSessions);
+    const adaptiveRatio = getAdaptiveRatio(adaptiveLevel);
+
+    let allItems =
       sectionKey === 'Frases'
         ? buildEligiblePhrases(
             wordDictionary,
             literacyContext.cumulative
           )
         : collectSectionItems(listsData, sectionKey);
+
+    // Blend decodable words from the WordBank into Sílabas and Palabras.
+    // The WordBank's difficulty tiers (1-3) are capped by the adaptive level
+    // so struggling students get simple words and advancing students get
+    // complex ones.
+    if ((sectionKey === 'Sílabas' || sectionKey === 'Palabras') && wordBank.length) {
+      const maxTier = getMaxTier(adaptiveLevel);
+      const decodable = getDecodableWords(
+        wordBank,
+        literacyContext.cumulative.graphemes
+      ).filter(w => (w.difficulty || 1) <= maxTier);
+
+      if (sectionKey === 'Sílabas') {
+        const sylSet = new Set();
+        decodable.forEach(w => (w.syllables || []).forEach(s => sylSet.add(s)));
+        sylSet.forEach(s => allItems.push({ text: s }));
+      } else {
+        decodable.forEach(w =>
+          allItems.push({ text: w.word, syllables: w.syllables, id: `wb_${w.id}` })
+        );
+      }
+    }
 
     const cumulativeEligible =
       sectionKey === 'Frases'
@@ -940,20 +990,14 @@ export default function SpanishReadingGame({
     // Sílabas uses 4 fluency lines of 5 syllables each.
     // Other sections use the regular 10-item practice round.
     let practicePool = sectionKey === 'Sílabas'
-      ? buildSyllableFluencyRound(newItems, reviewItems)
-      : buildPracticeRound(newItems, reviewItems);
+      ? buildSyllableFluencyRound(newItems, reviewItems, adaptiveRatio)
+      : buildPracticeRound(newItems, reviewItems, adaptiveRatio);
 
     // Teacher-confirmed mastery is still useful:
     // mastered items stay available but drift toward the back of the session.
     try {
-      const sessions = await base44.entities.SpanishReadingSession.filter({
-        student_number: studentNumber,
-        class_name: className,
-        school_year: ACTIVE_SCHOOL_YEAR,
-      });
-
       const mastered = new Set(
-        (sessions || [])
+        (recentSessions || [])
           .filter(session => session.teacher_grade === 'correct')
           .map(session => normalizeSpanish(session.item_text))
       );
@@ -973,6 +1017,14 @@ export default function SpanishReadingGame({
     } catch {
       // Reading still works if mastery history cannot be loaded.
     }
+
+    // Preload TTS audio for the round so playback is instant when the student
+    // taps "Escuchar". The generateTts backend caches to the audio bucket, so
+    // the first student to hit a word generates it for everyone.
+    practicePool.forEach(item => {
+      const text = getItemText(item);
+      if (text) preloadTts(text, 'es');
+    });
 
     setItems(practicePool);
     setCurrentIdx(0);
