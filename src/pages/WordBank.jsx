@@ -7,6 +7,7 @@ import {
   buildWordRecord,
   TIER_LABELS,
 } from '@/lib/wordBankDifficulty';
+import ImportFromBooks from '@/components/wordbank/ImportFromBooks';
 
 const TIER_COLORS = {
   1: 'bg-green-100 text-green-700 border-green-300',
@@ -23,6 +24,7 @@ export default function WordBank() {
   const [adding, setAdding] = useState(false);
   const [filterTier, setFilterTier] = useState(0);
   const [search, setSearch] = useState('');
+  const [showImport, setShowImport] = useState(false);
 
   const { data: words = [], isLoading } = useQuery({
     queryKey: ['word-bank'],
@@ -89,12 +91,20 @@ export default function WordBank() {
               </p>
             </div>
           </div>
-          <Link
-            to="/SpanishReadingDashboard"
-            className="text-xs font-bold text-indigo-600 hover:underline"
-          >
-            Spanish Reading →
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              📥 Import from books
+            </button>
+            <Link
+              to="/SpanishReadingDashboard"
+              className="text-xs font-bold text-indigo-600 hover:underline"
+            >
+              Spanish Reading →
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -199,6 +209,8 @@ export default function WordBank() {
           </div>
         )}
       </main>
+
+      {showImport && <ImportFromBooks onClose={() => setShowImport(false)} />}
     </div>
   );
 }
