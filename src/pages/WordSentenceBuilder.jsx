@@ -560,6 +560,7 @@ export default function WordSentenceBuilder({
   embedPreset,
   embedPresetObject,
   embedCurriculumPosition,
+  onWordComplete,
 } = {}) {
   const [searchParams] = useSearchParams();
   // When embedded as a lesson step, inject the logged-in student's context
@@ -1621,6 +1622,7 @@ export default function WordSentenceBuilder({
       <AdaptiveWordPractice
         syllables={adaptiveSyllables}
         words={adaptiveWords}
+        onWordComplete={onWordComplete}
       />
     );
   }

@@ -674,9 +674,9 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
             <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
               isAmber ? 'bg-amber-100 border-amber-400 text-amber-800' : 'bg-green-100 border-green-400 text-green-800'
             }`}>
-              {isAmber ? '✏️ Good try!' : '🎉 Great job!'}
+              {startPointOnly ? '✏️ ¡Escribiste!' : isAmber ? '✏️ Good try!' : '🎉 Great job!'}
             </div>
-            {accuracy != null && (
+            {accuracy != null && !startPointOnly && (
               <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
                 isAmber ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-indigo-100 border-indigo-300 text-indigo-800'
               }`}>

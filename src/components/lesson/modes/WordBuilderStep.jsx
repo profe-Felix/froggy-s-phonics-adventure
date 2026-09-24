@@ -2,6 +2,8 @@ import React from 'react';
 import WordSentenceBuilder from '@/pages/WordSentenceBuilder';
 import StepDoneBar from './StepDoneBar';
 import { getWordBuilderPreset } from '@/lib/presets';
+import { useCoinAward } from '@/hooks/useCoinAward';
+import { syllabifyEs } from '@/lib/spanishSyllables';
 
 // Embedded student step for the Word/Sentence Builder.
 //
@@ -13,12 +15,24 @@ export default function WordBuilderStep({
   studentNumber,
   className,
   studentData,
+  onStudentPatch,
   presetId,
   curriculumPosition,
 }) {
   const preset = presetId
     ? getWordBuilderPreset(presetId)
     : null;
+
+  const awardCoins = useCoinAward(studentData, onStudentPatch);
+
+  const handleWordComplete = (result) => {
+    if (!result?.target) return;
+    const syllableCount =
+      result.type === 'syllable'
+        ? 1
+        : syllabifyEs(result.target).length;
+    awardCoins(syllableCount * 2);
+  };
 
   return (
     <div className="relative h-full flex flex-col bg-blue-50">
@@ -31,6 +45,7 @@ export default function WordBuilderStep({
           embedCurriculumPosition={
             curriculumPosition
           }
+          onWordComplete={handleWordComplete}
         />
       </div>
 
