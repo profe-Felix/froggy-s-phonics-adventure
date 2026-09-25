@@ -60,7 +60,7 @@ export default function DictationStudent() {
 
   if (session) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
+      <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
         <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white">
           <BackButton tone="indigo" onClick={() => setSession(null)} />
           <h1 className="text-lg font-black text-slate-800 flex-1">

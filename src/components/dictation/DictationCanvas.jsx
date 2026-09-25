@@ -112,7 +112,7 @@ export default function DictationCanvas({
   }, [assignmentId, studentNumber, className, schoolYear, pageWidth, pageHeight]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {promptText && (
         <div className="shrink-0 px-4 pt-3">
           <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl px-5 py-2.5 text-indigo-800 font-bold text-lg text-center">
@@ -123,7 +123,7 @@ export default function DictationCanvas({
 
       <div className="flex-1 flex min-h-0">
         {side === 'left' && (
-          <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+          <div className="p-1.5 shrink-0 sticky top-0 self-start" style={{ background: '#1a1a2e' }}>
             <AnnotationToolbar
               tool={tool} setTool={setTool}
               color={color} setColor={setColor}
@@ -155,7 +155,7 @@ export default function DictationCanvas({
         </div>
 
         {side === 'right' && (
-          <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+          <div className="p-1.5 shrink-0 sticky top-0 self-start" style={{ background: '#1a1a2e' }}>
             <AnnotationToolbar
               tool={tool} setTool={setTool}
               color={color} setColor={setColor}
