@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
+import AnnotationToolbar from '@/components/notebook/AnnotationToolbar';
 import { base44 } from '@/api/base44Client';
 
 // Fixed line count — same on every device so the student page always matches
@@ -20,6 +21,9 @@ export default function DictationCanvas({
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [tool, setTool] = useState('pen');
+  const [color, setColor] = useState('#1e293b');
+  const [size, setSize] = useState(5);
+  const [side, setSide] = useState('left');
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
   const [pageHeight, setPageHeight] = useState(600);
   const [saved, setSaved] = useState(true);
@@ -107,20 +111,6 @@ export default function DictationCanvas({
     }, 800);
   }, [assignmentId, studentNumber, className, schoolYear, pageWidth, pageHeight]);
 
-  const toolBtn = (active, onClick, icon, label) => (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-1.5 ${
-        active
-          ? 'bg-indigo-600 text-white shadow'
-          : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'
-      }`}
-    >
-      <span className="text-base">{icon}</span>
-      {label}
-    </button>
-  );
-
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {promptText && (
@@ -131,40 +121,51 @@ export default function DictationCanvas({
         </div>
       )}
 
-      <div className="shrink-0 flex items-center gap-2 flex-wrap justify-center px-4 py-3">
-        {toolBtn(tool === 'pen', () => setTool('pen'), '✏️', 'Pen')}
-        {toolBtn(tool === 'eraser_object', () => setTool('eraser_object'), '🧹', 'Erase')}
-        {toolBtn(false, () => canvasRef.current?.undo(), '↩️', 'Undo')}
-        {toolBtn(
-          false,
-          () => {
-            if (confirm('Clear everything?')) {
-              canvasRef.current?.clearStrokes();
-              handleStrokeEnd();
-            }
-          },
-          '🗑️',
-          'Clear'
+      <div className="flex-1 flex min-h-0">
+        {side === 'left' && (
+          <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+            <AnnotationToolbar
+              tool={tool} setTool={setTool}
+              color={color} setColor={setColor}
+              size={size} setSize={setSize}
+              onUndo={() => canvasRef.current?.undo()}
+              onClear={() => { if (confirm('Clear everything?')) { canvasRef.current?.clearStrokes(); handleStrokeEnd(); } }}
+              side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+            />
+          </div>
         )}
-      </div>
 
-      <div
-        ref={containerRef}
-        className="flex-1 min-h-0 flex justify-center overflow-y-auto overflow-x-hidden px-2 pb-2"
-      >
-        <div className="relative rounded-xl shadow-lg bg-white" style={{ width: pageWidth, height: pageHeight }}>
-          <LinedPaper width={pageWidth} height={pageHeight} lineCount={FIXED_LINE_COUNT} />
-          <AnnotationCanvas
-            ref={canvasRef}
-            width={pageWidth}
-            height={pageHeight}
-            color="#1e293b"
-            size={5}
-            tool={tool}
-            mode="draw"
-            onStrokeEnd={handleStrokeEnd}
-          />
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0 flex justify-center overflow-y-auto overflow-x-hidden p-2"
+        >
+          <div className="relative rounded-xl shadow-lg bg-white" style={{ width: pageWidth, height: pageHeight }}>
+            <LinedPaper width={pageWidth} height={pageHeight} lineCount={FIXED_LINE_COUNT} />
+            <AnnotationCanvas
+              ref={canvasRef}
+              width={pageWidth}
+              height={pageHeight}
+              color={color}
+              size={size}
+              tool={tool}
+              mode="draw"
+              onStrokeEnd={handleStrokeEnd}
+            />
+          </div>
         </div>
+
+        {side === 'right' && (
+          <div className="p-1.5 shrink-0" style={{ background: '#1a1a2e' }}>
+            <AnnotationToolbar
+              tool={tool} setTool={setTool}
+              color={color} setColor={setColor}
+              size={size} setSize={setSize}
+              onUndo={() => canvasRef.current?.undo()}
+              onClear={() => { if (confirm('Clear everything?')) { canvasRef.current?.clearStrokes(); handleStrokeEnd(); } }}
+              side={side} onSwapSide={() => setSide(s => s === 'left' ? 'right' : 'left')}
+            />
+          </div>
+        )}
       </div>
 
       <div className="shrink-0 text-center text-xs font-bold text-slate-400 pb-2">
