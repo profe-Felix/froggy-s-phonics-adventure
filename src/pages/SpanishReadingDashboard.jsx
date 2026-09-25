@@ -120,6 +120,22 @@ export default function SpanishReadingDashboard() {
     refetchInterval: 10000,
   });
 
+  const { data: classConfigRecords = [] } = useQuery({
+    queryKey: ['class-config-spanish', selectedClass],
+    queryFn: () => base44.entities.ClassConfig.filter({ class_name: selectedClass }),
+    enabled: !!selectedClass,
+  });
+  const classConfig = classConfigRecords[0];
+  const continuousBlending = !!classConfig?.continuous_blending;
+
+  const toggleContinuousBlending = async () => {
+    if (!classConfig) return;
+    await base44.entities.ClassConfig.update(classConfig.id, {
+      continuous_blending: !continuousBlending,
+    });
+    queryClient.invalidateQueries({ queryKey: ['class-config-spanish', selectedClass] });
+  };
+
   const handleGrade = async (id, teacherGrade, note, points) => {
     if (!canManage) throw new Error('Not authorized');
     await base44.entities.SpanishReadingSession.update(id, {
@@ -183,6 +199,18 @@ export default function SpanishReadingDashboard() {
         <h1 className="font-black text-sm sm:text-lg flex-1 truncate min-w-0">📖 Spanish Reading — {selectedClass}</h1>
         {pendingCount > 0 && (
           <span className="bg-amber-400 text-amber-900 text-xs font-black px-2 py-1 rounded-full">{pendingCount} to review</span>
+        )}
+        {canManage && classConfig && (
+          <button onClick={toggleContinuousBlending}
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              continuousBlending
+                ? 'bg-teal-400 text-teal-900'
+                : 'bg-white/20 text-white/70 hover:bg-white/30'
+            }`}
+            title="Voice-activated ink fill encourages continuous blending. Toggle off if the microphone doesn't work well.">
+            <span className={`w-2 h-2 rounded-full ${continuousBlending ? 'bg-teal-900' : 'bg-white/50'}`} />
+            {continuousBlending ? 'Ink Blend ON' : 'Ink Blend OFF'}
+          </button>
         )}
       </div>
 

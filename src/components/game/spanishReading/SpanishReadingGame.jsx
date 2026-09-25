@@ -566,6 +566,7 @@ export default function SpanishReadingGame({
   // not the class's furthest lesson.
   const [literacyContext, setLiteracyContext] = useState(null);
   const [loadingLiteracy, setLoadingLiteracy] = useState(true);
+  const [continuousBlending, setContinuousBlending] = useState(false);
 
   // Driven mode: when a lesson step passes a preset or inline items, the game
   // skips the section/module picker and reads only those items.
@@ -650,6 +651,14 @@ export default function SpanishReadingGame({
         ]);
 
         if (cancelled) return;
+
+        const classConfigRecord =
+          (classConfigs || []).find(
+            c => c.class_name === className
+          );
+        setContinuousBlending(
+          !!classConfigRecord?.continuous_blending
+        );
 
         const studentContext =
           buildStudentLiteracyContext({
@@ -1379,6 +1388,7 @@ export default function SpanishReadingGame({
             phraseNounImageUrl={currentItem?.nounImageUrl}
             onGrade={handleGrade}
             onBack={() => setViewMode('overview')}
+            micEnabled={continuousBlending}
           />
         </div>
       ) : (

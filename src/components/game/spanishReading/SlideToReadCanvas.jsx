@@ -420,22 +420,37 @@ function renderCanvas(
   ctx.arc(currentThumbX, sliderY + sliderH / 2, thumbR * 0.35, 0, Math.PI * 2);
   ctx.fill();
 
-  // ── Ink fill overlay on active line (mic monitoring) ──
-  // Draws a semi-transparent ink wash over the active line's text area.
-  // The fill height rises from the bottom based on voice continuity (0-1).
-  // When the student pauses, continuity drops and the ink level falls.
+  // ── Ink fill: fill letters from bottom to top based on voice continuity ──
+  // Letters on the active line fill with teal ink as the student speaks
+  // continuously. When they pause, continuity drops and the ink level falls,
+  // encouraging continuous blending (mmmmeeee instead of mm-ee).
   const inkLevel = replayContinuity != null ? replayContinuity : (inkContinuity || 0);
-  if (inkLevel > 0.1 && layout.lines[activeLine]) {
+  if (inkLevel > 0.05 && layout.lines[activeLine]) {
     const line = layout.lines[activeLine];
     const lineTopY = layout.textStartY - layout.fontSize + activeLine * layout.lineHeight;
     const textBottomY = lineTopY + layout.fontSize;
     const textHeight = layout.fontSize;
     const inkHeight = textHeight * Math.min(1, inkLevel);
 
-    // Draw ink fill as a semi-transparent overlay on the text bounds
     ctx.save();
-    ctx.fillStyle = 'rgba(82, 213, 198, 0.28)'; // teal ink wash
-    ctx.fillRect(line.startX, textBottomY - inkHeight, line.width, inkHeight);
+    // Clip to the ink-filled region (bottom portion of the text)
+    ctx.beginPath();
+    ctx.rect(line.startX - 20, textBottomY - inkHeight, line.width + 40, inkHeight);
+    ctx.clip();
+
+    // Redraw the text in the ink color within the clip
+    ctx.font = `bold ${fontSize}px Andika, sans-serif`;
+    ctx.fillStyle = '#52d5c6';
+    ctx.textBaseline = 'alphabetic';
+
+    let inkX = line.startX;
+    for (const measurement of (line.measurements || [])) {
+      const { unit, width, isPictureToken } = measurement;
+      if (unit.type === 'token' && !isPictureToken) {
+        ctx.fillText(unit.text, inkX, textBottomY);
+      }
+      inkX += width;
+    }
     ctx.restore();
   }
 }
@@ -613,7 +628,7 @@ export default function SlideToReadCanvas({
     return () => obs.disconnect();
   }, []);
 
-  // ── Layout + render ──
+  // ── Layout (only when text or canvas size changes) ──
   useEffect(() => {
     const ctx = ctxRef.current;
     if (!ctx || canvasSize.w === 0) return;
@@ -625,6 +640,12 @@ export default function SlideToReadCanvas({
       isPicturePhrase,
       phraseNoun
     );
+  }, [units, canvasSize, isPicturePhrase, phraseNoun]);
+
+  // ── Render (on every visual change including voice continuity) ──
+  useEffect(() => {
+    const ctx = ctxRef.current;
+    if (!ctx || !layoutRef.current || canvasSize.w === 0) return;
     const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
     renderCanvas(
       ctx,
@@ -635,14 +656,13 @@ export default function SlideToReadCanvas({
       canvasSize.w,
       canvasSize.h,
       theme,
-      0,
+      micEnabled ? continuity : 0,
       null,
       phraseImage,
       phraseNoun
     );
   }, [
-    units,
-    canvasSize,
+    continuity,
     activeLine,
     thumbX,
     recordingState,
@@ -650,7 +670,8 @@ export default function SlideToReadCanvas({
     theme,
     phraseImage,
     phraseNoun,
-    isPicturePhrase,
+    canvasSize,
+    micEnabled,
   ]);
 
   // ── Reset on text change ──
@@ -658,6 +679,7 @@ export default function SlideToReadCanvas({
     setRecordingState('idle'); setActiveLine(0); setThumbX(null); setDragging(false);
     advanceDirRef.current = 0;
     activeLineRef.current = 0; thumbXRef.current = null; recordingStateRef.current = 'idle';
+    if (micEnabled) voice.stop();
     if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
     setAudioBlob(null);
@@ -691,6 +713,7 @@ export default function SlideToReadCanvas({
     setRecordingState('recording');
     recordingStateRef.current = 'recording';
     sliderDataRef.current = [];
+    if (micEnabled) voice.start();
     const layout = layoutRef.current;
     if (layout) {
       const pillLayout = getPillLayout(layout, 0);
@@ -712,6 +735,7 @@ export default function SlideToReadCanvas({
   const handleStop = async () => {
     setRecordingState('stopping');
     recordingStateRef.current = 'stopping';
+    if (micEnabled) voice.stop();
     // Record final position
     sliderDataRef.current.push({
       t: Date.now() - recStartTimeRef.current,
@@ -939,11 +963,19 @@ export default function SlideToReadCanvas({
           </motion.button>
         )}
         {recordingState === 'recording' && (
-          <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
-            className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
-            style={{ background: '#dc2626' }}>
-            ⏹ Stop & Grade
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {micEnabled && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
+                <Mic className="w-4 h-4 text-teal-600 animate-pulse" />
+                <span className="text-xs font-bold text-teal-700 hidden sm:inline">Listening</span>
+              </div>
+            )}
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
+              className="flex-1 py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
+              style={{ background: '#dc2626' }}>
+              ⏹ Stop & Grade
+            </motion.button>
+          </div>
         )}
         {recordingState === 'stopping' && (
           <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Stopping…</div>

@@ -82,6 +82,11 @@
       "maximum": 20,
       "default": 1,
       "description": "The currently released Spanish curriculum lesson within the active module for this class."
+    },
+    "continuous_blending": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, students see voice-activated ink fill during Spanish Reading \u2014 letters fill with teal ink as they speak continuously, encouraging continuous blending (mmmmeeee instead of mm-ee). Teachers can toggle this off from the Spanish Reading dashboard if the microphone feedback doesn't work well in their classroom."
     }
   },
   "required": [
