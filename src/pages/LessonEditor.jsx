@@ -476,7 +476,14 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
         </div>
       ) : step.mode === 'letter_sort' ? (
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-600 font-bold">Preset
+          <p className="text-[10px] text-gray-400">Daily lessons auto-build letters from the day's M#.L# grapheme progression. The preset below is used when no curriculum position is available.</p>
+          <label className="text-xs text-gray-600 font-bold">Curriculum position override (blank = daily lesson M#.L#)
+            <input value={step.config?.curriculumPositionOverride || ''}
+              onChange={e => update({ config: { ...step.config, curriculumPositionOverride: e.target.value } })}
+              placeholder="e.g. M2.L6"
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+          </label>
+          <label className="text-xs text-gray-600 font-bold">Preset (fallback for non-daily lessons)
             <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
               <option value="">— default —</option>
@@ -575,6 +582,49 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
           <label className="text-xs text-gray-600 font-bold">Hint (shown in Tips — shared across all words)
             <input value={step.config?.hint || ''} onChange={e => update({ config: { ...step.config, hint: e.target.value } })}
               placeholder="Asegúrate de que tu hijo no haga pausas entre los sonidos"
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+          </label>
+        </div>
+      ) : step.mode === 'fluency' ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <label className="text-xs text-gray-600 font-bold">Content source
+            <select value={step.config?.curriculumContentType || ''}
+              onChange={e => update({ config: { ...step.config, curriculumContentType: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">Custom preset (pick below)</option>
+              <option value="letters">📖 Curriculum: Letters / phonemes</option>
+              <option value="syllables">🔤 Curriculum: Syllables</option>
+              <option value="sight_words">💙 Curriculum: Sight words</option>
+            </select>
+          </label>
+          <p className="text-[10px] text-gray-400">
+            Curriculum mode auto-builds the chart from all graphemes/words introduced through this lesson, with more recent content appearing more often (spiral review).
+          </p>
+          {step.config?.curriculumContentType ? (
+            <label className="text-xs text-gray-600 font-bold">Curriculum position override (blank = daily lesson M#.L#)
+              <input value={step.config?.curriculumPositionOverride || ''}
+                onChange={e => update({ config: { ...step.config, curriculumPositionOverride: e.target.value } })}
+                placeholder="e.g. M2.L6"
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+            </label>
+          ) : (
+            <label className="text-xs text-gray-600 font-bold">Preset
+              <select value={step.config?.preset || ''}
+                onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+                <option value="">— default —</option>
+                {getPresetList('fluency').map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      ) : step.mode === 'syllable_blender' ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <p className="text-[10px] text-gray-400">Daily lessons auto-build decodable words from the day's M#.L# grapheme progression with weighted spiral review.</p>
+          <label className="text-xs text-gray-600 font-bold">Curriculum position override (blank = daily lesson M#.L#)
+            <input value={step.config?.curriculumPositionOverride || ''}
+              onChange={e => update({ config: { ...step.config, curriculumPositionOverride: e.target.value } })}
+              placeholder="e.g. M2.L6"
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
           </label>
         </div>

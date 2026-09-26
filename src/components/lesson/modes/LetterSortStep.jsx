@@ -5,32 +5,44 @@ import { configForPreset } from '@/lib/lettersort/presetConfig';
 import { buildConfig } from '@/lib/lettersort/rounds';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import { useClassColors } from '@/hooks/useClassColors';
+import { buildLetterSortLetters, parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
 
 // Embedded student step for Letter Sort. When the teacher assigned a preset, the
 // activity runs that preset's config directly (no Supabase lookup). Otherwise it
-// falls back to a sensible initial-letters sort.
+// falls back to a sensible initial-letters sort. When a curriculum position is
+// provided, letters are auto-built from the grapheme progression with spiral
+// review.
 const DEFAULT_VALS = { letters: 'a,e,i,o,u,m,p,s,t', per: 4 };
 
-export default function LetterSortStep({ onComplete, presetId, studentNumber, studentClass }) {
+export default function LetterSortStep({ onComplete, presetId, curriculumPosition, curriculumPositionOverride, studentNumber, studentClass }) {
   const { presets, isLoading } = useLetterSortPresets();
   const { colorFor } = useClassColors();
-  // Track the fewest mistakes across completed rounds so the step's coin
-  // reward reflects the student's best performance.
   const [bestMistakes, setBestMistakes] = useState(null);
-  // Best first-try correct count + total cards — drives the coin formula
-  // Math.round((firstTryCorrect / total) * 10).
   const [bestFirstTryCorrect, setBestFirstTryCorrect] = useState(null);
   const [totalCards, setTotalCards] = useState(null);
-  // Most recent completed-round result, used to gate "Done" and show feedback.
   const [lastResult, setLastResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const config = useMemo(() => {
+    // Curriculum-driven mode: build letters from M#.L# grapheme progression
+    if (curriculumPosition) {
+      const pos = curriculumPositionOverride
+        ? parseCurriculumKey(curriculumPositionOverride)
+        : curriculumPosition;
+      const moduleNumber = Number(pos?.module_number);
+      const lessonNumber = Number(pos?.curriculum_lesson_number);
+      if (moduleNumber > 0 && lessonNumber > 0) {
+        const letters = buildLetterSortLetters({ moduleNumber, lessonNumber });
+        if (letters.length > 0) {
+          return buildConfig('letters', null, { letters: letters.join(','), per: 4 });
+        }
+      }
+    }
     if (presetId && presets[presetId]) {
       const c = configForPreset(presets[presetId]);
       if (c) return c;
     }
     return buildConfig('letters', null, DEFAULT_VALS);
-  }, [presetId, presets]);
+  }, [presetId, presets, curriculumPosition, curriculumPositionOverride]);
 
   if (isLoading && presetId && !presets[presetId]) {
     return (

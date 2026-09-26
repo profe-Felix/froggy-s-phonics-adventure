@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import { getFluencyPreset } from '@/lib/presets';
+import { buildFluencyPreset, parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
 import FluencyInkCanvas from './FluencyInkCanvas';
 import StepDoneBar from './StepDoneBar';
 import { Mic, Square, ArrowRight, RotateCcw, CheckCircle2, Loader2 } from 'lucide-react';
@@ -9,8 +10,40 @@ import { Mic, Square, ArrowRight, RotateCcw, CheckCircle2, Loader2 } from 'lucid
 // Solo, assignable fluency practice. Each row is read start→stop while the app
 // records voice + ink. Recordings are saved per row to a FluencyPracticeSession
 // so the teacher can review how the student read.
-export default function FluencyPracticeStep({ onComplete, presetId, studentNumber, className }) {
-  const preset = presetId ? getFluencyPreset(presetId) : null;
+export default function FluencyPracticeStep({ onComplete, presetId, curriculumPosition, curriculumPositionOverride, curriculumContentType, studentNumber, className }) {
+  const [curriculumLessons, setCurriculumLessons] = useState([]);
+
+  // Load lessons for sight-word curriculum building
+  useEffect(() => {
+    if (curriculumContentType !== 'sight_words') return;
+    let cancelled = false;
+    base44.entities.Lesson.list().then(lessons => {
+      if (!cancelled) setCurriculumLessons(lessons);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [curriculumContentType]);
+
+  const preset = useMemo(() => {
+    // Curriculum-driven mode: build from M#.L# with weighted spiral decay
+    if (curriculumContentType) {
+      const pos = curriculumPositionOverride
+        ? parseCurriculumKey(curriculumPositionOverride)
+        : curriculumPosition;
+      const moduleNumber = Number(pos?.module_number);
+      const lessonNumber = Number(pos?.curriculum_lesson_number);
+      if (moduleNumber > 0 && lessonNumber > 0) {
+        return buildFluencyPreset({
+          moduleNumber,
+          lessonNumber,
+          contentType: curriculumContentType,
+          lessons: curriculumLessons,
+        });
+      }
+    }
+    // Preset mode (existing behavior)
+    return presetId ? getFluencyPreset(presetId) : null;
+  }, [curriculumContentType, curriculumPosition, curriculumPositionOverride, presetId, curriculumLessons]);
+
   const rows = useMemo(() => {
     if (!preset) return [];
     const cols = preset.cols || 8;

@@ -1281,6 +1281,14 @@ export default function LessonModeRouter({
             presetId={
               step?.config?.preset
             }
+            curriculumPosition={
+              step?.config
+                ?.curriculumPosition
+            }
+            curriculumPositionOverride={
+              step?.config
+                ?.curriculumPositionOverride
+            }
             studentNumber={
               studentNumber
             }
@@ -1328,6 +1336,14 @@ export default function LessonModeRouter({
           <SyllableBlenderStep
             onComplete={
               completeStep
+            }
+            curriculumPosition={
+              step?.config
+                ?.curriculumPosition
+            }
+            curriculumPositionOverride={
+              step?.config
+                ?.curriculumPositionOverride
             }
           />
         );
@@ -1390,6 +1406,18 @@ export default function LessonModeRouter({
             }
             presetId={
               step?.config?.preset
+            }
+            curriculumPosition={
+              step?.config
+                ?.curriculumPosition
+            }
+            curriculumPositionOverride={
+              step?.config
+                ?.curriculumPositionOverride
+            }
+            curriculumContentType={
+              step?.config
+                ?.curriculumContentType
             }
             studentNumber={
               studentNumber
