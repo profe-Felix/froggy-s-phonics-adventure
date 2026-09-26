@@ -1,0 +1,99 @@
+{
+  "name": "SoundWallCard",
+  "type": "object",
+  "properties": {
+    "card_type": {
+      "type": "string",
+      "enum": [
+        "phoneme",
+        "grapheme"
+      ],
+      "description": "phoneme = articulation/mouth photo card, grapheme = letter/spelling card"
+    },
+    "grapheme": {
+      "type": "string",
+      "description": "The grapheme this card teaches, e.g. 'm', 'p', 'ch', 'qu'. Lowercase instructional form."
+    },
+    "label": {
+      "type": "string",
+      "default": "",
+      "description": "Display label for the card, e.g. '/m/' or 'm'"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Public URL of the uploaded card image (PNG/JPG). PDFs are converted to PNG on upload."
+    },
+    "curriculum_key": {
+      "type": "string",
+      "description": "Curriculum position key, e.g. 'M1.L3'. Used to filter cards by lesson."
+    },
+    "module_number": {
+      "type": "integer",
+      "description": "Module number parsed from curriculum_key"
+    },
+    "lesson_number": {
+      "type": "integer",
+      "description": "Lesson number parsed from curriculum_key"
+    },
+    "sort_order": {
+      "type": "integer",
+      "default": 0,
+      "description": "Display order within a lesson"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "card_type",
+    "grapheme",
+    "image_url",
+    "curriculum_key"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -50,6 +50,12 @@ export default function TeacherHub() {
               🧪 Workstations
             </Link>
             <Link
+              to="/SoundWallManager"
+              className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-800 font-bold shrink-0 px-2 py-1 rounded-lg hover:bg-indigo-50"
+            >
+              🔊 Sound Wall
+            </Link>
+            <Link
               to="/"
               className="text-xs sm:text-sm text-slate-500 hover:text-slate-800 font-bold shrink-0 px-2 py-1 rounded-lg hover:bg-slate-100"
             >

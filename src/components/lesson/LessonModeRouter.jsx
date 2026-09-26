@@ -1449,9 +1449,13 @@ export default function LessonModeRouter({
             onComplete={
               completeStep
             }
-            stepConfig={
-              step?.config
-            }
+            stepConfig={{
+              ...step?.config,
+              curriculumKey:
+                step?.config
+                  ?.curriculumKey ||
+                '',
+            }}
           />
         );
 

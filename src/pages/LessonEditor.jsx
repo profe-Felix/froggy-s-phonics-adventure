@@ -14,6 +14,7 @@ import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
+import { getCurriculumPositionList, getGraphemesAtKey } from '@/lib/literacy/curriculumPositions';
 import LetterSortPresetEditor from '@/components/lettersort/LetterSortPresetEditor';
 import { useMissingLetterPresets } from '@/hooks/useMissingLetterPresets';
 import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterPresetEditor';
@@ -765,8 +766,27 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
 
       {step.mode === 'soundwall' && (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-2">
+          <label className="text-xs text-gray-600 font-bold">Curriculum position (auto-loads cards from Sound Wall Manager)
+            <select
+              value={step.config?.curriculumKey || ''}
+              onChange={e => update({ config: { ...step.config, curriculumKey: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+            >
+              <option value="">— Manual cards below —</option>
+              {getCurriculumPositionList().map(p => (
+                <option key={p.key} value={p.key}>
+                  {p.key}{p.graphemes.length > 0 ? ` (${p.graphemes.join(', ')})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {step.config?.curriculumKey && (
+            <a href="/SoundWallManager" target="_blank" className="text-xs text-indigo-600 hover:underline font-bold">
+              🔊 Manage cards for {step.config.curriculumKey} →
+            </a>
+          )}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-600">Sound wall cards</span>
+            <span className="text-xs font-bold text-gray-600">{step.config?.curriculumKey ? 'Manual fallback cards (optional)' : 'Sound wall cards'}</span>
             <button
               onClick={() => update({ config: { ...step.config, cards: [...(step.config?.cards || []), { label: '', imageUrl: '', sound: '' }] } })}
               className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"
@@ -1095,6 +1115,33 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
           </label>
         </div>
+      )}
+
+      {step.mode === 'letter_sounds' && (
+        <label className="text-xs text-gray-600 font-bold">Curriculum position (auto-fills target letters)
+          <select
+            value={step.config?.curriculumKey || ''}
+            onChange={e => {
+              const key = e.target.value;
+              const graphemes = key ? getGraphemesAtKey(key) : [];
+              update({
+                config: {
+                  ...step.config,
+                  curriculumKey: key,
+                  targets: graphemes.length > 0 ? graphemes : step.config?.targets,
+                }
+              });
+            }}
+            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5"
+          >
+            <option value="">— Manual targets below —</option>
+            {getCurriculumPositionList().map(p => (
+              <option key={p.key} value={p.key}>
+                {p.key}{p.graphemes.length > 0 ? ` (${p.graphemes.join(', ')})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       {(() => {
