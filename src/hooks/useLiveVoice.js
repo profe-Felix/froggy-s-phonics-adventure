@@ -78,8 +78,25 @@ export function useLiveVoice() {
     for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
 
     const rms = Math.sqrt(sumSquares / samples.length);
-    const normalizedLevel = Math.max(0, Math.min(1, (rms - 0.003) / 0.028));
-    const isVoiced = rms > 0.005;
+
+    // High-frequency spectral energy for fricative detection (/s/, /f/, /th/).
+    // These sounds have minimal RMS but strong energy above 3.5 kHz, so
+    // blending in HF energy lets them register and lift the balloon.
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freqData);
+    const sampleRate = audioContextRef.current?.sampleRate || 44100;
+    const binWidth = sampleRate / analyser.fftSize;
+    const hfStart = Math.floor(3500 / binWidth);
+    const hfEnd = Math.floor(9000 / binWidth);
+    let hfSum = 0;
+    for (let i = hfStart; i < hfEnd && i < freqData.length; i++) {
+      hfSum += freqData[i];
+    }
+    const hfEnergy = (hfSum / Math.max(1, hfEnd - hfStart)) / 255;
+    const level = Math.max(rms, hfEnergy * 0.04);
+
+    const normalizedLevel = Math.max(0, Math.min(1, (level - 0.003) / 0.028));
+    const isVoiced = level > 0.005;
     const target = isVoiced ? 0.25 + normalizedLevel * 0.75 : 0.05;
     const smoothing = target > continuityRef.current ? 0.08 : 0.06;
     continuityRef.current += (target - continuityRef.current) * smoothing;
