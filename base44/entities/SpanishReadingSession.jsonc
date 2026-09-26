@@ -33,6 +33,22 @@
       "type": "string",
       "description": "URL of the uploaded audio recording"
     },
+    "slider_data": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "default": [],
+      "description": "Recorded slider keyframes [{t, x, line}] for replay animation"
+    },
+    "continuity_data": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "default": [],
+      "description": "Recorded voice continuity keyframes [{t, c}] for balloon replay"
+    },
     "student_self_grade": {
       "type": "string",
       "enum": [

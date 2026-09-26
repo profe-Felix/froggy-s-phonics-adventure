@@ -884,7 +884,7 @@ export default function SlideToReadCanvas({
   const handleGrade = async (grade) => {
     if (saving) return;
     setSaving(true);
-    try { await onGrade?.(grade, { audioBlob, sliderData: sliderDataRef.current }); } finally { setSaving(false); }
+    try { await onGrade?.(grade, { audioBlob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current }); } finally { setSaving(false); }
   };
 
   const handleRerecord = () => {

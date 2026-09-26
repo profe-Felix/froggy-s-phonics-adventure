@@ -1184,6 +1184,8 @@ export default function SpanishReadingGame({
       item_text: itemText,
       item_type: itemType,
       recording_url: recordingUrl,
+      slider_data: recording?.sliderData || [],
+      continuity_data: recording?.continuityData || [],
       student_self_grade: grade,
       teacher_grade: 'pending',
       points_awarded: 0,

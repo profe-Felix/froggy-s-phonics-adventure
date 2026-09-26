@@ -5,6 +5,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useAuth } from '@/lib/AuthContext';
 import { useClassNames } from '@/hooks/useClassNames';
 import AvailablePracticePanel from '@/components/spanishreading/AvailablePracticePanel';
+import SlideToReadCanvas from '@/components/game/spanishReading/SlideToReadCanvas';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -69,9 +70,23 @@ function SessionCard({ session, onGrade, onDelete, canManage }) {
         </span>
       </div>
 
-      {/* Recording player */}
+      {/* Recording replay — full slider + balloon animation when slider data exists, audio-only fallback for old sessions */}
       {session.recording_url ? (
-        <video src={session.recording_url} controls className="w-full rounded-lg" style={{ maxHeight: 160 }} />
+        session.slider_data && session.slider_data.length > 0 ? (
+          <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-200 bg-white">
+            <SlideToReadCanvas
+              text={session.item_text}
+              itemType={session.item_type}
+              replayData={{
+                audioUrl: session.recording_url,
+                sliderData: session.slider_data,
+                continuityData: session.continuity_data || [],
+              }}
+            />
+          </div>
+        ) : (
+          <video src={session.recording_url} controls className="w-full rounded-lg" style={{ maxHeight: 160 }} />
+        )
       ) : (
         <div className="text-xs text-gray-400 text-center py-1">No recording</div>
       )}
