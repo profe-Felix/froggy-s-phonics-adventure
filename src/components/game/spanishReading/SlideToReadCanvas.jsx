@@ -510,7 +510,7 @@ function startRecordingFromStream(stream) {
 }
 
 // ── Replay: animate slider from recorded keyframes synced to audio ────────────
-function startSliderReplay(audioEl, sliderData, setActiveLine, setThumbX, onDone) {
+function startSliderReplay(audioEl, sliderData, continuityData, setActiveLine, setThumbX, setContinuity, onDone) {
   if (!sliderData || sliderData.length === 0) {
     audioEl?.play().catch(() => {});
     audioEl?.addEventListener('ended', () => onDone?.());
@@ -537,6 +537,19 @@ function startSliderReplay(audioEl, sliderData, setActiveLine, setThumbX, onDone
     const line = prev.line + (next.line - prev.line) * ratio;
     setActiveLine(Math.round(line));
     setThumbX(x);
+    // Interpolate voice continuity so the balloon replays too
+    if (continuityData && continuityData.length > 0 && setContinuity) {
+      let pc = continuityData[0], nc = continuityData[continuityData.length - 1];
+      for (let i = 0; i < continuityData.length - 1; i++) {
+        if (continuityData[i].t <= t && continuityData[i + 1].t >= t) {
+          pc = continuityData[i];
+          nc = continuityData[i + 1];
+          break;
+        }
+      }
+      const rc = nc.t === pc.t ? 0 : (t - pc.t) / (nc.t - pc.t);
+      setContinuity(pc.c + (nc.c - pc.c) * rc);
+    }
     rafId = requestAnimationFrame(animate);
   };
   rafId = requestAnimationFrame(animate);
@@ -569,6 +582,7 @@ export default function SlideToReadCanvas({
   const [reviewUrl, setReviewUrl] = useState(null);
   const [saving, setSaving] = useState(false);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [replayContinuity, setReplayContinuity] = useState(0);
   const [showMicToggle, setShowMicToggle] = useState(false);
 
   // ── Live voice monitoring (balloon continuity) ──
@@ -584,6 +598,7 @@ export default function SlideToReadCanvas({
   const recordingStateRef = useRef('idle');
   const advanceDirRef = useRef(0);
   const sliderDataRef = useRef([]);
+  const continuityDataRef = useRef([]);
   const recStartTimeRef = useRef(0);
   const replayAudioRef = useRef(null);
   const stopReplayRef = useRef(null);
@@ -669,7 +684,9 @@ export default function SlideToReadCanvas({
     const ctx = ctxRef.current;
     if (!ctx || !layoutRef.current || canvasSize.w === 0) return;
     const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
-    const showBalloon = recordingState === 'recording' && micEnabled && voiceState === 'active' && !isReplaying;
+    const balloonContinuity = isReplaying ? replayContinuity : (micEnabled ? continuity : 0);
+    const showBalloon = (recordingState === 'recording' && micEnabled && voiceState === 'active' && !isReplaying)
+      || (isReplaying && (micEnabled || (replayData?.continuityData?.length > 0)));
     renderCanvas(
       ctx,
       layoutRef.current,
@@ -679,7 +696,7 @@ export default function SlideToReadCanvas({
       canvasSize.w,
       canvasSize.h,
       theme,
-      micEnabled ? continuity : 0,
+      balloonContinuity,
       showBalloon,
       phraseImage,
       phraseNoun
@@ -687,6 +704,7 @@ export default function SlideToReadCanvas({
   }, [
     continuity,
     voiceState,
+    replayContinuity,
     activeLine,
     thumbX,
     recordingState,
@@ -710,6 +728,7 @@ export default function SlideToReadCanvas({
     setSaving(false);
     setIsReplaying(false);
     sliderDataRef.current = [];
+    continuityDataRef.current = [];
   }, [text]);
 
   // ── Cleanup ──
@@ -780,6 +799,14 @@ export default function SlideToReadCanvas({
       x: thumbXRef.current || 0,
       line: activeLineRef.current,
     });
+    // Capture voice continuity history for balloon replay
+    if (micEnabled) {
+      const history = voice.getContinuityHistory();
+      if (history.length > 0) {
+        const baseT = history[0].t;
+        continuityDataRef.current = history.map(h => ({ t: h.t - baseT, c: h.c }));
+      }
+    }
     const blob = await stopAudioRecording(recordingRef.current);
     recordingRef.current = null;
     // Stop the voice stream AFTER the recorder stops so no audio is lost
@@ -789,7 +816,7 @@ export default function SlideToReadCanvas({
       setAudioBlob(blob);
       setRecordingState('review');
       recordingStateRef.current = 'review';
-      onRecordingComplete?.({ audioBlob: blob, sliderData: sliderDataRef.current });
+      onRecordingComplete?.({ audioBlob: blob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current });
     } else {
       setRecordingState('idle');
       recordingStateRef.current = 'idle';
@@ -807,10 +834,13 @@ export default function SlideToReadCanvas({
     stopReplayRef.current = startSliderReplay(
       audio,
       sliderDataRef.current,
+      continuityDataRef.current,
       setActiveLine,
       setThumbX,
+      setReplayContinuity,
       () => {
         setIsReplaying(false);
+        setReplayContinuity(0);
         stopReplayRef.current = null;
       }
     );
@@ -826,10 +856,13 @@ export default function SlideToReadCanvas({
     stopReplayRef.current = startSliderReplay(
       audio,
       replayData.sliderData || [],
+      replayData.continuityData || [],
       setActiveLine,
       setThumbX,
+      setReplayContinuity,
       () => {
         setIsReplaying(false);
+        setReplayContinuity(0);
         setActiveLine(0);
         const layout = layoutRef.current;
         if (layout) {
@@ -845,6 +878,7 @@ export default function SlideToReadCanvas({
     if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
     if (replayAudioRef.current) { replayAudioRef.current.pause(); replayAudioRef.current = null; }
     setIsReplaying(false);
+    setReplayContinuity(0);
   };
 
   const handleGrade = async (grade) => {
@@ -863,6 +897,7 @@ export default function SlideToReadCanvas({
     activeLineRef.current = 0;
     thumbXRef.current = null;
     sliderDataRef.current = [];
+    continuityDataRef.current = [];
   };
 
   // ── Thumb update (absolute finger tracking + slider data capture) ──
@@ -1063,7 +1098,7 @@ export default function SlideToReadCanvas({
             {demoMode ? (
               <>
                 <div className="flex-1 min-w-2" />
-                <button onClick={() => onDemoRecorded?.({ audioBlob, sliderData: sliderDataRef.current })}
+                <button onClick={() => onDemoRecorded?.({ audioBlob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current })}
                   className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
                   style={{ background: '#16a34a' }}>
                   📤 Upload Demo
@@ -1077,7 +1112,7 @@ export default function SlideToReadCanvas({
                   🔊 Listen
                 </button>
                 {teacherMode && (
-                  <button onClick={() => onSaveModel?.({ audioBlob, sliderData: sliderDataRef.current })}
+                  <button onClick={() => onSaveModel?.({ audioBlob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current })}
                     className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
                     style={{ background: '#16a34a' }}>
                     💾 Save model
