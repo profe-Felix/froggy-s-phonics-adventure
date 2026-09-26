@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
@@ -1160,7 +1160,12 @@ export default function SpanishReadingGame({
     loadModule(selectedSection, moduleNum);
   };
 
-  const handleGrade = async (grade, recording) => {
+  const pendingSessionRef = useRef(null);
+
+  // Save the session as soon as recording stops, with grade 'pending'.
+  // This ensures attempts appear on the dashboard even if the student
+  // doesn't self-grade with 👍/👎.
+  const handleRecordingComplete = async (recording) => {
     const currentItem = items[currentIdx];
     const itemText = getItemText(currentItem);
 
@@ -1186,30 +1191,48 @@ export default function SpanishReadingGame({
       recording_url: recordingUrl,
       slider_data: recording?.sliderData || [],
       continuity_data: recording?.continuityData || [],
-      student_self_grade: grade,
+      student_self_grade: 'pending',
       teacher_grade: 'pending',
       points_awarded: 0,
       reviewed: false,
       attempt_date: today,
     });
 
-    // Keep the complete daily history.
+    pendingSessionRef.current = newSession;
     setTodaySessions(prev => [newSession, ...prev]);
     setRefreshKey(k => k + 1);
+    setRoundSessions(prev => [...prev, newSession]);
+  };
 
-    // Track this specific attempt in THIS practice round.
-    // Repeated syllables/words count as separate practice opportunities.
-    const updatedRoundSessions = [...roundSessions, newSession];
-    setRoundSessions(updatedRoundSessions);
+  // Update the pending session with the student's self-grade.
+  const handleGrade = async (grade) => {
+    const pending = pendingSessionRef.current;
+    if (pending) {
+      const updated = await base44.entities.SpanishReadingSession.update(pending.id, {
+        student_self_grade: grade,
+      });
+      setTodaySessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+      setRoundSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+      pendingSessionRef.current = null;
+    }
 
     // Move through the round by position instead of by item text.
     const nextIdx = currentIdx + 1;
-
     if (nextIdx < items.length) {
       setCurrentIdx(nextIdx);
     } else {
-      // All 10 practice opportunities are complete.
       setViewMode('overview');
+    }
+  };
+
+  // Delete the pending session if the student redoes the recording.
+  const handleRerecordSession = async () => {
+    const pending = pendingSessionRef.current;
+    if (pending) {
+      try { await base44.entities.SpanishReadingSession.delete(pending.id); } catch {}
+      setTodaySessions(prev => prev.filter(s => s.id !== pending.id));
+      setRoundSessions(prev => prev.filter(s => s.id !== pending.id));
+      pendingSessionRef.current = null;
     }
   };
 
@@ -1389,6 +1412,8 @@ export default function SpanishReadingGame({
             phraseNoun={currentItem?.noun}
             phraseNounImageUrl={currentItem?.nounImageUrl}
             onGrade={handleGrade}
+            onRecordingComplete={handleRecordingComplete}
+            onRerecord={handleRerecordSession}
             onBack={() => setViewMode('overview')}
             micEnabled={continuousBlending}
           />

@@ -563,6 +563,7 @@ export default function SlideToReadCanvas({
   onGrade, onBack, theme = 'default',
   demoMode = false, onDemoRecorded, teacherMode = false, onSaveModel,
   onRecordingComplete,
+  onRerecord,
   // Replay mode: when replayData ({audioUrl, sliderData, continuityData}) is provided, the canvas
   // shows a Play button and replays the teacher's slider animation + audio + ink fill.
   replayData = null,
@@ -903,6 +904,7 @@ export default function SlideToReadCanvas({
   };
 
   const handleRerecord = () => {
+    onRerecord?.();
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
     setAudioBlob(null);
     setRecordingState('idle');
