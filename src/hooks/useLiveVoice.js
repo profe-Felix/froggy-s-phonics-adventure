@@ -78,10 +78,10 @@ export function useLiveVoice() {
     for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
 
     const rms = Math.sqrt(sumSquares / samples.length);
-    const normalizedLevel = Math.max(0, Math.min(1, (rms - 0.004) / 0.028));
-    const isVoiced = rms > 0.008;
+    const normalizedLevel = Math.max(0, Math.min(1, (rms - 0.003) / 0.028));
+    const isVoiced = rms > 0.005;
     const target = isVoiced ? 0.25 + normalizedLevel * 0.75 : 0.05;
-    const smoothing = target > continuityRef.current ? 0.08 : 0.018;
+    const smoothing = target > continuityRef.current ? 0.08 : 0.06;
     continuityRef.current += (target - continuityRef.current) * smoothing;
 
     if (isVoiced && !hasHeardVoiceRef.current) {
