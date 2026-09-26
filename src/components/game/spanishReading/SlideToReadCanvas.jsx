@@ -327,7 +327,7 @@ function renderCanvas(
   if (showBalloon && pillLayout && thumbX !== null && layout.lines[activeLine]) {
     const lineTopY = layout.textStartY - layout.fontSize + activeLine * layout.lineHeight;
     const balloonR = Math.max(10, layout.fontSize * 0.42);
-    const highY = lineTopY - balloonR * 1.4;
+    const highY = lineTopY - balloonR * 2.5;
     const lowY = lineTopY + layout.fontSize * 0.75;
     const level = Math.max(0, Math.min(1, balloonContinuity));
     drawBalloon(ctx, thumbX, lowY + (highY - lowY) * level, balloonR);
