@@ -265,6 +265,35 @@ function getClusterY(layout, activeLineIdx) {
 }
 
 // ── Render ───────────────────────────────────────────────────────────────────
+// ── Balloon: voice-continuity cue that floats above/behind the text ──
+// Drawn BEFORE the text so it sits behind the letters (text stays readable).
+// Horizontal position follows the slider thumb; vertical position rises
+// with sustained voice and descends gently during pauses.
+function drawBalloon(ctx, x, y, r) {
+  ctx.save();
+  const rx = r;
+  const ry = r * 1.15;
+  // Body
+  ctx.fillStyle = '#fb7185';
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x - rx * 0.3, y - ry * 0.35, rx * 0.25, ry * 0.18, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Knot
+  ctx.fillStyle = '#fb7185';
+  ctx.beginPath();
+  ctx.moveTo(x - rx * 0.12, y + ry * 0.92);
+  ctx.lineTo(x + rx * 0.12, y + ry * 0.92);
+  ctx.lineTo(x, y + ry * 1.08);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function renderCanvas(
   ctx,
   layout,
@@ -274,8 +303,8 @@ function renderCanvas(
   canvasW,
   canvasH,
   theme = 'default',
-  inkContinuity = 0,
-  replayContinuity = null,
+  balloonContinuity = 0,
+  showBalloon = false,
   phraseImage = null,
   phraseNoun = ''
 ) {
@@ -292,6 +321,16 @@ function renderCanvas(
     for (const pos of pillLayout.positions) {
       if (thumbX > pos.x) revealedCount++;
     }
+  }
+
+  // Balloon: draw before text so it floats behind the letters
+  if (showBalloon && pillLayout && thumbX !== null && layout.lines[activeLine]) {
+    const lineTopY = layout.textStartY - layout.fontSize + activeLine * layout.lineHeight;
+    const balloonR = Math.max(10, layout.fontSize * 0.42);
+    const highY = lineTopY - balloonR * 0.5;
+    const lowY = lineTopY + layout.fontSize * 0.42;
+    const level = Math.max(0, Math.min(1, balloonContinuity));
+    drawBalloon(ctx, thumbX, lowY + (highY - lowY) * level, balloonR);
   }
 
   ctx.font = `bold ${fontSize}px Andika, sans-serif`;
@@ -420,39 +459,6 @@ function renderCanvas(
   ctx.arc(currentThumbX, sliderY + sliderH / 2, thumbR * 0.35, 0, Math.PI * 2);
   ctx.fill();
 
-  // ── Ink fill: fill letters from bottom to top based on voice continuity ──
-  // Letters on the active line fill with teal ink as the student speaks
-  // continuously. When they pause, continuity drops and the ink level falls,
-  // encouraging continuous blending (mmmmeeee instead of mm-ee).
-  const inkLevel = replayContinuity != null ? replayContinuity : (inkContinuity || 0);
-  if (inkLevel > 0.05 && layout.lines[activeLine]) {
-    const line = layout.lines[activeLine];
-    const lineTopY = layout.textStartY - layout.fontSize + activeLine * layout.lineHeight;
-    const textBottomY = lineTopY + layout.fontSize;
-    const textHeight = layout.fontSize;
-    const inkHeight = textHeight * Math.min(1, inkLevel);
-
-    ctx.save();
-    // Clip to the ink-filled region (bottom portion of the text)
-    ctx.beginPath();
-    ctx.rect(line.startX - 20, textBottomY - inkHeight, line.width + 40, inkHeight);
-    ctx.clip();
-
-    // Redraw the text in the ink color within the clip
-    ctx.font = `bold ${fontSize}px Andika, sans-serif`;
-    ctx.fillStyle = '#52d5c6';
-    ctx.textBaseline = 'alphabetic';
-
-    let inkX = line.startX;
-    for (const measurement of (line.measurements || [])) {
-      const { unit, width, isPictureToken } = measurement;
-      if (unit.type === 'token' && !isPictureToken) {
-        ctx.fillText(unit.text, inkX, textBottomY);
-      }
-      inkX += width;
-    }
-    ctx.restore();
-  }
 }
 
 // ── Audio-only recording (no video — avoids CORS + payload size limits) ───────
@@ -547,8 +553,9 @@ export default function SlideToReadCanvas({
   // Replay mode: when replayData ({audioUrl, sliderData, continuityData}) is provided, the canvas
   // shows a Play button and replays the teacher's slider animation + audio + ink fill.
   replayData = null,
-  // Mic monitoring: when true, enables voice-activated ink fill on the active line.
-  // Students see their text fill with ink as they read; pauses cause the ink to drop.
+  // Mic monitoring: when true, a voice-continuity balloon floats above the text
+  // during recording. Sustained voice keeps it up; pauses let it descend behind
+  // the letters. The slider still controls horizontal movement.
   micEnabled = false,
 }) {
   const canvasRef = useRef(null);
@@ -564,7 +571,7 @@ export default function SlideToReadCanvas({
   const [isReplaying, setIsReplaying] = useState(false);
   const [showMicToggle, setShowMicToggle] = useState(false);
 
-  // ── Live voice monitoring (ink fill) ──
+  // ── Live voice monitoring (balloon continuity) ──
   const voice = useLiveVoice();
   const { continuity, state: voiceState, hasHeadphones, hasHeardVoice } = voice;
 
@@ -662,6 +669,7 @@ export default function SlideToReadCanvas({
     const ctx = ctxRef.current;
     if (!ctx || !layoutRef.current || canvasSize.w === 0) return;
     const showInteractive = recordingState === 'recording' || recordingState === 'review' || isReplaying;
+    const showBalloon = recordingState === 'recording' && micEnabled && voiceState === 'active';
     renderCanvas(
       ctx,
       layoutRef.current,
@@ -672,12 +680,13 @@ export default function SlideToReadCanvas({
       canvasSize.h,
       theme,
       micEnabled ? continuity : 0,
-      null,
+      showBalloon,
       phraseImage,
       phraseNoun
     );
   }, [
     continuity,
+    voiceState,
     activeLine,
     thumbX,
     recordingState,
