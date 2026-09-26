@@ -75,7 +75,7 @@ export function useLiveVoice() {
     const samples = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(samples);
     let sumSquares = 0;
-    for (const i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
+    for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
 
     const rms = Math.sqrt(sumSquares / samples.length);
     const normalizedLevel = Math.max(0, Math.min(1, (rms - 0.008) / 0.085));
