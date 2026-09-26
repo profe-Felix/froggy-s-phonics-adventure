@@ -73,7 +73,7 @@ function SessionCard({ session, onGrade, onDelete, canManage }) {
       {/* Recording replay — full slider + balloon animation when slider data exists, audio-only fallback for old sessions */}
       {session.recording_url ? (
         session.slider_data && session.slider_data.length > 0 ? (
-          <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-200 bg-white">
+          <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 bg-white">
             <SlideToReadCanvas
               text={session.item_text}
               itemType={session.item_type}

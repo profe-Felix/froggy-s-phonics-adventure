@@ -510,7 +510,7 @@ function startRecordingFromStream(stream) {
 }
 
 // ── Replay: animate slider from recorded keyframes synced to audio ────────────
-function startSliderReplay(audioEl, sliderData, continuityData, setActiveLine, setThumbX, setContinuity, onDone) {
+function startSliderReplay(audioEl, sliderData, continuityData, setActiveLine, setThumbX, setContinuity, getXForProgress, onDone) {
   if (!sliderData || sliderData.length === 0) {
     audioEl?.play().catch(() => {});
     audioEl?.addEventListener('ended', () => onDone?.());
@@ -533,10 +533,10 @@ function startSliderReplay(audioEl, sliderData, continuityData, setActiveLine, s
       }
     }
     const ratio = next.t === prev.t ? 0 : (t - prev.t) / (next.t - prev.t);
-    const x = prev.x + (next.x - prev.x) * ratio;
-    const line = prev.line + (next.line - prev.line) * ratio;
-    setActiveLine(Math.round(line));
-    setThumbX(x);
+    const p = (prev.p ?? 0) + ((next.p ?? 0) - (prev.p ?? 0)) * ratio;
+    const line = Math.round(prev.line + (next.line - prev.line) * ratio);
+    setActiveLine(line);
+    setThumbX(getXForProgress ? getXForProgress(line, p) : 0);
     // Interpolate voice continuity so the balloon replays too
     if (continuityData && continuityData.length > 0 && setContinuity) {
       let pc = continuityData[0], nc = continuityData[continuityData.length - 1];
@@ -738,6 +738,14 @@ export default function SlideToReadCanvas({
     if (reviewUrl) URL.revokeObjectURL(reviewUrl);
   }, []);
 
+  const getXForProgress = useCallback((line, progress) => {
+    const layout = layoutRef.current;
+    if (!layout) return 0;
+    const pillLayout = getPillLayout(layout, line);
+    if (!pillLayout) return 0;
+    return pillLayout.startX + Math.max(0, Math.min(1, progress)) * pillLayout.totalW;
+  }, []);
+
   const handlePlayAudio = async () => {
     setPlaying(true);
     try {
@@ -786,7 +794,7 @@ export default function SlideToReadCanvas({
     }
 
     recStartTimeRef.current = Date.now();
-    sliderDataRef.current.push({ t: 0, x: thumbXRef.current || 0, line: 0 });
+    sliderDataRef.current.push({ t: 0, p: 0, line: 0 });
   };
 
   // ── Stop recording — enter review mode ──
@@ -794,9 +802,14 @@ export default function SlideToReadCanvas({
     setRecordingState('stopping');
     recordingStateRef.current = 'stopping';
     // Record final position
+    const layout = layoutRef.current;
+    const pillLayout = layout ? getPillLayout(layout, activeLineRef.current) : null;
+    const finalProgress = pillLayout && pillLayout.totalW > 0
+      ? Math.max(0, Math.min(1, (thumbXRef.current - pillLayout.startX) / pillLayout.totalW))
+      : 0;
     sliderDataRef.current.push({
       t: Date.now() - recStartTimeRef.current,
-      x: thumbXRef.current || 0,
+      p: finalProgress,
       line: activeLineRef.current,
     });
     // Capture voice continuity history for balloon replay
@@ -838,6 +851,7 @@ export default function SlideToReadCanvas({
       setActiveLine,
       setThumbX,
       setReplayContinuity,
+      getXForProgress,
       () => {
         setIsReplaying(false);
         setReplayContinuity(0);
@@ -860,6 +874,7 @@ export default function SlideToReadCanvas({
       setActiveLine,
       setThumbX,
       setReplayContinuity,
+      getXForProgress,
       () => {
         setIsReplaying(false);
         setReplayContinuity(0);
@@ -937,7 +952,7 @@ export default function SlideToReadCanvas({
       thumbXRef.current = nextPillLayout ? nextPillLayout.startX : newThumbX;
       advanceDirRef.current = 1;
       if (recordingStateRef.current === 'recording') {
-        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: nextPillLayout ? nextPillLayout.startX : newThumbX, line: nextLine });
+        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, p: 0, line: nextLine });
       }
       return;
     }
@@ -951,7 +966,7 @@ export default function SlideToReadCanvas({
       thumbXRef.current = prevPillLayout ? prevPillLayout.endX : newThumbX;
       advanceDirRef.current = -1;
       if (recordingStateRef.current === 'recording') {
-        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: prevPillLayout ? prevPillLayout.endX : newThumbX, line: prevLine });
+        sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, p: 1, line: prevLine });
       }
       return;
     }
@@ -959,7 +974,8 @@ export default function SlideToReadCanvas({
     setThumbX(newThumbX);
     thumbXRef.current = newThumbX;
     if (recordingStateRef.current === 'recording') {
-      sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, x: newThumbX, line: activeLineRef.current });
+      const progress = totalW > 0 ? (newThumbX - startX) / totalW : 0;
+      sliderDataRef.current.push({ t: Date.now() - recStartTimeRef.current, p: progress, line: activeLineRef.current });
     }
   };
 
