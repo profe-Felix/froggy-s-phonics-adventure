@@ -4,7 +4,6 @@ import { Mic, Headphones } from 'lucide-react';
 import { parseText } from './phonetics';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
-import LetterInkFillOverlay from './LetterInkFillOverlay';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
 const THEMES = {
@@ -730,6 +729,14 @@ export default function SlideToReadCanvas({
     recordingStateRef.current = 'recording';
     sliderDataRef.current = [];
 
+    // Set the slider thumb to the start of the first line
+    const layout = layoutRef.current;
+    if (layout) {
+      const pillLayout = getPillLayout(layout, 0);
+      setThumbX(pillLayout ? pillLayout.startX : 0);
+      thumbXRef.current = pillLayout ? pillLayout.startX : 0;
+    }
+
     if (micEnabled) {
       // Reuse the voice monitoring stream for audio recording — no second mic
       const stream = await voice.start();
@@ -742,12 +749,6 @@ export default function SlideToReadCanvas({
         }
       }
     } else {
-      const layout = layoutRef.current;
-      if (layout) {
-        const pillLayout = getPillLayout(layout, 0);
-        setThumbX(pillLayout ? pillLayout.startX : 0);
-        thumbXRef.current = pillLayout ? pillLayout.startX : 0;
-      }
       try {
         recordingRef.current = await startAudioRecording();
       } catch (err) {
@@ -969,135 +970,6 @@ export default function SlideToReadCanvas({
     }
 
     // ── Mic-enabled mode: CSS letter ink fill (replaces canvas slider) ──
-    if (micEnabled) {
-      return (
-        <div className="flex flex-col h-full" style={{ background: '#ffffff' }}>
-          {/* Letter ink fill overlay */}
-          <div className="flex-1 relative overflow-hidden">
-            <LetterInkFillOverlay
-              text={text}
-              continuity={recordingState === 'recording' && voiceState === 'active' ? continuity : 0}
-            />
-          </div>
-
-          {/* Controls */}
-          <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2" style={{ background: '#f8f9fa' }}>
-            {/* Idle: Start practice */}
-            {recordingState === 'idle' && (
-              <motion.button whileTap={{ scale: 0.95 }} onClick={handleStartRecording}
-                className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
-                style={{ background: '#0d9488' }}>
-                🎤 Start practice
-              </motion.button>
-            )}
-
-            {/* Recording: requesting mic permission */}
-            {recordingState === 'recording' && voiceState === 'requesting' && (
-              <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Waiting for microphone…</div>
-            )}
-
-            {/* Recording: mic denied or error */}
-            {recordingState === 'recording' && (voiceState === 'denied' || voiceState === 'error') && (
-              <div className="text-center space-y-2">
-                <p className="text-red-600 font-bold text-sm">
-                  {voiceState === 'denied' ? '🚫 Microphone access was blocked' : `⚠️ ${voice.errorMessage || 'Microphone error'}`}
-                </p>
-                <div className="flex gap-2 justify-center">
-                  <button onClick={() => voice.start()}
-                    className="px-4 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#0d9488' }}>
-                    Try again
-                  </button>
-                  <button onClick={() => { voice.stop(); handleRerecord(); }}
-                    className="px-4 py-2 rounded-xl font-bold text-gray-700 text-sm" style={{ background: '#e5e7eb' }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Recording: active (mic listening, ink filling) */}
-            {recordingState === 'recording' && voiceState === 'active' && (
-              <>
-                {hasHeardVoice && continuity < 0.15 && (
-                  <div className="text-center py-2 text-amber-600 font-bold text-sm animate-pulse">
-                    ⏸ Pause — keep going!
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
-                    <Mic className="w-4 h-4 text-teal-600 animate-pulse" />
-                    <span className="text-xs font-bold text-teal-700 hidden sm:inline">Listening</span>
-                  </div>
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
-                    className="flex-1 py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
-                    style={{ background: '#dc2626' }}>
-                    ⏹ Stop practice
-                  </motion.button>
-                </div>
-              </>
-            )}
-
-            {/* Stopping */}
-            {recordingState === 'stopping' && (
-              <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Stopping…</div>
-            )}
-
-            {/* Review */}
-            {recordingState === 'review' && (
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-                <button onClick={playReviewRecording} disabled={isReplaying}
-                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${isReplaying ? 'opacity-60' : ''}`}
-                  style={{ background: '#007bff' }}>
-                  {isReplaying ? '▶ Playing…' : '▶ Review'}
-                </button>
-                <button onClick={handleRerecord}
-                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-gray-700 text-sm shadow transition active:scale-95"
-                  style={{ background: '#e5e7eb' }}>
-                  🔄 Redo
-                </button>
-                {demoMode ? (
-                  <>
-                    <div className="flex-1 min-w-2" />
-                    <button onClick={() => onDemoRecorded?.({ audioBlob, sliderData: sliderDataRef.current })}
-                      className="flex items-center gap-1.5 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
-                      style={{ background: '#16a34a' }}>
-                      📤 Upload Demo
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={handlePlayAudio} disabled={playing}
-                      className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
-                      style={{ background: '#f87171' }}>
-                      🔊 Listen
-                    </button>
-                    {teacherMode && (
-                      <button onClick={() => onSaveModel?.({ audioBlob, sliderData: sliderDataRef.current })}
-                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-white text-sm shadow transition active:scale-95"
-                        style={{ background: '#16a34a' }}>
-                        💾 Save model
-                      </button>
-                    )}
-                    <div className="flex-1 min-w-2" />
-                    <button onClick={() => handleGrade('correct')} disabled={saving}
-                      className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
-                      style={{ background: '#16a34a' }}>
-                      👍
-                    </button>
-                    <button onClick={() => handleGrade('incorrect')} disabled={saving}
-                      className={`flex items-center justify-center px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-black text-white text-lg shadow transition active:scale-95 ${saving ? 'opacity-60' : ''}`}
-                      style={{ background: '#dc2626' }}>
-                      👎
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
         {/* Canvas */}
@@ -1122,20 +994,47 @@ export default function SlideToReadCanvas({
             🔴 Start Recording
           </motion.button>
         )}
-        {recordingState === 'recording' && (
-          <div className="flex items-center gap-2">
-            {micEnabled && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
-                <Mic className="w-4 h-4 text-teal-600 animate-pulse" />
-                <span className="text-xs font-bold text-teal-700 hidden sm:inline">Listening</span>
+        {recordingState === 'recording' && micEnabled && voiceState === 'requesting' && (
+          <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Waiting for microphone…</div>
+        )}
+        {recordingState === 'recording' && micEnabled && (voiceState === 'denied' || voiceState === 'error') && (
+          <div className="text-center space-y-2">
+            <p className="text-red-600 font-bold text-sm">
+              {voiceState === 'denied' ? '🚫 Microphone access was blocked' : `⚠️ ${voice.errorMessage || 'Microphone error'}`}
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button onClick={() => voice.start()}
+                className="px-4 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#0d9488' }}>
+                Try again
+              </button>
+              <button onClick={() => { voice.stop(); handleRerecord(); }}
+                className="px-4 py-2 rounded-xl font-bold text-gray-700 text-sm" style={{ background: '#e5e7eb' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {recordingState === 'recording' && (!micEnabled || voiceState === 'active') && (
+          <>
+            {micEnabled && hasHeardVoice && continuity < 0.15 && (
+              <div className="text-center py-2 text-amber-600 font-bold text-sm animate-pulse">
+                ⏸ Pause — keep going!
               </div>
             )}
-            <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
-              className="flex-1 py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
-              style={{ background: '#dc2626' }}>
-              ⏹ Stop & Grade
-            </motion.button>
-          </div>
+            <div className="flex items-center gap-2">
+              {micEnabled && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
+                  <Mic className="w-4 h-4 text-teal-600 animate-pulse" />
+                  <span className="text-xs font-bold text-teal-700 hidden sm:inline">Listening</span>
+                </div>
+              )}
+              <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
+                className="flex-1 py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
+                style={{ background: '#dc2626' }}>
+                ⏹ Stop & Grade
+              </motion.button>
+            </div>
+          </>
         )}
         {recordingState === 'stopping' && (
           <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Stopping…</div>
