@@ -212,6 +212,7 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
           card={phonemeCard}
           onPick={() => phonemeInputRef.current?.click()}
           onDelete={() => phonemeCard && onDelete(phonemeCard.id)}
+          onDropFile={(f) => onUpload(f, grapheme, 'phoneme')}
           uploading={isUploading('phoneme')}
         />
         <input
@@ -232,6 +233,7 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
           card={graphemeCard}
           onPick={() => graphemeInputRef.current?.click()}
           onDelete={() => graphemeCard && onDelete(graphemeCard.id)}
+          onDropFile={(f) => onUpload(f, grapheme, 'grapheme')}
           uploading={isUploading('grapheme')}
         />
         <input
@@ -251,7 +253,16 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
 }
 
 // ── Upload slot showing preview or upload button ─────────────────────────────
-function CardSlot({ label, card, onPick, onDelete, uploading }) {
+function CardSlot({ label, card, onPick, onDelete, onDropFile, uploading }) {
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) onDropFile?.(f);
+  };
+
   if (uploading) {
     return (
       <div className="aspect-[3/4] rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 flex flex-col items-center justify-center gap-2">
@@ -263,13 +274,23 @@ function CardSlot({ label, card, onPick, onDelete, uploading }) {
 
   if (card?.image_url) {
     return (
-      <div className="relative group">
-        <div className="aspect-[3/4] rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+      <div
+        className="relative group"
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
+        <div className={`aspect-[3/4] rounded-xl overflow-hidden border-2 bg-slate-50 transition ${dragOver ? 'border-indigo-500 ring-2 ring-indigo-300' : 'border-slate-200'}`}>
           <img src={card.image_url} alt={card.label || label} className="w-full h-full object-contain" />
         </div>
         <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px] font-bold">
           {label}
         </div>
+        {dragOver && (
+          <div className="absolute inset-0 rounded-xl bg-indigo-500/20 flex items-center justify-center pointer-events-none">
+            <span className="text-xs font-black text-indigo-700">Drop to replace</span>
+          </div>
+        )}
         <button
           onClick={onDelete}
           className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg"
@@ -289,15 +310,22 @@ function CardSlot({ label, card, onPick, onDelete, uploading }) {
   }
 
   return (
-    <button
+    <div
       onClick={onPick}
-      className="aspect-[3/4] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 flex flex-col items-center justify-center gap-2 transition"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      className={`aspect-[3/4] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition cursor-pointer ${
+        dragOver
+          ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-300'
+          : 'border-slate-300 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300'
+      }`}
     >
       <div className="flex items-center gap-1 text-slate-400">
         <Upload className="w-5 h-5" />
       </div>
       <span className="text-xs font-bold text-slate-400">{label}</span>
-      <span className="text-[10px] text-slate-300">Image or PDF</span>
-    </button>
+      <span className="text-[10px] text-slate-300">{dragOver ? 'Drop here' : 'Drag or click'}</span>
+    </div>
   );
 }
