@@ -494,3 +494,31 @@
   color: #000;
   white-space: nowrap;
 }
+
+/* Letter Ink Fill — CSS background-clip: text fill for voice-activated letter
+   ink in the Spanish Reading continuous blending practice screen.  Each
+   letter span has a gradient that fills from the bottom upward; the fill
+   height is driven by the --fill-pct CSS variable (0%–100%) which comes from
+   the useLiveVoice continuity value.  -webkit-text-fill-color: transparent
+   makes the text itself transparent so the gradient shows through; a faint
+   -webkit-text-stroke keeps the letter outline visible at all times. */
+.ink-letter {
+  display: inline-block;
+  background-image: linear-gradient(to top,
+    var(--ink-color, #14b8a6) 0%,
+    var(--ink-color, #14b8a6) var(--fill-pct, 0%),
+    transparent var(--fill-pct, 0%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.15);
+  line-height: 1;
+}
+
+.ink-letter-faint {
+  display: inline-block;
+  color: rgba(0, 0, 0, 0.22);
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.12);
+  line-height: 1;
+}

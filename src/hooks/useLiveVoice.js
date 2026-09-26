@@ -137,6 +137,7 @@ export function useLiveVoice() {
 
       setState('active');
       frameRef.current = requestAnimationFrame(sampleVoice);
+      return stream;
     } catch (err) {
       if (!mountedRef.current) return;
       if (err.name === 'NotAllowedError') {
@@ -146,6 +147,7 @@ export function useLiveVoice() {
         setState('error');
         setErrorMessage(err.message || 'The microphone could not start');
       }
+      return null;
     }
   }, [stopAudio, sampleVoice]);
 
