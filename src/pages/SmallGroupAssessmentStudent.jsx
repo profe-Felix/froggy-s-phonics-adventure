@@ -1,53 +1,144 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Loader2, CheckCircle2, Clock } from 'lucide-react';
 
-// Student view for the quick assessment. Subscribes to the SmallGroupAssessment
-// session and shows the current item (letter/word) when it's this student's
-// turn. Shows "waiting" when it's not their turn.
+// Student view for the quick assessment. Students access this page via their
+// normal class+number URL params (e.g. ?class=Felix&number=2). The page
+// auto-discovers the active assessment session for their teacher and shows
+// the current item when it's their turn. While waiting, the screen is locked
+// to this page (no navigation away) so the teacher knows the student is ready.
 export default function SmallGroupAssessmentStudent() {
   const urlParams = new URLSearchParams(window.location.search);
-  const sessionId = urlParams.get('sessionId');
-  const studentNumberParam = urlParams.get('studentNumber');
-  const classNameParam = urlParams.get('className');
+  const sessionIdParam = urlParams.get('sessionId');
+  // Standard student identity params (same as the rest of the app)
+  const classFromUrl = urlParams.get('class') || urlParams.get('className');
+  const numberFromUrl = urlParams.get('number') || urlParams.get('studentNumber');
 
-  const [session, setSession] = useState(null);
+  const studentNumber = numberFromUrl ? parseInt(numberFromUrl) : null;
+  const className = classFromUrl || '';
+
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [student, setStudent] = useState(null);
+  const [error, setError] = useState('');
 
-  // Try to auto-detect student identity from auth
+  // Load active session(s) for this teacher. If sessionId is provided
+  // explicitly, use just that one. Otherwise, discover all active sessions
+  // for the student's teacher (class_name = teacher_name).
   useEffect(() => {
-    if (studentNumberParam && classNameParam) {
-      // Manual override for testing
-      setStudent({
-        student_number: parseInt(studentNumberParam),
-        class_name: classNameParam,
-      });
+    if (!className || !studentNumber) {
+      setLoading(false);
+      setError('Missing class or number. Ask your teacher for the assessment link.');
       return;
     }
-    // Try auth
-    base44.auth.me().then((u) => {
-      if (u?.student_number && u?.class_name) {
-        setStudent({ student_number: u.student_number, class_name: u.class_name });
-      }
-    }).catch(() => {});
-  }, [studentNumberParam, classNameParam]);
 
-  // Subscribe to session
-  useEffect(() => {
-    if (!sessionId) { setLoading(false); return; }
     let alive = true;
-    base44.entities.SmallGroupAssessment.get(sessionId)
-      .then((s) => { if (alive) { setSession(s); setLoading(false); } })
-      .catch(() => { if (alive) setLoading(false); });
-    const unsub = base44.entities.SmallGroupAssessment.subscribe((event) => {
-      if (event.data?.id === sessionId && alive) {
-        setSession(event.data);
+    const loadSessions = async () => {
+      try {
+        let activeSessions;
+        if (sessionIdParam) {
+          const s = await base44.entities.SmallGroupAssessment.get(sessionIdParam);
+          activeSessions = s && s.status === 'active' ? [s] : [];
+        } else {
+          // Find all active sessions for this teacher (class_name = teacher_name)
+          activeSessions = await base44.entities.SmallGroupAssessment.filter({
+            teacher_name: className,
+            status: 'active',
+          });
+        }
+        if (alive) {
+          setSessions(activeSessions || []);
+          setLoading(false);
+        }
+      } catch {
+        if (alive) {
+          setError('Could not load the assessment session.');
+          setLoading(false);
+        }
       }
-    });
-    return () => { alive = false; unsub?.(); };
-  }, [sessionId]);
+    };
 
+    loadSessions();
+
+    // Poll for active sessions every 5 seconds (in case the teacher starts
+    // a new session after the student opens this page).
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadSessions();
+    }, 5000);
+
+    return () => {
+      alive = false;
+      clearInterval(pollInterval);
+    };
+  }, [className, studentNumber, sessionIdParam]);
+
+  // Subscribe to all active sessions for realtime updates.
+  useEffect(() => {
+    if (sessions.length === 0) return;
+
+    let alive = true;
+    const unsubscribers = [];
+
+    for (const sess of sessions) {
+      const unsub = base44.entities.SmallGroupAssessment.subscribe((event) => {
+        if (!alive) return;
+        const eventId = event.id || event.data?.id;
+        if (eventId !== sess.id) return;
+        // Refresh this session's data
+        base44.entities.SmallGroupAssessment.get(sess.id).then((fresh) => {
+          if (!alive) return;
+          setSessions((prev) =>
+            prev.map((s) => (s.id === fresh.id ? fresh : s))
+          );
+        }).catch(() => {});
+      });
+      unsubscribers.push(unsub);
+    }
+
+    // Also poll for session updates every 2 seconds as a safety net.
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      for (const sess of sessions) {
+        base44.entities.SmallGroupAssessment.get(sess.id).then((fresh) => {
+          if (!alive) return;
+          setSessions((prev) =>
+            prev.map((s) => (s.id === fresh.id ? fresh : s))
+          );
+        }).catch(() => {});
+      }
+    }, 2000);
+
+    return () => {
+      alive = false;
+      unsubscribers.forEach((u) => u?.());
+      clearInterval(pollInterval);
+    };
+  }, [sessions.map((s) => s.id).join(',')]);
+
+  // Find the session whose broadcast matches this student.
+  const mySession = useMemo(() => {
+    return sessions.find((s) => {
+      const b = s.broadcast_state || {};
+      return (
+        b.show_item &&
+        b.student_number === studentNumber &&
+        (b.class_name || '').toLowerCase() === className.toLowerCase()
+      );
+    });
+  }, [sessions, studentNumber, className]);
+
+  // Check if any session is completed (teacher ended it).
+  const allCompleted = sessions.length > 0 && sessions.every((s) => s.status === 'completed');
+
+  // ── Error / missing identity ──────────────────────────────────────────
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-slate-400 text-center px-8">{error}</p>
+      </div>
+    );
+  }
+
+  // ── Loading ───────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -56,59 +147,62 @@ export default function SmallGroupAssessmentStudent() {
     );
   }
 
-  if (!sessionId || !session) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <p className="text-slate-400">No active assessment session.</p>
-      </div>
-    );
-  }
-
-  if (session.status === 'completed') {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <CheckCircle2 className="w-16 h-16 mx-auto text-green-400 mb-4" />
-          <p className="text-white text-xl font-bold">Session ended</p>
-          <p className="text-slate-400 mt-2">Your teacher has finished this assessment.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const broadcast = session.broadcast_state || {};
-  const isMyTurn = student &&
-    broadcast.student_number === student.student_number &&
-    (broadcast.class_name || '').toLowerCase() === (student.class_name || '').toLowerCase();
-
-  if (!isMyTurn || !broadcast.show_item) {
+  // ── No active session ─────────────────────────────────────────────────
+  if (sessions.length === 0) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Clock className="w-16 h-16 mx-auto text-slate-500 mb-4" />
-          <p className="text-white text-xl font-bold">Waiting for your turn</p>
-          <p className="text-slate-400 mt-2">Practice your activity while you wait.</p>
+          <p className="text-white text-xl font-bold">Waiting for your teacher</p>
+          <p className="text-slate-400 mt-2">Your teacher hasn't started yet.</p>
         </div>
       </div>
     );
   }
 
-  // Show the current item
-  const isLetterSounds = broadcast.assessment_type === 'letter_sounds';
-  return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
-      <p className="text-white/60 text-xl mb-6">
-        {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
-      </p>
-      <div
-        className="text-[200px] font-bold text-white leading-none"
-        style={{ fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
-      >
-        {broadcast.current_item}
+  // ── Session ended ─────────────────────────────────────────────────────
+  if (allCompleted) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <CheckCircle2 className="w-16 h-16 mx-auto text-green-400 mb-4" />
+          <p className="text-white text-xl font-bold">All done! 🎉</p>
+          <p className="text-slate-400 mt-2">Your teacher has finished the assessment.</p>
+        </div>
       </div>
-      <p className="text-white/30 mt-8 text-sm">
-        {broadcast.item_index + 1} of {broadcast.total_items}
-      </p>
+    );
+  }
+
+  // ── My turn — show the item ───────────────────────────────────────────
+  if (mySession) {
+    const broadcast = mySession.broadcast_state || {};
+    const isLetterSounds = broadcast.assessment_type === 'letter_sounds';
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
+        <p className="text-white/60 text-xl mb-6">
+          {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
+        </p>
+        <div
+          className="text-[200px] font-bold text-white leading-none"
+          style={{ fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
+        >
+          {broadcast.current_item}
+        </div>
+        <p className="text-white/30 mt-8 text-sm">
+          {broadcast.item_index + 1} of {broadcast.total_items}
+        </p>
+      </div>
+    );
+  }
+
+  // ── Waiting for my turn ───────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        <Clock className="w-16 h-16 mx-auto text-slate-500 mb-4 animate-pulse" />
+        <p className="text-white text-xl font-bold">Waiting for your turn</p>
+        <p className="text-slate-400 mt-2">Stay here — your teacher will call you soon.</p>
+      </div>
     </div>
   );
 }

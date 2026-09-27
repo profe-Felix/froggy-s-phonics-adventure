@@ -532,9 +532,9 @@ export default function SmallGroupAssessment() {
             <p className="font-bold mb-1">Student iPad link</p>
             <p className="text-xs text-indigo-600">
               Students go to: <code className="bg-white px-1.5 py-0.5 rounded">
-                /SmallGroupAssessmentStudent?sessionId={session.id}
-              </code> — the page auto-detects their identity from login.
-              Add <code className="bg-white px-1.5 py-0.5 rounded">&studentNumber=N&className=Class</code> to test manually.
+                /SmallGroupAssessmentStudent?class={teacher}&number=2
+              </code> — using the same class+number URL params they already use to log in.
+              The page auto-discovers the active session and locks to it.
             </p>
           </div>
         )}
