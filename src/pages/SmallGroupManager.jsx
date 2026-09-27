@@ -311,6 +311,17 @@ export default function SmallGroupManager() {
                       </span>
                     </div>
 
+                    {/* Assess button */}
+                    {groupStudents.length > 0 && (
+                      <Link
+                        to={`/SmallGroupAssessment?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="block text-center text-[10px] font-bold text-slate-600 hover:text-slate-800 py-1 bg-white/60 border-b border-slate-200 transition-colors hover:bg-white"
+                      >
+                        📋 Quick Assess
+                      </Link>
+                    )}
+
                     {/* Students */}
                     <div className="p-2 flex flex-col gap-1.5 min-h-[200px] flex-1">
                       {groupStudents.map((s) => (

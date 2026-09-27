@@ -1,0 +1,114 @@
+{
+  "name": "SmallGroupAssessment",
+  "type": "object",
+  "properties": {
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher who owns this assessment session (Felix, Gutierrez, Valero)"
+    },
+    "block": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Which block/class period this assessment is for"
+    },
+    "color_group": {
+      "type": "string",
+      "enum": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "blue",
+        "purple"
+      ],
+      "description": "Which color group is being assessed"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed"
+      ],
+      "default": "active",
+      "description": "active = in progress, completed = teacher ended the session"
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the session started"
+    },
+    "ended_at": {
+      "type": "string",
+      "default": "",
+      "description": "ISO timestamp when the session ended"
+    },
+    "broadcast_state": {
+      "type": "object",
+      "description": "Live sync between teacher and student screens. { current_item, student_id, student_number, class_name, item_index, total_items, show_item, assessment_type, done }",
+      "default": {}
+    },
+    "results": {
+      "type": "object",
+      "description": "Nested map: { student_id: { letter_sounds: { correct, incorrect, attempted, item_order, current_index, completed }, sight_words: { ... } } }. Each student can have results for multiple assessment types.",
+      "default": {}
+    }
+  },
+  "required": [
+    "teacher_name",
+    "block",
+    "color_group"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
