@@ -194,7 +194,9 @@ export default function SmallGroupAssessmentStudent() {
     const at = broadcast.assessment_type || '';
     const isLetter = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(at);
     const isSound = at === 'upper_sounds' || at === 'lower_sounds';
-    const prompt = at === 'sight_words' ? 'Lee la palabra:'
+    const isDecoding = at === 'decoding';
+    const prompt = isDecoding ? 'Lee esto:'
+      : at === 'sight_words' ? 'Lee la palabra:'
       : isSound ? '¿Qué sonido hace?'
       : '¿Cómo se llama esta letra?';
     return (
@@ -202,6 +204,11 @@ export default function SmallGroupAssessmentStudent() {
         <p className="text-white/60 text-xl mb-6">
           {prompt}
         </p>
+        {isDecoding && broadcast.decoding_level && (
+          <p className="text-indigo-400/60 text-sm font-medium mb-2 uppercase tracking-wider">
+            {broadcast.decoding_level}
+          </p>
+        )}
         <div
           key={broadcast.item_index}
           className="text-[200px] font-bold text-white leading-none assessment-fade-in"

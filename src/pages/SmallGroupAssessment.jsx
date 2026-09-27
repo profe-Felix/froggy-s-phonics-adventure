@@ -6,11 +6,15 @@ import { getHomeroomForClass } from '@/lib/classRotation';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
 import { SIGHT_WORDS_EASY as SW_ES, SIGHT_WORDS_EASY_EN as SW_EN } from '@/components/data/sightWords';
 import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData } from '@/lib/dashboardData';
-import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react';
+import { DECODING_LEVELS, generateDecodingItems, canAssessLevel } from '@/lib/decodingSyllables';
+import useAudioRecorder from '@/hooks/useAudioRecorder';
+import AssessmentRecordingPlayer from '@/components/smallgroup/AssessmentRecordingPlayer';
+import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, AlertCircle, Mic, Play, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
 
 const ASSESSMENT_TYPES = [
+  { id: 'decoding', label: 'Decoding', prompt: 'Lee esto:', isLetter: false },
   { id: 'upper_names', label: 'Uppercase Names', prompt: '¿Cómo se llama esta letra?', isLetter: true },
   { id: 'lower_names', label: 'Lowercase Names', prompt: '¿Cómo se llama esta letra?', isLetter: true },
   { id: 'upper_sounds', label: 'Uppercase Sounds', prompt: '¿Qué sonido hace?', isLetter: true },
@@ -29,8 +33,6 @@ function getItemPool(language, assessmentType) {
     }
     return allLetters;
   }
-  // Spanish — FULL_SEQUENCE pairs uppercase (even index) + lowercase (odd).
-  // Deduplicate by display letter so review entries don't repeat.
   const seen = new Set();
   const uppercase = [];
   const lowercase = [];
@@ -46,7 +48,6 @@ function getItemPool(language, assessmentType) {
   return [...uppercase];
 }
 
-// Map a assessed letter item to its dashboard key in FULL_SEQUENCE.
 function letterToDashboardKey(letter, language) {
   if (language === 'en') return letter.toUpperCase();
   const entry = FULL_SEQUENCE.find((l) => l.d === letter);
@@ -62,6 +63,20 @@ function shuffle(arr) {
   return a;
 }
 
+// Get the current item and progress for any assessment type, including decoding.
+function getCurrentItem(results, studentId, assessmentType) {
+  if (assessmentType === 'decoding') {
+    const r = results[studentId]?.['decoding'];
+    if (!r || r.completed) return null;
+    const level = r.levels?.[r.current_level];
+    if (!level || level.completed) return null;
+    return level.item_order[level.current_index];
+  }
+  const r = results[studentId]?.[assessmentType];
+  if (!r) return null;
+  return r.item_order[r.current_index];
+}
+
 export default function SmallGroupAssessment() {
   const urlParams = new URLSearchParams(window.location.search);
   const teacher = urlParams.get('teacher') || 'Felix';
@@ -71,15 +86,30 @@ export default function SmallGroupAssessment() {
   const [students, setStudents] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [session, setSession] = useState(null);
-  const [assessmentType, setAssessmentType] = useState('letter_sounds');
+  const [assessmentType, setAssessmentType] = useState('decoding');
   const [assessingStudentId, setAssessingStudentId] = useState(null);
   const [results, setResults] = useState({});
   const [loading, setLoading] = useState(true);
-  const [lastMark, setLastMark] = useState(null); // { item, correct } for flash feedback
+  const [lastMark, setLastMark] = useState(null);
+  const [teacherNote, setTeacherNote] = useState('');
+  const [classConfigs, setClassConfigs] = useState({});
+  const [recordingSignedUrls, setRecordingSignedUrls] = useState({}); // studentId -> signed_url
+  const [showRecordingFor, setShowRecordingFor] = useState(null); // studentId
+  const [recordingTimeline, setRecordingTimeline] = useState([]);
+  const recorder = useAudioRecorder();
 
   // Load all students
   useEffect(() => {
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 10000).then(setStudents);
+  }, []);
+
+  // Load class configs (for decoding assessment — needs active M#.L#)
+  useEffect(() => {
+    base44.entities.ClassConfig.list().then((configs) => {
+      const map = {};
+      for (const c of configs) map[c.class_name] = c;
+      setClassConfigs(map);
+    }).catch(() => {});
   }, []);
 
   // Load assignments for this teacher+block+group
@@ -136,7 +166,6 @@ export default function SmallGroupAssessment() {
     return map;
   }, [students]);
 
-  // Students in this color group
   const groupStudents = useMemo(
     () => assignments
       .map((a) => studentMap[a.student_id])
@@ -145,37 +174,50 @@ export default function SmallGroupAssessment() {
     [assignments, studentMap]
   );
 
-  // Current student being assessed
   const assessingStudent = assessingStudentId ? studentMap[assessingStudentId] : null;
-  const studentResult = assessingStudentId ? results[assessingStudentId]?.[assessmentType] : null;
-  const currentItem = studentResult ? studentResult.item_order[studentResult.current_index] : null;
-  const isDone = studentResult?.completed || (studentResult && studentResult.current_index >= studentResult.item_order.length);
+
+  // Current item and progress (works for both regular and decoding types)
+  const currentItem = assessingStudentId ? getCurrentItem(results, assessingStudentId, assessmentType) : null;
+
+  // For decoding: get current level info
+  const decodingResult = assessingStudentId ? results[assessingStudentId]?.['decoding'] : null;
+  const currentDecodingLevel = decodingResult?.current_level;
+  const currentLevelData = decodingResult?.levels?.[currentDecodingLevel];
+
+  // For regular types: get the result
+  const studentResult = assessmentType !== 'decoding' && assessingStudentId
+    ? results[assessingStudentId]?.[assessmentType]
+    : null;
+  const isDone = assessmentType === 'decoding'
+    ? decodingResult?.completed
+    : studentResult?.completed || (studentResult && studentResult.current_index >= studentResult.item_order.length);
 
   // Broadcast current item to student screen
-  const broadcastItem = useCallback((result, student, done = false) => {
+  const broadcastItem = useCallback((item, student, opts = {}) => {
     if (!session) return;
+    const { done = false, decodingLevel = null, itemIndex = 0, totalItems = 0 } = opts;
     const state = done
       ? { show_item: false, student_id: student.id, done: true, assessment_type: assessmentType }
       : {
-          current_item: result.item_order[result.current_index],
+          current_item: item,
           student_id: student.id,
           student_number: student.student_number,
           class_name: student.class_name,
-          item_index: result.current_index,
-          total_items: result.item_order.length,
+          item_index: itemIndex,
+          total_items: totalItems,
           show_item: true,
           assessment_type: assessmentType,
+          ...(decodingLevel ? { decoding_level: decodingLevel } : {}),
         };
     base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: state }).catch(() => {});
   }, [session, assessmentType]);
 
-  // Update results in entity
   const persistResults = useCallback((newResults) => {
     if (!session) return;
     base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
   }, [session]);
 
-  // Update student's mode_progress with assessment results
+  // Update student's mode_progress
   const updateModeProgress = useCallback(async (student, type, result) => {
     if (!student || !result) return;
     const isLetter = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(type);
@@ -211,16 +253,10 @@ export default function SmallGroupAssessment() {
     };
     try {
       await base44.entities.Student.update(student.id, { mode_progress: newModeProgress });
-    } catch {
-      // ignore — results are still saved in the session
-    }
+    } catch {}
   }, []);
 
-  // Update the student dashboard with assessment results.
-  // Letter name assessments check the 'upper' (Letra) checkbox; letter sound
-  // assessments check the 'sound' (Sonidos) checkbox. For Spanish, uppercase
-  // and lowercase letters are separate dashboard keys; for English, both
-  // cases map to the same uppercase key with 'upper'/'lower' fields.
+  // Update student dashboard with assessment results
   const updateDashboard = useCallback(async (student, type, result) => {
     if (!student || !result) return;
     const isName = type === 'upper_names' || type === 'lower_names';
@@ -278,25 +314,103 @@ export default function SmallGroupAssessment() {
       } else {
         await base44.entities.StudentDashboard.create(payload);
       }
-    } catch {
-      // ignore — results are still saved in the session
-    }
+    } catch {}
   }, []);
 
-  // Start or continue assessment for a student
-  const startAssessment = (student) => {
+  // Stop and upload recording (for sight words)
+  const stopAndSaveRecording = useCallback(async (studentId) => {
+    if (recorder.state !== 'recording' && recorder.state !== 'paused') return null;
+    try {
+      const blob = await recorder.stopRecording();
+      if (!blob || blob.size === 0) return null;
+      const file = new File([blob], `sw-recording-${studentId}-${Date.now()}.webm`, { type: 'audio/webm' });
+      const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
+      return file_uri;
+    } catch {
+      return null;
+    }
+  }, [recorder]);
+
+  // Start assessment for a student
+  const startAssessment = async (student) => {
+    // If switching from sight words with an active recording, stop and save it first
+    if (assessmentType === 'sight_words' && assessingStudentId && (recorder.state === 'recording' || recorder.state === 'paused')) {
+      await stopAndSaveRecording(assessingStudentId);
+      recorder.reset();
+    }
+
+    setTeacherNote('');
+
+    if (assessmentType === 'decoding') {
+      // Get the student's class config for active M#.L#
+      const config = classConfigs[student.class_name];
+      const moduleNum = config?.active_spanish_module || 1;
+      const lessonNum = config?.active_spanish_lesson || 1;
+
+      const existing = results[student.id]?.['decoding'];
+      if (existing && !existing.completed) {
+        setAssessingStudentId(student.id);
+        const level = existing.levels?.[existing.current_level];
+        if (level) {
+          broadcastItem(level.item_order[level.current_index], student, {
+            decodingLevel: existing.current_level,
+            itemIndex: level.current_index,
+            totalItems: level.item_order.length,
+          });
+        }
+      } else {
+        // Start new decoding assessment — begin with CV level
+        const cvItems = generateDecodingItems('CV', moduleNum, lessonNum, 10);
+        if (cvItems.length === 0) {
+          alert('No CV syllables available for this class\'s current curriculum position. Check the active module/lesson in Manage Classes.');
+          return;
+        }
+        const newDecoding = {
+          current_level: 'CV',
+          levels: {
+            CV: {
+              item_order: cvItems,
+              correct: [], incorrect: [], attempted: [],
+              current_index: 0, completed: false, accuracy: 0,
+            },
+          },
+          completed: false,
+          notes: {},
+        };
+        const newResults = {
+          ...results,
+          [student.id]: {
+            ...(results[student.id] || {}),
+            decoding: newDecoding,
+          },
+        };
+        setResults(newResults);
+        persistResults(newResults);
+        setAssessingStudentId(student.id);
+        broadcastItem(cvItems[0], student, {
+          decodingLevel: 'CV',
+          itemIndex: 0,
+          totalItems: cvItems.length,
+        });
+      }
+      return;
+    }
+
+    // Regular assessment types
     const existing = results[student.id]?.[assessmentType];
     if (existing && !existing.completed && existing.current_index < existing.item_order.length) {
-      // Continue
       setAssessingStudentId(student.id);
-      broadcastItem(existing, student);
+      broadcastItem(existing.item_order[existing.current_index], student, {
+        itemIndex: existing.current_index,
+        totalItems: existing.item_order.length,
+      });
     } else {
-      // Start new
       const pool = getItemPool(student.language, assessmentType);
       const shuffled = shuffle(pool);
       const newResult = {
         correct: [], incorrect: [], attempted: [],
         item_order: shuffled, current_index: 0, completed: false,
+        notes: {},
       };
       const newResults = {
         ...results,
@@ -308,15 +422,62 @@ export default function SmallGroupAssessment() {
       setResults(newResults);
       persistResults(newResults);
       setAssessingStudentId(student.id);
-      broadcastItem(newResult, student);
+      broadcastItem(shuffled[0], student, {
+        itemIndex: 0,
+        totalItems: shuffled.length,
+      });
+    }
+
+    // Start recording for sight words
+    if (assessmentType === 'sight_words') {
+      setRecordingTimeline([]);
+      try {
+        await recorder.startRecording();
+      } catch {
+        // Mic permission denied — continue without recording
+      }
     }
   };
 
   // Mark correct or incorrect
-  const handleMark = (mark) => {
-    if (!assessingStudentId || !studentResult) return;
+  const handleMark = async (mark) => {
+    if (!assessingStudentId) return;
+
+    // Save the teacher note for this item
+    let noteToSave = teacherNote.trim();
+    setTeacherNote('');
+
+    if (assessmentType === 'decoding') {
+      await handleMarkDecoding(mark, noteToSave);
+      return;
+    }
+
+    // Regular assessment types
+    const studentResult = results[assessingStudentId]?.[assessmentType];
+    if (!studentResult) return;
     const item = studentResult.item_order[studentResult.current_index];
     if (!item) return;
+
+    // Save note
+    if (noteToSave) {
+      studentResult.notes = { ...(studentResult.notes || {}), [studentResult.current_index]: noteToSave };
+    }
+
+    // Track recording timestamp for sight words
+    let newTimeline = recordingTimeline;
+    if (assessmentType === 'sight_words' && recorder.state === 'recording') {
+      const elapsed = recorder.elapsed;
+      newTimeline = [...recordingTimeline, {
+        item,
+        shown_at: recordingTimeline.length > 0
+          ? recordingTimeline[recordingTimeline.length - 1].shown_at
+          : 0,
+        marked_at: elapsed,
+        correct: mark === 'correct',
+        note: noteToSave,
+      }];
+      setRecordingTimeline(newTimeline);
+    }
 
     const newResult = {
       ...studentResult,
@@ -337,9 +498,6 @@ export default function SmallGroupAssessment() {
     setResults(newResults);
     setLastMark({ item, correct: mark === 'correct' });
 
-    // Single atomic update — both results and broadcast_state in one call
-    // so the student sees the new item immediately (one realtime event, no
-    // race between two separate updates).
     const broadcastState = done
       ? { show_item: false, student_id: assessingStudent.id, done: true, assessment_type: assessmentType }
       : {
@@ -362,21 +520,213 @@ export default function SmallGroupAssessment() {
     if (done) {
       updateModeProgress(assessingStudent, assessmentType, newResult);
       updateDashboard(assessingStudent, assessmentType, newResult);
+      // Stop and save recording for sight words
+      if (assessmentType === 'sight_words') {
+        const fileUri = await stopAndSaveRecording(assessingStudentId);
+        if (fileUri) {
+          const finalResult = { ...newResult, recording_url: fileUri, recording_timeline: newTimeline };
+          const finalResults = {
+            ...newResults,
+            [assessingStudentId]: {
+              ...newResults[assessingStudentId],
+              [assessmentType]: finalResult,
+            },
+          };
+          setResults(finalResults);
+          if (session) {
+            base44.entities.SmallGroupAssessment.update(session.id, { results: finalResults }).catch(() => {});
+          }
+        }
+        recorder.reset();
+      }
       setTimeout(() => {
         setAssessingStudentId(null);
         setLastMark(null);
       }, 800);
     } else {
-      // Clear the flash feedback so it doesn't linger on the next card.
       setTimeout(() => setLastMark(null), 500);
     }
   };
 
-  // End early (press E)
-  const handleEndEarly = () => {
-    if (!assessingStudentId || !studentResult) return;
-    updateModeProgress(assessingStudent, assessmentType, studentResult);
-    updateDashboard(assessingStudent, assessmentType, studentResult);
+  // Handle marking for decoding assessment (with level progression)
+  const handleMarkDecoding = async (mark, note) => {
+    const dr = results[assessingStudentId]?.['decoding'];
+    if (!dr || dr.completed) return;
+    const level = dr.levels?.[dr.current_level];
+    if (!level || level.completed) return;
+    const item = level.item_order[level.current_index];
+    if (!item) return;
+
+    // Save note
+    if (note) {
+      dr.notes = { ...(dr.notes || {}), [`${dr.current_level}_${level.current_index}`]: note };
+    }
+
+    const newLevel = {
+      ...level,
+      [mark]: [...level[mark], item],
+      attempted: [...level.attempted, item],
+      current_index: level.current_index + 1,
+    };
+
+    const levelDone = newLevel.current_index >= newLevel.item_order.length;
+    if (levelDone) {
+      newLevel.completed = true;
+      newLevel.accuracy = newLevel.item_order.length > 0
+        ? newLevel.correct.length / newLevel.item_order.length
+        : 0;
+    }
+
+    const newLevels = { ...dr.levels, [dr.current_level]: newLevel };
+    let newDecoding = { ...dr, levels: newLevels };
+    let assessmentDone = false;
+    let nextLevelId = null;
+    let nextItems = [];
+
+    if (levelDone) {
+      const passed = newLevel.accuracy >= 0.7;
+      const levelIdx = DECODING_LEVELS.findIndex((l) => l.id === dr.current_level);
+      if (passed && levelIdx < DECODING_LEVELS.length - 1) {
+        // Advance to next level
+        const config = classConfigs[assessingStudent.class_name];
+        const moduleNum = config?.active_spanish_module || 1;
+        const lessonNum = config?.active_spanish_lesson || 1;
+        nextLevelId = DECODING_LEVELS[levelIdx + 1].id;
+        nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum, 10);
+        if (nextItems.length > 0) {
+          newDecoding.current_level = nextLevelId;
+          newDecoding.levels = {
+            ...newLevels,
+            [nextLevelId]: {
+              item_order: nextItems,
+              correct: [], incorrect: [], attempted: [],
+              current_index: 0, completed: false, accuracy: 0,
+            },
+          };
+        } else {
+          // Can't generate items for next level — end here
+          newDecoding.completed = true;
+          assessmentDone = true;
+        }
+      } else {
+        // Didn't pass or no more levels — assessment done
+        newDecoding.completed = true;
+        assessmentDone = true;
+      }
+    }
+
+    const newResults = {
+      ...results,
+      [assessingStudentId]: {
+        ...results[assessingStudentId],
+        decoding: newDecoding,
+      },
+    };
+    setResults(newResults);
+    setLastMark({ item, correct: mark === 'correct' });
+
+    // Broadcast next item or done
+    if (assessmentDone) {
+      if (session) {
+        base44.entities.SmallGroupAssessment.update(session.id, {
+          results: newResults,
+          broadcast_state: { show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' },
+        }).catch(() => {});
+      }
+      // Update mode progress with all decoding items
+      const allCorrect = Object.values(newDecoding.levels).flatMap((l) => l.correct || []);
+      const allIncorrect = Object.values(newDecoding.levels).flatMap((l) => l.incorrect || []);
+      const allAttempted = Object.values(newDecoding.levels).flatMap((l) => l.attempted || []);
+      updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
+      setTimeout(() => {
+        setAssessingStudentId(null);
+        setLastMark(null);
+      }, 800);
+    } else if (nextLevelId && nextItems.length > 0) {
+      // Broadcast first item of next level
+      if (session) {
+        base44.entities.SmallGroupAssessment.update(session.id, {
+          results: newResults,
+          broadcast_state: {
+            current_item: nextItems[0],
+            student_id: assessingStudentId,
+            student_number: assessingStudent.student_number,
+            class_name: assessingStudent.class_name,
+            item_index: 0,
+            total_items: nextItems.length,
+            show_item: true,
+            assessment_type: 'decoding',
+            decoding_level: nextLevelId,
+          },
+        }).catch(() => {});
+      }
+      setTimeout(() => setLastMark(null), 500);
+    } else {
+      // Continue in same level
+      const updatedLevel = newDecoding.levels[dr.current_level];
+      if (session) {
+        base44.entities.SmallGroupAssessment.update(session.id, {
+          results: newResults,
+          broadcast_state: {
+            current_item: updatedLevel.item_order[updatedLevel.current_index],
+            student_id: assessingStudentId,
+            student_number: assessingStudent.student_number,
+            class_name: assessingStudent.class_name,
+            item_index: updatedLevel.current_index,
+            total_items: updatedLevel.item_order.length,
+            show_item: true,
+            assessment_type: 'decoding',
+            decoding_level: dr.current_level,
+          },
+        }).catch(() => {});
+      }
+      setTimeout(() => setLastMark(null), 500);
+    }
+  };
+
+  // End early
+  const handleEndEarly = async () => {
+    if (!assessingStudentId) return;
+
+    // Stop and save recording for sight words
+    if (assessmentType === 'sight_words' && (recorder.state === 'recording' || recorder.state === 'paused')) {
+      const fileUri = await stopAndSaveRecording(assessingStudentId);
+      if (fileUri) {
+        const currentResult = results[assessingStudentId]?.[assessmentType];
+        if (currentResult) {
+          const updatedResult = { ...currentResult, recording_url: fileUri, recording_timeline: recordingTimeline };
+          const newResults = {
+            ...results,
+            [assessingStudentId]: {
+              ...results[assessingStudentId],
+              [assessmentType]: updatedResult,
+            },
+          };
+          setResults(newResults);
+          if (session) {
+            base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
+          }
+        }
+      }
+      recorder.reset();
+    }
+
+    if (assessmentType === 'decoding') {
+      const dr = results[assessingStudentId]?.['decoding'];
+      if (dr) {
+        const allCorrect = Object.values(dr.levels).flatMap((l) => l.correct || []);
+        const allIncorrect = Object.values(dr.levels).flatMap((l) => l.incorrect || []);
+        const allAttempted = Object.values(dr.levels).flatMap((l) => l.attempted || []);
+        updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
+      }
+    } else {
+      const sr = results[assessingStudentId]?.[assessmentType];
+      if (sr) {
+        updateModeProgress(assessingStudent, assessmentType, sr);
+        updateDashboard(assessingStudent, assessmentType, sr);
+      }
+    }
+
     if (session) {
       base44.entities.SmallGroupAssessment.update(session.id, {
         broadcast_state: { show_item: false, student_id: assessingStudentId, done: true },
@@ -384,23 +734,30 @@ export default function SmallGroupAssessment() {
     }
     setAssessingStudentId(null);
     setLastMark(null);
+    setTeacherNote('');
   };
 
   // Keyboard handler
   useEffect(() => {
     if (!assessingStudentId) return;
     const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowRight') { e.preventDefault(); handleMark('correct'); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
       else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [assessingStudentId, studentResult, results, session, assessmentType]);
+  }, [assessingStudentId, results, session, assessmentType, teacherNote, recordingTimeline]);
 
   // End session
   const handleEndSession = async () => {
     if (!session) return;
+    // Stop any active recording
+    if (recorder.state === 'recording' || recorder.state === 'paused') {
+      await stopAndSaveRecording(assessingStudentId);
+      recorder.reset();
+    }
     if (!confirm('End this assessment session? You can start a new one later.')) return;
     await base44.entities.SmallGroupAssessment.update(session.id, {
       status: 'completed',
@@ -410,6 +767,36 @@ export default function SmallGroupAssessment() {
     setSession(null);
     setResults({});
     setAssessingStudentId(null);
+  };
+
+  // Load recording signed URL for replay
+  const loadRecording = async (studentId) => {
+    const r = results[studentId]?.['sight_words'];
+    if (!r?.recording_url) return;
+    try {
+      const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: r.recording_url });
+      setRecordingSignedUrls((prev) => ({ ...prev, [studentId]: signed_url }));
+    } catch {}
+  };
+
+  // Update a note in the recording timeline (for replay)
+  const handleTimelineNoteChange = (studentId, index, note) => {
+    const r = results[studentId]?.['sight_words'];
+    if (!r?.recording_timeline) return;
+    const newTimeline = [...r.recording_timeline];
+    newTimeline[index] = { ...newTimeline[index], note };
+    const newResult = { ...r, recording_timeline: newTimeline };
+    const newResults = {
+      ...results,
+      [studentId]: {
+        ...results[studentId],
+        sight_words: newResult,
+      },
+    };
+    setResults(newResults);
+    if (session) {
+      base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
+    }
   };
 
   const groupLabel = group.charAt(0).toUpperCase() + group.slice(1);
@@ -424,13 +811,25 @@ export default function SmallGroupAssessment() {
   }
 
   // ── Assessment view (student selected) ────────────────────────────────
-  if (assessingStudent && studentResult) {
-    const correctCount = studentResult.correct.length;
-    const incorrectCount = studentResult.incorrect.length;
-    const progress = studentResult.item_order.length > 0
-      ? (studentResult.current_index / studentResult.item_order.length) * 100
-      : 0;
+  if (assessingStudent && (currentItem || isDone)) {
+    let correctCount, incorrectCount, progress, totalItems, currentIndex;
+
+    if (assessmentType === 'decoding') {
+      correctCount = Object.values(decodingResult?.levels || {}).reduce((sum, l) => sum + (l.correct?.length || 0), 0);
+      incorrectCount = Object.values(decodingResult?.levels || {}).reduce((sum, l) => sum + (l.incorrect?.length || 0), 0);
+      totalItems = currentLevelData?.item_order?.length || 0;
+      currentIndex = currentLevelData?.current_index || 0;
+      progress = totalItems > 0 ? (currentIndex / totalItems) * 100 : 0;
+    } else {
+      correctCount = studentResult?.correct?.length || 0;
+      incorrectCount = studentResult?.incorrect?.length || 0;
+      totalItems = studentResult?.item_order?.length || 0;
+      currentIndex = studentResult?.current_index || 0;
+      progress = totalItems > 0 ? (currentIndex / totalItems) * 100 : 0;
+    }
+
     const { first } = parseName(assessingStudent.name);
+    const isRecording = assessmentType === 'sight_words' && (recorder.state === 'recording' || recorder.state === 'starting');
 
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
@@ -448,15 +847,52 @@ export default function SmallGroupAssessment() {
             {assessingStudent.photo_url && (
               <img src={assessingStudent.photo_url} alt="" className="w-7 h-7 rounded-full object-cover" />
             )}
+            {isRecording && (
+              <span className="flex items-center gap-1 text-red-400 text-xs font-medium">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                REC
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 text-sm">
             <span className="text-green-400 font-bold">✓ {correctCount}</span>
             <span className="text-red-400 font-bold">✗ {incorrectCount}</span>
             <span className="text-slate-400">
-              {studentResult.current_index} / {studentResult.item_order.length}
+              {currentIndex} / {totalItems}
             </span>
           </div>
         </div>
+
+        {/* Decoding level indicator */}
+        {assessmentType === 'decoding' && currentDecodingLevel && (
+          <div className="px-6 py-2 bg-slate-800/50 border-b border-slate-700">
+            <div className="flex items-center gap-2">
+              {DECODING_LEVELS.map((l) => {
+                const levelData = decodingResult?.levels?.[l.id];
+                const isCurrent = currentDecodingLevel === l.id;
+                const isPast = levelData?.completed;
+                return (
+                  <div
+                    key={l.id}
+                    className={cn(
+                      'px-3 py-1 rounded-md text-xs font-medium border',
+                      isCurrent ? 'bg-indigo-500 text-white border-indigo-500' :
+                      isPast ? 'bg-slate-700 text-slate-300 border-slate-600' :
+                      'bg-slate-800 text-slate-500 border-slate-700'
+                    )}
+                  >
+                    {l.id}
+                    {isPast && levelData.accuracy !== undefined && (
+                      <span className="ml-1 opacity-70">
+                        {Math.round(levelData.accuracy * 100)}%
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div className="h-1.5 bg-slate-800">
@@ -467,7 +903,7 @@ export default function SmallGroupAssessment() {
         </div>
 
         {/* Big item display */}
-        <div className="flex-1 flex items-center justify-center relative">
+        <div className="flex-1 flex flex-col items-center justify-center relative">
           {isDone ? (
             <div className="text-center">
               <div className="text-6xl mb-4">✅</div>
@@ -475,6 +911,20 @@ export default function SmallGroupAssessment() {
               <p className="text-slate-400 mt-2">
                 {correctCount} correct · {incorrectCount} incorrect
               </p>
+              {assessmentType === 'decoding' && decodingResult && (
+                <div className="mt-4 space-y-1">
+                  {DECODING_LEVELS.map((l) => {
+                    const ld = decodingResult.levels?.[l.id];
+                    if (!ld) return null;
+                    return (
+                      <p key={l.id} className="text-sm text-slate-400">
+                        {l.id}: {ld.correct?.length || 0}/{ld.item_order?.length || 0} correct
+                        {ld.accuracy !== undefined && ` (${Math.round(ld.accuracy * 100)}%)`}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -483,7 +933,7 @@ export default function SmallGroupAssessment() {
                   'text-[180px] font-bold leading-none transition-colors',
                   lastMark?.correct ? 'text-green-400' : lastMark ? 'text-red-400' : 'text-white'
                 )}
-                style={{ fontFamily: assessmentType === 'letter_sounds' ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
+                style={{ fontFamily: assessmentType === 'decoding' || assessmentType === 'sight_words' ? "'Andika', sans-serif" : "'Teachers', sans-serif" }}
               >
                 {currentItem}
               </div>
@@ -498,6 +948,20 @@ export default function SmallGroupAssessment() {
             </>
           )}
         </div>
+
+        {/* Teacher note input */}
+        {!isDone && (
+          <div className="px-6 py-2 bg-slate-800/50">
+            <input
+              type="text"
+              value={teacherNote}
+              onChange={(e) => setTeacherNote(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              placeholder="Note: what did they say instead? (optional)"
+              className="w-full max-w-md mx-auto block bg-slate-700 text-white text-sm rounded-md px-3 py-2 border border-slate-600 focus:border-indigo-400 focus:outline-none placeholder:text-slate-500"
+            />
+          </div>
+        )}
 
         {/* Bottom controls */}
         <div className="px-6 py-6 bg-slate-800">
@@ -560,7 +1024,7 @@ export default function SmallGroupAssessment() {
           </div>
 
           {/* Assessment type selector */}
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
             <span className="text-xs text-slate-500">Assessing:</span>
             {ASSESSMENT_TYPES.map((t) => (
               <button
@@ -595,61 +1059,133 @@ export default function SmallGroupAssessment() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {groupStudents.map((student) => {
-              const r = results[student.id]?.[assessmentType];
-              const completed = r?.completed;
-              const inProgress = r && !r.completed && r.current_index > 0;
-              const total = r?.item_order?.length || 0;
-              const current = r?.current_index || 0;
-              const { first } = parseName(student.name);
-
-              return (
-                <div
-                  key={student.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3"
-                >
-                  {student.photo_url ? (
-                    <img src={student.photo_url} alt="" className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-500">
-                      {student.name?.[0] || '?'}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-800 truncate">{first || student.name}</p>
-                    {completed ? (
-                      <p className="text-xs text-green-600 font-medium">
-                        ✓ {r.correct.length}/{total} correct
-                      </p>
-                    ) : inProgress ? (
-                      <p className="text-xs text-amber-600 font-medium">
-                        {current}/{total} — in progress
-                      </p>
-                    ) : (
-                      <p className="text-xs text-slate-400">Not started</p>
-                    )}
-                  </div>
+          <>
+            {/* Recording replay panel */}
+            {showRecordingFor && results[showRecordingFor]?.['sight_words']?.recording_url && (
+              <div className="mb-6 bg-white rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Volume2 className="w-5 h-5 text-indigo-500" />
+                    Recording Replay — {parseName(studentMap[showRecordingFor]?.name).first || studentMap[showRecordingFor]?.name}
+                  </h3>
                   <button
-                    onClick={() => startAssessment(student)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-sm font-bold transition-colors',
-                      completed
-                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : inProgress
-                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                          : 'bg-indigo-500 text-white hover:bg-indigo-600'
-                    )}
+                    onClick={() => setShowRecordingFor(null)}
+                    className="text-slate-400 hover:text-slate-700 text-sm"
                   >
-                    {completed ? 'Review' : inProgress ? 'Continue' : 'Start'}
+                    Close
                   </button>
                 </div>
-              );
-            })}
-          </div>
+                {recordingSignedUrls[showRecordingFor] ? (
+                  <AssessmentRecordingPlayer
+                    recordingUrl={recordingSignedUrls[showRecordingFor]}
+                    timeline={results[showRecordingFor]?.['sight_words']?.recording_timeline || []}
+                    onNoteChange={(index, note) => handleTimelineNoteChange(showRecordingFor, index, note)}
+                  />
+                ) : (
+                  <button
+                    onClick={() => loadRecording(showRecordingFor)}
+                    className="text-sm text-indigo-600 hover:text-indigo-800"
+                  >
+                    Load recording...
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {groupStudents.map((student) => {
+                let statusLabel = 'Not started';
+                let statusClass = 'text-slate-400';
+                let buttonLabel = 'Start';
+                let buttonClass = 'bg-indigo-500 text-white hover:bg-indigo-600';
+                let hasRecording = false;
+
+                if (assessmentType === 'decoding') {
+                  const r = results[student.id]?.['decoding'];
+                  if (r?.completed) {
+                    const levels = Object.values(r.levels || {});
+                    const totalCorrect = levels.reduce((s, l) => s + (l.correct?.length || 0), 0);
+                    const totalItems = levels.reduce((s, l) => s + (l.item_order?.length || 0), 0);
+                    const reachedLevel = r.current_level;
+                    statusLabel = `Done — reached ${reachedLevel} (${totalCorrect}/${totalItems})`;
+                    statusClass = 'text-green-600';
+                    buttonLabel = 'Review';
+                    buttonClass = 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+                  } else if (r) {
+                    const level = r.levels?.[r.current_level];
+                    if (level && level.current_index > 0) {
+                      statusLabel = `${r.current_level}: ${level.current_index}/${level.item_order.length} — in progress`;
+                      statusClass = 'text-amber-600';
+                      buttonLabel = 'Continue';
+                      buttonClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                    }
+                  }
+                } else {
+                  const r = results[student.id]?.[assessmentType];
+                  if (r?.completed) {
+                    statusLabel = `✓ ${r.correct.length}/${r.item_order.length} correct`;
+                    statusClass = 'text-green-600';
+                    buttonLabel = 'Review';
+                    buttonClass = 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+                    hasRecording = assessmentType === 'sight_words' && !!r.recording_url;
+                  } else if (r && !r.completed && r.current_index > 0) {
+                    statusLabel = `${r.current_index}/${r.item_order.length} — in progress`;
+                    statusClass = 'text-amber-600';
+                    buttonLabel = 'Continue';
+                    buttonClass = 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+                  }
+                }
+
+                const { first } = parseName(student.name);
+
+                return (
+                  <div
+                    key={student.id}
+                    className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {student.photo_url ? (
+                        <img src={student.photo_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-500">
+                          {student.name?.[0] || '?'}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 truncate">{first || student.name}</p>
+                        <p className={cn('text-xs font-medium', statusClass)}>{statusLabel}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => startAssessment(student)}
+                        className={cn(
+                          'flex-1 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors',
+                          buttonClass
+                        )}
+                      >
+                        {buttonLabel}
+                      </button>
+                      {hasRecording && (
+                        <button
+                          onClick={() => {
+                            setShowRecordingFor(student.id);
+                            if (!recordingSignedUrls[student.id]) loadRecording(student.id);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-sm font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                          title="Listen to recording"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
-        {/* Student link for testing */}
         {session && groupStudents.length > 0 && (
           <div className="mt-6 bg-indigo-50 rounded-xl border border-indigo-100 p-4 text-sm text-indigo-800">
             <p className="font-bold mb-1">Student iPad link</p>
