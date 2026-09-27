@@ -191,16 +191,21 @@ export default function SmallGroupAssessmentStudent() {
   // ── My turn — show the item ───────────────────────────────────────────
   if (mySession) {
     const broadcast = mySession.broadcast_state || {};
-    const isLetterSounds = broadcast.assessment_type === 'letter_sounds';
+    const at = broadcast.assessment_type || '';
+    const isLetter = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(at);
+    const isSound = at === 'upper_sounds' || at === 'lower_sounds';
+    const prompt = at === 'sight_words' ? 'Lee la palabra:'
+      : isSound ? '¿Qué sonido hace?'
+      : '¿Cómo se llama esta letra?';
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
         <p className="text-white/60 text-xl mb-6">
-          {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
+          {prompt}
         </p>
         <div
           key={broadcast.item_index}
           className="text-[200px] font-bold text-white leading-none assessment-fade-in"
-          style={{ fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
+          style={{ fontFamily: isLetter ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
         >
           {broadcast.current_item}
         </div>

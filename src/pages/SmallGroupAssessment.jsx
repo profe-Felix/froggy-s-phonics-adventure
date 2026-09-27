@@ -5,20 +5,52 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
 import { SIGHT_WORDS_EASY as SW_ES, SIGHT_WORDS_EASY_EN as SW_EN } from '@/components/data/sightWords';
+import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData } from '@/lib/dashboardData';
 import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
 
 const ASSESSMENT_TYPES = [
-  { id: 'letter_sounds', label: 'Letter Sounds' },
-  { id: 'sight_words', label: 'Sight Words' },
+  { id: 'upper_names', label: 'Uppercase Names', prompt: '¿Cómo se llama esta letra?', isLetter: true },
+  { id: 'lower_names', label: 'Lowercase Names', prompt: '¿Cómo se llama esta letra?', isLetter: true },
+  { id: 'upper_sounds', label: 'Uppercase Sounds', prompt: '¿Qué sonido hace?', isLetter: true },
+  { id: 'lower_sounds', label: 'Lowercase Sounds', prompt: '¿Qué sonido hace?', isLetter: true },
+  { id: 'sight_words', label: 'Sight Words', prompt: 'Lee la palabra:', isLetter: false },
 ];
 
 function getItemPool(language, assessmentType) {
-  if (assessmentType === 'letter_sounds') {
-    return language === 'en' ? [...LETTER_SOUNDS_EN] : [...LETTER_SOUNDS];
+  if (assessmentType === 'sight_words') {
+    return language === 'en' ? [...SW_EN] : [...SW_ES];
   }
-  return language === 'en' ? [...SW_EN] : [...SW_ES];
+  if (language === 'en') {
+    const allLetters = [...EN_LETTERS_ROW1, ...EN_LETTERS_ROW2];
+    if (assessmentType === 'lower_names' || assessmentType === 'lower_sounds') {
+      return allLetters.map((l) => l.toLowerCase());
+    }
+    return allLetters;
+  }
+  // Spanish — FULL_SEQUENCE pairs uppercase (even index) + lowercase (odd).
+  // Deduplicate by display letter so review entries don't repeat.
+  const seen = new Set();
+  const uppercase = [];
+  const lowercase = [];
+  FULL_SEQUENCE.forEach((l, i) => {
+    if (seen.has(l.d)) return;
+    seen.add(l.d);
+    if (i % 2 === 0) uppercase.push(l.d);
+    else lowercase.push(l.d);
+  });
+  if (assessmentType === 'lower_names' || assessmentType === 'lower_sounds') {
+    return [...lowercase];
+  }
+  return [...uppercase];
+}
+
+// Map a assessed letter item to its dashboard key in FULL_SEQUENCE.
+function letterToDashboardKey(letter, language) {
+  if (language === 'en') return letter.toUpperCase();
+  const entry = FULL_SEQUENCE.find((l) => l.d === letter);
+  return entry?.k || letter;
 }
 
 function shuffle(arr) {
@@ -146,7 +178,8 @@ export default function SmallGroupAssessment() {
   // Update student's mode_progress with assessment results
   const updateModeProgress = useCallback(async (student, type, result) => {
     if (!student || !result) return;
-    const modeKey = type === 'letter_sounds' ? 'letter_sounds' : 'sight_words_easy';
+    const isLetter = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(type);
+    const modeKey = isLetter ? 'letter_sounds' : 'sight_words_easy';
     const current = student.mode_progress?.[modeKey] || {
       mastered_items: [], learning_items: [], item_attempts: {},
       total_correct: 0, total_attempts: 0,
@@ -178,6 +211,73 @@ export default function SmallGroupAssessment() {
     };
     try {
       await base44.entities.Student.update(student.id, { mode_progress: newModeProgress });
+    } catch {
+      // ignore — results are still saved in the session
+    }
+  }, []);
+
+  // Update the student dashboard with assessment results.
+  // Letter name assessments check the 'upper' (Letra) checkbox; letter sound
+  // assessments check the 'sound' (Sonidos) checkbox. For Spanish, uppercase
+  // and lowercase letters are separate dashboard keys; for English, both
+  // cases map to the same uppercase key with 'upper'/'lower' fields.
+  const updateDashboard = useCallback(async (student, type, result) => {
+    if (!student || !result) return;
+    const isName = type === 'upper_names' || type === 'lower_names';
+    const isSound = type === 'upper_sounds' || type === 'lower_sounds';
+    if (!isName && !isSound) return;
+
+    const lang = student.language || 'es';
+    let dashboard;
+    try {
+      const existing = await base44.entities.StudentDashboard.filter({
+        student_id: student.id,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      });
+      dashboard = existing[0];
+    } catch { return; }
+
+    let data;
+    if (dashboard?.dashboard_data) {
+      data = JSON.parse(dashboard.dashboard_data);
+    } else {
+      data = createEmptyData();
+    }
+
+    for (const item of result.correct || []) {
+      if (lang === 'en') {
+        const key = item.toUpperCase();
+        if (data.letters[key]) {
+          if (isName) {
+            if (type === 'upper_names') data.letters[key].upper = true;
+            else data.letters[key].lower = true;
+          } else {
+            data.letters[key].sound = true;
+          }
+        }
+      } else {
+        const dashKey = letterToDashboardKey(item, lang);
+        if (data.letters[dashKey]) {
+          if (isName) data.letters[dashKey].upper = true;
+          else data.letters[dashKey].sound = true;
+        }
+      }
+    }
+
+    const payload = {
+      student_id: student.id,
+      student_number: student.student_number,
+      class_name: student.class_name,
+      school_year: ACTIVE_SCHOOL_YEAR,
+      language: lang,
+      dashboard_data: JSON.stringify(data),
+    };
+    try {
+      if (dashboard?.id) {
+        await base44.entities.StudentDashboard.update(dashboard.id, payload);
+      } else {
+        await base44.entities.StudentDashboard.create(payload);
+      }
     } catch {
       // ignore — results are still saved in the session
     }
@@ -261,6 +361,7 @@ export default function SmallGroupAssessment() {
 
     if (done) {
       updateModeProgress(assessingStudent, assessmentType, newResult);
+      updateDashboard(assessingStudent, assessmentType, newResult);
       setTimeout(() => {
         setAssessingStudentId(null);
         setLastMark(null);
@@ -275,6 +376,7 @@ export default function SmallGroupAssessment() {
   const handleEndEarly = () => {
     if (!assessingStudentId || !studentResult) return;
     updateModeProgress(assessingStudent, assessmentType, studentResult);
+    updateDashboard(assessingStudent, assessmentType, studentResult);
     if (session) {
       base44.entities.SmallGroupAssessment.update(session.id, {
         broadcast_state: { show_item: false, student_id: assessingStudentId, done: true },
