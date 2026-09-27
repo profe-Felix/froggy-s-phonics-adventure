@@ -9,8 +9,10 @@
 //   3. CVCV — two CV syllables (mala, piso)
 //   4. Inverse — vowel-first patterns (isla, alma)
 //
-// The teacher marks items correct/incorrect. If accuracy on a level is
-// >70%, the student advances to the next level.
+// The teacher marks items correct/incorrect. The student always advances to
+// the next level (first round) so the teacher can see their approach on all
+// patterns. Lists are deterministic — same items every round for the same
+// curriculum position (M#.L#).
 
 import { getIntroducedGraphemesThrough } from './literacy/curriculumGraphemes';
 
@@ -110,50 +112,77 @@ function generateCVSyllables(graphemes) {
   return [...syllables];
 }
 
-// Generate CVC words: CV + final consonant.
-// Only use final consonants that have been taught.
+// Generate CVC words: ~12 words, cycling through taught initial consonants
+// so each one gets equal representation (e.g. m/p/s/l each appear 3×).
+// Final consonants rotate through valid Spanish finals that have been taught.
+// Deterministic — same list every round for the same curriculum position.
 function generateCVCWords(graphemes) {
   const cvSyllables = generateCVSyllables(graphemes);
-  // Which taught graphemes are valid final consonants?
-  const taughtFinals = graphemes.filter((g) =>
-    VALID_FINAL_CONSONANTS.includes(g) ||
-    g === 'r-final' || g === 'r-medial'
-  );
+  if (cvSyllables.length === 0) return [];
 
-  if (taughtFinals.length === 0 || cvSyllables.length === 0) return [];
+  // Valid final consonants from taught graphemes
+  const taughtFinals = graphemes
+    .filter((g) => VALID_FINAL_CONSONANTS.includes(g) || g === 'r-final' || g === 'r-medial')
+    .map((g) => (g === 'r-final' || g === 'r-medial' ? 'r' : g));
+  const uniqueFinals = [...new Set(taughtFinals)].sort();
+  if (uniqueFinals.length === 0) return [];
 
-  const words = new Set();
-  for (const cv of cvSyllables) {
-    for (const fc of taughtFinals) {
-      const final = fc === 'r-final' || fc === 'r-medial' ? 'r' : fc;
-      // Avoid awkward combinations
-      const word = cv + final;
-      // Skip if the final consonant matches the initial consonant (e.g., "m m" → "mam")
-      // Actually, "mam" is fine in Spanish. Just skip truly unpronounceable ones.
-      words.add(word);
-    }
+  // Group CV syllables by initial consonant, sorted for determinism
+  const byInitial = {};
+  for (const syl of [...cvSyllables].sort()) {
+    const ic = syl.slice(0, -1);
+    if (!byInitial[ic]) byInitial[ic] = [];
+    byInitial[ic].push(syl);
   }
-  return [...words];
+  const initials = Object.keys(byInitial).sort();
+
+  // Build 12 words, cycling through initials so each gets equal representation.
+  // For each initial, use the next available vowel and a rotating final consonant.
+  const wordList = [];
+  const words = new Set();
+  const usedSyllables = new Set();
+  let finalIdx = 0;
+
+  for (let round = 0; round < 12; round++) {
+    const ic = initials[round % initials.length];
+    const syl = byInitial[ic].find((s) => !usedSyllables.has(s));
+    if (!syl) continue;
+    const fc = uniqueFinals[finalIdx % uniqueFinals.length];
+    const word = syl + fc;
+    if (!words.has(word)) {
+      words.add(word);
+      wordList.push(word);
+      usedSyllables.add(syl);
+    }
+    finalIdx++;
+  }
+
+  return wordList.sort();
 }
 
-// Generate CVCV words: two CV syllables.
+// Generate CVCV words: two CV syllables, ensuring each CV syllable appears
+// at least once as the first syllable so all are tested in word context.
+// Deterministic — same list every round.
 function generateCVCVWords(graphemes) {
   const cvSyllables = generateCVSyllables(graphemes);
   if (cvSyllables.length < 2) return [];
 
+  const sorted = [...cvSyllables].sort();
   const words = new Set();
-  // Generate a reasonable set of two-syllable combinations
-  const shuffled = shuffle(cvSyllables);
-  for (let i = 0; i < shuffled.length; i++) {
-    for (let j = 0; j < shuffled.length; j++) {
-      if (i === j) continue;
-      const word = shuffled[i] + shuffled[j];
-      words.add(word);
-      if (words.size >= 50) break; // cap the pool
+
+  // Pair each syllable with the next one (cycling) so every CV syllable
+  // appears as the first syllable at least once.
+  for (let i = 0; i < sorted.length; i++) {
+    const first = sorted[i];
+    let second = sorted[(i + 1) % sorted.length];
+    if (first === second) {
+      const alt = sorted[(i + 2) % sorted.length];
+      if (alt !== first) second = alt;
     }
-    if (words.size >= 50) break;
+    words.add(first + second);
   }
-  return [...words];
+
+  return [...words].sort();
 }
 
 // Generate inverse-pattern words: vowel-first (V, VC, VCV, VCCV).
@@ -192,9 +221,8 @@ function generateInverseWords(graphemes) {
     }
   }
 
-  // Filter to a reasonable pool
-  const pool = [...words].slice(0, 50);
-  return pool;
+  // Deterministic sort — same list every round
+  return [...words].sort();
 }
 
 export const DECODING_LEVELS = [
@@ -211,11 +239,11 @@ export function generateDecodingItems(levelId, moduleNumber, lessonNumber, count
   if (!level) return [];
   const pool = level.generate(graphemes);
   if (pool.length === 0) return [];
-  const shuffled = shuffle(pool);
-  // count = 0 means return ALL items (e.g. every CV syllable is tested).
-  // Otherwise take min(count, pool.length).
-  if (count <= 0) return shuffled;
-  return shuffled.slice(0, Math.min(count, pool.length));
+  // Deterministic sort — no shuffle — so every student at the same
+  // curriculum position gets the same list every round.
+  const sorted = [...pool].sort();
+  if (count <= 0) return sorted;
+  return sorted.slice(0, Math.min(count, pool.length));
 }
 
 // Check if a level has enough items to be assessable.
