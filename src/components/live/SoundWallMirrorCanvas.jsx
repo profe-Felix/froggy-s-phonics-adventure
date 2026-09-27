@@ -29,7 +29,7 @@ export default function SoundWallMirrorCanvas({ broadcast }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl">
         {/* Teacher's card */}
         <div className="flex flex-col items-center justify-center gap-2">
-          <div className="w-full aspect-[3/4] max-h-[60vh] rounded-2xl overflow-hidden shadow-lg bg-white border-4 border-red-300">
+          <div className="w-full aspect-[3/4] max-h-[60vh] rounded-2xl overflow-hidden shadow-lg bg-white">
             <RevealCard card={card} />
           </div>
           {card.label && <div className="text-2xl font-black text-white">{card.label}</div>}

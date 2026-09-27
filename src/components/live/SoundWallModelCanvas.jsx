@@ -43,7 +43,7 @@ export default function SoundWallModelCanvas({ step, send }) {
 
       <div className="flex-1 flex items-center justify-center min-h-0">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-full max-w-lg aspect-[3/4] max-h-full rounded-2xl overflow-hidden shadow-2xl bg-white border-4 border-red-400">
+          <div className="w-full max-w-lg aspect-[3/4] max-h-full rounded-2xl overflow-hidden shadow-2xl bg-white soundwall-card-frame">
             {card?.imageUrl ? (
               <img src={card.imageUrl} alt={card?.label || 'Sound card'} className="w-full h-full object-contain" />
             ) : (

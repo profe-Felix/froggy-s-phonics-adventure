@@ -292,7 +292,7 @@ function CardSlot({ label, card, onPick, onDelete, onDropFile, onEditCovers, upl
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <div className={`aspect-[3/4] rounded-xl overflow-hidden border-2 bg-slate-50 transition ${dragOver ? 'border-indigo-500 ring-2 ring-indigo-300' : 'border-slate-200'}`}>
+        <div className={`aspect-[3/4] rounded-xl overflow-hidden border-2 bg-slate-50 transition soundwall-card-frame ${dragOver ? 'border-indigo-500 ring-2 ring-indigo-300' : 'border-slate-200'}`}>
           <img src={card.image_url} alt={card.label || label} className="w-full h-full object-contain" />
         </div>
         <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/50 text-white text-[10px] font-bold">
