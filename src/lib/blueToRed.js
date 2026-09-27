@@ -35,9 +35,12 @@ export async function replaceBlueWithRed(imageUrl) {
       const g = data[i + 1];
       const b = data[i + 2];
 
-      // Detect blue-dominant pixels (the blue card frame, ~#2ea2f7).
-      // Blue must be bright and significantly higher than red and green.
-      if (b > 150 && b > r + 60 && b > g + 30) {
+      // Detect blue-dominant pixels (blue card frame, ~#2ea2f7)
+      const isBlue = b > 150 && b > r + 60 && b > g + 30;
+      // Detect orange/red-orange pixels (orange card frame, ~#F05A28)
+      const isOrange = r > 150 && r > b + 90 && g < 200;
+
+      if (isBlue || isOrange) {
         data[i] = 220;     // R
         data[i + 1] = 38;  // G
         data[i + 2] = 38;  // B
