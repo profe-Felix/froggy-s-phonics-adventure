@@ -30,14 +30,28 @@ export async function replaceBlueWithRed(imageUrl) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
 
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
+    // Only process pixels in the outer border region of the image.
+    // The colored frame (blue or orange) is in this border strip; all
+    // photographic content (mouth, eye, etc.) is inside the frame and
+    // never touched, regardless of its color.
+    const borderW = Math.floor(canvas.width * 0.12);
+    const borderH = Math.floor(canvas.height * 0.12);
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const inBorder =
+          x < borderW || x >= canvas.width - borderW ||
+          y < borderH || y >= canvas.height - borderH;
+        if (!inBorder) continue;
+
+        const i = (y * canvas.width + x) * 4;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
 
       // Detect blue-dominant pixels (blue card frame, ~#2ea2f7)
       const isBlue = b > 150 && b > r + 60 && b > g + 30;
-      // Detect orange/red-orange pixels (orange card frame, ~#F05A28)
+      // Detect orange frame pixels (orange card frame, ~#F05A28)
       const isOrange = r > 150 && r > b + 90 && g < 200;
 
       if (isBlue || isOrange) {
@@ -45,6 +59,7 @@ export async function replaceBlueWithRed(imageUrl) {
         data[i + 1] = 38;  // G
         data[i + 2] = 38;  // B
         // Alpha unchanged — preserves anti-aliased edges
+      }
       }
     }
 
