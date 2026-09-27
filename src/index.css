@@ -529,16 +529,18 @@
 .soundwall-card-frame {
   position: relative;
   container-type: inline-size;
+  border-radius: 12% !important;
+  overflow: hidden;
 }
 .soundwall-card-frame::after {
   content: '';
   position: absolute;
   inset: 0;
+  border: 8cqw solid #dc2626;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 10cqw #dc2626;
   pointer-events: none;
   box-sizing: border-box;
 }
 .soundwall-card-frame img {
-  object-fit: cover !important;
+  object-fit: contain !important;
 }

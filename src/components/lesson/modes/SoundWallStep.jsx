@@ -141,11 +141,11 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
                 </div>
 
                 {stage.type === 'camera' ? (
-                  <div className="w-full max-w-[200px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-slate-900">
+                  <div className="w-full max-w-[320px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-slate-900">
                     {isRevealed && <CameraMirror className="w-full h-full" />}
                   </div>
                 ) : (
-                  <div className="w-full max-w-[200px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white">
+                  <div className="w-full max-w-[320px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white">
                     {isRevealed && <RevealCard card={stage.card} />}
                   </div>
                 )}
