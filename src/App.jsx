@@ -60,6 +60,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import WordBank from './pages/WordBank';
 import ClassQR from './pages/ClassQR';
 import SoundWallManager from './pages/SoundWallManager';
+import SmallGroupManager from './pages/SmallGroupManager';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -168,6 +169,7 @@ const AuthenticatedApp = () => {
       <Route path="/WordBank" element={<WordBank />} />
       <Route path="/ClassQR" element={<ClassQR />} />
       <Route path="/SoundWallManager" element={<SoundWallManager />} />
+      <Route path="/SmallGroupManager" element={<SmallGroupManager />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

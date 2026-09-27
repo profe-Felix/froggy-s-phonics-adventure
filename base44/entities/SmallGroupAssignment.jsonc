@@ -1,0 +1,99 @@
+{
+  "name": "SmallGroupAssignment",
+  "type": "object",
+  "properties": {
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher who owns this small group (Felix, Gutierrez, Valero). The teacher whose block this assignment belongs to."
+    },
+    "block": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Which block/class period (A=own homeroom, B=next teacher, C=third). Maps to homeroom via getHomeroomForClass."
+    },
+    "student_id": {
+      "type": "string",
+      "description": "ID of the assigned student"
+    },
+    "student_number": {
+      "type": "integer",
+      "description": "Denormalized student number for quick lookup"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Denormalized homeroom class name (the student's class_name)"
+    },
+    "color_group": {
+      "type": "string",
+      "enum": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "blue",
+        "purple"
+      ],
+      "description": "Color group the student is assigned to within this block"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
+    }
+  },
+  "required": [
+    "teacher_name",
+    "block",
+    "student_id",
+    "color_group"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
