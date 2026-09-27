@@ -247,6 +247,8 @@ export default function SmallGroupAssessment() {
       }, 800);
     } else {
       broadcastItem(newResult, assessingStudent);
+      // Clear the flash feedback so it doesn't linger on the next card.
+      setTimeout(() => setLastMark(null), 500);
     }
   };
 
