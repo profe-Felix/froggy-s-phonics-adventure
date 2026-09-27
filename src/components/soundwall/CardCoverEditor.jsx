@@ -18,6 +18,8 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
   const [activeRevealId, setActiveRevealId] = useState(card?.active_reveal_id || '');
   const [drawing, setDrawing] = useState(null); // { startX, startY, x, y, w, h } in px
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [interaction, setInteraction] = useState(null); // { mode: 'move'|'nw'|'ne'|'sw'|'se', id, startMX, startMY, startCover }
   const imgWrapRef = useRef(null);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
 
@@ -45,6 +47,7 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
 
   const onPointerDown = (e) => {
     if (e.target.closest('[data-cover-control]')) return;
+    setEditingId(null);
     const el = imgWrapRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
@@ -54,32 +57,78 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
+  const onCoverPointerDown = (e, cover) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+    e.stopPropagation();
+    setEditingId(cover.id);
+    const el = imgWrapRef.current;
+    if (el) el.setPointerCapture(e.pointerId);
+    setInteraction({ mode: 'move', id: cover.id, startMX: e.clientX, startMY: e.clientY, startCover: { ...cover } });
+  };
+
+  const onHandlePointerDown = (e, cover, mode) => {
+    e.stopPropagation();
+    setEditingId(cover.id);
+    const el = imgWrapRef.current;
+    if (el) el.setPointerCapture(e.pointerId);
+    setInteraction({ mode, id: cover.id, startMX: e.clientX, startMY: e.clientY, startCover: { ...cover } });
+  };
+
   const onPointerMove = (e) => {
-    if (!drawing) return;
+    if (!drawing && !interaction) return;
     const el = imgWrapRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const cx = Math.max(0, Math.min(r.width, e.clientX - r.left));
-    const cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
-    setDrawing((d) => ({
-      ...d,
-      x: Math.min(d.startX, cx),
-      y: Math.min(d.startY, cy),
-      w: Math.abs(cx - d.startX),
-      h: Math.abs(cy - d.startY),
-    }));
+    if (drawing) {
+      const cx = Math.max(0, Math.min(r.width, e.clientX - r.left));
+      const cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
+      setDrawing((d) => ({
+        ...d,
+        x: Math.min(d.startX, cx),
+        y: Math.min(d.startY, cy),
+        w: Math.abs(cx - d.startX),
+        h: Math.abs(cy - d.startY),
+      }));
+    } else if (interaction && imgSize.w > 0) {
+      const dxPct = ((e.clientX - interaction.startMX) / imgSize.w) * 100;
+      const dyPct = ((e.clientY - interaction.startMY) / imgSize.h) * 100;
+      const sc = interaction.startCover;
+      let nx = sc.x_pct, ny = sc.y_pct, nw = sc.w_pct, nh = sc.h_pct;
+      if (interaction.mode === 'move') {
+        nx = Math.max(0, Math.min(100 - sc.w_pct, sc.x_pct + dxPct));
+        ny = Math.max(0, Math.min(100 - sc.h_pct, sc.y_pct + dyPct));
+      } else {
+        if (interaction.mode.includes('w')) {
+          nx = Math.max(0, Math.min(sc.x_pct + sc.w_pct - 3, sc.x_pct + dxPct));
+          nw = sc.x_pct + sc.w_pct - nx;
+        }
+        if (interaction.mode.includes('e')) {
+          nw = Math.max(3, Math.min(100 - sc.x_pct, sc.w_pct + dxPct));
+        }
+        if (interaction.mode.includes('n')) {
+          ny = Math.max(0, Math.min(sc.y_pct + sc.h_pct - 3, sc.y_pct + dyPct));
+          nh = sc.y_pct + sc.h_pct - ny;
+        }
+        if (interaction.mode.includes('s')) {
+          nh = Math.max(3, Math.min(100 - sc.y_pct, sc.h_pct + dyPct));
+        }
+      }
+      setCovers((prev) => prev.map((c) => (c.id === interaction.id ? { ...c, x_pct: nx, y_pct: ny, w_pct: nw, h_pct: nh } : c)));
+    }
   };
 
   const onPointerUp = () => {
-    if (!drawing) return;
-    if (drawing.w > 12 && drawing.h > 12) {
-      const pct = pxToPct(drawing.x, drawing.y, drawing.w, drawing.h);
-      const id = `cov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const newCover = { id, ...pct, label: '' };
-      setCovers((prev) => [...prev, newCover]);
-      if (!activeRevealId) setActiveRevealId(id);
+    if (drawing) {
+      if (drawing.w > 12 && drawing.h > 12) {
+        const pct = pxToPct(drawing.x, drawing.y, drawing.w, drawing.h);
+        const id = `cov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const newCover = { id, ...pct, label: '' };
+        setCovers((prev) => [...prev, newCover]);
+        if (!activeRevealId) setActiveRevealId(id);
+      }
+      setDrawing(null);
     }
-    setDrawing(null);
+    setInteraction(null);
   };
 
   const deleteCover = (id) => {
@@ -155,7 +204,8 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
                   <div
                     key={c.id}
                     data-cover-control
-                    className="absolute rounded-xl flex flex-col items-stretch overflow-hidden"
+                    onPointerDown={(e) => onCoverPointerDown(e, c)}
+                    className={`absolute rounded-xl flex flex-col items-stretch cursor-move ${editingId === c.id ? 'ring-2 ring-red-400' : ''}`}
                     style={{
                       left: px.x,
                       top: px.y,
@@ -196,6 +246,14 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
+                    {editingId === c.id && (
+                      <>
+                        <div data-cover-control onPointerDown={(e) => onHandlePointerDown(e, c, 'nw')} className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-red-500 rounded-sm cursor-nwse-resize z-10" />
+                        <div data-cover-control onPointerDown={(e) => onHandlePointerDown(e, c, 'ne')} className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-red-500 rounded-sm cursor-nesw-resize z-10" />
+                        <div data-cover-control onPointerDown={(e) => onHandlePointerDown(e, c, 'sw')} className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-red-500 rounded-sm cursor-nesw-resize z-10" />
+                        <div data-cover-control onPointerDown={(e) => onHandlePointerDown(e, c, 'se')} className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-red-500 rounded-sm cursor-nwse-resize z-10" />
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -216,6 +274,7 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
               <p className="text-xs font-bold text-slate-700 mb-2">How it works</p>
               <ul className="text-[11px] text-slate-600 space-y-1.5 list-disc list-inside">
                 <li>Drag on the card to draw a rounded cover over the part you want hidden.</li>
+                <li>Drag a cover to move it; drag its corner handles to resize.</li>
                 <li>Tap <b>Set reveal</b> on the cover you want to animate away during the lesson.</li>
                 <li>Other covers stay in place (reveal them in later lessons by switching the active one).</li>
               </ul>
