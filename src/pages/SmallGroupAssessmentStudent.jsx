@@ -94,7 +94,8 @@ export default function SmallGroupAssessmentStudent() {
       unsubscribers.push(unsub);
     }
 
-    // Also poll for session updates every 2 seconds as a safety net.
+    // Also poll for session updates every 800ms as a safety net — fast enough
+    // to keep up with rapid teacher marking without overwhelming the server.
     const pollInterval = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       for (const sess of sessions) {
@@ -105,7 +106,7 @@ export default function SmallGroupAssessmentStudent() {
           );
         }).catch(() => {});
       }
-    }, 2000);
+    }, 800);
 
     return () => {
       alive = false;
@@ -183,6 +184,7 @@ export default function SmallGroupAssessmentStudent() {
           {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
         </p>
         <div
+          key={broadcast.current_item}
           className="text-[200px] font-bold text-white leading-none"
           style={{ fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
         >
