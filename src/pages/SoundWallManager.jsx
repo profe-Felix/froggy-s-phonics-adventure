@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
+import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft, Layers } from 'lucide-react';
 import { getCurriculumPositionList, getGraphemesAtKey } from '@/lib/literacy/curriculumPositions';
 import { pdfFirstPageToPng, isPdfFile } from '@/lib/pdfToImage';
+import CardCoverEditor from '@/components/soundwall/CardCoverEditor';
 
 // Sound Wall Manager — teacher tool for uploading phoneme and grapheme cards
 // tied to the M#.L# curriculum progression. Cards are stored as SoundWallCard
@@ -14,6 +15,7 @@ export default function SoundWallManager() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null); // { grapheme, cardType } | null
+  const [editingCoverCard, setEditingCoverCard] = useState(null); // SoundWallCard | null
 
   const graphemes = useMemo(() => getGraphemesAtKey(selectedKey), [selectedKey]);
   const positionInfo = positions.find((p) => p.key === selectedKey);
@@ -168,6 +170,7 @@ export default function SoundWallManager() {
                   graphemeCard={graphemeCard}
                   onUpload={handleUpload}
                   onDelete={handleDelete}
+                  onEditCovers={setEditingCoverCard}
                   uploading={uploading}
                 />
               );
@@ -185,13 +188,20 @@ export default function SoundWallManager() {
             <li>For Letter Sounds steps, pick the M#.L# position to auto-fill the target letters from your progression.</li>
           </ul>
         </div>
+        {editingCoverCard && (
+          <CardCoverEditor
+            card={editingCoverCard}
+            onClose={() => setEditingCoverCard(null)}
+            onSaved={() => loadCards(selectedKey)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 // ── Single grapheme card editor (phoneme + grapheme upload slots) ─────────────
-function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onDelete, uploading }) {
+function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onDelete, onEditCovers, uploading }) {
   const phonemeInputRef = useRef(null);
   const graphemeInputRef = useRef(null);
 
@@ -213,6 +223,7 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
           onPick={() => phonemeInputRef.current?.click()}
           onDelete={() => phonemeCard && onDelete(phonemeCard.id)}
           onDropFile={(f) => onUpload(f, grapheme, 'phoneme')}
+          onEditCovers={onEditCovers}
           uploading={isUploading('phoneme')}
         />
         <input
@@ -234,6 +245,7 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
           onPick={() => graphemeInputRef.current?.click()}
           onDelete={() => graphemeCard && onDelete(graphemeCard.id)}
           onDropFile={(f) => onUpload(f, grapheme, 'grapheme')}
+          onEditCovers={onEditCovers}
           uploading={isUploading('grapheme')}
         />
         <input
@@ -253,7 +265,7 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
 }
 
 // ── Upload slot showing preview or upload button ─────────────────────────────
-function CardSlot({ label, card, onPick, onDelete, onDropFile, uploading }) {
+function CardSlot({ label, card, onPick, onDelete, onDropFile, onEditCovers, uploading }) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = (e) => {
@@ -304,6 +316,16 @@ function CardSlot({ label, card, onPick, onDelete, onDropFile, uploading }) {
           title="Replace"
         >
           Replace
+        </button>
+        <button
+          onClick={() => onEditCovers?.(card)}
+          className="absolute bottom-1 left-1 px-2 py-0.5 rounded bg-red-500/80 text-white text-[10px] font-bold flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition"
+          title="Edit covers & reveal"
+        >
+          <Layers className="w-3 h-3" /> Covers
+          {Array.isArray(card?.covers) && card.covers.length > 0 && (
+            <span className="ml-0.5 px-1 rounded-full bg-white/30">{card.covers.length}</span>
+          )}
         </button>
       </div>
     );

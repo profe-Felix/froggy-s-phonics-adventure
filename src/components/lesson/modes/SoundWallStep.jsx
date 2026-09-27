@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import CameraMirror from '@/components/soundwall/CameraMirror';
+import RevealCard from '@/components/soundwall/RevealCard';
 import { playLetterSound } from '@/lib/audio';
 import { ChevronLeft, ChevronRight, Volume2, Check } from 'lucide-react';
 
@@ -36,6 +37,9 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
           imageUrl: r.image_url,
           sound: r.grapheme,
           cardType: r.card_type,
+          id: r.id,
+          covers: r.covers || [],
+          active_reveal_id: r.active_reveal_id || '',
         })));
       })
       .catch(() => { if (!cancelled) setEntityCards([]); })
@@ -103,12 +107,8 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 min-h-0 overflow-auto">
         {/* Sound wall card */}
         <div className="flex flex-col items-center justify-center gap-3">
-          <div className="w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white border-4 border-indigo-200">
-            {card?.imageUrl ? (
-              <img src={card.imageUrl} alt={card?.label || 'Sound card'} className="w-full h-full object-contain" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
-            )}
+          <div className="w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white border-4 border-red-300">
+            <RevealCard card={card} />
           </div>
           {card?.label && <div className="text-3xl font-black text-indigo-600">{card.label}</div>}
           <button

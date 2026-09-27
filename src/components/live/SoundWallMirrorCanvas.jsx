@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import CameraMirror from '@/components/soundwall/CameraMirror';
+import RevealCard from '@/components/soundwall/RevealCard';
 import { playLetterSound } from '@/lib/audio';
 import { Lock } from 'lucide-react';
 
@@ -28,10 +29,8 @@ export default function SoundWallMirrorCanvas({ broadcast }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl">
         {/* Teacher's card */}
         <div className="flex flex-col items-center justify-center gap-2">
-          <div className="w-full aspect-[3/4] max-h-[60vh] rounded-2xl overflow-hidden shadow-lg bg-white border-4 border-indigo-200">
-            {card.imageUrl ? (
-              <img src={card.imageUrl} alt={card.label || 'Sound card'} className="w-full h-full object-contain" />
-            ) : null}
+          <div className="w-full aspect-[3/4] max-h-[60vh] rounded-2xl overflow-hidden shadow-lg bg-white border-4 border-red-300">
+            <RevealCard card={card} />
           </div>
           {card.label && <div className="text-2xl font-black text-white">{card.label}</div>}
           <div className="text-xs text-white/60 flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full">

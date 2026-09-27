@@ -43,6 +43,53 @@
     "active": {
       "type": "boolean",
       "default": true
+    },
+    "covers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique cover id"
+          },
+          "x_pct": {
+            "type": "number",
+            "description": "Left position as % of card width (0-100)"
+          },
+          "y_pct": {
+            "type": "number",
+            "description": "Top position as % of card height (0-100)"
+          },
+          "w_pct": {
+            "type": "number",
+            "description": "Width as % of card width (0-100)"
+          },
+          "h_pct": {
+            "type": "number",
+            "description": "Height as % of card height (0-100)"
+          },
+          "label": {
+            "type": "string",
+            "default": "",
+            "description": "Optional label for this cover"
+          }
+        },
+        "required": [
+          "id",
+          "x_pct",
+          "y_pct",
+          "w_pct",
+          "h_pct"
+        ]
+      },
+      "default": [],
+      "description": "Rounded-rectangle covers drawn over the card image. Each cover hides a part of the card; the active_reveal_id cover animates away during the lesson to unveil what's underneath."
+    },
+    "active_reveal_id": {
+      "type": "string",
+      "default": "",
+      "description": "ID of the cover to animate away (reveal) during the letter-introduction lesson step. Empty = no auto-reveal."
     }
   },
   "required": [
