@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, Check, Eye } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { useBlueToRed } from '@/hooks/useBlueToRed';
 
 // Modal cover editor for a single SoundWallCard. The teacher draws rounded
 // rectangles ("covers") over the card image to hide parts of it. One cover
@@ -22,6 +23,7 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
   const [interaction, setInteraction] = useState(null); // { mode: 'move'|'nw'|'ne'|'sw'|'se', id, startMX, startMY, startCover }
   const imgWrapRef = useRef(null);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const processedImageUrl = useBlueToRed(card?.image_url);
 
   const recalcSize = useCallback(() => {
     const el = imgWrapRef.current;
@@ -187,9 +189,9 @@ export default function CardCoverEditor({ card, onClose, onSaved }) {
               className="relative w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-slate-100 border-2 border-red-300 select-none touch-none cursor-crosshair"
               onMouseEnter={recalcSize}
             >
-              {card?.image_url && (
+              {processedImageUrl && (
                 <img
-                  src={card.image_url}
+                  src={processedImageUrl}
                   alt={card.label || card.grapheme}
                   className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                   onLoad={recalcSize}
