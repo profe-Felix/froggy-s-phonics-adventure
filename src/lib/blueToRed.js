@@ -1,10 +1,15 @@
-// Replaces blue-dominant pixels (the baked-in blue card frame) with red
-// (#dc2626) using a canvas pixel scan. Returns a cached data URL so each
-// image is only processed once.
+// Replaces the baked-in card frame color (blue or orange) with red (#dc2626)
+// using a canvas pixel scan. Returns a cached data URL so each image is
+// only processed once.
 //
-// This is a precise color replacement — no border-width guessing, no
-// overlay alignment issues, no letterboxing gaps. The blue frame becomes
-// red at the pixel level, preserving all original rounded corners.
+// Why blue worked but orange didn't: blue never appears in skin tones, so
+// loose "any blue pixel" detection had zero false positives. Orange/red-orange
+// overlaps with lip and cheek tones — loose detection catches skin.
+//
+// Strategy: sample the frame color first, then apply ONLY the matching
+// detection. Blue frames use loose blue detection (safe — no false positives).
+// Orange frames use tight tolerance (±15) restricted to the outer border strip
+// (8%), so only the frame is touched, not interior photo content.
 
 const cache = new Map();
 
@@ -29,37 +34,81 @@ export async function replaceBlueWithRed(imageUrl) {
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
+    const w = canvas.width;
+    const h = canvas.height;
 
-    // Only process pixels in the outer border region of the image.
-    // The colored frame (blue or orange) is in this border strip; all
-    // photographic content (mouth, eye, etc.) is inside the frame and
-    // never touched, regardless of its color.
-    const borderW = Math.floor(canvas.width * 0.12);
-    const borderH = Math.floor(canvas.height * 0.12);
+    // Sample the frame color from edge midpoints (3% in from each edge).
+    const samplePoints = [
+      [Math.floor(w * 0.5), Math.floor(h * 0.03)],
+      [Math.floor(w * 0.5), Math.floor(h * 0.97)],
+      [Math.floor(w * 0.03), Math.floor(h * 0.5)],
+      [Math.floor(w * 0.97), Math.floor(h * 0.5)],
+    ];
 
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const inBorder =
-          x < borderW || x >= canvas.width - borderW ||
-          y < borderH || y >= canvas.height - borderH;
-        if (!inBorder) continue;
+    let sr = 0, sg = 0, sb = 0, count = 0;
+    for (const [sx, sy] of samplePoints) {
+      const si = (sy * w + sx) * 4;
+      const r = data[si], g = data[si + 1], b = data[si + 2];
+      if (r > 240 && g > 240 && b > 240) continue;
+      if (r < 30 && g < 30 && b < 30) continue;
+      sr += r; sg += g; sb += b; count++;
+    }
 
-        const i = (y * canvas.width + x) * 4;
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+    if (count === 0) {
+      cache.set(imageUrl, imageUrl);
+      return imageUrl;
+    }
 
-      // Detect blue-dominant pixels (blue card frame, ~#2ea2f7)
-      const isBlue = b > 150 && b > r + 60 && b > g + 30;
-      // Detect orange frame pixels (orange card frame, ~#F05A28)
-      const isOrange = r > 150 && r > b + 90 && g < 200;
+    const frameR = Math.round(sr / count);
+    const frameG = Math.round(sg / count);
+    const frameB = Math.round(sb / count);
 
-      if (isBlue || isOrange) {
-        data[i] = 220;     // R
-        data[i + 1] = 38;  // G
-        data[i + 2] = 38;  // B
-        // Alpha unchanged — preserves anti-aliased edges
+    const isBlueFrame = frameB > 120 && frameB > frameR + 40 && frameB > frameG + 20;
+    const isOrangeFrame = frameR > 120 && frameR > frameB + 40 && frameG < 200;
+
+    if (!isBlueFrame && !isOrangeFrame) {
+      cache.set(imageUrl, imageUrl);
+      return imageUrl;
+    }
+
+    if (isBlueFrame) {
+      // BLUE FRAME: loose blue detection across the entire image.
+      // Safe — blue never appears in skin/lip tones, so zero false positives.
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        if (b > 150 && b > r + 60 && b > g + 30) {
+          data[i] = 220;
+          data[i + 1] = 38;
+          data[i + 2] = 38;
+        }
       }
+    } else {
+      // ORANGE FRAME: tight tolerance (±15) restricted to the outer border
+      // strip (8%). The tight tolerance avoids matching lip/cheek tones;
+      // the border restriction ensures interior photo content is never
+      // touched even if a pixel happens to match.
+      const borderW = Math.floor(w * 0.08);
+      const borderH = Math.floor(h * 0.08);
+      const tol = 15;
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const inBorder =
+            x < borderW || x >= w - borderW ||
+            y < borderH || y >= h - borderH;
+          if (!inBorder) continue;
+
+          const i = (y * w + x) * 4;
+          if (
+            Math.abs(data[i] - frameR) <= tol &&
+            Math.abs(data[i + 1] - frameG) <= tol &&
+            Math.abs(data[i + 2] - frameB) <= tol
+          ) {
+            data[i] = 220;
+            data[i + 1] = 38;
+            data[i + 2] = 38;
+          }
+        }
       }
     }
 
@@ -68,7 +117,6 @@ export async function replaceBlueWithRed(imageUrl) {
     cache.set(imageUrl, dataUrl);
     return dataUrl;
   } catch {
-    // Canvas tainted (CORS) or image failed to load — return original
     cache.set(imageUrl, imageUrl);
     return imageUrl;
   }
