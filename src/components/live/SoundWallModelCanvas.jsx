@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { playLetterSound } from '@/lib/audio';
 import { ChevronLeft, ChevronRight, Volume2 } from 'lucide-react';
+import { useBlueToRed } from '@/hooks/useBlueToRed';
 
 // Teacher's model panel for the Sound Wall activity during the "I do" phase.
 // Shows the current sound wall card large on screen and broadcasts the card
@@ -16,6 +17,7 @@ export default function SoundWallModelCanvas({ step, send }) {
 
   const [idx, setIdx] = useState(0);
   const card = cards[idx];
+  const processedImageUrl = useBlueToRed(card?.imageUrl);
 
   // Broadcast current card to student mirrors whenever it changes.
   useEffect(() => {
@@ -43,9 +45,9 @@ export default function SoundWallModelCanvas({ step, send }) {
 
       <div className="flex-1 flex items-center justify-center min-h-0">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-full max-w-lg aspect-[3/4] max-h-full rounded-2xl overflow-hidden shadow-2xl bg-white soundwall-card-frame">
-            {card?.imageUrl ? (
-              <img src={card.imageUrl} alt={card?.label || 'Sound card'} className="w-full h-full object-contain" />
+          <div className="w-full max-w-lg aspect-[3/4] max-h-full rounded-2xl overflow-hidden shadow-2xl bg-white">
+            {processedImageUrl ? (
+              <img src={processedImageUrl} alt={card?.label || 'Sound card'} className="w-full h-full object-contain" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-300">No image</div>
             )}

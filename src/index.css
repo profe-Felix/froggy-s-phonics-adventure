@@ -523,24 +523,5 @@
   line-height: 1;
 }
 
-/* Sound Wall card frame — overlays a red border on top of the baked-in blue
-   frame that is part of the uploaded card images. Uses container query units
-   (cqw) so the border width scales proportionally with the card size. */
-.soundwall-card-frame {
-  position: relative;
-  container-type: inline-size;
-  border-radius: 12% !important;
-  overflow: hidden;
-}
-.soundwall-card-frame::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 8cqw solid #dc2626;
-  border-radius: inherit;
-  pointer-events: none;
-  box-sizing: border-box;
-}
-.soundwall-card-frame img {
-  object-fit: contain !important;
-}
+/* Sound Wall card blue→red frame replacement is now done at the pixel level
+   via canvas (src/lib/blueToRed.js) — no CSS overlay needed. */

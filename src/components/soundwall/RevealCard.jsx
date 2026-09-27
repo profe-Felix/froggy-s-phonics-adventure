@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock } from 'lucide-react';
+import { useBlueToRed } from '@/hooks/useBlueToRed';
 
 // Renders a Sound Wall card image with optional covers drawn over it.
 // The cover whose id matches activeRevealId animates away (slides up + fades)
@@ -13,6 +14,7 @@ export default function RevealCard({ card, className = '' }) {
   const covers = Array.isArray(card?.covers) ? card.covers : [];
   const activeRevealId = card?.active_reveal_id || '';
   const [revealedIds, setRevealedIds] = useState(() => new Set());
+  const processedImageUrl = useBlueToRed(card?.imageUrl);
 
   // Reset revealed state whenever the card changes so the reveal can replay.
   useEffect(() => {
@@ -25,9 +27,9 @@ export default function RevealCard({ card, className = '' }) {
   };
 
   return (
-    <div className={`relative w-full h-full soundwall-card-frame ${className}`}>
-      {card?.imageUrl ? (
-        <img src={card.imageUrl} alt={card?.label || 'Sound card'} className="absolute inset-0 w-full h-full object-contain" />
+    <div className={`relative w-full h-full ${className}`}>
+      {processedImageUrl ? (
+        <img src={processedImageUrl} alt={card?.label || 'Sound card'} className="absolute inset-0 w-full h-full object-contain" />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
       )}
