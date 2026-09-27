@@ -198,8 +198,8 @@ export default function SmallGroupAssessmentStudent() {
           {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
         </p>
         <div
-          key={broadcast.current_item}
-          className="text-[200px] font-bold text-white leading-none"
+          key={broadcast.item_index}
+          className="text-[200px] font-bold text-white leading-none assessment-fade-in"
           style={{ fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
         >
           {broadcast.current_item}
