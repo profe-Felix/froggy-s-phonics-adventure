@@ -73,21 +73,16 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     return result;
   }, [entityCards, stepConfig]);
 
-  const [stageIdx, setStageIdx] = useState(0);
+  const [revealedCount, setRevealedCount] = useState(1);
   const [done, setDone] = useState(false);
-  const stage = stages[stageIdx];
 
-  const playSound = () => {
-    if (stage?.card?.sound) playLetterSound(stage.card.sound, lang);
+  const playSound = (sound) => {
+    if (sound) playLetterSound(sound, lang);
   };
 
   const next = () => {
-    if (stageIdx < stages.length - 1) setStageIdx(stageIdx + 1);
+    if (revealedCount < stages.length) setRevealedCount(revealedCount + 1);
     else if (!done) { setDone(true); onComplete?.(); }
-  };
-
-  const prev = () => {
-    if (stageIdx > 0) setStageIdx(stageIdx - 1);
   };
 
   if (loadingCards) {
@@ -119,73 +114,72 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     camera: { color: 'text-indigo-500', text: 'Now you try it!' },
     grapheme: { color: 'text-green-600', text: 'This sound is written as' },
   };
-  const label = stageLabels[stage.type];
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* Stage content */}
+      {/* All stages on one page, appearing one after another */}
       <div className="flex-1 flex items-center justify-center min-h-0 p-4 overflow-auto">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={stageIdx}
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -30 }}
-            transition={{ duration: 0.3 }}
-            className="w-full max-w-md flex flex-col items-center gap-3"
-          >
-            <div className="text-center">
-              <p className={`text-sm font-black uppercase tracking-wide ${label.color}`}>
-                {label.text}
-              </p>
-              {stage.type === 'camera' && (
-                <p className="text-xs text-gray-400 mt-0.5">Make your mouth match the sound</p>
-              )}
-            </div>
+        <div className="flex flex-col lg:flex-row gap-4 items-center justify-center w-full max-w-5xl">
+          {stages.map((stage, i) => {
+            const label = stageLabels[stage.type];
+            const isRevealed = i < revealedCount;
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={isRevealed ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.4 }}
+                className={`flex-1 flex flex-col items-center gap-2 ${isRevealed ? '' : 'pointer-events-none'}`}
+              >
+                <div className="text-center">
+                  <p className={`text-xs font-black uppercase tracking-wide ${label.color}`}>
+                    {label.text}
+                  </p>
+                  {stage.type === 'camera' && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">Match the mouth shape</p>
+                  )}
+                </div>
 
-            {stage.type === 'camera' ? (
-              <div className="w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-slate-900">
-                <CameraMirror className="w-full h-full" />
-              </div>
-            ) : (
-              <div className="w-full max-w-sm aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white">
-                <RevealCard card={stage.card} />
-              </div>
-            )}
+                {stage.type === 'camera' ? (
+                  <div className="w-full max-w-[200px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-slate-900">
+                    {isRevealed && <CameraMirror className="w-full h-full" />}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[200px] aspect-[3/4] rounded-2xl overflow-hidden shadow-lg bg-white">
+                    {isRevealed && <RevealCard card={stage.card} />}
+                  </div>
+                )}
 
-            {stage.card?.label && (
-              <div className="text-3xl font-black text-indigo-600">{stage.card.label}</div>
-            )}
+                {stage.card?.label && isRevealed && (
+                  <div className="text-2xl font-black text-indigo-600">{stage.card.label}</div>
+                )}
 
-            <button
-              onClick={playSound}
-              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-500 text-white font-black shadow-lg hover:bg-indigo-600 transition"
-            >
-              <Volume2 className="w-5 h-5" /> {stage.type === 'camera' ? 'Hear it again' : 'Play sound'}
-            </button>
-          </motion.div>
-        </AnimatePresence>
+                {isRevealed && (
+                  <button
+                    onClick={() => playSound(stage.card?.sound)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500 text-white font-black text-sm shadow hover:bg-indigo-600 transition"
+                  >
+                    <Volume2 className="w-4 h-4" /> {stage.type === 'camera' ? 'Hear it' : 'Play'}
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between p-4 shrink-0 bg-white border-t border-gray-100">
-        <button
-          onClick={prev}
-          disabled={stageIdx === 0}
-          className="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-gray-600 disabled:opacity-40 inline-flex items-center gap-1 hover:bg-gray-50"
-        >
-          <ChevronLeft className="w-5 h-5" /> Back
-        </button>
+      <div className="flex items-center justify-center gap-3 p-4 shrink-0 bg-white border-t border-gray-100">
         <span className="text-sm font-bold text-gray-500">
-          {stageIdx + 1} / {stages.length}
+          {revealedCount} / {stages.length}
         </span>
         <button
           onClick={next}
           disabled={done}
-          className="px-4 py-2 rounded-xl bg-green-500 text-white font-bold inline-flex items-center gap-1 hover:bg-green-600 disabled:opacity-60"
+          className="px-6 py-2.5 rounded-xl bg-green-500 text-white font-bold inline-flex items-center gap-1.5 hover:bg-green-600 disabled:opacity-60"
         >
-          {stageIdx < stages.length - 1 ? (
-            <>Next <ChevronRight className="w-5 h-5" /></>
+          {revealedCount < stages.length ? (
+            <>Show next <ChevronRight className="w-5 h-5" /></>
           ) : (
             <><Check className="w-5 h-5" /> {done ? 'Done!' : 'Done'}</>
           )}
