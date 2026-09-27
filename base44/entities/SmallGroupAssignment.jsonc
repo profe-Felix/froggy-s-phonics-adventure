@@ -52,7 +52,7 @@
     "color_group"
   ],
   "rls": {
-    "read": null,
+    "read": {},
     "create": {
       "$or": [
         {
