@@ -235,18 +235,37 @@ export default function SmallGroupAssessment() {
       },
     };
     setResults(newResults);
-    persistResults(newResults);
     setLastMark({ item, correct: mark === 'correct' });
 
+    // Single atomic update — both results and broadcast_state in one call
+    // so the student sees the new item immediately (one realtime event, no
+    // race between two separate updates).
+    const broadcastState = done
+      ? { show_item: false, student_id: assessingStudent.id, done: true, assessment_type: assessmentType }
+      : {
+          current_item: newResult.item_order[newResult.current_index],
+          student_id: assessingStudent.id,
+          student_number: assessingStudent.student_number,
+          class_name: assessingStudent.class_name,
+          item_index: newResult.current_index,
+          total_items: newResult.item_order.length,
+          show_item: true,
+          assessment_type: assessmentType,
+        };
+    if (session) {
+      base44.entities.SmallGroupAssessment.update(session.id, {
+        results: newResults,
+        broadcast_state: broadcastState,
+      }).catch(() => {});
+    }
+
     if (done) {
-      broadcastItem(newResult, assessingStudent, true);
       updateModeProgress(assessingStudent, assessmentType, newResult);
       setTimeout(() => {
         setAssessingStudentId(null);
         setLastMark(null);
       }, 800);
     } else {
-      broadcastItem(newResult, assessingStudent);
       // Clear the flash feedback so it doesn't linger on the next card.
       setTimeout(() => setLastMark(null), 500);
     }

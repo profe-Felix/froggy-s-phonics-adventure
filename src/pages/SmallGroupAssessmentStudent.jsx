@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Loader2, CheckCircle2, Clock } from 'lucide-react';
 
@@ -77,18 +77,33 @@ export default function SmallGroupAssessmentStudent() {
 
     let alive = true;
     const unsubscribers = [];
+    // Monotonic counter — stale GET responses (from rapid teacher marking)
+    // are ignored so the student never sees an older state overwrite a newer
+    // one.
+    let latestRequestId = 0;
+
+    const applyFresh = (fresh) => {
+      if (!alive || !fresh || !fresh.id) return;
+      setSessions((prev) =>
+        prev.map((s) => (s.id === fresh.id ? fresh : s))
+      );
+    };
 
     for (const sess of sessions) {
       const unsub = base44.entities.SmallGroupAssessment.subscribe((event) => {
         if (!alive) return;
         const eventId = event.id || event.data?.id;
         if (eventId !== sess.id) return;
-        // Refresh this session's data
+        // Use the event data directly if it has broadcast_state (no GET
+        // latency). Fall back to a GET otherwise.
+        if (event.data && event.data.broadcast_state !== undefined) {
+          applyFresh(event.data);
+        }
+        // Also fire a GET to be safe, but ignore stale responses.
+        const reqId = ++latestRequestId;
         base44.entities.SmallGroupAssessment.get(sess.id).then((fresh) => {
-          if (!alive) return;
-          setSessions((prev) =>
-            prev.map((s) => (s.id === fresh.id ? fresh : s))
-          );
+          if (reqId < latestRequestId) return; // stale
+          applyFresh(fresh);
         }).catch(() => {});
       });
       unsubscribers.push(unsub);
@@ -99,11 +114,10 @@ export default function SmallGroupAssessmentStudent() {
     const pollInterval = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       for (const sess of sessions) {
+        const reqId = ++latestRequestId;
         base44.entities.SmallGroupAssessment.get(sess.id).then((fresh) => {
-          if (!alive) return;
-          setSessions((prev) =>
-            prev.map((s) => (s.id === fresh.id ? fresh : s))
-          );
+          if (reqId < latestRequestId) return; // stale
+          applyFresh(fresh);
         }).catch(() => {});
       }
     }, 800);
