@@ -9,7 +9,7 @@ import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData } from
 import { DECODING_LEVELS, generateDecodingItems, canAssessLevel } from '@/lib/decodingSyllables';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import AssessmentRecordingPlayer from '@/components/smallgroup/AssessmentRecordingPlayer';
-import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, AlertCircle, Mic, Play, Volume2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, ChevronDown, AlertCircle, Mic, Play, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
 
@@ -360,7 +360,7 @@ export default function SmallGroupAssessment() {
         }
       } else {
         // Start new decoding assessment — begin with CV level
-        const cvItems = generateDecodingItems('CV', moduleNum, lessonNum, 10);
+        const cvItems = generateDecodingItems('CV', moduleNum, lessonNum);
         if (cvItems.length === 0) {
           alert('No CV syllables available for this class\'s current curriculum position. Check the active module/lesson in Manage Classes.');
           return;
@@ -584,15 +584,14 @@ export default function SmallGroupAssessment() {
     let nextItems = [];
 
     if (levelDone) {
-      const passed = newLevel.accuracy >= 0.7;
       const levelIdx = DECODING_LEVELS.findIndex((l) => l.id === dr.current_level);
-      if (passed && levelIdx < DECODING_LEVELS.length - 1) {
-        // Advance to next level
+      if (levelIdx < DECODING_LEVELS.length - 1) {
+        // Always advance to next level (first round — see approach on all patterns)
         const config = classConfigs[assessingStudent.class_name];
         const moduleNum = config?.active_spanish_module || 1;
         const lessonNum = config?.active_spanish_lesson || 1;
         nextLevelId = DECODING_LEVELS[levelIdx + 1].id;
-        nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum, 10);
+        nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum);
         if (nextItems.length > 0) {
           newDecoding.current_level = nextLevelId;
           newDecoding.levels = {
@@ -609,7 +608,7 @@ export default function SmallGroupAssessment() {
           assessmentDone = true;
         }
       } else {
-        // Didn't pass or no more levels — assessment done
+        // No more levels — assessment done
         newDecoding.completed = true;
         assessmentDone = true;
       }
@@ -684,6 +683,99 @@ export default function SmallGroupAssessment() {
     }
   };
 
+  // End current section/level early and advance to the next level (down arrow).
+  // Lets the teacher say "enough" on this section and see the next pattern.
+  const handleEndSection = async () => {
+    if (!assessingStudentId || assessmentType !== 'decoding') return;
+    const dr = results[assessingStudentId]?.['decoding'];
+    if (!dr || dr.completed) return;
+    const level = dr.levels?.[dr.current_level];
+    if (!level) return;
+
+    // Mark current level as completed with current accuracy
+    const newLevel = {
+      ...level,
+      completed: true,
+      accuracy: level.item_order.length > 0
+        ? level.correct.length / level.item_order.length
+        : 0,
+    };
+    const newLevels = { ...dr.levels, [dr.current_level]: newLevel };
+    let newDecoding = { ...dr, levels: newLevels };
+    let assessmentDone = false;
+    let nextLevelId = null;
+    let nextItems = [];
+
+    const levelIdx = DECODING_LEVELS.findIndex((l) => l.id === dr.current_level);
+    if (levelIdx < DECODING_LEVELS.length - 1) {
+      const config = classConfigs[assessingStudent.class_name];
+      const moduleNum = config?.active_spanish_module || 1;
+      const lessonNum = config?.active_spanish_lesson || 1;
+      nextLevelId = DECODING_LEVELS[levelIdx + 1].id;
+      nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum);
+      if (nextItems.length > 0) {
+        newDecoding.current_level = nextLevelId;
+        newDecoding.levels = {
+          ...newLevels,
+          [nextLevelId]: {
+            item_order: nextItems,
+            correct: [], incorrect: [], attempted: [],
+            current_index: 0, completed: false, accuracy: 0,
+          },
+        };
+      } else {
+        newDecoding.completed = true;
+        assessmentDone = true;
+      }
+    } else {
+      newDecoding.completed = true;
+      assessmentDone = true;
+    }
+
+    const newResults = {
+      ...results,
+      [assessingStudentId]: {
+        ...results[assessingStudentId],
+        decoding: newDecoding,
+      },
+    };
+    setResults(newResults);
+
+    if (assessmentDone) {
+      if (session) {
+        base44.entities.SmallGroupAssessment.update(session.id, {
+          results: newResults,
+          broadcast_state: { show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' },
+        }).catch(() => {});
+      }
+      const allCorrect = Object.values(newDecoding.levels).flatMap((l) => l.correct || []);
+      const allIncorrect = Object.values(newDecoding.levels).flatMap((l) => l.incorrect || []);
+      const allAttempted = Object.values(newDecoding.levels).flatMap((l) => l.attempted || []);
+      updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
+      setTimeout(() => {
+        setAssessingStudentId(null);
+        setLastMark(null);
+      }, 800);
+    } else if (nextLevelId && nextItems.length > 0) {
+      if (session) {
+        base44.entities.SmallGroupAssessment.update(session.id, {
+          results: newResults,
+          broadcast_state: {
+            current_item: nextItems[0],
+            student_id: assessingStudentId,
+            student_number: assessingStudent.student_number,
+            class_name: assessingStudent.class_name,
+            item_index: 0,
+            total_items: nextItems.length,
+            show_item: true,
+            assessment_type: 'decoding',
+            decoding_level: nextLevelId,
+          },
+        }).catch(() => {});
+      }
+    }
+  };
+
   // End early
   const handleEndEarly = async () => {
     if (!assessingStudentId) return;
@@ -744,6 +836,7 @@ export default function SmallGroupAssessment() {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 'ArrowRight') { e.preventDefault(); handleMark('correct'); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); handleEndSection(); }
       else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
     };
     window.addEventListener('keydown', handler);
@@ -984,6 +1077,17 @@ export default function SmallGroupAssessment() {
               </div>
               <span className="text-sm font-medium">End (E)</span>
             </button>
+            {assessmentType === 'decoding' && (
+              <button
+                onClick={handleEndSection}
+                className="flex flex-col items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                <div className="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-indigo-500 flex items-center justify-center">
+                  <ChevronDown className="w-8 h-8" />
+                </div>
+                <span className="text-sm font-medium">Skip Section (↓)</span>
+              </button>
+            )}
             <button
               onClick={() => handleMark('correct')}
               className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"

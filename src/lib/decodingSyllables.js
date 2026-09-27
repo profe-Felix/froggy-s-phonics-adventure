@@ -205,14 +205,16 @@ export const DECODING_LEVELS = [
 ];
 
 // Generate a shuffled set of items for a given level.
-export function generateDecodingItems(levelId, moduleNumber, lessonNumber, count = 10) {
+export function generateDecodingItems(levelId, moduleNumber, lessonNumber, count = 0) {
   const graphemes = getTaughtGraphemes(moduleNumber, lessonNumber);
   const level = DECODING_LEVELS.find((l) => l.id === levelId);
   if (!level) return [];
   const pool = level.generate(graphemes);
   if (pool.length === 0) return [];
   const shuffled = shuffle(pool);
-  // If pool is smaller than count, return all; otherwise take count
+  // count = 0 means return ALL items (e.g. every CV syllable is tested).
+  // Otherwise take min(count, pool.length).
+  if (count <= 0) return shuffled;
   return shuffled.slice(0, Math.min(count, pool.length));
 }
 
