@@ -29,6 +29,7 @@ import LessonMap from '../components/lesson/LessonMap';
 import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
 import LiveLessonStudent from '@/components/live/LiveLessonStudent';
+import AssessmentOverlay from '@/components/smallgroup/AssessmentOverlay';
 import { useClassColors } from '@/hooks/useClassColors';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
@@ -721,6 +722,7 @@ export default function LetterGame() {
   if (!currentMode && !activeLessonStep) {
     return (
       <>
+        <AssessmentOverlay className={selectedStudent?.class_name} studentNumber={selectedStudent?.number} />
         <GameHome
           studentData={studentData}
           selectedStudent={selectedStudent}
@@ -764,6 +766,7 @@ export default function LetterGame() {
 
   return (
     <div className="relative h-screen flex flex-col">
+      <AssessmentOverlay className={selectedStudent?.class_name} studentNumber={selectedStudent?.number} />
       {currentMode === 'letter_sounds' && (
         <LetterSoundsMode
           studentData={studentData}
