@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useBlueToRed } from '@/hooks/useBlueToRed';
+import { replaceBlueWithRed, dataUrlToBlob } from '@/lib/blueToRed';
 import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft, Layers } from 'lucide-react';
 import { getCurriculumPositionList, getGraphemesAtKey } from '@/lib/literacy/curriculumPositions';
 import { pdfFirstPageToPng, isPdfFile } from '@/lib/pdfToImage';
@@ -17,6 +18,8 @@ export default function SoundWallManager() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(null); // { grapheme, cardType } | null
   const [editingCoverCard, setEditingCoverCard] = useState(null); // SoundWallCard | null
+  const [processingAll, setProcessingAll] = useState(false);
+  const [processProgress, setProcessProgress] = useState('');
 
   const graphemes = useMemo(() => getGraphemesAtKey(selectedKey), [selectedKey]);
   const positionInfo = positions.find((p) => p.key === selectedKey);
@@ -52,8 +55,24 @@ export default function SoundWallManager() {
         imageFile = new File([pngBlob], `${grapheme}_${cardType}.png`, { type: 'image/png' });
       }
 
-      // Upload the image (or converted PNG) to public storage.
-      const { file_url } = await base44.integrations.Core.UploadPublicFile({ file: imageFile });
+      const ext = (imageFile.name.split('.').pop() || 'png').toLowerCase();
+      const baseName = `${grapheme}_${cardType}`;
+
+      // 1. Upload the original as OG_<name> (backup with blue/orange frame).
+      const ogFile = new File([imageFile], `OG_${baseName}.${ext}`, { type: imageFile.type });
+      const { file_url: originalUrl } = await base44.integrations.Core.UploadPublicFile({ file: ogFile });
+
+      // 2. Process blue/orange → red on canvas.
+      const processedDataUrl = await replaceBlueWithRed(originalUrl);
+
+      let finalUrl = originalUrl;
+      if (processedDataUrl !== originalUrl) {
+        // 3. Frame was replaced — upload processed version as UP_<name>.
+        const processedBlob = dataUrlToBlob(processedDataUrl);
+        const upFile = new File([processedBlob], `UP_${baseName}.png`, { type: 'image/png' });
+        const { file_url: upUrl } = await base44.integrations.Core.UploadPublicFile({ file: upFile });
+        finalUrl = upUrl;
+      }
 
       // Check if a card already exists for this grapheme + type at this position.
       const existing = cards.find(
@@ -64,7 +83,8 @@ export default function SoundWallManager() {
         card_type: cardType,
         grapheme,
         label,
-        image_url: file_url,
+        image_url: finalUrl,
+        original_image_url: originalUrl,
         curriculum_key: selectedKey,
         module_number: positionInfo?.moduleNumber,
         lesson_number: positionInfo?.lessonNumber,
@@ -96,6 +116,55 @@ export default function SoundWallManager() {
     }
   };
 
+  // Batch-process all existing cards across all curriculum positions.
+  // Downloads each card image, replaces the frame color, uploads the
+  // processed version as UP_<name>, and updates image_url so students
+  // see red immediately without client-side canvas processing.
+  const handleProcessAll = async () => {
+    if (!confirm('This will process ALL Sound Wall cards across all positions — replacing blue/orange frames with red and saving the result. Continue?')) return;
+    setProcessingAll(true);
+    let total = 0, processed = 0, skipped = 0, failed = 0;
+
+    for (const pos of positions) {
+      setProcessProgress(`${pos.key}…`);
+      try {
+        const posCards = await base44.entities.SoundWallCard.filter({ curriculum_key: pos.key });
+        for (const card of posCards) {
+          if (!card.image_url) continue;
+          total++;
+          try {
+            const processedDataUrl = await replaceBlueWithRed(card.image_url);
+            if (processedDataUrl === card.image_url) {
+              skipped++; // already red or no frame detected
+              continue;
+            }
+
+            const baseName = `${card.grapheme}_${card.card_type}`;
+            const processedBlob = dataUrlToBlob(processedDataUrl);
+            const upFile = new File([processedBlob], `UP_${baseName}.png`, { type: 'image/png' });
+            const { file_url: upUrl } = await base44.integrations.Core.UploadPublicFile({ file: upFile });
+
+            await base44.entities.SoundWallCard.update(card.id, {
+              image_url: upUrl,
+              original_image_url: card.image_url,
+            });
+            processed++;
+          } catch (err) {
+            console.error(`Failed to process ${card.grapheme} ${card.card_type}:`, err);
+            failed++;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to load cards for ${pos.key}:`, err);
+      }
+    }
+
+    setProcessingAll(false);
+    setProcessProgress('');
+    await loadCards(selectedKey);
+    alert(`Done!\nProcessed: ${processed}\nAlready red: ${skipped}\nFailed: ${failed}\nTotal: ${total}`);
+  };
+
   const getCardFor = (grapheme, cardType) =>
     cards.find((c) => c.grapheme === grapheme && c.card_type === cardType);
 
@@ -111,6 +180,20 @@ export default function SoundWallManager() {
             <span>🔊</span> Sound Wall Manager
           </h1>
           <div className="flex-1" />
+          <button
+            onClick={handleProcessAll}
+            disabled={processingAll}
+            className="text-sm font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-60 flex items-center gap-1.5"
+          >
+            {processingAll ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {processProgress || 'Processing…'}
+              </>
+            ) : (
+              'Process all cards'
+            )}
+          </button>
           <a
             href="/LessonEditor"
             className="text-sm font-bold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50"

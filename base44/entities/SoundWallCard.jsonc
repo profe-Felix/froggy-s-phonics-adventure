@@ -21,7 +21,12 @@
     },
     "image_url": {
       "type": "string",
-      "description": "Public URL of the uploaded card image (PNG/JPG). PDFs are converted to PNG on upload."
+      "description": "Public URL of the processed card image (red border). Pre-processed on upload so students see red immediately without client-side canvas conversion."
+    },
+    "original_image_url": {
+      "type": "string",
+      "default": "",
+      "description": "Original unprocessed card image URL (with blue/orange frame). Saved as OG_ backup when the processed UP_ version replaces image_url."
     },
     "curriculum_key": {
       "type": "string",

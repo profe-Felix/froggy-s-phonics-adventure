@@ -10,6 +10,9 @@
 // detection. Blue frames use loose blue detection (safe — no false positives).
 // Orange frames use tight tolerance (±15) restricted to the outer border strip
 // (8%), so only the frame is touched, not interior photo content.
+//
+// Already-red frames (pre-processed images) are detected and skipped — no
+// unnecessary reprocessing.
 
 const cache = new Map();
 
@@ -62,6 +65,13 @@ export async function replaceBlueWithRed(imageUrl) {
     const frameR = Math.round(sr / count);
     const frameG = Math.round(sg / count);
     const frameB = Math.round(sb / count);
+
+    // Already processed — red frame. Skip to avoid unnecessary work.
+    const isRedFrame = frameR > 180 && frameG < 80 && frameB < 80;
+    if (isRedFrame) {
+      cache.set(imageUrl, imageUrl);
+      return imageUrl;
+    }
 
     const isBlueFrame = frameB > 120 && frameB > frameR + 40 && frameB > frameG + 20;
     const isOrangeFrame = frameR > 120 && frameR > frameB + 40 && frameG < 200;
@@ -120,4 +130,14 @@ export async function replaceBlueWithRed(imageUrl) {
     cache.set(imageUrl, imageUrl);
     return imageUrl;
   }
+}
+
+// Converts a canvas data URL to a Blob for file upload.
+export function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
