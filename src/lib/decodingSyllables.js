@@ -109,7 +109,7 @@ function generateCVSyllables(graphemes) {
       }
     }
   }
-  return [...syllables];
+  return [...syllables].sort();
 }
 
 // Generate CVC words: ~12 words, cycling through taught initial consonants
@@ -245,42 +245,58 @@ const REAL_CVCV_WORDS = [
   { word: 'vela', g: ['v','l','e','a'] },
 ];
 
-// Real Spanish inverse-pattern words (vowel-first: V-CV, V-CCV).
+// Real Spanish inverse-pattern words.
+// true = V-CCV with a closed V-C syllable (alma, isla) — the target pattern.
+// simple = V-CV with no closed syllable (oso, ala) — filler when true inverse
+// words are scarce at early curriculum positions.
 const REAL_INVERSE_WORDS = [
-  // ── m, p, s, l + vowels ──
-  { word: 'oso', g: ['s','o'] },
-  { word: 'ala', g: ['l','a'] },
-  { word: 'amo', g: ['m','a','o'] },
-  { word: 'ola', g: ['l','o','a'] },
-  { word: 'asa', g: ['s','a'] },
-  { word: 'eme', g: ['m','e'] },
-  { word: 'ele', g: ['l','e'] },
-  { word: 'ese', g: ['s','e'] },
-  { word: 'uso', g: ['s','u','o'] },
-  { word: 'osa', g: ['s','o','a'] },
-  { word: 'isla', g: ['s','l','i','a'] },
-  { word: 'alma', g: ['l','m','a'] },
-  // ── + n ──
-  { word: 'uno', g: ['n','u','o'] },
-  { word: 'asno', g: ['s','n','a','o'] },
-  // ── + d ──
-  { word: 'oda', g: ['d','o','a'] },
-  // ── + t ──
-  { word: 'alto', g: ['l','t','a','o'] },
-  { word: 'alta', g: ['l','t','a'] },
-  { word: 'ata', g: ['t','a'] },
-  { word: 'asta', g: ['s','t','a'] },
-  { word: 'este', g: ['s','t','e'] },
-  { word: 'esto', g: ['s','t','o'] },
-  // ── + f ──
-  { word: 'efe', g: ['f','e'] },
-  // ── + r-inicial ──
-  { word: 'ora', g: ['r-inicial','o','a'] },
-  { word: 'ara', g: ['r-inicial','a'] },
-  { word: 'ere', g: ['r-inicial','e'] },
-  { word: 'ira', g: ['r-inicial','i','a'] },
-  { word: 'arma', g: ['r-inicial','m','a'] },
-  { word: 'orla', g: ['r-inicial','l','o','a'] },
+  // ── True inverse (V-CCV) ──
+  // m, p, s, l + vowels
+  { word: 'alma', g: ['l','m','a'], true: true },
+  { word: 'asma', g: ['s','m','a'], true: true },
+  { word: 'aspa', g: ['s','p','a'], true: true },
+  { word: 'isla', g: ['s','l','i','a'], true: true },
+  { word: 'olmo', g: ['l','m','o'], true: true },
+  // + n, d
+  { word: 'asno', g: ['s','n','a','o'], true: true },
+  { word: 'onda', g: ['n','d','o','a'], true: true },
+  { word: 'anda', g: ['n','d','a'], true: true },
+  // + t
+  { word: 'alto', g: ['l','t','a','o'], true: true },
+  { word: 'alta', g: ['l','t','a'], true: true },
+  { word: 'asta', g: ['s','t','a'], true: true },
+  { word: 'este', g: ['s','t','e'], true: true },
+  { word: 'esto', g: ['s','t','o'], true: true },
+  // + f
+  { word: 'alfa', g: ['l','f','a'], true: true },
+  // + b
+  { word: 'alba', g: ['l','b','a'], true: true },
+  // + r-inicial
+  { word: 'arma', g: ['r-inicial','m','a'], true: true },
+  { word: 'orla', g: ['r-inicial','l','o','a'], true: true },
+  { word: 'arpa', g: ['r-inicial','p','a'], true: true },
+  // + c-fuerte
+  { word: 'orca', g: ['r-inicial','c-fuerte','o','a'], true: true },
+  { word: 'orco', g: ['r-inicial','c-fuerte','o'], true: true },
+  // ── Simple V-CV (filler) ──
+  { word: 'oso', g: ['s','o'], true: false },
+  { word: 'ala', g: ['l','a'], true: false },
+  { word: 'amo', g: ['m','a','o'], true: false },
+  { word: 'ola', g: ['l','o','a'], true: false },
+  { word: 'asa', g: ['s','a'], true: false },
+  { word: 'eme', g: ['m','e'], true: false },
+  { word: 'ele', g: ['l','e'], true: false },
+  { word: 'ese', g: ['s','e'], true: false },
+  { word: 'uso', g: ['s','u','o'], true: false },
+  { word: 'osa', g: ['s','o','a'], true: false },
+  { word: 'uno', g: ['n','u','o'], true: false },
+  { word: 'oda', g: ['d','o','a'], true: false },
+  { word: 'ata', g: ['t','a'], true: false },
+  { word: 'efe', g: ['f','e'], true: false },
+  { word: 'ora', g: ['r-inicial','o','a'], true: false },
+  { word: 'ara', g: ['r-inicial','a'], true: false },
+  { word: 'ere', g: ['r-inicial','e'], true: false },
+  { word: 'ira', g: ['r-inicial','i','a'], true: false },
 ];
 
 // Check if all required graphemes for a word are in the taught set.
@@ -305,11 +321,11 @@ function generateCVCVWords(graphemes) {
 // Returns up to 12 words, sorted alphabetically — deterministic.
 function generateInverseWords(graphemes) {
   const taughtSet = new Set(graphemes);
-  return REAL_INVERSE_WORDS
-    .filter((entry) => wordIsAvailable(entry, taughtSet))
-    .map((entry) => entry.word)
-    .sort()
-    .slice(0, 12);
+  const available = REAL_INVERSE_WORDS.filter((entry) => wordIsAvailable(entry, taughtSet));
+  // True inverse (V-CCV) first, then simple V-CV as filler.
+  const trueInv = available.filter((e) => e.true).map((e) => e.word).sort();
+  const simple = available.filter((e) => !e.true).map((e) => e.word).sort();
+  return [...trueInv, ...simple].slice(0, 12);
 }
 
 export const DECODING_LEVELS = [
@@ -326,11 +342,10 @@ export function generateDecodingItems(levelId, moduleNumber, lessonNumber, count
   if (!level) return [];
   const pool = level.generate(graphemes);
   if (pool.length === 0) return [];
-  // Deterministic sort — no shuffle — so every student at the same
-  // curriculum position gets the same list every round.
-  const sorted = [...pool].sort();
-  if (count <= 0) return sorted;
-  return sorted.slice(0, Math.min(count, pool.length));
+  // Generators already return a deterministic order (alphabetical, or
+  // true-inverse-first for the inverse level) — do NOT re-sort here.
+  if (count <= 0) return pool;
+  return pool.slice(0, Math.min(count, pool.length));
 }
 
 // Check if a level has enough items to be assessable.
