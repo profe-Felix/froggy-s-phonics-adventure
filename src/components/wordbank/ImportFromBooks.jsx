@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import * as pdfjsLib from 'pdfjs-dist';
 import { buildWordRecord, TIER_LABELS } from '@/lib/wordBankDifficulty';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const TIER_COLORS = {
   1: 'bg-green-100 text-green-700',

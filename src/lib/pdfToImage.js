@@ -4,7 +4,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set the worker source to the CDN build that matches the installed version.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export async function pdfFirstPageToPng(file) {
   const arrayBuffer = await file.arrayBuffer();
