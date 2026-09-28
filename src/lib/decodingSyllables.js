@@ -67,8 +67,75 @@ const GRAPHEME_CV_MAP = {
 
 const VOWELS = ['a','e','i','o','u'];
 
-// Consonants that can appear at the end of a CVC word in Spanish.
-const VALID_FINAL_CONSONANTS = ['s','n','l','r','d','t','z','x'];
+// Real Spanish CVC words, tagged with required graphemes (initial + vowel + final).
+// Filtered by the graphemes taught through the current curriculum position.
+const REAL_CVC_WORDS = [
+  // ── m, p, s, l + vowels (M2.L11+) — finals: s, l ──
+  { word: 'mas', g: ['m','s','a'] },
+  { word: 'mes', g: ['m','s','e'] },
+  { word: 'mis', g: ['m','s','i'] },
+  { word: 'las', g: ['l','s','a'] },
+  { word: 'les', g: ['l','s','e'] },
+  { word: 'los', g: ['l','s','o'] },
+  { word: 'mal', g: ['m','l','a'] },
+  { word: 'mil', g: ['m','l','i'] },
+  { word: 'sal', g: ['s','l','a'] },
+  { word: 'sol', g: ['s','l','o'] },
+  // ── + n (M2.L16+) — finals: s, l, n ──
+  { word: 'pan', g: ['p','n','a'] },
+  { word: 'sin', g: ['s','n','i'] },
+  { word: 'son', g: ['s','n','o'] },
+  { word: 'san', g: ['s','n','a'] },
+  // ── + d (M3.L1+) — finals: s, l, n, d ──
+  { word: 'dan', g: ['d','n','a'] },
+  { word: 'don', g: ['d','n','o'] },
+  { word: 'dos', g: ['d','s','o'] },
+  { word: 'del', g: ['d','l','e'] },
+  { word: 'sed', g: ['s','d','e'] },
+  // ── + t (M3.L6+) — finals: s, l, n, d, t ──
+  { word: 'tan', g: ['t','n','a'] },
+  { word: 'tos', g: ['t','s','o'] },
+  // ── + f (M3.L11+) ──
+  { word: 'fin', g: ['f','n','i'] },
+  // ── + b (M4.L1+) ──
+  { word: 'bus', g: ['b','s','u'] },
+  // ── + c-fuerte (M4.L11+) ──
+  { word: 'cal', g: ['c-fuerte','l','a'] },
+  { word: 'col', g: ['c-fuerte','l','o'] },
+  { word: 'can', g: ['c-fuerte','n','a'] },
+  { word: 'con', g: ['c-fuerte','n','o'] },
+  // ── + v (M5.L1+) ──
+  { word: 'vas', g: ['v','s','a'] },
+  { word: 'ves', g: ['v','s','e'] },
+  { word: 'vos', g: ['v','s','o'] },
+  { word: 'val', g: ['v','l','a'] },
+  { word: 'vil', g: ['v','l','i'] },
+  { word: 'van', g: ['v','n','a'] },
+  { word: 'ven', g: ['v','n','e'] },
+  { word: 'vid', g: ['v','d','i'] },
+  // ── + r-final (M5.L6+) ──
+  { word: 'mar', g: ['m','a','r-final'] },
+  { word: 'par', g: ['p','a','r-final'] },
+  { word: 'por', g: ['p','o','r-final'] },
+  { word: 'ser', g: ['s','e','r-final'] },
+  { word: 'dar', g: ['d','a','r-final'] },
+  { word: 'tor', g: ['t','o','r-final'] },
+  { word: 'bar', g: ['b','a','r-final'] },
+  { word: 'ver', g: ['v','e','r-final'] },
+  // ── + g-fuerte (M6.L1+) ──
+  { word: 'gas', g: ['g-fuerte','s','a'] },
+  { word: 'gol', g: ['g-fuerte','l','o'] },
+  // ── + tr (M8.L11+) ──
+  { word: 'tras', g: ['tr','s','a'] },
+  { word: 'tres', g: ['tr','s','e'] },
+  { word: 'tren', g: ['tr','n','e'] },
+  // ── + gr (M8.L16+) ──
+  { word: 'gris', g: ['gr','s','i'] },
+  { word: 'gran', g: ['gr','n','a'] },
+  // ── + pl, fl (M9.L11+) ──
+  { word: 'plan', g: ['pl','n','a'] },
+  { word: 'flan', g: ['fl','n','a'] },
+];
 
 function shuffle(arr) {
   const a = [...arr];
@@ -112,52 +179,16 @@ function generateCVSyllables(graphemes) {
   return [...syllables].sort();
 }
 
-// Generate CVC words: ~12 words, cycling through taught initial consonants
-// so each one gets equal representation (e.g. m/p/s/l each appear 3×).
-// Final consonants rotate through valid Spanish finals that have been taught.
-// Deterministic — same list every round for the same curriculum position.
+// Generate CVC words from a curated list of real Spanish words, filtered
+// by the graphemes taught through the current curriculum position.
+// Returns up to 12 words, sorted alphabetically — deterministic.
 function generateCVCWords(graphemes) {
-  const cvSyllables = generateCVSyllables(graphemes);
-  if (cvSyllables.length === 0) return [];
-
-  // Valid final consonants from taught graphemes
-  const taughtFinals = graphemes
-    .filter((g) => VALID_FINAL_CONSONANTS.includes(g) || g === 'r-final' || g === 'r-medial')
-    .map((g) => (g === 'r-final' || g === 'r-medial' ? 'r' : g));
-  const uniqueFinals = [...new Set(taughtFinals)].sort();
-  if (uniqueFinals.length === 0) return [];
-
-  // Group CV syllables by initial consonant, sorted for determinism
-  const byInitial = {};
-  for (const syl of [...cvSyllables].sort()) {
-    const ic = syl.slice(0, -1);
-    if (!byInitial[ic]) byInitial[ic] = [];
-    byInitial[ic].push(syl);
-  }
-  const initials = Object.keys(byInitial).sort();
-
-  // Build 12 words, cycling through initials so each gets equal representation.
-  // For each initial, use the next available vowel and a rotating final consonant.
-  const wordList = [];
-  const words = new Set();
-  const usedSyllables = new Set();
-  let finalIdx = 0;
-
-  for (let round = 0; round < 12; round++) {
-    const ic = initials[round % initials.length];
-    const syl = byInitial[ic].find((s) => !usedSyllables.has(s));
-    if (!syl) continue;
-    const fc = uniqueFinals[finalIdx % uniqueFinals.length];
-    const word = syl + fc;
-    if (!words.has(word)) {
-      words.add(word);
-      wordList.push(word);
-      usedSyllables.add(syl);
-    }
-    finalIdx++;
-  }
-
-  return wordList.sort();
+  const taughtSet = new Set(graphemes);
+  return REAL_CVC_WORDS
+    .filter((entry) => wordIsAvailable(entry, taughtSet))
+    .map((entry) => entry.word)
+    .sort()
+    .slice(0, 12);
 }
 
 // Real Spanish CVCV words (two CV syllables), tagged with required graphemes.
@@ -171,7 +202,7 @@ const REAL_CVCV_WORDS = [
   { word: 'musa', g: ['m','s','u','a'] },
   { word: 'mula', g: ['m','l','u','a'] },
   { word: 'mala', g: ['m','l','a'] },
-  { word: 'molo', g: ['m','l','o'] },
+
   { word: 'puma', g: ['p','m','u','a'] },
   { word: 'pipa', g: ['p','a'] },
   { word: 'pasa', g: ['p','s','a'] },
@@ -191,7 +222,7 @@ const REAL_CVCV_WORDS = [
   { word: 'lapa', g: ['l','p','a'] },
   { word: 'lupa', g: ['l','p','u','a'] },
   { word: 'lila', g: ['l','i','a'] },
-  { word: 'lelo', g: ['l','e','o'] },
+
   { word: 'papa', g: ['p','a'] },
   { word: 'mama', g: ['m','a'] },
   { word: 'mimo', g: ['m','i','o'] },
@@ -330,7 +361,7 @@ function generateInverseWords(graphemes) {
 
 export const DECODING_LEVELS = [
   { id: 'CV', label: 'CV Syllables', generate: generateCVSyllables, sample: 'mo, pa, si' },
-  { id: 'CVC', label: 'CVC Words', generate: generateCVCWords, sample: 'mes, mas, pal' },
+  { id: 'CVC', label: 'CVC Words', generate: generateCVCWords, sample: 'sal, mes, mas' },
   { id: 'CVCV', label: 'CVCV Words', generate: generateCVCVWords, sample: 'mapa, sopa, pala' },
   { id: 'inverse', label: 'Inverse', generate: generateInverseWords, sample: 'oso, isla, alma' },
 ];
