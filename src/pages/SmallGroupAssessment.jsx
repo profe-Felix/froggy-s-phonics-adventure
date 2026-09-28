@@ -22,6 +22,26 @@ const ASSESSMENT_TYPES = [
   { id: 'sight_words', label: 'Sight Words', prompt: 'Lee la palabra:', isLetter: false },
 ];
 
+// Digraphs are assessed last (after all single letters).
+const DIGRAPHS = new Set(['Ll', 'll', 'Ch', 'ch', 'Rr', 'rr']);
+
+// Letters with two sounds (fuerte/suave) — assessed with S/F buttons instead of ✓/✗.
+// C = /k/ (fuerte: ca,co,cu) vs /s/ (suave: ce,ci)
+// G = /g/ (fuerte: ga,go,gu) vs /x/ (suave: ge,gi)
+// R = /r/ (fuerte: rolled, initial/rr) vs /ɾ/ (suave: flap, medial/final)
+const TWO_SOUND_LETTERS = new Set(['c', 'g', 'r', 'C', 'G', 'R_']);
+
+// Maps a two-sound letter + sound type to the correct Student Dashboard key.
+// c/G have separate dashboard entries for fuerte vs suave; r shares one key.
+const SOUND_DASH_KEY = {
+  'c': { fuerte: 'c', suave: 'c_s' },
+  'C': { fuerte: 'C', suave: 'C_s' },
+  'g': { fuerte: 'g', suave: 'g_j' },
+  'G': { fuerte: 'G', suave: 'G_j' },
+  'r': { fuerte: 'r', suave: 'r' },
+  'R_': { fuerte: 'R_', suave: 'R_' },
+};
+
 function getItemPool(language, assessmentType, moduleNumber, lessonNumber) {
   if (assessmentType === 'sight_words') {
     if (language === 'en') return [...SW_EN];
@@ -47,10 +67,16 @@ function getItemPool(language, assessmentType, moduleNumber, lessonNumber) {
     if (i % 2 === 0) uppercase.push(l.d);
     else lowercase.push(l.d);
   });
+  // Move digraphs (ll, ch, rr) to the end so single letters are assessed first.
+  const sortDigraphs = (arr) => {
+    const regular = arr.filter((l) => !DIGRAPHS.has(l));
+    const digraphs = arr.filter((l) => DIGRAPHS.has(l));
+    return [...regular, ...digraphs];
+  };
   if (assessmentType === 'lower_names' || assessmentType === 'lower_sounds') {
-    return [...lowercase];
+    return sortDigraphs([...lowercase]);
   }
-  return [...uppercase];
+  return sortDigraphs([...uppercase]);
 }
 
 function letterToDashboardKey(letter, language) {
@@ -197,6 +223,10 @@ export default function SmallGroupAssessment() {
     ? decodingResult?.completed
     : studentResult?.completed || (studentResult && studentResult.current_index >= studentResult.item_order.length);
 
+  // Two-sound letters (c, g, r) in sounds mode get S/F buttons instead of ✓/✗.
+  const isTwoSoundItem = (assessmentType === 'upper_sounds' || assessmentType === 'lower_sounds')
+    && currentItem && TWO_SOUND_LETTERS.has(currentItem);
+
   // Broadcast current item to student screen
   const broadcastItem = useCallback((item, student, opts = {}) => {
     if (!session) return;
@@ -297,10 +327,22 @@ export default function SmallGroupAssessment() {
           }
         }
       } else {
-        const dashKey = letterToDashboardKey(item, lang);
-        if (data.letters[dashKey]) {
-          if (isName) data.letters[dashKey].upper = true;
-          else data.letters[dashKey].sound = true;
+        if (isName) {
+          const dashKey = letterToDashboardKey(item, lang);
+          if (data.letters[dashKey]) data.letters[dashKey].upper = true;
+        } else if (isSound) {
+          // For two-sound letters (c, g, r), use sound_marks to pick the right dashboard key.
+          // c/G have separate fuerte/suave entries; r shares one key for both sounds.
+          const soundMap = SOUND_DASH_KEY[item];
+          const itemIndex = result.item_order?.indexOf(item);
+          const soundMark = itemIndex >= 0 ? result.sound_marks?.[itemIndex] : null;
+          if (soundMap && soundMark) {
+            const dashKey = soundMap[soundMark];
+            if (data.letters[dashKey]) data.letters[dashKey].sound = true;
+          } else {
+            const dashKey = letterToDashboardKey(item, lang);
+            if (data.letters[dashKey]) data.letters[dashKey].sound = true;
+          }
         }
       }
     }
@@ -449,7 +491,7 @@ export default function SmallGroupAssessment() {
   };
 
   // Mark correct or incorrect
-  const handleMark = async (mark) => {
+  const handleMark = async (mark, soundType = null) => {
     if (!assessingStudentId) return;
 
     // Save the teacher note for this item
@@ -460,6 +502,9 @@ export default function SmallGroupAssessment() {
       await handleMarkDecoding(mark, noteToSave);
       return;
     }
+
+    // Map suave/fuerte to 'correct' — both count as correct for two-sound letters.
+    const resultKey = (mark === 'suave' || mark === 'fuerte') ? 'correct' : mark;
 
     // Regular assessment types
     const studentResult = results[assessingStudentId]?.[assessmentType];
@@ -490,10 +535,14 @@ export default function SmallGroupAssessment() {
 
     const newResult = {
       ...studentResult,
-      [mark]: [...studentResult[mark], item],
+      [resultKey]: [...studentResult[resultKey], item],
       attempted: [...studentResult.attempted, item],
       current_index: studentResult.current_index + 1,
     };
+    // Track which sound the student produced (for c, g, r).
+    if (soundType) {
+      newResult.sound_marks = { ...(studentResult.sound_marks || {}), [studentResult.current_index]: soundType };
+    }
     const done = newResult.current_index >= newResult.item_order.length;
     if (done) newResult.completed = true;
 
@@ -505,7 +554,7 @@ export default function SmallGroupAssessment() {
       },
     };
     setResults(newResults);
-    setLastMark({ item, correct: mark === 'correct' });
+    setLastMark({ item, correct: resultKey === 'correct', sound: soundType });
 
     const broadcastState = done
       ? { show_item: false, student_id: assessingStudent.id, done: true, assessment_type: assessmentType }
@@ -843,10 +892,22 @@ export default function SmallGroupAssessment() {
     if (!assessingStudentId) return;
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key === 'ArrowRight') { e.preventDefault(); handleMark('correct'); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); handleEndSection(); }
-      else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
+      const sr = results[assessingStudentId]?.[assessmentType];
+      const currentItemNow = sr?.item_order?.[sr?.current_index];
+      const isSoundType = assessmentType === 'upper_sounds' || assessmentType === 'lower_sounds';
+      const isTwoSound = isSoundType && currentItemNow && TWO_SOUND_LETTERS.has(currentItemNow);
+      if (isTwoSound) {
+        if (e.key === 's' || e.key === 'S') { e.preventDefault(); handleMark('suave', 'suave'); }
+        else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); handleMark('fuerte', 'fuerte'); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); handleEndSection(); }
+        else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
+      } else {
+        if (e.key === 'ArrowRight') { e.preventDefault(); handleMark('correct'); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); handleEndSection(); }
+        else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -1033,6 +1094,7 @@ export default function SmallGroupAssessment() {
               <div
                 className={cn(
                   'text-[180px] font-bold leading-none transition-colors',
+                  lastMark?.sound === 'suave' ? 'text-teal-400' :
                   lastMark?.correct ? 'text-green-400' : lastMark ? 'text-red-400' : 'text-white'
                 )}
                 style={{ fontFamily: assessmentType === 'decoding' || assessmentType === 'sight_words' ? "'Andika', sans-serif" : "'Teachers', sans-serif" }}
@@ -1042,9 +1104,10 @@ export default function SmallGroupAssessment() {
               {lastMark && (
                 <div className={cn(
                   'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-8xl animate-ping',
+                  lastMark.sound === 'suave' ? 'text-teal-400' :
                   lastMark.correct ? 'text-green-400' : 'text-red-400'
                 )}>
-                  {lastMark.correct ? '✓' : '✗'}
+                  {lastMark.sound ? (lastMark.sound === 'suave' ? 'S' : 'F') : (lastMark.correct ? '✓' : '✗')}
                 </div>
               )}
             </>
@@ -1068,44 +1131,87 @@ export default function SmallGroupAssessment() {
         {/* Bottom controls */}
         <div className="px-6 py-6 bg-slate-800">
           <div className="max-w-2xl mx-auto flex items-center justify-center gap-8">
-            <button
-              onClick={() => handleMark('incorrect')}
-              className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
-            >
-              <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
-                <X className="w-8 h-8" />
-              </div>
-              <span className="text-sm font-medium">Incorrect (←)</span>
-            </button>
-            <button
-              onClick={handleEndEarly}
-              className="flex flex-col items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
-            >
-              <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center">
-                <span className="text-2xl font-bold">E</span>
-              </div>
-              <span className="text-sm font-medium">End (E)</span>
-            </button>
-            {assessmentType === 'decoding' && (
-              <button
-                onClick={handleEndSection}
-                className="flex flex-col items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                <div className="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-indigo-500 flex items-center justify-center">
-                  <ChevronDown className="w-8 h-8" />
-                </div>
-                <span className="text-sm font-medium">Skip Section (↓)</span>
-              </button>
+            {isTwoSoundItem ? (
+              <>
+                <button
+                  onClick={() => handleMark('suave', 'suave')}
+                  className="flex flex-col items-center gap-1 text-teal-400 hover:text-teal-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-teal-500/20 border-2 border-teal-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold">S</span>
+                  </div>
+                  <span className="text-sm font-medium">Suave (S)</span>
+                </button>
+                <button
+                  onClick={handleEndEarly}
+                  className="flex flex-col items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold">E</span>
+                  </div>
+                  <span className="text-sm font-medium">End (E)</span>
+                </button>
+                <button
+                  onClick={() => handleMark('incorrect')}
+                  className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
+                    <X className="w-8 h-8" />
+                  </div>
+                  <span className="text-sm font-medium">Neither (←)</span>
+                </button>
+                <button
+                  onClick={() => handleMark('fuerte', 'fuerte')}
+                  className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold">F</span>
+                  </div>
+                  <span className="text-sm font-medium">Fuerte (F)</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleMark('incorrect')}
+                  className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
+                    <X className="w-8 h-8" />
+                  </div>
+                  <span className="text-sm font-medium">Incorrect (←)</span>
+                </button>
+                <button
+                  onClick={handleEndEarly}
+                  className="flex flex-col items-center gap-1 text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold">E</span>
+                  </div>
+                  <span className="text-sm font-medium">End (E)</span>
+                </button>
+                {assessmentType === 'decoding' && (
+                  <button
+                    onClick={handleEndSection}
+                    className="flex flex-col items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-indigo-500 flex items-center justify-center">
+                      <ChevronDown className="w-8 h-8" />
+                    </div>
+                    <span className="text-sm font-medium">Skip Section (↓)</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => handleMark('correct')}
+                  className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                    <Check className="w-8 h-8" />
+                  </div>
+                  <span className="text-sm font-medium">Correct (→)</span>
+                </button>
+              </>
             )}
-            <button
-              onClick={() => handleMark('correct')}
-              className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
-            >
-              <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
-                <Check className="w-8 h-8" />
-              </div>
-              <span className="text-sm font-medium">Correct (→)</span>
-            </button>
           </div>
         </div>
       </div>
