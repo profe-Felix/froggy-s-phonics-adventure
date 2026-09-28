@@ -160,76 +160,163 @@ function generateCVCWords(graphemes) {
   return wordList.sort();
 }
 
-// Generate CVCV words: two CV syllables, ensuring each CV syllable appears
-// at least once as the first syllable so all are tested in word context.
-// Deterministic — same list every round.
-function generateCVCVWords(graphemes) {
-  const cvSyllables = generateCVSyllables(graphemes);
-  if (cvSyllables.length < 2) return [];
+// Real Spanish CVCV words (two CV syllables), tagged with required graphemes.
+// g = all graphemes (consonants + vowels) the word uses.
+const REAL_CVCV_WORDS = [
+  // ── m, p, s, l + vowels (M2.L11+) ──
+  { word: 'mapa', g: ['m','p','a'] },
+  { word: 'masa', g: ['m','s','a'] },
+  { word: 'mesa', g: ['m','s','e','a'] },
+  { word: 'misa', g: ['m','s','i','a'] },
+  { word: 'musa', g: ['m','s','u','a'] },
+  { word: 'mula', g: ['m','l','u','a'] },
+  { word: 'mala', g: ['m','l','a'] },
+  { word: 'molo', g: ['m','l','o'] },
+  { word: 'puma', g: ['p','m','u','a'] },
+  { word: 'pipa', g: ['p','a'] },
+  { word: 'pasa', g: ['p','s','a'] },
+  { word: 'pisa', g: ['p','s','i','a'] },
+  { word: 'pesa', g: ['p','s','e','a'] },
+  { word: 'pala', g: ['p','l','a'] },
+  { word: 'palo', g: ['p','l','a','o'] },
+  { word: 'pelo', g: ['p','l','e','o'] },
+  { word: 'pila', g: ['p','l','i','a'] },
+  { word: 'sopa', g: ['s','p','o','a'] },
+  { word: 'sapo', g: ['s','p','a','o'] },
+  { word: 'sala', g: ['s','l','a'] },
+  { word: 'sola', g: ['s','l','o','a'] },
+  { word: 'silo', g: ['s','l','i','o'] },
+  { word: 'loma', g: ['l','m','o','a'] },
+  { word: 'lima', g: ['l','m','i','a'] },
+  { word: 'lapa', g: ['l','p','a'] },
+  { word: 'lupa', g: ['l','p','u','a'] },
+  { word: 'lila', g: ['l','i','a'] },
+  { word: 'lelo', g: ['l','e','o'] },
+  { word: 'papa', g: ['p','a'] },
+  { word: 'mama', g: ['m','a'] },
+  { word: 'mimo', g: ['m','i','o'] },
+  // ── + n (M2.L16+) ──
+  { word: 'lana', g: ['l','n','a'] },
+  { word: 'luna', g: ['l','n','u','a'] },
+  { word: 'sana', g: ['s','n','a'] },
+  { word: 'sano', g: ['s','n','a','o'] },
+  { word: 'nene', g: ['n','e'] },
+  { word: 'nena', g: ['n','a'] },
+  // ── + d (M3.L1+) ──
+  { word: 'doma', g: ['d','m','o','a'] },
+  { word: 'dama', g: ['d','m','a'] },
+  { word: 'seda', g: ['s','d','e','a'] },
+  { word: 'soda', g: ['s','d','o','a'] },
+  { word: 'moda', g: ['m','d','o','a'] },
+  { word: 'muda', g: ['m','d','u','a'] },
+  { word: 'dedo', g: ['d','e','o'] },
+  { word: 'dado', g: ['d','a','o'] },
+  { word: 'lado', g: ['l','d','a','o'] },
+  { word: 'lodo', g: ['l','d','o'] },
+  { word: 'nudo', g: ['n','d','u','o'] },
+  // ── + t (M3.L6+) ──
+  { word: 'tela', g: ['t','l','e','a'] },
+  { word: 'toma', g: ['t','m','o','a'] },
+  { word: 'pato', g: ['p','t','a','o'] },
+  { word: 'pito', g: ['p','t','i','o'] },
+  { word: 'moto', g: ['m','t','o'] },
+  { word: 'mate', g: ['m','t','a','e'] },
+  { word: 'nota', g: ['n','t','o','a'] },
+  { word: 'nata', g: ['n','t','a'] },
+  { word: 'soto', g: ['s','t','o'] },
+  { word: 'dato', g: ['d','t','a','o'] },
+  { word: 'lote', g: ['l','t','o','e'] },
+  // ── + f (M3.L11+) ──
+  { word: 'fama', g: ['f','m','a'] },
+  { word: 'fuma', g: ['f','m','u','a'] },
+  // ── + b (M4.L1+) ──
+  { word: 'bota', g: ['b','t','o','a'] },
+  { word: 'lobo', g: ['l','b','o'] },
+  // ── + r-inicial (M4.L6+) ──
+  { word: 'ropa', g: ['r-inicial','p','o','a'] },
+  { word: 'rama', g: ['r-inicial','m','a'] },
+  { word: 'rima', g: ['r-inicial','m','i','a'] },
+  // ── + c-fuerte (M4.L11+) ──
+  { word: 'cama', g: ['c-fuerte','m','a'] },
+  { word: 'coco', g: ['c-fuerte','o'] },
+  { word: 'cuna', g: ['c-fuerte','n','u','a'] },
+  // ── + v (M5.L1+) ──
+  { word: 'vaso', g: ['v','s','o','a'] },
+  { word: 'vela', g: ['v','l','e','a'] },
+];
 
-  const sorted = [...cvSyllables].sort();
-  const words = new Set();
+// Real Spanish inverse-pattern words (vowel-first: V-CV, V-CCV).
+const REAL_INVERSE_WORDS = [
+  // ── m, p, s, l + vowels ──
+  { word: 'oso', g: ['s','o'] },
+  { word: 'ala', g: ['l','a'] },
+  { word: 'amo', g: ['m','a','o'] },
+  { word: 'ola', g: ['l','o','a'] },
+  { word: 'asa', g: ['s','a'] },
+  { word: 'eme', g: ['m','e'] },
+  { word: 'ele', g: ['l','e'] },
+  { word: 'ese', g: ['s','e'] },
+  { word: 'uso', g: ['s','u','o'] },
+  { word: 'osa', g: ['s','o','a'] },
+  { word: 'isla', g: ['s','l','i','a'] },
+  { word: 'alma', g: ['l','m','a'] },
+  // ── + n ──
+  { word: 'uno', g: ['n','u','o'] },
+  { word: 'asno', g: ['s','n','a','o'] },
+  // ── + d ──
+  { word: 'oda', g: ['d','o','a'] },
+  // ── + t ──
+  { word: 'alto', g: ['l','t','a','o'] },
+  { word: 'alta', g: ['l','t','a'] },
+  { word: 'ata', g: ['t','a'] },
+  { word: 'asta', g: ['s','t','a'] },
+  { word: 'este', g: ['s','t','e'] },
+  { word: 'esto', g: ['s','t','o'] },
+  // ── + f ──
+  { word: 'efe', g: ['f','e'] },
+  // ── + r-inicial ──
+  { word: 'ora', g: ['r-inicial','o','a'] },
+  { word: 'ara', g: ['r-inicial','a'] },
+  { word: 'ere', g: ['r-inicial','e'] },
+  { word: 'ira', g: ['r-inicial','i','a'] },
+  { word: 'arma', g: ['r-inicial','m','a'] },
+  { word: 'orla', g: ['r-inicial','l','o','a'] },
+];
 
-  // Pair each syllable with the next one (cycling) so every CV syllable
-  // appears as the first syllable at least once.
-  for (let i = 0; i < sorted.length; i++) {
-    const first = sorted[i];
-    let second = sorted[(i + 1) % sorted.length];
-    if (first === second) {
-      const alt = sorted[(i + 2) % sorted.length];
-      if (alt !== first) second = alt;
-    }
-    words.add(first + second);
-  }
-
-  return [...words].sort();
+// Check if all required graphemes for a word are in the taught set.
+function wordIsAvailable(entry, taughtSet) {
+  return entry.g.every((grapheme) => taughtSet.has(grapheme));
 }
 
-// Generate inverse-pattern words: vowel-first (V, VC, VCV, VCCV).
-// Examples: isla, alma, oso, ala.
+// Generate CVCV words from a curated list of real Spanish words, filtered
+// by the graphemes taught through the current curriculum position.
+// Returns up to 12 words, sorted alphabetically — deterministic.
+function generateCVCVWords(graphemes) {
+  const taughtSet = new Set(graphemes);
+  return REAL_CVCV_WORDS
+    .filter((entry) => wordIsAvailable(entry, taughtSet))
+    .map((entry) => entry.word)
+    .sort()
+    .slice(0, 12);
+}
+
+// Generate inverse-pattern words from a curated list of real Spanish words,
+// filtered by the graphemes taught through the current curriculum position.
+// Returns up to 12 words, sorted alphabetically — deterministic.
 function generateInverseWords(graphemes) {
-  const taughtVowels = graphemes.filter((g) => VOWELS.includes(g));
-  if (taughtVowels.length === 0) return [];
-
-  const cvSyllables = generateCVSyllables(graphemes);
-  const taughtConsonants = graphemes.filter((g) =>
-    !VOWELS.includes(g) && GRAPHEME_CV_MAP[g]
-  );
-
-  const words = new Set();
-
-  // VCV pattern: vowel + CV (e.g., i-sla, a-la, o-so)
-  for (const v of taughtVowels) {
-    for (const cv of cvSyllables) {
-      // Skip if the CV starts with a vowel-only syllable
-      const word = v + cv;
-      words.add(word);
-    }
-  }
-
-  // VCCV pattern: vowel + consonant + CV (e.g., a-lma, i-sla with clusters)
-  // Use simple consonants for the middle consonant
-  const simpleConsonants = taughtConsonants.filter((g) => g.length === 1);
-  for (const v of taughtVowels) {
-    for (const c of simpleConsonants) {
-      for (const cv of cvSyllables) {
-        // Only if the consonant + CV vowel forms a valid cluster
-        const word = v + c + cv;
-        // Avoid triple letters or awkward combos
-        if (word.length <= 6) words.add(word);
-      }
-    }
-  }
-
-  // Deterministic sort — same list every round
-  return [...words].sort();
+  const taughtSet = new Set(graphemes);
+  return REAL_INVERSE_WORDS
+    .filter((entry) => wordIsAvailable(entry, taughtSet))
+    .map((entry) => entry.word)
+    .sort()
+    .slice(0, 12);
 }
 
 export const DECODING_LEVELS = [
   { id: 'CV', label: 'CV Syllables', generate: generateCVSyllables, sample: 'mo, pa, si' },
   { id: 'CVC', label: 'CVC Words', generate: generateCVCWords, sample: 'mes, mas, pal' },
-  { id: 'CVCV', label: 'CVCV Words', generate: generateCVCVWords, sample: 'mala, piso' },
-  { id: 'inverse', label: 'Inverse', generate: generateInverseWords, sample: 'isla, alma' },
+  { id: 'CVCV', label: 'CVCV Words', generate: generateCVCVWords, sample: 'mapa, sopa, pala' },
+  { id: 'inverse', label: 'Inverse', generate: generateInverseWords, sample: 'oso, isla, alma' },
 ];
 
 // Generate a shuffled set of items for a given level.
