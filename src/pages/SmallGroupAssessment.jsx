@@ -230,9 +230,9 @@ export default function SmallGroupAssessment() {
   // Broadcast current item to student screen
   const broadcastItem = useCallback((item, student, opts = {}) => {
     if (!session) return;
-    const { done = false, decodingLevel = null, itemIndex = 0, totalItems = 0 } = opts;
+    const { done = false, decodingLevel = null, itemIndex = 0, totalItems = 0, type: assessType = assessmentType } = opts;
     const state = done
-      ? { show_item: false, student_id: student.id, done: true, assessment_type: assessmentType }
+      ? { show_item: false, student_id: student.id, done: true, assessment_type: assessType }
       : {
           current_item: item,
           student_id: student.id,
@@ -241,7 +241,7 @@ export default function SmallGroupAssessment() {
           item_index: itemIndex,
           total_items: totalItems,
           show_item: true,
-          assessment_type: assessmentType,
+          assessment_type: assessType,
           ...(decodingLevel ? { decoding_level: decodingLevel } : {}),
         };
     base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: state }).catch(() => {});
@@ -379,16 +379,18 @@ export default function SmallGroupAssessment() {
   }, [recorder]);
 
   // Start assessment for a student
-  const startAssessment = async (student) => {
+  const startAssessment = async (student, overrideType) => {
     // If switching from sight words with an active recording, stop and save it first
     if (assessmentType === 'sight_words' && assessingStudentId && (recorder.state === 'recording' || recorder.state === 'paused')) {
       await stopAndSaveRecording(assessingStudentId);
       recorder.reset();
     }
 
+    const type = overrideType || assessmentType;
+    if (overrideType) setAssessmentType(overrideType);
     setTeacherNote('');
 
-    if (assessmentType === 'decoding') {
+    if (type === 'decoding') {
       // Get the student's class config for active M#.L#
       const config = classConfigs[student.class_name];
       const moduleNum = config?.active_spanish_module || 1;
@@ -400,6 +402,7 @@ export default function SmallGroupAssessment() {
         const level = existing.levels?.[existing.current_level];
         if (level) {
           broadcastItem(level.item_order[level.current_index], student, {
+            type,
             decodingLevel: existing.current_level,
             itemIndex: level.current_index,
             totalItems: level.item_order.length,
@@ -435,6 +438,7 @@ export default function SmallGroupAssessment() {
         persistResults(newResults);
         setAssessingStudentId(student.id);
         broadcastItem(cvItems[0], student, {
+          type,
           decodingLevel: 'CV',
           itemIndex: 0,
           totalItems: cvItems.length,
@@ -444,10 +448,11 @@ export default function SmallGroupAssessment() {
     }
 
     // Regular assessment types
-    const existing = results[student.id]?.[assessmentType];
+    const existing = results[student.id]?.[type];
     if (existing && !existing.completed && existing.current_index < existing.item_order.length) {
       setAssessingStudentId(student.id);
       broadcastItem(existing.item_order[existing.current_index], student, {
+        type,
         itemIndex: existing.current_index,
         totalItems: existing.item_order.length,
       });
@@ -455,8 +460,8 @@ export default function SmallGroupAssessment() {
       const config = classConfigs[student.class_name];
       const moduleNum = config?.active_spanish_module || 1;
       const lessonNum = config?.active_spanish_lesson || 1;
-      const pool = getItemPool(student.language, assessmentType, moduleNum, lessonNum);
-      const isLetterType = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(assessmentType);
+      const pool = getItemPool(student.language, type, moduleNum, lessonNum);
+      const isLetterType = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(type);
       const itemOrder = isLetterType ? pool : shuffle(pool);
       const newResult = {
         correct: [], incorrect: [], attempted: [],
@@ -467,20 +472,21 @@ export default function SmallGroupAssessment() {
         ...results,
         [student.id]: {
           ...(results[student.id] || {}),
-          [assessmentType]: newResult,
+          [type]: newResult,
         },
       };
       setResults(newResults);
       persistResults(newResults);
       setAssessingStudentId(student.id);
       broadcastItem(itemOrder[0], student, {
+        type,
         itemIndex: 0,
         totalItems: itemOrder.length,
       });
     }
 
     // Start recording for sight words
-    if (assessmentType === 'sight_words') {
+    if (type === 'sight_words') {
       setRecordingTimeline([]);
       try {
         await recorder.startRecording();
@@ -488,6 +494,19 @@ export default function SmallGroupAssessment() {
         // Mic permission denied — continue without recording
       }
     }
+  };
+
+  // Switch to a different assessment type for the current student (tab click)
+  const switchAssessmentType = async (newType) => {
+    const student = studentMap[assessingStudentId];
+    if (!student) return;
+    if (assessmentType === 'sight_words' && (recorder.state === 'recording' || recorder.state === 'paused')) {
+      await stopAndSaveRecording(assessingStudentId);
+      recorder.reset();
+    }
+    setLastMark(null);
+    setTeacherNote('');
+    await startAssessment(student, newType);
   };
 
   // Mark correct or incorrect
@@ -597,10 +616,7 @@ export default function SmallGroupAssessment() {
         }
         recorder.reset();
       }
-      setTimeout(() => {
-        setAssessingStudentId(null);
-        setLastMark(null);
-      }, 800);
+      setTimeout(() => setLastMark(null), 800);
     } else {
       setTimeout(() => setLastMark(null), 500);
     }
@@ -695,10 +711,7 @@ export default function SmallGroupAssessment() {
       const allIncorrect = Object.values(newDecoding.levels).flatMap((l) => l.incorrect || []);
       const allAttempted = Object.values(newDecoding.levels).flatMap((l) => l.attempted || []);
       updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
-      setTimeout(() => {
-        setAssessingStudentId(null);
-        setLastMark(null);
-      }, 800);
+      setTimeout(() => setLastMark(null), 800);
     } else if (nextLevelId && nextItems.length > 0) {
       // Broadcast first item of next level
       if (session) {
@@ -810,10 +823,7 @@ export default function SmallGroupAssessment() {
       const allIncorrect = Object.values(newDecoding.levels).flatMap((l) => l.incorrect || []);
       const allAttempted = Object.values(newDecoding.levels).flatMap((l) => l.attempted || []);
       updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
-      setTimeout(() => {
-        setAssessingStudentId(null);
-        setLastMark(null);
-      }, 800);
+      setTimeout(() => setLastMark(null), 800);
     } else if (nextLevelId && nextItems.length > 0) {
       if (session) {
         base44.entities.SmallGroupAssessment.update(session.id, {
@@ -1026,6 +1036,25 @@ export default function SmallGroupAssessment() {
           </div>
         </div>
 
+        {/* Assessment type tabs */}
+        <div className="px-6 py-2 bg-slate-800/50 border-b border-slate-700 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500">Assessing:</span>
+          {ASSESSMENT_TYPES.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => switchAssessmentType(t.id)}
+              className={cn(
+                'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
+                assessmentType === t.id
+                  ? 'bg-white text-slate-900 border-white'
+                  : 'bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Decoding level indicator */}
         {assessmentType === 'decoding' && currentDecodingLevel && (
           <div className="px-6 py-2 bg-slate-800/50 border-b border-slate-700">
@@ -1088,6 +1117,15 @@ export default function SmallGroupAssessment() {
                   })}
                 </div>
               )}
+              <div className="mt-6">
+                <p className="text-slate-400 text-sm mb-3">Pick the next assessment above or:</p>
+                <button
+                  onClick={() => { setAssessingStudentId(null); setLastMark(null); setTeacherNote(''); }}
+                  className="px-4 py-2 rounded-lg text-sm font-bold bg-amber-500/20 text-amber-400 border-2 border-amber-500 hover:bg-amber-500/30 transition-colors"
+                >
+                  Back to list
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -1129,6 +1167,7 @@ export default function SmallGroupAssessment() {
         )}
 
         {/* Bottom controls */}
+        {!isDone && (
         <div className="px-6 py-6 bg-slate-800">
           <div className="max-w-2xl mx-auto flex items-center justify-center gap-8">
             {isTwoSoundItem ? (
@@ -1214,6 +1253,7 @@ export default function SmallGroupAssessment() {
             )}
           </div>
         </div>
+        )}
       </div>
     );
   }
