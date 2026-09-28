@@ -127,7 +127,8 @@ export default function TeacherNotebookDashboard({
     queryKey: ['notebook-assignments', className],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
     enabled: !!className,
-    refetchInterval: 5000,
+    refetchInterval: 15000,
+    retry: false,
   });
 
   // Resolve a direct URL assignment or the same assignment after switching
@@ -211,14 +212,16 @@ export default function TeacherNotebookDashboard({
     queryKey: ['notebook-shared'],
     queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ shared_across_classes: true }),
     enabled: !!className,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+    retry: false,
   });
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['notebook-sessions', selectedAssignment?.id],
     queryFn: () => base44.entities.NotebookSession.filter({ assignment_id: selectedAssignment.id, school_year: ACTIVE_SCHOOL_YEAR }),
     enabled: !!selectedAssignment,
-    refetchInterval: 5000,
+    refetchInterval: 15000,
+    retry: false,
   });
 
   const updateAssignment = useMutation({

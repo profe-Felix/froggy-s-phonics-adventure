@@ -33,19 +33,22 @@ export default function AssessmentTab({ className }) {
   const { data: templates = [] } = useQuery({
     queryKey: ['assessment-templates', className],
     queryFn: () => base44.entities.AssessmentTemplate.filter({ class_name: className }),
-    refetchInterval: 15000,
+    refetchInterval: 30000,
+    retry: false,
   });
 
   const { data: students = [] } = useQuery({
     queryKey: ['students-for-class', className],
     queryFn: () => base44.entities.Student.filter({ class_name: className }),
     enabled: view === 'students' || view === 'templates',
+    retry: false,
   });
 
   const { data: sharedTemplates = [] } = useQuery({
     queryKey: ['assessment-templates-shared'],
     queryFn: () => base44.entities.AssessmentTemplate.filter({ shared_across_classes: true }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+    retry: false,
   });
 
   const handleCreateTemplate = async (firstFile) => {
