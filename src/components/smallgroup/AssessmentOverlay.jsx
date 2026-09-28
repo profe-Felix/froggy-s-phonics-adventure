@@ -67,17 +67,28 @@ export default function AssessmentOverlay({ className, studentNumber }) {
   if (!mySession) return null;
 
   const broadcast = mySession.broadcast_state || {};
-  const isLetterSounds = broadcast.assessment_type === 'letter_sounds';
+  const type = broadcast.assessment_type || '';
+  const isLetterType = type === 'upper_names' || type === 'lower_names';
+  const isSoundType = type === 'upper_sounds' || type === 'lower_sounds';
+  const isDecoding = type === 'decoding';
+
+  const prompt = isSoundType
+    ? '¿Qué sonido hace?'
+    : isLetterType
+      ? '¿Cómo se llama esta letra?'
+      : isDecoding
+        ? 'Lee esto:'
+        : 'Lee la palabra:';
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center">
       <p className="text-white/60 text-xl mb-6">
-        {isLetterSounds ? '¿Qué sonido hace?' : 'Lee la palabra:'}
+        {prompt}
       </p>
       <div
         className="text-[200px] font-bold text-white leading-none"
         style={{
-          fontFamily: isLetterSounds ? "'Teachers', sans-serif" : "'Andika', sans-serif",
+          fontFamily: isLetterType ? "'Teachers', sans-serif" : "'Andika', sans-serif",
         }}
       >
         {broadcast.current_item}
