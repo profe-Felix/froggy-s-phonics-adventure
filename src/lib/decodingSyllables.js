@@ -179,16 +179,63 @@ function generateCVSyllables(graphemes) {
   return [...syllables].sort();
 }
 
-// Generate CVC words from a curated list of real Spanish words, filtered
-// by the graphemes taught through the current curriculum position.
-// Returns up to 12 words, sorted alphabetically — deterministic.
+// Single consonants that can start a CVC word (no digraphs/clusters).
+const CVC_INITIALS = ['m','p','s','l','n','d','t','f','b','v','z','j','k','x','w','ñ','y','r'];
+// Consonants that commonly end CVC words in Spanish.
+const CVC_FINALS = ['s','l','n','d','t','r-final'];
+
+// Generate CVC words balanced across taught initial consonants.
+// Uses real words first, padding with syllable fillers so each initial
+// consonant has equal representation (3 per initial). Interleaved
+// round-robin so the student sees variety, not grouped by initial.
 function generateCVCWords(graphemes) {
   const taughtSet = new Set(graphemes);
-  return REAL_CVC_WORDS
-    .filter((entry) => wordIsAvailable(entry, taughtSet))
-    .map((entry) => entry.word)
-    .sort()
-    .slice(0, 12);
+  const available = REAL_CVC_WORDS.filter((entry) => wordIsAvailable(entry, taughtSet));
+
+  // Group real words by initial consonant
+  const byInitial = {};
+  for (const entry of available) {
+    const initial = entry.g[0];
+    if (!byInitial[initial]) byInitial[initial] = [];
+    byInitial[initial].push(entry.word);
+  }
+
+  const initials = CVC_INITIALS.filter((i) => taughtSet.has(i));
+  if (initials.length === 0) return [];
+
+  const finals = CVC_FINALS.filter((f) => taughtSet.has(f));
+  const vowels = VOWELS.filter((v) => taughtSet.has(v));
+  if (finals.length === 0 || vowels.length === 0) return [];
+
+  // Pad each initial group with syllable fillers up to 3
+  for (const initial of initials) {
+    if (!byInitial[initial]) byInitial[initial] = [];
+    byInitial[initial].sort();
+    if (byInitial[initial].length >= 3) continue;
+    const fillers = [];
+    for (const v of vowels) {
+      for (const f of finals) {
+        if (initial === f) continue;
+        const syl = initial + v + f;
+        if (!byInitial[initial].includes(syl)) fillers.push(syl);
+      }
+    }
+    fillers.sort();
+    for (const f of fillers) {
+      if (byInitial[initial].length >= 3) break;
+      byInitial[initial].push(f);
+      byInitial[initial].sort();
+    }
+  }
+
+  // Interleave round-robin: 3 per initial
+  const result = [];
+  for (let i = 0; i < 3; i++) {
+    for (const init of initials) {
+      if (byInitial[init] && byInitial[init][i]) result.push(byInitial[init][i]);
+    }
+  }
+  return result;
 }
 
 // Real Spanish CVCV words (two CV syllables), tagged with required graphemes.
@@ -219,7 +266,6 @@ const REAL_CVCV_WORDS = [
   { word: 'silo', g: ['s','l','i','o'] },
   { word: 'loma', g: ['l','m','o','a'] },
   { word: 'lima', g: ['l','m','i','a'] },
-  { word: 'lapa', g: ['l','p','a'] },
   { word: 'lupa', g: ['l','p','u','a'] },
   { word: 'lila', g: ['l','i','a'] },
 
@@ -285,7 +331,6 @@ const REAL_INVERSE_WORDS = [
   // m, p, s, l + vowels
   { word: 'alma', g: ['l','m','a'], true: true },
   { word: 'asma', g: ['s','m','a'], true: true },
-  { word: 'aspa', g: ['s','p','a'], true: true },
   { word: 'isla', g: ['s','l','i','a'], true: true },
   { word: 'olmo', g: ['l','m','o'], true: true },
   // + n, d
@@ -315,8 +360,6 @@ const REAL_INVERSE_WORDS = [
   { word: 'amo', g: ['m','a','o'], true: false },
   { word: 'ola', g: ['l','o','a'], true: false },
   { word: 'asa', g: ['s','a'], true: false },
-  { word: 'eme', g: ['m','e'], true: false },
-  { word: 'ele', g: ['l','e'], true: false },
   { word: 'ese', g: ['s','e'], true: false },
   { word: 'uso', g: ['s','u','o'], true: false },
   { word: 'osa', g: ['s','o','a'], true: false },
