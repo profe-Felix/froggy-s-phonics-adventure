@@ -129,6 +129,10 @@ export default function SmallGroupAssessment() {
   const [recordingTimeline, setRecordingTimeline] = useState([]);
   const recorder = useAudioRecorder();
 
+  // Keep a ref of latest results so beforeunload/visibilitychange handlers can access it
+  const resultsRef = useRef(results);
+  useEffect(() => { resultsRef.current = results; }, [results]);
+
   // Load all students
   useEffect(() => {
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 10000).then(setStudents);
@@ -171,6 +175,19 @@ export default function SmallGroupAssessment() {
           setSession(existing[0]);
           setResults(existing[0].results || {});
         } else if (alive) {
+          // No active session — carry over results from the most recent completed
+          // session so in-progress assessments continue across sessions instead
+          // of resetting to "Start".
+          const completed = await base44.entities.SmallGroupAssessment.filter({
+            teacher_name: teacher,
+            block: block,
+            color_group: group,
+            status: 'completed',
+            school_year: ACTIVE_SCHOOL_YEAR,
+          }, '-created_date', 1);
+          const carriedResults = (completed && completed.length > 0)
+            ? (completed[0].results || {})
+            : {};
           const created = await base44.entities.SmallGroupAssessment.create({
             teacher_name: teacher,
             block: block,
@@ -178,10 +195,11 @@ export default function SmallGroupAssessment() {
             school_year: ACTIVE_SCHOOL_YEAR,
             status: 'active',
             started_at: new Date().toISOString(),
-            results: {},
+            results: carriedResults,
             broadcast_state: {},
           });
           setSession(created);
+          setResults(carriedResults);
         }
       } catch {
         // ignore
@@ -248,8 +266,8 @@ export default function SmallGroupAssessment() {
   }, [session, assessmentType]);
 
   const persistResults = useCallback((newResults) => {
-    if (!session) return;
-    base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
+    if (!session) return Promise.resolve();
+    return base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
   }, [session]);
 
   // Update student's mode_progress
@@ -847,32 +865,30 @@ export default function SmallGroupAssessment() {
   // End early
   const handleEndEarly = async () => {
     if (!assessingStudentId) return;
+    let latestResults = results;
 
     // Stop and save recording for sight words
     if (assessmentType === 'sight_words' && (recorder.state === 'recording' || recorder.state === 'paused')) {
       const fileUri = await stopAndSaveRecording(assessingStudentId);
       if (fileUri) {
-        const currentResult = results[assessingStudentId]?.[assessmentType];
+        const currentResult = latestResults[assessingStudentId]?.[assessmentType];
         if (currentResult) {
           const updatedResult = { ...currentResult, recording_url: fileUri, recording_timeline: recordingTimeline };
-          const newResults = {
-            ...results,
+          latestResults = {
+            ...latestResults,
             [assessingStudentId]: {
-              ...results[assessingStudentId],
+              ...latestResults[assessingStudentId],
               [assessmentType]: updatedResult,
             },
           };
-          setResults(newResults);
-          if (session) {
-            base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
-          }
+          setResults(latestResults);
         }
       }
       recorder.reset();
     }
 
     if (assessmentType === 'decoding') {
-      const dr = results[assessingStudentId]?.['decoding'];
+      const dr = latestResults[assessingStudentId]?.['decoding'];
       if (dr) {
         const allCorrect = Object.values(dr.levels).flatMap((l) => l.correct || []);
         const allIncorrect = Object.values(dr.levels).flatMap((l) => l.incorrect || []);
@@ -880,15 +896,18 @@ export default function SmallGroupAssessment() {
         updateModeProgress(assessingStudent, 'decoding', { correct: allCorrect, incorrect: allIncorrect, attempted: allAttempted });
       }
     } else {
-      const sr = results[assessingStudentId]?.[assessmentType];
+      const sr = latestResults[assessingStudentId]?.[assessmentType];
       if (sr) {
         updateModeProgress(assessingStudent, assessmentType, sr);
         updateDashboard(assessingStudent, assessmentType, sr);
       }
     }
 
+    // Persist all results and broadcast end — saves progress even if teacher
+    // exits without hitting E, so refreshes and new sessions don't lose data.
     if (session) {
       base44.entities.SmallGroupAssessment.update(session.id, {
+        results: latestResults,
         broadcast_state: { show_item: false, student_id: assessingStudentId, done: true },
       }).catch(() => {});
     }
@@ -923,6 +942,27 @@ export default function SmallGroupAssessment() {
     return () => window.removeEventListener('keydown', handler);
   }, [assessingStudentId, results, session, assessmentType, teacherNote, recordingTimeline]);
 
+  // Save results on page refresh, close, or tab switch so progress is never lost.
+  // Uses resultsRef to get the latest state without re-subscribing on every mark.
+  useEffect(() => {
+    if (!session) return;
+    const saveOnUnload = () => {
+      const latest = resultsRef.current;
+      if (latest && Object.keys(latest).length > 0) {
+        base44.entities.SmallGroupAssessment.update(session.id, { results: latest }).catch(() => {});
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') saveOnUnload();
+    };
+    window.addEventListener('beforeunload', saveOnUnload);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', saveOnUnload);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [session]);
+
   // End session
   const handleEndSession = async () => {
     if (!session) return;
@@ -932,7 +972,10 @@ export default function SmallGroupAssessment() {
       recorder.reset();
     }
     if (!confirm('End this assessment session? You can start a new one later.')) return;
+    // Save current results before marking session completed so progress
+    // carries over to the next session.
     await base44.entities.SmallGroupAssessment.update(session.id, {
+      results: resultsRef.current,
       status: 'completed',
       ended_at: new Date().toISOString(),
       broadcast_state: {},
