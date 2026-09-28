@@ -28,6 +28,11 @@
     "student_id": {
       "type": "string",
       "description": "Seated student ID"
+    },
+    "table_number": {
+      "type": "integer",
+      "default": 0,
+      "description": "Table group number (1-8). 0 = not assigned to a table. Used by the Table Rotation system to assign activities per table."
     }
   },
   "required": [

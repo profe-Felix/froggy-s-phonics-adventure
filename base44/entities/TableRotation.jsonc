@@ -1,0 +1,115 @@
+{
+  "name": "TableRotation",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Teacher/class this rotation belongs to."
+    },
+    "group": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Rotation group (which homeroom is in the classroom)."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "activities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique slot id"
+          },
+          "activity_type": {
+            "type": "string",
+            "description": "Activity mode id, e.g. 'book_reading', 'letter_tracing', 'pathway'"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display label"
+          }
+        },
+        "required": [
+          "id",
+          "activity_type",
+          "label"
+        ]
+      },
+      "default": [],
+      "description": "Ordered list of activities in the rotation. Table N gets activities[(N-1+offset) % length]."
+    },
+    "rotation_offset": {
+      "type": "integer",
+      "default": 0,
+      "description": "How many times the rotation has advanced. Persists across days so a 4-activity rotation that only got to 2 continues next day."
+    },
+    "active": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, students' iPads auto-launch their table's assigned activity on login."
+    },
+    "last_advanced": {
+      "type": "string",
+      "default": "",
+      "description": "ISO timestamp of the last rotation advance."
+    }
+  },
+  "required": [
+    "class_name",
+    "group"
+  ],
+  "rls": {
+    "read": null,
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

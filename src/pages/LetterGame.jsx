@@ -84,8 +84,52 @@ export default function LetterGame() {
   }, [currentMode]);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
+  const [tableRotationLaunched, setTableRotationLaunched] = useState(false);
   const queryClient = useQueryClient();
   const { languageFor, configs, tracingOnlyFor } = useClassColors();
+
+  // Table rotation auto-launch: when a student logs in and their teacher has
+  // an active table rotation, auto-launch the assigned activity on their iPad.
+  useEffect(() => {
+    if (!studentData?.id || tableRotationLaunched || liveSession) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const seats = await base44.entities.DeskSeat.filter({ student_id: studentData.id });
+        if (cancelled) return;
+        if (seats.length === 0) { setTableRotationLaunched(true); return; }
+        const seat = seats[0];
+        const tableNumber = seat.table_number || 0;
+        if (tableNumber === 0) { setTableRotationLaunched(true); return; }
+        const rotations = await base44.entities.TableRotation.filter({
+          class_name: seat.class_name,
+          group: seat.group,
+          school_year: ACTIVE_SCHOOL_YEAR,
+          active: true,
+        });
+        if (cancelled) return;
+        if (rotations.length === 0) { setTableRotationLaunched(true); return; }
+        const rot = rotations[0];
+        const activities = rot.activities || [];
+        if (activities.length === 0) { setTableRotationLaunched(true); return; }
+        const offset = rot.rotation_offset || 0;
+        const idx = (tableNumber - 1 + offset) % activities.length;
+        const assigned = activities[idx];
+        if (assigned && assigned.activity_type !== 'pathway') {
+          setCurrentMode(assigned.activity_type);
+        }
+        setTableRotationLaunched(true);
+      } catch {
+        setTableRotationLaunched(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [studentData?.id, tableRotationLaunched, liveSession]);
+
+  // Reset rotation flag when student logs out
+  useEffect(() => {
+    if (!studentData) setTableRotationLaunched(false);
+  }, [studentData]);
 
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
