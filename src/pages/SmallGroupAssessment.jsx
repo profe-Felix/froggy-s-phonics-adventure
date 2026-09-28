@@ -365,7 +365,7 @@ export default function SmallGroupAssessment() {
         }
       } else {
         // Start new decoding assessment — begin with CV level
-        const cvItems = generateDecodingItems('CV', moduleNum, lessonNum);
+        const cvItems = shuffle(generateDecodingItems('CV', moduleNum, lessonNum));
         if (cvItems.length === 0) {
           alert('No CV syllables available for this class\'s current curriculum position. Check the active module/lesson in Manage Classes.');
           return;
@@ -414,10 +414,11 @@ export default function SmallGroupAssessment() {
       const moduleNum = config?.active_spanish_module || 1;
       const lessonNum = config?.active_spanish_lesson || 1;
       const pool = getItemPool(student.language, assessmentType, moduleNum, lessonNum);
-      const shuffled = shuffle(pool);
+      const isLetterType = ['upper_names', 'lower_names', 'upper_sounds', 'lower_sounds'].includes(assessmentType);
+      const itemOrder = isLetterType ? pool : shuffle(pool);
       const newResult = {
         correct: [], incorrect: [], attempted: [],
-        item_order: shuffled, current_index: 0, completed: false,
+        item_order: itemOrder, current_index: 0, completed: false,
         notes: {},
       };
       const newResults = {
@@ -430,9 +431,9 @@ export default function SmallGroupAssessment() {
       setResults(newResults);
       persistResults(newResults);
       setAssessingStudentId(student.id);
-      broadcastItem(shuffled[0], student, {
+      broadcastItem(itemOrder[0], student, {
         itemIndex: 0,
-        totalItems: shuffled.length,
+        totalItems: itemOrder.length,
       });
     }
 
@@ -599,7 +600,7 @@ export default function SmallGroupAssessment() {
         const moduleNum = config?.active_spanish_module || 1;
         const lessonNum = config?.active_spanish_lesson || 1;
         nextLevelId = DECODING_LEVELS[levelIdx + 1].id;
-        nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum);
+        nextItems = shuffle(generateDecodingItems(nextLevelId, moduleNum, lessonNum));
         if (nextItems.length > 0) {
           newDecoding.current_level = nextLevelId;
           newDecoding.levels = {
@@ -720,7 +721,7 @@ export default function SmallGroupAssessment() {
       const moduleNum = config?.active_spanish_module || 1;
       const lessonNum = config?.active_spanish_lesson || 1;
       nextLevelId = DECODING_LEVELS[levelIdx + 1].id;
-      nextItems = generateDecodingItems(nextLevelId, moduleNum, lessonNum);
+      nextItems = shuffle(generateDecodingItems(nextLevelId, moduleNum, lessonNum));
       if (nextItems.length > 0) {
         newDecoding.current_level = nextLevelId;
         newDecoding.levels = {
