@@ -30,8 +30,10 @@ export const FULL_SEQUENCE = [
   {d:'C',k:'C',p:'/k/',m:5},{d:'c',k:'c',p:'/k/',m:5,tl:1},
   {d:'Q',k:'Q',m:5},{d:'q',k:'q',m:5,tl:1},
   {d:'V',k:'V',m:5},{d:'v',k:'v',m:5,tl:1},
-  // Módulo 5 (review)
-  {d:'R_',k:'R_',m:5},{d:'r',k:'r',m:5,tl:1},
+  // Módulo 5 (review) — medial r (suave/flap /ɾ/). Separate dashboard key
+  // from the Módulo 4 initial r (fuerte/trill /r/) so the assessment's
+  // S (suave) button marks this box, not the initial-r box.
+  {d:'R_',k:'R_s',p:'/ɾ/',bl:1,m:5},{d:'r',k:'r_s',p:'/ɾ/',bl:1,m:5,tl:1},
   // Módulo 6
   {d:'Ll',k:'Ll',bl:1,m:6},{d:'ll',k:'ll',bl:1,m:6,tl:1},
   {d:'G',k:'G',p:'/g/',m:6},{d:'g',k:'g',p:'/g/',m:6,tl:1},

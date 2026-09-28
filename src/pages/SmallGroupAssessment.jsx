@@ -38,8 +38,8 @@ const SOUND_DASH_KEY = {
   'C': { fuerte: 'C', suave: 'C_s' },
   'g': { fuerte: 'g', suave: 'g_j' },
   'G': { fuerte: 'G', suave: 'G_j' },
-  'r': { fuerte: 'r', suave: 'r' },
-  'R_': { fuerte: 'R_', suave: 'R_' },
+  'r': { fuerte: 'r', suave: 'r_s' },
+  'R_': { fuerte: 'R_', suave: 'R_s' },
 };
 
 function getItemPool(language, assessmentType, moduleNumber, lessonNumber) {
