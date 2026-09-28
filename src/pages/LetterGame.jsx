@@ -84,52 +84,63 @@ export default function LetterGame() {
   }, [currentMode]);
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
-  const [tableRotationLaunched, setTableRotationLaunched] = useState(false);
   const queryClient = useQueryClient();
   const { languageFor, configs, tracingOnlyFor } = useClassColors();
 
-  // Table rotation auto-launch: when a student logs in and their teacher has
-  // an active table rotation, auto-launch the assigned activity on their iPad.
-  useEffect(() => {
-    if (!studentData?.id || tableRotationLaunched || liveSession) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const seats = await base44.entities.DeskSeat.filter({ student_id: studentData.id });
-        if (cancelled) return;
-        if (seats.length === 0) { setTableRotationLaunched(true); return; }
-        const seat = seats[0];
-        const tableNumber = seat.table_number || 0;
-        if (tableNumber === 0) { setTableRotationLaunched(true); return; }
-        const rotations = await base44.entities.TableRotation.filter({
-          class_name: seat.class_name,
-          group: seat.group,
-          school_year: ACTIVE_SCHOOL_YEAR,
-          active: true,
-        });
-        if (cancelled) return;
-        if (rotations.length === 0) { setTableRotationLaunched(true); return; }
-        const rot = rotations[0];
-        const activities = rot.activities || [];
-        if (activities.length === 0) { setTableRotationLaunched(true); return; }
-        const offset = rot.rotation_offset || 0;
-        const idx = (tableNumber - 1 + offset) % activities.length;
-        const assigned = activities[idx];
-        if (assigned && assigned.activity_type !== 'pathway') {
-          setCurrentMode(assigned.activity_type);
-        }
-        setTableRotationLaunched(true);
-      } catch {
-        setTableRotationLaunched(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [studentData?.id, tableRotationLaunched, liveSession]);
+  // Table rotation: fetch the student's desk seat + any active rotation for
+  // their class+group. Polled every 5s and subscribed to real-time updates so
+  // that activating the rotation from the teacher dashboard immediately
+  // redirects students who are already logged in — no refresh needed.
+  const { data: rotationData } = useQuery({
+    queryKey: ['table-rotation', studentData?.id],
+    queryFn: async () => {
+      if (!studentData?.id) return { assignedMode: null };
+      const seats = await base44.entities.DeskSeat.filter({ student_id: studentData.id });
+      if (!seats?.length) return { assignedMode: null };
+      const seat = seats[0];
+      const tableNumber = seat.table_number || 0;
+      if (tableNumber === 0) return { assignedMode: null };
+      const rotations = await base44.entities.TableRotation.filter({
+        class_name: seat.class_name,
+        group: seat.group,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      });
+      if (!rotations?.length) return { assignedMode: null };
+      const rot = rotations[0];
+      const activities = rot.activities || [];
+      if (activities.length === 0) return { assignedMode: null };
+      const offset = rot.rotation_offset || 0;
+      const idx = (tableNumber - 1 + offset) % activities.length;
+      const assigned = activities[idx];
+      if (!assigned || assigned.activity_type === 'pathway') return { assignedMode: null };
+      return { assignedMode: assigned.activity_type };
+    },
+    enabled: !!studentData?.id && !liveSession,
+    refetchInterval: liveSession ? false : 5000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
+  const rotationAssignedMode = rotationData?.assignedMode || null;
 
-  // Reset rotation flag when student logs out
+  // Real-time: invalidate the rotation query when TableRotation changes so
+  // students redirect the instant the teacher activates/advances/deactivates.
   useEffect(() => {
-    if (!studentData) setTableRotationLaunched(false);
-  }, [studentData]);
+    if (!studentData?.id) return;
+    const unsubscribe = base44.entities.TableRotation.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: ['table-rotation', studentData.id] });
+    });
+    return () => { unsubscribe?.(); };
+  }, [studentData?.id, queryClient]);
+
+  // Lock the student into the assigned activity. Like the tracing lock, this
+  // overrides any free-play mode and prevents navigation away.
+  useEffect(() => {
+    if (!rotationAssignedMode || liveSession) return;
+    if (currentMode !== rotationAssignedMode) {
+      setCurrentMode(rotationAssignedMode);
+    }
+  }, [rotationAssignedMode, liveSession, currentMode]);
 
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
@@ -625,10 +636,12 @@ export default function LetterGame() {
   };
 
   const handleModeSelect = (mode) => {
+    if (rotationAssignedMode) return; // locked by table rotation
     setCurrentMode(mode);
   };
 
   const handleBackToModes = () => {
+    if (rotationAssignedMode) return; // locked by table rotation
     setCurrentMode(null);
   };
 
@@ -927,7 +940,7 @@ export default function LetterGame() {
         />
       )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && currentMode !== 'letter_tracing' && currentMode !== 'name_tracing' && !activeTracingLock && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && currentMode !== 'letter_tracing' && currentMode !== 'name_tracing' && !activeTracingLock && !rotationAssignedMode && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"
