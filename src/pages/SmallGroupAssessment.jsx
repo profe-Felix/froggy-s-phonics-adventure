@@ -5,7 +5,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
 import { SIGHT_WORDS_EASY as SW_ES, SIGHT_WORDS_EASY_EN as SW_EN } from '@/components/data/sightWords';
-import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData } from '@/lib/dashboardData';
+import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData, getIntroducedSightWordsThrough } from '@/lib/dashboardData';
 import { DECODING_LEVELS, generateDecodingItems, canAssessLevel } from '@/lib/decodingSyllables';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import AssessmentRecordingPlayer from '@/components/smallgroup/AssessmentRecordingPlayer';
@@ -22,9 +22,14 @@ const ASSESSMENT_TYPES = [
   { id: 'sight_words', label: 'Sight Words', prompt: 'Lee la palabra:', isLetter: false },
 ];
 
-function getItemPool(language, assessmentType) {
+function getItemPool(language, assessmentType, moduleNumber, lessonNumber) {
   if (assessmentType === 'sight_words') {
-    return language === 'en' ? [...SW_EN] : [...SW_ES];
+    if (language === 'en') return [...SW_EN];
+    if (moduleNumber && lessonNumber) {
+      const introduced = getIntroducedSightWordsThrough({ moduleNumber, lessonNumber });
+      if (introduced.length > 0) return introduced;
+    }
+    return [...SW_ES];
   }
   if (language === 'en') {
     const allLetters = [...EN_LETTERS_ROW1, ...EN_LETTERS_ROW2];
@@ -405,7 +410,10 @@ export default function SmallGroupAssessment() {
         totalItems: existing.item_order.length,
       });
     } else {
-      const pool = getItemPool(student.language, assessmentType);
+      const config = classConfigs[student.class_name];
+      const moduleNum = config?.active_spanish_module || 1;
+      const lessonNum = config?.active_spanish_lesson || 1;
+      const pool = getItemPool(student.language, assessmentType, moduleNum, lessonNum);
       const shuffled = shuffle(pool);
       const newResult = {
         correct: [], incorrect: [], attempted: [],

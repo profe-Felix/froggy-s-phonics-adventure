@@ -318,6 +318,27 @@ export function computePeriods(lastLetters) {
   return periods;
 }
 
+// Get all sight words introduced through the given M#.L# position.
+// Returns a deduplicated list in curriculum order (el, la, un, una, …).
+export function getIntroducedSightWordsThrough({ moduleNumber, lessonNumber }) {
+  const seen = new Set();
+  const result = [];
+  for (const entry of ES_SIGHT_WORD_SEQUENCE) {
+    if (
+      entry.module_number < moduleNumber ||
+      (entry.module_number === moduleNumber && entry.curriculum_lesson_number <= lessonNumber)
+    ) {
+      for (const word of entry.words) {
+        if (!seen.has(word)) {
+          seen.add(word);
+          result.push(word);
+        }
+      }
+    }
+  }
+  return result;
+}
+
 // Convert the sight-word introduction groups into one ordered sequence.
 //
 // The key includes the module so repeated words such as "yo" in Módulo 5
