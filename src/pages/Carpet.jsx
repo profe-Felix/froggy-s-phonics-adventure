@@ -504,8 +504,8 @@ export default function Carpet() {
   const outStudents = (seats || []).filter(s => s.student_id && s.status && s.status !== 'present');
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white sticky top-0 z-10">
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-50">
+      <header className="border-b bg-white shrink-0 z-10">
         <div className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-3xl')}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -673,7 +673,7 @@ export default function Carpet() {
         </div>
       </header>
 
-      <main className={cn('mx-auto px-4 sm:px-6 py-4', isSetup ? 'max-w-5xl' : 'max-w-2xl')}>
+      <main className={cn('mx-auto px-4 sm:px-6 py-4 flex-1 overflow-hidden flex flex-col w-full', isSetup ? 'max-w-5xl' : 'max-w-2xl')}>
         {!selectedClass ? (
           <div className="text-center py-20">
             <Users className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
@@ -684,19 +684,25 @@ export default function Carpet() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : !isSetup ? (
-          <div className="flex flex-col gap-4">
-            <div ref={carpetGridRef} className="relative flex flex-col">
-              {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
-              {teachingMode === 'partners' && (
-                <PartnerArrows
-                  seats={seats}
-                  partnerMap={partnerMap}
-                  containerRef={carpetGridRef}
-                />
-              )}
+          <div className="flex flex-col gap-3 h-full min-h-0">
+            <div className="flex-1 flex items-center justify-center min-h-0">
+              <div
+                ref={carpetGridRef}
+                className="relative flex flex-col w-full"
+                style={{ maxWidth: 'calc(100vh - 200px)' }}
+              >
+                {ROW_SIZES.map((_, rowIdx) => renderRow(rowIdx))}
+                {teachingMode === 'partners' && (
+                  <PartnerArrows
+                    seats={seats}
+                    partnerMap={partnerMap}
+                    containerRef={carpetGridRef}
+                  />
+                )}
+              </div>
             </div>
             {teachingMode === 'carpet' && outStudents.length > 0 && (
-              <div className="bg-white rounded-lg border p-3">
+              <div className="bg-white rounded-lg border p-3 shrink-0">
                 <h3 className="text-sm font-medium mb-2">Currently Out</h3>
                 <AbsencePanel
                   seats={seats}
@@ -705,7 +711,6 @@ export default function Carpet() {
                 />
               </div>
             )}
-
           </div>
         ) : (
           <div className="flex gap-4">
