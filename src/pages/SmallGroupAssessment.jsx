@@ -29,7 +29,7 @@ const DIGRAPHS = new Set(['Ll', 'll', 'Ch', 'ch', 'Rr', 'rr']);
 // C = /k/ (fuerte: ca,co,cu) vs /s/ (suave: ce,ci)
 // G = /g/ (fuerte: ga,go,gu) vs /x/ (suave: ge,gi)
 // R = /r/ (fuerte: rolled, initial/rr) vs /ɾ/ (suave: flap, medial/final)
-const TWO_SOUND_LETTERS = new Set(['c', 'g', 'r', 'C', 'G', 'R_']);
+const TWO_SOUND_LETTERS = new Set(['c', 'g', 'r', 'C', 'G', 'R']);
 
 // Maps a two-sound letter + sound type to the correct Student Dashboard key.
 // c/G have separate dashboard entries for fuerte vs suave; r shares one key.
@@ -39,7 +39,7 @@ const SOUND_DASH_KEY = {
   'g': { fuerte: 'g', suave: 'g_j' },
   'G': { fuerte: 'G', suave: 'G_j' },
   'r': { fuerte: 'r', suave: 'r_s' },
-  'R_': { fuerte: 'R_', suave: 'R_s' },
+  'R': { fuerte: 'R_', suave: 'R_s' },
 };
 
 function getItemPool(language, assessmentType, moduleNumber, lessonNumber) {
