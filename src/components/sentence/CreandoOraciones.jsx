@@ -67,13 +67,13 @@ export default function CreandoOraciones({ studentNumber, className, studentName
     })();
   }, [studentNumber, className]);
 
-  const rows = session?.rows || DEFAULT_ROWS;
+  const rows = Array.isArray(session?.rows) ? session.rows : DEFAULT_ROWS;
   const activeRow = rows[activeRowIndex] || DEFAULT_ROWS[0];
 
   // ── Save logic ──
   const doSave = useCallback(async () => {
     if (!sessionRef.current) return;
-    const currentRows = (sessionRef.current.rows || DEFAULT_ROWS).map((row, i) => ({
+    const currentRows = (Array.isArray(sessionRef.current.rows) ? sessionRef.current.rows : DEFAULT_ROWS).map((row, i) => ({
       ...row,
       writing_strokes: writingRefs[i].current?.getStrokes() || row.writing_strokes || {},
     }));
@@ -115,11 +115,15 @@ export default function CreandoOraciones({ studentNumber, className, studentName
   const updateRow = (index, patch) => {
     setSession(prev => {
       if (!prev) return prev;
-      const newRows = [...(prev.rows || [])];
+      const newRows = Array.isArray(prev.rows) ? [...prev.rows] : [...DEFAULT_ROWS];
       newRows[index] = { ...newRows[index], ...patch };
       return { ...prev, rows: newRows };
     });
-    sessionRef.current = { ...sessionRef.current, rows: { ...sessionRef.current?.rows } };
+    if (sessionRef.current) {
+      const cur = Array.isArray(sessionRef.current.rows) ? [...sessionRef.current.rows] : [...DEFAULT_ROWS];
+      cur[index] = { ...cur[index], ...patch };
+      sessionRef.current = { ...sessionRef.current, rows: cur };
+    }
     scheduleSave();
   };
 
