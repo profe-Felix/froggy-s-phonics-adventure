@@ -15,6 +15,16 @@
       "default": "",
       "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
     },
+    "page_number": {
+      "type": "integer",
+      "default": 1,
+      "description": "Which page this is for the student (1, 2, 3...). Each page is a separate daily worksheet so teachers can review handwriting progress over time."
+    },
+    "page_date": {
+      "type": "string",
+      "default": "",
+      "description": "ISO date (YYYY-MM-DD) when this page was created. Used to group daily records by day."
+    },
     "art_mode": {
       "type": "string",
       "enum": [

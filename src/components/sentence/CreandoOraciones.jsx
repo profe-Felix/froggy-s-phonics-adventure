@@ -8,7 +8,7 @@ import CardSlot from './CardSlot';
 import CardPicker from './CardPicker';
 import SentenceWritingArea from './SentenceWritingArea';
 import SelfChecks from './SelfChecks';
-import { Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, RefreshCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DEFAULT_ROWS = [
   { mode: '2part', who_card: 'who-01', what_card: 'what-01', where_card: 'where-01', typed_text: '', writing_strokes: {}, self_checks: {} },
@@ -25,6 +25,8 @@ export default function CreandoOraciones({ studentNumber, className, studentName
     studentName = studentData.name;
   }
   const [session, setSession] = useState(null);
+  const [allPages, setAllPages] = useState([]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [activeRowIndex, setActiveRowIndex] = useState(0);
   const [artMode, setArtMode] = useState('color');
   const [tool, setTool] = useState('pen');
@@ -34,6 +36,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
   const [showPicker, setShowPicker] = useState(null);
   const [spinSignals, setSpinSignals] = useState({});
   const [loading, setLoading] = useState(true);
+  const [creatingPage, setCreatingPage] = useState(false);
 
   const writingRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
   const drawingRef = useRef(null);
@@ -47,31 +50,78 @@ export default function CreandoOraciones({ studentNumber, className, studentName
   useEffect(() => { artModeRef.current = artMode; }, [artMode]);
   useEffect(() => { activeRowRef.current = activeRowIndex; }, [activeRowIndex]);
 
-  // ── Load / create session ──
+  // ── Load all pages for this student, show the most recent ──
   useEffect(() => {
     (async () => {
       try {
         const existing = await base44.entities.SentenceActivitySession.filter({
           student_number: studentNumber, class_name: className, school_year: ACTIVE_SCHOOL_YEAR,
         });
-        if (existing.length > 0) {
-          const s = existing[0];
-          setSession(s);
-          setArtMode(s.art_mode || 'color');
-          sessionRef.current = s;
+        // Sort by page_number ascending so navigation goes in order
+        const sorted = existing.sort((a, b) => (a.page_number || 1) - (b.page_number || 1));
+        setAllPages(sorted);
+        if (sorted.length > 0) {
+          const latest = sorted[sorted.length - 1];
+          setSession(latest);
+          setArtMode(latest.art_mode || 'color');
+          sessionRef.current = latest;
+          setCurrentPageIndex(sorted.length - 1);
         } else {
+          const today = new Date().toISOString().slice(0, 10);
           const s = await base44.entities.SentenceActivitySession.create({
             student_number: studentNumber, class_name: className, school_year: ACTIVE_SCHOOL_YEAR,
+            page_number: 1, page_date: today,
             art_mode: 'color', rows: DEFAULT_ROWS, card_coloring: {}, drawing_strokes: {},
             last_active: new Date().toISOString(),
           });
+          setAllPages([s]);
           setSession(s);
           sessionRef.current = s;
+          setCurrentPageIndex(0);
         }
       } catch {}
       setLoading(false);
     })();
   }, [studentNumber, className]);
+
+  // ── Create a new blank page ──
+  const handleNewPage = async () => {
+    if (creatingPage) return;
+    setCreatingPage(true);
+    try {
+      // Save current page first
+      await doSave();
+      const nextPageNum = allPages.length + 1;
+      const today = new Date().toISOString().slice(0, 10);
+      const s = await base44.entities.SentenceActivitySession.create({
+        student_number: studentNumber, class_name: className, school_year: ACTIVE_SCHOOL_YEAR,
+        page_number: nextPageNum, page_date: today,
+        art_mode: 'color', rows: DEFAULT_ROWS, card_coloring: {}, drawing_strokes: {},
+        last_active: new Date().toISOString(),
+      });
+      const newPages = [...allPages, s];
+      setAllPages(newPages);
+      setSession(s);
+      sessionRef.current = s;
+      setCurrentPageIndex(newPages.length - 1);
+      setActiveRowIndex(0);
+      setArtMode('color');
+    } catch {}
+    setCreatingPage(false);
+  };
+
+  // ── Switch to a different page ──
+  const handleSwitchPage = (index) => {
+    if (index < 0 || index >= allPages.length) return;
+    // Save current page first
+    doSave();
+    const s = allPages[index];
+    setSession(s);
+    setArtMode(s.art_mode || 'color');
+    sessionRef.current = s;
+    setCurrentPageIndex(index);
+    setActiveRowIndex(0);
+  };
 
   const rows = Array.isArray(session?.rows) ? session.rows : DEFAULT_ROWS;
   const activeRow = rows[activeRowIndex] || DEFAULT_ROWS[0];
@@ -206,6 +256,38 @@ export default function CreandoOraciones({ studentNumber, className, studentName
         <h1 className="font-bold text-lg text-slate-800">Creando oraciones</h1>
         <span className="text-xs text-slate-400">©Hola Bilinguals</span>
         <div className="flex-1" />
+        {/* Page navigation */}
+        {allPages.length > 0 && (
+          <div className="flex items-center gap-1 mr-2">
+            <button
+              onClick={() => handleSwitchPage(currentPageIndex - 1)}
+              disabled={currentPageIndex === 0}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-30"
+              title="Página anterior"
+            >
+              <ChevronLeft className="w-4 h-4 text-slate-600" />
+            </button>
+            <span className="text-xs font-bold text-slate-600 whitespace-nowrap">
+              Página {currentPageIndex + 1} de {allPages.length}
+            </span>
+            <button
+              onClick={() => handleSwitchPage(currentPageIndex + 1)}
+              disabled={currentPageIndex === allPages.length - 1}
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-30"
+              title="Página siguiente"
+            >
+              <ChevronRight className="w-4 h-4 text-slate-600" />
+            </button>
+            <button
+              onClick={handleNewPage}
+              disabled={creatingPage}
+              className="ml-1 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-white bg-green-500 hover:bg-green-600 active:scale-95 transition-all disabled:opacity-50"
+              title="Crear nueva página"
+            >
+              <Plus className="w-3.5 h-3.5" /> Nueva
+            </button>
+          </div>
+        )}
         {/* Art mode toggle */}
         <div className="flex rounded-lg border border-slate-300 overflow-hidden text-xs font-bold">
           <button
@@ -226,10 +308,15 @@ export default function CreandoOraciones({ studentNumber, className, studentName
       {/* Worksheet */}
       <div className="flex-1 flex justify-center px-2 py-4">
         <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg border-2 border-slate-800 p-4 sm:p-6 relative">
-          {/* Nombre line */}
+          {/* Nombre line + page date */}
           <div className="flex items-center gap-2 mb-4">
             <span className="font-bold text-sm text-slate-700">Nombre:</span>
             <div className="flex-1 border-b-2 border-slate-800" />
+            {session?.page_date && (
+              <span className="text-xs text-slate-400 whitespace-nowrap">
+                {new Date(session.page_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+              </span>
+            )}
           </div>
 
           {/* Card slots — sticky near top so students scroll to write */}
