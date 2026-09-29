@@ -14,45 +14,68 @@ export default function CardSlot({
   const cards = CARDS_BY_CATEGORY[category.id];
   const [displayCardId, setDisplayCardId] = useState(selectedCardId);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [reel, setReel] = useState([]);
+  const [offset, setOffset] = useState(0);
   const canvasRef = useRef(null);
-  const spinTimers = useRef([]);
+  const animRef = useRef(null);
+  const startRef = useRef(null);
+
+  const ITEM_H = 100;
+  const SPIN_MS = 2600;
 
   const selectedCard = CARD_MAP[selectedCardId];
   const displayCard = CARD_MAP[displayCardId] || cards[0];
   const imgUrl = artMode === 'bw' ? displayCard?.bw : displayCard?.color;
 
-  // Slot-reel spin: cycle through cards fast, then slow down and stop on random.
+  // Smooth vertical reel spin — same approach as the prize wheel.
   const handleSpin = useCallback(() => {
     if (spinning) return;
     onSpinStart();
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+
+    const finalCard = cards[Math.floor(Math.random() * cards.length)];
+
+    // Build a long reel cycling through the cards, with the winner near the end.
+    const REEL_LEN = 30;
+    const tiles = [];
+    for (let i = 0; i < REEL_LEN; i++) {
+      tiles.push(cards[i % cards.length]);
+    }
+    const winIdx = REEL_LEN - 4;
+    tiles[winIdx] = finalCard;
+
+    setReel(tiles);
+    setOffset(0);
     setIsSpinning(true);
-    // Clear any pending timers
-    spinTimers.current.forEach(t => clearTimeout(t));
-    spinTimers.current = [];
 
-    const totalCycles = 15 + Math.floor(Math.random() * 8);
-    let cycle = 0;
+    const target = winIdx * ITEM_H;
+    startRef.current = null;
 
-    const tick = () => {
-      const card = cards[cycle % cards.length];
-      setDisplayCardId(card.id);
-      cycle++;
-      if (cycle < totalCycles) {
-        // Ease out: start at 50ms, increase to 220ms
-        const progress = cycle / totalCycles;
-        const delay = 50 + Math.pow(progress, 2) * 170;
-        const timer = setTimeout(tick, delay);
-        spinTimers.current.push(timer);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 4);
+
+    const animate = (timestamp) => {
+      if (!startRef.current) startRef.current = timestamp;
+      const progress = Math.min((timestamp - startRef.current) / SPIN_MS, 1);
+      setOffset(target * easeOut(progress));
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(animate);
       } else {
-        // Stop on a random card
-        const finalCard = cards[Math.floor(Math.random() * cards.length)];
-        setDisplayCardId(finalCard.id);
-        onSelectCard(finalCard.id);
+        setOffset(target);
         setIsSpinning(false);
+        setDisplayCardId(finalCard.id);
+        setReel([]);
+        onSelectCard(finalCard.id);
       }
     };
-    tick();
+    animRef.current = requestAnimationFrame(animate);
   }, [cards, spinning, onSelectCard, onSpinStart]);
+
+  // Cancel any in-flight animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, []);
 
   // Sync display when selection changes externally (e.g. from picker)
   useEffect(() => {
@@ -90,16 +113,26 @@ export default function CardSlot({
         style={{ width: '100%', height: 100, border: '2px solid #1a1a2e', cursor: 'pointer' }}
         onClick={() => !spinning && onSelectCard?.(displayCardId, true)}
       >
-        {displayCardId ? (
+        {isSpinning && reel.length > 0 ? (
+          <div style={{ height: ITEM_H, overflow: 'hidden', position: 'relative', width: '100%' }}>
+            <div style={{ transform: `translateY(${-offset}px)`, willChange: 'transform' }}>
+              {reel.map((card, i) => (
+                <div key={i} style={{ height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img
+                    src={artMode === 'bw' ? card?.bw : card?.color}
+                    alt=""
+                    className="max-w-full max-h-full object-contain p-1"
+                    draggable={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : displayCardId ? (
           <img
             src={imgUrl}
             alt={displayCard?.text}
             className="max-w-full max-h-full object-contain p-1"
-            style={{
-              filter: isSpinning ? 'blur(4px) brightness(1.1)' : 'none',
-              transform: isSpinning ? 'scaleY(0.85) scaleX(0.95)' : 'scale(1)',
-              transition: 'filter 0.2s ease-out, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
             draggable={false}
           />
         ) : (
