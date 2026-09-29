@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
 import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
-import { configForPreset } from '@/lib/lettersort/presetConfig';
+import { configForPreset, presetModeKey } from '@/lib/lettersort/presetConfig';
 import { buildConfig } from '@/lib/lettersort/rounds';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import { useClassColors } from '@/hooks/useClassColors';
@@ -23,6 +23,15 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
   const [lastResult, setLastResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const config = useMemo(() => {
+    // A teacher-assigned custom preset (anything other than the plain
+    // "letters" type) wins over curriculum auto-build.
+    if (presetId && presets[presetId]) {
+      const pk = presetModeKey(presets[presetId]);
+      if (pk && pk !== 'letters') {
+        const c = configForPreset(presets[presetId]);
+        if (c) return c;
+      }
+    }
     // Curriculum-driven mode: build letters from M#.L# grapheme progression
     if (curriculumPosition) {
       const pos = curriculumPositionOverride
