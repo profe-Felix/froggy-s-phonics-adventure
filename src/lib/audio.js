@@ -1,4 +1,5 @@
 import { base44 } from '@/api/base44Client';
+import { getDefaultVoice, langFromVoice } from '@/lib/activities/ttsVoices';
 
 // Central Supabase audio bucket for all literacy/math games.
 //
@@ -114,11 +115,18 @@ const ttsCache = new Map();
 
 export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
   if (!text) return;
-  const key = `${lang}:${voice || ''}:${text}`;
+  // When no explicit voice is passed, use the teacher's configured default
+  // (TtsVoiceSetting entity → es-US-Wavenet-A) so every "Escuchar" button
+  // respects the chosen accent (US Spanish = seseo, no distinción).
+  let effectiveVoice = voice;
+  if (!effectiveVoice) {
+    try { effectiveVoice = await getDefaultVoice(); } catch { effectiveVoice = ''; }
+  }
+  const key = `${lang}:${effectiveVoice || ''}:${text}`;
   let url = ttsCache.get(key);
   if (!url) {
     try {
-      const res = await base44.functions.invoke('generateTts', { text, lang, voice: voice || undefined });
+      const res = await base44.functions.invoke('generateTts', { text, lang, voice: effectiveVoice || undefined });
       url = res.data?.url;
       if (url) ttsCache.set(key, url);
     } catch { /* fall through to speechSynthesis */ }
@@ -135,7 +143,8 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
   try {
     window.speechSynthesis?.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang === 'en' ? 'en-US' : 'es-ES';
+    const fallbackLang = lang === 'en' ? 'en-US' : (langFromVoice(effectiveVoice) || 'es-US');
+    u.lang = fallbackLang;
     u.rate = rate;
     window.speechSynthesis?.speak(u);
   } catch { /* best-effort */ }
@@ -148,10 +157,12 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
 // the first student to hit a word generates it for everyone, forever.
 export async function preloadTts(text, lang = 'es') {
   if (!text) return;
-  const key = `${lang}::${text}`;
+  let effectiveVoice = '';
+  try { effectiveVoice = await getDefaultVoice(); } catch { effectiveVoice = ''; }
+  const key = `${lang}:${effectiveVoice || ''}:${text}`;
   if (ttsCache.has(key)) return;
   try {
-    const res = await base44.functions.invoke('generateTts', { text, lang });
+    const res = await base44.functions.invoke('generateTts', { text, lang, voice: effectiveVoice || undefined });
     const url = res.data?.url;
     if (url) ttsCache.set(key, url);
   } catch { /* best-effort */ }

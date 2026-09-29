@@ -35,9 +35,12 @@ export default async function(req: Request): Promise<Response> {
 
     // Resolve the effective voice + languageCode. A provided voice wins; its
     // languageCode is derived from the voice name so es-US voices use es-US.
-    const defaultVoice = lang === 'en' ? 'en-US-Standard-E' : 'es-ES-Standard-A';
+    // Default to US Spanish (seseo — no distinción) so soft c/z sound like /s/
+    // (cena → "sena"), not Spain's /th/ (cena → "thena"). Matches the
+    // TtsVoiceSetting default (es-US-Wavenet-A) the teacher picks on TtsVoices.
+    const defaultVoice = lang === 'en' ? 'en-US-Standard-E' : 'es-US-Wavenet-A';
     const effectiveVoice = voice || defaultVoice;
-    const langCode = langCodeFromVoice(effectiveVoice) || (lang === 'en' ? 'en-US' : 'es-ES');
+    const langCode = langCodeFromVoice(effectiveVoice) || (lang === 'en' ? 'en-US' : 'es-US');
 
     const hash = await hashText(text);
     // Include the voice in the cache path so different voices don't collide.
