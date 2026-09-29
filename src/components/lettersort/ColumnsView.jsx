@@ -264,22 +264,22 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
         </div>
 
         {/* columns */}
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(110px, 1fr))` }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${round.columns.length}, minmax(150px, 1fr))` }}>
           {round.columns.map((col) => (
             <div key={col.key} className="flex flex-col">
               <ColumnHeader col={col} config={config} isNotPair={isNotPair} targetLetter={targetLetter} />
-              <Droppable droppableId={col.key} direction="horizontal">
+              <Droppable droppableId={col.key} direction="vertical">
                 {(prov) => (
                   <div
                     ref={prov.innerRef}
                     {...prov.droppableProps}
                     data-droppable-id={col.key}
-                    className="flex flex-wrap gap-1 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[88px]"
+                    className="flex flex-col gap-1.5 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[96px]"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                         {(p) => (
-                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-24 shrink-0">
+                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-full shrink-0">
                             <SortCard
                               card={card}
                               tilesOnly={config.tilesOnly}
@@ -311,12 +311,12 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 ref={prov.innerRef}
                 {...prov.droppableProps}
                 data-droppable-id="rack"
-                className="flex flex-wrap gap-1 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[60px]"
+                className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[72px]"
               >
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                     {(p) => (
-                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-24 shrink-0">
+                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-32 shrink-0">
                         <SortCard
                           card={card}
                           tilesOnly={config.tilesOnly}
