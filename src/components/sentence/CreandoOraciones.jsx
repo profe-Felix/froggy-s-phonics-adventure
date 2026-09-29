@@ -492,7 +492,7 @@ function DrawingArea({ drawingRef, strokes, tool, color, size, onStrokeStart, on
     if (!container) return;
     const obs = new ResizeObserver((entries) => {
       const { width } = entries[0].contentRect;
-      setDims({ w: Math.round(width), h: 150 });
+      setDims({ w: Math.round(width), h: 600 });
     });
     obs.observe(container);
     return () => obs.disconnect();
@@ -506,7 +506,7 @@ function DrawingArea({ drawingRef, strokes, tool, color, size, onStrokeStart, on
   }, [strokes]);
 
   return (
-    <div ref={containerRef} className="relative bg-white border-2 border-slate-400 rounded-lg" style={{ height: 150 }}>
+    <div ref={containerRef} className="relative bg-white border-2 border-slate-400 rounded-lg" style={{ height: 600 }}>
       <AnnotationCanvas
         ref={drawingRef}
         width={dims.w}
