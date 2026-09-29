@@ -18,13 +18,13 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
     const showCover = hideWords && !locked;
     return (
       <div
-        className={base + 'overflow-hidden px-3 py-2.5 min-h-[180px] w-full cursor-grab active:cursor-grabbing ' + (locked && hideWords ? 'animate-card-flip' : '')}
+        className={base + 'overflow-hidden px-4 py-4 min-h-[140px] w-full cursor-grab active:cursor-grabbing ' + (locked && hideWords ? 'animate-card-flip' : '')}
         style={locked && hideWords ? { transformStyle: 'preserve-3d' } : undefined}
         onClick={onClick}
         role="button"
         tabIndex={0}
       >
-        <span className={`font-bold text-slate-800 text-center leading-tight break-words ${labelText.length > 8 ? 'text-base' : labelText.length > 6 ? 'text-lg' : 'text-2xl'}`}>
+        <span className={`font-bold text-slate-800 text-center leading-tight break-words ${labelText.length > 8 ? 'text-4xl' : labelText.length > 6 ? 'text-5xl' : 'text-6xl'}`}>
           {labelText || '\u00A0'}
         </span>
         {showCover && (

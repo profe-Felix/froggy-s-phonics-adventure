@@ -311,7 +311,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 ref={prov.innerRef}
                 {...prov.droppableProps}
                 data-droppable-id="rack"
-                className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[180px]"
+                className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[140px]"
               >
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
