@@ -195,6 +195,20 @@ export default function TableRotationManager() {
               </Button>
             )}
           </div>
+
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <div className="flex items-center border rounded-md overflow-hidden">
+              <Button asChild size="sm" variant="ghost" className="rounded-none">
+                <Link to={`/Desk?class=${encodeURIComponent(selectedClass)}&group=${group}`}>Desk</Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost" className="rounded-none">
+                <Link to={`/Carpet?class=${encodeURIComponent(selectedClass)}&group=${group}`}>Carpet</Link>
+              </Button>
+              <Button asChild size="sm" variant="default" className="rounded-none">
+                <Link to={`/TableRotationManager?class=${encodeURIComponent(selectedClass)}&group=${group}`}>Rotation</Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </header>
 

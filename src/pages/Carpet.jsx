@@ -578,6 +578,9 @@ export default function Carpet() {
               <Button asChild size="sm" variant="default" className="rounded-none">
                 <Link to={`/Carpet?class=${encodeURIComponent(selectedClass)}&group=${group}`}>Carpet</Link>
               </Button>
+              <Button asChild size="sm" variant="ghost" className="rounded-none">
+                <Link to={`/TableRotationManager?class=${encodeURIComponent(selectedClass)}&group=${group}`}>Rotation</Link>
+              </Button>
             </div>
             <select
               value={selectedClass}

@@ -91,7 +91,7 @@ export default function LetterGame() {
   // their class+group. Polled every 5s and subscribed to real-time updates so
   // that activating the rotation from the teacher dashboard immediately
   // redirects students who are already logged in — no refresh needed.
-  const { data: rotationData } = useQuery({
+  const { data: rotationData, isFetched: rotationChecked } = useQuery({
     queryKey: ['table-rotation', studentData?.id],
     queryFn: async () => {
       if (!studentData?.id) return { assignedMode: null };
@@ -637,11 +637,13 @@ export default function LetterGame() {
 
   const handleModeSelect = (mode) => {
     if (rotationAssignedMode) return; // locked by table rotation
+    if (!rotationChecked) return; // wait for rotation check before allowing navigation
     setCurrentMode(mode);
   };
 
   const handleBackToModes = () => {
     if (rotationAssignedMode) return; // locked by table rotation
+    if (!rotationChecked) return; // wait for rotation check
     setCurrentMode(null);
   };
 

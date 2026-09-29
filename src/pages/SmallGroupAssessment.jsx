@@ -9,7 +9,8 @@ import { FULL_SEQUENCE, EN_LETTERS_ROW1, EN_LETTERS_ROW2, createEmptyData, getIn
 import { DECODING_LEVELS, generateDecodingItems, canAssessLevel } from '@/lib/decodingSyllables';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import AssessmentRecordingPlayer from '@/components/smallgroup/AssessmentRecordingPlayer';
-import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, ChevronDown, AlertCircle, Mic, Play, Volume2 } from 'lucide-react';
+import AssessmentHistory from '@/components/smallgroup/AssessmentHistory';
+import { Loader2, ArrowLeft, Check, X, ChevronRight, ChevronLeft, ChevronDown, AlertCircle, Mic, Play, Volume2, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
 
@@ -127,6 +128,8 @@ export default function SmallGroupAssessment() {
   const [recordingSignedUrls, setRecordingSignedUrls] = useState({}); // studentId -> signed_url
   const [showRecordingFor, setShowRecordingFor] = useState(null); // studentId
   const [recordingTimeline, setRecordingTimeline] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [showHistoryFor, setShowHistoryFor] = useState(null);
   const recorder = useAudioRecorder();
 
   // Keep a ref of latest results so beforeunload/visibilitychange handlers can access it
@@ -164,30 +167,30 @@ export default function SmallGroupAssessment() {
     (async () => {
       setLoading(true);
       try {
-        const existing = await base44.entities.SmallGroupAssessment.filter({
-          teacher_name: teacher,
-          block: block,
-          color_group: group,
-          status: 'active',
-          school_year: ACTIVE_SCHOOL_YEAR,
-        });
-        if (existing.length > 0 && alive) {
-          setSession(existing[0]);
-          setResults(existing[0].results || {});
-        } else if (alive) {
-          // No active session — carry over results from the most recent completed
-          // session so in-progress assessments continue across sessions instead
-          // of resetting to "Start".
-          const completed = await base44.entities.SmallGroupAssessment.filter({
+        const [active, completed] = await Promise.all([
+          base44.entities.SmallGroupAssessment.filter({
+            teacher_name: teacher,
+            block: block,
+            color_group: group,
+            status: 'active',
+            school_year: ACTIVE_SCHOOL_YEAR,
+          }),
+          base44.entities.SmallGroupAssessment.filter({
             teacher_name: teacher,
             block: block,
             color_group: group,
             status: 'completed',
             school_year: ACTIVE_SCHOOL_YEAR,
-          }, '-created_date', 1);
-          const carriedResults = (completed && completed.length > 0)
-            ? (completed[0].results || {})
-            : {};
+          }, '-created_date', 50),
+        ]);
+        if (!alive) return;
+        setHistory(completed || []);
+        if (active.length > 0) {
+          setSession(active[0]);
+          setResults(active[0].results || {});
+        } else {
+          // No active session — start a fresh round. History from completed
+          // sessions is preserved for progress monitoring and "Reassess" display.
           const created = await base44.entities.SmallGroupAssessment.create({
             teacher_name: teacher,
             block: block,
@@ -195,11 +198,12 @@ export default function SmallGroupAssessment() {
             school_year: ACTIVE_SCHOOL_YEAR,
             status: 'active',
             started_at: new Date().toISOString(),
-            results: carriedResults,
+            results: {},
             broadcast_state: {},
           });
+          if (!alive) return;
           setSession(created);
-          setResults(carriedResults);
+          setResults({});
         }
       } catch {
         // ignore
@@ -214,6 +218,28 @@ export default function SmallGroupAssessment() {
     if (students) for (const s of students) map[s.id] = s;
     return map;
   }, [students]);
+
+  // Build per-student history from completed sessions for progress monitoring.
+  // Each entry: { date, type, correct[], incorrect[], completed }
+  const studentHistory = useMemo(() => {
+    const map = {};
+    for (const sess of history) {
+      const sessResults = sess.results || {};
+      for (const [studentId, types] of Object.entries(sessResults)) {
+        if (!map[studentId]) map[studentId] = [];
+        for (const [type, result] of Object.entries(types)) {
+          if (type === 'decoding') {
+            const allCorrect = Object.values(result.levels || {}).flatMap((l) => l.correct || []);
+            const allIncorrect = Object.values(result.levels || {}).flatMap((l) => l.incorrect || []);
+            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: allCorrect, incorrect: allIncorrect, completed: result.completed });
+          } else {
+            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: result.correct || [], incorrect: result.incorrect || [], completed: result.completed });
+          }
+        }
+      }
+    }
+    return map;
+  }, [history]);
 
   const groupStudents = useMemo(
     () => assignments
@@ -972,15 +998,27 @@ export default function SmallGroupAssessment() {
       recorder.reset();
     }
     if (!confirm('End this assessment session? You can start a new one later.')) return;
-    // Save current results before marking session completed so progress
-    // carries over to the next session.
-    await base44.entities.SmallGroupAssessment.update(session.id, {
+    // Save current results before marking session completed so this round's
+    // data is preserved in history for progress monitoring.
+    const completedSession = await base44.entities.SmallGroupAssessment.update(session.id, {
       results: resultsRef.current,
       status: 'completed',
       ended_at: new Date().toISOString(),
       broadcast_state: {},
     });
-    setSession(null);
+    setHistory((prev) => [completedSession, ...prev]);
+    // Immediately create a fresh active session for the next round.
+    const created = await base44.entities.SmallGroupAssessment.create({
+      teacher_name: teacher,
+      block: block,
+      color_group: group,
+      school_year: ACTIVE_SCHOOL_YEAR,
+      status: 'active',
+      started_at: new Date().toISOString(),
+      results: {},
+      broadcast_state: {},
+    });
+    setSession(created);
     setResults({});
     setAssessingStudentId(null);
   };
@@ -1362,6 +1400,15 @@ export default function SmallGroupAssessment() {
           </div>
         ) : (
           <>
+            {/* Assessment history modal */}
+            {showHistoryFor && studentMap[showHistoryFor] && (
+              <AssessmentHistory
+                student={studentMap[showHistoryFor]}
+                history={studentHistory[showHistoryFor] || []}
+                onClose={() => setShowHistoryFor(null)}
+              />
+            )}
+
             {/* Recording replay panel */}
             {showRecordingFor && results[showRecordingFor]?.['sight_words']?.recording_url && (
               <div className="mb-6 bg-white rounded-xl border border-slate-200 p-4">
@@ -1438,6 +1485,18 @@ export default function SmallGroupAssessment() {
                   }
                 }
 
+                // If no current-round results, check history for past attempts → "Reassess"
+                if (buttonLabel === 'Start') {
+                  const pastAttempts = (studentHistory[student.id] || []).filter((h) => h.type === assessmentType);
+                  if (pastAttempts.length > 0) {
+                    statusLabel = `${pastAttempts.length} past attempt${pastAttempts.length > 1 ? 's' : ''}`;
+                    statusClass = 'text-indigo-600';
+                    buttonLabel = 'Reassess';
+                    buttonClass = 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200';
+                  }
+                }
+                const hasHistory = (studentHistory[student.id] || []).length > 0;
+
                 const { first } = parseName(student.name);
 
                 return (
@@ -1468,6 +1527,15 @@ export default function SmallGroupAssessment() {
                       >
                         {buttonLabel}
                       </button>
+                      {hasHistory && (
+                        <button
+                          onClick={() => setShowHistoryFor(student.id)}
+                          className="px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                          title="View assessment history"
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                        </button>
+                      )}
                       {hasRecording && (
                         <button
                           onClick={() => {
