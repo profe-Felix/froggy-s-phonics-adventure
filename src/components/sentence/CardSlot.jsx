@@ -13,6 +13,7 @@ export default function CardSlot({
 }) {
   const cards = CARDS_BY_CATEGORY[category.id];
   const [displayCardId, setDisplayCardId] = useState(selectedCardId);
+  const [isSpinning, setIsSpinning] = useState(false);
   const canvasRef = useRef(null);
   const spinTimers = useRef([]);
 
@@ -24,6 +25,7 @@ export default function CardSlot({
   const handleSpin = useCallback(() => {
     if (spinning) return;
     onSpinStart();
+    setIsSpinning(true);
     // Clear any pending timers
     spinTimers.current.forEach(t => clearTimeout(t));
     spinTimers.current = [];
@@ -36,9 +38,9 @@ export default function CardSlot({
       setDisplayCardId(card.id);
       cycle++;
       if (cycle < totalCycles) {
-        // Ease out: start at 60ms, increase to 250ms
+        // Ease out: start at 50ms, increase to 220ms
         const progress = cycle / totalCycles;
-        const delay = 60 + Math.pow(progress, 2) * 190;
+        const delay = 50 + Math.pow(progress, 2) * 170;
         const timer = setTimeout(tick, delay);
         spinTimers.current.push(timer);
       } else {
@@ -46,6 +48,7 @@ export default function CardSlot({
         const finalCard = cards[Math.floor(Math.random() * cards.length)];
         setDisplayCardId(finalCard.id);
         onSelectCard(finalCard.id);
+        setIsSpinning(false);
       }
     };
     tick();
@@ -92,6 +95,11 @@ export default function CardSlot({
             src={imgUrl}
             alt={displayCard?.text}
             className="max-w-full max-h-full object-contain p-1"
+            style={{
+              filter: isSpinning ? 'blur(4px) brightness(1.1)' : 'none',
+              transform: isSpinning ? 'scaleY(0.85) scaleX(0.95)' : 'scale(1)',
+              transition: 'filter 0.2s ease-out, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
             draggable={false}
           />
         ) : (

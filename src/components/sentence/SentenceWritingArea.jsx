@@ -53,18 +53,6 @@ export default function SentenceWritingArea({
         />
       </div>
 
-      {/* Typed text input */}
-      <div className="px-2 pb-2">
-        <input
-          type="text"
-          value={row.typed_text || ''}
-          onChange={(e) => onTypedTextChange(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          placeholder="Escribe tu oración aquí..."
-          className="w-full text-sm border-b border-slate-300 bg-transparent px-1 py-0.5 focus:border-indigo-400 focus:outline-none"
-          style={{ fontFamily: "'Andika', sans-serif" }}
-        />
-      </div>
     </div>
   );
 }
