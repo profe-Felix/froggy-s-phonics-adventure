@@ -55,7 +55,7 @@ export default function ClassQR() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 flex flex-col items-center gap-6">
+      <main className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-6">
         <div className="w-full flex flex-col items-center gap-2">
           <label className="text-sm font-bold text-slate-600">Select your class</label>
           <select
@@ -72,13 +72,13 @@ export default function ClassQR() {
 
         {url && (
           <>
-            <div ref={qrRef} className="bg-white rounded-2xl p-6 sm:p-8 shadow-lg w-full max-w-[640px] flex justify-center">
+            <div ref={qrRef} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg w-full flex justify-center">
               <QRCodeCanvas
                 value={url}
-                size={600}
+                size={1000}
                 level="M"
                 marginSize={4}
-                style={{ width: '100%', height: 'auto', maxWidth: 600 }}
+                style={{ width: '100%', height: 'auto' }}
               />
             </div>
 

@@ -296,6 +296,40 @@ export default function SmallGroupAssessment() {
     return base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
   }, [session]);
 
+  // Write broadcast_state alone (tiny payload) so students receive the next
+  // item instantly via realtime. The full `results` object grows as the session
+  // progresses and is persisted on a short debounce so rapid marking doesn't
+  // stall the broadcast on a large DB write.
+  const broadcastNow = useCallback((state) => {
+    if (!session) return;
+    base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: state }).catch(() => {});
+  }, [session]);
+
+  const resultsDebounceRef = useRef(null);
+  const pendingResultsRef = useRef(null);
+  const persistResultsDebounced = useCallback((newResults) => {
+    if (!session) return;
+    pendingResultsRef.current = newResults;
+    if (resultsDebounceRef.current) clearTimeout(resultsDebounceRef.current);
+    resultsDebounceRef.current = setTimeout(() => {
+      resultsDebounceRef.current = null;
+      const toWrite = pendingResultsRef.current;
+      if (toWrite) {
+        base44.entities.SmallGroupAssessment.update(session.id, { results: toWrite }).catch(() => {});
+      }
+    }, 500);
+  }, [session]);
+
+  const flushResults = useCallback(() => {
+    if (resultsDebounceRef.current) {
+      clearTimeout(resultsDebounceRef.current);
+      resultsDebounceRef.current = null;
+    }
+    if (pendingResultsRef.current && session) {
+      base44.entities.SmallGroupAssessment.update(session.id, { results: pendingResultsRef.current }).catch(() => {});
+    }
+  }, [session]);
+
   // Update student's mode_progress
   const updateModeProgress = useCallback(async (student, type, result) => {
     if (!student || !result) return;
@@ -632,10 +666,8 @@ export default function SmallGroupAssessment() {
           assessment_type: assessmentType,
         };
     if (session) {
-      base44.entities.SmallGroupAssessment.update(session.id, {
-        results: newResults,
-        broadcast_state: broadcastState,
-      }).catch(() => {});
+      base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: broadcastState }).catch(() => {});
+      persistResultsDebounced(newResults);
     }
 
     if (done) {
@@ -654,9 +686,7 @@ export default function SmallGroupAssessment() {
             },
           };
           setResults(finalResults);
-          if (session) {
-            base44.entities.SmallGroupAssessment.update(session.id, { results: finalResults }).catch(() => {});
-          }
+          persistResultsDebounced(finalResults);
         }
         recorder.reset();
       }
@@ -745,10 +775,8 @@ export default function SmallGroupAssessment() {
     // Broadcast next item or done
     if (assessmentDone) {
       if (session) {
-        base44.entities.SmallGroupAssessment.update(session.id, {
-          results: newResults,
-          broadcast_state: { show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' },
-        }).catch(() => {});
+        broadcastNow({ show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' });
+        persistResultsDebounced(newResults);
       }
       // Update mode progress with all decoding items
       const allCorrect = Object.values(newDecoding.levels).flatMap((l) => l.correct || []);
@@ -759,40 +787,36 @@ export default function SmallGroupAssessment() {
     } else if (nextLevelId && nextItems.length > 0) {
       // Broadcast first item of next level
       if (session) {
-        base44.entities.SmallGroupAssessment.update(session.id, {
-          results: newResults,
-          broadcast_state: {
-            current_item: nextItems[0],
-            student_id: assessingStudentId,
-            student_number: assessingStudent.student_number,
-            class_name: assessingStudent.class_name,
-            item_index: 0,
-            total_items: nextItems.length,
-            show_item: true,
-            assessment_type: 'decoding',
-            decoding_level: nextLevelId,
-          },
-        }).catch(() => {});
+        broadcastNow({
+          current_item: nextItems[0],
+          student_id: assessingStudentId,
+          student_number: assessingStudent.student_number,
+          class_name: assessingStudent.class_name,
+          item_index: 0,
+          total_items: nextItems.length,
+          show_item: true,
+          assessment_type: 'decoding',
+          decoding_level: nextLevelId,
+        });
+        persistResultsDebounced(newResults);
       }
       setTimeout(() => setLastMark(null), 500);
     } else {
       // Continue in same level
       const updatedLevel = newDecoding.levels[dr.current_level];
       if (session) {
-        base44.entities.SmallGroupAssessment.update(session.id, {
-          results: newResults,
-          broadcast_state: {
-            current_item: updatedLevel.item_order[updatedLevel.current_index],
-            student_id: assessingStudentId,
-            student_number: assessingStudent.student_number,
-            class_name: assessingStudent.class_name,
-            item_index: updatedLevel.current_index,
-            total_items: updatedLevel.item_order.length,
-            show_item: true,
-            assessment_type: 'decoding',
-            decoding_level: dr.current_level,
-          },
-        }).catch(() => {});
+        broadcastNow({
+          current_item: updatedLevel.item_order[updatedLevel.current_index],
+          student_id: assessingStudentId,
+          student_number: assessingStudent.student_number,
+          class_name: assessingStudent.class_name,
+          item_index: updatedLevel.current_index,
+          total_items: updatedLevel.item_order.length,
+          show_item: true,
+          assessment_type: 'decoding',
+          decoding_level: dr.current_level,
+        });
+        persistResultsDebounced(newResults);
       }
       setTimeout(() => setLastMark(null), 500);
     }
@@ -858,10 +882,8 @@ export default function SmallGroupAssessment() {
 
     if (assessmentDone) {
       if (session) {
-        base44.entities.SmallGroupAssessment.update(session.id, {
-          results: newResults,
-          broadcast_state: { show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' },
-        }).catch(() => {});
+        broadcastNow({ show_item: false, student_id: assessingStudentId, done: true, assessment_type: 'decoding' });
+        persistResultsDebounced(newResults);
       }
       const allCorrect = Object.values(newDecoding.levels).flatMap((l) => l.correct || []);
       const allIncorrect = Object.values(newDecoding.levels).flatMap((l) => l.incorrect || []);
@@ -870,20 +892,18 @@ export default function SmallGroupAssessment() {
       setTimeout(() => setLastMark(null), 800);
     } else if (nextLevelId && nextItems.length > 0) {
       if (session) {
-        base44.entities.SmallGroupAssessment.update(session.id, {
-          results: newResults,
-          broadcast_state: {
-            current_item: nextItems[0],
-            student_id: assessingStudentId,
-            student_number: assessingStudent.student_number,
-            class_name: assessingStudent.class_name,
-            item_index: 0,
-            total_items: nextItems.length,
-            show_item: true,
-            assessment_type: 'decoding',
-            decoding_level: nextLevelId,
-          },
-        }).catch(() => {});
+        broadcastNow({
+          current_item: nextItems[0],
+          student_id: assessingStudentId,
+          student_number: assessingStudent.student_number,
+          class_name: assessingStudent.class_name,
+          item_index: 0,
+          total_items: nextItems.length,
+          show_item: true,
+          assessment_type: 'decoding',
+          decoding_level: nextLevelId,
+        });
+        persistResultsDebounced(newResults);
       }
     }
   };
@@ -932,10 +952,9 @@ export default function SmallGroupAssessment() {
     // Persist all results and broadcast end — saves progress even if teacher
     // exits without hitting E, so refreshes and new sessions don't lose data.
     if (session) {
-      base44.entities.SmallGroupAssessment.update(session.id, {
-        results: latestResults,
-        broadcast_state: { show_item: false, student_id: assessingStudentId, done: true },
-      }).catch(() => {});
+      pendingResultsRef.current = latestResults;
+      broadcastNow({ show_item: false, student_id: assessingStudentId, done: true });
+      flushResults();
     }
     setAssessingStudentId(null);
     setLastMark(null);

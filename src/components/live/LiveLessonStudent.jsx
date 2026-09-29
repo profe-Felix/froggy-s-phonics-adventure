@@ -264,11 +264,11 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   // ---------- LESSON MODE (own pace) — always working, independent step ----------
   if (isLesson) {
     return (
-      <div className="relative min-h-screen bg-slate-50">
-        <div className="fixed top-0 inset-x-0 bg-violet-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
+      <div className="relative h-screen overflow-hidden flex flex-col bg-slate-50">
+        <div className="bg-violet-600 text-white text-center py-2 text-sm font-black flex items-center justify-center gap-2 shrink-0">
           <Footprints className="w-4 h-4" /> Work at your own pace — step {stepIndex + 1} of {steps.length}
         </div>
-        <div className="pt-10">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <LessonModeRouter
             key={stepIndex}
             step={currentStep}
@@ -305,11 +305,11 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
 
   // ---------- TRY PHASE (released) ----------
   return (
-    <div className="relative">
-      <div className="fixed top-0 inset-x-0 bg-green-600 text-white text-center py-2 text-sm font-black z-[60] flex items-center justify-center gap-2">
+    <div className="relative h-screen overflow-hidden flex flex-col">
+      <div className="bg-green-600 text-white text-center py-2 text-sm font-black flex items-center justify-center gap-2 shrink-0">
         <Unlock className="w-4 h-4" /> Try it on your iPad! Your teacher will advance when ready.
       </div>
-      <div className="pt-10">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <LessonModeRouter
           step={currentStep}
           stepIndex={stepIndex}

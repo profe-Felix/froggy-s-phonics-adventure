@@ -1557,7 +1557,7 @@ export default function LessonModeRouter({
   return (
     <div
       className={`relative flex flex-col ${
-        stepperMode
+        stepperMode || liveMode
           ? 'h-full min-h-0 overflow-hidden'
           : 'h-screen'
       }`}

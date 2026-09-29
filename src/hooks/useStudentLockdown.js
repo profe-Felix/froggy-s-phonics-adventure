@@ -56,11 +56,15 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
         }
       }
 
-      // ── Live sessions (with 90s staleness check) ──
+      // ── Live sessions (with staleness check) ──
+      // A session matching the live code the student just scanned is always
+      // considered live — the teacher just shared that code, so even if the
+      // heartbeat hasn't bumped updated_date yet the student should join.
       const now = Date.now();
-      const STALE_AFTER_MS = 90 * 1000;
+      const STALE_AFTER_MS = 5 * 60 * 1000;
       const activeLiveSessions = (liveSessions || [])
         .filter(s => {
+          if (liveCode && s.code === liveCode) return true;
           const lastUpdate = s.updated_date || s.started_at;
           if (!lastUpdate) return false;
           return now - new Date(lastUpdate).getTime() < STALE_AFTER_MS;
