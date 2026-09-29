@@ -20,6 +20,7 @@ import MissingLetterMode from '../components/game/modes/MissingLetterMode';
 import NameTracingMode from '../components/game/modes/NameTracingMode';
 import SyllableCountMode from '../components/game/modes/SyllableCountMode';
 import StoryBuilder from '../pages/StoryBuilder';
+import CreandoOracionesMode from '@/components/sentence/CreandoOraciones';
 import BookReading from '../pages/BookReading';
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
@@ -723,8 +724,14 @@ export default function LetterGame() {
           onStudentPatch={handlePersistPatch}
         />
       )}
+      {currentMode === 'sentence_builder' && (
+        <CreandoOracionesMode
+          studentData={studentData}
+          onBack={handleBackToModes}
+        />
+      )}
 
-      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && currentMode !== 'letter_tracing' && currentMode !== 'name_tracing' && !activeTracingLock && !rotationAssignedMode && (
+      {currentMode !== 'spelling' && currentMode !== 'sight_words_spelling' && currentMode !== 'book_reading' && currentMode !== 'phonics' && currentMode !== 'spanish_reading' && currentMode !== 'sentences' && currentMode !== 'letter_tracing' && currentMode !== 'name_tracing' && currentMode !== 'sentence_builder' && !activeTracingLock && !rotationAssignedMode && (
         <Button
           onClick={handleBackToModes}
           className="absolute top-4 left-4 bg-white/90 hover:bg-white text-gray-800 shadow-lg z-50"

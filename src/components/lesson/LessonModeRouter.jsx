@@ -15,6 +15,7 @@ import PhonicsMode from '@/components/game/modes/PhonicsMode';
 import SentencesMode from '@/components/game/modes/SentencesMode';
 import SpanishReadingGame from '@/components/game/spanishReading/SpanishReadingGame';
 import StoryBuilder from '@/pages/StoryBuilder';
+import CreandoOracionesMode from '@/components/sentence/CreandoOraciones';
 import BookReadingStep from '@/components/lesson/modes/BookReadingStep';
 import LetterSortStep from '@/components/lesson/modes/LetterSortStep';
 import LetterRecognitionStep from '@/components/lesson/modes/LetterRecognitionStep';
@@ -1241,6 +1242,14 @@ export default function LessonModeRouter({
             onBack={
               wrappedBack
             }
+          />
+        );
+
+      case 'sentence_builder':
+        return (
+          <CreandoOracionesMode
+            studentData={studentData}
+            onBack={wrappedBack}
           />
         );
 

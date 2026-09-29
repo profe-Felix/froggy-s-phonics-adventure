@@ -24,6 +24,7 @@ const FREE_MODES = [
   { mode: 'spanish_reading', label: 'Spanish Reading', emoji: '📖', spanishOnly: true },
   { mode: 'word_builder', label: 'Word Building', emoji: '🧩', spanishOnly: true },
   { mode: 'storybuilder', label: 'Story Builder', emoji: '📖✏️' },
+  { mode: 'sentence_builder', label: 'Creando oraciones', emoji: '🃏' },
 ];
 
 export default function GameHome({

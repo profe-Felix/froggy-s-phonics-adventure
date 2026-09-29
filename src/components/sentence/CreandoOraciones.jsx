@@ -17,13 +17,19 @@ const DEFAULT_ROWS = [
   { mode: '2part', who_card: 'who-14', what_card: 'what-17', where_card: 'where-14', typed_text: '', writing_strokes: {}, self_checks: {} },
 ];
 
-export default function CreandoOraciones({ studentNumber, className, studentName, onBack }) {
+export default function CreandoOraciones({ studentNumber, className, studentName, studentData, onBack }) {
+  // Support being called as a game mode (studentData prop) or standalone page (direct props)
+  if (studentData && !studentNumber) {
+    studentNumber = studentData.student_number;
+    className = studentData.class_name;
+    studentName = studentData.name;
+  }
   const [session, setSession] = useState(null);
   const [activeRowIndex, setActiveRowIndex] = useState(0);
   const [artMode, setArtMode] = useState('color');
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#4338a');
-  const [size, setSize] = useState(4);
+  const [size, setSize] = useState(3);
   const [side, setSide] = useState('left');
   const [showPicker, setShowPicker] = useState(null);
   const [spinSignals, setSpinSignals] = useState({});

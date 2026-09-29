@@ -1,43 +1,18 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
-import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
+import React from 'react';
+import SentenceWritingLines from './SentenceWritingLines';
+import SelfChecks from './SelfChecks';
 
-// A single numbered sentence-writing area with handwriting guide lines
-// (sky/grass/fence/dirt), an annotation canvas overlay for freehand writing,
-// and an optional text input for typed entry. Reuses the same practice-sheet
-// CSS classes from index.css used by NamePractice and WordTracing.
+// A single numbered sentence-writing area with SVG handwriting guide lines
+// (matching Letter/Name Tracing size + emoji guys), an annotation canvas
+// overlay for freehand writing, and an optional text input for typed entry.
 export default function SentenceWritingArea({
-  index, row, sentenceText, artMode,
+  index, row, sentenceText,
   tool, color, size,
   onStrokeStart, onStrokeEnd, onActivateCanvas,
   onTypedTextChange, onSelfCheckChange,
   active, onActivate,
   canvasRef,
 }) {
-  const containerRef = useRef(null);
-  const [dims, setDims] = useState({ w: 300, h: 100 });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const obs = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      setDims({ w: Math.round(width), h: Math.round(height) });
-    });
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, []);
-
-  // Load strokes when row changes
-  useLayoutEffect(() => {
-    if (!canvasRef.current) return;
-    const data = row.writing_strokes;
-    if (data && Object.keys(data).length > 0) {
-      canvasRef.current.loadStrokes(data);
-    } else {
-      canvasRef.current.loadStrokes(null);
-    }
-  }, [row.writing_strokes]);
-
   return (
     <div
       className={`rounded-xl border-2 transition-all ${active ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-300'}`}
@@ -63,30 +38,18 @@ export default function SentenceWritingArea({
         </p>
       )}
 
-      {/* Writing area — handwriting lines + canvas overlay */}
-      <div ref={containerRef} className="relative mx-2 mt-1 mb-2" style={{ height: '80px' }}>
-        {/* Handwriting guide lines (sky/grass/fence/dirt) */}
-        <div className="practice-sheet absolute inset-0" style={{ '--f': '0.28in', '--g': '0.18in' }}>
-          <div className="practice-set">
-            <div className="practice-bg sky" />
-            <div className="practice-bg grass" />
-            <div className="practice-bg dirt" />
-            <div className="practice-line top" />
-            <div className="practice-line mid" />
-            <div className="practice-line base" />
-            <div className="practice-line desc" />
-          </div>
-        </div>
-        {/* Annotation canvas overlay */}
-        <AnnotationCanvas
-          ref={canvasRef}
-          width={dims.w}
-          height={dims.h}
+      {/* Writing area — SVG handwriting lines + canvas overlay */}
+      <div className="mx-2 mt-1 mb-1">
+        <SentenceWritingLines
+          row={row}
+          canvasRef={canvasRef}
+          tool={tool}
           color={color}
           size={size}
-          tool={tool}
-          onStrokeStart={() => { onStrokeStart?.(); onActivateCanvas?.(canvasRef); onActivate?.(); }}
+          onStrokeStart={onStrokeStart}
           onStrokeEnd={onStrokeEnd}
+          onActivateCanvas={onActivateCanvas}
+          onActivate={onActivate}
         />
       </div>
 

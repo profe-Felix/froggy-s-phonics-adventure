@@ -19,6 +19,7 @@ export const ROTATION_ACTIVITIES = [
   { id: 'sentences', label: 'Sentences', icon: '💬', description: 'Build sentences word by word' },
   { id: 'case_matching', label: 'Upper & Lowercase', icon: '🔄', description: 'Match uppercase with lowercase' },
   { id: 'word_builder', label: 'Word Builder', icon: '🏗️', description: 'Build words from syllables' },
+  { id: 'sentence_builder', label: 'Creando oraciones', icon: '🃏', description: 'Build sentences with picture cards' },
 ];
 
 // Distinct color schemes for up to 8 tables.

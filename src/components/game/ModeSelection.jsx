@@ -119,6 +119,14 @@ const MODES = [
     icon: '🧒',
     color: 'from-lime-400 to-green-600',
     alwaysUnlocked: true
+  },
+  {
+    id: 'sentence_builder',
+    title: 'Creando oraciones',
+    description: 'Build sentences with picture cards!',
+    icon: '🃏',
+    color: 'from-fuchsia-400 to-rose-600',
+    alwaysUnlocked: true
   }
 ];
 

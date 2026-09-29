@@ -45,6 +45,7 @@ export const MODE_OPTIONS = [
   { value: 'word_tracing',            label: 'Word Tracing',        emoji: '✍️', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'missing_letter',          label: 'Missing Letter',      emoji: '🔤', defaultCompletion: 'view',    defaultTarget: 1 },
   { value: 'digital_notebook',        label: 'Digital Notebook',    emoji: '📓', defaultCompletion: 'view',    defaultTarget: 1 },
+  { value: 'sentence_builder',        label: 'Creando oraciones',   emoji: '🃏', defaultCompletion: 'view',    defaultTarget: 1 },
 ];
 
 export const MODE_BY_VALUE = Object.fromEntries(MODE_OPTIONS.map(m => [m.value, m]));
