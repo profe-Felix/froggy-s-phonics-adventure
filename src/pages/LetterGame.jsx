@@ -30,6 +30,7 @@ import LessonModeRouter from '../components/lesson/LessonModeRouter';
 import GameHome from '../components/lesson/GameHome';
 import LiveLessonStudent from '@/components/live/LiveLessonStudent';
 import AssessmentOverlay from '@/components/smallgroup/AssessmentOverlay';
+import { useStudentLockdown } from '@/hooks/useStudentLockdown';
 import { useClassColors } from '@/hooks/useClassColors';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
@@ -87,51 +88,25 @@ export default function LetterGame() {
   const queryClient = useQueryClient();
   const { languageFor, configs, tracingOnlyFor } = useClassColors();
 
-  // Table rotation: fetch the student's desk seat + any active rotation for
-  // their class+group. Polled every 5s and subscribed to real-time updates so
-  // that activating the rotation from the teacher dashboard immediately
-  // redirects students who are already logged in — no refresh needed.
-  const { data: rotationData, isFetched: rotationChecked } = useQuery({
-    queryKey: ['table-rotation', studentData?.id],
-    queryFn: async () => {
-      if (!studentData?.id) return { assignedMode: null };
-      const seats = await base44.entities.DeskSeat.filter({ student_id: studentData.id });
-      if (!seats?.length) return { assignedMode: null };
-      const seat = seats[0];
-      const tableNumber = seat.table_number || 0;
-      if (tableNumber === 0) return { assignedMode: null };
-      const rotations = await base44.entities.TableRotation.filter({
-        class_name: seat.class_name,
-        group: seat.group,
-        school_year: ACTIVE_SCHOOL_YEAR,
-        active: true,
-      });
-      if (!rotations?.length) return { assignedMode: null };
-      const rot = rotations[0];
-      const activities = rot.activities || [];
-      if (activities.length === 0) return { assignedMode: null };
-      const offset = rot.rotation_offset || 0;
-      const idx = (tableNumber - 1 + offset) % activities.length;
-      const assigned = activities[idx];
-      if (!assigned || assigned.activity_type === 'pathway') return { assignedMode: null };
-      return { assignedMode: assigned.activity_type };
-    },
-    enabled: !!studentData?.id && !liveSession,
-    refetchInterval: liveSession ? false : 5000,
-    refetchIntervalInBackground: false,
-    retry: false,
+  // Consolidated lockdown state — replaces 5 independent polling queries
+  // (rotation, live sessions, dictation, tracing lock, assessment) with a
+  // single parallel fetch + realtime subscriptions. See useStudentLockdown.
+  const {
+    rotationAssignedMode,
+    activeLiveSessions,
+    activeDictation: activeDictationSession,
+    activeTracingLock,
+    assessmentBroadcast,
+    loading: lockdownLoading,
+  } = useStudentLockdown({
+    studentId: studentData?.id,
+    className: selectedStudent?.class_name,
+    studentNumber: selectedStudent?.number,
+    schoolYear: studentData?.school_year,
+    liveCode,
+    enabled: !liveSession,
   });
-  const rotationAssignedMode = rotationData?.assignedMode || null;
-
-  // Real-time: invalidate the rotation query when TableRotation changes so
-  // students redirect the instant the teacher activates/advances/deactivates.
-  useEffect(() => {
-    if (!studentData?.id) return;
-    const unsubscribe = base44.entities.TableRotation.subscribe(() => {
-      queryClient.invalidateQueries({ queryKey: ['table-rotation', studentData.id] });
-    });
-    return () => { unsubscribe?.(); };
-  }, [studentData?.id, queryClient]);
+  const rotationChecked = !lockdownLoading || !!liveSession;
 
   // Lock the student into the assigned activity. Like the tracing lock, this
   // overrides any free-play mode and prevents navigation away.
@@ -152,224 +127,31 @@ export default function LetterGame() {
     l => !l.class_name || l.class_name === selectedStudent?.class_name
   );
 
-  // Detect active live lesson sessions for this student's class.
-  //
-  // The teacher LiveLesson page refreshes the session's updated_date every
-  // 15 seconds. If we have not heard from the teacher for 90 seconds, treat
-  // the session as abandoned even if its database "active" flag is still true.
-  //
-  // This prevents forgotten/closed teacher tabs from leaving the
-  // "Your teacher started a Live Lesson!" banner stuck on student devices.
-  const {
-    data: activeLiveSessions = [],
-  } = useQuery({
-    queryKey: [
-      'live-sessions',
-      selectedStudent?.class_name,
-      liveCode,
-    ],
-
-    queryFn: async () => {
-      const sessions =
-        await base44.entities.LiveLessonSession.filter({
-          active: true,
-        });
-
-      const now = Date.now();
-      const STALE_AFTER_MS =
-        90 * 1000;
-
-      return (sessions || [])
-        .filter((candidate) => {
-          const lastUpdate =
-            candidate.updated_date ||
-            candidate.started_at;
-
-          if (!lastUpdate) return false;
-
-          const age =
-            now -
-            new Date(
-              lastUpdate
-            ).getTime();
-
-          return age < STALE_AFTER_MS;
-        })
-        .sort((a, b) => {
-          const aTime = new Date(
-            a.updated_date ||
-              a.started_at ||
-              0
-          ).getTime();
-
-          const bTime = new Date(
-            b.updated_date ||
-              b.started_at ||
-              0
-          ).getTime();
-
-          return bTime - aTime;
-        });
-    },
-
-    enabled:
-      Boolean(studentData) &&
-      !liveSession,
-
-    staleTime: 0,
-
-    // Realtime invalidation is primary. This is a fallback for public student
-    // sessions that connect to the socket but do not receive entity events.
-    refetchInterval: liveSession
-      ? false
-      : 5000,
-
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    retry: false,
-  });
-
-  // Immediately enter a Live Lesson started after the student logs in.
+  // Redirect to dictation when a live dictation session is active for this
+  // student's class. Uses activeDictationSession from useStudentLockdown.
   useEffect(() => {
-    if (!studentData) return;
-
-    const studentClass =
-      selectedStudent?.class_name;
-
-    const studentNumber =
-      selectedStudent?.number;
-
-    if (!studentClass) return;
-
-    const isForStudent = (
-      candidate
-    ) => {
-      if (
-        !candidate ||
-        !candidate.active
-      ) {
-        return false;
-      }
-
-      if (
-        liveCode &&
-        candidate.code === liveCode
-      ) {
-        return true;
-      }
-
-      if (
-        candidate.class_name !==
-        studentClass
-      ) {
-        return false;
-      }
-
-      if (
-        !candidate.target_students ||
-        candidate.target_students
-          .length === 0
-      ) {
-        return true;
-      }
-
-      return candidate.target_students.some(
-        (target) =>
-          target.class_name ===
-            studentClass &&
-          Number(
-            target.student_number
-          ) === Number(studentNumber)
-      );
-    };
-
-    const unsubscribe =
-      base44.entities.LiveLessonSession.subscribe(
-        () => {
-          // Do not depend on the realtime event payload.
-          // Public Base44 events may omit fields required for matching.
-          queryClient.invalidateQueries({
-            queryKey: [
-              'live-sessions',
-              studentClass,
-              liveCode,
-            ],
-          });
-        }
-      );
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, [
-    studentData,
-    selectedStudent?.class_name,
-    selectedStudent?.number,
-    liveCode,
-  ]);
-
-  // Detect active live DICTATION sessions for this student's class.
-  // When the teacher starts a live dictation, redirect the student straight
-  // to the DictationStudent page so they join automatically.
-  const { data: activeDictationSessions = [] } = useQuery({
-    queryKey: ['live-dictation-game', selectedStudent?.class_name],
-    queryFn: () =>
-      base44.entities.LiveDictationSession.filter({
-        class_name: selectedStudent?.class_name,
-        school_year: studentData?.school_year || ACTIVE_SCHOOL_YEAR,
-        active: true,
-      }),
-    enabled:
-      !!studentData &&
-      !!selectedStudent?.class_name &&
-      !liveSession,
-    refetchInterval: 20000,
-    refetchIntervalInBackground: false,
-    retry: false,
-  });
-
-  // Detect active tracing lock for this student's class. When locked, the
-  // student is forced into Letter Tracing with only the locked letter and
-  // can't navigate to other games until the teacher unlocks.
-  const { data: tracingLocks = [] } = useQuery({
-    queryKey: ['tracing-lock', selectedStudent?.class_name],
-    queryFn: () => base44.entities.TracingLock.filter({
-      class_name: selectedStudent?.class_name,
-      active: true,
-    }),
-    enabled:
-      !!studentData &&
-      !!selectedStudent?.class_name &&
-      !liveSession,
-    refetchInterval: 20000,
-    refetchIntervalInBackground: false,
-    retry: false,
-  });
-  const activeTracingLock = tracingLocks[0];
-
-  useEffect(() => {
-    if (!activeDictationSessions.length) return;
+    if (!activeDictationSession) return;
     if (liveSession) return; // don't interrupt an active live lesson
-    const s = activeDictationSessions[0];
-    if (!s?.assignment_id) return;
-    const url = `/DictationStudent?assignment=${encodeURIComponent(s.assignment_id)}&class=${encodeURIComponent(s.class_name)}&student=${selectedStudent?.number}`;
+    if (!activeDictationSession.assignment_id) return;
+    const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}`;
     window.location.href = url;
-  }, [activeDictationSessions, liveSession, selectedStudent]);
+  }, [activeDictationSession, liveSession, selectedStudent]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not
   // over live lessons or live dictation (those are teacher-driven).
   useEffect(() => {
-    if (!activeTracingLock || liveSession || activeDictationSessions.length) return;
+    if (!activeTracingLock || liveSession || activeDictationSession) return;
     if (currentMode !== 'letter_tracing') {
       setCurrentMode('letter_tracing');
     }
-  }, [activeTracingLock, liveSession, activeDictationSessions, currentMode]);
+  }, [activeTracingLock, liveSession, activeDictationSession, currentMode]);
 
+  // Immediately enter a Live Lesson started after the student logs in.
+  // Uses activeLiveSessions from useStudentLockdown instead of a separate query.
   useEffect(() => {
     if (!activeLiveSessions.length) return;
-    // Already in a live session — don't auto-join another.
-    if (liveSession) return;
+    if (liveSession) return; // Already in a live session — don't auto-join another.
     // QR deep-link: auto-join the matching session immediately.
     if (liveCode) {
       const qrMatch = activeLiveSessions.find(s => s.code === liveCode);
@@ -781,7 +563,7 @@ export default function LetterGame() {
   if (!currentMode && !activeLessonStep) {
     return (
       <>
-        <AssessmentOverlay className={selectedStudent?.class_name} studentNumber={selectedStudent?.number} />
+        <AssessmentOverlay assessmentBroadcast={assessmentBroadcast} />
         <GameHome
           studentData={studentData}
           selectedStudent={selectedStudent}
@@ -825,7 +607,7 @@ export default function LetterGame() {
 
   return (
     <div className="relative h-screen flex flex-col">
-      <AssessmentOverlay className={selectedStudent?.class_name} studentNumber={selectedStudent?.number} />
+      <AssessmentOverlay assessmentBroadcast={assessmentBroadcast} />
       {currentMode === 'letter_sounds' && (
         <LetterSoundsMode
           studentData={studentData}

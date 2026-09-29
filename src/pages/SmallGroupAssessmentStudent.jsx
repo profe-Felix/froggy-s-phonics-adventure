@@ -40,8 +40,11 @@ export default function SmallGroupAssessmentStudent() {
           activeSessions = s && s.status === 'active' ? [s] : [];
         } else {
           // Find all active sessions for this teacher (class_name = teacher_name)
+          // Fetch ALL active sessions — don't filter by teacher_name, because
+          // the assessing teacher may differ from the student's homeroom teacher
+          // (block B/C students are assessed by a different teacher). Matching
+          // is done by student_number + class_name in the broadcast_state.
           activeSessions = await base44.entities.SmallGroupAssessment.filter({
-            teacher_name: className,
             status: 'active',
           });
         }
@@ -120,7 +123,7 @@ export default function SmallGroupAssessmentStudent() {
           applyFresh(fresh);
         }).catch(() => {});
       }
-    }, 800);
+    }, 3000);
 
     return () => {
       alive = false;
