@@ -316,7 +316,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                     {(p) => (
-                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-32 shrink-0">
+                      <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-fit shrink-0">
                         <SortCard
                           card={card}
                           tilesOnly={config.tilesOnly}
