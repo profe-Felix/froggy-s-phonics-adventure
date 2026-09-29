@@ -36,6 +36,13 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
       setImageFiles([]);
       return;
     }
+    // manualsort with word cards and text headers never shows images, so
+    // skip image resolution entirely (avoids 400s for words with no picture).
+    if (config.mode === 'manualsort' && config.cardtype === 'word'
+        && config.headertype !== 'image' && !(config.headerimages || []).length) {
+      setImageFiles([]);
+      return;
+    }
     (async () => {
       try {
         if (needsFullList(config)) {
