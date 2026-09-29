@@ -72,8 +72,14 @@ export default function ClassQR() {
 
         {url && (
           <>
-            <div ref={qrRef} className="bg-white rounded-2xl p-6 shadow-lg">
-              <QRCodeCanvas value={url} size={300} level="M" marginSize={4} />
+            <div ref={qrRef} className="bg-white rounded-2xl p-6 sm:p-8 shadow-lg w-full max-w-[640px] flex justify-center">
+              <QRCodeCanvas
+                value={url}
+                size={600}
+                level="M"
+                marginSize={4}
+                style={{ width: '100%', height: 'auto', maxWidth: 600 }}
+              />
             </div>
 
             <p className="text-xs text-slate-400 break-all text-center max-w-xs">{url}</p>
