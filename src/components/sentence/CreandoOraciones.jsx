@@ -232,75 +232,77 @@ export default function CreandoOraciones({ studentNumber, className, studentName
             <div className="flex-1 border-b-2 border-slate-800" />
           </div>
 
-          {/* Card slots */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3">
-            {CARD_CATEGORIES.map((cat) => {
-              // Hide 'where' slot in 2-part mode
-              if (cat.id === 'where' && activeRow.mode === '2part') {
+          {/* Card slots — sticky near top so students scroll to write */}
+          <div className="sticky top-12 z-20 bg-white -mx-4 sm:-mx-6 px-4 sm:px-6 pt-1 pb-3 mb-3 border-b border-slate-200 rounded-t-xl">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              {CARD_CATEGORIES.map((cat) => {
+                // Hide 'where' slot in 2-part mode
+                if (cat.id === 'where' && activeRow.mode === '2part') {
+                  return (
+                    <div key={cat.id} className="flex flex-col items-center justify-center opacity-30 rounded-xl border-2 border-dashed border-slate-300 p-4">
+                      <p className="text-xs text-slate-400 text-center">¿Dónde?<br/>(3 partes)</p>
+                    </div>
+                  );
+                }
                 return (
-                  <div key={cat.id} className="flex flex-col items-center justify-center opacity-30 rounded-xl border-2 border-dashed border-slate-300 p-4">
-                    <p className="text-xs text-slate-400 text-center">¿Dónde?<br/>(3 partes)</p>
-                  </div>
+                  <CardSlot
+                    key={cat.id}
+                    category={cat}
+                    selectedCardId={activeRow[`${cat.id}_card`]}
+                    onSelectCard={(cardId, openPicker) => {
+                      if (openPicker) setShowPicker(cat.id);
+                      else handleCardSelect(cat.id, cardId);
+                    }}
+                    artMode={artMode}
+                    coloringStrokes={session?.card_coloring || {}}
+                    onColoringChange={handleColoringChange}
+                    tool={tool}
+                    color={color}
+                    size={size}
+                    onStrokeStart={() => {}}
+                    onStrokeEnd={scheduleSave}
+                    onActivateCanvas={handleActivateCanvas}
+                    spinning={false}
+                    onSpinStart={() => {}}
+                    spinSignal={spinSignals[cat.id] || 0}
+                  />
                 );
-              }
-              return (
-                <CardSlot
-                  key={cat.id}
-                  category={cat}
-                  selectedCardId={activeRow[`${cat.id}_card`]}
-                  onSelectCard={(cardId, openPicker) => {
-                    if (openPicker) setShowPicker(cat.id);
-                    else handleCardSelect(cat.id, cardId);
-                  }}
-                  artMode={artMode}
-                  coloringStrokes={session?.card_coloring || {}}
-                  onColoringChange={handleColoringChange}
-                  tool={tool}
-                  color={color}
-                  size={size}
-                  onStrokeStart={() => {}}
-                  onStrokeEnd={scheduleSave}
-                  onActivateCanvas={handleActivateCanvas}
-                  spinning={false}
-                  onSpinStart={() => {}}
-                  spinSignal={spinSignals[cat.id] || 0}
-                />
-              );
-            })}
-          </div>
-
-          {/* Girar todo + mode toggle */}
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <button
-              onClick={handleGirarTodo}
-              className="px-4 py-1.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-purple-500 to-indigo-500 shadow hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-4 h-4" /> Girar todo
-            </button>
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden text-xs font-bold">
-              <button
-                onClick={() => updateRow(activeRowIndex, { mode: '2part' })}
-                className={`px-2 py-1 ${activeRow.mode === '2part' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}
-              >
-                2 partes
-              </button>
-              <button
-                onClick={() => updateRow(activeRowIndex, { mode: '3part' })}
-                className={`px-2 py-1 ${activeRow.mode === '3part' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}
-              >
-                3 partes
-              </button>
+              })}
             </div>
-          </div>
 
-          {/* Assembled sentence display */}
-          {assembledSentence && (
-            <div className="mb-4 p-2 bg-amber-50 rounded-lg border border-amber-200 text-center">
-              <p className="text-sm font-bold text-slate-700" style={{ fontFamily: "'Andika', sans-serif" }}>
-                {assembledSentence}
-              </p>
+            {/* Girar todo + mode toggle */}
+            <div className="flex items-center justify-center gap-3 mt-2 mb-1">
+              <button
+                onClick={handleGirarTodo}
+                className="px-4 py-1.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-purple-500 to-indigo-500 shadow hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-4 h-4" /> Girar todo
+              </button>
+              <div className="flex rounded-lg border border-slate-300 overflow-hidden text-xs font-bold">
+                <button
+                  onClick={() => updateRow(activeRowIndex, { mode: '2part' })}
+                  className={`px-2 py-1 ${activeRow.mode === '2part' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}
+                >
+                  2 partes
+                </button>
+                <button
+                  onClick={() => updateRow(activeRowIndex, { mode: '3part' })}
+                  className={`px-2 py-1 ${activeRow.mode === '3part' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}
+                >
+                  3 partes
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Assembled sentence display */}
+            {assembledSentence && (
+              <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-center">
+                <p className="text-sm font-bold text-slate-700" style={{ fontFamily: "'Andika', sans-serif" }}>
+                  {assembledSentence}
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Four sentence writing areas */}
           <div className="space-y-2 mb-4">

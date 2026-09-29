@@ -84,7 +84,7 @@ export default function CardSlot({
       <p className="text-sm font-bold" style={{ color: category.color }}>{category.label}</p>
       <div
         className="relative bg-white rounded-lg overflow-hidden flex items-center justify-center"
-        style={{ width: '100%', aspectRatio: '1.1', border: '2px solid #1a1a2e', cursor: 'pointer' }}
+        style={{ width: '100%', height: 100, border: '2px solid #1a1a2e', cursor: 'pointer' }}
         onClick={() => !spinning && onSelectCard?.(displayCardId, true)}
       >
         {displayCardId ? (
@@ -102,7 +102,7 @@ export default function CardSlot({
           <AnnotationCanvas
             ref={canvasRef}
             width={200}
-            height={180}
+            height={100}
             color={color}
             size={size}
             tool={tool}

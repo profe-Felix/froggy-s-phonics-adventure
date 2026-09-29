@@ -9,7 +9,7 @@ import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 // of the line — not the full width. An AnnotationCanvas overlay sits on top
 // for freehand writing.
 const CANVAS_H = 375;
-const RENDER_H = 200; // ~Letter Tracing Medium size
+const RENDER_H = 100; // half of Letter Tracing Medium — compact for 4 rows
 const SKY_Y = 0.10 * CANVAS_H;
 const FENCE_Y = 0.367 * CANVAS_H;
 const GRASS_Y = 0.633 * CANVAS_H;
