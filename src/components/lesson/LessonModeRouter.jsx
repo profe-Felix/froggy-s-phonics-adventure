@@ -1561,14 +1561,10 @@ export default function LessonModeRouter({
           ? 'h-full min-h-0 overflow-hidden'
           : 'h-screen'
       }`}
-      style={
-        stepperMode
-          ? {
-              transform: 'translateZ(0)',
-              contain: 'layout paint',
-            }
-          : undefined
-      }
+      /* NOTE: do NOT apply `transform` or `contain` here — both create a
+         containing block for position:fixed descendants, which breaks
+         @hello-pangea/dnd's drag clone (the dragged card is offset from the
+         cursor by the container's page position). */
     >
       {/* A new runKey gives Play Again a genuinely fresh child component. */}
       <React.Fragment
