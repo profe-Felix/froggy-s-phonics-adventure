@@ -341,6 +341,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
                       else handleCardSelect(cat.id, cardId);
                     }}
                     artMode={artMode}
+                    mode={activeRow.mode}
                     coloringStrokes={session?.card_coloring || {}}
                     onColoringChange={handleColoringChange}
                     tool={tool}

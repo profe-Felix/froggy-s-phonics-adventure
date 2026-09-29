@@ -6,7 +6,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 // button, and supports B&W coloring via an overlaid AnnotationCanvas.
 // Tapping the card opens the picker to choose a specific card.
 export default function CardSlot({
-  category, selectedCardId, onSelectCard, artMode,
+  category, selectedCardId, onSelectCard, artMode, mode,
   coloringStrokes, onColoringChange,
   tool, color, size, onStrokeStart, onStrokeEnd, onActivateCanvas,
   spinning, onSpinStart, spinSignal = 0,
@@ -153,7 +153,7 @@ export default function CardSlot({
         )}
       </div>
       <p className="text-xs font-medium text-slate-700 text-center min-h-[1em] leading-tight">
-        {displayCard?.text || ''}
+        {displayCard?.text || ''}{mode === '2part' && category.id === 'what' && displayCard?.text ? '.' : ''}
       </p>
       <button
         onClick={handleSpin}
