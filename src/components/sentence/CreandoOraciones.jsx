@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { CARD_CATEGORIES, CARD_MAP, assembleSentence } from '@/components/data/sentenceCards';
@@ -10,10 +10,12 @@ import SentenceWritingArea from './SentenceWritingArea';
 import SelfChecks from './SelfChecks';
 import { Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
 
-const DEFAULT_ROWS = Array.from({ length: 4 }, () => ({
-  mode: '2part', who_card: '', what_card: '', where_card: '',
-  typed_text: '', writing_strokes: {}, self_checks: {},
-}));
+const DEFAULT_ROWS = [
+  { mode: '2part', who_card: 'who-01', what_card: 'what-01', where_card: 'where-01', typed_text: '', writing_strokes: {}, self_checks: {} },
+  { mode: '2part', who_card: 'who-05', what_card: 'what-12', where_card: 'where-10', typed_text: '', writing_strokes: {}, self_checks: {} },
+  { mode: '3part', who_card: 'who-10', what_card: 'what-09', where_card: 'where-07', typed_text: '', writing_strokes: {}, self_checks: {} },
+  { mode: '2part', who_card: 'who-14', what_card: 'what-17', where_card: 'where-14', typed_text: '', writing_strokes: {}, self_checks: {} },
+];
 
 export default function CreandoOraciones({ studentNumber, className, studentName, onBack }) {
   const [session, setSession] = useState(null);

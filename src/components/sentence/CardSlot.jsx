@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { CARDS_BY_CATEGORY, CARD_MAP } from '@/components/data/sentenceCards';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 
@@ -9,7 +9,7 @@ export default function CardSlot({
   category, selectedCardId, onSelectCard, artMode,
   coloringStrokes, onColoringChange,
   tool, color, size, onStrokeStart, onStrokeEnd, onActivateCanvas,
-  spinning, onSpinStart,
+  spinning, onSpinStart, spinSignal = 0,
 }) {
   const cards = CARDS_BY_CATEGORY[category.id];
   const [displayCardId, setDisplayCardId] = useState(selectedCardId);
@@ -52,9 +52,14 @@ export default function CardSlot({
   }, [cards, spinning, onSelectCard, onSpinStart]);
 
   // Sync display when selection changes externally (e.g. from picker)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!spinning) setDisplayCardId(selectedCardId);
   }, [selectedCardId, spinning]);
+
+  // External spin trigger (from "Girar todo" button)
+  useEffect(() => {
+    if (spinSignal > 0) handleSpin();
+  }, [spinSignal]);
 
   // Load coloring strokes when card changes
   React.useEffect(() => {
@@ -82,13 +87,15 @@ export default function CardSlot({
         style={{ width: '100%', aspectRatio: '1.1', border: '2px solid #1a1a2e', cursor: 'pointer' }}
         onClick={() => !spinning && onSelectCard?.(displayCardId, true)}
       >
-        {imgUrl && (
+        {displayCardId ? (
           <img
             src={imgUrl}
             alt={displayCard?.text}
             className="max-w-full max-h-full object-contain p-1"
             draggable={false}
           />
+        ) : (
+          <span className="text-slate-300 text-xs text-center px-2">Presiona Girar o toca para elegir</span>
         )}
         {/* Coloring canvas overlay — only active in B&W mode */}
         {artMode === 'bw' && (
