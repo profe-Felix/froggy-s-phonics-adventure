@@ -18,7 +18,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
     const showCover = hideWords && !locked;
     return (
       <div
-        className={base + 'overflow-hidden px-3 py-2.5 min-h-[72px] w-full cursor-grab active:cursor-grabbing ' + (locked && hideWords ? 'animate-card-flip' : '')}
+        className={base + 'overflow-hidden px-3 py-2.5 min-h-[180px] w-full cursor-grab active:cursor-grabbing ' + (locked && hideWords ? 'animate-card-flip' : '')}
         style={locked && hideWords ? { transformStyle: 'preserve-3d' } : undefined}
         onClick={onClick}
         role="button"
@@ -43,7 +43,7 @@ export default function SortCard({ card, tilesOnly, splitCards, hideWords, showC
       role="button"
       tabIndex={0}
     >
-      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-24 bg-slate-50" draggable={false} />
+      <img src={card.imgUrl} alt="" className="rounded-lg object-contain w-full max-h-60 bg-slate-50" draggable={false} />
       {showCaption && (
         <div className="mt-1 text-center text-sm font-semibold text-slate-700 truncate w-full px-1">
           {labelText || '\u00A0'}

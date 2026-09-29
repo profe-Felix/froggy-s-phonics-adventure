@@ -274,7 +274,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                     ref={prov.innerRef}
                     {...prov.droppableProps}
                     data-droppable-id={col.key}
-                    className="flex flex-col gap-1.5 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[96px]"
+                    className="flex flex-col gap-1.5 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[240px]"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
@@ -311,7 +311,7 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                 ref={prov.innerRef}
                 {...prov.droppableProps}
                 data-droppable-id="rack"
-                className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[72px]"
+                className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-white border-2 border-dashed border-slate-300 min-h-[180px]"
               >
                 {rack.map((card, i) => (
                   <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
