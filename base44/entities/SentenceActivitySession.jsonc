@@ -1,0 +1,108 @@
+{
+  "name": "SentenceActivitySession",
+  "type": "object",
+  "properties": {
+    "student_number": {
+      "type": "integer",
+      "description": "Student number for lookup"
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Class name for lookup"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
+    },
+    "art_mode": {
+      "type": "string",
+      "enum": [
+        "color",
+        "bw"
+      ],
+      "default": "color",
+      "description": "Color shows pre-colored illustrations; bw shows line art students can color digitally."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "2part",
+              "3part"
+            ],
+            "default": "2part"
+          },
+          "who_card": {
+            "type": "string",
+            "default": ""
+          },
+          "what_card": {
+            "type": "string",
+            "default": ""
+          },
+          "where_card": {
+            "type": "string",
+            "default": ""
+          },
+          "typed_text": {
+            "type": "string",
+            "default": ""
+          },
+          "writing_strokes": {
+            "type": "object",
+            "default": {}
+          },
+          "self_checks": {
+            "type": "object",
+            "default": {},
+            "properties": {
+              "capital": {
+                "type": "boolean"
+              },
+              "spaces": {
+                "type": "boolean"
+              },
+              "period": {
+                "type": "boolean"
+              },
+              "legible": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "default": [],
+      "description": "Four sentence rows, each with its own card combination, mode, typed text, writing strokes, and self-checks."
+    },
+    "card_coloring": {
+      "type": "object",
+      "default": {},
+      "description": "Map of card_id -> annotation strokes (for B&W coloring). Keyed by card id so coloring survives art-mode toggle."
+    },
+    "drawing_strokes": {
+      "type": "object",
+      "default": {},
+      "description": "Annotation strokes for the drawing area at the bottom of the worksheet."
+    },
+    "last_active": {
+      "type": "string",
+      "description": "ISO timestamp of last activity"
+    }
+  },
+  "required": [
+    "student_number",
+    "class_name"
+  ],
+  "rls": {
+    "read": null,
+    "create": null,
+    "update": null,
+    "delete": null
+  }
+}
