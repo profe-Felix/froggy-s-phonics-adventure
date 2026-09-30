@@ -17,7 +17,7 @@ const DIRT = 0.90 * CH;
 const BASE_X_SCALE = 260;
 const LETTER_GAP = 24;    // comfortable gap between letters
 const INK = '#0f766e';
-const OUTLINE = '#cbd5e1';
+const OUTLINE = '#64748b';
 const INK_STROKE = 4.5;
 const OUTLINE_STROKE = 3;
 const ANIM_SPEED = 0.45;  // chars/sec — slow enough for students to follow and write along
@@ -192,13 +192,13 @@ export default function SentenceModelAnimation({
         return c.strokes.map((stroke, si) => {
           if (stroke.length === 1) {
             const p = mapPoint(stroke[0], c);
-            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="0.4" vectorEffect="non-scaling-stroke" />;
+            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="0.75" vectorEffect="non-scaling-stroke" />;
           }
           const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`o-${i}-${si}`} d={splinePathD(pts)} fill="none"
               stroke={OUTLINE} strokeWidth={OUTLINE_STROKE} strokeLinecap="round" strokeLinejoin="round"
-              opacity="0.4" vectorEffect="non-scaling-stroke" />
+              opacity="0.75" vectorEffect="non-scaling-stroke" />
           );
         });
       })}
