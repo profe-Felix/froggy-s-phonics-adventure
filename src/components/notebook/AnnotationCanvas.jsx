@@ -64,14 +64,40 @@ function drawStroke(ctx, s, w, h, forceAlpha) {
   ctx.restore();
 }
 
-// Returns true if point (px, py) in canvas coords is within hitDist of any point in stroke s
+// Distance from point (px,py) to the line segment (ax,ay)-(bx,by)
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) {
+    const ddx = ax - px, ddy = ay - py;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+  }
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  const ddx = cx - px, ddy = cy - py;
+  return Math.sqrt(ddx * ddx + ddy * ddy);
+}
+
+// Returns true if point (px, py) in canvas coords is within hitDist of any part
+// of stroke s — including the ink between consecutive stored points (not just
+// the points themselves), so erasing a curved stroke works along its entire
+// visible length, not just where sample points happen to sit.
 function strokeHitTest(s, px, py, w, h, hitDist) {
   if (!s.pts || s.pts.length === 0) return false;
+  const hitSq = hitDist * hitDist;
   for (let i = 0; i < s.pts.length; i++) {
     const spx = s.pts[i].x * w;
     const spy = s.pts[i].y * h;
     const dx = spx - px, dy = spy - py;
-    if (dx * dx + dy * dy <= hitDist * hitDist) return true;
+    if (dx * dx + dy * dy <= hitSq) return true;
+    // Also check the segment to the next point — the rendered curve passes
+    // through the space between samples, and that's where erases were missed.
+    if (i < s.pts.length - 1) {
+      const nx = s.pts[i + 1].x * w;
+      const ny = s.pts[i + 1].y * h;
+      if (distToSegment(px, py, spx, spy, nx, ny) <= hitDist) return true;
+    }
   }
   return false;
 }
