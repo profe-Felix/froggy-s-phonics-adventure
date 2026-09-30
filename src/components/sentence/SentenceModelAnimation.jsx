@@ -186,8 +186,19 @@ export default function SentenceModelAnimation({
 
   return (
     <g>
-      {/* Faint outlines of all letters (writing guide) */}
+      {/* Faint outlines of all letters + punctuation (writing guide).
+          Punctuation has no waypoints, so it's drawn with a font (Andika)
+          instead of a spline path. */}
       {positioned.map((c, i) => {
+        if (c.type === 'punct') {
+          return (
+            <text key={`o-${i}`} x={c.x + c.w / 2} y={grassY}
+              fontSize={120} fill={OUTLINE} textAnchor="middle" opacity="0.75"
+              fontFamily="'Andika', sans-serif" fontWeight="bold">
+              {c.ch}
+            </text>
+          );
+        }
         if (c.type !== 'letter') return null;
         return c.strokes.map((stroke, si) => {
           if (stroke.length === 1) {
