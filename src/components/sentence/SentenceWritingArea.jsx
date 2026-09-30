@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Volume2, RotateCw, ChevronRight, RefreshCw } from 'lucide-react';
 import { playTts } from '@/lib/audio';
 import SentenceWritingLines from './SentenceWritingLines';
@@ -17,6 +17,10 @@ export default function SentenceWritingArea({
 }) {
   const [replayKey, setReplayKey] = useState(0);
   const [wordIndex, setWordIndex] = useState(-1); // -1 = not started
+  const [scrub, setScrub] = useState(null); // null = auto-animate, 0-1 = scrubbing
+  const [sliderValue, setSliderValue] = useState(0);
+  const scrubRef = useRef(null);
+  scrubRef.current = scrub;
 
   const words = useMemo(() => sentenceText ? sentenceText.split(' ') : [], [sentenceText]);
   const hasMore = wordIndex >= 0 && wordIndex < words.length - 1;
@@ -30,6 +34,8 @@ export default function SentenceWritingArea({
   // Start word-by-word: write first word + TTS says it
   const handleReplay = (e) => {
     e.stopPropagation();
+    setScrub(null);
+    setSliderValue(0);
     setWordIndex(0);
     setReplayKey((k) => k + 1);
     if (words[0]) playTts(words[0], 'es', 0.85);
@@ -38,6 +44,8 @@ export default function SentenceWritingArea({
   // Next word: write it + TTS says it
   const handleNext = (e) => {
     e.stopPropagation();
+    setScrub(null);
+    setSliderValue(0);
     setWordIndex((i) => {
       const ni = Math.min(i + 1, words.length - 1);
       if (words[ni]) playTts(words[ni], 'es', 0.85);
@@ -49,9 +57,16 @@ export default function SentenceWritingArea({
   // Restart from the beginning
   const handleRestart = (e) => {
     e.stopPropagation();
+    setScrub(null);
+    setSliderValue(0);
     setWordIndex(-1);
     setReplayKey((k) => k + 1);
   };
+
+  // Report animation progress to the scrub bar (only when auto-animating)
+  const handleProgress = useCallback((norm) => {
+    if (scrubRef.current === null) setSliderValue(norm);
+  }, []);
 
   return (
     <div
@@ -116,6 +131,30 @@ export default function SentenceWritingArea({
         )}
       </div>
 
+      {/* Scrub bar — drag to replay/scrub through the current word's letter animation */}
+      {wordIndex >= 0 && words.length > 0 && (
+        <div className="flex items-center gap-2 px-3 pb-1">
+          <RotateCw className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+          <input
+            type="range"
+            min="0"
+            max="1000"
+            value={Math.round(sliderValue * 1000)}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value) / 1000;
+              setScrub(v);
+              setSliderValue(v);
+            }}
+            onMouseUp={() => setScrub(null)}
+            onTouchEnd={() => setScrub(null)}
+            className="flex-1 h-2 accent-teal-600 cursor-pointer"
+          />
+          <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
+            {Math.round(sliderValue * 100)}%
+          </span>
+        </div>
+      )}
+
       {/* Writing area — model sentence on top guide line + 2 practice lines */}
       <div className="mx-2 mt-1 mb-1">
         <SentenceWritingLines
@@ -133,6 +172,8 @@ export default function SentenceWritingArea({
           active={active}
           replayKey={replayKey}
           activeWordIndex={wordIndex}
+          scrub={scrub}
+          onProgress={handleProgress}
         />
       </div>
 

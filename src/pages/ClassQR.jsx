@@ -52,16 +52,11 @@ export default function ClassQR() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-lg font-bold text-gray-800">🔲 Class QR Code</h1>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-6">
-        <div className="w-full flex flex-col items-center gap-2">
-          <label className="text-sm font-bold text-slate-600">Select your class</label>
+          <div className="flex-1" />
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-base font-bold text-slate-800 bg-white min-w-[200px]"
+            className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 bg-white"
           >
             {loading && <option>Loading…</option>}
             {classes.map((cls) => (
@@ -69,10 +64,12 @@ export default function ClassQR() {
             ))}
           </select>
         </div>
+      </header>
 
+      <main className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-6">
         {url && (
           <>
-            <div ref={qrRef} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg w-full flex justify-center">
+            <div ref={qrRef} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg w-4/5 flex justify-center">
               <QRCodeCanvas
                 value={url}
                 size={1000}

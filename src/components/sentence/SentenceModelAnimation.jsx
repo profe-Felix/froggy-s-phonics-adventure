@@ -20,7 +20,7 @@ const INK = '#0f766e';
 const OUTLINE = '#cbd5e1';
 const INK_STROKE = 4.5;
 const OUTLINE_STROKE = 3;
-const ANIM_SPEED = 0.7;   // chars/sec — slow enough to follow formation
+const ANIM_SPEED = 0.45;  // chars/sec — slow enough for students to follow and write along
 
 // Compute a letter's ink bounds (minX, maxX)
 function letterBounds(strokes) {
@@ -51,6 +51,7 @@ const BASE_SPACE_W = computeSpaceWidth();
 
 export default function SentenceModelAnimation({
   text, startX, maxX, lineIndex = 0, activeWordIndex = -1, replayKey = 0,
+  scrub = null, onProgress = null,
 }) {
   const lineOffset = lineIndex * CH;
   const skyY = SKY + lineOffset;
@@ -113,29 +114,54 @@ export default function SentenceModelAnimation({
   const animStart = activeRange ? activeRange.start : 0;
   const animEnd = activeRange ? activeRange.end : 0;
 
-  const [progress, setProgress] = useState(animStart);
+  const [internalProgress, setInternalProgress] = useState(animStart);
+  const scrubRef = useRef(scrub);
+  scrubRef.current = scrub;
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+
+  // When scrubbing, use the scrubbed position; otherwise use internal animated progress
+  const progress = scrub != null
+    ? animStart + scrub * (animEnd - animStart)
+    : internalProgress;
+
+  // Sync internal progress to the scrubbed value so release continues from there
+  useEffect(() => {
+    if (scrub != null) {
+      setInternalProgress(animStart + scrub * (animEnd - animStart));
+    }
+  }, [scrub, animStart, animEnd]);
 
   // Reset progress when word/replay changes
   useEffect(() => {
-    setProgress(activeWordIndex >= 0 ? animStart : -1);
+    setInternalProgress(activeWordIndex >= 0 ? animStart : -1);
   }, [activeWordIndex, replayKey, animStart]); // eslint-disable-line
 
-  // Animate within the active word's range only
+  // Animate within the active word's range only (pauses while scrubbing)
   useEffect(() => {
     if (activeWordIndex < 0 || !activeRange) return;
     let last = performance.now();
     const tick = (now) => {
       const dt = (now - last) / 1000;
       last = now;
-      setProgress((p) => {
-        const np = p + dt * ANIM_SPEED;
-        return np >= animEnd ? animEnd : np;
-      });
+      if (scrubRef.current == null) {
+        setInternalProgress((p) => {
+          const np = p + dt * ANIM_SPEED;
+          return np >= animEnd ? animEnd : np;
+        });
+      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
   }, [activeWordIndex, replayKey, animStart, animEnd]); // eslint-disable-line
+
+  // Report normalized progress (0-1) for the scrub bar
+  useEffect(() => {
+    if (!activeRange) return;
+    const norm = animEnd > animStart ? (progress - animStart) / (animEnd - animStart) : 0;
+    onProgressRef.current?.(Math.max(0, Math.min(1, norm)));
+  }, [progress, animStart, animEnd, activeRange]); // eslint-disable-line
 
   const rafRef = useRef();
 
@@ -194,7 +220,8 @@ export default function SentenceModelAnimation({
           if (cp <= 0) return null;
           return (
             <text key={`pu-${i}`} x={c.x + c.w / 2} y={grassY}
-              fontSize={18} fill={INK} textAnchor="middle" opacity={cp}>
+              fontSize={120} fill={INK} textAnchor="middle" opacity={cp}
+              fontFamily="'Andika', sans-serif" fontWeight="bold">
               {c.ch}
             </text>
           );

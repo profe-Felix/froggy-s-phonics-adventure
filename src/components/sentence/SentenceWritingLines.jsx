@@ -20,6 +20,7 @@ export default function SentenceWritingLines({
   row, canvasRef, tool, color, size,
   onStrokeStart, onStrokeEnd, onActivateCanvas, onActivate,
   lineCount = 1, modelText = '', active = false, replayKey = 0, activeWordIndex = -1,
+  scrub = null, onProgress = null,
 }) {
   const containerRef = useRef(null);
   const hasModel = !!modelText;
@@ -103,6 +104,8 @@ export default function SentenceWritingLines({
                   lineIndex={0}
                   activeWordIndex={activeWordIndex}
                   replayKey={replayKey}
+                  scrub={scrub}
+                  onProgress={onProgress}
                 />
               )}
             </g>
