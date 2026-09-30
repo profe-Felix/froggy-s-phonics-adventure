@@ -170,6 +170,10 @@ export default function SentenceModelAnimation({
   const mapPoint = (pt, c) => ({
     x: c.x + (pt.x - c.minX) * BASE_X_SCALE * xScale,
     y: pt.y * CH + lineOffset,
+    // Preserve the authored sharp-corner flag so splinePathD produces a crisp
+    // turn at flagged waypoints (e.g. the elbow of L, K, E) instead of a smooth
+    // Catmull-Rom bulge.
+    ...(pt.corner ? { corner: true } : {}),
   });
 
   // Per-char completion: 0 = outline only, 1 = fully drawn
