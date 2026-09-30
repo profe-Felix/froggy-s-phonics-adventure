@@ -286,7 +286,7 @@ function TrayTile({ tile, onDragStart, activeProblem, problems, onDropIntoProble
       draggable
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'copy'; onDragStart(tile); }}
       onClick={handleTap}
-      className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white flex items-center justify-center font-bold min-w-[3rem] sm:min-w-[3.5rem] md:min-w-[4rem] h-12 sm:h-14 md:h-16 px-3 sm:px-4 hover:bg-indigo-50 shadow-sm transition-colors text-2xl sm:text-3xl md:text-4xl"
+      className="select-none cursor-grab active:cursor-grabbing rounded-xl border-2 border-gray-800 bg-white text-gray-800 flex items-center justify-center font-bold min-w-[3rem] sm:min-w-[3.5rem] md:min-w-[4rem] h-12 sm:h-14 md:h-16 px-3 sm:px-4 hover:bg-indigo-50 shadow-sm transition-colors text-2xl sm:text-3xl md:text-4xl"
       style={{ fontFamily: 'Andika, system-ui, sans-serif' }}
     >
       {tile.type === 'space' ? <span className="w-6 h-0.5 bg-gray-400 block rounded pointer-events-none" />
