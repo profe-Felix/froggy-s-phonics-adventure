@@ -9,24 +9,38 @@ import { splinePathD } from '@/components/tracing/strokeMath';
 //
 // Only the active row animates; inactive rows show the fully-drawn sentence.
 // `replayKey` changes → animation restarts from the first letter.
+//
+// Y-mapping matches WordTracingCanvas: `y: pt.y * CH` (no remapping —
+// waypoints are authored to align with guide lines at 0.10, 0.367, 0.633, 0.90).
+// X-layout uses actual ink bounds + tight gap (like computeWordLayout) so
+// letters sit naturally close together instead of in fixed-width cells.
 
 const CH = 375; // matches SentenceWritingLines CANVAS_H (one line set)
 const SKY = 0.10 * CH;
 const GRASS = 0.633 * CH;
 const DIRT = 0.90 * CH;
-const WP_TOP = 0.10, WP_DIRT = 0.92;
-const WP_BASE_FRAC = (0.72 - WP_TOP) / (WP_DIRT - WP_TOP); // 0.756
-const BASE_CELL_H = 0.705 * CH; // cap-top lands on sky, baseline lands on grass
-const BASE_CELL_W = 0.52 * BASE_CELL_H;
-const SPACE_W = 0.50 * BASE_CELL_W;
-const INK = '#0f766e'; // teal-700 — matches the app's ink-fill color
+const BASE_X_SCALE = 260; // x scale for waypoints — slightly narrower than tall
+const LETTER_GAP = 10;   // gap between letters in viewBox units
+const SPACE_W = 35;       // space width in viewBox units
+const INK = '#0f766e';    // teal-700 — matches the app's ink-fill color
 const OUTLINE = '#cbd5e1'; // slate-300
+const INK_STROKE = 4.5;   // screen px (non-scaling)
+const OUTLINE_STROKE = 3; // screen px (non-scaling)
 
-function mapPoint(wx, wy, cellX, cellTop, cellW, cellH) {
-  return {
-    x: cellX + wx * cellW,
-    y: cellTop + ((wy - WP_TOP) / (WP_DIRT - WP_TOP)) * cellH,
-  };
+// Compute a letter's ink bounds (minX, maxX) across all its strokes
+function letterBounds(strokes) {
+  let minX = Infinity, maxX = -Infinity;
+  for (const stroke of strokes) {
+    if (!Array.isArray(stroke)) continue;
+    for (const p of stroke) {
+      if (p && p.x != null) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+      }
+    }
+  }
+  if (!isFinite(minX)) { minX = 0; maxX = 0.5; }
+  return { minX, maxX };
 }
 
 export default function SentenceModelAnimation({
@@ -38,43 +52,48 @@ export default function SentenceModelAnimation({
   const dirtY = DIRT + lineOffset;
   const availW = Math.max(40, maxX - startX);
 
-  // Parse + layout (auto-fit so the whole sentence fits the available width)
-  const { chars, scale } = useMemo(() => {
+  // Parse + layout using actual ink widths (like WordTracingCanvas computeWordLayout)
+  const { chars, xScale } = useMemo(() => {
     const parsed = [];
-    let tw = 0;
+    let totalW = 0;
     for (const ch of text) {
       if (ch === ' ') {
         parsed.push({ type: 'space', w: SPACE_W });
-        tw += SPACE_W;
+        totalW += SPACE_W;
       } else {
         const wp = LETTER_WAYPOINTS[ch] || LETTER_WAYPOINTS[ch.toLowerCase()];
         if (wp && wp.strokes && wp.strokes.length) {
-          parsed.push({ type: 'letter', ch, strokes: wp.strokes, w: BASE_CELL_W });
-          tw += BASE_CELL_W;
+          const b = letterBounds(wp.strokes);
+          const inkW = (b.maxX - b.minX) * BASE_X_SCALE;
+          parsed.push({ type: 'letter', ch, strokes: wp.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
+          totalW += inkW + LETTER_GAP;
         } else {
-          // punctuation / unknown — narrow slot, rendered as a glyph
-          parsed.push({ type: 'punct', ch, w: BASE_CELL_W * 0.35 });
-          tw += BASE_CELL_W * 0.35;
+          // punctuation / unknown — narrow slot
+          const w = BASE_X_SCALE * 0.2;
+          parsed.push({ type: 'punct', ch, w });
+          totalW += w + LETTER_GAP;
         }
       }
     }
-    return { chars: parsed, scale: tw > availW ? availW / tw : 1 };
+    // Remove trailing gap
+    totalW -= LETTER_GAP;
+    // Auto-fit: scale x down if the sentence is wider than available space
+    const fitScale = totalW > availW ? availW / totalW : 1;
+    return { chars: parsed, xScale: fitScale };
   }, [text, availW]);
 
   const total = chars.length;
-  const cellH = BASE_CELL_H * scale;
-  const cellW = BASE_CELL_W * scale;
-  const cellTop = grassY - WP_BASE_FRAC * cellH;
 
-  // x positions
+  // Compute x positions for each char
   const positioned = useMemo(() => {
     let cursor = startX;
     return chars.map((c) => {
+      const w = c.w * xScale;
       const x = cursor;
-      cursor += c.w * scale;
-      return { ...c, x, w: c.w * scale };
+      cursor += w + (c.type === 'space' ? 0 : LETTER_GAP * xScale);
+      return { ...c, x, w };
     });
-  }, [chars, scale, startX]);
+  }, [chars, xScale, startX]);
 
   // Animation progress (0 → total chars)
   const [progress, setProgress] = useState(playing ? 0 : total);
@@ -92,7 +111,7 @@ export default function SentenceModelAnimation({
       const dt = (now - last) / 1000;
       last = now;
       setProgress((p) => {
-        const np = p + dt * 3; // ~3 chars/sec
+        const np = p + dt * 1.2; // ~1.2 chars/sec — slow enough to follow
         return np >= total ? total : np;
       });
       rafRef.current = requestAnimationFrame(tick);
@@ -103,6 +122,12 @@ export default function SentenceModelAnimation({
 
   if (!text || total === 0) return null;
 
+  // Map a waypoint point to SVG coords for a given letter
+  const mapPoint = (pt, c) => ({
+    x: c.x + (pt.x - c.minX) * BASE_X_SCALE * xScale,
+    y: pt.y * CH + lineOffset, // direct y mapping — same as WordTracingCanvas
+  });
+
   return (
     <g>
       {/* Faint outlines of all letters (always visible as a writing guide) */}
@@ -110,13 +135,14 @@ export default function SentenceModelAnimation({
         if (c.type !== 'letter') return null;
         return c.strokes.map((stroke, si) => {
           if (stroke.length === 1) {
-            const p = mapPoint(stroke[0].x, stroke[0].y, c.x, cellTop, c.w, cellH);
-            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={c.w * 0.07} fill={OUTLINE} opacity="0.5" />;
+            const p = mapPoint(stroke[0], c);
+            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="0.45" vectorEffect="non-scaling-stroke" />;
           }
-          const pts = stroke.map((pt) => mapPoint(pt.x, pt.y, c.x, cellTop, c.w, cellH));
+          const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`o-${i}-${si}`} d={splinePathD(pts)} fill="none"
-              stroke={OUTLINE} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+              stroke={OUTLINE} strokeWidth={OUTLINE_STROKE} strokeLinecap="round" strokeLinejoin="round"
+              opacity="0.45" vectorEffect="non-scaling-stroke" />
           );
         });
       })}
@@ -130,15 +156,15 @@ export default function SentenceModelAnimation({
           return (
             <g key={`sp-${i}`} opacity={cp}>
               <line x1={cx} y1={skyY} x2={cx} y2={dirtY}
-                stroke="#f59e0b" strokeWidth="2.5" strokeDasharray="5 5" />
-              <text x={cx} y={skyY - 6} fontSize={cellH * 0.22} textAnchor="middle">👆</text>
+                stroke="#f59e0b" strokeWidth="2" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" />
+              <text x={cx} y={skyY - 4} fontSize={14} textAnchor="middle">👆</text>
             </g>
           );
         }
         if (c.type === 'punct') {
           return (
             <text key={`pu-${i}`} x={c.x + c.w / 2} y={grassY}
-              fontSize={cellH * 0.45} fill={INK} textAnchor="middle" opacity={cp}>
+              fontSize={18} fill={INK} textAnchor="middle" opacity={cp}>
               {c.ch}
             </text>
           );
@@ -148,14 +174,15 @@ export default function SentenceModelAnimation({
         return c.strokes.map((stroke, si) => {
           const sp = Math.max(0, Math.min(1, cp * numStrokes - si));
           if (stroke.length === 1) {
-            const p = mapPoint(stroke[0].x, stroke[0].y, c.x, cellTop, c.w, cellH);
-            return <circle key={`i-${i}-${si}`} cx={p.x} cy={p.y} r={c.w * 0.07} fill={INK} opacity={sp} />;
+            const p = mapPoint(stroke[0], c);
+            return <circle key={`i-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={INK} opacity={sp} vectorEffect="non-scaling-stroke" />;
           }
-          const pts = stroke.map((pt) => mapPoint(pt.x, pt.y, c.x, cellTop, c.w, cellH));
+          const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`i-${i}-${si}`} d={splinePathD(pts)} fill="none"
-              stroke={INK} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
-              pathLength={1} strokeDasharray="1" strokeDashoffset={1 - sp} />
+              stroke={INK} strokeWidth={INK_STROKE} strokeLinecap="round" strokeLinejoin="round"
+              pathLength={1} strokeDasharray="1" strokeDashoffset={1 - sp}
+              vectorEffect="non-scaling-stroke" />
           );
         });
       })}
