@@ -29,26 +29,45 @@ Deno.serve(async (req) => {
     if (!anonKey) return Response.json({ error: 'SUPABASE_ANON_KEY not set' }, { status: 500 });
 
     const out = [];
+    // List one page with up to 3 retries on transient Supabase errors
+    // (429 rate-limit, 5xx). Returns null if all retries fail so the
+    // caller can decide whether to skip the page or abort.
+    async function listPage(dir, offset, limit) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch(`${SB_URL}/storage/v1/object/list/${bucket}`, {
+            method: 'POST',
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              prefix: dir,
+              limit,
+              offset,
+              sortBy: { column: 'name', order: 'asc' },
+            }),
+          });
+          if (r.ok) return await r.json();
+          // Retry on rate-limit or server errors; bail on 4xx auth/permission
+          if (r.status !== 429 && r.status < 500) return null;
+        } catch { /* network blip — retry */ }
+        await new Promise((res) => setTimeout(res, 200 * (attempt + 1)));
+      }
+      return null;
+    }
     async function walk(dir) {
       let offset = 0;
       const limit = 100;
       while (true) {
-        const r = await fetch(`${SB_URL}/storage/v1/object/list/${bucket}`, {
-          method: 'POST',
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            prefix: dir,
-            limit,
-            offset,
-            sortBy: { column: 'name', order: 'asc' },
-          }),
-        });
-        if (!r.ok) throw new Error('list ' + r.status);
-        const items = await r.json();
+        const items = await listPage(dir, offset, limit);
+        if (!items) {
+          // A single page failing (rate-limit, transient 5xx) should not
+          // kill the whole activity — stop walking this branch but keep
+          // whatever files we already gathered.
+          break;
+        }
         for (const it of items) {
           const full = dir ? `${dir.replace(/\/$/, '')}/${it.name}` : it.name;
           if (it.metadata) out.push(full);
