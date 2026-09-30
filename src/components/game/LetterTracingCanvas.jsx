@@ -1359,26 +1359,8 @@ export default function LetterTracingCanvas({
           </g>
         )}
 
-        {/* Replay hint — animated demo of the current stroke's ideal path.
-            A single smooth spline (through the sparse waypoints, same as the
-            guide strokes) revealed via stroke-dashoffset, so the demo is
-            perfectly smooth with no jagged wiggle from dense-point sampling. */}
-        {replaying && replayDash && (
-          <>
-            <path d={replayDash.d} fill="none" stroke="#f59e0b" strokeWidth="10"
-              strokeLinecap="round" strokeLinejoin="round" opacity="0.9"
-              strokeDasharray={replayDash.len}
-              strokeDashoffset={replayDash.len * (1 - replayProgress)} />
-            {(() => {
-              const idx = Math.min(
-                densePath.length - 1,
-                Math.floor(replayProgress * densePath.length)
-              );
-              const p = densePath[idx];
-              return p ? <circle cx={p.x} cy={p.y} r="7" fill="#f59e0b" /> : null;
-            })()}
-          </>
-        )}
+        {/* "Show me" animated demo removed — students keep the static waypoint
+            font preview only, so the letter activity doesn't take too long. */}
 
         {/* Debug: thick-pen coverage visualization — green dots = dense path
             points the pen has passed within COVERAGE_RADIUS of; gray dots =
@@ -1447,15 +1429,6 @@ export default function LetterTracingCanvas({
       )}
 
       <div className="flex items-center gap-4 shrink-0">
-        {!isSuccess && showGuide && (
-          <button
-            onClick={startReplay}
-            disabled={drawing || replaying || !strokes[strokeIndex]}
-            className="text-amber-600 hover:text-amber-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            ▶ Show me
-          </button>
-        )}
         <button
           onClick={reset}
           className="text-slate-400 hover:text-slate-700 text-sm underline"

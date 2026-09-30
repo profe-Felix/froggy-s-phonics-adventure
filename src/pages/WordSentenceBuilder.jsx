@@ -1058,6 +1058,22 @@ export default function WordSentenceBuilder({
       return;
     }
 
+    // Student mode: initialize the row count SYNCHRONOUSLY so the drop zones
+    // are ready immediately. The async DB lookup below may restore saved tiles,
+    // but only if the student hasn't placed any tiles yet — preventing the race
+    // where a quick placement is overwritten by the background session
+    // create/restore completing after the drop.
+    setProblems(prev => {
+      const safe = Array.isArray(prev) ? prev : [];
+      const hasWork = safe.some(p => Array.isArray(p) && p.length > 0);
+      if (hasWork) {
+        // Preserve tiles the student already placed; just pad/trim to np.
+        return Array.from({ length: np }, (_, i) => Array.isArray(safe[i]) ? safe[i] : []);
+      }
+      return Array.from({ length: np }, () => []);
+    });
+    setProblemStates(Array(np).fill(null));
+
     // Look for existing session in DB
     (async () => {
       try {
@@ -1072,42 +1088,46 @@ export default function WordSentenceBuilder({
           setSessionId(sess.id);
           sessionIdRef.current = sess.id;
           if (sess.submitted) setSubmitted(true);
-          // Restore tile state
+          // Restore tile state — but ONLY if the student hasn't placed tiles
+          // since load (otherwise we'd overwrite their fresh work).
           try {
             const savedProblems = JSON.parse(sess.problems_data || 'null');
             if (Array.isArray(savedProblems) && savedProblems.length > 0) {
-              // Pad or trim to match current numProblems
-              const restored = Array.from({ length: np }, (_, i) =>
-                Array.isArray(savedProblems[i]) ? savedProblems[i] : []
-              );
-              setProblems(restored);
-              setProblemStates(Array(np).fill(null));
-              setSessionRestored(true);
-              setTimeout(() => setSessionRestored(false), 3000);
+              const current = problemsRef.current;
+              const hasWork = Array.isArray(current) && current.some(p => Array.isArray(p) && p.length > 0);
+              if (!hasWork) {
+                const restored = Array.from({ length: np }, (_, i) =>
+                  Array.isArray(savedProblems[i]) ? savedProblems[i] : []
+                );
+                setProblems(restored);
+                setProblemStates(Array(np).fill(null));
+                setSessionRestored(true);
+                setTimeout(() => setSessionRestored(false), 3000);
+              }
               return;
             }
           } catch {}
         } else {
-          // Create new session
-          const fresh = initProblemsReturn(np, config.prefillProblems, config.punc);
+          // Create a new session record in the background. Do NOT touch
+          // problems — already initialized above, and the student may have
+          // started placing tiles during the await. Capture current state so
+          // the record matches what's on screen.
           const sess = await base44.entities.WordBuilderSession.create({
             student_number: parseInt(config.studentNumber),
             class_name: config.className,
             school_year: ACTIVE_SCHOOL_YEAR,
             preset_id: config.presetId,
             num_problems: np,
-            problems_data: JSON.stringify(fresh),
+            problems_data: JSON.stringify(Array.from({ length: np }, (_, i) => problemsRef.current[i] || [])),
             submitted: false,
             last_active: new Date().toISOString(),
           });
           setSessionId(sess.id);
           sessionIdRef.current = sess.id;
-          setProblems(fresh);
-          setProblemStates(Array(np).fill(null));
           return;
         }
       } catch {}
-      initProblems(np, config.prefillProblems, config.punc);
+      // On error, problems stays as initialized above (np empty arrays).
     })();
   }, [config]);
 
