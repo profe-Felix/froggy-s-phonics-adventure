@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
+import SentenceModelAnimation from './SentenceModelAnimation';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 
 // SVG-based handwriting guide lines matching Letter Tracing / Name Tracing size.
@@ -18,7 +19,7 @@ const CAP_ZONE_H = GRASS_Y - SKY_Y;
 export default function SentenceWritingLines({
   row, canvasRef, tool, color, size,
   onStrokeStart, onStrokeEnd, onActivateCanvas, onActivate,
-  lineCount = 1, modelText = '',
+  lineCount = 1, modelText = '', active = false, replayKey = 0,
 }) {
   const containerRef = useRef(null);
   const hasModel = !!modelText;
@@ -54,14 +55,9 @@ export default function SentenceWritingLines({
   const vbW = dims.w * (CANVAS_H / RENDER_H_PER_LINE);
   const vbH = totalLines * CANVAS_H;
 
-  // Model sentence auto-fit: start past the fence guide, shrink to fit width,
-  // never taller than the line height so letters sit on the guide lines.
-  const textX = 260;
-  const availW = Math.max(0, vbW - textX - 40);
-  const charWFactor = 0.52;
-  const fitFontSize = modelText
-    ? Math.min(CAP_ZONE_H, availW / (modelText.length * charWFactor))
-    : CAP_ZONE_H;
+  // Model sentence auto-fit: the animation component handles its own scaling.
+  const modelStartX = 240;
+  const modelMaxX = vbW - 40;
 
   return (
     <div ref={containerRef} className="relative" style={{ height: totalRenderH }}>
@@ -98,15 +94,16 @@ export default function SentenceWritingLines({
               <line x1="0" y1={grassY} x2={vbW} y2={grassY} stroke="#16a34a" strokeWidth="2.5" opacity="0.8" vectorEffect="non-scaling-stroke" />
               {/* Dirt line (dashed brown) */}
               <line x1="0" y1={dirtY} x2={vbW} y2={dirtY} stroke="#8d6e63" strokeWidth="2.5" strokeDasharray="6 6" opacity="0.85" vectorEffect="non-scaling-stroke" />
-              {/* Faint model sentence on the top guide line */}
+              {/* Animated model sentence — letter pathways drawn stroke by stroke */}
               {hasModel && i === 0 && modelText && (
-                <text
-                  x={textX}
-                  y={grassY}
-                  fontSize={fitFontSize}
-                  fill="#94a3b8"
-                  fontFamily="'Andika', sans-serif"
-                >{modelText}</text>
+                <SentenceModelAnimation
+                  text={modelText}
+                  startX={modelStartX}
+                  maxX={modelMaxX}
+                  lineIndex={0}
+                  playing={active}
+                  replayKey={replayKey}
+                />
               )}
             </g>
           );

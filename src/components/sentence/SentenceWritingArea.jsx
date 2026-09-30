@@ -1,5 +1,5 @@
-import React from 'react';
-import { Volume2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Volume2, RotateCw } from 'lucide-react';
 import { playTts } from '@/lib/audio';
 import SentenceWritingLines from './SentenceWritingLines';
 
@@ -15,9 +15,14 @@ export default function SentenceWritingArea({
   active, onActivate,
   canvasRef,
 }) {
+  const [replayKey, setReplayKey] = useState(0);
   const handlePlay = (e) => {
     e.stopPropagation();
     if (sentenceText) playTts(sentenceText, 'es', 0.85);
+  };
+  const handleReplay = (e) => {
+    e.stopPropagation();
+    setReplayKey((k) => k + 1);
   };
 
   return (
@@ -38,13 +43,22 @@ export default function SentenceWritingArea({
         )}
         <div className="flex-1" />
         {sentenceText && (
-          <button
-            onClick={handlePlay}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-white bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition-all"
-            title="Escuchar la oración"
-          >
-            <Volume2 className="w-3.5 h-3.5" /> Escuchar
-          </button>
+          <>
+            <button
+              onClick={handleReplay}
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 active:scale-95 transition-all"
+              title="Ver cómo se escriben las letras"
+            >
+              <RotateCw className="w-3.5 h-3.5" /> Ver letras
+            </button>
+            <button
+              onClick={handlePlay}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-white bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition-all"
+              title="Escuchar la oración"
+            >
+              <Volume2 className="w-3.5 h-3.5" /> Escuchar
+            </button>
+          </>
         )}
       </div>
 
@@ -62,6 +76,8 @@ export default function SentenceWritingArea({
           onActivate={onActivate}
           lineCount={2}
           modelText={sentenceText || ''}
+          active={active}
+          replayKey={replayKey}
         />
       </div>
 
