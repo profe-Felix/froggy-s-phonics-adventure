@@ -6,6 +6,7 @@ import { ArrowLeft, Printer, CheckCheck, Square, ZoomIn, ZoomOut, PenLine } from
 import TableTag from '@/components/print/TableTag';
 import MailboxLabel from '@/components/print/MailboxLabel';
 import IdCard from '@/components/print/IdCard';
+import TalkingPartner from '@/components/print/TalkingPartner';
 
 // Unified print shop — exact replica of original PrintSheet print mechanism:
 // native window.print() with .sheet-wrap / .sheet CSS + @media print rules.
@@ -14,6 +15,7 @@ const FORMATS = {
   id: { label: 'ID Card', width: '2.3in', cols: 3 },
   tabletag: { label: 'Table Tag', width: '3in', cols: 2 },
   mailbox: { label: 'Mailbox Label', width: '0.9in', cols: 8 },
+  partner: { label: 'Talking Partner', width: '3in', cols: 2 },
 };
 
 export default function StudentIdCards() {
@@ -70,6 +72,7 @@ export default function StudentIdCards() {
   const renderCard = (s) => {
     if (format === 'tabletag') return <TableTag student={s} />;
     if (format === 'mailbox') return <MailboxLabel student={s} showPicture={showPicture} />;
+    if (format === 'partner') return <TalkingPartner student={s} />;
     return <IdCard student={s} />;
   };
 
@@ -197,7 +200,7 @@ export default function StudentIdCards() {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `repeat(${fmt.cols}, ${fmt.width})`,
-                      gap: 0,
+                      gap: format === 'partner' ? '0.01in' : 0,
                       justifyContent: 'center',
                     }}
                   >
