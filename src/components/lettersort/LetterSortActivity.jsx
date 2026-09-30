@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import ColumnsView from './ColumnsView';
 import RowView from './RowView';
 import ContinuumView from './ContinuumView';
@@ -80,7 +80,46 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
   // roundNonce lets "Nuevo" force a fresh round (used by randinit to re-pick a
   // new random initial-letter category instead of merely reshuffling cards).
   const [roundNonce, setRoundNonce] = useState(0);
-  const round = useMemo(() => buildRound(config, imageFiles || []), [config, imageFiles, roundNonce]);
+  const [roundIndex, setRoundIndex] = useState(0);
+  const [cumScore, setCumScore] = useState({ completed: 0, mistakes: 0 });
+
+  // Reset sequencing when config changes
+  useEffect(() => {
+    setRoundIndex(0);
+    setCumScore({ completed: 0, mistakes: 0 });
+  }, [config]);
+
+  const round = useMemo(() => buildRound({ ...config, roundIndex }, imageFiles || []), [config, imageFiles, roundNonce, roundIndex]);
+
+  const handleRoundComplete = useCallback((result) => {
+    if (config.mode === 'rowsyllauto') {
+      setCumScore((s) => ({ completed: s.completed + 1, mistakes: s.mistakes + (result?.mistakes || 0) }));
+      setRoundIndex((i) => i + 1);
+    }
+    onRoundComplete?.(result);
+  }, [config.mode, onRoundComplete]);
+
+  const isRowsyllauto = config.mode === 'rowsyllauto';
+  const totalTargets = config.syllables?.length || 0;
+  const allTargetsDone = isRowsyllauto && roundIndex >= totalTargets;
+
+  if (allTargetsDone) {
+    return (
+      <div className="p-8 text-center">
+        <div className="text-5xl mb-3">🎉</div>
+        <div className="text-xl font-bold text-slate-800">¡Completo!</div>
+        <div className="text-sm text-slate-500 mt-1">
+          ✅ {cumScore.completed} completados · ❌ {cumScore.mistakes} errores
+        </div>
+        <button
+          onClick={() => { setRoundIndex(0); setCumScore({ completed: 0, mistakes: 0 }); }}
+          className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold"
+        >
+          Reiniciar
+        </button>
+      </div>
+    );
+  }
 
   if (err) return <div className="p-6 text-amber-700 bg-amber-50 rounded-lg mx-3 mt-3 text-sm">{err}</div>;
   if (!imageFiles && config.mode !== 'generate') {
@@ -93,9 +132,9 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
   if (!round) return <div className="p-6 text-slate-500">Configuración no válida.</div>;
 
   const view = (() => {
-    switch (round.view) {
+    switch (round?.view) {
       case 'columns': return <ColumnsView config={config} round={round} onNewRound={() => setRoundNonce((n) => n + 1)} onRoundComplete={onRoundComplete} />;
-      case 'rows': return <RowView round={round} config={config} onRoundComplete={onRoundComplete} />;
+      case 'rows': return <RowView round={round} config={config} onRoundComplete={isRowsyllauto ? handleRoundComplete : onRoundComplete} />;
       case 'continuum': return <ContinuumView round={round} config={config} onRoundComplete={onRoundComplete} />;
       case 'generate': return <GenerateView round={round} config={config} />;
       case 'stressreveal': return <StressRevealView round={round} config={config} onRoundComplete={onRoundComplete} />;
@@ -107,6 +146,17 @@ export default function LetterSortActivity({ config, onRoundComplete }) {
   return (
     <div>
       {warn && <div className="mx-3 mt-3 p-3 text-amber-700 bg-amber-50 rounded-lg text-sm">{warn}</div>}
+      {isRowsyllauto && round && (
+        <div className="mx-3 mt-3 p-3 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+          <span className="font-bold text-indigo-900 text-sm">
+            Sílaba {roundIndex + 1}/{totalTargets}: {config.syllables[roundIndex]}
+          </span>
+          <div className="flex gap-3">
+            <span className="text-sm font-bold text-green-700">✅ {cumScore.completed}</span>
+            <span className="text-sm font-bold text-red-600">❌ {cumScore.mistakes}</span>
+          </div>
+        </div>
+      )}
       {view}
     </div>
   );

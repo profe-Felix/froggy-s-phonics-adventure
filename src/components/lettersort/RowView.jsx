@@ -30,17 +30,22 @@ export default function RowView({ round, config, onRoundComplete }) {
     preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
   }, [round]);
 
-  // Auto-verify when all cards have been placed into rows, so the round
-  // completes without requiring the student to tap "Verificar" — this ensures
-  // onRoundComplete fires (and coins are awarded) before they tap "Done".
+  const totalSlots = round ? Math.min(
+    round.rows.reduce((sum, r) => sum + (r.maxPerSlot || 1), 0),
+    round.cards.length
+  ) : 0;
+  const placedCount = Object.values(slots).flat().length;
+
+  // Auto-verify when all slots are filled — works for both all-cards-placed
+  // modes (row/rowsyll) and distractor modes (rowsyllauto) where the rack
+  // still holds non-matching cards when the round is complete.
   useEffect(() => {
     if (!round) return;
-    const placedCount = Object.values(slots).flat().length;
-    if (rack.length === 0 && placedCount > 0 && locked.size < round.cards.length) {
+    if (placedCount >= totalSlots && placedCount > 0 && locked.size < totalSlots) {
       verify();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rack.length]);
+  }, [placedCount, locked.size, totalSlots]);
 
   function onDragEnd(res) {
     const { source, destination } = res;
@@ -83,7 +88,7 @@ export default function RowView({ round, config, onRoundComplete }) {
         setBad((b) => { const n = new Set(b); toEject.forEach((e) => n.delete(e.card.id)); return n; });
       }, 350);
     }
-    if (toEject.length === 0 && newLocked.size === round.cards.length) {
+    if (toEject.length === 0 && newLocked.size >= totalSlots) {
       celebrate();
       onRoundComplete?.({ mistakes: score.wrong + wrong });
     }

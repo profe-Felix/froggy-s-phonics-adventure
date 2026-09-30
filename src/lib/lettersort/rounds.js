@@ -290,6 +290,7 @@ export function buildRound(config, imageFiles = []) {
     splitCards, titles, labelStyle, syllmatch, syllcmp,
     groups, rows, rowsyll, headers, answers, headertype, cardtype, match,
     direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots, headerimages,
+    roundIndex,
   } = config;
   // Dedupe by normalized word so the same picture (e.g. a word stored as both
   // <base>.jpg and <base>_pic.png) never produces two cards in one round.
@@ -485,32 +486,33 @@ export function buildRound(config, imageFiles = []) {
   }
 
   // ----- rowsyllauto: auto-generate prompt + bank from a target syllable -----
-  // Teacher enters a syllable (e.g. "la"); the app finds an image starting with
-  // that syllable as the prompt, adds `per` more matching images, and fills the
-  // rest with `distractors` random non-matching images from the bucket.
+  // Teacher enters one or more syllables (e.g. "la, le, lu"). Each syllable is a
+  // sequential round: the app finds an image starting with that syllable as the
+  // prompt, adds `per` more matching images, and fills the rest with
+  // `distractors` random non-matching images. roundIndex selects which syllable
+  // is active so LetterSortActivity can advance through the sequence.
   if (mode === 'rowsyllauto') {
     const targets = syllables.map((s) => stripDiacritics(normalizeMarkers(s)));
-    const rowsData = [];
+    if (!targets.length) return null;
+    const idx = Math.min(roundIndex || 0, targets.length - 1);
+    const target = targets[idx];
+    const matching = files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) === target);
+    if (matching.length < 2) return null; // need at least prompt + 1 match
+    const sh = shuffle(matching);
+    const promptFile = sh[0];
+    const matchCount = Math.min(per, sh.length - 1);
+    const matchFiles = sh.slice(1, 1 + matchCount);
+    const rowsData = [{
+      prompt: promptFile.stem,
+      promptImg: promptFile.url,
+      maxPerSlot: 1,
+      match: (coreRaw) => stripDiacritics(syllablesNormalized(coreRaw)[0]) === target,
+    }];
     const cards = [];
-    for (const target of targets) {
-      const matching = files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) === target);
-      if (matching.length < 2) continue; // need at least prompt + 1 match
-      const sh = shuffle(matching);
-      const promptFile = sh[0];
-      const matchCount = Math.min(per, sh.length - 1);
-      const matchFiles = sh.slice(1, 1 + matchCount);
-      rowsData.push({
-        prompt: promptFile.stem,
-        promptImg: promptFile.url,
-        maxPerSlot: 1,
-        match: (coreRaw) => stripDiacritics(syllablesNormalized(coreRaw)[0]) === target,
-      });
-      matchFiles.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
-      const nonMatching = shuffle(files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) !== target));
-      const dCount = Math.min(distractors || 7, nonMatching.length);
-      nonMatching.slice(0, dCount).forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
-    }
-    if (!rowsData.length) return null;
+    matchFiles.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+    const nonMatching = shuffle(files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) !== target));
+    const dCount = Math.min(distractors || 7, nonMatching.length);
+    nonMatching.slice(0, dCount).forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
     return { view: 'rows', rows: rowsData, cards: shuffle(cards) };
   }
 
