@@ -119,7 +119,11 @@ function ReplayViewer({ attempt, onClose }) {
 
 // ─── Student card ─────────────────────────────────────────────────────────────
 function StudentCard({ studentNum, attempts, onReplay }) {
-  const latest = attempts[0];
+  const sorted = [...attempts].sort((a,b) => new Date(a.submitted_at||a.created_date||0) - new Date(b.submitted_at||b.created_date||0));
+  const latest = sorted[sorted.length - 1];
+  const firstTry = sorted[0];
+  const firstTryCorrect = firstTry?.all_correct;
+  const attemptCount = sorted.length;
   const problems = (() => { try { return JSON.parse(latest?.problems_data || '[]'); } catch { return []; } })();
   const allCorrect = latest?.all_correct;
 
@@ -127,13 +131,21 @@ function StudentCard({ studentNum, attempts, onReplay }) {
     <div className={`bg-white rounded-2xl border-2 shadow-sm p-3 flex flex-col gap-2 ${allCorrect ? 'border-green-400' : latest ? 'border-orange-300' : 'border-gray-200'}`}>
       <div className="flex items-center justify-between">
         <span className="font-black text-gray-800 text-lg">#{studentNum}</span>
-        {latest && (
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${allCorrect ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-            {allCorrect ? '✓ Correcto' : '✗ Revisión'}
-          </span>
-        )}
-        {!latest && <span className="text-xs text-gray-300 font-bold">Sin envío</span>}
+        <div className="flex items-center gap-1">
+          {firstTryCorrect && <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700" title="Correcto al primer intento">⭐</span>}
+          {latest && (
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${allCorrect ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+              {allCorrect ? '✓' : '✗'}
+            </span>
+          )}
+          {!latest && <span className="text-xs text-gray-300 font-bold">Sin envío</span>}
+        </div>
       </div>
+      {latest && (
+        <div className="text-xs text-gray-500 font-bold">
+          {attemptCount} intento{attemptCount !== 1 ? 's' : ''}{firstTryCorrect ? ' · ⭐ primera' : ''}
+        </div>
+      )}
 
       {/* Final answer preview */}
       {problems.length > 0 && (

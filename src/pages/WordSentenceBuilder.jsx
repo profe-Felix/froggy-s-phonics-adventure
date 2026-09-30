@@ -975,6 +975,7 @@ export default function WordSentenceBuilder({
   const [sessionId, setSessionId] = useState(null); // DB session record id
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [teacherAnswers, setTeacherAnswers] = useState([]);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
 
@@ -989,6 +990,11 @@ export default function WordSentenceBuilder({
   const recordEvent = useCallback((type, problemIdx, extraData = {}) => {
     eventsRef.current.push({ t: Date.now()-startTimeRef.current, type, problemIdx, ...extraData });
   }, []);
+
+  // Sync teacher answer slots with the problem count
+  useEffect(() => {
+    setTeacherAnswers(prev => Array.from({length: numProblems}, (_, i) => prev[i] || ''));
+  }, [numProblems]);
 
   // ── Keep a ref so save always has latest problems ─────────────────────────
   const problemsRef = useRef(problems);
@@ -1523,9 +1529,10 @@ export default function WordSentenceBuilder({
   };
 
   const validate = () => {
-    if (!config?.answers) return;
+    const answers = config.answers || teacherAnswers.filter(a => a.trim());
+    if (!answers.length) return;
     const newStates = problems.map((tiles,i) => {
-      const expected = config.answers[i];
+      const expected = answers[i];
       if (!expected) return null;
       let built='';
       tiles.forEach(t => {
@@ -1551,7 +1558,7 @@ export default function WordSentenceBuilder({
           else if (t.type==='space') built+=' ';
         });
         return {
-          expected: config.answers?.[i]||null,
+          expected: answers?.[i]||null,
           answer: built.trim(),
           isCorrect: newStates[i]==='correct',
           tiles: tiles.map(t=>({type:t.type,value:t.value}))
@@ -1584,9 +1591,15 @@ export default function WordSentenceBuilder({
   const [qrTeacherClass, setQrTeacherClass] = useState('');
   const qrUrl = (() => {
     try {
-      const preset = config?.presetId;
-      const classPart = qrTeacherClass ? `class=${qrTeacherClass}&` : '';
-      return `${window.location.origin}/WordSentenceBuilder?${preset?`preset=${preset}&`:''}${classPart}login=1&SY=${ACTIVE_SCHOOL_YEAR}`;
+      const params = new URLSearchParams();
+      if (config?.presetId) params.set('preset', config.presetId);
+      if (qrTeacherClass) params.set('class', qrTeacherClass);
+      const ta = teacherAnswers.filter(a => a.trim());
+      if (ta.length > 0) params.set('answers', ta.join('|'));
+      if (!config?.presetId && config?.syllables?.length) params.set('syll', config.syllables.join(','));
+      params.set('login', '1');
+      params.set('SY', ACTIVE_SCHOOL_YEAR);
+      return `${window.location.origin}/WordSentenceBuilder?${params.toString()}`;
     } catch { return window.location.href; }
   })();
 
@@ -1678,8 +1691,19 @@ export default function WordSentenceBuilder({
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              {config.answers && <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>}
+              {(config.answers || teacherAnswers.filter(a=>a.trim()).length > 0) && <button onClick={validate} className="bg-blue-600 text-white rounded-lg px-4 py-1 text-sm font-bold hover:bg-blue-700">✓ Validar</button>}
               <button onClick={()=>setShowQR(true)} className="border border-gray-300 bg-white text-gray-700 rounded-lg px-3 py-1 text-sm font-bold hover:bg-gray-50">QR</button>
+            </div>
+          )}
+          {!isStudent && (
+            <div className="w-full flex flex-wrap items-center gap-2 bg-indigo-50/50 rounded-xl p-2 border border-indigo-100">
+              <span className="text-xs font-black text-indigo-600 uppercase shrink-0">Respuestas:</span>
+              {Array.from({length: numProblems}, (_, i) => (
+                <input key={i} type="text" value={teacherAnswers[i] || ''}
+                  onChange={e => setTeacherAnswers(prev => { const n = [...prev]; n[i] = e.target.value; return n; })}
+                  placeholder={`#${i+1}`}
+                  className="border border-indigo-200 rounded-lg px-2 py-1 text-sm w-28 font-bold" />
+              ))}
             </div>
           )}
           {isStudent && (
