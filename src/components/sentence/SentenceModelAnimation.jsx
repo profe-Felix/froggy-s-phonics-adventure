@@ -2,32 +2,27 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 import { splinePathD } from '@/components/tracing/strokeMath';
 
-// Animated model sentence rendered with letter FORMATION PATHWAYS (waypoints)
-// instead of a font. Each letter's strokes draw in sequence (stroke-dashoffset
-// "scrub") so students see how to form the letter, then the next, left-to-right.
-// A vertical dashed amber line + 👆 finger emoji marks each word space.
+// Animated model sentence rendered with letter FORMATION PATHWAYS (waypoints).
+// Word-by-word progression: only the active word's letters animate; previous
+// words are fully drawn, future words show as faint outlines.
 //
-// Only the active row animates; inactive rows show the fully-drawn sentence.
-// `replayKey` changes → animation restarts from the first letter.
-//
-// Y-mapping matches WordTracingCanvas: `y: pt.y * CH` (no remapping —
-// waypoints are authored to align with guide lines at 0.10, 0.367, 0.633, 0.90).
-// X-layout uses actual ink bounds + tight gap (like computeWordLayout) so
-// letters sit naturally close together instead of in fixed-width cells.
+// Y-mapping matches WordTracingCanvas: `y: pt.y * CH` (no remapping).
+// X-layout uses actual ink bounds + comfortable gap. Word spaces are ~the
+// width of a capital letter so words are clearly separated.
 
-const CH = 375; // matches SentenceWritingLines CANVAS_H (one line set)
+const CH = 375;
 const SKY = 0.10 * CH;
 const GRASS = 0.633 * CH;
 const DIRT = 0.90 * CH;
-const BASE_X_SCALE = 260; // x scale for waypoints — slightly narrower than tall
-const LETTER_GAP = 10;   // gap between letters in viewBox units
-const SPACE_W = 35;       // space width in viewBox units
-const INK = '#0f766e';    // teal-700 — matches the app's ink-fill color
-const OUTLINE = '#cbd5e1'; // slate-300
-const INK_STROKE = 4.5;   // screen px (non-scaling)
-const OUTLINE_STROKE = 3; // screen px (non-scaling)
+const BASE_X_SCALE = 260;
+const LETTER_GAP = 24;    // comfortable gap between letters
+const INK = '#0f766e';
+const OUTLINE = '#cbd5e1';
+const INK_STROKE = 4.5;
+const OUTLINE_STROKE = 3;
+const ANIM_SPEED = 0.7;   // chars/sec — slow enough to follow formation
 
-// Compute a letter's ink bounds (minX, maxX) across all its strokes
+// Compute a letter's ink bounds (minX, maxX)
 function letterBounds(strokes) {
   let minX = Infinity, maxX = -Infinity;
   for (const stroke of strokes) {
@@ -43,8 +38,19 @@ function letterBounds(strokes) {
   return { minX, maxX };
 }
 
+// Word space width ≈ width of a capital 'E' (or fallback)
+function computeSpaceWidth() {
+  const wp = LETTER_WAYPOINTS['E'] || LETTER_WAYPOINTS['A'] || LETTER_WAYPOINTS['O'];
+  if (wp && wp.strokes) {
+    const b = letterBounds(wp.strokes);
+    return (b.maxX - b.minX) * BASE_X_SCALE * 0.9; // slightly less than E
+  }
+  return 95;
+}
+const BASE_SPACE_W = computeSpaceWidth();
+
 export default function SentenceModelAnimation({
-  text, startX, maxX, lineIndex = 0, playing = true, replayKey = 0,
+  text, startX, maxX, lineIndex = 0, activeWordIndex = -1, replayKey = 0,
 }) {
   const lineOffset = lineIndex * CH;
   const skyY = SKY + lineOffset;
@@ -52,14 +58,21 @@ export default function SentenceModelAnimation({
   const dirtY = DIRT + lineOffset;
   const availW = Math.max(40, maxX - startX);
 
-  // Parse + layout using actual ink widths (like WordTracingCanvas computeWordLayout)
-  const { chars, xScale } = useMemo(() => {
+  // Parse text into positioned chars + compute word ranges
+  const { chars, wordRanges, xScale } = useMemo(() => {
     const parsed = [];
+    const ranges = [];
     let totalW = 0;
-    for (const ch of text) {
+    let wordStart = 0;
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
       if (ch === ' ') {
-        parsed.push({ type: 'space', w: SPACE_W });
-        totalW += SPACE_W;
+        parsed.push({ type: 'space', w: BASE_SPACE_W });
+        totalW += BASE_SPACE_W;
+        // Close current word range (wordStart..ci)
+        if (ci > wordStart) ranges.push({ start: wordStart, end: ci });
+        wordStart = ci + 1;
       } else {
         const wp = LETTER_WAYPOINTS[ch] || LETTER_WAYPOINTS[ch.toLowerCase()];
         if (wp && wp.strokes && wp.strokes.length) {
@@ -68,23 +81,22 @@ export default function SentenceModelAnimation({
           parsed.push({ type: 'letter', ch, strokes: wp.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
           totalW += inkW + LETTER_GAP;
         } else {
-          // punctuation / unknown — narrow slot
           const w = BASE_X_SCALE * 0.2;
           parsed.push({ type: 'punct', ch, w });
           totalW += w + LETTER_GAP;
         }
       }
     }
-    // Remove trailing gap
+    // Close last word
+    if (wordStart < text.length) ranges.push({ start: wordStart, end: text.length });
     totalW -= LETTER_GAP;
-    // Auto-fit: scale x down if the sentence is wider than available space
     const fitScale = totalW > availW ? availW / totalW : 1;
-    return { chars: parsed, xScale: fitScale };
+    return { chars: parsed, wordRanges: ranges, xScale: fitScale };
   }, [text, availW]);
 
   const total = chars.length;
 
-  // Compute x positions for each char
+  // Compute x positions
   const positioned = useMemo(() => {
     let cursor = startX;
     return chars.map((c) => {
@@ -95,66 +107,83 @@ export default function SentenceModelAnimation({
     });
   }, [chars, xScale, startX]);
 
-  // Animation progress (0 → total chars)
-  const [progress, setProgress] = useState(playing ? 0 : total);
-  const rafRef = useRef();
+  // Active word's char range
+  const activeRange = activeWordIndex >= 0 && activeWordIndex < wordRanges.length
+    ? wordRanges[activeWordIndex] : null;
+  const animStart = activeRange ? activeRange.start : 0;
+  const animEnd = activeRange ? activeRange.end : 0;
 
-  // Reset on text / playing / replay changes
-  useEffect(() => {
-    setProgress(playing ? 0 : total);
-  }, [playing, replayKey, text]); // eslint-disable-line
+  const [progress, setProgress] = useState(animStart);
 
+  // Reset progress when word/replay changes
   useEffect(() => {
-    if (!playing || total === 0) return;
+    setProgress(activeWordIndex >= 0 ? animStart : -1);
+  }, [activeWordIndex, replayKey, animStart]); // eslint-disable-line
+
+  // Animate within the active word's range only
+  useEffect(() => {
+    if (activeWordIndex < 0 || !activeRange) return;
     let last = performance.now();
     const tick = (now) => {
       const dt = (now - last) / 1000;
       last = now;
       setProgress((p) => {
-        const np = p + dt * 1.2; // ~1.2 chars/sec — slow enough to follow
-        return np >= total ? total : np;
+        const np = p + dt * ANIM_SPEED;
+        return np >= animEnd ? animEnd : np;
       });
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [playing, total, replayKey, text]);
+  }, [activeWordIndex, replayKey, animStart, animEnd]); // eslint-disable-line
+
+  const rafRef = useRef();
 
   if (!text || total === 0) return null;
 
-  // Map a waypoint point to SVG coords for a given letter
   const mapPoint = (pt, c) => ({
     x: c.x + (pt.x - c.minX) * BASE_X_SCALE * xScale,
-    y: pt.y * CH + lineOffset, // direct y mapping — same as WordTracingCanvas
+    y: pt.y * CH + lineOffset,
   });
+
+  // Per-char completion: 0 = outline only, 1 = fully drawn
+  const charProgress = (i) => {
+    if (activeWordIndex < 0) return 0;
+    if (i < animStart) return 1;           // previous word — fully drawn
+    if (i >= animEnd) return 0;            // future word — outline only
+    return Math.max(0, Math.min(1, progress - i)); // active word — animate
+  };
 
   return (
     <g>
-      {/* Faint outlines of all letters (always visible as a writing guide) */}
+      {/* Faint outlines of all letters (writing guide) */}
       {positioned.map((c, i) => {
         if (c.type !== 'letter') return null;
         return c.strokes.map((stroke, si) => {
           if (stroke.length === 1) {
             const p = mapPoint(stroke[0], c);
-            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="0.45" vectorEffect="non-scaling-stroke" />;
+            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="0.4" vectorEffect="non-scaling-stroke" />;
           }
           const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`o-${i}-${si}`} d={splinePathD(pts)} fill="none"
               stroke={OUTLINE} strokeWidth={OUTLINE_STROKE} strokeLinecap="round" strokeLinejoin="round"
-              opacity="0.45" vectorEffect="non-scaling-stroke" />
+              opacity="0.4" vectorEffect="non-scaling-stroke" />
           );
         });
       })}
 
       {/* Animated ink + space markers + punctuation */}
       {positioned.map((c, i) => {
-        const cp = Math.max(0, Math.min(1, progress - i));
+        const cp = charProgress(i);
 
         if (c.type === 'space') {
+          // Show space marker only if the word before it has been started
+          const visible = activeWordIndex >= 0 && i < animEnd;
+          if (!visible) return null;
           const cx = c.x + c.w / 2;
           return (
-            <g key={`sp-${i}`} opacity={cp}>
+            <g key={`sp-${i}`}>
               <line x1={cx} y1={skyY} x2={cx} y2={dirtY}
                 stroke="#f59e0b" strokeWidth="2" strokeDasharray="5 5" vectorEffect="non-scaling-stroke" />
               <text x={cx} y={skyY - 4} fontSize={14} textAnchor="middle">👆</text>
@@ -162,6 +191,7 @@ export default function SentenceModelAnimation({
           );
         }
         if (c.type === 'punct') {
+          if (cp <= 0) return null;
           return (
             <text key={`pu-${i}`} x={c.x + c.w / 2} y={grassY}
               fontSize={18} fill={INK} textAnchor="middle" opacity={cp}>
@@ -170,9 +200,11 @@ export default function SentenceModelAnimation({
           );
         }
         // letter
+        if (cp <= 0) return null;
         const numStrokes = c.strokes.length;
         return c.strokes.map((stroke, si) => {
           const sp = Math.max(0, Math.min(1, cp * numStrokes - si));
+          if (sp <= 0) return null;
           if (stroke.length === 1) {
             const p = mapPoint(stroke[0], c);
             return <circle key={`i-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={INK} opacity={sp} vectorEffect="non-scaling-stroke" />;
