@@ -231,8 +231,7 @@ export default function TeacherNotebookDashboard({
 
   const extractPageCount = async (file) => {
     try {
-      const pdfjsLib = await import('pdfjs-dist');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const { pdfjsLib } = await import('@/lib/pdfWorkerSetup');
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       return pdf.numPages;

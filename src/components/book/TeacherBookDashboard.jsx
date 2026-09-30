@@ -206,8 +206,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
   const extractPageCount = async (file) => {
     try {
-      const pdfjsLib = await import('pdfjs-dist');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const { pdfjsLib } = await import('@/lib/pdfWorkerSetup');
       const ab = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
       return pdf.numPages;

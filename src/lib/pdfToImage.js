@@ -1,10 +1,7 @@
 // Convert the first page of a PDF file to a PNG blob using pdfjs-dist.
 // Used by the Sound Wall manager so teachers can upload PDF phoneme/grapheme
 // cards and get a clean image URL for display.
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Set the worker source to the CDN build that matches the installed version.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { pdfjsLib } from '@/lib/pdfWorkerSetup';
 
 export async function pdfFirstPageToPng(file) {
   const arrayBuffer = await file.arrayBuffer();

@@ -1,8 +1,5 @@
 import { jsPDF } from 'jspdf';
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { pdfjsLib } from '@/lib/pdfWorkerSetup';
 
 const EXPORT_WIDTH = 1200;
 

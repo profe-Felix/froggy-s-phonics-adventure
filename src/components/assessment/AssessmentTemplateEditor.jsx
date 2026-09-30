@@ -29,10 +29,7 @@ export default function AssessmentTemplateEditor({ template, onSave, onBack }) {
   const pageWrapperRef = useRef(null);
 
   const getPdfPageCount = async (file) => {
-    const pdfjsLib = await import('pdfjs-dist');
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
+    const { pdfjsLib } = await import('@/lib/pdfWorkerSetup');
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     return pdf.numPages;

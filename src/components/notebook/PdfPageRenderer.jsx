@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { pdfjsLib } from '@/lib/pdfWorkerSetup';
 
 const pdfCache = new Map();
 const pageCache = new Map();
@@ -84,7 +82,7 @@ function getCachedPdfPage(pdfUrl, document, pageNumber) {
 
 const rasterCache = new Map();
 const rasterPromiseCache = new Map();
-const MAX_CACHED_RASTERS = 3;
+const MAX_CACHED_RASTERS = 6;
 
 function getRasterCacheKey(
   pdfUrl,
@@ -464,7 +462,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
         const dpr = Math.min(
           window.devicePixelRatio || 1,
-          3
+          2
         );
 
         const rasterKey = getRasterCacheKey(
@@ -558,6 +556,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const warmNeighbors = async () => {
           try {
             await warmPage(safePageNumber + 1);
+            await warmPage(safePageNumber + 2);
             await warmPage(safePageNumber - 1);
           } catch {
             // Background rendering must never affect the visible page.
