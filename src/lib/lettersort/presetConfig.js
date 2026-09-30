@@ -19,6 +19,7 @@ export const MODES = [
   { key: 'rowalli', label: 'Filas: agrupar por aliteración (mismo sonido)', mode: 'rowalli', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras que empiezan con el mismo sonido.' },
   { key: 'allisyll', label: 'Filas: agrupar por sílaba inicial', mode: 'allisyll', fields: ['rows', 'rowtitle'], desc: 'Cada fila agrupa palabras con la misma sílaba inicial.' },
   { key: 'rowsyll', label: 'Filas: sílaba al inicio o al final', mode: 'rowsyll', fields: ['rows', 'words', 'rowtitle'], desc: 'Filas que ordenan por una sílaba al inicio o al final de la palabra.' },
+  { key: 'rowsyllauto', label: 'Sílaba inicial (auto-generar banco)', mode: 'rowsyllauto', fields: ['syllables', 'per', 'distractors'], desc: 'Escribe una sílaba objetivo (ej. "la"). La app encuentra una imagen prompt, agrega tarjetas que coinciden y llena con distractores al azar.' },
   { key: 'rowsyllcols', label: 'Cuadrícula: filas × columnas de sílabas', mode: 'rowsyllcols', fields: ['rowsyll', 'words', 'headertype', 'cardtype', 'match', 'layout', 'distractors'], desc: 'Cuadrícula filas×columnas de sílabas, con distractores.' },
   { key: 'syllgroups', label: 'Grupos: familias de sílabas', mode: 'syllgroups', fields: ['groups', 'words', 'titles'], desc: 'Agrupa palabras por familias de sílabas con títulos personalizados.' },
   { key: 'generate', label: 'Completar adivinanza (arrastrar respuestas)', mode: 'generate', fields: ['riddle', 'columns', 'rowsGen', 'slots'], desc: 'Genera palabras a partir de adivinanzas/definiciones en espacios por columna.' },

@@ -14,7 +14,7 @@ const IMG_PREFIX = '';
 // Resolve just the explicit words a mode needs; fall back to the whole bucket
 // for modes that pick freely (letters/randinit without a word list).
 function needsFullList(config) {
-  if (config.mode === 'randinit') return true;
+  if (config.mode === 'randinit' || config.mode === 'rowsyllauto') return true;
   const w = cardWordsForConfig(config);
   return !w || w.length === 0;
 }

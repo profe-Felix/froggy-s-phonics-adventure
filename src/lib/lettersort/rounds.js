@@ -11,7 +11,7 @@
 // column views share one `classifyCard(card, col)` call.
 
 import {
-  markersToPretty, normalizeMarkers, initialFromStem,
+  markersToPretty, normalizeMarkers, initialFromStem, stripDiacritics,
   phonemeCount, syllablesNormalized, syllableCount, stressedSyllIndex, cmpSyll,
 } from './phonics';
 import {
@@ -482,6 +482,36 @@ export function buildRound(config, imageFiles = []) {
     });
     const cards = buildWordCards(words, files, { ...config, cardtype: config.cardtype || 'image' });
     return { view: 'rows', rows: rowsData, cards };
+  }
+
+  // ----- rowsyllauto: auto-generate prompt + bank from a target syllable -----
+  // Teacher enters a syllable (e.g. "la"); the app finds an image starting with
+  // that syllable as the prompt, adds `per` more matching images, and fills the
+  // rest with `distractors` random non-matching images from the bucket.
+  if (mode === 'rowsyllauto') {
+    const targets = syllables.map((s) => stripDiacritics(normalizeMarkers(s)));
+    const rowsData = [];
+    const cards = [];
+    for (const target of targets) {
+      const matching = files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) === target);
+      if (matching.length < 2) continue; // need at least prompt + 1 match
+      const sh = shuffle(matching);
+      const promptFile = sh[0];
+      const matchCount = Math.min(per, sh.length - 1);
+      const matchFiles = sh.slice(1, 1 + matchCount);
+      rowsData.push({
+        prompt: promptFile.stem,
+        promptImg: promptFile.url,
+        maxPerSlot: 1,
+        match: (coreRaw) => stripDiacritics(syllablesNormalized(coreRaw)[0]) === target,
+      });
+      matchFiles.forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+      const nonMatching = shuffle(files.filter((f) => stripDiacritics(syllablesNormalized(f.rawCore)[0]) !== target));
+      const dCount = Math.min(distractors || 7, nonMatching.length);
+      nonMatching.slice(0, dCount).forEach((f) => cards.push({ id: uid(), imgUrl: f.url, word: f.stem, coreRaw: f.rawCore }));
+    }
+    if (!rowsData.length) return null;
+    return { view: 'rows', rows: rowsData, cards: shuffle(cards) };
   }
 
   // ----- continuum (sort) -----
