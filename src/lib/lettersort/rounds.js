@@ -503,7 +503,7 @@ export function buildRound(config, imageFiles = []) {
     const matchCount = Math.min(per, sh.length - 1);
     const matchFiles = sh.slice(1, 1 + matchCount);
     const rowsData = [{
-      prompt: promptFile.stem,
+      prompt: promptFile.rawCore,
       promptImg: promptFile.url,
       maxPerSlot: 1,
       match: (coreRaw) => stripDiacritics(syllablesNormalized(coreRaw)[0]) === target,

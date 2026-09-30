@@ -27,7 +27,7 @@ export default function RowView({ round, config, onRoundComplete }) {
     setRack(shuffle(round.cards));
     setSlots(Object.fromEntries(round.rows.map((_, i) => [i, []])));
     setLocked(new Set()); setBad(new Set()); setScore({ correct: 0, wrong: 0 });
-    preloadAudio(round.cards.map((c) => c.coreRaw), AUDIO_OPTS);
+    preloadAudio([...round.cards.map((c) => c.coreRaw), ...round.rows.map((r) => r.prompt).filter(Boolean)], AUDIO_OPTS);
   }, [round]);
 
   const totalSlots = round ? Math.min(
@@ -133,8 +133,8 @@ export default function RowView({ round, config, onRoundComplete }) {
             <div key={i} className="flex items-stretch gap-3 p-2 rounded-xl bg-indigo-50/60 border border-indigo-200">
               <div className="flex flex-col items-center justify-center min-w-[120px] w-32 shrink-0">
                 {row.promptImg
-                  ? <img src={row.promptImg} alt={row.prompt} className="rounded-lg object-contain max-h-24 bg-white" draggable={false} />
-                  : <span className="font-bold text-xl text-indigo-900 text-center">{row.prompt}</span>}
+                  ? <img src={row.promptImg} alt={row.prompt} onClick={() => playWordAudio(row.prompt, AUDIO_OPTS)} className="rounded-lg object-contain max-h-24 bg-white cursor-pointer hover:opacity-70 transition-opacity active:scale-95" draggable={false} />
+                  : <button onClick={() => playWordAudio(row.prompt, AUDIO_OPTS)} className="font-bold text-xl text-indigo-900 text-center cursor-pointer hover:text-indigo-600 active:scale-95">{row.prompt}</button>}
               </div>
               <Droppable droppableId={String(i)} direction="horizontal">
                 {(prov) => (
