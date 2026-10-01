@@ -12,6 +12,30 @@ const TYPE_LABELS = {
   sight_words: 'Sight Words',
 };
 
+// Resolve an attempt's notes (keyed by item index, or "level_index" for
+// decoding) into a list of { item, note } pairs for display.
+function resolveNotes(attempt) {
+  const notes = attempt.notes || {};
+  const entries = [];
+  if (attempt.type === 'decoding') {
+    const levels = attempt.levels || {};
+    for (const [key, note] of Object.entries(notes)) {
+      const sep = key.indexOf('_');
+      const level = sep >= 0 ? key.slice(0, sep) : key;
+      const idx = sep >= 0 ? Number(key.slice(sep + 1)) : NaN;
+      const item = levels[level]?.item_order?.[idx];
+      entries.push({ item: item || key, note });
+    }
+  } else {
+    const order = attempt.item_order || [];
+    for (const [idx, note] of Object.entries(notes)) {
+      const item = order[Number(idx)];
+      entries.push({ item: item || `Item ${Number(idx) + 1}`, note });
+    }
+  }
+  return entries;
+}
+
 export default function AssessmentHistory({ student, history, onClose }) {
   const sorted = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -104,6 +128,18 @@ export default function AssessmentHistory({ student, history, onClose }) {
                   )}
                   {attempt.incorrect?.length === 0 && attempt.correct?.length > 0 && (
                     <p className="text-xs text-green-600 mt-1">All correct! 🎉</p>
+                  )}
+                  {resolveNotes(attempt).length > 0 && (
+                    <div className="mt-2 border-t border-slate-100 pt-2">
+                      <p className="text-xs text-slate-500 mb-1">Notes:</p>
+                      <ul className="space-y-1">
+                        {resolveNotes(attempt).map((n, j) => (
+                          <li key={j} className="text-xs text-slate-700">
+                            <span className="font-bold">{n.item}:</span> {n.note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
               );

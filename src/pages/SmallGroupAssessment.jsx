@@ -231,9 +231,9 @@ export default function SmallGroupAssessment() {
           if (type === 'decoding') {
             const allCorrect = Object.values(result.levels || {}).flatMap((l) => l.correct || []);
             const allIncorrect = Object.values(result.levels || {}).flatMap((l) => l.incorrect || []);
-            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: allCorrect, incorrect: allIncorrect, completed: result.completed });
+            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: allCorrect, incorrect: allIncorrect, completed: result.completed, notes: result.notes || {}, levels: result.levels || {} });
           } else {
-            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: result.correct || [], incorrect: result.incorrect || [], completed: result.completed });
+            map[studentId].push({ date: sess.ended_at || sess.started_at || sess.created_date, type, correct: result.correct || [], incorrect: result.incorrect || [], completed: result.completed, notes: result.notes || {}, item_order: result.item_order || [] });
           }
         }
       }
@@ -415,8 +415,14 @@ export default function SmallGroupAssessment() {
           const itemIndex = result.item_order?.indexOf(item);
           const soundMark = itemIndex >= 0 ? result.sound_marks?.[itemIndex] : null;
           if (soundMap && soundMark) {
-            const dashKey = soundMap[soundMark];
-            if (data.letters[dashKey]) data.letters[dashKey].sound = true;
+            if (soundMark === 'both') {
+              // Student produced both sounds — credit both dashboard entries.
+              if (soundMap.fuerte && data.letters[soundMap.fuerte]) data.letters[soundMap.fuerte].sound = true;
+              if (soundMap.suave && data.letters[soundMap.suave]) data.letters[soundMap.suave].sound = true;
+            } else {
+              const dashKey = soundMap[soundMark];
+              if (data.letters[dashKey]) data.letters[dashKey].sound = true;
+            }
           } else {
             const dashKey = letterToDashboardKey(item, lang);
             if (data.letters[dashKey]) data.letters[dashKey].sound = true;
@@ -973,6 +979,7 @@ export default function SmallGroupAssessment() {
       if (isTwoSound) {
         if (e.key === 's' || e.key === 'S') { e.preventDefault(); handleMark('suave', 'suave'); }
         else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); handleMark('fuerte', 'fuerte'); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); handleMark('correct', 'both'); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); handleMark('incorrect'); }
         else if (e.key === 'ArrowDown') { e.preventDefault(); handleEndSection(); }
         else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); handleEndEarly(); }
@@ -1245,7 +1252,7 @@ export default function SmallGroupAssessment() {
                   lastMark.sound === 'suave' ? 'text-teal-400' :
                   lastMark.correct ? 'text-green-400' : 'text-red-400'
                 )}>
-                  {lastMark.sound ? (lastMark.sound === 'suave' ? 'S' : 'F') : (lastMark.correct ? '✓' : '✗')}
+                  {lastMark.sound === 'both' ? '✓' : lastMark.sound ? (lastMark.sound === 'suave' ? 'S' : 'F') : (lastMark.correct ? '✓' : '✗')}
                 </div>
               )}
             </>
@@ -1273,13 +1280,13 @@ export default function SmallGroupAssessment() {
             {isTwoSoundItem ? (
               <>
                 <button
-                  onClick={() => handleMark('suave', 'suave')}
-                  className="flex flex-col items-center gap-1 text-teal-400 hover:text-teal-300 transition-colors"
+                  onClick={() => handleMark('incorrect')}
+                  className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
                 >
-                  <div className="w-16 h-16 rounded-full bg-teal-500/20 border-2 border-teal-500 flex items-center justify-center">
-                    <span className="text-2xl font-bold">S</span>
+                  <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
+                    <X className="w-8 h-8" />
                   </div>
-                  <span className="text-sm font-medium">Suave (S)</span>
+                  <span className="text-sm font-medium">Neither (←)</span>
                 </button>
                 <button
                   onClick={handleEndEarly}
@@ -1291,22 +1298,31 @@ export default function SmallGroupAssessment() {
                   <span className="text-sm font-medium">End (E)</span>
                 </button>
                 <button
-                  onClick={() => handleMark('incorrect')}
-                  className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
-                >
-                  <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500 flex items-center justify-center">
-                    <X className="w-8 h-8" />
-                  </div>
-                  <span className="text-sm font-medium">Neither (←)</span>
-                </button>
-                <button
                   onClick={() => handleMark('fuerte', 'fuerte')}
                   className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
                 >
                   <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
                     <span className="text-2xl font-bold">F</span>
                   </div>
-                  <span className="text-sm font-medium">Fuerte (F)</span>
+                  <span className="text-sm font-medium">Fuerte only (F)</span>
+                </button>
+                <button
+                  onClick={() => handleMark('suave', 'suave')}
+                  className="flex flex-col items-center gap-1 text-teal-400 hover:text-teal-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-teal-500/20 border-2 border-teal-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold">S</span>
+                  </div>
+                  <span className="text-sm font-medium">Suave only (S)</span>
+                </button>
+                <button
+                  onClick={() => handleMark('correct', 'both')}
+                  className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
+                >
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                    <Check className="w-8 h-8" />
+                  </div>
+                  <span className="text-sm font-medium">Both (→)</span>
                 </button>
               </>
             ) : (
