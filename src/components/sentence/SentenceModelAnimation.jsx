@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
+import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
 import { splinePathD } from '@/components/tracing/strokeMath';
 
 // Animated model sentence rendered with letter FORMATION PATHWAYS (waypoints).
@@ -24,18 +25,20 @@ const ANIM_SPEED = 0.45;  // chars/sec — slow enough for students to follow an
 
 // Compute a letter's ink bounds (minX, maxX)
 function letterBounds(strokes) {
-  let minX = Infinity, maxX = -Infinity;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity;
   for (const stroke of strokes) {
     if (!Array.isArray(stroke)) continue;
     for (const p of stroke) {
       if (p && p.x != null) {
         if (p.x < minX) minX = p.x;
         if (p.x > maxX) maxX = p.x;
+        if (p.y != null && p.y < minY) minY = p.y;
       }
     }
   }
   if (!isFinite(minX)) { minX = 0; maxX = 0.5; }
-  return { minX, maxX };
+  if (!isFinite(minY)) minY = 0;
+  return { minX, maxX, minY };
 }
 
 // Word space width ≈ width of a capital 'E' (or fallback)
@@ -75,16 +78,27 @@ export default function SentenceModelAnimation({
         if (ci > wordStart) ranges.push({ start: wordStart, end: ci });
         wordStart = ci + 1;
       } else {
-        const wp = LETTER_WAYPOINTS[ch] || LETTER_WAYPOINTS[ch.toLowerCase()];
-        if (wp && wp.strokes && wp.strokes.length) {
-          const b = letterBounds(wp.strokes);
+        const acc = ACCENT_MAP[ch];
+        if (acc && LETTER_WAYPOINTS[acc.base]) {
+          const baseStrokes = LETTER_WAYPOINTS[acc.base].strokes || [];
+          const b = letterBounds(baseStrokes);
+          const accentStrokes = buildAccentStrokes(acc.accent, b);
+          const strokes = [...baseStrokes, ...accentStrokes];
           const inkW = (b.maxX - b.minX) * BASE_X_SCALE;
-          parsed.push({ type: 'letter', ch, strokes: wp.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
+          parsed.push({ type: 'letter', ch, strokes, minX: b.minX, maxX: b.maxX, w: inkW });
           totalW += inkW + LETTER_GAP;
         } else {
-          const w = BASE_X_SCALE * 0.2;
-          parsed.push({ type: 'punct', ch, w });
-          totalW += w + LETTER_GAP;
+          const wp = LETTER_WAYPOINTS[ch] || LETTER_WAYPOINTS[ch.toLowerCase()];
+          if (wp && wp.strokes && wp.strokes.length) {
+            const b = letterBounds(wp.strokes);
+            const inkW = (b.maxX - b.minX) * BASE_X_SCALE;
+            parsed.push({ type: 'letter', ch, strokes: wp.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
+            totalW += inkW + LETTER_GAP;
+          } else {
+            const w = BASE_X_SCALE * 0.2;
+            parsed.push({ type: 'punct', ch, w });
+            totalW += w + LETTER_GAP;
+          }
         }
       }
     }
