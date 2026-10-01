@@ -452,10 +452,14 @@ export default function LiveLesson() {
   };
 
   const endSession = async () => {
-    await endClassDictation();
+    // Deactivate the lesson session FIRST so students exit immediately (their
+    // realtime subscription fires on this update). The dictation session is
+    // cleaned up after — otherwise students briefly see the "Waiting for
+    // teacher to start dictation" screen before the lesson-end propagates.
     await updateSession({
       active: false,
     });
+    await endClassDictation();
 
     setSession(null);
     setSelectedLessonId('');

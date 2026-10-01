@@ -161,14 +161,9 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     const safetyInterval =
       window.setInterval(
         () => {
-          if (
-            document.visibilityState ===
-            'visible'
-          ) {
-            void refreshSession();
-          }
+          void refreshSession();
         },
-        5000
+        2000
       );
 
     const handleVisibilityChange =
