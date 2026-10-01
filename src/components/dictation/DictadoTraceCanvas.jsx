@@ -21,18 +21,20 @@ const RED = '#dc2626';
 const MODEL = '#1e293b';
 
 function letterBounds(strokes) {
-  let minX = Infinity, maxX = -Infinity;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity;
   for (const s of strokes) {
     if (!Array.isArray(s)) continue;
     for (const p of s) {
       if (p && p.x != null) {
         if (p.x < minX) minX = p.x;
         if (p.x > maxX) maxX = p.x;
+        if (p.y != null && p.y < minY) minY = p.y;
       }
     }
   }
   if (!isFinite(minX)) { minX = 0; maxX = 0.5; }
-  return { minX, maxX, inkW: maxX - minX };
+  if (!isFinite(minY)) minY = 0;
+  return { minX, maxX, minY, inkW: maxX - minX };
 }
 
 // Accented character → { base, accent } decomposition. The base letter is
@@ -55,30 +57,36 @@ const ACCENT_MAP = {
   'Ü': { base: 'U', accent: 'diaeresis' },
 };
 
-// Build accent stroke waypoints positioned above the letter body. y values
-// are negative so that with the yOffset/yScale mapping they land in the
-// reserved top portion of the SVG (within bounds and traceable).
-function buildAccentStrokes(type, { minX, maxX }) {
+// Build accent stroke waypoints positioned just above the letter body's
+// actual top edge (minY). This keeps the letter body at the same vertical
+// position as non-accented words (aligned with the writing guidelines),
+// and the accent sits naturally above the letter — not in a huge reserved
+// space that pushes the word down.
+function buildAccentStrokes(type, { minX, maxX, minY }) {
   const cx = (minX + maxX) / 2;
   const w = maxX - minX;
+  const top = minY;          // topmost ink point of the letter body
+  const gap = 0.04;           // small gap between letter top and accent
+  const accentH = 0.10;       // accent height in normalized units
+  const baseY = top - gap;
   if (type === 'acute') {
     return [[
-      { x: cx - w * 0.08, y: -0.05 },
-      { x: cx + w * 0.08, y: -0.20 },
+      { x: cx - w * 0.08, y: baseY - accentH * 0.25 },
+      { x: cx + w * 0.08, y: baseY - accentH },
     ]];
   }
   if (type === 'tilde') {
     return [[
-      { x: cx - w * 0.18, y: -0.08 },
-      { x: cx - w * 0.06, y: -0.16 },
-      { x: cx + w * 0.06, y: -0.04 },
-      { x: cx + w * 0.18, y: -0.12 },
+      { x: cx - w * 0.18, y: baseY - accentH * 0.2 },
+      { x: cx - w * 0.06, y: baseY - accentH * 0.8 },
+      { x: cx + w * 0.06, y: baseY - accentH * 0.15 },
+      { x: cx + w * 0.18, y: baseY - accentH * 0.7 },
     ]];
   }
   if (type === 'diaeresis') {
     return [
-      [{ x: cx - w * 0.12, y: -0.12 }],
-      [{ x: cx + w * 0.12, y: -0.12 }],
+      [{ x: cx - w * 0.12, y: baseY - accentH * 0.5 }],
+      [{ x: cx + w * 0.12, y: baseY - accentH * 0.5 }],
     ];
   }
   return [];
@@ -97,9 +105,6 @@ export default function DictadoTraceCanvas({
   // Layout: letters left-to-right, scaled to fit the available width.
   const { letters, layout, xScale } = useMemo(() => {
     const rawChars = (word || '').split('');
-    const hasAccents = rawChars.some(ch => ACCENT_MAP[ch]);
-    const yScaleFactor = hasAccents ? 0.78 : 1.0;
-    const yOffsetFactor = hasAccents ? 0.22 : 0.0;
     const chars = rawChars.map(ch => {
       const acc = ACCENT_MAP[ch];
       if (acc && LETTER_WAYPOINTS[acc.base]) {
@@ -128,7 +133,7 @@ export default function DictadoTraceCanvas({
       const offset = cursor;
       const inkW = b.inkW * xs;
       cursor += inkW + gapPx;
-      return { ...b, offset, yScale: yScaleFactor, yOffset: yOffsetFactor };
+      return { ...b, offset, yScale: 1.0, yOffset: 0.0 };
     });
     return { letters: chars, layout: lay, xScale: xs };
   }, [word, width, height]);
