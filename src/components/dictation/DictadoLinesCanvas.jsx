@@ -60,7 +60,7 @@ export default function DictadoLinesCanvas({
   const ctxRef = useRef({ assignmentId, studentNumber, className, schoolYear });
   ctxRef.current = { assignmentId, studentNumber, className, schoolYear };
   const submissionIdRef = useRef(null);
-  submissionIdRef.current = submissionId;
+  submissionIdRef.current = submissionId.current;
 
   useEffect(() => {
     const el = containerRef.current;
