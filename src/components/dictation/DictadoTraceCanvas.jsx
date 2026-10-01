@@ -35,6 +35,55 @@ function letterBounds(strokes) {
   return { minX, maxX, inkW: maxX - minX };
 }
 
+// Accented character → { base, accent } decomposition. The base letter is
+// traced with its normal waypoints; the accent is appended as extra strokes
+// positioned above the letter body (negative y in the letter's 0-1 space).
+const ACCENT_MAP = {
+  'á': { base: 'a', accent: 'acute' },
+  'é': { base: 'e', accent: 'acute' },
+  'í': { base: 'i', accent: 'acute' },
+  'ó': { base: 'o', accent: 'acute' },
+  'ú': { base: 'u', accent: 'acute' },
+  'Á': { base: 'A', accent: 'acute' },
+  'É': { base: 'E', accent: 'acute' },
+  'Í': { base: 'I', accent: 'acute' },
+  'Ó': { base: 'O', accent: 'acute' },
+  'Ú': { base: 'U', accent: 'acute' },
+  'ñ': { base: 'n', accent: 'tilde' },
+  'Ñ': { base: 'N', accent: 'tilde' },
+  'ü': { base: 'u', accent: 'diaeresis' },
+  'Ü': { base: 'U', accent: 'diaeresis' },
+};
+
+// Build accent stroke waypoints positioned above the letter body. y values
+// are negative so that with the yOffset/yScale mapping they land in the
+// reserved top portion of the SVG (within bounds and traceable).
+function buildAccentStrokes(type, { minX, maxX }) {
+  const cx = (minX + maxX) / 2;
+  const w = maxX - minX;
+  if (type === 'acute') {
+    return [[
+      { x: cx - w * 0.08, y: -0.05 },
+      { x: cx + w * 0.08, y: -0.20 },
+    ]];
+  }
+  if (type === 'tilde') {
+    return [[
+      { x: cx - w * 0.18, y: -0.08 },
+      { x: cx - w * 0.06, y: -0.16 },
+      { x: cx + w * 0.06, y: -0.04 },
+      { x: cx + w * 0.18, y: -0.12 },
+    ]];
+  }
+  if (type === 'diaeresis') {
+    return [
+      [{ x: cx - w * 0.12, y: -0.12 }],
+      [{ x: cx + w * 0.12, y: -0.12 }],
+    ];
+  }
+  return [];
+}
+
 export default function DictadoTraceCanvas({
   word,
   width,
@@ -47,23 +96,39 @@ export default function DictadoTraceCanvas({
 
   // Layout: letters left-to-right, scaled to fit the available width.
   const { letters, layout, xScale } = useMemo(() => {
-    const chars = (word || '').split('').filter(ch => LETTER_WAYPOINTS[ch]);
-    const bounds = chars.map(ch => {
-      const strokes = LETTER_WAYPOINTS[ch]?.strokes || [];
-      return { ch, strokes, ...letterBounds(strokes) };
+    const rawChars = (word || '').split('');
+    const hasAccents = rawChars.some(ch => ACCENT_MAP[ch]);
+    const yScaleFactor = hasAccents ? 0.78 : 1.0;
+    const yOffsetFactor = hasAccents ? 0.22 : 0.0;
+    const chars = rawChars.map(ch => {
+      const acc = ACCENT_MAP[ch];
+      if (acc && LETTER_WAYPOINTS[acc.base]) {
+        const baseStrokes = LETTER_WAYPOINTS[acc.base].strokes || [];
+        const b = letterBounds(baseStrokes);
+        const accentStrokes = buildAccentStrokes(acc.accent, b);
+        return { ch, base: acc.base, strokes: [...baseStrokes, ...accentStrokes] };
+      }
+      if (LETTER_WAYPOINTS[ch]) {
+        return { ch, base: ch, strokes: LETTER_WAYPOINTS[ch].strokes || [] };
+      }
+      return null;
+    }).filter(Boolean);
+    const bounds = chars.map(c => {
+      const baseStrokes = LETTER_WAYPOINTS[c.base]?.strokes || [];
+      return { ...c, ...letterBounds(baseStrokes) };
     });
-    const yScale = height;
+    const yFit = height;
     const gapPx = height * 0.08;
     const padPx = height * 0.08;
     const sumInk = bounds.reduce((s, b) => s + b.inkW, 0) || 0.001;
     const fitX = (width - 2 * padPx - Math.max(0, bounds.length - 1) * gapPx) / sumInk;
-    const xs = Math.min(yScale, Math.max(yScale * 0.35, fitX));
+    const xs = Math.min(yFit, Math.max(yFit * 0.35, fitX));
     let cursor = padPx;
     const lay = bounds.map(b => {
       const offset = cursor;
       const inkW = b.inkW * xs;
       cursor += inkW + gapPx;
-      return { ...b, offset };
+      return { ...b, offset, yScale: yScaleFactor, yOffset: yOffsetFactor };
     });
     return { letters: chars, layout: lay, xScale: xs };
   }, [word, width, height]);
@@ -99,14 +164,14 @@ export default function DictadoTraceCanvas({
   }, [word]);
 
   const currentLetter = letters[letterIndex];
-  const rawStrokes = currentLetter ? (LETTER_WAYPOINTS[currentLetter]?.strokes || []) : [];
+  const rawStrokes = currentLetter?.strokes || [];
 
   const scaleWord = useCallback((pt) => {
     const lay = layout[letterIndex];
     if (!lay) return { x: 0, y: 0 };
     return {
       x: lay.offset + (pt.x - lay.minX) * xScale,
-      y: pt.y * height,
+      y: (lay.yOffset + pt.y * lay.yScale) * height,
     };
   }, [letterIndex, layout, xScale, height]);
 
@@ -115,7 +180,7 @@ export default function DictadoTraceCanvas({
     if (!lay) return { x: 0, y: 0 };
     return {
       x: lay.offset + (pt.x - lay.minX) * xScale,
-      y: pt.y * height,
+      y: (lay.yOffset + pt.y * lay.yScale) * height,
       ...(pt.corner ? { corner: true } : {}),
     };
   }, [layout, xScale, height]);
@@ -391,8 +456,8 @@ export default function DictadoTraceCanvas({
       onPointerCancel={handlePointerUp}
     >
       {/* Faint model pathways — the formation the student traces over */}
-      {letters.map((ch, li) => {
-        const letterStrokes = LETTER_WAYPOINTS[ch]?.strokes || [];
+      {letters.map((l, li) => {
+        const letterStrokes = l.strokes || [];
         return letterStrokes.map((stroke, si) => {
           const isCompleted = li < letterIndex;
           const isCurrent = li === letterIndex;
