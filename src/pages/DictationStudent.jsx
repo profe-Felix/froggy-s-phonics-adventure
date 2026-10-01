@@ -51,6 +51,16 @@ export default function DictationStudent() {
     return unsub;
   }, [liveClass, queryClient, liveQueryKey]);
 
+  // Track whether we've ever seen the live session as active. The fromLive
+  // redirect must only fire AFTER we've confirmed the session existed and
+  // then ended — not during the initial query load (when liveActive is
+  // briefly false) or during a transient 429 error. Without this guard the
+  // student bounces: DictationStudent → home → lockdown redirect → repeat.
+  const [sawLiveSession, setSawLiveSession] = useState(false);
+  useEffect(() => {
+    if (liveActive) setSawLiveSession(true);
+  }, [liveActive]);
+
   // Only needed for the non-live (legacy) flow — live sessions carry their own lines/title.
   const { data: assignment } = useQuery({
     queryKey: ['dictation-assignment', session?.assignmentId],
@@ -65,19 +75,23 @@ export default function DictationStudent() {
   // otherwise they'd be stranded on the dictation page with no way out.
   const fromLive = params.get('fromLive') === '1';
   useEffect(() => {
-    if (session && !liveActive && liveClass && fromLive) {
+    // Only redirect back home after we've confirmed the live session existed
+    // and has now ended (sawLiveSession=true, liveActive=false). This prevents
+    // the home→dictation→home loop that occurred during initial query load.
+    if (session && sawLiveSession && !liveActive && liveClass && fromLive) {
       const returnUrl = `/ID?class=${encodeURIComponent(session.class_name)}&number=${session.studentNumber}`;
       window.location.href = returnUrl;
     }
-  }, [session, liveActive, liveClass, fromLive]);
+  }, [session, liveActive, sawLiveSession, liveClass, fromLive]);
 
   // If the student joined directly (no assignment in URL) and the live session
-  // has ended, free them back to the login screen.
+  // has ended, free them back to the login screen. Same sawLiveSession guard
+  // prevents clearing the session during initial load.
   useEffect(() => {
-    if (session && !liveActive && liveClass && !params.get('assignment') && !fromLive) {
+    if (session && sawLiveSession && !liveActive && liveClass && !params.get('assignment') && !fromLive) {
       setSession(null);
     }
-  }, [session, liveActive, liveClass, fromLive]);
+  }, [session, liveActive, sawLiveSession, liveClass, fromLive]);
 
   useEffect(() => {
     if (!session?.class_name || !session?.studentNumber) return;
