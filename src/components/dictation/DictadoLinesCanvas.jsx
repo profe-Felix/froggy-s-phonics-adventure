@@ -43,6 +43,8 @@ export default function DictadoLinesCanvas({
   const [saved, setSaved] = useState(true);
   const submissionId = useRef(null);
   const saveTimer = useRef(null);
+  // Saved trace progress per line index: { paths, accuracies, done, accuracy }
+  const traceRef = useRef({});
 
   // Active drawing tool for the freehand attempt layer (pen / eraser).
   const [tool, setTool] = useState('pen');
@@ -100,6 +102,7 @@ export default function DictadoLinesCanvas({
               const i = parseInt(idx);
               const aRef = attemptRefs.current[i];
               if (aRef && ld?.attempt) aRef.loadStrokes(ld.attempt);
+              if (ld?.trace) traceRef.current[i] = ld.trace;
             }
           }
         }
@@ -120,6 +123,7 @@ export default function DictadoLinesCanvas({
       const aRef = attemptRefs.current[i];
       const attempt = aRef ? aRef.getStrokes() : { strokes: [] };
       linesData[i] = { attempt };
+      if (traceRef.current[i]) linesData[i].trace = traceRef.current[i];
       count += (attempt.strokes || []).length;
     }
     const data = { lines: linesData, canvasWidth: pw, canvasHeight: lh, normalized: true };
@@ -155,6 +159,14 @@ export default function DictadoLinesCanvas({
   if (attemptEndCache.current.length !== lineCount) {
     attemptEndCache.current = Array.from({ length: lineCount }, (_, i) => () => {
       lastActiveLine.current = i;
+      scheduleSave();
+    });
+  }
+
+  const traceEndCache = useRef([]);
+  if (traceEndCache.current.length !== lineCount) {
+    traceEndCache.current = Array.from({ length: lineCount }, (_, i) => (trace) => {
+      traceRef.current[i] = trace;
       scheduleSave();
     });
   }
@@ -211,13 +223,15 @@ export default function DictadoLinesCanvas({
                   </div>
                   {/* Waypoint trace model — right half of the line, on/after reveal.
                       Positioned after the student's ink, halfway across the line. */}
-                  {traced && word && (
+                  {traced && word && loaded && (
                     <div className="absolute" style={{ left: pageWidth / 2, top: 0, width: pageWidth / 2, height: lineHeight, zIndex: 15, overflow: 'visible' }}>
                       <DictadoTraceCanvas
                         key={`${i}-${word}`}
                         word={word}
                         width={pageWidth / 2}
                         height={lineHeight}
+                        initialTrace={traceRef.current[i]}
+                        onTraceChange={traceEndCache.current[i]}
                       />
                     </div>
                   )}

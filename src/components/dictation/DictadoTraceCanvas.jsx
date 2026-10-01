@@ -99,8 +99,12 @@ export default function DictadoTraceCanvas({
   onComplete,
   onProgress,
   minimumStrokeAccuracy = 0,
+  initialTrace = null,
+  onTraceChange,
 }) {
   const svgRef = useRef(null);
+  const initialTraceRef = useRef(initialTrace);
+  const drawnRef = useRef({});
 
   // Layout: letters left-to-right, scaled to fit the available width.
   const { letters, layout, xScale } = useMemo(() => {
@@ -186,7 +190,32 @@ export default function DictadoTraceCanvas({
     strokeAccuraciesRef.current = []; pathProgressRef.current = 0;
     visitedRef.current = new Set(); offTravelRef.current = 0;
     postCompleteTravelRef.current = 0; pendingCompleteRef.current = false;
-  }, [word]);
+    drawnRef.current = {};
+
+    // Restore previously saved tracing (stored normalized 0-1).
+    const t = initialTraceRef.current;
+    if (t?.paths && letters.length) {
+      const restored = {};
+      for (const [li, arr] of Object.entries(t.paths)) {
+        restored[li] = arr.map(pts => pts.map(p => ({ x: p.x * width, y: p.y * height })));
+      }
+      drawnRef.current = restored;
+      setDrawnPathsByLetter(restored);
+      strokeAccuraciesRef.current = [...(t.accuracies || [])];
+      if (t.done) {
+        const last = letters.length - 1;
+        setLetterIndex(last);
+        setStrokeIndex(letters[last].strokes.length);
+        setAccuracy(t.accuracy ?? null);
+        setStatus('success');
+      } else {
+        let li = 0;
+        while (li < letters.length - 1 && (restored[li]?.length || 0) >= letters[li].strokes.length) li++;
+        setLetterIndex(li);
+        setStrokeIndex(restored[li]?.length || 0);
+      }
+    }
+  }, [word]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentLetter = letters[letterIndex];
   const rawStrokes = currentLetter?.strokes || [];
@@ -260,14 +289,23 @@ export default function DictadoTraceCanvas({
       flashError(); restartStroke(); return;
     }
     currentPathRef.current = [];
-    setDrawnPathsByLetter(prev => {
-      const next = { ...prev };
-      if (!next[letterIndex]) next[letterIndex] = [];
-      next[letterIndex] = [...next[letterIndex], completedPath];
-      return next;
-    });
+    const nextDrawn = {
+      ...drawnRef.current,
+      [letterIndex]: [...(drawnRef.current[letterIndex] || []), completedPath],
+    };
+    drawnRef.current = nextDrawn;
+    setDrawnPathsByLetter(nextDrawn);
     setCurrentPath([]);
     strokeAccuraciesRef.current.push(strokeScore);
+    const emitTrace = (done, acc) => onTraceChange?.({
+      paths: Object.fromEntries(Object.entries(drawnRef.current).map(([li, arr]) => [
+        li,
+        arr.map(pts => pts.map(p => ({ x: +(p.x / width).toFixed(4), y: +(p.y / height).toFixed(4) }))),
+      ])),
+      accuracies: [...strokeAccuraciesRef.current],
+      done,
+      accuracy: acc,
+    });
     pathProgressRef.current = 0; offTravelRef.current = 0;
     postCompleteTravelRef.current = 0; pendingCompleteRef.current = false;
     setAwaitingLift(false); visitedRef.current = new Set();
@@ -280,12 +318,15 @@ export default function DictadoTraceCanvas({
         const accs = strokeAccuraciesRef.current;
         const avg = accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : 100;
         setAccuracy(avg);
+        emitTrace(true, avg);
       } else {
         setStatus('idle'); setLetterIndex(newLetterIdx);
         setStrokeIndex(0); setWaypointIndex(0);
+        emitTrace(false, null);
       }
     } else {
       setStatus('idle'); setStrokeIndex(newStrokeIdx); setWaypointIndex(0);
+      emitTrace(false, null);
     }
   };
 

@@ -46,8 +46,35 @@ export default function DictadoThumbnail({ submission, width = 120, height = 150
     ctx.lineJoin = 'round';
     for (const id of lineIds) {
       const ld = linesData[id];
-      const strokes = ld?.strokes || [];
+      const strokes = ld?.attempt?.strokes || ld?.strokes || [];
       const top = (lineIds.indexOf(id)) * bandH;
+
+      // Student's traced (red) pathways — stored on the right half of the line.
+      const trace = ld?.trace;
+      if (trace?.paths) {
+        ctx.strokeStyle = '#dc2626';
+        ctx.lineWidth = Math.max(0.8, width / 110);
+        for (const letterPaths of Object.values(trace.paths)) {
+          for (const pts of letterPaths) {
+            if (!pts || pts.length < 2) continue;
+            ctx.beginPath();
+            ctx.moveTo(width / 2 + pts[0].x * (width / 2), top + pts[0].y * bandH);
+            for (let k = 1; k < pts.length; k++) {
+              ctx.lineTo(width / 2 + pts[k].x * (width / 2), top + pts[k].y * bandH);
+            }
+            ctx.stroke();
+          }
+        }
+        const accs = trace.accuracies || [];
+        const acc = trace.accuracy ?? (accs.length ? Math.round(accs.reduce((a, b) => a + b, 0) / accs.length) : null);
+        if (acc != null) {
+          ctx.font = `bold ${Math.max(8, width / 11)}px sans-serif`;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.fillStyle = acc >= 80 ? '#16a34a' : acc >= 60 ? '#d97706' : '#dc2626';
+          ctx.fillText(`${acc}%${trace.done ? '' : '…'}`, width - 2, top + 1);
+        }
+      }
       for (const s of strokes) {
         if (!s.pts || s.pts.length < 2) continue;
         ctx.strokeStyle = s.color || '#1e293b';

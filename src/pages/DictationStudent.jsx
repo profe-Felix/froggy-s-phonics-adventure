@@ -20,12 +20,6 @@ export default function DictationStudent() {
   });
   const [schoolYear, setSchoolYear] = useState(ACTIVE_SCHOOL_YEAR);
 
-  const { data: assignment } = useQuery({
-    queryKey: ['dictation-assignment', session?.assignmentId],
-    queryFn: () => base44.entities.DictationAssignment.get(session.assignmentId),
-    enabled: !!session?.assignmentId,
-  });
-
   // Live session monitoring — if the student was forced in via a live
   // session, poll for its end and free the student back to the login screen.
   // Also used to join the live line-by-line flow when the teacher is driving.
@@ -43,6 +37,14 @@ export default function DictationStudent() {
     refetchInterval: 1000,
   });
   const liveActive = Array.isArray(liveSessions) && liveSessions.length > 0;
+
+  // Only needed for the non-live (legacy) flow — live sessions carry their own lines/title.
+  const { data: assignment } = useQuery({
+    queryKey: ['dictation-assignment', session?.assignmentId],
+    queryFn: () => base44.entities.DictationAssignment.get(session.assignmentId),
+    enabled: !!session?.assignmentId && !liveActive,
+    retry: false,
+  });
 
   // If the student is in a session but the live session has ended, free them.
   useEffect(() => {
