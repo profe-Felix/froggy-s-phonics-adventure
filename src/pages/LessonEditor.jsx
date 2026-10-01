@@ -133,6 +133,19 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
       a.title.localeCompare(b.title)
     );
 
+  const {
+    data: dictationAssignments = [],
+    isLoading: dictationAssignmentsLoading,
+  } = useQuery({
+    queryKey: ['lesson-editor-dictation-assignments'],
+    queryFn: () => base44.entities.DictationAssignment.filter({ status: 'active' }),
+    enabled: step.mode === 'dictation',
+  });
+
+  const dictationAssignmentChoices = dictationAssignments
+    .filter((a) => a.title?.trim())
+    .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+
   const { list: letterSortList } = useLetterSortPresets();
   const { list: missingLetterList } = useMissingLetterPresets();
   const { list: spanishReadingList, refresh: refreshSpanishReadingPresets } = useSpanishReadingPresets();
@@ -628,6 +641,33 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
               placeholder="e.g. M2.L6"
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
           </label>
+        </div>
+      ) : step.mode === 'dictation' ? (
+        <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-3">
+          <label className="text-xs text-gray-600 font-bold">Dictation assignment
+            <select
+              value={step.config?.assignmentId || ''}
+              onChange={(e) => {
+                const a = dictationAssignmentChoices.find((d) => d.id === e.target.value);
+                update({ config: { ...step.config, assignmentId: a?.id || '', assignmentTitle: a?.title || '', promptText: a?.prompt_text || '' } });
+              }}
+              disabled={dictationAssignmentsLoading}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+            >
+              <option value="">{dictationAssignmentsLoading ? 'Loading…' : '— select an assignment —'}</option>
+              {dictationAssignmentChoices.map((a) => (
+                <option key={a.id} value={a.id}>{a.title}</option>
+              ))}
+            </select>
+          </label>
+          {!dictationAssignmentsLoading && dictationAssignmentChoices.length === 0 && (
+            <p className="text-xs text-amber-700">There are no active dictation assignments. Create one in the Dictation Dashboard first.</p>
+          )}
+          {step.config?.assignmentId && (
+            <Link to="/DictationDashboard" className="text-[10px] text-indigo-500 hover:underline font-bold inline-flex items-center gap-0.5">
+              <Settings className="w-3 h-3" /> Manage dictation assignments
+            </Link>
+          )}
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

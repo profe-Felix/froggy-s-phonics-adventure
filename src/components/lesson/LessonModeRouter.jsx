@@ -31,6 +31,7 @@ import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
 import DigitalNotebookStep from '@/components/lesson/modes/DigitalNotebookStep';
 import WordTracingMode from '@/components/game/modes/WordTracingMode';
 import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
+import DictationStep from '@/components/lesson/modes/DictationStep';
 import { buildBlendingSubstepsForWords } from '@/lib/blendingLetters';
 
 // Renders the existing activity component for one lesson step, wraps the
@@ -1542,6 +1543,16 @@ export default function LessonModeRouter({
             onComplete={
               completeStep
             }
+          />
+        );
+
+      case 'dictation':
+        return (
+          <DictationStep
+            stepConfig={step?.config}
+            studentNumber={selectedStudent?.number || studentData?.number}
+            className={selectedStudent?.class_name || studentData?.class_name}
+            onComplete={completeStep}
           />
         );
 
