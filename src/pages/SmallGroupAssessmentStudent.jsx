@@ -112,8 +112,9 @@ export default function SmallGroupAssessmentStudent() {
       unsubscribers.push(unsub);
     }
 
-    // Also poll for session updates every 800ms as a safety net — fast enough
-    // to keep up with rapid teacher marking without overwhelming the server.
+    // Safety-net poll for session updates — the realtime subscription above
+    // delivers broadcast changes instantly; this only catches missed events
+    // (backgrounded tab, transient disconnect). Kept short so any gap is brief.
     const pollInterval = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       for (const sess of sessions) {
@@ -123,7 +124,7 @@ export default function SmallGroupAssessmentStudent() {
           applyFresh(fresh);
         }).catch(() => {});
       }
-    }, 3000);
+    }, 1500);
 
     return () => {
       alive = false;

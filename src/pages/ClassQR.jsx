@@ -47,16 +47,16 @@ export default function ClassQR() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/Dashboard" className="text-gray-400 hover:text-gray-600">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
+          <Link to="/Dashboard" className="text-gray-400 hover:text-gray-600 shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-lg font-bold text-gray-800">🔲 Class QR Code</h1>
+          <h1 className="text-base sm:text-lg font-bold text-gray-800">🔲 Class QR Code</h1>
           <div className="flex-1" />
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 bg-white"
+            className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 bg-white max-w-[60vw]"
           >
             {loading && <option>Loading…</option>}
             {classes.map((cls) => (
@@ -66,10 +66,10 @@ export default function ClassQR() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-8 flex flex-col items-center gap-6">
+      <main className="max-w-5xl mx-auto px-4 py-6 sm:py-8 flex flex-col items-center gap-4 sm:gap-6">
         {url && (
           <>
-            <div ref={qrRef} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg w-4/5 flex justify-center">
+            <div ref={qrRef} className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg w-full max-w-sm flex justify-center">
               <QRCodeCanvas
                 value={url}
                 size={1000}

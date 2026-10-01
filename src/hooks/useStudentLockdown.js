@@ -106,25 +106,57 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
     staleTime: 0,
   });
 
-  // Realtime subscriptions — invalidate on any entity change so the query
-  // re-fetches instantly instead of waiting for the next 8s poll.
+  // Realtime subscriptions. For most entities we invalidate so the query
+  // refetches. For SmallGroupAssessment we update the cached
+  // assessmentBroadcast directly from the event's broadcast_state payload —
+  // this skips the ~1-2s refetch round-trip (6 parallel fetches) so the
+  // student's letter changes the instant the teacher advances, instead of
+  // lingering on the previous letter for a few seconds.
   useEffect(() => {
     if (!studentId) return;
-    const entities = [
+    const unsubs = [];
+
+    // Assessment — instant cache update from the event payload.
+    unsubs.push(base44.entities.SmallGroupAssessment.subscribe((event) => {
+      const fresh = event?.data;
+      if (!fresh || !fresh.id) return;
+      if (fresh.broadcast_state === undefined) {
+        // Event lacks the payload — fall back to a full refetch.
+        queryClient.invalidateQueries({ queryKey });
+        return;
+      }
+      queryClient.setQueryData(queryKey, (old) => {
+        if (!old) return old;
+        const b = fresh.broadcast_state || {};
+        const matchesMe = b.show_item &&
+          Number(b.student_number) === Number(studentNumber) &&
+          (b.class_name || '').toLowerCase() === className.toLowerCase();
+        if (matchesMe) {
+          return { ...old, assessmentBroadcast: { session: fresh, broadcast: b } };
+        }
+        // Teacher moved on to another student in the same session — clear.
+        const current = old.assessmentBroadcast;
+        if (current && current.session?.id === fresh.id) {
+          return { ...old, assessmentBroadcast: null };
+        }
+        return old;
+      });
+    }));
+
+    // Other entities — invalidate to refetch.
+    const others = [
       base44.entities.DeskSeat,
       base44.entities.TableRotation,
       base44.entities.LiveLessonSession,
       base44.entities.LiveDictationSession,
       base44.entities.TracingLock,
-      base44.entities.SmallGroupAssessment,
     ];
-    const unsubs = entities.map(e =>
-      e.subscribe(() => {
-        queryClient.invalidateQueries({ queryKey });
-      })
-    );
+    unsubs.push(...others.map(e =>
+      e.subscribe(() => queryClient.invalidateQueries({ queryKey }))
+    ));
+
     return () => unsubs.forEach(u => u?.());
-  }, [studentId, queryClient, queryKey]);
+  }, [studentId, queryClient, queryKey, studentNumber, className]);
 
   return {
     rotationAssignedMode: data?.rotationAssignedMode ?? null,
