@@ -452,14 +452,16 @@ export default function LiveLesson() {
   };
 
   const endSession = async () => {
-    // Deactivate the lesson session FIRST so students exit immediately (their
-    // realtime subscription fires on this update). The dictation session is
-    // cleaned up after — otherwise students briefly see the "Waiting for
-    // teacher to start dictation" screen before the lesson-end propagates.
-    await updateSession({
-      active: false,
-    });
-    await endClassDictation();
+    // Deactivate the lesson session AND any active dictation simultaneously.
+    // If the lesson is deactivated first, students exit to LetterGame home
+    // while the dictation is still active — useStudentLockdown then redirects
+    // them back to /DictationStudent, creating a home→dictation→home loop.
+    // Doing both at once ensures the dictation is already inactive by the
+    // time students arrive home, so the lockdown hook doesn't redirect them.
+    await Promise.all([
+      updateSession({ active: false }),
+      endClassDictation(),
+    ]);
 
     setSession(null);
     setSelectedLessonId('');

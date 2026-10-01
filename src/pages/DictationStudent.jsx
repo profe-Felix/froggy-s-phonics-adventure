@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import DictationCanvas from '@/components/dictation/DictationCanvas';
 import DictadoLinesCanvas from '@/components/dictation/DictadoLinesCanvas';
@@ -25,8 +25,10 @@ export default function DictationStudent() {
   // Also used to join the live line-by-line flow when the teacher is driving.
   const urlClass = params.get('class');
   const liveClass = session?.class_name || urlClass;
+  const queryClient = useQueryClient();
+  const liveQueryKey = ['live-dictation-student', liveClass, ACTIVE_SCHOOL_YEAR];
   const { data: liveSessions = [] } = useQuery({
-    queryKey: ['live-dictation-student', liveClass, ACTIVE_SCHOOL_YEAR],
+    queryKey: liveQueryKey,
     queryFn: () =>
       base44.entities.LiveDictationSession.filter({
         class_name: liveClass,
@@ -34,9 +36,20 @@ export default function DictationStudent() {
         active: true,
       }),
     enabled: !!session && !!liveClass,
-    refetchInterval: 1000,
+    refetchInterval: 5000, // 5s fallback (was 1s — caused 429 cascades)
+    retry: false, // don't retry on 429 — makes rate limiting worse
   });
   const liveActive = Array.isArray(liveSessions) && liveSessions.length > 0;
+
+  // Realtime: invalidate on any LiveDictationSession change for instant
+  // updates without the 1-second polling that was flooding the API.
+  useEffect(() => {
+    if (!liveClass) return;
+    const unsub = base44.entities.LiveDictationSession.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: liveQueryKey });
+    });
+    return unsub;
+  }, [liveClass, queryClient, liveQueryKey]);
 
   // Only needed for the non-live (legacy) flow — live sessions carry their own lines/title.
   const { data: assignment } = useQuery({

@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { useEffect } from 'react';
 import DictationCanvas from '@/components/dictation/DictationCanvas';
 import DictadoLinesCanvas from '@/components/dictation/DictadoLinesCanvas';
 import { Loader2 } from 'lucide-react';
@@ -18,8 +19,10 @@ export default function DictationStep({ stepConfig, studentNumber, className }) 
   const hasInline = inlineLines.length > 0;
 
   // Live dictado session discovery (inline lines flow)
+  const queryClient = useQueryClient();
+  const liveQueryKey = ['dictado-live-student', className, ACTIVE_SCHOOL_YEAR];
   const { data: liveSessions, isLoading: liveLoading } = useQuery({
-    queryKey: ['dictado-live-student', className, ACTIVE_SCHOOL_YEAR],
+    queryKey: liveQueryKey,
     queryFn: () =>
       base44.entities.LiveDictationSession.filter({
         class_name: className,
@@ -27,11 +30,22 @@ export default function DictationStep({ stepConfig, studentNumber, className }) 
         active: true,
       }),
     enabled: hasInline && !!className,
-    refetchInterval: 1000,
+    refetchInterval: 5000, // 5s fallback (was 1s — caused 429 cascades)
+    retry: false, // don't retry on 429 — makes rate limiting worse
   });
   const liveSession = Array.isArray(liveSessions) && liveSessions.length > 0
     ? liveSessions[0]
     : null;
+
+  // Realtime: invalidate on any LiveDictationSession change for instant
+  // updates without the 1-second polling that was flooding the API.
+  useEffect(() => {
+    if (!hasInline || !className) return;
+    const unsub = base44.entities.LiveDictationSession.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: liveQueryKey });
+    });
+    return unsub;
+  }, [hasInline, className, queryClient, liveQueryKey]);
 
   // Legacy assignment-based flow
   const assignmentId = stepConfig?.assignmentId;
