@@ -1195,15 +1195,18 @@ export default function StudentNotebookView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAssignment?.id]);
 
-  // Keep URL in sync with current assignment + page so teachers can copy direct links
+  // Keep URL in sync with current assignment + page so teachers can copy direct
+  // links. Skipped when embedded inside a live lesson (isEmbedded) — there the
+  // live lesson controls navigation, and rewriting the URL would leave stale
+  // assignment params trapped in the address bar after the lesson ends.
   useEffect(() => {
-    if (!selectedAssignment) return;
+    if (!selectedAssignment || isEmbedded) return;
     const sp = new URLSearchParams(window.location.search);
     sp.set('assignment', selectedAssignment.title);
     sp.set('page', String(currentPage));
     const newUrl = `${window.location.pathname}?${sp.toString()}`;
     window.history.replaceState(null, '', newUrl);
-  }, [currentPage, selectedAssignment]);
+  }, [currentPage, selectedAssignment, isEmbedded]);
 
   if (!selectedAssignment) {
     const visibleAssignments = assignments.filter(a => !a.hidden);

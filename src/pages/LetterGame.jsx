@@ -134,7 +134,7 @@ export default function LetterGame() {
     if (!activeDictationSession) return;
     if (liveSession) return; // don't interrupt an active live lesson
     if (!activeDictationSession.assignment_id) return;
-    const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}`;
+    const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}&fromLive=1`;
     window.location.href = url;
   }, [activeDictationSession, liveSession, selectedStudent]);
 

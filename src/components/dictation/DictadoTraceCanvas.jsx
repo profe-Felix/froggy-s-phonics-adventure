@@ -438,7 +438,7 @@ export default function DictadoTraceCanvas({
     return offsets.map((offset, i) => {
       const idx = Math.min(densePath.length - 1, progress + offset);
       if (seen.has(idx)) return null; seen.add(idx);
-      return { ...densePath[idx], index: idx, radius: [5.5, 4.8, 4.1, 3.5][i] * S, opacity: [1, 0.95, 0.85, 0.75][i] };
+      return { ...densePath[idx], index: idx, radius: [5.5, 4.8, 4.1, 3.5][i], opacity: [1, 0.95, 0.85, 0.75][i] };
     }).filter(Boolean);
   }, [drawing, awaitingLift, isSuccess, densePath, currentPath, S]);
 
@@ -523,12 +523,12 @@ export default function DictadoTraceCanvas({
       {/* Start dot */}
       {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
         <>
-          <circle cx={nextWp.x} cy={nextWp.y} r={16 * S} fill="#A78BFA" opacity="0.18">
-            <animate attributeName="r" values={`${12 * S};${20 * S};${12 * S}`} dur="1s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.22;0.06;0.22" dur="1s" repeatCount="indefinite" />
+          <circle cx={nextWp.x} cy={nextWp.y} r="18" fill="#A78BFA" opacity="0.15">
+            <animate attributeName="r" values="14;22;14" dur="1s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.2;0.05;0.2" dur="1s" repeatCount="indefinite" />
           </circle>
-          <circle cx={nextWp.x} cy={nextWp.y} r={7 * S} fill="#A78BFA" />
-          <text x={nextWp.x} y={nextWp.y + 3.5 * S} textAnchor="middle" fontSize={8 * S} fill="white" fontWeight="bold">
+          <circle cx={nextWp.x} cy={nextWp.y} r="8" fill="#A78BFA" />
+          <text x={nextWp.x} y={nextWp.y + 4} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">
             {strokeIndex + 1}
           </text>
         </>

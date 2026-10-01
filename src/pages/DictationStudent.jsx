@@ -46,12 +46,25 @@ export default function DictationStudent() {
     retry: false,
   });
 
-  // If the student is in a session but the live session has ended, free them.
+  // If the student was redirected here from a live dictation session (the
+  // live-lesson end race sends them to this page before the LiveDictationSession
+  // deactivates), send them back to their game home once that session ends —
+  // otherwise they'd be stranded on the dictation page with no way out.
+  const fromLive = params.get('fromLive') === '1';
   useEffect(() => {
-    if (session && !liveActive && liveClass && !params.get('assignment')) {
+    if (session && !liveActive && liveClass && fromLive) {
+      const returnUrl = `/ID?class=${encodeURIComponent(session.class_name)}&number=${session.studentNumber}`;
+      window.location.href = returnUrl;
+    }
+  }, [session, liveActive, liveClass, fromLive]);
+
+  // If the student joined directly (no assignment in URL) and the live session
+  // has ended, free them back to the login screen.
+  useEffect(() => {
+    if (session && !liveActive && liveClass && !params.get('assignment') && !fromLive) {
       setSession(null);
     }
-  }, [session, liveActive, liveClass]);
+  }, [session, liveActive, liveClass, fromLive]);
 
   useEffect(() => {
     if (!session?.class_name || !session?.studentNumber) return;
