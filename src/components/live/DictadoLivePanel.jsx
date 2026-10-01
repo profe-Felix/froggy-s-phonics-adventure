@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import DictadoThumbnail from '@/components/dictation/DictadoThumbnail';
-import { Eye, EyeOff, ChevronRight, ChevronLeft, Radio } from 'lucide-react';
+import { Eye, EyeOff, ChevronRight, ChevronLeft } from 'lucide-react';
 
 // Teacher control for a live dictado, embedded in the Live Lesson model panel.
 // Lets the teacher start the dictation (create a LiveDictationSession from the
@@ -12,13 +12,12 @@ import { Eye, EyeOff, ChevronRight, ChevronLeft, Radio } from 'lucide-react';
 // the session automatically via DictationStep.
 export default function DictadoLivePanel({ step, className }) {
   const qc = useQueryClient();
-  const [starting, setStarting] = useState(false);
 
   const inlineLines = (step?.config?.lines || [])
     .map((l) => (typeof l === 'string' ? l.trim() : ''))
     .filter(Boolean);
 
-  const { data: liveSessions = [] } = useQuery({
+  const { data: liveSessions = [], isLoading: liveLoading } = useQuery({
     queryKey: ['dictado-live-teacher', className, ACTIVE_SCHOOL_YEAR],
     queryFn: () =>
       base44.entities.LiveDictationSession.filter({
@@ -61,7 +60,6 @@ export default function DictadoLivePanel({ step, className }) {
 
   const startDictation = async () => {
     if (!inlineLines.length || !className) return;
-    setStarting(true);
     try {
       for (const s of liveSessions || []) {
         await base44.entities.LiveDictationSession.update(s.id, { active: false });
@@ -86,8 +84,6 @@ export default function DictadoLivePanel({ step, className }) {
       qc.invalidateQueries(['dictado-live-teacher', className, ACTIVE_SCHOOL_YEAR]);
     } catch {
       alert('Could not start dictation.');
-    } finally {
-      setStarting(false);
     }
   };
 
@@ -106,15 +102,19 @@ export default function DictadoLivePanel({ step, className }) {
     });
   const prev = () => updateBS({ current_line: Math.max(0, currentLine - 1), revealed: false });
   const jump = (i) => updateBS({ current_line: i, revealed: false });
-  const endSession = async () => {
-    if (!session) return;
-    if (!confirm('End this dictation? Students will be freed.')) return;
-    await base44.entities.LiveDictationSession.update(session.id, {
-      active: false,
-      broadcast_state: {},
-    });
-    qc.invalidateQueries(['dictado-live-teacher', className, ACTIVE_SCHOOL_YEAR]);
-  };
+  // Lesson-step auto-start: when this panel mounts inside a Live Lesson and
+  // there's no active dictation for the class, start one automatically from the
+  // step's inline lines. The session ends automatically when the teacher
+  // advances past this step (handled in LiveLesson), so there's no Start/End
+  // button here — it's seamless like the other lesson activities.
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (liveLoading || !inlineLines.length || !className) return;
+    if (liveSessions.length > 0) return;
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    startDictation();
+  }, [liveLoading, liveSessions.length, inlineLines.length, className]);
 
   // No session yet
   if (!session) {
@@ -123,20 +123,11 @@ export default function DictadoLivePanel({ step, className }) {
         <div className="text-5xl">✍️</div>
         {inlineLines.length > 0 ? (
           <>
-            <p className="font-bold text-lg">Dictado ready</p>
+            <p className="font-bold text-lg">Starting dictation…</p>
             <p className="text-sm text-slate-400 max-w-md">
               {inlineLines.length} word{inlineLines.length === 1 ? '' : 's'}: {inlineLines.join(', ')}
             </p>
-            <button
-              onClick={startDictation}
-              disabled={starting}
-              className="px-6 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-50 font-bold text-white flex items-center gap-2"
-            >
-              <Radio className="w-5 h-5" /> {starting ? 'Starting…' : 'Start Dictation'}
-            </button>
-            <p className="text-xs text-slate-500 max-w-md">
-              Students on this step will join automatically. You'll control reveal & next from here.
-            </p>
+            <div className="w-8 h-8 border-4 border-slate-600 border-t-rose-400 rounded-full animate-spin" />
           </>
         ) : (
           <p className="text-sm text-slate-400 max-w-md">
@@ -155,12 +146,6 @@ export default function DictadoLivePanel({ step, className }) {
       <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/60 border-b border-slate-700 text-xs font-bold text-slate-300 shrink-0">
         <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
         Dictado Live · {className}
-        <button
-          onClick={endSession}
-          className="ml-auto px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-600/90 hover:bg-red-600 text-white"
-        >
-          End
-        </button>
       </div>
 
       <div className="flex-1 flex min-h-0">

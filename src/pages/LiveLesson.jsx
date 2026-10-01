@@ -350,6 +350,27 @@ export default function LiveLesson() {
     } catch {}
   };
 
+  // End any active dictation for this class. Called when the teacher advances
+  // past a dictation step or ends the lesson so the dictation doesn't linger
+  // and students follow the lesson to the next activity.
+  const endClassDictation = async () => {
+    if (!session?.class_name) return;
+    try {
+      const active = await base44.entities.LiveDictationSession.filter({
+        class_name: session.class_name,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      });
+      await Promise.all(
+        (active || []).map(s =>
+          base44.entities.LiveDictationSession
+            .update(s.id, { active: false, broadcast_state: {} })
+            .catch(() => {})
+        )
+      );
+    } catch {}
+  };
+
   const advance = (dir) => {
     const steps = getLiveLessonSteps(
       selectedLesson,
@@ -367,6 +388,8 @@ export default function LiveLesson() {
       )
     );
 
+    if (steps[next]?.mode !== 'dictation') endClassDictation();
+
     clearBroadcast(false);
 
     updateSession({
@@ -377,6 +400,11 @@ export default function LiveLesson() {
   };
 
   const goToStep = (i) => {
+    const allSteps = getLiveLessonSteps(
+      selectedLesson,
+      session?.lesson_day || selectedLessonDay
+    );
+    if (allSteps[i]?.mode !== 'dictation') endClassDictation();
     clearBroadcast(false);
 
     updateSession({
@@ -424,6 +452,7 @@ export default function LiveLesson() {
   };
 
   const endSession = async () => {
+    await endClassDictation();
     await updateSession({
       active: false,
     });

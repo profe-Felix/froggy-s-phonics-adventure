@@ -3,6 +3,8 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
 import DictadoTraceCanvas from './DictadoTraceCanvas';
 import { base44 } from '@/api/base44Client';
+import { playTts } from '@/lib/audio';
+import { Volume2 } from 'lucide-react';
 
 // Per-line dictado canvas driven by the teacher's live broadcast.
 //
@@ -249,34 +251,44 @@ export default function DictadoLinesCanvas({
 
       {/* Pen / eraser / undo toolbar — only while the attempt is editable
           (before reveal). After reveal the trace canvas guides the writing. */}
-      {loaded && !revealed && (
+      {loaded && (
         <div className="shrink-0 flex items-center justify-center gap-2 pb-2">
-          <div className="flex items-center gap-1 bg-slate-900 rounded-full px-2 py-1 shadow-lg">
-            <button
-              onClick={() => setTool('pen')}
-              title="Pencil"
-              className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
-                tool === 'pen' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
-              }`}
-            >✏️</button>
-            <button
-              onClick={() => setTool('eraser_object')}
-              title="Eraser (tap a stroke to remove it)"
-              className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
-                tool === 'eraser_object' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
-              }`}
-            >🧹</button>
-            <button
-              onClick={handleUndo}
-              title="Undo"
-              className="w-10 h-10 rounded-full text-xl flex items-center justify-center hover:bg-indigo-900"
-            >↩️</button>
-            <button
-              onClick={handleClear}
-              title="Clear this line"
-              className="w-10 h-10 rounded-full text-xl flex items-center justify-center hover:bg-indigo-900"
-            >🗑️</button>
-          </div>
+          <button
+            onClick={() => playTts(lines[currentLine] || '', 'es')}
+            disabled={!lines[currentLine]}
+            title="Listen again"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-sm shadow-lg"
+          >
+            <Volume2 className="w-5 h-5" /> Listen
+          </button>
+          {!revealed && (
+            <div className="flex items-center gap-1 bg-slate-900 rounded-full px-2 py-1 shadow-lg">
+              <button
+                onClick={() => setTool('pen')}
+                title="Pencil"
+                className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
+                  tool === 'pen' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
+                }`}
+              >✏️</button>
+              <button
+                onClick={() => setTool('eraser_object')}
+                title="Eraser (tap a stroke to remove it)"
+                className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
+                  tool === 'eraser_object' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
+                }`}
+              >🧹</button>
+              <button
+                onClick={handleUndo}
+                title="Undo"
+                className="w-10 h-10 rounded-full text-xl flex items-center justify-center hover:bg-indigo-900"
+              >↩️</button>
+              <button
+                onClick={handleClear}
+                title="Clear this line"
+                className="w-10 h-10 rounded-full text-xl flex items-center justify-center hover:bg-indigo-900"
+              >🗑️</button>
+            </div>
+          )}
         </div>
       )}
 
