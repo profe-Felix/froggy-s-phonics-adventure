@@ -4,11 +4,21 @@ import LinedPaper from './LinedPaper';
 import { base44 } from '@/api/base44Client';
 
 // Per-line dictado canvas driven by the teacher's live broadcast.
-// Each line is its own AnnotationCanvas so ink can be locked per line:
-//   - attempt  (current line, not revealed): dark ink, editable
-//   - correct  (current line, revealed):     red ink, editable — dark attempt locked
-//   - locked   (past line):                   read-only
-//   - pending  (future line):                read-only, empty
+// Each line has TWO stacked ink layers so the dark attempt can be locked
+// independently from the red correction ink:
+//
+//   attempt    (dark)  — the student's first try. Editable only on the
+//                        current line BEFORE reveal. Locked everywhere else.
+//   correction (red)   — teacher-led fixes. Editable on the current line
+//                        AFTER reveal, and on any PAST line (so a student
+//                        can tape a red fix onto an earlier line without
+//                        ever being able to delete the original dark ink).
+//
+// Teacher controls (DictadoLivePanel) drive this via `currentLine` + `revealed`:
+//   • Reveal → current line: attempt locks, correction opens in red.
+//   • Next   → new current line: fresh dark attempt; previous lines keep
+//             their dark locked + red still editable.
+//   • Prev   → move the active line back.
 const MAX_LINE_HEIGHT = 150;
 const MAX_PAGE_WIDTH = 740;
 const DARK = '#1e293b';
@@ -25,7 +35,8 @@ export default function DictadoLinesCanvas({
 }) {
   const lineCount = Math.min(Math.max(lines?.length || 1, 1), 6);
   const containerRef = useRef(null);
-  const lineRefs = useRef([]);
+  const attemptRefs = useRef([]);
+  const correctionRefs = useRef([]);
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
   const [pageHeight, setPageHeight] = useState(MAX_LINE_HEIGHT * lineCount);
   const lineHeight = pageHeight / lineCount;
@@ -49,7 +60,7 @@ export default function DictadoLinesCanvas({
     return () => ro.disconnect();
   }, [lineCount]);
 
-  // Load existing submission (per-line strokes)
+  // Load existing submission (per-line attempt + correction strokes)
   useEffect(() => {
     if (!assignmentId || !studentNumber || !className) return;
     let cancelled = false;
@@ -68,8 +79,11 @@ export default function DictadoLinesCanvas({
           const data = JSON.parse(existing[0].strokes_data);
           if (data?.lines) {
             for (const [idx, ld] of Object.entries(data.lines)) {
-              const ref = lineRefs.current[parseInt(idx)];
-              if (ref) ref.loadStrokes(ld);
+              const i = parseInt(idx);
+              const aRef = attemptRefs.current[i];
+              const cRef = correctionRefs.current[i];
+              if (aRef && ld?.attempt) aRef.loadStrokes(ld.attempt);
+              if (cRef && ld?.correction) cRef.loadStrokes(ld.correction);
             }
           }
         }
@@ -84,12 +98,12 @@ export default function DictadoLinesCanvas({
     const linesData = {};
     let count = 0;
     for (let i = 0; i < lineCount; i++) {
-      const ref = lineRefs.current[i];
-      if (ref) {
-        const s = ref.getStrokes();
-        linesData[i] = s;
-        count += (s.strokes || []).length;
-      }
+      const aRef = attemptRefs.current[i];
+      const cRef = correctionRefs.current[i];
+      const attempt = aRef ? aRef.getStrokes() : { strokes: [] };
+      const correction = cRef ? cRef.getStrokes() : { strokes: [] };
+      linesData[i] = { attempt, correction };
+      count += (attempt.strokes || []).length + (correction.strokes || []).length;
     }
     const data = {
       lines: linesData,
@@ -127,11 +141,20 @@ export default function DictadoLinesCanvas({
     saveTimer.current = setTimeout(save, 800);
   }, [save]);
 
-  const lineState = (i) => {
-    if (i < currentLine) return 'locked';
-    if (i === currentLine && !revealed) return 'attempt';
-    if (i === currentLine && revealed) return 'correct';
-    return 'pending';
+  // Per-layer editability for line i, given teacher's currentLine + revealed.
+  // attempt: editable only on current line before reveal.
+  // correction: editable on current line after reveal, and on any past line.
+  const layerState = (i) => {
+    const isCurrent = i === currentLine;
+    const isPast = i < currentLine;
+    const isFuture = i > currentLine;
+    return {
+      attemptEditable: isCurrent && !revealed,
+      correctionEditable: (isCurrent && revealed) || isPast,
+      isCurrent,
+      isPast,
+      isFuture,
+    };
   };
 
   return (
@@ -144,25 +167,45 @@ export default function DictadoLinesCanvas({
           >
             <LinedPaper width={pageWidth} height={pageHeight} lineCount={lineCount} />
             {Array.from({ length: lineCount }).map((_, i) => {
-              const st = lineState(i);
-              const isActive = st === 'attempt' || st === 'correct';
-              const color = st === 'correct' ? RED : DARK;
+              const st = layerState(i);
+              const active = st.attemptEditable || st.correctionEditable;
               return (
                 <div
                   key={i}
-                  className={`absolute left-0 ${isActive ? 'ring-4 ring-indigo-400/70 ring-inset' : ''}`}
+                  className={`absolute left-0 ${active ? 'ring-4 ring-indigo-400/70 ring-inset' : ''}`}
                   style={{ top: i * lineHeight, width: pageWidth, height: lineHeight, borderRadius: 8 }}
                 >
-                  <AnnotationCanvas
-                    ref={(el) => { lineRefs.current[i] = el; }}
-                    width={pageWidth}
-                    height={lineHeight}
-                    color={color}
-                    size={5}
-                    tool="pen"
-                    mode={isActive ? 'draw' : 'view'}
-                    onStrokeEnd={handleStrokeEnd}
-                  />
+                  {/* Dark attempt layer (bottom) */}
+                  <div className="absolute inset-0">
+                    <AnnotationCanvas
+                      ref={(el) => { attemptRefs.current[i] = el; }}
+                      width={pageWidth}
+                      height={lineHeight}
+                      color={DARK}
+                      size={5}
+                      tool="pen"
+                      mode={st.attemptEditable ? 'draw' : 'view'}
+                      onStrokeEnd={handleStrokeEnd}
+                    />
+                  </div>
+                  {/* Red correction layer (top) — only captures input when editable */}
+                  <div className="absolute inset-0">
+                    <AnnotationCanvas
+                      ref={(el) => { correctionRefs.current[i] = el; }}
+                      width={pageWidth}
+                      height={lineHeight}
+                      color={RED}
+                      size={5}
+                      tool="pen"
+                      mode={st.correctionEditable ? 'draw' : 'view'}
+                      onStrokeEnd={handleStrokeEnd}
+                    />
+                  </div>
+                  {st.isPast && (
+                    <span className="absolute right-2 top-1 text-[10px] font-bold text-red-500/70 pointer-events-none">
+                      ✎ red
+                    </span>
+                  )}
                 </div>
               );
             })}
