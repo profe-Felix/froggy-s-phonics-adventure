@@ -212,7 +212,7 @@ export default function DictadoLinesCanvas({
                   {/* Waypoint trace model — right half of the line, on/after reveal.
                       Positioned after the student's ink, halfway across the line. */}
                   {traced && word && (
-                    <div className="absolute" style={{ left: pageWidth / 2, top: 0, width: pageWidth / 2, height: lineHeight }}>
+                    <div className="absolute" style={{ left: pageWidth / 2, top: 0, width: pageWidth / 2, height: lineHeight, zIndex: 15, overflow: 'visible' }}>
                       <DictadoTraceCanvas
                         key={`${i}-${word}`}
                         word={word}
