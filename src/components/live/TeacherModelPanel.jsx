@@ -10,6 +10,7 @@ import TracingModelCanvas from './TracingModelCanvas';
 import LetterSoundsModelCanvas from './LetterSoundsModelCanvas';
 import SoundWallModelCanvas from './SoundWallModelCanvas';
 import GoogleSlidesModelPanel from './GoogleSlidesModelPanel';
+import DictadoLivePanel from './DictadoLivePanel';
 import Student30Preview from './Student30Preview';
 
 // Teacher's side: renders the model panel for the current step so the teacher
@@ -65,6 +66,10 @@ export default function TeacherModelPanel({ step, stepIndex, send, className, le
 
   if (step?.mode === 'google_slides') {
     return <GoogleSlidesModelPanel step={step} send={send} />;
+  }
+
+  if (step?.mode === 'dictation') {
+    return <DictadoLivePanel step={step} className={className} />;
   }
 
   if (step?.mode === 'activities') {
