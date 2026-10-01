@@ -163,6 +163,47 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
   }, [step.config?.targets]);
 
   const update = (patch) => onChange({ ...step, ...patch });
+  const [goingLive, setGoingLive] = useState(false);
+  const goLiveDictado = async () => {
+    const lines = (step.config?.lines || [])
+      .map((l) => (typeof l === 'string' ? l.trim() : ''))
+      .filter(Boolean);
+    if (lines.length === 0) { alert('Add at least one word to go live.'); return; }
+    if (!lessonClass) { alert('Save this lesson with a class assigned first.'); return; }
+    setGoingLive(true);
+    try {
+      const existing = await base44.entities.LiveDictationSession.filter({
+        class_name: lessonClass,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+      });
+      for (const s of existing) {
+        await base44.entities.LiveDictationSession.update(s.id, { active: false });
+      }
+      const assignment = await base44.entities.DictationAssignment.create({
+        title: step.title?.trim() || 'Dictado',
+        class_name: lessonClass,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        status: 'active',
+        prompt_text: lines.join(', '),
+      });
+      const session = await base44.entities.LiveDictationSession.create({
+        class_name: lessonClass,
+        assignment_id: assignment.id,
+        assignment_title: assignment.title,
+        school_year: ACTIVE_SCHOOL_YEAR,
+        active: true,
+        started_at: new Date().toISOString(),
+        lines,
+        broadcast_state: { current_line: 0, revealed: false },
+      });
+      window.open(`/DictadoLive?session=${session.id}`, '_blank');
+    } catch (e) {
+      alert('Could not start live dictado.');
+    } finally {
+      setGoingLive(false);
+    }
+  };
   const updateCompletion = (patch) => onChange({ ...step, completion: { ...step.completion, ...patch } });
 
   const onModeChange = (mode) => {
@@ -644,30 +685,49 @@ function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClas
         </div>
       ) : step.mode === 'dictation' ? (
         <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-3">
-          <label className="text-xs text-gray-600 font-bold">Dictation assignment
-            <select
-              value={step.config?.assignmentId || ''}
-              onChange={(e) => {
-                const a = dictationAssignmentChoices.find((d) => d.id === e.target.value);
-                update({ config: { ...step.config, assignmentId: a?.id || '', assignmentTitle: a?.title || '', promptText: a?.prompt_text || '' } });
-              }}
-              disabled={dictationAssignmentsLoading}
-              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
-            >
-              <option value="">{dictationAssignmentsLoading ? 'Loading…' : '— select an assignment —'}</option>
-              {dictationAssignmentChoices.map((a) => (
-                <option key={a.id} value={a.id}>{a.title}</option>
-              ))}
-            </select>
+          <label className="text-xs text-gray-600 font-bold">Dictado words (one per line)
+            <textarea
+              value={(step.config?.lines || []).join('\n')}
+              onChange={(e) => update({ config: { ...step.config, lines: e.target.value.split('\n') } })}
+              placeholder={'sola\nluna\ncasa\nmama'}
+              rows={5}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono"
+            />
           </label>
-          {!dictationAssignmentsLoading && dictationAssignmentChoices.length === 0 && (
-            <p className="text-xs text-amber-700">There are no active dictation assignments. Create one in the Dictation Dashboard first.</p>
-          )}
-          {step.config?.assignmentId && (
-            <Link to="/DictationDashboard" className="text-[10px] text-indigo-500 hover:underline font-bold inline-flex items-center gap-0.5">
-              <Settings className="w-3 h-3" /> Manage dictation assignments
-            </Link>
-          )}
+          <button
+            onClick={goLiveDictado}
+            disabled={goingLive}
+            className="self-start px-4 py-2 rounded-lg text-sm font-bold text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 inline-flex items-center gap-1.5"
+          >
+            🔴 {goingLive ? 'Starting…' : 'Go Live'}
+          </button>
+          <p className="text-[10px] text-slate-500">
+            Go Live opens a teacher control to reveal answers line-by-line. Students write attempts, then switch to red ink for corrections.
+          </p>
+          <details className="mt-1">
+            <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-slate-600">Use an existing dashboard assignment instead</summary>
+            <label className="text-xs text-gray-600 font-bold mt-2 block">Dictation assignment
+              <select
+                value={step.config?.assignmentId || ''}
+                onChange={(e) => {
+                  const a = dictationAssignmentChoices.find((d) => d.id === e.target.value);
+                  update({ config: { ...step.config, assignmentId: a?.id || '', assignmentTitle: a?.title || '', promptText: a?.prompt_text || '' } });
+                }}
+                disabled={dictationAssignmentsLoading}
+                className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
+              >
+                <option value="">{dictationAssignmentsLoading ? 'Loading…' : '— select an assignment —'}</option>
+                {dictationAssignmentChoices.map((a) => (
+                  <option key={a.id} value={a.id}>{a.title}</option>
+                ))}
+              </select>
+            </label>
+            {step.config?.assignmentId && (
+              <Link to="/DictationDashboard" className="text-[10px] text-indigo-500 hover:underline font-bold inline-flex items-center gap-0.5 mt-1">
+                <Settings className="w-3 h-3" /> Manage dictation assignments
+              </Link>
+            )}
+          </details>
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

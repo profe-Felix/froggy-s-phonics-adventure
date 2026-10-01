@@ -28,6 +28,19 @@
     "started_at": {
       "type": "string",
       "description": "ISO timestamp when the live session started"
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "The dictado words/sentences, one per line. Set when launched from a lesson step (inline authoring). Empty for legacy dashboard-launched sessions."
+    },
+    "broadcast_state": {
+      "type": "object",
+      "default": {},
+      "description": "Live teacher\u2192student sync: { current_line: int, revealed: bool }. current_line = which line students write on; revealed = teacher has shown the answer, which locks the attempt ink and switches students to red correction ink."
     }
   },
   "required": [
