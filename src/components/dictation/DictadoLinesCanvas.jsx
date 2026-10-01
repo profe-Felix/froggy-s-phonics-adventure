@@ -3,6 +3,10 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
 import { base44 } from '@/api/base44Client';
 
+// Traceable word model font — ZBK arrow-dot shows stroke direction so students
+// learn correct letter formation as they trace over it in red after reveal.
+const TRACE_FONT = "'ZBKidLettersArrowDot', 'Andika', sans-serif";
+
 // Per-line dictado canvas driven by the teacher's live broadcast.
 // Each line has TWO stacked ink layers so the dark attempt can be locked
 // independently from the red correction ink:
@@ -44,6 +48,11 @@ export default function DictadoLinesCanvas({
   const [saved, setSaved] = useState(true);
   const submissionId = useRef(null);
   const saveTimer = useRef(null);
+
+  // Active drawing tool (pen / eraser) shared by whichever layer is editable.
+  const [tool, setTool] = useState('pen');
+  // Tracks the last line/layer the student drew on so Undo targets it.
+  const lastActive = useRef({ line: 0, layer: 'attempt' });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -135,11 +144,21 @@ export default function DictadoLinesCanvas({
     })();
   }, [assignmentId, studentNumber, className, schoolYear, pageWidth, lineHeight, lineCount]);
 
-  const handleStrokeEnd = useCallback(() => {
+  const handleStrokeEnd = useCallback((line, layer) => {
+    lastActive.current = { line, layer };
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(save, 800);
   }, [save]);
+
+  const handleUndo = useCallback(() => {
+    const { line, layer } = lastActive.current;
+    const ref = layer === 'correction'
+      ? correctionRefs.current[line]
+      : attemptRefs.current[line];
+    ref?.undo?.();
+    handleStrokeEnd(line, layer);
+  }, [handleStrokeEnd]);
 
   // Per-layer editability for line i, given teacher's currentLine + revealed.
   // attempt: editable only on current line before reveal.
@@ -169,12 +188,36 @@ export default function DictadoLinesCanvas({
             {Array.from({ length: lineCount }).map((_, i) => {
               const st = layerState(i);
               const active = st.attemptEditable || st.correctionEditable;
+              const showModel = (st.isCurrent && revealed) || st.isPast;
+              const word = lines?.[i] || '';
               return (
                 <div
                   key={i}
                   className={`absolute left-0 ${active ? 'ring-4 ring-indigo-400/70 ring-inset' : ''}`}
                   style={{ top: i * lineHeight, width: pageWidth, height: lineHeight, borderRadius: 8 }}
                 >
+                  {/* Traceable word model — shown once the teacher reveals this
+                      line. Faint arrow-dot letters sit on the baseline so the
+                      student can trace over them in red to practice correct
+                      letter formation. */}
+                  {showModel && word && (
+                    <span
+                      className="absolute pointer-events-none select-none"
+                      style={{
+                        left: 88,
+                        top: lineHeight * 0.633,
+                        transform: 'translateY(-0.78em)',
+                        fontSize: lineHeight * 0.5,
+                        lineHeight: 1,
+                        fontFamily: TRACE_FONT,
+                        color: 'rgba(30, 41, 59, 0.22)',
+                        whiteSpace: 'nowrap',
+                        zIndex: 2,
+                      }}
+                    >
+                      {word}
+                    </span>
+                  )}
                   {/* Dark attempt layer (bottom) */}
                   <div className="absolute inset-0">
                     <AnnotationCanvas
@@ -183,9 +226,9 @@ export default function DictadoLinesCanvas({
                       height={lineHeight}
                       color={DARK}
                       size={5}
-                      tool="pen"
+                      tool={st.attemptEditable ? tool : 'pen'}
                       mode={st.attemptEditable ? 'draw' : 'view'}
-                      onStrokeEnd={handleStrokeEnd}
+                      onStrokeEnd={() => handleStrokeEnd(i, 'attempt')}
                     />
                   </div>
                   {/* Red correction layer (top) — only captures input when editable */}
@@ -196,9 +239,9 @@ export default function DictadoLinesCanvas({
                       height={lineHeight}
                       color={RED}
                       size={5}
-                      tool="pen"
+                      tool={st.correctionEditable ? tool : 'pen'}
                       mode={st.correctionEditable ? 'draw' : 'view'}
-                      onStrokeEnd={handleStrokeEnd}
+                      onStrokeEnd={() => handleStrokeEnd(i, 'correction')}
                     />
                   </div>
                   {st.isPast && (
@@ -212,6 +255,35 @@ export default function DictadoLinesCanvas({
           </div>
         </div>
       </div>
+
+      {/* Pen / eraser / undo toolbar — available while a layer is editable so
+          students can erase their own mistakes and fix them before reveal. */}
+      {loaded && (
+        <div className="shrink-0 flex items-center justify-center gap-2 pb-2">
+          <div className="flex items-center gap-1 bg-slate-900 rounded-full px-2 py-1 shadow-lg">
+            <button
+              onClick={() => setTool('pen')}
+              title="Pencil"
+              className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
+                tool === 'pen' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
+              }`}
+            >✏️</button>
+            <button
+              onClick={() => setTool('eraser_object')}
+              title="Eraser (tap a stroke to remove it)"
+              className={`w-10 h-10 rounded-full text-xl flex items-center justify-center transition ${
+                tool === 'eraser_object' ? 'bg-indigo-600 scale-110' : 'hover:bg-indigo-900'
+              }`}
+            >🧹</button>
+            <button
+              onClick={handleUndo}
+              title="Undo"
+              className="w-10 h-10 rounded-full text-xl flex items-center justify-center hover:bg-indigo-900"
+            >↩️</button>
+          </div>
+        </div>
+      )}
+
       <div className="shrink-0 text-center text-xs font-bold text-slate-400 pb-2">
         {!loaded ? 'Loading…' : saved ? '✓ Saved' : 'Saving…'}
       </div>
