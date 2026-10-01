@@ -3,7 +3,7 @@ import {
   dist, buildDensePath, strokeAccuracy, coverageComplete,
   HIT_RADIUS, WOBBLE_RADIUS, OFF_TRAVEL_BUDGET, FWD_RETRACE_RADIUS,
   MIN_MOVE, DIR_REJECT_DOT, COVERAGE_RADIUS, START_TOL, END_TOL,
-  isDotStroke, DOT_HIT_RADIUS,
+  DOT_HIT_RADIUS,
 } from '@/lib/tracingCore';
 import { splinePathD } from '@/components/tracing/strokeMath';
 import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
@@ -138,6 +138,26 @@ export default function DictadoTraceCanvas({
     return { letters: chars, layout: lay, xScale: xs };
   }, [word, width, height]);
 
+  // Scale validation constants to the canvas height. The shared constants in
+  // tracingCore were designed for WordTracingCanvas (CANVAS_H=750). This canvas
+  // is ~150px tall, so WOBBLE_RADIUS=85 would be 57% of the height (vs 11% on
+  // 750px) — letting the pen veer way off. Scale everything by height/750.
+  const S = height / 750;
+  const HIT_R = HIT_RADIUS * S;
+  const WOBBLE_R = WOBBLE_RADIUS * S;
+  const OFF_BUDGET = OFF_TRAVEL_BUDGET * S;
+  const FWD_R = FWD_RETRACE_RADIUS * S;
+  const COVERAGE_R = COVERAGE_RADIUS * S;
+  const DOT_HIT_R = DOT_HIT_RADIUS * S;
+  const MIN_M = MIN_MOVE * S;
+  const POST_BUDGET = 70 * S;
+  const STEP = 3 * S;
+  const ACC_PENALTY = 30 * S;
+  const DOT_PIXEL_LIM = 14 * S;
+  const STROKE_W = Math.max(3, height * 0.028);
+  const MODEL_W = Math.max(2, height * 0.016);
+  const MODEL_FLASH_W = Math.max(3, height * 0.028);
+
   const [letterIndex, setLetterIndex] = useState(0);
   const [strokeIndex, setStrokeIndex] = useState(0);
   const [waypointIndex, setWaypointIndex] = useState(0);
@@ -193,10 +213,18 @@ export default function DictadoTraceCanvas({
   const densePath = useMemo(() => {
     const wp = rawStrokes[strokeIndex];
     const clean = Array.isArray(wp) ? wp.filter(p => p && p.x != null && p.y != null) : [];
-    return clean.length ? buildDensePath(clean, scaleWord) : [];
-  }, [rawStrokes, strokeIndex, scaleWord]);
+    return clean.length ? buildDensePath(clean, scaleWord, STEP) : [];
+  }, [rawStrokes, strokeIndex, scaleWord, STEP]);
 
-  const isDot = useMemo(() => isDotStroke(densePath), [densePath]);
+  // Local isDot with scaled pixel threshold (the imported isDotStroke uses a
+  // fixed 14px threshold designed for the 750px canvas).
+  const isDot = useMemo(() => {
+    if (!densePath || !densePath.length) return false;
+    if (densePath.length === 1) return true;
+    let len = 0;
+    for (let i = 1; i < densePath.length; i++) len += dist(densePath[i], densePath[i - 1]);
+    return len < DOT_PIXEL_LIM;
+  }, [densePath, DOT_PIXEL_LIM]);
 
   useEffect(() => {
     if (status === 'success' && accuracy != null) {
@@ -227,7 +255,7 @@ export default function DictadoTraceCanvas({
 
   const commitStroke = () => {
     const completedPath = [...currentPathRef.current];
-    const strokeScore = isDot ? 100 : strokeAccuracy(completedPath, densePath);
+    const strokeScore = isDot ? 100 : strokeAccuracy(completedPath, densePath, ACC_PENALTY);
     if (!isDot && minimumStrokeAccuracy > 0 && strokeScore < minimumStrokeAccuracy) {
       flashError(); restartStroke(); return;
     }
@@ -270,7 +298,7 @@ export default function DictadoTraceCanvas({
     const currentStrokes = rawStrokes[strokeIndex];
     if (!Array.isArray(currentStrokes) || !currentStrokes.length) return;
     const firstWp = scaleWord(currentStrokes[0]);
-    const startTol = isDot ? DOT_HIT_RADIUS : HIT_RADIUS * 1.8;
+    const startTol = isDot ? DOT_HIT_R : HIT_R * 1.8;
     if (waypointIndex === 0 && dist(pos, firstWp) > startTol) { flashError(); return; }
     pathProgressRef.current = 0; visitedRef.current = new Set();
     offTravelRef.current = 0; postCompleteTravelRef.current = 0;
@@ -284,7 +312,7 @@ export default function DictadoTraceCanvas({
       pendingCompleteRef.current = true; postCompleteTravelRef.current = 0;
       setAwaitingLift(true); setWaypointIndex(currentStrokes.length);
     }
-  }, [status, strokeIndex, waypointIndex, rawStrokes, isDot, densePath, scaleWord]);
+  }, [status, strokeIndex, waypointIndex, rawStrokes, isDot, densePath, scaleWord, DOT_HIT_R, HIT_R, POST_BUDGET, WOBBLE_R, OFF_BUDGET, FWD_R, MIN_M, COVERAGE_R]);
 
   const handlePointerMove = useCallback((e) => {
     e.preventDefault();
@@ -294,7 +322,7 @@ export default function DictadoTraceCanvas({
       const prevP = currentPathRef.current[currentPathRef.current.length - 1];
       if (prevP && !isDot) {
         postCompleteTravelRef.current += dist(pos, prevP);
-        if (postCompleteTravelRef.current > 70) { flashError(); restartStroke(); return; }
+        if (postCompleteTravelRef.current > POST_BUDGET) { flashError(); restartStroke(); return; }
       }
       currentPathRef.current = [...currentPathRef.current, pos];
       setCurrentPath(currentPathRef.current);
@@ -321,20 +349,20 @@ export default function DictadoTraceCanvas({
           const d = dist(pos, densePath[i]);
           if (d < fwdD) { fwdD = d; fwdIdx = i; }
         }
-        if (fwdIdx >= 0 && fwdD <= FWD_RETRACE_RADIUS) {
+        if (fwdIdx >= 0 && fwdD <= FWD_R) {
           nearestIdx = fwdIdx; minD = fwdD; retraceForward = true;
         }
       }
-      if (minD > WOBBLE_RADIUS) {
+      if (minD > WOBBLE_R) {
         if (retraceForward) { offTravelRef.current = 0; }
         else {
           offTravelRef.current += moveDist;
-          if (minD > WOBBLE_RADIUS * 2 || offTravelRef.current > OFF_TRAVEL_BUDGET) {
+          if (minD > WOBBLE_R * 2 || offTravelRef.current > OFF_BUDGET) {
             flashError(); restartStroke(); return;
           }
         }
       } else { offTravelRef.current = 0; }
-      if (prev && moveDist >= MIN_MOVE) {
+      if (prev && moveDist >= MIN_M) {
         const dx = (pos.x - prev.x) / moveDist;
         const dy = (pos.y - prev.y) / moveDist;
         const a = Math.min(nearestIdx, densePath.length - 1);
@@ -352,7 +380,7 @@ export default function DictadoTraceCanvas({
           } else {
             let saved = false;
             for (let f = nearestIdx + 1; f <= Math.min(nearestIdx + 6, densePath.length - 1); f++) {
-              if (dist(pos, densePath[f]) > FWD_RETRACE_RADIUS) continue;
+              if (dist(pos, densePath[f]) > FWD_R) continue;
               const fa = f, fb = Math.min(f + 2, densePath.length - 1);
               const fLen = Math.hypot(densePath[fb].x - densePath[fa].x, densePath[fb].y - densePath[fa].y) || 1;
               const fx = (densePath[fb].x - densePath[fa].x) / fLen;
@@ -368,13 +396,13 @@ export default function DictadoTraceCanvas({
       }
       const covFrom = Math.max(0, pathProgressRef.current - 2);
       const covTo = Math.min(densePath.length, pathProgressRef.current + 8);
-      const covSteps = Math.max(1, Math.ceil(moveDist / (COVERAGE_RADIUS * 0.6)));
+      const covSteps = Math.max(1, Math.ceil(moveDist / (COVERAGE_R * 0.6)));
       for (let s = 0; s <= covSteps; s++) {
         const t = s / covSteps;
         const sx = prev ? prev.x + (pos.x - prev.x) * t : pos.x;
         const sy = prev ? prev.y + (pos.y - prev.y) * t : pos.y;
         for (let k = covFrom; k < covTo; k++) {
-          if (Math.hypot(sx - densePath[k].x, sy - densePath[k].y) <= COVERAGE_RADIUS) {
+          if (Math.hypot(sx - densePath[k].x, sy - densePath[k].y) <= COVERAGE_R) {
             visitedRef.current.add(k);
           }
         }
@@ -391,12 +419,12 @@ export default function DictadoTraceCanvas({
       const nextPt = currentStrokes[waypointIndex];
       if (nextPt) {
         const nextWp = scaleWord(nextPt);
-        if (dist(pos, nextWp) < HIT_RADIUS) {
+        if (dist(pos, nextWp) < HIT_R) {
           setWaypointIndex(Math.min(waypointIndex + 1, currentStrokes.length));
         }
       }
     }
-  }, [drawing, status, strokeIndex, waypointIndex, rawStrokes, densePath, scaleWord, isDot]);
+  }, [drawing, status, strokeIndex, waypointIndex, rawStrokes, densePath, scaleWord, isDot, WOBBLE_R, OFF_BUDGET, FWD_R, MIN_M, COVERAGE_R, HIT_R]);
 
   const handlePointerUp = useCallback((e) => {
     e.preventDefault();
@@ -423,9 +451,9 @@ export default function DictadoTraceCanvas({
     return offsets.map((offset, i) => {
       const idx = Math.min(densePath.length - 1, progress + offset);
       if (seen.has(idx)) return null; seen.add(idx);
-      return { ...densePath[idx], index: idx, radius: [5.5, 4.8, 4.1, 3.5][i], opacity: [1, 0.95, 0.85, 0.75][i] };
+      return { ...densePath[idx], index: idx, radius: [5.5, 4.8, 4.1, 3.5][i] * S, opacity: [1, 0.95, 0.85, 0.75][i] };
     }).filter(Boolean);
-  }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+  }, [drawing, awaitingLift, isSuccess, densePath, currentPath, S]);
 
   const guideArrow = useMemo(() => {
     if (!drawing || awaitingLift || isSuccess || !densePath.length) return null;
@@ -435,7 +463,7 @@ export default function DictadoTraceCanvas({
     if (directionIndex === arrowIndex) return null;
     const p1 = densePath[arrowIndex], p2 = densePath[directionIndex];
     return { x: p1.x, y: p1.y, angle: Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI };
-  }, [drawing, awaitingLift, isSuccess, densePath, currentPath]);
+  }, [drawing, awaitingLift, isSuccess, densePath, currentPath, S]);
 
   const currentStrokeWaypoints = rawStrokes[strokeIndex] || [];
   const nextWp = waypointIndex < currentStrokeWaypoints.length
@@ -473,7 +501,7 @@ export default function DictadoTraceCanvas({
               key={`m-${li}-${si}`}
               d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
               fill="none" stroke={color}
-              strokeWidth={isCurrent && guideFlash ? 9 : 5}
+              strokeWidth={isCurrent && guideFlash ? MODEL_FLASH_W : MODEL_W}
               strokeLinecap="round" strokeLinejoin="round" opacity={opacity}
             />
           );
@@ -483,14 +511,14 @@ export default function DictadoTraceCanvas({
       {/* Completed drawn strokes (red) */}
       {Object.entries(drawnPathsByLetter).map(([li, paths]) =>
         paths.map((pts, i) => (
-          <path key={`d-${li}-${i}`} d={pathD(pts)} fill="none" stroke={RED} strokeWidth="11"
+          <path key={`d-${li}-${i}`} d={pathD(pts)} fill="none" stroke={RED} strokeWidth={STROKE_W}
             strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         ))
       )}
 
       {/* Current drawing path */}
       {currentPath.length > 1 && (
-        <path d={pathD(currentPath)} fill="none" stroke={RED} strokeWidth="11"
+        <path d={pathD(currentPath)} fill="none" stroke={RED} strokeWidth={STROKE_W}
           strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
       )}
 
@@ -508,12 +536,12 @@ export default function DictadoTraceCanvas({
       {/* Start dot */}
       {nextWp && !isSuccess && waypointIndex === 0 && !drawing && (
         <>
-          <circle cx={nextWp.x} cy={nextWp.y} r="16" fill="#A78BFA" opacity="0.18">
-            <animate attributeName="r" values="12;20;12" dur="1s" repeatCount="indefinite" />
+          <circle cx={nextWp.x} cy={nextWp.y} r={16 * S} fill="#A78BFA" opacity="0.18">
+            <animate attributeName="r" values={`${12 * S};${20 * S};${12 * S}`} dur="1s" repeatCount="indefinite" />
             <animate attributeName="opacity" values="0.22;0.06;0.22" dur="1s" repeatCount="indefinite" />
           </circle>
-          <circle cx={nextWp.x} cy={nextWp.y} r="7" fill="#A78BFA" />
-          <text x={nextWp.x} y={nextWp.y + 3.5} textAnchor="middle" fontSize="8" fill="white" fontWeight="bold">
+          <circle cx={nextWp.x} cy={nextWp.y} r={7 * S} fill="#A78BFA" />
+          <text x={nextWp.x} y={nextWp.y + 3.5 * S} textAnchor="middle" fontSize={8 * S} fill="white" fontWeight="bold">
             {strokeIndex + 1}
           </text>
         </>
