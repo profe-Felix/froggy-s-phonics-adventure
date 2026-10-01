@@ -224,6 +224,13 @@ export default function TeacherNotebookDashboard({
     retry: false,
   });
 
+  // Sort by student number and filter out students with no work (empty
+  // strokes_by_page). Students 17-30 typically have no data, so hiding them
+  // keeps the grid focused on students who actually have notebook content.
+  const activeSessions = sessions
+    .filter(s => s.strokes_by_page && Object.keys(s.strokes_by_page).length > 0)
+    .sort((a, b) => (a.student_number || 0) - (b.student_number || 0));
+
   const updateAssignment = useMutation({
     mutationFn: ({ id, data }) => base44.entities.DigitalNotebookAssignment.update(id, data),
     onSuccess: () => qc.invalidateQueries(['notebook-assignments', className]),
@@ -808,7 +815,7 @@ export default function TeacherNotebookDashboard({
             ) : (
               <>
                 <div className="flex items-center gap-3 mb-4 flex-wrap">
-                  <p className="text-indigo-300 text-sm font-bold">{sessions.length} student{sessions.length !== 1 ? 's' : ''} joined</p>
+                  <p className="text-indigo-300 text-sm font-bold">{activeSessions.length} student{activeSessions.length !== 1 ? 's' : ''} with work</p>
                   <div className="flex items-center gap-2 ml-auto">
                     <span className="text-indigo-400 text-xs font-bold">View page:</span>
                     <button onClick={() => setGlobalViewPage(v => Math.max(1, (v || (selectedAssignment?.locked_page || 1)) - 1))}
@@ -820,7 +827,7 @@ export default function TeacherNotebookDashboard({
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
-                  {sessions.map(s => (
+                  {activeSessions.map(s => (
                     <StudentThumbnail
                       key={s.id}
                       session={s}
