@@ -100,24 +100,31 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     return () => { cancelled = true; };
   }, []);
 
-  // Load teacher-enabled groups for this class (fall back to default).
+  // Derive the available formation groups from the per-letter progression
+  // (TracingSettings.enabled_letters). A group becomes available for free play
+  // once ALL its letters are enabled — so the teacher's per-letter progression
+  // controls both lesson steps (single letter) and free play (whole group).
   useEffect(() => {
     let cancelled = false;
     const cls = studentData?.class_name;
+    const derive = (letters) =>
+      LETTER_FORMATION_GROUPS
+        .filter((g) => g.letters.every((l) => (letters || []).includes(l)))
+        .map((g) => g.key);
     const load = async () => {
       try {
         if (cls) {
           const perClass = await base44.entities.TracingSettings.filter({ scope: cls });
           if (cancelled) return;
-          if (perClass?.length && Array.isArray(perClass[0].enabled_groups) && perClass[0].enabled_groups.length) {
-            setEnabledGroups(perClass[0].enabled_groups);
+          if (perClass?.length && Array.isArray(perClass[0].enabled_letters)) {
+            setEnabledGroups(derive(perClass[0].enabled_letters));
             return;
           }
         }
         const def = await base44.entities.TracingSettings.filter({ scope: 'default' });
         if (cancelled) return;
-        if (def?.length && Array.isArray(def[0].enabled_groups)) {
-          setEnabledGroups(def[0].enabled_groups);
+        if (def?.length && Array.isArray(def[0].enabled_letters)) {
+          setEnabledGroups(derive(def[0].enabled_letters));
         }
       } catch {}
     };
