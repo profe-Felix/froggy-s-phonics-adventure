@@ -49,7 +49,7 @@ function normId(value) {
 // tracing still works for classes without a configured curriculum position.
 export function isLetterSoundIntroduced(letter, classConfig) {
   if (!classConfig) return true;
-  const ids = LETTER_TO_GRAPHEMES[normId(letter)];
+  const ids = LETTER_TO_GRAPHEME[normId(letter)];
   if (!ids || !ids.length) return true;
   const mod = Number(classConfig.active_spanish_module);
   const les = Number(classConfig.active_spanish_lesson);
