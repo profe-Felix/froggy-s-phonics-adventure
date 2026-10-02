@@ -5,22 +5,20 @@ import { minutesToTime, formatLongDate } from '@/lib/conferenceUtils';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Printer, ArrowLeft } from 'lucide-react';
 
-// Normalize a name for fuzzy matching between the parent-typed student name
-// and the roster: lowercase, strip punctuation, collapse spaces.
-const normName = (s) =>
-  (s || '')
-    .toLowerCase()
+// Strip accents so "Chávez" matches "Chavez" and "Díaz" matches "Diaz".
+const stripAccents = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Tokenize a name for fuzzy matching: lowercase, strip accents + punctuation,
+// drop single-character tokens (middle initials like "D.") and the word
+// "and" (parents sometimes book two kids in one slot). Returns the set of
+// real name tokens, e.g. "Isaac D. Chávez Rivas" -> ["isaac","chavez","rivas"].
+const nameTokens = (s) =>
+  stripAccents((s || '').toLowerCase())
     .replace(/[.,'`_]/g, '')
     .replace(/\s+/g, ' ')
-    .trim();
-
-// Sorted-token key so "John Doe" matches "Doe, John" / "Doe John".
-const tokenKey = (s) =>
-  normName(s)
+    .trim()
     .split(' ')
-    .filter(Boolean)
-    .sort()
-    .join(' ');
+    .filter((t) => t.length > 1 && t !== 'and');
 
 // Printable conference confirmations + a "not signed up yet" roster list.
 // Booked slots are matched to roster students by name; confirmations are
@@ -52,20 +50,48 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
   const { booked, groups, notSignedByClass, unmatchedCount } = useMemo(() => {
     const booked = slots.filter((s) => s.status === 'booked');
 
-    const byName = new Map();
-    const byToken = new Map();
-    for (const st of students) {
-      if (!st.name) continue;
-      byName.set(normName(st.name), st);
-      byToken.set(tokenKey(st.name), st);
-    }
+    // Scope the roster to this conference's teachers. teacher_name may be a
+    // single teacher or a comma-separated list (e.g. "Felix, Valero,
+    // Gutierrez"); class_name, when set, is a single class. Students in
+    // other classes are excluded from matching and from the "not signed up"
+    // list.
+    const teacherSet = conference.class_name
+      ? new Set([conference.class_name.trim()])
+      : new Set(
+          (conference.teacher_name || '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        );
+    const roster = teacherSet.size
+      ? students.filter((st) => teacherSet.has(st.class_name))
+      : students;
+
+    const rosterTokens = roster
+      .filter((st) => st.name)
+      .map((st) => ({ st, tokens: nameTokens(st.name) }))
+      .filter((r) => r.tokens.length >= 2);
+
+    // Match a booking to a roster student when one name's tokens are a
+    // subset of the other's (handles middle initials / extra tokens), needing
+    // at least 2 real tokens. If two roster students match equally well, leave
+    // it unmatched rather than guessing.
     const matchStudent = (slot) => {
-      const n = normName(slot.student_name);
-      if (!n) return null;
-      if (byName.has(n)) return byName.get(n);
-      const tk = tokenKey(slot.student_name);
-      if (tk && byToken.has(tk)) return byToken.get(tk);
-      return null;
+      const stTokens = nameTokens(slot.student_name);
+      if (stTokens.length < 2) return null;
+      let best = null;
+      let bestScore = 0;
+      let tie = false;
+      for (const r of rosterTokens) {
+        const a = r.tokens;
+        const b = stTokens;
+        const subset = a.every((t) => b.includes(t)) || b.every((t) => a.includes(t));
+        if (!subset) continue;
+        const score = Math.min(a.length, b.length);
+        if (score > bestScore) { best = r.st; bestScore = score; tie = false; }
+        else if (score === bestScore) { tie = true; }
+      }
+      return tie ? null : best;
     };
 
     const matchedIds = new Set();
@@ -84,7 +110,10 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
       (groups[key] ||= { label, slots: [] }).slots.push({ slot, student: st });
     }
 
-    const notSigned = students.filter((st) => !matchedIds.has(st.id));
+    // "Not signed up" = scoped roster students with no matched booking.
+    // Students without a roster name can't be matched by name, so they're
+    // listed too (the teacher recognizes them by number).
+    const notSigned = roster.filter((st) => !matchedIds.has(st.id));
     const notSignedByClass = {};
     for (const st of notSigned) {
       const c = st.class_name || 'Sin clase';
@@ -93,7 +122,7 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
 
     const unmatchedCount = (groups['__unmatched__']?.slots.length) || 0;
     return { booked, groups, notSignedByClass, unmatchedCount };
-  }, [slots, students]);
+  }, [slots, students, conference.class_name, conference.teacher_name]);
 
   const groupKeys = useMemo(
     () =>
