@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { minutesToTime, formatLongDate } from '@/lib/conferenceUtils';
@@ -137,8 +138,8 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
 
   const bookedCount = booked.length;
 
-  return (
-    <div className="fixed inset-0 bg-slate-100 z-50 overflow-auto">
+  return createPortal(
+    <div className="conf-overlay-root fixed inset-0 bg-slate-100 z-50 overflow-auto">
       {/* Toolbar */}
       <div className="conf-no-print sticky top-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3 shadow-sm z-10">
         <button
@@ -242,6 +243,7 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

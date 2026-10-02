@@ -616,16 +616,57 @@
   break-before: page;
   page-break-before: always;
 }
+/* Conference confirmations — zero-margin letter sheet so two 5.5in cards
+   stack to fill one 8.5x11 page. The print overlay is portaled to <body> so
+   it escapes the app's fixed/overflow clipping (which otherwise made print
+   capture only the visible viewport — a "snapshot"). The app (#root) is
+   hidden in print so only the portaled overlay renders. */
+@page ConfSheet {
+  size: letter portrait;
+  margin: 0;
+}
+
 @media print {
-  body.conf-printing * {
-    visibility: hidden;
+  body.conf-printing #root {
+    display: none !important;
   }
-  body.conf-printing .conf-printable,
-  body.conf-printing .conf-printable * {
-    visibility: visible;
+  body.conf-printing .conf-overlay-root {
+    position: static !important;
+    overflow: visible !important;
+    inset: auto !important;
+    background: #fff !important;
+    display: block !important;
   }
   body.conf-printing .conf-printable {
     position: static !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    display: block !important;
+    page: ConfSheet;
+  }
+  body.conf-printing .conf-printable > div {
+    display: block !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  /* Group titles are a screen organizer; hide them in print so cards pack
+     cleanly two-per-page with no extra height. */
+  body.conf-printing .conf-group-title {
+    display: none !important;
+  }
+  body.conf-printing .conf-card {
+    border: none !important;
+    border-bottom: 1px dashed #94a3b8 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  body.conf-printing .conf-newpage {
+    padding: 0.4in 0.5in !important;
+    break-before: page;
+    page-break-before: always;
   }
   body.conf-printing .conf-no-print {
     display: none !important;
