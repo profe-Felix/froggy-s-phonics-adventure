@@ -1647,6 +1647,16 @@ export default function StudentNotebookView({
           </div>
         </div>
       )}
+
+      {/* Live assessment "Eyes on board" overlay — freezes drawing/navigation
+          when the teacher pauses the session. */}
+      {liveActive && livePaused && (
+        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-slate-900/95 text-white">
+          <div className="text-6xl mb-4">👀</div>
+          <p className="text-2xl font-black mb-1">Eyes on the board</p>
+          <p className="text-sm text-slate-300">Wait for your teacher to continue.</p>
+        </div>
+      )}
     </div>
   );
 }

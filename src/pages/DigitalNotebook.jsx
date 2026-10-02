@@ -190,6 +190,8 @@ export default function DigitalNotebook() {
   const urlTeacherTab = params.get('tab') || null;
   const urlNumber = parseInt(params.get('number') || params.get('student'));
   const urlPage = parseInt(params.get('page')) || null;
+  const urlLiveAssessmentId = params.get('liveAssessment') || null;
+  const urlFromLive = params.get('fromLive') === '1';
 
   // If an assignment link is shared (no class, no number), we show class picker first
   const isAssignmentLink = !!urlAssignment && !urlClass && !urlNumber;
@@ -203,7 +205,7 @@ export default function DigitalNotebook() {
   useEffect(() => {
     if (autoResolved) return;
     if (urlClass && !isNaN(urlNumber) && urlNumber > 0) {
-      setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment, directPage: urlPage });
+      setStudentInfo({ className: urlClass, number: urlNumber, directAssignment: urlAssignment, directPage: urlPage, liveAssessmentId: urlLiveAssessmentId });
       setRole('student');
       setAutoResolved(true);
     } else if (urlClass && !isTeacherMode) {
@@ -240,7 +242,7 @@ export default function DigitalNotebook() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <StudentLogin
-          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
+          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage, liveAssessmentId: urlLiveAssessmentId })}
           preselectedClass={pickedClass}
           classList={classList}
         />
@@ -266,7 +268,14 @@ export default function DigitalNotebook() {
         className={studentInfo.className}
         directAssignmentName={studentInfo.directAssignment || null}
         directPage={studentInfo.directPage || null}
-        onBack={() => { setStudentInfo(null); setRole(null); setPickedClass(urlClass || null); }}
+        liveAssessmentId={studentInfo.liveAssessmentId || null}
+        onBack={() => {
+          if (urlFromLive) {
+            window.location.href = '/LetterGame';
+            return;
+          }
+          setStudentInfo(null); setRole(null); setPickedClass(urlClass || null);
+        }}
       />
     );
   }
@@ -281,7 +290,7 @@ export default function DigitalNotebook() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <StudentLogin
-          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage })}
+          onEnter={(className, number) => setStudentInfo({ className, number, directAssignment: urlAssignment, directPage: urlPage, liveAssessmentId: urlLiveAssessmentId })}
           preselectedClass={urlClass}
           classList={classList}
         />
