@@ -5,10 +5,12 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Trash2 } from 'lucide-react';
 import SlotGenerator from '@/components/conference/SlotGenerator';
 import SlotList from '@/components/conference/SlotList';
+import ConferencePrintView from '@/components/conference/ConferencePrintView';
 
 export default function ConferenceDetail({ conference, onBack }) {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
   const { data: slots = [] } = useQuery({
     queryKey: ['conference-slots', conference.id],
     queryFn: async () => base44.entities.ConferenceSlot.filter({ conference_id: conference.id }, '-created_date', 500),
@@ -39,6 +41,8 @@ export default function ConferenceDetail({ conference, onBack }) {
 
   const copyLink = () => navigator.clipboard?.writeText(signUpUrl);
 
+  if (showPrint) return <ConferencePrintView conference={conference} slots={slots} onBack={() => setShowPrint(false)} />;
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 max-w-4xl mx-auto">
       <button onClick={onBack} className="text-indigo-600 font-bold text-sm">← Back</button>
@@ -49,6 +53,12 @@ export default function ConferenceDetail({ conference, onBack }) {
           <p className="text-sm text-slate-400 mt-1">{bookedCount} booked · {openCount} open · {slots.length} total</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPrint(true)}
+            className="px-4 py-2 rounded-xl font-bold text-sm bg-indigo-600 text-white active:scale-95 transition"
+          >
+            🖨️ Print Confirmations
+          </button>
           <button
             onClick={() => toggleActive.mutate(!conference.active)}
             className={`px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition ${conference.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}

@@ -591,3 +591,43 @@
     display: none !important;
   }
 }
+
+/* Conference confirmation printout — half-page cards (2 per letter sheet),
+   grouped by teacher. The teacher opens the print view (a full-screen
+   overlay), clicks Print, and only the confirmations + not-signed-up list
+   print — the rest of the app is hidden via the body.conf-printing class. */
+.conf-card {
+  width: 8.5in;
+  height: 5.5in;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  box-sizing: border-box;
+  padding: 0.4in 0.6in;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.conf-group-title {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.conf-newpage {
+  break-before: page;
+  page-break-before: always;
+}
+@media print {
+  body.conf-printing * {
+    visibility: hidden;
+  }
+  body.conf-printing .conf-printable,
+  body.conf-printing .conf-printable * {
+    visibility: visible;
+  }
+  body.conf-printing .conf-printable {
+    position: static !important;
+  }
+  body.conf-printing .conf-no-print {
+    display: none !important;
+  }
+}
