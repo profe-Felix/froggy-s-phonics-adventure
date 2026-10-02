@@ -566,6 +566,27 @@
     break-after: auto;
     page-break-after: auto;
   }
+  /* Each notebook page is exactly one letter sheet — clip rounding overflow
+     so it never spills a sliver onto an extra blank page. */
+  .ws-nb-page {
+    width: 8.5in !important;
+    height: 11in !important;
+    overflow: hidden;
+  }
+  .ws-print-reset {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .ws-printable {
+    margin: 0 !important;
+  }
+  .ws-printable > * + * {
+    margin-top: 0 !important;
+  }
   .ws-no-print {
     display: none !important;
   }

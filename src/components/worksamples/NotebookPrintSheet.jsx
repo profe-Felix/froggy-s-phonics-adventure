@@ -2,26 +2,38 @@ import React, { useState } from 'react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import StaticStrokes from './StaticStrokes';
 
-// Fill the printable area of an 8.5in page with 0.5in margins = 7.5in = 720px.
-const PRINT_WIDTH = 720;
+// Full 8.5in letter width (printed with zero page margins) = 816px.
+const PRINT_WIDTH = 816;
+const PRINT_HEIGHT = 1056; // 11in
 
 function NotebookPagePrint({ pdfUrl, pageNum, strokes }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [width, setWidth] = useState(PRINT_WIDTH);
+
+  // If the PDF page is taller than letter, shrink the width so the whole
+  // page fits on one 8.5×11 sheet instead of being clipped.
+  const handleRendered = (w, h) => {
+    if (h > PRINT_HEIGHT + 1) setWidth(Math.floor(w * PRINT_HEIGHT / h));
+    else setSize({ w, h });
+  };
 
   return (
-    <div className="ws-nb-page" style={{ position: 'relative', width: PRINT_WIDTH }}>
-      <PdfPageRenderer
-        pdfUrl={pdfUrl}
-        pageNumber={pageNum}
-        fitMode="width"
-        targetWidth={PRINT_WIDTH}
-        onRendered={(w, h) => setSize({ w, h })}
-      />
-      {size.h > 0 && strokes && (
-        <div style={{ position: 'absolute', top: 0, left: 0, width: size.w, height: size.h, pointerEvents: 'none' }}>
-          <StaticStrokes strokes={strokes} width={size.w} height={size.h} />
-        </div>
-      )}
+    <div className="ws-nb-page" style={{ width: PRINT_WIDTH }}>
+      <div style={{ position: 'relative', width, margin: '0 auto' }}>
+        <PdfPageRenderer
+          key={width}
+          pdfUrl={pdfUrl}
+          pageNumber={pageNum}
+          fitMode="width"
+          targetWidth={width}
+          onRendered={handleRendered}
+        />
+        {size.h > 0 && strokes && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: size.w, height: size.h, pointerEvents: 'none' }}>
+            <StaticStrokes strokes={strokes} width={size.w} height={size.h} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

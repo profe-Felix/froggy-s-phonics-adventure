@@ -185,7 +185,8 @@ export default function WorkSamples() {
   };
 
   const handlePrint = () => {
-    printWithPage('size: letter portrait; margin: 0.5in');
+    // Notebook pages print edge-to-edge (the PDF already has its own margins).
+    printWithPage(`size: letter portrait; margin: ${workType === 'notebook' ? '0' : '0.5in'}`);
   };
 
   const needsAssignment = workType === 'dictado' || workType === 'notebook';
@@ -196,7 +197,7 @@ export default function WorkSamples() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
+      <div className="ws-no-print sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
         <Link to="/Dashboard" className="text-slate-400 hover:text-slate-700">
           <ArrowLeft className="w-5 h-5" />
         </Link>
@@ -212,9 +213,9 @@ export default function WorkSamples() {
         )}
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 space-y-4">
+      <div className="ws-print-reset max-w-5xl mx-auto p-4 space-y-4">
         {/* Config panel */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 space-y-4">
+        <div className="ws-no-print bg-white rounded-xl shadow-sm border p-4 space-y-4">
           {/* Class */}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">1. Class</label>
@@ -338,8 +339,8 @@ export default function WorkSamples() {
         </div>
 
         {/* Preview */}
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="ws-print-reset bg-white rounded-xl shadow-sm border p-4">
+          <div className="ws-no-print flex items-center justify-between mb-3">
             <h2 className="font-bold text-sm text-slate-700">Preview</h2>
             <span className="text-xs text-slate-400">
               {printData.length} student(s) with work
