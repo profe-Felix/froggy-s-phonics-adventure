@@ -742,9 +742,29 @@ export default function LetterTracingCanvas({
           if (d < fwdD) { fwdD = d; fwdIdx = i; }
         }
         if (fwdIdx >= 0 && fwdD <= FWD_RETRACE_RADIUS) {
-          nearestIdx = fwdIdx;
-          minD = fwdD;
-          retraceForward = true;
+          // Only rescue as a legitimate retrace if the pen is actually moving
+          // ALONG the forward path direction. A pen that's merely NEAR a
+          // forward point but scribbling the wrong way is NOT retracing — it's
+          // off-path, and must accumulate off-travel so a sustained scribble
+          // (the "g" bowl/descender loop hole) restarts the stroke. Without
+          // this check the proximity-only rescue reset the drift budget on
+          // every scribble near a forward point, so wild loops were accepted.
+          let dirOk = true;
+          if (prev && moveDist >= MIN_MOVE) {
+            const dx = (pos.x - prev.x) / moveDist;
+            const dy = (pos.y - prev.y) / moveDist;
+            const fa = fwdIdx, fb = Math.min(fwdIdx + 2, densePath.length - 1);
+            const fLen = Math.hypot(densePath[fb].x - densePath[fa].x, densePath[fb].y - densePath[fa].y) || 1;
+            const fx = (densePath[fb].x - densePath[fa].x) / fLen;
+            const fy = (densePath[fb].y - densePath[fa].y) / fLen;
+            // Allow jitter (>= -0.2) but reject clearly reverse movement.
+            dirOk = (dx * fx + dy * fy) >= -0.2;
+          }
+          if (dirOk) {
+            nearestIdx = fwdIdx;
+            minD = fwdD;
+            retraceForward = true;
+          }
         }
       }
 
