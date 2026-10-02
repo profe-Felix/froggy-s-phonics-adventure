@@ -5,7 +5,7 @@ import StaticStrokes from './StaticStrokes';
 // Fill the printable area of an 8.5in page with 0.5in margins = 7.5in = 720px.
 const PRINT_WIDTH = 720;
 
-function NotebookPagePrint({ pdfUrl, pageNum, strokes, studentLabel }) {
+function NotebookPagePrint({ pdfUrl, pageNum, strokes }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   return (
@@ -22,17 +22,12 @@ function NotebookPagePrint({ pdfUrl, pageNum, strokes, studentLabel }) {
           <StaticStrokes strokes={strokes} width={size.w} height={size.h} />
         </div>
       )}
-      {/* Tiny student label at the bottom so teachers can identify work
-          without a full header taking up space at the top. */}
-      <div style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>
-        {studentLabel}
-      </div>
     </div>
   );
 }
 
 // One student's digital notebook: only PDF pages that have annotation strokes.
-// No header — each page fills the printed page and breaks to the next.
+// No header or footer — each page fills the printed page and breaks to the next.
 export default function NotebookPrintSheet({ student, assignment, session }) {
   const strokesByPage = session?.strokes_by_page || {};
 
@@ -55,8 +50,6 @@ export default function NotebookPrintSheet({ student, assignment, session }) {
 
   if (pages.length === 0) return null;
 
-  const studentLabel = student.name || `#${student.student_number}`;
-
   return (
     <div className="ws-print-sheet" style={{ width: PRINT_WIDTH, margin: '0 auto' }}>
       {pages.map(p => (
@@ -65,7 +58,6 @@ export default function NotebookPrintSheet({ student, assignment, session }) {
           pdfUrl={assignment?.pdf_url}
           pageNum={p}
           strokes={parsedByPage[String(p)]}
-          studentLabel={studentLabel}
         />
       ))}
     </div>
