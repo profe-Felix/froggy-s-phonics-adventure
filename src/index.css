@@ -630,6 +630,13 @@
   body.conf-printing #root {
     display: none !important;
   }
+  /* The global `body * { visibility: hidden }` print rule hides the portaled
+     cards too — re-show the overlay + its printable descendants. */
+  body.conf-printing .conf-overlay-root,
+  body.conf-printing .conf-printable,
+  body.conf-printing .conf-printable * {
+    visibility: visible !important;
+  }
   body.conf-printing .conf-overlay-root {
     position: static !important;
     overflow: visible !important;
