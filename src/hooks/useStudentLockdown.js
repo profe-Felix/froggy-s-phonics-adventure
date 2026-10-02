@@ -102,7 +102,11 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
       };
     },
     enabled: enabled && !!studentId && !!className && !!studentNumber,
-    refetchInterval: enabled ? 8000 : false,
+    // Poll every 20s as a fallback — realtime subscriptions above invalidate
+    // the query instantly when a teacher changes something, so the poll only
+    // catches missed events. 8s was too frequent with a full class online and
+    // contributed to 429 rate limits (7 fetches × N students every cycle).
+    refetchInterval: enabled ? 20000 : false,
     refetchIntervalInBackground: false,
     retry: false,
     staleTime: 0,

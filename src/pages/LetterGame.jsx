@@ -125,6 +125,9 @@ export default function LetterGame() {
     queryKey: ['lessons', selectedStudent?.class_name],
     queryFn: () => base44.entities.Lesson.filter({ active: true }),
     enabled: !!selectedStudent && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
+    // Lessons rarely change — cache 5 min so a class of students logging in
+    // doesn't each refetch (was contributing to 429 rate limits).
+    staleTime: 5 * 60 * 1000,
   });
   const hasAssignedLesson = lessonsForClass.some(
     l => !l.class_name || l.class_name === selectedStudent?.class_name
@@ -226,20 +229,24 @@ export default function LetterGame() {
   const { data: students } = useQuery({
     queryKey: ['students'],
     queryFn: () => base44.entities.Student.list(),
-    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode'
+    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
+    // The full roster is heavy. Cache 5 min and update it in place on
+    // mutations below (instead of invalidating → full refetch), which was
+    // the main driver of 429 rate limits with many students saving progress.
+    staleTime: 5 * 60 * 1000,
   });
 
   const createStudentMutation = useMutation({
     mutationFn: (data) => base44.entities.Student.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+    onSuccess: (data) => {
+      queryClient.setQueryData(['students'], old => Array.isArray(old) ? [...old, data] : [data]);
     }
   });
 
   const updateStudentMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Student.update(id, data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.setQueryData(['students'], old => Array.isArray(old) ? old.map(s => s.id === data.id ? data : s) : old);
       setStudentData(data);
     },
     onError: () => {
@@ -428,7 +435,7 @@ export default function LetterGame() {
     if (!studentData?.id) return;
     await base44.entities.Student.update(studentData.id, { language });
     setStudentData(prev => prev ? { ...prev, language } : prev);
-    queryClient.invalidateQueries({ queryKey: ['students'] });
+    queryClient.setQueryData(['students'], old => Array.isArray(old) ? old.map(s => s.id === studentData.id ? { ...s, language } : s) : old);
   };
 
   const handleModeSelect = (mode) => {
