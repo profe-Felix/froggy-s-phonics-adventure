@@ -17,15 +17,18 @@
     },
     "letter": {
       "type": "string",
-      "description": "Letter that was written freehand"
+      "description": "Letter that was written"
     },
     "phase": {
       "type": "string",
       "enum": [
+        "guided",
         "practice",
+        "alternating",
         "more"
       ],
-      "description": "Which phase the sample is from"
+      "default": "practice",
+      "description": "Which phase the sample is from. Group mode: guided/practice/alternating. Single mode: practice/more."
     },
     "mode": {
       "type": "string",
@@ -33,7 +36,7 @@
         "dot_only",
         "freehand"
       ],
-      "description": "dot_only = student had a starting dot, freehand = completely blank"
+      "description": "dot_only = student had a starting dot/guide, freehand = completely blank"
     },
     "strokes_data": {
       "type": "string",
@@ -44,6 +47,40 @@
       "type": "string",
       "default": "",
       "description": "Size level label when the sample was taken (e.g. Medium)"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "single",
+        "group"
+      ],
+      "default": "single",
+      "description": "single = LetterTracingMode (one letter at a time), group = LetterGroupTracingMode (letter family practiced together on one line)"
+    },
+    "group_key": {
+      "type": "string",
+      "default": "",
+      "description": "Formation group key (e.g. 'magic_c') for group-mode attempts. Empty for single mode."
+    },
+    "accuracy": {
+      "type": "integer",
+      "default": 0,
+      "description": "Accuracy score 0-100 for guided trace attempts. 0 for freehand attempts (no accuracy gate)."
+    },
+    "guided": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if the attempt used a dot/breadcrumb guide (guided trace). False for freehand/write lines."
+    },
+    "size_mode": {
+      "type": "string",
+      "enum": [
+        "paper",
+        "big",
+        ""
+      ],
+      "default": "",
+      "description": "Group mode size: 'paper' (letters at paper size on one line) or 'big' (one large letter). Empty for single mode."
     }
   },
   "required": [

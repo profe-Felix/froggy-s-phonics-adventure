@@ -206,9 +206,14 @@ export default function TracingReview() {
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-black text-slate-800">✏️ Tracing Review</h1>
-          <Link to="/NameTracingReview" className="text-indigo-600 hover:underline text-sm font-bold">
-            Name Tracing Review →
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/LetterTracingStrokes" className="text-indigo-600 hover:underline text-sm font-bold">
+              Group Strokes →
+            </Link>
+            <Link to="/NameTracingReview" className="text-indigo-600 hover:underline text-sm font-bold">
+              Name Tracing Review →
+            </Link>
+          </div>
         </div>
 
         {/* Class + Letter selectors */}

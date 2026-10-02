@@ -41,6 +41,7 @@ import DictationDashboard from './pages/DictationDashboard';
 import DictationStudent from './pages/DictationStudent';
 import DictadoLive from './pages/DictadoLive';
 import TracingReview from './pages/TracingReview';
+import LetterTracingStrokes from './pages/LetterTracingStrokes';
 import StudentRoster from './pages/StudentRoster';
 import StudentIdCards from './pages/StudentIdCards';
 import NamePractice from './pages/NamePractice';
@@ -156,6 +157,7 @@ const AuthenticatedApp = () => {
       <Route path="/DictationStudent" element={<DictationStudent />} />
       <Route path="/DictadoLive" element={<DictadoLive />} />
       <Route path="/TracingReview" element={<TracingReview />} />
+      <Route path="/LetterTracingStrokes" element={<LetterTracingStrokes />} />
       <Route path="/StudentRoster" element={<StudentRoster />} />
       <Route path="/StudentIdCards" element={<StudentIdCards />} />
       <Route path="/NamePractice" element={<NamePractice />} />
