@@ -66,6 +66,7 @@ import SmallGroupAssessment from './pages/SmallGroupAssessment';
 import SmallGroupAssessmentStudent from './pages/SmallGroupAssessmentStudent';
 import TableRotationManager from './pages/TableRotationManager';
 import CreandoOraciones from './pages/CreandoOraciones';
+import WorkSamples from './pages/WorkSamples';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -180,6 +181,7 @@ const AuthenticatedApp = () => {
       <Route path="/SmallGroupAssessmentStudent" element={<SmallGroupAssessmentStudent />} />
       <Route path="/TableRotationManager" element={<TableRotationManager />} />
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
+      <Route path="/WorkSamples" element={<WorkSamples />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

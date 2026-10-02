@@ -537,3 +537,26 @@
 .assessment-fade-in {
   animation: assessment-fade-in 0.18s ease-out;
 }
+
+/* Work Samples print — only .ws-printable is visible, each sheet page-breaks */
+@media print {
+  .ws-printable,
+  .ws-printable * {
+    visibility: visible !important;
+  }
+  .ws-printable {
+    position: static !important;
+    width: auto !important;
+  }
+  .ws-print-sheet {
+    break-after: page;
+    page-break-after: always;
+  }
+  .ws-print-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .ws-no-print {
+    display: none !important;
+  }
+}
