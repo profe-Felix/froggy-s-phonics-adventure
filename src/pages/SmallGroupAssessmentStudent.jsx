@@ -355,6 +355,7 @@ export default function SmallGroupAssessmentStudent() {
     return sessions.find((s) => {
       const b = s.broadcast_state || {};
       return (
+        s.status === 'active' &&
         b.show_item &&
         b.student_number === studentNumber &&
         (b.class_name || '').toLowerCase() === className.toLowerCase()
@@ -439,6 +440,10 @@ export default function SmallGroupAssessmentStudent() {
         </div>
         <p className="text-white/30 mt-8 text-sm">
           {broadcast.item_index + 1} of {broadcast.total_items}
+        </p>
+
+        <p className="text-white/30 mt-3 text-xs">
+          {syncMessage}
         </p>
       </div>
     );
