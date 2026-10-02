@@ -200,8 +200,6 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
                         <div className="border-t border-slate-200 pt-2 text-sm text-slate-700 flex flex-wrap gap-x-5 gap-y-1">
                           <span><strong>Estudiante:</strong> {slot.student_name || '—'}</span>
                           <span><strong>Padre/Madre:</strong> {slot.parent_name || '—'}</span>
-                          <span><strong>Maestro:</strong> {teacherLabel}</span>
-                          {slot.parent_phone ? <span><strong>Teléfono:</strong> {slot.parent_phone}</span> : null}
                         </div>
                       </div>
                     );
