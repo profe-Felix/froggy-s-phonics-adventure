@@ -1,0 +1,58 @@
+{
+  "name": "LiveNotebookAssessment",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string",
+      "description": "Class this live notebook assessment is broadcasting to. Students in this class are forced into the notebook assignment."
+    },
+    "assignment_id": {
+      "type": "string",
+      "description": "ID of the DigitalNotebookAssignment being assessed live"
+    },
+    "assignment_title": {
+      "type": "string",
+      "default": "",
+      "description": "Cached assignment title for display"
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "current_page": {
+      "type": "integer",
+      "default": 1,
+      "description": "Page all students are locked to. Teacher advances this; students follow in realtime."
+    },
+    "total_pages": {
+      "type": "integer",
+      "default": 1,
+      "description": "Cached total page count of the assignment, for the teacher's page nav bounds."
+    },
+    "paused": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, every student's notebook shows an 'Eyes on board' overlay and drawing/navigation is frozen. Used when someone comes to the door to prevent cheating."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "False once the teacher ends the session. Students are freed back to their normal login."
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the live session started"
+    }
+  },
+  "required": [
+    "class_name",
+    "assignment_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

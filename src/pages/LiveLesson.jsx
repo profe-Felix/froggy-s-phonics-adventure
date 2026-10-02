@@ -9,6 +9,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
+import LiveNotebookAssessmentPanel from '@/components/live/LiveNotebookAssessmentPanel';
 import { useClassNames } from '@/hooks/useClassNames';
 
 const LIVE_WEEKDAYS = [
@@ -93,6 +94,10 @@ export default function LiveLesson() {
   const [starting, setStarting] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  // Setup-screen tab: 'lesson' (pick a Lesson + class) or 'assessment'
+  // (pick a DigitalNotebookAssignment + start page). The assessment tab
+  // delegates to LiveNotebookAssessmentPanel and owns its own session.
+  const [setupMode, setSetupMode] = useState('lesson');
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons-all-live'],
@@ -525,6 +530,33 @@ export default function LiveLesson() {
             </Link>
           </div>
 
+          {/* Setup tab toggle: Lesson vs Notebook Assessment */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setSetupMode('lesson')}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition ${
+                setupMode === 'lesson'
+                  ? 'bg-rose-500 text-white border-rose-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-rose-300'
+              }`}
+            >
+              📖 Lesson
+            </button>
+            <button
+              onClick={() => setSetupMode('assessment')}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition ${
+                setupMode === 'assessment'
+                  ? 'bg-rose-500 text-white border-rose-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-rose-300'
+              }`}
+            >
+              📓 Notebook Assessment
+            </button>
+          </div>
+
+          {setupMode === 'assessment' ? (
+            <LiveNotebookAssessmentPanel />
+          ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 space-y-5">
 
             <div>
@@ -713,6 +745,7 @@ export default function LiveLesson() {
             </Button>
 
           </div>
+          )}
         </div>
       </div>
     );

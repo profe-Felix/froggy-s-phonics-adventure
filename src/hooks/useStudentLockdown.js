@@ -27,7 +27,7 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
       if (!studentId || !className || !studentNumber) return null;
 
       // Single round-trip: 6 parallel fetches instead of 5 separate polls.
-      const [seats, rotations, liveSessions, dictationSessions, tracingLocks, assessments] = await Promise.all([
+      const [seats, rotations, liveSessions, dictationSessions, tracingLocks, assessments, notebookAssessments] = await Promise.all([
         base44.entities.DeskSeat.filter({ student_id: studentId }),
         base44.entities.TableRotation.filter({ active: true, school_year: ACTIVE_SCHOOL_YEAR }),
         base44.entities.LiveLessonSession.filter({ active: true }),
@@ -37,6 +37,7 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
         // because the assessing teacher may differ from the student's homeroom
         // teacher (block B/C students are assessed by a different teacher).
         base44.entities.SmallGroupAssessment.filter({ status: 'active' }),
+        base44.entities.LiveNotebookAssessment.filter({ class_name: className, school_year: schoolYear || ACTIVE_SCHOOL_YEAR, active: true }),
       ]);
 
       // ── Rotation ──
@@ -97,6 +98,7 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
         activeDictation: dictationSessions?.[0] || null,
         activeTracingLock: tracingLocks?.[0] || null,
         assessmentBroadcast,
+        activeNotebookAssessment: notebookAssessments?.[0] || null,
       };
     },
     enabled: enabled && !!studentId && !!className && !!studentNumber,
@@ -150,6 +152,7 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
       base44.entities.LiveLessonSession,
       base44.entities.LiveDictationSession,
       base44.entities.TracingLock,
+      base44.entities.LiveNotebookAssessment,
     ];
     unsubs.push(...others.map(e =>
       e.subscribe(() => queryClient.invalidateQueries({ queryKey }))
@@ -164,6 +167,7 @@ export function useStudentLockdown({ studentId, className, studentNumber, school
     activeDictation: data?.activeDictation ?? null,
     activeTracingLock: data?.activeTracingLock ?? null,
     assessmentBroadcast: data?.assessmentBroadcast ?? null,
+    activeNotebookAssessment: data?.activeNotebookAssessment ?? null,
     loading: isLoading,
   };
 }

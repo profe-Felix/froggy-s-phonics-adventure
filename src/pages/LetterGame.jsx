@@ -98,6 +98,7 @@ export default function LetterGame() {
     activeDictation: activeDictationSession,
     activeTracingLock,
     assessmentBroadcast,
+    activeNotebookAssessment,
     loading: lockdownLoading,
   } = useStudentLockdown({
     studentId: studentData?.id,
@@ -137,6 +138,17 @@ export default function LetterGame() {
     const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}&fromLive=1`;
     window.location.href = url;
   }, [activeDictationSession, liveSession, selectedStudent]);
+
+  // Redirect to the Digital Notebook when a live notebook assessment is
+  // active for this student's class. The teacher started it from LiveLesson's
+  // Assessment tab; students auto-join the notebook on the teacher's page.
+  useEffect(() => {
+    if (!activeNotebookAssessment) return;
+    if (liveSession || activeDictationSession) return; // live lesson / dictation take priority
+    if (!activeNotebookAssessment.assignment_id) return;
+    const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${activeNotebookAssessment.id}&fromLive=1`;
+    window.location.href = url;
+  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not

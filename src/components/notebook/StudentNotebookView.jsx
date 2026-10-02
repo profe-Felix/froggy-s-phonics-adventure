@@ -116,9 +116,49 @@ export default function StudentNotebookView({
   directPage,
   extraHeaderContent,
   embedded = false,
+  liveAssessmentId = null,
 }) {
   const qc = useQueryClient();
   const { classList } = useClassNames();
+
+  // Live notebook assessment: when launched from a LiveNotebookAssessment
+  // session (teacher started it from LiveLesson's Assessment tab), follow
+  // the teacher's page in realtime, show an "Eyes on board" overlay when
+  // paused, and exit back to home when the session ends.
+  const [liveAssessment, setLiveAssessment] = useState(null);
+  const livePaused = !!liveAssessment?.paused;
+  const liveActive = !!liveAssessmentId;
+
+  useEffect(() => {
+    if (!liveAssessmentId) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const fresh = await base44.entities.LiveNotebookAssessment.get(liveAssessmentId);
+        if (!alive) return;
+        if (!fresh || !fresh.active) { onBack?.(); return; }
+        setLiveAssessment(fresh);
+      } catch { if (alive) onBack?.(); }
+    };
+    load();
+    const unsub = base44.entities.LiveNotebookAssessment.subscribe((event) => {
+      if (!alive) return;
+      const id = event.id || event.data?.id;
+      if (id !== liveAssessmentId) return;
+      if (event.type === 'delete' || !event.data?.active) { onBack?.(); return; }
+      setLiveAssessment(event.data);
+    });
+    return () => { alive = false; unsub?.(); };
+  }, [liveAssessmentId, onBack]);
+
+  // Follow the teacher's page when the live session advances.
+  useEffect(() => {
+    if (!liveAssessment?.current_page) return;
+    const target = Number(liveAssessment.current_page);
+    if (target !== currentPageRef.current) {
+      goToPage(target);
+    }
+  }, [liveAssessment?.current_page]);
 
   // Lesson activities provide extraHeaderContent for their Finish button.
   // In that case, keep the notebook inside its parent instead of covering
