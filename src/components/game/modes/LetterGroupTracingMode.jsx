@@ -392,6 +392,9 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}
+            redoOnAmber
+            wobbleRadius={60}
+            offTravelBudget={150}
           />
         ) : (
           <LetterTracingCanvas
@@ -410,6 +413,9 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}
+            redoOnAmber
+            wobbleRadius={60}
+            offTravelBudget={150}
           />
         )}
       </div>

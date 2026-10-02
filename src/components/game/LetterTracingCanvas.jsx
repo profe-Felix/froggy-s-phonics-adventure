@@ -41,6 +41,13 @@ export default function LetterTracingCanvas({
   onFreehandStrokes,
   guideSettings,
   copies,
+  // Tighter path-following for modes that want less wandering. Default to the
+  // shared engine constants so other callers are unaffected.
+  wobbleRadius = WOBBLE_RADIUS,
+  offTravelBudget = OFF_TRAVEL_BUDGET,
+  // When true, a rough (amber, accuracy < 80) result clears the letter for
+  // another attempt instead of auto-advancing — students redo rough letters.
+  redoOnAmber = false,
 }) {
   const { settings: hookSettings } = useTracingGuideSettings();
   const gs = guideSettings || hookSettings;
@@ -377,6 +384,14 @@ export default function LetterTracingCanvas({
   // manual override; both paths are guarded so onComplete fires only once.
   useEffect(() => {
     if (status !== 'success' || completedFiredRef.current) return;
+    // Amber (rough) result: when redoOnAmber is set, the student must redo the
+    // letter instead of advancing. Show the score briefly, then clear the
+    // canvas for another attempt — onComplete is NOT called, so the mode
+    // never advances past a rough letter.
+    if (redoOnAmber && accuracy != null && accuracy < 80) {
+      const t = setTimeout(() => { reset(); }, 1600);
+      return () => clearTimeout(t);
+    }
     successTimerRef.current = setTimeout(() => {
       completedFiredRef.current = true;
       successTimerRef.current = null;
@@ -385,7 +400,8 @@ export default function LetterTracingCanvas({
     return () => {
       if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
     };
-  }, [status, onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, accuracy, onComplete, redoOnAmber]);
 
   // Keep the active practice copy centered when repair practice adds extra
   // copies — completed copies scroll out to the left so the student stays on a
@@ -493,7 +509,7 @@ export default function LetterTracingCanvas({
     // generous tolerance — more forgiving for graphics tablets and
     // interactive whiteboards where coordinate mapping may differ.
     if (!freehandMode && waypointIndex === 0) {
-      const startTol = isDot ? DOT_HIT_RADIUS : WOBBLE_RADIUS;
+      const startTol = isDot ? DOT_HIT_RADIUS : wobbleRadius;
       const checkEnd = isDot ? 1 : Math.max(8, Math.floor(densePath.length * 0.3));
       let minD = Infinity;
       for (let i = 0; i < checkEnd && i < densePath.length; i++) {
@@ -542,6 +558,7 @@ export default function LetterTracingCanvas({
     scaleActive,
     flashError,
     freehandMode,
+    wobbleRadius,
   ]);
 
   // Reset the current (in-progress) stroke without touching completed ones.
@@ -644,7 +661,7 @@ export default function LetterTracingCanvas({
         pathProgressRef.current < longUpRetrace.endIdx &&
         pos.y >= longUpRetrace.yTop - 14 &&
         pos.y <= longUpRetrace.yBottom + 14 &&
-        Math.abs(pos.x - longUpRetrace.x) <= WOBBLE_RADIUS
+        Math.abs(pos.x - longUpRetrace.x) <= wobbleRadius
       ) {
         const { startIdx, endIdx } = longUpRetrace;
         let bestIdx = startIdx, bestD = Infinity;
@@ -739,7 +756,7 @@ export default function LetterTracingCanvas({
       // nothing, but a SUSTAINED drift (excessive wobble → wide ink that no
       // longer overlaps the path) exceeds the budget and restarts the stroke.
       // A genuinely-lost huge jump still restarts immediately.
-      if (minD > WOBBLE_RADIUS) {
+      if (minD > wobbleRadius) {
         if (retraceForward) {
           // The pen is retracing taught geometry but wider than the thin ideal
           // line — still "on the path," just wider ink. Don't accumulate drift
@@ -747,7 +764,7 @@ export default function LetterTracingCanvas({
           offTravelRef.current = 0;
         } else {
           offTravelRef.current += moveDist;
-          if (minD > WOBBLE_RADIUS * 2 || offTravelRef.current > OFF_TRAVEL_BUDGET) {
+          if (minD > wobbleRadius * 2 || offTravelRef.current > offTravelBudget) {
             flashError();
             restartStroke();
             return;
@@ -883,6 +900,8 @@ export default function LetterTracingCanvas({
     isDot,
     longUpRetrace,
     freehandMode,
+    wobbleRadius,
+    offTravelBudget,
   ]);
 
   const handlePointerUp = useCallback((e, fromTouch = false) => {
@@ -1167,35 +1186,48 @@ export default function LetterTracingCanvas({
           </div>
         )}
         {status === 'success' && (
-          <div className="flex items-center gap-3">
-            <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
-              isAmber
-                ? 'bg-amber-100 border-amber-400 text-amber-800'
-                : 'bg-green-100 border-green-400 text-green-800'
-            }`}>
-              {isAmber ? '✏️ Good try!' : '🎉 Great job!'}
+          redoOnAmber && isAmber ? (
+            <div className="flex items-center gap-3">
+              <div className="rounded-full border border-amber-400 bg-amber-100 px-4 py-1 font-bold text-sm text-amber-800">
+                ✏️ Try again — redo this letter!
+              </div>
+              {accuracy != null && (
+                <div className="rounded-full border border-amber-300 bg-amber-100 px-4 py-1 font-bold text-sm text-amber-800">
+                  🎯 {accuracy}%
+                </div>
+              )}
             </div>
-            {accuracy != null && (
+          ) : (
+            <div className="flex items-center gap-3">
               <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
                 isAmber
-                  ? 'bg-amber-100 border-amber-300 text-amber-800'
-                  : 'bg-indigo-100 border-indigo-300 text-indigo-800'
+                  ? 'bg-amber-100 border-amber-400 text-amber-800'
+                  : 'bg-green-100 border-green-400 text-green-800'
               }`}>
-                🎯 {accuracy}%
+                {isAmber ? '✏️ Good try!' : '🎉 Great job!'}
               </div>
-            )}
-            <button
-              onClick={() => {
-                if (completedFiredRef.current) return;
-                completedFiredRef.current = true;
-                if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
-                onComplete?.();
-              }}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm px-4 py-1 rounded-full"
-            >
-              Next →
-            </button>
-          </div>
+              {accuracy != null && (
+                <div className={`rounded-full border px-4 py-1 font-bold text-sm ${
+                  isAmber
+                    ? 'bg-amber-100 border-amber-300 text-amber-800'
+                    : 'bg-indigo-100 border-indigo-300 text-indigo-800'
+                }`}>
+                  🎯 {accuracy}%
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  if (completedFiredRef.current) return;
+                  completedFiredRef.current = true;
+                  if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
+                  onComplete?.();
+                }}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm px-4 py-1 rounded-full"
+              >
+                Next →
+              </button>
+            </div>
+          )
         )}
       </div>
 
