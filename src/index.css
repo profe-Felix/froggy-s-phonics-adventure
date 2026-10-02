@@ -556,6 +556,16 @@
     break-after: auto;
     page-break-after: auto;
   }
+  /* Notebook: each PDF page breaks to its own printed page. The last
+     page in the last sheet must not force a trailing blank page. */
+  .ws-nb-page {
+    break-after: page;
+    page-break-after: always;
+  }
+  .ws-print-sheet:last-child .ws-nb-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
   .ws-no-print {
     display: none !important;
   }

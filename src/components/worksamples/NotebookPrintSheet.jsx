@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import StaticStrokes from './StaticStrokes';
 
-const PRINT_WIDTH = 680;
+// Fill the printable area of an 8.5in page with 0.5in margins = 7.5in = 720px.
+const PRINT_WIDTH = 720;
 
-function NotebookPagePrint({ pdfUrl, pageNum, strokes }) {
+function NotebookPagePrint({ pdfUrl, pageNum, strokes, studentLabel }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   return (
-    <div style={{ position: 'relative', width: PRINT_WIDTH, marginBottom: 12, breakInside: 'avoid' }}>
+    <div className="ws-nb-page" style={{ position: 'relative', width: PRINT_WIDTH }}>
       <PdfPageRenderer
         pdfUrl={pdfUrl}
         pageNumber={pageNum}
@@ -21,18 +22,21 @@ function NotebookPagePrint({ pdfUrl, pageNum, strokes }) {
           <StaticStrokes strokes={strokes} width={size.w} height={size.h} />
         </div>
       )}
+      {/* Tiny student label at the bottom so teachers can identify work
+          without a full header taking up space at the top. */}
+      <div style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', marginTop: 2 }}>
+        {studentLabel}
+      </div>
     </div>
   );
 }
 
-// One student's digital notebook: PDF pages with their annotation strokes overlaid.
-// `assignment` = DigitalNotebookAssignment (has pdf_url, pdf_page_count, title)
-// `session`    = NotebookSession (has strokes_by_page)
+// One student's digital notebook: only PDF pages that have annotation strokes.
+// No header — each page fills the printed page and breaks to the next.
 export default function NotebookPrintSheet({ student, assignment, session }) {
   const strokesByPage = session?.strokes_by_page || {};
 
-  // strokes_by_page values are stored as JSON strings (JSON.stringify(payload)),
-  // so parse each before checking/rendering.
+  // strokes_by_page values are stored as JSON strings, so parse each.
   const parsedByPage = {};
   for (const key of Object.keys(strokesByPage)) {
     const raw = strokesByPage[key];
@@ -40,39 +44,30 @@ export default function NotebookPrintSheet({ student, assignment, session }) {
     catch { parsedByPage[key] = null; }
   }
 
+  // Only include pages that have actual strokes on them (not just history).
   const pages = Object.keys(parsedByPage)
     .map(Number)
     .filter(n => {
       const d = parsedByPage[String(n)];
-      return d && ((d.strokes?.length || 0) > 0 || (d.history?.length || 0) > 0);
+      return d && (d.strokes?.length || 0) > 0;
     })
     .sort((a, b) => a - b);
 
-  return (
-    <div className="ws-print-sheet" style={{ width: PRINT_WIDTH, margin: '0 auto', padding: '0.2in 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-        <span style={{ fontWeight: 800, fontSize: 14, color: '#1e293b' }}>
-          {student.name || `Estudiante #${student.student_number}`}
-        </span>
-        <span style={{ fontSize: 11, color: '#64748b' }}>
-          {assignment?.title || 'Notebook'} · {student.class_name}
-        </span>
-      </div>
+  if (pages.length === 0) return null;
 
-      {pages.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#999', border: '1px dashed #ccc', borderRadius: 8 }}>
-          Sin trabajo
-        </div>
-      ) : (
-        pages.map(p => (
-          <NotebookPagePrint
-            key={p}
-            pdfUrl={assignment?.pdf_url}
-            pageNum={p}
-            strokes={parsedByPage[String(p)]}
-          />
-        ))
-      )}
+  const studentLabel = student.name || `#${student.student_number}`;
+
+  return (
+    <div className="ws-print-sheet" style={{ width: PRINT_WIDTH, margin: '0 auto' }}>
+      {pages.map(p => (
+        <NotebookPagePrint
+          key={p}
+          pdfUrl={assignment?.pdf_url}
+          pageNum={p}
+          strokes={parsedByPage[String(p)]}
+          studentLabel={studentLabel}
+        />
+      ))}
     </div>
   );
 }
