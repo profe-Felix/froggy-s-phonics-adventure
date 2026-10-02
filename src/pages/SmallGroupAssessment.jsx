@@ -271,12 +271,99 @@ export default function SmallGroupAssessment() {
   const isTwoSoundItem = (assessmentType === 'upper_sounds' || assessmentType === 'lower_sounds')
     && currentItem && TWO_SOUND_LETTERS.has(currentItem);
 
-  // Broadcast current item to student screen
+  // Display updates have their own ordered sender.
+  // Scores are still saved separately.
+  const displayChannelsRef = useRef(new Map());
+  const [broadcastError, setBroadcastError] = useState('');
+
+  const broadcastNow = useCallback((state) => {
+    if (!session?.id) return Promise.resolve(false);
+
+    let channel = displayChannelsRef.current.get(session.id);
+
+    if (!channel) {
+      channel = {
+        sequence: 0,
+        pending: null,
+        running: null,
+      };
+
+      displayChannelsRef.current.set(session.id, channel);
+    }
+
+    // Increasing sequence numbers let students reject older updates.
+    channel.sequence = Math.max(
+      Date.now(),
+      channel.sequence + 1,
+      (Number(session.broadcast_state?.sync_seq) || 0) + 1
+    );
+
+    channel.pending = {
+      ...state,
+      sync_seq: channel.sequence,
+    };
+
+    // Only one display write can be in flight for this session.
+    if (channel.running) return channel.running;
+
+    channel.running = (async () => {
+      while (channel.pending) {
+        const nextState = channel.pending;
+        channel.pending = null;
+
+        try {
+          await base44.entities.SmallGroupAssessment.update(
+            session.id,
+            {
+              broadcast_state: nextState,
+            }
+          );
+
+          setBroadcastError('');
+        } catch (error) {
+          // Retain the newest display state for a retry.
+          channel.pending = channel.pending || nextState;
+
+          console.error(
+            'Assessment display update failed',
+            error
+          );
+
+          setBroadcastError(
+            'Student display did not update. Check the connection before marking another item.'
+          );
+
+          return false;
+        }
+      }
+
+      return true;
+    })().finally(() => {
+      channel.running = null;
+    });
+
+    return channel.running;
+  }, [session]);
+
+  // Broadcast current item to student screen.
   const broadcastItem = useCallback((item, student, opts = {}) => {
     if (!session) return;
-    const { done = false, decodingLevel = null, itemIndex = 0, totalItems = 0, type: assessType = assessmentType } = opts;
+
+    const {
+      done = false,
+      decodingLevel = null,
+      itemIndex = 0,
+      totalItems = 0,
+      type: assessType = assessmentType,
+    } = opts;
+
     const state = done
-      ? { show_item: false, student_id: student.id, done: true, assessment_type: assessType }
+      ? {
+          show_item: false,
+          student_id: student.id,
+          done: true,
+          assessment_type: assessType,
+        }
       : {
           current_item: item,
           student_id: student.id,
@@ -286,23 +373,17 @@ export default function SmallGroupAssessment() {
           total_items: totalItems,
           show_item: true,
           assessment_type: assessType,
-          ...(decodingLevel ? { decoding_level: decodingLevel } : {}),
+          ...(decodingLevel
+            ? { decoding_level: decodingLevel }
+            : {}),
         };
-    base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: state }).catch(() => {});
-  }, [session, assessmentType]);
+
+    return broadcastNow(state);
+  }, [session, assessmentType, broadcastNow]);
 
   const persistResults = useCallback((newResults) => {
     if (!session) return Promise.resolve();
     return base44.entities.SmallGroupAssessment.update(session.id, { results: newResults }).catch(() => {});
-  }, [session]);
-
-  // Write broadcast_state alone (tiny payload) so students receive the next
-  // item instantly via realtime. The full `results` object grows as the session
-  // progresses and is persisted on a short debounce so rapid marking doesn't
-  // stall the broadcast on a large DB write.
-  const broadcastNow = useCallback((state) => {
-    if (!session) return;
-    base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: state }).catch(() => {});
   }, [session]);
 
   const resultsDebounceRef = useRef(null);
@@ -672,7 +753,7 @@ export default function SmallGroupAssessment() {
           assessment_type: assessmentType,
         };
     if (session) {
-      base44.entities.SmallGroupAssessment.update(session.id, { broadcast_state: broadcastState }).catch(() => {});
+      broadcastNow(broadcastState);
       persistResultsDebounced(newResults);
     }
 
@@ -1026,12 +1107,32 @@ export default function SmallGroupAssessment() {
     if (!confirm('End this assessment session? You can start a new one later.')) return;
     // Save current results before marking session completed so this round's
     // data is preserved in history for progress monitoring.
-    const completedSession = await base44.entities.SmallGroupAssessment.update(session.id, {
-      results: resultsRef.current,
-      status: 'completed',
-      ended_at: new Date().toISOString(),
-      broadcast_state: {},
+    // Finish the ordered display updates before completing this session.
+    const displaySaved = await broadcastNow({
+      show_item: false,
+      done: true,
     });
+
+    if (!displaySaved) return;
+
+    // The final save below includes the latest results.
+    // Cancel the pending debounce so it does not write afterward.
+    if (resultsDebounceRef.current) {
+      clearTimeout(resultsDebounceRef.current);
+      resultsDebounceRef.current = null;
+    }
+
+    pendingResultsRef.current = null;
+
+    const completedSession = await base44.entities.SmallGroupAssessment.update(
+      session.id,
+      {
+        results: resultsRef.current,
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+        broadcast_state: {},
+      }
+    );
     setHistory((prev) => [completedSession, ...prev]);
     // Immediately create a fresh active session for the next round.
     const created = await base44.entities.SmallGroupAssessment.create({
@@ -1113,6 +1214,30 @@ export default function SmallGroupAssessment() {
 
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col">
+        {broadcastError && (
+          <div
+            role="alert"
+            className="bg-red-700 text-white px-4 py-3 text-sm font-bold flex items-center justify-between gap-3"
+          >
+            <span>{broadcastError}</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                const pending =
+                  displayChannelsRef.current.get(session.id)?.pending;
+
+                if (pending) {
+                  broadcastNow(pending);
+                }
+              }}
+              className="shrink-0 rounded-lg bg-white text-red-700 px-3 py-2 font-black"
+            >
+              Retry display
+            </button>
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-3 bg-slate-800">
           <div className="flex items-center gap-3">
