@@ -2,27 +2,26 @@ import { useState, useEffect } from 'react';
 import { Save, Check, Link2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useClassNames } from '@/hooks/useClassNames';
+import { LETTER_FORMATION_GROUPS } from '@/lib/literacy/letterFormationGroups';
 
-const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
-const UPPER = LOWER.map((c) => c.toUpperCase());
-// Spanish-only letters, shown in their own row so they're easy to find.
-const SPANISH = ['ñ', 'Ñ'];
-// Numbers 0-20 available as tracing targets alongside letters.
-const NUMBERS = Array.from({ length: 21 }, (_, i) => String(i));
+// Teacher menu: toggle which letter FORMATION GROUPS are enabled for Letter
+// Tracing group practice (the game mode), per class. Select one class to edit
+// its own progression, or several classes to change them all together.
+// "All classes (default)" edits the global fallback every class uses unless it
+// has its own override.
+//
+// Letters within a group are always practiced together in pedagogical order;
+// the teacher only flips whole groups on/off. A letter's sound is on/off
+// automatically based on the class's active lesson / grapheme progression, so
+// there is no per-letter sound toggle here.
 
-// Matches the entity default — shown until a saved record overrides it.
-const DEFAULT_ENABLED = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
-
-// Read selected classes from URL params: ?class=Schwarz (single) or
-// ?classes=Felix,Valero,Gutierrez (multi). Lets the teacher bookmark/share a
-// direct link to edit a specific class's progression without navigating.
 function readUrlClasses() {
   const params = new URLSearchParams(window.location.search);
   const multi = params.get('classes');
   if (multi) return multi.split(',').map((s) => s.trim()).filter(Boolean);
   const single = params.get('class');
   if (single) return [single];
-  return ['']; // '' = All classes (default)
+  return [''];
 }
 
 function writeUrlClasses(classes) {
@@ -41,54 +40,39 @@ function writeUrlClasses(classes) {
   window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
 }
 
-// Teacher menu: toggle which letters are enabled for Letter Tracing free play,
-// per class. Select one class to edit its own progression, or select several
-// classes (e.g. the three Spanish classes) to change them all together.
-// "All classes (default)" edits the global fallback every class uses unless it
-// has its own override.
 export default function TracingLetterToggle() {
   const { classList } = useClassNames();
   const [selectedClasses, setSelectedClasses] = useState(() => readUrlClasses());
-  const [enabled, setEnabled] = useState(() => new Set(DEFAULT_ENABLED));
+  const [enabled, setEnabled] = useState(() => new Set());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // The scope key for a setting: '' = default, otherwise the class name.
   const isDefault = selectedClasses.length === 1 && selectedClasses[0] === '';
 
-  // Load the enabled letters for the first selected class (or default).
   useEffect(() => {
     let cancelled = false;
     setLoaded(false);
-
     const scopeKey = isDefault ? 'default' : selectedClasses[0];
     base44.entities.TracingSettings.filter({ scope: scopeKey })
       .then((records) => {
         if (cancelled) return;
-        if (records && records.length && Array.isArray(records[0].enabled_letters)) {
-          setEnabled(new Set(records[0].enabled_letters));
+        if (records && records.length && Array.isArray(records[0].enabled_groups)) {
+          setEnabled(new Set(records[0].enabled_groups));
         } else if (!isDefault) {
-          // No per-class override yet — fall back to the global default so the
-          // teacher sees what's currently in effect before overriding.
           return base44.entities.TracingSettings.filter({ scope: 'default' })
             .then((def) => {
               if (cancelled) return;
-              if (def && def.length && Array.isArray(def[0].enabled_letters)) {
-                setEnabled(new Set(def[0].enabled_letters));
-              } else {
-                setEnabled(new Set(DEFAULT_ENABLED));
-              }
+              setEnabled(new Set((def?.[0]?.enabled_groups) || []));
               setLoaded(true);
             });
         } else {
-          setEnabled(new Set(DEFAULT_ENABLED));
+          setEnabled(new Set());
         }
         setLoaded(true);
       })
       .catch(() => { if (!cancelled) setLoaded(true); });
-
     return () => { cancelled = true; };
   }, [selectedClasses.join(','), isDefault]);
 
@@ -96,15 +80,11 @@ export default function TracingLetterToggle() {
     setSelectedClasses((prev) => {
       let next;
       if (cls === '') {
-        // "All classes" is exclusive — selecting it clears the rest.
         next = [''];
       } else {
         const without = prev.filter((c) => c !== '');
-        if (without.includes(cls)) {
-          next = without.filter((c) => c !== cls);
-        } else {
-          next = [...without, cls];
-        }
+        if (without.includes(cls)) next = without.filter((c) => c !== cls);
+        else next = [...without, cls];
         if (next.length === 0) next = [''];
       }
       writeUrlClasses(next);
@@ -112,11 +92,10 @@ export default function TracingLetterToggle() {
     });
   };
 
-  const toggle = (c) => {
+  const toggleGroup = (key) => {
     setEnabled((prev) => {
       const next = new Set(prev);
-      if (next.has(c)) next.delete(c);
-      else next.add(c);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
@@ -124,20 +103,20 @@ export default function TracingLetterToggle() {
   const save = async () => {
     setSaving(true);
     try {
-      const letters = Array.from(enabled);
+      const groups = Array.from(enabled);
       const targets = isDefault ? ['default'] : selectedClasses;
       for (const scopeKey of targets) {
         const existing = await base44.entities.TracingSettings.filter({ scope: scopeKey });
         if (existing.length) {
           await base44.entities.TracingSettings.update(existing[0].id, {
-            enabled_letters: letters,
+            enabled_groups: groups,
             class_name: scopeKey === 'default' ? '' : scopeKey,
           });
         } else {
           await base44.entities.TracingSettings.create({
             scope: scopeKey,
             class_name: scopeKey === 'default' ? '' : scopeKey,
-            enabled_letters: letters,
+            enabled_groups: groups,
           });
         }
       }
@@ -159,27 +138,6 @@ export default function TracingLetterToggle() {
     } catch {}
   };
 
-  const renderGrid = (chars) => (
-    <div className="grid grid-cols-9 sm:grid-cols-13 gap-1.5">
-      {chars.map((c) => {
-        const on = enabled.has(c);
-        return (
-          <button
-            key={c}
-            onClick={() => toggle(c)}
-            className={`h-10 rounded-lg font-bold text-lg transition active:scale-95 border ${
-              on
-                ? 'bg-emerald-500 text-white border-emerald-600 shadow'
-                : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'
-            }`}
-          >
-            {c}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   const selectionLabel = isDefault
     ? 'All classes (default)'
     : selectedClasses.length === 1
@@ -194,13 +152,13 @@ export default function TracingLetterToggle() {
             Letter Tracing Progression
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Pick a class (or several) and toggle letters ON as they're learned. Each class can have its own progression.
+            Toggle whole letter-formation groups on/off. Letters in a group are practiced together in order. Sounds follow the lesson progression automatically.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={shareLink}
-            title="Copy a direct link to edit this class's letters"
+            title="Copy a direct link to edit this class's groups"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
           >
             {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
@@ -252,27 +210,40 @@ export default function TracingLetterToggle() {
         {!isDefault && <span className="text-slate-400 ml-1">— saves to each selected class's own progression</span>}
       </div>
 
-      <div className="space-y-3">
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Lowercase</div>
-          {renderGrid(LOWER)}
-        </div>
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Uppercase</div>
-          {renderGrid(UPPER)}
-        </div>
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Spanish</div>
-          {renderGrid(SPANISH)}
-        </div>
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase mb-1.5">Numbers</div>
-          {renderGrid(NUMBERS)}
-        </div>
+      {/* Formation-group toggles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {LETTER_FORMATION_GROUPS.map((g) => {
+          const on = enabled.has(g.key);
+          return (
+            <button
+              key={g.key}
+              onClick={() => toggleGroup(g.key)}
+              className={`text-left rounded-xl border-2 p-3 transition active:scale-[0.99] ${
+                on
+                  ? 'bg-emerald-50 border-emerald-400'
+                  : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className={`font-bold text-sm ${on ? 'text-emerald-800' : 'text-slate-500'}`}>{g.label}</span>
+                <span className={`text-[10px] font-black rounded-full px-2 py-0.5 border ${on ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-400 border-slate-200'}`}>
+                  {on ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {g.letters.map((l) => (
+                  <span key={l} className={`w-7 h-7 rounded-md font-bold flex items-center justify-center text-base ${on ? 'bg-white text-emerald-700 border border-emerald-200' : 'bg-white text-slate-400 border border-slate-200'}`}>
+                    {l}
+                  </span>
+                ))}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="mt-2 text-xs text-slate-400">
-        {enabled.size} letters enabled · {loaded ? 'loaded' : 'loading…'}
+      <div className="mt-3 text-xs text-slate-400">
+        {enabled.size} group(s) enabled · {loaded ? 'loaded' : 'loading…'}
       </div>
     </div>
   );

@@ -30,6 +30,14 @@
         "E"
       ],
       "description": "Case-sensitive letters currently enabled for Letter Tracing free play. Teachers toggle these on/off from the Letter Tracing Authoring page as letters are learned. Lesson steps pass their own targets and bypass this."
+    },
+    "enabled_groups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Formation-group keys enabled for Letter Tracing GROUP practice (the game mode). Teachers toggle whole groups on/off from the Progression page. Valid keys: 'magic_c','diving','straight_down','diagonal','curves_loops'. When non-empty, the game mode presents these groups; when empty, the game mode shows an empty state prompting the teacher to enable a group."
     }
   },
   "required": [

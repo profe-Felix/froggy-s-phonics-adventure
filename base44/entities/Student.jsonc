@@ -371,6 +371,19 @@
         }
       }
     },
+    "letter_group_awarded_sets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Formation-group keys the student has already earned the 30-coin bonus for in the current cycle. Once every enabled group is in here, the cycle resets so they can earn again \u2014 redoing a set only pays after all sets are finished.",
+      "default": []
+    },
+    "letter_group_progress": {
+      "type": "object",
+      "description": "Per-group resume state for Letter Tracing group practice: { [groupKey]: { phase, line, letterIdx } }. Cleared when a set is completed.",
+      "default": {}
+    },
     "current_mode": {
       "type": "string",
       "enum": [
