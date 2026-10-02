@@ -49,31 +49,78 @@ export default function WorkSamples() {
 
   const { data: notebookAssignments = [] } = useQuery({
     queryKey: ['ws-notebook-assignments', className],
-    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
+    queryFn: async () => {
+      const own = await base44.entities.DigitalNotebookAssignment.filter({ class_name: className });
+      const shared = await base44.entities.DigitalNotebookAssignment.filter({ shared_across_classes: true });
+      const map = {};
+      for (const a of [...own, ...shared]) map[a.id] = a;
+      return Object.values(map);
+    },
     enabled: !!className && workType === 'notebook',
   });
 
-  const selectedDictadoSession = dictadoSessions.find(s => s.id === assignmentId);
+  // Deduplicate dictado sessions by assignment_id — each live launch creates a
+  // new LiveDictationSession, so the same dictado appears many times. Keep the
+  // most recent session per assignment, and merge lines from any session that
+  // has them (some sessions are legacy dashboard-launched with empty lines).
+  const dictadoSessionsDedup = useMemo(() => {
+    const byAssign = {};
+    for (const s of dictadoSessions) {
+      const key = s.assignment_id || s.id;
+      if (!byAssign[key]) { byAssign[key] = s; continue; }
+      const prev = byAssign[key];
+      // Prefer the one with lines; fall back to most recent
+      if ((s.lines?.length || 0) > (prev.lines?.length || 0)) {
+        byAssign[key] = { ...s, started_at: s.started_at || prev.started_at };
+      } else if (s.started_at > (prev.started_at || '')) {
+        byAssign[key] = { ...prev, started_at: s.started_at };
+      }
+    }
+    return Object.values(byAssign).sort((a, b) =>
+      (b.started_at || '').localeCompare(a.started_at || ''),
+    );
+  }, [dictadoSessions]);
+
+  const selectedDictadoSession = dictadoSessionsDedup.find(s => s.id === assignmentId);
   const selectedNotebookAssignment = notebookAssignments.find(a => a.id === assignmentId);
 
   // ── Batch-load work data ──
   const dictadoAssignmentId = selectedDictadoSession?.assignment_id;
+  // Load ALL class submissions upfront so the dropdown can show only
+  // assignments that actually have student work (and how many students).
+  const { data: allDictadoSubs = [] } = useQuery({
+    queryKey: ['ws-dictado-all-subs', className],
+    queryFn: () => base44.entities.DictationSubmission.filter({ class_name: className }),
+    enabled: !!className && workType === 'dictado',
+  });
+  // Map: assignment_id -> count of submissions with strokes
+  const dictadoWorkCount = useMemo(() => {
+    const m = {};
+    for (const s of allDictadoSubs) {
+      if (s.stroke_count > 0) {
+        const key = s.assignment_id;
+        m[key] = (m[key] || 0) + 1;
+      }
+    }
+    return m;
+  }, [allDictadoSubs]);
+
   const { data: dictadoSubmissions = [] } = useQuery({
     queryKey: ['ws-dictado-subs', dictadoAssignmentId, className],
     queryFn: () => base44.entities.DictationSubmission.filter({
       assignment_id: dictadoAssignmentId,
       class_name: className,
-      school_year: ACTIVE_SCHOOL_YEAR,
     }),
     enabled: !!dictadoAssignmentId && workType === 'dictado',
   });
 
+  // No school_year filter — assignment_id + class_name already scope to the
+  // right session, and older sessions may not have school_year set.
   const { data: notebookSessions = [] } = useQuery({
     queryKey: ['ws-notebook-sessions', assignmentId, className],
     queryFn: () => base44.entities.NotebookSession.filter({
       assignment_id: assignmentId,
       class_name: className,
-      school_year: ACTIVE_SCHOOL_YEAR,
     }),
     enabled: !!assignmentId && workType === 'notebook',
   });
@@ -244,10 +291,13 @@ export default function WorkSamples() {
               >
                 <option value="">Select…</option>
                 {workType === 'dictado'
-                  ? dictadoSessions.map(s => (
+                  ? dictadoSessionsDedup
+                    .filter(s => (dictadoWorkCount[s.assignment_id] || 0) > 0)
+                    .map(s => (
                     <option key={s.id} value={s.id}>
                       {s.assignment_title || 'Dictado'} · {s.lines?.length || 0} lines
                       {s.started_at ? ` · ${new Date(s.started_at).toLocaleDateString()}` : ''}
+                      {` · ${dictadoWorkCount[s.assignment_id] || 0} students`}
                     </option>
                   ))
                   : notebookAssignments.map(a => (

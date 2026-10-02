@@ -31,10 +31,19 @@ function NotebookPagePrint({ pdfUrl, pageNum, strokes }) {
 export default function NotebookPrintSheet({ student, assignment, session }) {
   const strokesByPage = session?.strokes_by_page || {};
 
-  const pages = Object.keys(strokesByPage)
+  // strokes_by_page values are stored as JSON strings (JSON.stringify(payload)),
+  // so parse each before checking/rendering.
+  const parsedByPage = {};
+  for (const key of Object.keys(strokesByPage)) {
+    const raw = strokesByPage[key];
+    try { parsedByPage[key] = typeof raw === 'string' ? JSON.parse(raw) : raw; }
+    catch { parsedByPage[key] = null; }
+  }
+
+  const pages = Object.keys(parsedByPage)
     .map(Number)
     .filter(n => {
-      const d = strokesByPage[String(n)];
+      const d = parsedByPage[String(n)];
       return d && ((d.strokes?.length || 0) > 0 || (d.history?.length || 0) > 0);
     })
     .sort((a, b) => a - b);
@@ -60,7 +69,7 @@ export default function NotebookPrintSheet({ student, assignment, session }) {
             key={p}
             pdfUrl={assignment?.pdf_url}
             pageNum={p}
-            strokes={strokesByPage[String(p)]}
+            strokes={parsedByPage[String(p)]}
           />
         ))
       )}
