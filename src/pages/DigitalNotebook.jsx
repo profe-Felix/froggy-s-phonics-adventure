@@ -271,7 +271,16 @@ export default function DigitalNotebook() {
         liveAssessmentId={studentInfo.liveAssessmentId || null}
         onBack={() => {
           if (urlFromLive) {
-            window.location.href = '/LetterGame';
+            // Return the student to their pathway (LetterGame home), not the
+            // login screen. Carry their class + number so they auto-log back
+            // in, and clear any saved free-play mode so they land on the
+            // level path instead of a stale activity.
+            sessionStorage.removeItem('lettergame_mode');
+            const params = new URLSearchParams();
+            if (studentInfo?.className) params.set('class', studentInfo.className);
+            if (studentInfo?.number) params.set('number', String(studentInfo.number));
+            const qs = params.toString();
+            window.location.href = qs ? `/?${qs}` : '/';
             return;
           }
           setStudentInfo(null); setRole(null); setPickedClass(urlClass || null);
