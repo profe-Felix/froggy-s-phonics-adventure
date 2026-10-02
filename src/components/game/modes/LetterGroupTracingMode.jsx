@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { base44 } from '@/api/base44Client';
 import { ArrowLeft, Coins, Check, Sparkles } from 'lucide-react';
@@ -10,23 +10,35 @@ import { useCoinAward } from '@/hooks/useCoinAward';
 import { LETTER_FORMATION_GROUPS, isLetterSoundIntroduced } from '@/lib/literacy/letterFormationGroups';
 
 // Letter Tracing GROUP practice (game mode / free play). Students trace a
-// formation family together — all its letters on one "line", in pedagogical
-// order — through three phases, then earn a 30-coin set bonus.
+// formation family together — all its letters on one ruled line, in
+// pedagogical order — through three phases, then earn a coin set bonus.
 //
 //   Phase 1 "guided"   — 6 lines, dot-guide tracing.
 //   Phase 2 "practice" — 6 lines, faint model + starting dot (no breadcrumb).
 //   Phase 3 "mixed"    — 6 lines, alternating guided / freehand (3 pairs).
 //
-// Each "line" cycles through every letter in the group once. Completing all
-// three phases completes the set. The 30-coin bonus is awarded once per set
-// per cycle; a set only pays again after EVERY enabled set has been finished
-// once (letter_group_awarded_sets on the student record tracks the cycle).
+// SIZE CHOICE:
+//   "paper" — letters at paper-writing size, ALL on one ruled line so
+//             students see the whole family and practice at real size.
+//             Worth 30 coins (the default).
+//   "big"   — one large letter at a time (fills the screen). Easier for
+//             beginners; worth 10 coins. Students weigh the trade-off.
 //
-// Lesson steps and tracing locks still use the single-letter LetterTracingMode
-// (they pass `targets`); this component is only used for free play.
+// The bonus is awarded once per set per cycle; a set only pays again after
+// EVERY enabled set has been finished once (letter_group_awarded_sets on the
+// student record tracks the cycle). Pinch-zoom is disabled so students can't
+// scale the page to cheat the size.
 
 const LINES_PER_PHASE = 6;
-const COIN_REWARD = 30;
+const REWARD = { paper: 30, big: 10 };
+
+// LetterTracingCanvas viewBox constants (kept in sync with the canvas).
+const CANVAS_W = 300;
+const COPY_GAP = 24;
+const GUIDE_W = 260;
+// Cap the per-letter width at the "Paper" size tier so the line never grows
+// beyond real handwriting size on wide screens.
+const PAPER_COPY_WIDTH = 220;
 
 const PHASES = [
   { key: 'guided', label: 'Trace', desc: 'Follow the dot guide' },
@@ -38,12 +50,30 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [enabledGroups, setEnabledGroups] = useState([]);
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const [selectedKey, setSelectedKey] = useState(null);
+  const [sizeMode, setSizeMode] = useState('paper'); // 'paper' | 'big'
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [line, setLine] = useState(0);
   const [letterIdx, setLetterIdx] = useState(0);
   const [traceKey, setTraceKey] = useState(0);
   const [celebrate, setCelebrate] = useState(null);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
+
+  // Measure the canvas wrapper so the paper-size line fits all letters on one
+  // screen (no horizontal scroll) while staying at real handwriting size.
+  const wrapRef = useRef(null);
+  const [wrapW, setWrapW] = useState(0);
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0) setWrapW(r.width);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedKey, sizeMode]);
 
   // Load authored waypoints (overrides built-in defaults).
   useEffect(() => {
@@ -127,11 +157,12 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
 
   const currentGroup = groups.find((g) => g.key === selectedKey);
   const lang = getLanguage(studentData);
+  const coinReward = REWARD[sizeMode];
 
   // ── GROUP PICKER ──────────────────────────────────────────────────────
   if (!selectedKey) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center py-6 px-4 gap-4">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center py-6 px-4 gap-4 select-none">
         {onBack && (
           <button onClick={onBack} className="self-start text-slate-500 hover:text-slate-800 text-sm font-bold flex items-center gap-1">
             <ArrowLeft className="w-4 h-4" /> Back to Modes
@@ -140,7 +171,29 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
         <div className="text-center">
           <div className="text-4xl mb-1">✏️</div>
           <h1 className="text-2xl font-bold text-slate-800">Letter Tracing</h1>
-          <p className="text-slate-500 text-sm mt-1">Practice letter families together. Finish a set to earn {COIN_REWARD} coins!</p>
+          <p className="text-slate-500 text-sm mt-1">Practice letter families together. Finish a set to earn {coinReward} coins!</p>
+        </div>
+
+        {/* Size choice — students weigh paper-size (more coins) vs big (easier, fewer coins) */}
+        <div className="flex items-center gap-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5">
+          <button
+            onClick={() => setSizeMode('paper')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
+              sizeMode === 'paper' ? 'bg-indigo-500 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span className="text-base">📏</span> Paper size
+            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${sizeMode === 'paper' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>+{REWARD.paper}</span>
+          </button>
+          <button
+            onClick={() => setSizeMode('big')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
+              sizeMode === 'big' ? 'bg-indigo-500 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <span className="text-base">🔍</span> Big
+            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${sizeMode === 'big' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>+{REWARD.big}</span>
+          </button>
         </div>
 
         {groups.length === 0 ? (
@@ -182,7 +235,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
                     ))}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600">
-                    <Coins className="w-3.5 h-3.5" /> +{COIN_REWARD} coins
+                    <Coins className="w-3.5 h-3.5" /> +{coinReward} coins
                   </div>
                 </button>
               );
@@ -209,6 +262,13 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const totalLines = LINES_PER_PHASE * PHASES.length;
   const doneLines = phaseIdx * LINES_PER_PHASE + line;
   const sectionProgress = Math.round((doneLines / totalLines) * 100);
+
+  // Paper-size line: one canvas row with every letter as a copy, the active
+  // one traceable. Fit all copies into the wrapper width (no scroll) while
+  // capping at real handwriting size.
+  const copies = letters.map((l) => ({ letter: l, strokes: waypoints[l]?.strokes || [] }));
+  const denom = letters.length + ((COPY_GAP * (letters.length - 1) + GUIDE_W) / CANVAS_W);
+  const fitCopyWidth = wrapW > 0 ? Math.min(PAPER_COPY_WIDTH, wrapW / denom) : PAPER_COPY_WIDTH;
 
   const handleComplete = () => {
     const nextLetterIdx = letterIdx + 1;
@@ -243,14 +303,14 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     const allDone = awarded.size >= groups.length;
     const already = awarded.has(selectedKey);
     const pay = !already || allDone;
-    if (pay) awardCoins(COIN_REWARD);
+    if (pay) awardCoins(coinReward);
     let newAwarded;
     if (allDone) newAwarded = [selectedKey]; // cycle reset
     else { const s = new Set(awarded); s.add(selectedKey); newAwarded = [...s]; }
     const prog = { ...(studentData.letter_group_progress || {}) };
     delete prog[selectedKey];
     onStudentPatch?.({ letter_group_awarded_sets: newAwarded, letter_group_progress: prog });
-    setCelebrate({ msg: pay ? `Set complete! +${COIN_REWARD} coins!` : 'Set complete!', big: true });
+    setCelebrate({ msg: pay ? `Set complete! +${coinReward} coins!` : 'Set complete!', big: true });
     confetti({ particleCount: 100, spread: 75, origin: { y: 0.6 } });
     setTimeout(() => { setCelebrate(null); setSelectedKey(null); }, 1900);
   };
@@ -266,7 +326,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   }
 
   return (
-    <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
+    <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1 select-none" style={{ touchAction: 'pan-y' }}>
       {/* Top bar */}
       <div className="flex items-center justify-between w-full max-w-3xl gap-2 shrink-0">
         <button
@@ -276,6 +336,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           ← {currentGroup.label}
         </button>
         <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{sizeMode === 'paper' ? '📏 Paper' : '🔍 Big'}</span>
           <div className="text-[11px] text-slate-400 font-bold leading-none">{phase.label} · line {line + 1}/{LINES_PER_PHASE}</div>
           <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${isGuidedLine ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-violet-700 bg-violet-50 border-violet-200'}`}>
             {isGuidedLine ? '● Trace' : '✍️ Write'}
@@ -289,8 +350,10 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
         </div>
       </div>
 
-      {/* Letter progress row — the "line" of letters in pedagogical order */}
-      <div className="flex items-center gap-1.5 flex-wrap justify-center shrink-0">
+      {/* Letter progress row — quick visual of the family order + sound status.
+          In paper mode the canvas line itself shows all letters; this row stays
+          as a compact progress/silent indicator. */}
+      <div className="flex items-center gap-1.5 flex-nowrap justify-center shrink-0 overflow-x-auto max-w-full">
         {letters.map((l, i) => {
           const done = i < letterIdx;
           const active = i === letterIdx;
@@ -298,38 +361,57 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           return (
             <div
               key={l}
-              className={`w-9 h-9 rounded-lg font-bold flex items-center justify-center text-lg border-2 transition ${
+              className={`relative w-8 h-8 rounded-lg font-bold flex items-center justify-center text-base border-2 transition shrink-0 ${
                 done ? 'bg-green-100 border-green-300 text-green-700'
                 : active ? 'bg-indigo-500 border-indigo-500 text-white shadow'
                 : 'bg-white border-slate-200 text-slate-400'
               }`}
             >
               {l}
-              {silent && <span className="absolute -mt-5 ml-5 text-[8px]">🔇</span>}
+              {silent && <span className="absolute -top-1.5 -right-1.5 text-[8px]">🔇</span>}
             </div>
           );
         })}
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden flex items-center justify-center">
-        <LetterTracingCanvas
-          key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}`}
-          letter={currentLetter}
-          lang={lang}
-          strokes={letterData.strokes}
-          renderWidth={600}
-          practiceCopies={1}
-          activeCopy={0}
-          showGuide={showGuide}
-          freehandMode={freehandMode}
-          dotOnly={dotOnly}
-          silent={letterSilent}
-          fillHeight
-          onComplete={handleComplete}
-          onAccuracy={() => {}}
-          onReset={() => {}}
-        />
+      <div ref={wrapRef} className="flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center">
+        {sizeMode === 'paper' ? (
+          <LetterTracingCanvas
+            key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-paper`}
+            letter={currentLetter}
+            lang={lang}
+            strokes={letterData.strokes}
+            copies={copies}
+            activeCopy={letterIdx}
+            renderWidth={fitCopyWidth}
+            showGuide={showGuide}
+            freehandMode={freehandMode}
+            dotOnly={dotOnly}
+            silent={letterSilent}
+            onComplete={handleComplete}
+            onAccuracy={() => {}}
+            onReset={() => {}}
+          />
+        ) : (
+          <LetterTracingCanvas
+            key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-big`}
+            letter={currentLetter}
+            lang={lang}
+            strokes={letterData.strokes}
+            renderWidth={600}
+            practiceCopies={1}
+            activeCopy={0}
+            showGuide={showGuide}
+            freehandMode={freehandMode}
+            dotOnly={dotOnly}
+            silent={letterSilent}
+            fillHeight
+            onComplete={handleComplete}
+            onAccuracy={() => {}}
+            onReset={() => {}}
+          />
+        )}
       </div>
 
       {celebrate && (

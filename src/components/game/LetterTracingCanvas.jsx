@@ -40,10 +40,16 @@ export default function LetterTracingCanvas({
   dotOnly = false,
   onFreehandStrokes,
   guideSettings,
+  copies,
 }) {
   const { settings: hookSettings } = useTracingGuideSettings();
   const gs = guideSettings || hookSettings;
-  const copyCount = Math.max(1, Math.floor(practiceCopies || 1));
+  // `copies` (optional): array of { letter, strokes } — one per copy — so a
+  // single ruled line can show DIFFERENT letters (e.g. a formation group).
+  // When omitted, every copy uses the shared `strokes`/`letter` (legacy).
+  const copyCount = (Array.isArray(copies) && copies.length)
+    ? copies.length
+    : Math.max(1, Math.floor(practiceCopies || 1));
   const safeActiveCopy = Math.max(
     0,
     Math.min(copyCount - 1, Math.floor(activeCopy || 0))
@@ -107,8 +113,16 @@ export default function LetterTracingCanvas({
       const maxTotalW = Math.min(renderWidth * (TOTAL_W / CANVAS_W), _maxByHeight, _vw * 0.96);
       effectiveCopyWidth = Math.max(80, maxTotalW * (CANVAS_W / TOTAL_W));
     } else {
-      const _maxByHeight = Math.max(200, (_vh - 30) * (CANVAS_W / CANVAS_H));
-      effectiveCopyWidth = Math.min(renderWidth, _maxByHeight);
+      // Multi-letter line (copies provided): the parent has already fit the
+      // per-copy width to its container, so honor it directly — no 200px floor
+      // (that floor is for same-letter repair copies and would force a
+      // horizontal scrollbar here, hiding the other letters).
+      if (Array.isArray(copies) && copies.length) {
+        effectiveCopyWidth = Math.max(80, renderWidth);
+      } else {
+        const _maxByHeight = Math.max(200, (_vh - 30) * (CANVAS_W / CANVAS_H));
+        effectiveCopyWidth = Math.min(renderWidth, _maxByHeight);
+      }
     }
   }
   // Scale COPY_GAP from viewBox units to CSS pixels so the rendered SVG's
@@ -1189,7 +1203,9 @@ export default function LetterTracingCanvas({
         ref={wrapRef}
         className={fillHeight
           ? `flex-1 min-h-0 flex items-center ${copyCount > 1 ? 'justify-start overflow-x-auto overflow-y-hidden' : 'justify-center'} w-full`
-          : "w-full max-w-3xl overflow-x-auto overflow-y-hidden"}
+          : (Array.isArray(copies) && copies.length
+              ? "w-full overflow-x-auto overflow-y-hidden"
+              : "w-full max-w-3xl overflow-x-auto overflow-y-hidden")}
         style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
       >
       <svg
@@ -1249,8 +1265,12 @@ export default function LetterTracingCanvas({
             uses the normal stroke colors, and upcoming copies stay faint.
             Hidden in freehand mode (dot-only / freehand) — the student
             writes without seeing the guide path. */}
-        {Array.from({ length: copyCount }, (_, copyIndex) =>
-          strokes.map((stroke, si) => {
+        {Array.from({ length: copyCount }, (_, copyIndex) => {
+          const copyStrokes = (Array.isArray(copies) && copies.length)
+            ? copies[copyIndex]?.strokes
+            : strokes;
+          if (!Array.isArray(copyStrokes)) return null;
+          return copyStrokes.map((stroke, si) => {
             const isPastCopy = copyIndex < safeActiveCopy;
             const isFutureCopy = copyIndex > safeActiveCopy;
             const isPastStroke =
@@ -1308,8 +1328,8 @@ export default function LetterTracingCanvas({
                 pointerEvents="none"
               />
             );
-          })
-        )}
+          });
+        })}
 
         {/* Drawn paths (completed strokes) */}
         {drawnPaths.map((pts, i) => (
@@ -1383,7 +1403,9 @@ export default function LetterTracingCanvas({
             copies while practicing. Shown in guided and dot-only modes. */}
         {(!freehandMode || dotOnly) && Array.from({ length: copyCount }, (_, copyIndex) => {
           if (copyIndex <= safeActiveCopy) return null;
-          const firstStroke = strokes[0];
+          const firstStroke = ((Array.isArray(copies) && copies.length)
+            ? copies[copyIndex]?.strokes
+            : strokes)?.[0];
           if (!firstStroke || !firstStroke.length) return null;
           const p = scaleForCopy(firstStroke[0], copyIndex);
           const dc = GUIDE_COLORS[0];
