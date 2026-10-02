@@ -48,6 +48,8 @@ export default function LetterTracingCanvas({
   // When true, a rough (amber, accuracy < 80) result clears the letter for
   // another attempt instead of auto-advancing — students redo rough letters.
   redoOnAmber = false,
+  onAttempt,
+  pastCopyStrokes,
 }) {
   const { settings: hookSettings } = useTracingGuideSettings();
   const gs = guideSettings || hookSettings;
@@ -169,6 +171,11 @@ export default function LetterTracingCanvas({
   const [waypointIndex, setWaypointIndex] = useState(0);
   const [drawing, setDrawing] = useState(false);
   const [drawnPaths, setDrawnPaths] = useState([]); // completed stroke paths
+  // Mirror of drawnPaths so the success effect can read the full stroke set at
+  // the moment a letter completes (state is async). Declared before the success
+  // effect so it syncs first on the success render.
+  const drawnPathsRef = useRef([]);
+  useEffect(() => { drawnPathsRef.current = drawnPaths; }, [drawnPaths]);
   const [currentPath, setCurrentPath] = useState([]);
   const currentPathRef = useRef([]); // always-current ref to avoid stale closure
   const pendingCompleteRef = useRef(false); // last waypoint hit, waiting for pointerUp
@@ -192,6 +199,7 @@ export default function LetterTracingCanvas({
   const fonemaIntervalRef = useRef(null);
   const successTimerRef = useRef(null);
   const completedFiredRef = useRef(false);
+  const attemptFiredRef = useRef(false);
   // Touch fallback for interactive whiteboards (Promethean) whose drivers
   // don't synthesize Pointer Events from touch. When a stroke is started by
   // pointer, usingPointerRef is true and touch events skip; when started by
@@ -375,6 +383,7 @@ export default function LetterTracingCanvas({
     setCoverageStats(null);
     strokeAccuraciesRef.current = [];
     completedFiredRef.current = false;
+    attemptFiredRef.current = false;
     if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
   }, [letter, safeActiveCopy]);
 
@@ -384,6 +393,13 @@ export default function LetterTracingCanvas({
   // manual override; both paths are guarded so onComplete fires only once.
   useEffect(() => {
     if (status !== 'success' || completedFiredRef.current) return;
+    // Fire once per attempt so the parent can (a) save the strokes for the
+    // teacher dashboard and (b) keep the student's actual ink on the
+    // completed letter instead of swapping it for a green guide outline.
+    if (!attemptFiredRef.current) {
+      attemptFiredRef.current = true;
+      onAttempt?.({ strokes: drawnPathsRef.current, accuracy, isAmber: accuracy != null && accuracy < 80 });
+    }
     // Amber (rough) result: when redoOnAmber is set, the student must redo the
     // letter instead of advancing. Show the score briefly, then clear the
     // canvas for another attempt — onComplete is NOT called, so the mode
@@ -401,7 +417,7 @@ export default function LetterTracingCanvas({
       if (successTimerRef.current) { clearTimeout(successTimerRef.current); successTimerRef.current = null; }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, accuracy, onComplete, redoOnAmber]);
+  }, [status, accuracy, onComplete, redoOnAmber, onAttempt]);
 
   // Keep the active practice copy centered when repair practice adds extra
   // copies — completed copies scroll out to the left so the student stays on a
@@ -1075,6 +1091,7 @@ export default function LetterTracingCanvas({
     setAccuracy(null);
     setCoverageStats(null);
     strokeAccuraciesRef.current = [];
+    attemptFiredRef.current = false;
     pathProgressRef.current = 0;
     visitedRef.current = new Set();
 
@@ -1326,6 +1343,14 @@ export default function LetterTracingCanvas({
             ? copies[copyIndex]?.strokes
             : strokes;
           if (!Array.isArray(copyStrokes)) return null;
+          // Past copies with saved student ink: skip the green guide outline —
+          // the student's actual strokes are rendered separately below so they
+          // see their own handwriting, not a "perfect" green replacement.
+          const _hasPastInk = copyIndex < safeActiveCopy
+            && Array.isArray(pastCopyStrokes)
+            && pastCopyStrokes[copyIndex]
+            && pastCopyStrokes[copyIndex].length;
+          if (_hasPastInk) return null;
           return copyStrokes.map((stroke, si) => {
             const isPastCopy = copyIndex < safeActiveCopy;
             const isFutureCopy = copyIndex > safeActiveCopy;
@@ -1384,6 +1409,22 @@ export default function LetterTracingCanvas({
                 pointerEvents="none"
               />
             );
+          });
+        })}
+
+        {/* Past copies: the student's ACTUAL ink (not a green guide outline) so
+            they see their own handwriting on completed letters. Strokes are in
+            viewBox coords and already include each copy's offset. */}
+        {Array.isArray(pastCopyStrokes) && pastCopyStrokes.map((strokes, copyIndex) => {
+          if (copyIndex >= safeActiveCopy || !Array.isArray(strokes) || !strokes.length) return null;
+          return strokes.map((pts, si) => {
+            if (!Array.isArray(pts) || pts.length < 2) {
+              if (pts.length === 1) {
+                return <circle key={`past-ink-${copyIndex}-${si}`} cx={pts[0].x} cy={pts[0].y} r="5" fill="#6366f1" opacity="0.9" pointerEvents="none" />;
+              }
+              return null;
+            }
+            return <path key={`past-ink-${copyIndex}-${si}`} d={pathD(pts)} fill="none" stroke="#6366f1" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" pointerEvents="none" />;
           });
         })}
 

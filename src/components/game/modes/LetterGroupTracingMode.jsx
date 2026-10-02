@@ -56,6 +56,9 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [letterIdx, setLetterIdx] = useState(0);
   const [traceKey, setTraceKey] = useState(0);
   const [celebrate, setCelebrate] = useState(null);
+  // Per-letterIdx saved strokes for the CURRENT line, so completed letters
+  // keep showing the student's actual ink (not a green guide outline).
+  const [lineStrokes, setLineStrokes] = useState([]);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
 
   // Measure the canvas wrapper so the paper-size line fits all letters on one
@@ -280,14 +283,14 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     }
     const nextLine = line + 1;
     if (nextLine < LINES_PER_PHASE) {
-      setLine(nextLine); setLetterIdx(0);
+      setLine(nextLine); setLetterIdx(0); setLineStrokes([]);
       setTraceKey((k) => k + 1);
       persistProgress(phaseIdx, nextLine, 0);
       return;
     }
     const nextPhase = phaseIdx + 1;
     if (nextPhase < PHASES.length) {
-      setPhaseIdx(nextPhase); setLine(0); setLetterIdx(0);
+      setPhaseIdx(nextPhase); setLine(0); setLetterIdx(0); setLineStrokes([]);
       setTraceKey((k) => k + 1);
       persistProgress(nextPhase, 0, 0);
       setCelebrate({ msg: `${phase.label} done!` });
@@ -312,7 +315,40 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     onStudentPatch?.({ letter_group_awarded_sets: newAwarded, letter_group_progress: prog });
     setCelebrate({ msg: pay ? `Set complete! +${coinReward} coins!` : 'Set complete!', big: true });
     confetti({ particleCount: 100, spread: 75, origin: { y: 0.6 } });
-    setTimeout(() => { setCelebrate(null); setSelectedKey(null); }, 1900);
+    setTimeout(() => { setCelebrate(null); setSelectedKey(null); setLineStrokes([]); }, 1900);
+  };
+
+  // Called by the canvas each time a letter reaches success (green OR amber).
+  // Keeps the student's real ink on the line and saves every attempt for the
+  // teacher dashboard.
+  const handleAttempt = ({ strokes, accuracy, isAmber }) => {
+    if (!strokes || !strokes.length) return;
+    setLineStrokes(prev => {
+      const next = [...prev];
+      next[letterIdx] = strokes;
+      return next;
+    });
+    if (!studentData?.student_number || !studentData?.class_name || !currentLetter) return;
+    // Normalize strokes to 0-1 per letter (subtract this copy's offset).
+    const copyOffset = letterIdx * (300 + 24) + 260;
+    const normalized = strokes.map(stroke =>
+      stroke.map(p => ({ x: (p.x - copyOffset) / 300, y: p.y / 375 }))
+    );
+    base44.entities.TracingSample.create({
+      student_number: studentData.student_number,
+      class_name: studentData.class_name,
+      school_year: studentData.school_year || '',
+      letter: currentLetter,
+      phase: phase.key,
+      mode: isGuidedLine ? 'dot_only' : 'freehand',
+      strokes_data: JSON.stringify(normalized),
+      size_label: sizeMode === 'paper' ? 'Paper' : 'Big',
+      source: 'group',
+      group_key: selectedKey,
+      accuracy: accuracy || 0,
+      guided: isGuidedLine,
+      size_mode: sizeMode,
+    }).catch(() => {});
   };
 
   if (!letterData?.strokes?.length) {
@@ -392,6 +428,8 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}
+            onAttempt={handleAttempt}
+            pastCopyStrokes={lineStrokes}
             redoOnAmber
             wobbleRadius={60}
             offTravelBudget={150}
@@ -413,6 +451,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}
+            onAttempt={handleAttempt}
             redoOnAmber
             wobbleRadius={60}
             offTravelBudget={150}
