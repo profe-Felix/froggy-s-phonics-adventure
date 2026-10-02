@@ -784,7 +784,11 @@ export default function LetterTracingCanvas({
           offTravelRef.current = 0;
         } else {
           offTravelRef.current += moveDist;
-          if (minD > wobbleRadius * 2 || offTravelRef.current > offTravelBudget) {
+          // A veer beyond 1.5× the wobble corridor is a gross scribble, not
+          // handwriting — restart immediately instead of waiting for the
+          // sustained-drift budget. (Was 2×, which let big looping veers
+          // score yellow instead of being rejected.)
+          if (minD > wobbleRadius * 1.5 || offTravelRef.current > offTravelBudget) {
             flashError();
             restartStroke();
             return;
