@@ -18,6 +18,8 @@ export const LETTER_FORMATION_GROUPS = [
   { key: 'curves_loops', label: 'Curves & loops', letters: ['e', 's', 'f', 'u'] },
 ];
 
+import { getIntroducedGraphemesThrough } from './curriculumGraphemes';
+
 // Map a lowercase letter to the curriculum grapheme IDs that introduce its
 // sound. Contextual letters (c, g, r, y) map to several IDs — the sound is
 // "on" once ANY of them has been introduced. IDs match ES_GRAPHEME_CHART.
@@ -52,9 +54,6 @@ export function isLetterSoundIntroduced(letter, classConfig) {
   const mod = Number(classConfig.active_spanish_module);
   const les = Number(classConfig.active_spanish_lesson);
   if (!mod || !les) return true;
-  // Lazy import to avoid a circular require in environments that load this
-  // module before the curriculum grapheme chart is initialized.
-  const { getIntroducedGraphemesThrough } = require('./curriculumGraphemes');
   const introduced = new Set(
     getIntroducedGraphemesThrough({ moduleNumber: mod, lessonNumber: les })
       .map(normId)

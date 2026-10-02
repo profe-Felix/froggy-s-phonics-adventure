@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
+import { base44 } from '@/api/base44Client';
 import { ArrowLeft, Coins, Check, Sparkles } from 'lucide-react';
 import { LETTER_WAYPOINTS } from '../../data/letterWaypoints';
 import { NUMBER_WAYPOINTS } from '../../data/numberWaypoints';

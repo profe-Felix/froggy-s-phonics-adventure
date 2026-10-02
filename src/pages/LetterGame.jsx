@@ -11,6 +11,7 @@ import SightWordsSpellingMode from '../components/game/modes/SightWordsSpellingM
 import SpellingMode from '../components/game/modes/SpellingMode';
 import CaseMatchingMode from '../components/game/modes/CaseMatchingMode';
 import LetterTracingMode from '../components/game/modes/LetterTracingMode';
+import LetterGroupTracingMode from '../components/game/modes/LetterGroupTracingMode';
 import NumberHearingMode from '../components/game/modes/NumberHearingMode';
 import PhonicsMode from '../components/game/modes/PhonicsMode';
 import SpanishReadingGame from '../components/game/spanishReading/SpanishReadingGame';
@@ -655,15 +656,25 @@ export default function LetterGame() {
         />
       )}
       {currentMode === 'letter_tracing' && (
-        <LetterTracingMode
-          studentData={studentData}
-          onUpdateProgress={handleUpdateProgress}
-          onStudentPatch={handlePersistPatch}
-          silent={tracingOnlyFor(studentData?.class_name)}
-          targets={activeTracingLock ? [activeTracingLock.letter] : undefined}
-          locked={!!activeTracingLock}
-          onBack={handleBackToModes}
-        />
+        activeTracingLock ? (
+          <LetterTracingMode
+            studentData={studentData}
+            onUpdateProgress={handleUpdateProgress}
+            onStudentPatch={handlePersistPatch}
+            silent={tracingOnlyFor(studentData?.class_name)}
+            targets={[activeTracingLock.letter]}
+            locked
+            onBack={handleBackToModes}
+          />
+        ) : (
+          <LetterGroupTracingMode
+            studentData={studentData}
+            onStudentPatch={handlePersistPatch}
+            classConfig={configs.find((c) => c.class_name === studentData?.class_name)}
+            tracingOnly={tracingOnlyFor(studentData?.class_name)}
+            onBack={handleBackToModes}
+          />
+        )
       )}
       {currentMode === 'number_hearing' && (
         <NumberHearingMode
