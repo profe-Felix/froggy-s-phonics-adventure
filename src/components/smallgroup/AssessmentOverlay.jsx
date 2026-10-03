@@ -38,10 +38,8 @@ export default function AssessmentOverlay({ assessmentBroadcast }) {
       )}
       <div
         key={broadcast.item_index}
-        className="text-[200px] font-bold text-white leading-none assessment-fade-in"
-        style={{
-          fontFamily: isLetterType ? "'Teachers', sans-serif" : "'Andika', sans-serif",
-        }}
+        className="text-[200px] font-bold text-white leading-none"
+        style={assessmentItemStyle(type)}
       >
         {broadcast.current_item}
       </div>
