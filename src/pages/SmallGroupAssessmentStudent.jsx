@@ -119,8 +119,8 @@ export default function SmallGroupAssessmentStudent() {
         )}
         <div
           key={broadcast.item_index}
-          className="text-[200px] font-bold text-white leading-none assessment-fade-in"
-          style={{ fontFamily: isLetter ? "'Teachers', sans-serif" : "'Andika', sans-serif" }}
+          className="text-[200px] font-bold text-white leading-none"
+          style={assessmentItemStyle(at)}
         >
           {broadcast.current_item}
         </div>
