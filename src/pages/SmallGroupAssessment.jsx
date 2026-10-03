@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { assessmentItemStyle, retryable, retryDelay, wait } from '@/lib/classroomSync';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { getHomeroomForClass } from '@/lib/classRotation';
 import { LETTER_SOUNDS, LETTER_SOUNDS_EN } from '@/components/data/letterSounds';
@@ -275,11 +276,14 @@ export default function SmallGroupAssessment() {
   // Scores are still saved separately.
   const displayChannelsRef = useRef(new Map());
   const [broadcastError, setBroadcastError] = useState('');
+  const [displaySending, setDisplaySending] = useState(false);
+  const displayBusyRef = useRef(false);
 
   const broadcastNow = useCallback((state) => {
     if (!session?.id) return Promise.resolve(false);
 
-    let channel = displayChannelsRef.current.get(session.id);
+    const id = session.id;
+    let channel = displayChannelsRef.current.get(id);
 
     if (!channel) {
       channel = {
@@ -288,10 +292,9 @@ export default function SmallGroupAssessment() {
         running: null,
       };
 
-      displayChannelsRef.current.set(session.id, channel);
+      displayChannelsRef.current.set(id, channel);
     }
 
-    // Increasing sequence numbers let students reject older updates.
     channel.sequence = Math.max(
       Date.now(),
       channel.sequence + 1,
@@ -303,47 +306,51 @@ export default function SmallGroupAssessment() {
       sync_seq: channel.sequence,
     };
 
-    // Only one display write can be in flight for this session.
     if (channel.running) return channel.running;
 
+    displayBusyRef.current = true;
+    setDisplaySending(true);
+
     channel.running = (async () => {
+      let failures = 0;
+
       while (channel.pending) {
-        const nextState = channel.pending;
+        const next = channel.pending;
         channel.pending = null;
 
         try {
-          await base44.entities.SmallGroupAssessment.update(
-            session.id,
-            {
-              broadcast_state: nextState,
-            }
-          );
+          await base44.entities.SmallGroupAssessment.update(id, {
+            broadcast_state: next,
+          });
 
+          failures = 0;
           setBroadcastError('');
         } catch (error) {
-          // Retain the newest display state for a retry.
-          channel.pending = channel.pending || nextState;
-
-          console.error(
-            'Assessment display update failed',
-            error
-          );
+          channel.pending = channel.pending || next;
 
           setBroadcastError(
-            'Student display did not update. Check the connection before marking another item.'
+            'Display save failed. Keeping the newest item and retrying; do not score another letter yet.'
           );
 
-          return false;
+          if (!retryable(error) || failures >= 3) {
+            return false;
+          }
+
+          await wait(retryDelay(error, failures++));
+
+          // Retry the newest pending display, not an obsolete letter.
         }
       }
 
       return true;
     })().finally(() => {
       channel.running = null;
+      displayBusyRef.current = !!channel.pending;
+      setDisplaySending(false);
     });
 
     return channel.running;
-  }, [session]);
+  }, [session?.id, session?.broadcast_state?.sync_seq]);
 
   // Broadcast current item to student screen.
   const broadcastItem = useCallback((item, student, opts = {}) => {
@@ -676,6 +683,7 @@ export default function SmallGroupAssessment() {
 
   // Mark correct or incorrect
   const handleMark = async (mark, soundType = null) => {
+    if (displayBusyRef.current) return;
     if (!assessingStudentId) return;
 
     // Save the teacher note for this item
@@ -785,6 +793,7 @@ export default function SmallGroupAssessment() {
 
   // Handle marking for decoding assessment (with level progression)
   const handleMarkDecoding = async (mark, note) => {
+    if (displayBusyRef.current) return;
     const dr = results[assessingStudentId]?.['decoding'];
     if (!dr || dr.completed) return;
     const level = dr.levels?.[dr.current_level];
@@ -1053,6 +1062,11 @@ export default function SmallGroupAssessment() {
     if (!assessingStudentId) return;
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.repeat) return;
+      if (displayBusyRef.current && e.key !== 'e' && e.key !== 'E') {
+        e.preventDefault();
+        return;
+      }
       const sr = results[assessingStudentId]?.[assessmentType];
       const currentItemNow = sr?.item_order?.[sr?.current_index];
       const isSoundType = assessmentType === 'upper_sounds' || assessmentType === 'lower_sounds';
@@ -1238,6 +1252,14 @@ export default function SmallGroupAssessment() {
           </div>
         )}
 
+        {displaySending && (
+          <div
+            role="status"
+            className="bg-indigo-700 text-white px-4 py-2 text-sm"
+          >
+            Saving the student display… wait before scoring the next item.
+          </div>
+        )}
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-3 bg-slate-800">
           <div className="flex items-center gap-3">
@@ -1367,7 +1389,7 @@ export default function SmallGroupAssessment() {
                   lastMark?.sound === 'suave' ? 'text-teal-400' :
                   lastMark?.correct ? 'text-green-400' : lastMark ? 'text-red-400' : 'text-white'
                 )}
-                style={{ fontFamily: assessmentType === 'decoding' || assessmentType === 'sight_words' ? "'Andika', sans-serif" : "'Teachers', sans-serif" }}
+                style={assessmentItemStyle(assessmentType)}
               >
                 {currentItem}
               </div>
@@ -1405,6 +1427,7 @@ export default function SmallGroupAssessment() {
             {isTwoSoundItem ? (
               <>
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('incorrect')}
                   className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
                 >
@@ -1423,6 +1446,7 @@ export default function SmallGroupAssessment() {
                   <span className="text-sm font-medium">End (E)</span>
                 </button>
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('fuerte', 'fuerte')}
                   className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
                 >
@@ -1432,6 +1456,7 @@ export default function SmallGroupAssessment() {
                   <span className="text-sm font-medium">Fuerte only (F)</span>
                 </button>
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('suave', 'suave')}
                   className="flex flex-col items-center gap-1 text-teal-400 hover:text-teal-300 transition-colors"
                 >
@@ -1441,6 +1466,7 @@ export default function SmallGroupAssessment() {
                   <span className="text-sm font-medium">Suave only (S)</span>
                 </button>
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('correct', 'both')}
                   className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
                 >
@@ -1482,6 +1508,7 @@ export default function SmallGroupAssessment() {
                   </button>
                 )}
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('correct')}
                   className="flex flex-col items-center gap-1 text-green-400 hover:text-green-300 transition-colors"
                 >
