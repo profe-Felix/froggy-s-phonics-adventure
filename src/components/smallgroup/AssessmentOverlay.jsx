@@ -1,4 +1,5 @@
 import React from 'react';
+import { assessmentItemStyle } from '@/lib/classroomSync';
 
 // Presentational overlay — receives the assessment broadcast from the parent
 // (useStudentLockdown hook) and renders it full-screen. No polling of its own;
