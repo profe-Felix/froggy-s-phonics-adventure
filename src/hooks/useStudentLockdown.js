@@ -1,177 +1,183 @@
-import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { requestWithRetry } from '@/lib/classroomSync';
+import { useAssessmentSessions } from '@/hooks/useAssessmentSessions';
 
-// Consolidated student lockdown state — replaces 5+ independent polling
-// queries (rotation, live sessions, dictation, tracing lock, assessment)
-// with a single parallel fetch + realtime subscriptions.
-//
-// Returns all teacher-driven lockdowns at once:
-// - rotationAssignedMode: table rotation activity the student is locked to
-// - activeLiveSessions: non-stale active LiveLessonSession records
-// - activeDictation: active LiveDictationSession for this class
-// - activeTracingLock: active TracingLock for this class
-// - assessmentBroadcast: { session, broadcast } when the teacher is assessing
-//
-// One poll every 8s (fallback) + realtime subscriptions on all 6 entity types
-// that invalidate the query instantly when any teacher changes something.
-// This cuts ~5 separate polled requests per cycle down to 1.
-export function useStudentLockdown({ studentId, className, studentNumber, schoolYear, liveCode, enabled = true }) {
-  const queryClient = useQueryClient();
-  const queryKey = ['student-lockdown', studentId, className, studentNumber, liveCode, schoolYear];
+const TYPES = [
+  'DeskSeat',
+  'TableRotation',
+  'LiveLessonSession',
+  'LiveDictationSession',
+  'TracingLock',
+  'LiveNotebookAssessment',
+];
 
-  const { data, isLoading } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (!studentId || !className || !studentNumber) return null;
+// Each entity has its own cache. A change to one no longer reloads all seven.
+export function useStudentLockdown({
+  studentId, className, studentNumber, schoolYear, liveCode, enabled = true,
+}) {
+  const qc = useQueryClient();
+  const year = schoolYear || ACTIVE_SCHOOL_YEAR;
+  const ready = enabled && !!studentId && !!className && !!studentNumber;
+  const [pollMs] = useState(() => 25000 + Math.random() * 5000);
 
-      // Single round-trip: 6 parallel fetches instead of 5 separate polls.
-      const [seats, rotations, liveSessions, dictationSessions, tracingLocks, assessments, notebookAssessments] = await Promise.all([
-        base44.entities.DeskSeat.filter({ student_id: studentId }),
-        base44.entities.TableRotation.filter({ active: true, school_year: ACTIVE_SCHOOL_YEAR }),
-        base44.entities.LiveLessonSession.filter({ active: true }),
-        base44.entities.LiveDictationSession.filter({ class_name: className, school_year: schoolYear || ACTIVE_SCHOOL_YEAR, active: true }),
-        base44.entities.TracingLock.filter({ class_name: className, active: true }),
-        // Fetch ALL active assessment sessions — don't filter by teacher_name,
-        // because the assessing teacher may differ from the student's homeroom
-        // teacher (block B/C students are assessed by a different teacher).
-        base44.entities.SmallGroupAssessment.filter({ status: 'active' }),
-        base44.entities.LiveNotebookAssessment.filter({ class_name: className, school_year: schoolYear || ACTIVE_SCHOOL_YEAR, active: true }),
-      ]);
+  const keys = useMemo(() => TYPES.map(type =>
+    ['student-lockdown-v2', type, studentId, className, year]),
+  [studentId, className, year]);
 
-      // ── Rotation ──
-      let rotationAssignedMode = null;
-      const seat = seats?.[0];
-      if (seat?.table_number) {
-        const rot = (rotations || []).find(r =>
-          r.class_name === seat.class_name && r.group === seat.group
-        );
-        if (rot?.activities?.length) {
-          const offset = rot.rotation_offset || 0;
-          const idx = (seat.table_number - 1 + offset) % rot.activities.length;
-          const assigned = rot.activities[idx];
-          if (assigned?.activity_type && assigned.activity_type !== 'pathway') {
-            rotationAssignedMode = assigned.activity_type;
-          }
-        }
-      }
+  const filters = [
+    { student_id: studentId },
+    { active: true, school_year: year },
+    { active: true },
+    { class_name: className, school_year: year, active: true },
+    { class_name: className, active: true },
+    { class_name: className, school_year: year, active: true },
+  ];
 
-      // ── Live sessions (with staleness check) ──
-      // A session matching the live code the student just scanned is always
-      // considered live — the teacher just shared that code, so even if the
-      // heartbeat hasn't bumped updated_date yet the student should join.
-      const now = Date.now();
-      const STALE_AFTER_MS = 5 * 60 * 1000;
-      const activeLiveSessions = (liveSessions || [])
-        .filter(s => {
-          if (liveCode && s.code === liveCode) return true;
-          const lastUpdate = s.updated_date || s.started_at;
-          if (!lastUpdate) return false;
-          return now - new Date(lastUpdate).getTime() < STALE_AFTER_MS;
-        })
-        .sort((a, b) =>
-          new Date(b.updated_date || b.started_at || 0).getTime() -
-          new Date(a.updated_date || a.started_at || 0).getTime()
-        );
-
-      // ── Assessment broadcast ──
-      // Match by student_number + class_name in the broadcast_state, not by
-      // teacher_name — the assessing teacher may differ from the student's
-      // homeroom teacher (block B/C students are assessed by a different teacher).
-      let assessmentBroadcast = null;
-      for (const sess of assessments || []) {
-        const b = sess.broadcast_state || {};
-        if (
-          b.show_item &&
-          Number(b.student_number) === Number(studentNumber) &&
-          (b.class_name || '').toLowerCase() === className.toLowerCase()
-        ) {
-          assessmentBroadcast = { session: sess, broadcast: b };
-          break;
-        }
-      }
-
-      return {
-        rotationAssignedMode,
-        activeLiveSessions,
-        activeDictation: dictationSessions?.[0] || null,
-        activeTracingLock: tracingLocks?.[0] || null,
-        assessmentBroadcast,
-        activeNotebookAssessment: notebookAssessments?.[0] || null,
-      };
-    },
-    enabled: enabled && !!studentId && !!className && !!studentNumber,
-    // Poll every 20s as a fallback — realtime subscriptions above invalidate
-    // the query instantly when a teacher changes something, so the poll only
-    // catches missed events. 8s was too frequent with a full class online and
-    // contributed to 429 rate limits (7 fetches × N students every cycle).
-    refetchInterval: enabled ? 20000 : false,
-    refetchIntervalInBackground: false,
-    retry: false,
-    staleTime: 0,
+  const queries = useQueries({
+    queries: TYPES.map((type, i) => ({
+      queryKey: keys[i],
+      queryFn: () => requestWithRetry(() => base44.entities[type].filter(filters[i])),
+      enabled: ready,
+      staleTime: 15000,
+      refetchOnWindowFocus: false,
+      refetchInterval: pollMs,
+      refetchIntervalInBackground: false,
+      retry: false,
+    })),
   });
 
-  // Realtime subscriptions. For most entities we invalidate so the query
-  // refetches. For SmallGroupAssessment we update the cached
-  // assessmentBroadcast directly from the event's broadcast_state payload —
-  // this skips the ~1-2s refetch round-trip (6 parallel fetches) so the
-  // student's letter changes the instant the teacher advances, instead of
-  // lingering on the previous letter for a few seconds.
-  useEffect(() => {
-    if (!studentId) return;
-    const unsubs = [];
+  const { sessions: assessments } = useAssessmentSessions({
+    enabled: ready,
+    className: className || '',
+    studentNumber,
+  });
 
-    // Assessment — instant cache update from the event payload.
-    unsubs.push(base44.entities.SmallGroupAssessment.subscribe((event) => {
-      const fresh = event?.data;
-      if (!fresh || !fresh.id) return;
-      if (fresh.broadcast_state === undefined) {
-        // Event lacks the payload — fall back to a full refetch.
-        queryClient.invalidateQueries({ queryKey });
+  useEffect(() => {
+    if (!ready) return;
+
+    const timers = new Map();
+
+    const unsubs = TYPES.map((type, i) => base44.entities[type].subscribe(event => {
+      const data = event.data || {};
+      const id = event.id || data.id;
+
+      if (!id) return;
+
+      if (
+        data.class_name &&
+        data.class_name !== className &&
+        type !== 'LiveLessonSession'
+      ) {
         return;
       }
-      queryClient.setQueryData(queryKey, (old) => {
-        if (!old) return old;
-        const b = fresh.broadcast_state || {};
-        const matchesMe = b.show_item &&
-          Number(b.student_number) === Number(studentNumber) &&
-          (b.class_name || '').toLowerCase() === className.toLowerCase();
-        if (matchesMe) {
-          return { ...old, assessmentBroadcast: { session: fresh, broadcast: b } };
+
+      if (
+        type === 'DeskSeat' &&
+        data.student_id &&
+        data.student_id !== studentId
+      ) {
+        return;
+      }
+
+      const old = qc.getQueryData(keys[i]);
+      const existing = old?.find(record => record.id === id);
+
+      if (event.type === 'delete') {
+        if (existing) {
+          qc.setQueryData(keys[i], old.filter(record => record.id !== id));
         }
-        // Teacher moved on to another student in the same session — clear.
-        const current = old.assessmentBroadcast;
-        if (current && current.session?.id === fresh.id) {
-          return { ...old, assessmentBroadcast: null };
-        }
-        return old;
-      });
+        return;
+      }
+
+      if (existing) {
+        // Partial payloads cannot erase fields; heartbeat and broadcast
+        // changes update the cache without any follow-up REST requests.
+        const merged = { ...existing, ...data, id };
+
+        qc.setQueryData(
+          keys[i],
+          old.map(record => record.id === id ? merged : record)
+        );
+
+        return;
+      }
+
+      // New records need one authoritative read of THIS entity only.
+      // Debounce bursts, and keep the slow safety fetch for missed events.
+      clearTimeout(timers.get(type));
+
+      timers.set(type, setTimeout(() => {
+        timers.delete(type);
+        void qc.invalidateQueries({ queryKey: keys[i], exact: true });
+      }, 350 + Math.random() * 300));
     }));
 
-    // Other entities — invalidate to refetch.
-    const others = [
-      base44.entities.DeskSeat,
-      base44.entities.TableRotation,
-      base44.entities.LiveLessonSession,
-      base44.entities.LiveDictationSession,
-      base44.entities.TracingLock,
-      base44.entities.LiveNotebookAssessment,
-    ];
-    unsubs.push(...others.map(e =>
-      e.subscribe(() => queryClient.invalidateQueries({ queryKey }))
-    ));
+    const visible = () => {
+      if (document.visibilityState === 'visible') {
+        keys.forEach(key =>
+          void qc.invalidateQueries({ queryKey: key, exact: true })
+        );
+      }
+    };
 
-    return () => unsubs.forEach(u => u?.());
-  }, [studentId, queryClient, queryKey, studentNumber, className]);
+    document.addEventListener('visibilitychange', visible);
+
+    return () => {
+      unsubs.forEach(unsub => unsub?.());
+      timers.forEach(timer => clearTimeout(timer));
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [ready, qc, keys, className, studentId]);
+
+  const seats = queries[0].data || [];
+  const rotations = queries[1].data || [];
+  const seat = seats[0];
+
+  const rotation = seat && rotations.find(r =>
+    r.active &&
+    r.class_name === seat.class_name &&
+    r.group === seat.group
+  );
+
+  const slot = rotation?.activities?.length
+    ? (seat.table_number - 1 + (rotation.rotation_offset || 0)) % rotation.activities.length
+    : -1;
+
+  const mode = rotation?.activities?.[slot]?.activity_type;
+  const liveData = queries[2].data;
+
+  const activeLiveSessions = useMemo(() => (liveData || [])
+    .filter(s => s.active && (
+      (liveCode && s.code === liveCode) ||
+      Date.now() - new Date(s.updated_date || s.started_at || 0).getTime() < 5 * 60 * 1000
+    ))
+    .sort((a, b) =>
+      new Date(b.updated_date || b.started_at || 0) -
+      new Date(a.updated_date || a.started_at || 0)
+    ),
+  [liveData, liveCode]);
+
+  const matching = assessments.find(s => {
+    const b = s.broadcast_state || {};
+
+    return s.status === 'active' &&
+      b.show_item &&
+      Number(b.student_number) === Number(studentNumber) &&
+      String(b.class_name || '').toLowerCase() === String(className || '').toLowerCase();
+  });
 
   return {
-    rotationAssignedMode: data?.rotationAssignedMode ?? null,
-    activeLiveSessions: data?.activeLiveSessions ?? [],
-    activeDictation: data?.activeDictation ?? null,
-    activeTracingLock: data?.activeTracingLock ?? null,
-    assessmentBroadcast: data?.assessmentBroadcast ?? null,
-    activeNotebookAssessment: data?.activeNotebookAssessment ?? null,
-    loading: isLoading,
+    rotationAssignedMode: mode && mode !== 'pathway' ? mode : null,
+    activeLiveSessions,
+    activeDictation: queries[3].data?.find(s => s.active) || null,
+    activeTracingLock: queries[4].data?.find(s => s.active) || null,
+    activeNotebookAssessment: queries[5].data?.find(s => s.active) || null,
+    assessmentBroadcast: matching
+      ? { session: matching, broadcast: matching.broadcast_state }
+      : null,
+    loading: ready && queries.some(query => query.isLoading),
   };
 }
