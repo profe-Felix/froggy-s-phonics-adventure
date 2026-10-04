@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { useClassConfigs } from '@/hooks/useClassConfigs';
 
 // Hex pairs (light -> dark) for each selectable class color. Stored as a key
 // in ClassConfig.color and resolved here so login tiles render fully dynamic
@@ -33,23 +34,9 @@ export function useClassColors() {
   const {
     data: configs = [],
     isLoading,
-  } = useQuery({
-    queryKey: ['class-configs'],
-
-    queryFn: () =>
-      base44.entities.ClassConfig.list(
-        '-updated_date',
-        100
-      ),
-
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-    retry: false,
-  });
+    error,
+    refetch,
+  } = useClassConfigs();
 
   const byName = {};
   configs.forEach((c) => { if (c.class_name) byName[c.class_name] = c; });
@@ -83,5 +70,5 @@ export function useClassColors() {
     });
   };
 
-  return { colorFor, languageFor, gradeFor, tracingOnlyFor, sharesBooksFromFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading };
+  return { colorFor, languageFor, gradeFor, tracingOnlyFor, sharesBooksFromFor, groupedClasses, setColor, palette: CLASS_COLOR_PALETTE, configs, loading: isLoading, error, retry: refetch };
 }
