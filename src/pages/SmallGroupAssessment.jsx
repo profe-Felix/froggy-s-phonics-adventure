@@ -1479,6 +1479,7 @@ export default function SmallGroupAssessment() {
             ) : (
               <>
                 <button
+                  disabled={displaySending || !!broadcastError}
                   onClick={() => handleMark('incorrect')}
                   className="flex flex-col items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
                 >
