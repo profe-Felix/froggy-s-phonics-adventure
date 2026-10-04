@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
 import { useQuery } from '@tanstack/react-query';
 import LessonModeRouter from '@/components/lesson/LessonModeRouter';
 import StudentMirrorPanel from './StudentMirrorPanel';
@@ -66,136 +67,102 @@ function getLiveLessonSteps(lesson, selectedDay = '') {
 // released and students can interact — the teacher advances when ready.
 export default function LiveLessonStudent({ session, studentData, selectedStudent, onUpdateProgress, onStudentPatch, onExit }) {
   const [localSession, setLocalSession] = useState(session);
+  const localSessionRef = useRef(session);
+  const exitRef = useRef(onExit);
+  exitRef.current = onExit;
+  const [sessionSyncError, setSessionSyncError] = useState('');
 
   // Fetch the lesson to get the full steps array
-  const { data: lesson } = useQuery({
+  const { data: lesson, error: lessonError, refetch: retryLesson } = useQuery({
     queryKey: ['live-lesson-data', session.lesson_id],
     queryFn: async () => {
-      const list = await base44.entities.Lesson.filter({ id: session.lesson_id });
+      const list = await requestWithRetry(() => base44.entities.Lesson.filter({ id: session.lesson_id }));
       return list?.[0];
     },
     enabled: !!session?.lesson_id,
   });
 
-  // Realtime events trigger an authoritative session fetch. This avoids
-  // depending on incomplete or differently shaped public event payloads.
+  // Use usable event payloads immediately; REST is initial/recovery only.
   useEffect(() => {
     const sessionId = session?.id;
-
     if (!sessionId) return;
-
     let alive = true;
-    let refreshInFlight = false;
+    let inFlight = false;
+    let eventVersion = 0;
+    let blockedUntil = 0;
+    let timer;
 
-    const refreshSession = async () => {
-      if (
-        !alive ||
-        refreshInFlight
-      ) {
+    const apply = fresh => {
+      if (!alive || !fresh) return;
+      if (fresh.active === false) {
+        exitRef.current?.();
         return;
       }
+      const merged = { ...localSessionRef.current, ...fresh, id: sessionId };
+      const changedStep = merged.current_step !== localSessionRef.current?.current_step;
+      localSessionRef.current = merged;
+      setLocalSession(merged);
+      setSessionSyncError('');
+      if (changedStep && fresh.broadcast_state === undefined) refreshBroadcast();
+    };
 
-      refreshInFlight = true;
-
+    const refresh = async () => {
+      if (!alive || inFlight || Date.now() < blockedUntil) return;
+      inFlight = true;
+      const version = eventVersion;
       try {
-        const fresh =
-          await base44.entities.LiveLessonSession.get(
-            sessionId
-          );
-
-        if (
-          !alive ||
-          !fresh
-        ) {
-          return;
-        }
-
-        if (!fresh.active) {
-          onExit?.();
-          return;
-        }
-
-        setLocalSession(
-          (previous) => {
-            const previousStep =
-              previous?.current_step ?? 0;
-
-            const nextStep =
-              fresh.current_step ?? 0;
-
-            if (
-              nextStep !==
-              previousStep
-            ) {
-              refreshBroadcast();
-            }
-
-            return {
-              ...previous,
-              ...fresh,
-            };
-          }
-        );
-      } catch {
-        // The safety check below will try again.
+        const fresh = await requestWithRetry(() => base44.entities.LiveLessonSession.get(sessionId));
+        if (alive && version === eventVersion) apply(fresh);
+      } catch (error) {
+        blockedUntil = Date.now() + retryDelay(error, 2);
+        if (alive) setSessionSyncError('Connection interrupted — keeping your activity and retrying.');
       } finally {
-        refreshInFlight = false;
+        inFlight = false;
       }
     };
 
-    const unsubscribe =
-      base44.entities.LiveLessonSession.subscribe(
-        (event) => {
-          const eventId =
-            event.id ||
-            event.data?.id;
+    const unsubscribe = base44.entities.LiveLessonSession.subscribe(event => {
+      if (!alive || (event.id || event.data?.id) !== sessionId) return;
+      eventVersion += 1;
+      if (event.type === 'delete') {
+        exitRef.current?.();
+        return;
+      }
+      const data = event.data || {};
+      if (['active', 'phase', 'current_step', 'release_mode', 'broadcast_state'].some(key => key in data)) {
+        apply(data);
+      } else {
+        void refresh();
+      }
+    });
 
-          if (eventId !== sessionId) {
-            return;
-          }
+    const recover = async () => {
+      if (!alive) return;
+      if (document.visibilityState === 'visible') await refresh();
+      if (alive) timer = setTimeout(recover, 8000 + Math.random() * 3000);
+    };
 
-          void refreshSession();
-        }
-      );
+    void refresh();
+    timer = setTimeout(recover, 8000 + Math.random() * 3000);
 
-    const safetyInterval =
-      window.setInterval(
-        () => {
-          void refreshSession();
-        },
-        2000
-      );
+    const visible = () => {
+      if (document.visibilityState === 'visible') {
+        blockedUntil = 0;
+        void refresh();
+      }
+    };
 
-    const handleVisibilityChange =
-      () => {
-        if (
-          document.visibilityState ===
-          'visible'
-        ) {
-          void refreshSession();
-        }
-      };
-
-    document.addEventListener(
-      'visibilitychange',
-      handleVisibilityChange
-    );
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('online', visible);
 
     return () => {
       alive = false;
-
       unsubscribe?.();
-
-      window.clearInterval(
-        safetyInterval
-      );
-
-      document.removeEventListener(
-        'visibilitychange',
-        handleVisibilityChange
-      );
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('online', visible);
     };
-  }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session?.id]);
 
   const steps = getLiveLessonSteps(
     lesson,
@@ -234,6 +201,17 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     studentData,
     phase === 'try' || isLesson
   );
+
+  if (!lesson && lessonError) {
+    return (
+      <div role="alert" className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center gap-4 p-6">
+        <p>The lesson could not load yet. Your student information is still selected.</p>
+        <button type="button" onClick={() => retryLesson()} className="bg-indigo-600 rounded-xl px-5 py-3">
+          Retry lesson
+        </button>
+      </div>
+    );
+  }
 
   if (!lesson) {
     return (
