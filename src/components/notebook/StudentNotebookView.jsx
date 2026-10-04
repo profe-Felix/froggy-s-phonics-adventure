@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
+import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import AnnotationToolbar from './AnnotationToolbar';
@@ -117,8 +118,14 @@ export default function StudentNotebookView({
   extraHeaderContent,
   embedded = false,
   liveAssessmentId = null,
+  registerSave = null,
 }) {
   const qc = useQueryClient();
+  const onBackRef = useRef(onBack);
+  onBackRef.current = onBack;
+  const [saveError, setSaveError] = useState('');
+  const [notebookLoadError, setNotebookLoadError] = useState('');
+  const [notebookLoadAttempt, setNotebookLoadAttempt] = useState(0);
   const { classList } = useClassNames();
 
   // Live notebook assessment: when launched from a LiveNotebookAssessment
@@ -132,24 +139,72 @@ export default function StudentNotebookView({
   useEffect(() => {
     if (!liveAssessmentId) return;
     let alive = true;
-    const load = async () => {
-      try {
-        const fresh = await base44.entities.LiveNotebookAssessment.get(liveAssessmentId);
-        if (!alive) return;
-        if (!fresh || !fresh.active) { onBack?.(); return; }
-        setLiveAssessment(fresh);
-      } catch { if (alive) onBack?.(); }
+    let fetching = false;
+    let version = 0;
+    let blockedUntil = 0;
+    let timer;
+
+    const apply = fresh => {
+      if (!alive || !fresh) return;
+      if (fresh.active === false) {
+        onBackRef.current?.();
+        return;
+      }
+      setLiveAssessment(previous => ({
+        ...previous,
+        ...fresh,
+        id: liveAssessmentId,
+      }));
     };
-    load();
-    const unsub = base44.entities.LiveNotebookAssessment.subscribe((event) => {
-      if (!alive) return;
-      const id = event.id || event.data?.id;
-      if (id !== liveAssessmentId) return;
-      if (event.type === 'delete' || !event.data?.active) { onBack?.(); return; }
-      setLiveAssessment(event.data);
+
+    const load = async () => {
+      if (!alive || fetching || Date.now() < blockedUntil) return;
+      fetching = true;
+      const startingVersion = version;
+      try {
+        const fresh = await requestWithRetry(() =>
+          base44.entities.LiveNotebookAssessment.get(liveAssessmentId)
+        );
+        if (alive && version === startingVersion) apply(fresh);
+      } catch (error) {
+        blockedUntil = Date.now() + retryDelay(error, 2);
+        if (alive) {
+          setSaveError('Live connection interrupted — staying in your notebook and retrying.');
+        }
+      } finally {
+        fetching = false;
+      }
+    };
+
+    const unsub = base44.entities.LiveNotebookAssessment.subscribe(event => {
+      if (!alive || (event.id || event.data?.id) !== liveAssessmentId) return;
+      version += 1;
+      if (event.type === 'delete') {
+        onBackRef.current?.();
+        return;
+      }
+      if (event.data && ['active', 'paused', 'current_page'].some(key => key in event.data)) {
+        apply(event.data);
+      } else {
+        void load();
+      }
     });
-    return () => { alive = false; unsub?.(); };
-  }, [liveAssessmentId, onBack]);
+
+    const recover = async () => {
+      if (!alive) return;
+      if (document.visibilityState === 'visible') await load();
+      if (alive) timer = setTimeout(recover, 8000 + Math.random() * 3000);
+    };
+
+    void load();
+    timer = setTimeout(recover, 8000 + Math.random() * 3000);
+
+    return () => {
+      alive = false;
+      unsub?.();
+      clearTimeout(timer);
+    };
+  }, [liveAssessmentId]);
 
   // Follow the teacher's page when the live session advances.
   useEffect(() => {
@@ -231,6 +286,8 @@ export default function StudentNotebookView({
 
   const {
     data: assignments = [],
+    error: assignmentLoadError,
+    refetch: retryAssignments,
   } = useQuery({
     queryKey: [
       'student-notebook-assignments',
@@ -238,10 +295,10 @@ export default function StudentNotebookView({
     ],
 
     queryFn: () =>
-      base44.entities.DigitalNotebookAssignment.filter({
+      requestWithRetry(() => base44.entities.DigitalNotebookAssignment.filter({
         class_name: className,
         status: 'active',
-      }),
+      })),
 
     enabled: Boolean(className),
 
@@ -315,13 +372,17 @@ export default function StudentNotebookView({
 
   useEffect(() => {
     if (!selectedAssignment) return;
+    let alive = true;
+    setNotebookLoadError('');
     (async () => {
-      const sessions = await base44.entities.NotebookSession.filter({
+      try {
+      const sessions = await requestWithRetry(() => base44.entities.NotebookSession.filter({
         assignment_id: selectedAssignment.id,
         student_number: studentNumber,
         class_name: className,
         school_year: ACTIVE_SCHOOL_YEAR,
-      });
+      }));
+      if (!alive) return;
 
       const limitActive = selectedAssignment.page_mode === 'locked' || selectedAssignment.limit_pages;
       const pdfMaxPage = selectedAssignment.pdf_page_count || selectedAssignment.page_count || 1;
