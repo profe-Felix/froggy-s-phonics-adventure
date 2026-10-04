@@ -12,7 +12,7 @@ const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
 export default function StudentLogin({ onSelectStudent, preselectedClass = null }) {
   const numbers = Array.from({ length: 30 }, (_, i) => i + 1);
   const [selectedClass, setSelectedClass] = useState(preselectedClass);
-  const { colorFor, groupedClasses, loading } = useClassColors();
+  const { colorFor, groupedClasses, loading, error: classError, retry: retryClasses, configs } = useClassColors();
   const groups = groupedClasses();
   const noClasses = Object.values(groups).every((g) => g.length === 0);
 
@@ -39,6 +39,27 @@ export default function StudentLogin({ onSelectStudent, preselectedClass = null 
       Class <strong className="text-slate-700">{selectedClass}</strong> — pick your number!
     </span>
   );
+
+  if (classError && configs.length === 0) {
+    return (
+      <StudentLoginShell
+        icon="🐸"
+        title="Student login"
+        subtitle="Connecting to your class…"
+      >
+        <div role="alert" className="text-center space-y-4 p-6">
+          <p>Class settings could not load. Your class has not been removed.</p>
+          <button
+            type="button"
+            onClick={() => retryClasses()}
+            className="rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white"
+          >
+            Retry connection
+          </button>
+        </div>
+      </StudentLoginShell>
+    );
+  }
 
   return (
     <StudentLoginShell
