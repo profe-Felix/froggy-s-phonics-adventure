@@ -33,7 +33,7 @@ function parseClassParam(raw, classList) {
 }
 
 function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
-  const { colorFor, groupedClasses, loading } = useClassColors();
+  const { colorFor, groupedClasses, loading, error: classError, retry: retryClasses, configs } = useClassColors();
   const [className, setClassName] = useState(preselectedClass || null);
   const groups = groupedClasses();
 
@@ -58,6 +58,18 @@ function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
       Class <strong className="text-slate-700">{className}</strong> — pick your number!
     </span>
   );
+
+  if (classError && configs.length === 0) {
+    return (
+      <StudentLoginShell icon="📓" title="Digital Notebook" subtitle="Connecting to your class…">
+        <div role="alert" className="text-center p-6 space-y-4">
+          <p>Class settings are temporarily unavailable. Your class has not been removed.</p>
+          <button type="button" onClick={() => retryClasses()}
+            className="rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white">Retry connection</button>
+        </div>
+      </StudentLoginShell>
+    );
+  }
 
   return (
     <StudentLoginShell
@@ -135,8 +147,20 @@ function StudentLogin({ onEnter, preselectedClass, classList, onBack }) {
 
 // Class picker shown when assignment link has no class pre-selected
 function ClassPicker({ onSelect, title, classList }) {
-  const { colorFor, groupedClasses, loading } = useClassColors();
+  const { colorFor, groupedClasses, loading, error: classError, retry: retryClasses, configs } = useClassColors();
   const groups = groupedClasses();
+
+  if (classError && configs.length === 0) {
+    return (
+      <StudentLoginShell icon="📓" title="Digital Notebook" subtitle="Connecting to your class…">
+        <div role="alert" className="text-center p-6 space-y-4">
+          <p>Class settings are temporarily unavailable. Your class has not been removed.</p>
+          <button type="button" onClick={() => retryClasses()}
+            className="rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white">Retry connection</button>
+        </div>
+      </StudentLoginShell>
+    );
+  }
   return (
     <StudentLoginShell
       icon="📓"
