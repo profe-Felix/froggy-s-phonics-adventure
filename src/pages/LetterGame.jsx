@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { errorStatus, requestWithRetry } from '@/lib/classroomSync';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import StudentLogin from '../components/game/StudentLogin';
@@ -88,7 +89,7 @@ export default function LetterGame() {
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
   const queryClient = useQueryClient();
-  const { languageFor, configs, tracingOnlyFor } = useClassColors();
+  const { languageFor, configs, tracingOnlyFor, error: classConfigError, retry: retryClassConfig } = useClassColors();
 
   // Consolidated lockdown state — replaces 5 independent polling queries
   // (rotation, live sessions, dictation, tracing lock, assessment) with a
@@ -123,7 +124,7 @@ export default function LetterGame() {
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
     queryKey: ['lessons', selectedStudent?.class_name],
-    queryFn: () => base44.entities.Lesson.filter({ active: true }),
+    queryFn: () => requestWithRetry(() => base44.entities.Lesson.filter({ active: true })),
     enabled: !!selectedStudent && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
     // Lessons rarely change — cache 5 min so a class of students logging in
     // doesn't each refetch (was contributing to 429 rate limits).
@@ -188,9 +189,9 @@ export default function LetterGame() {
   }, [activeLiveSessions, liveCode, selectedStudent, liveSession]);
 
   // Direct load by student ID (from QR code)
-  const { data: directStudent } = useQuery({
+  const { data: directStudent, error: directStudentError, refetch: retryDirectStudent } = useQuery({
     queryKey: ['student-by-id', directStudentId],
-    queryFn: () => base44.entities.Student.filter({ id: directStudentId }),
+    queryFn: () => requestWithRetry(() => base44.entities.Student.filter({ id: directStudentId })),
     enabled: !!directStudentId,
     onSuccess: (data) => {
       if (data?.[0]) {
@@ -203,10 +204,12 @@ export default function LetterGame() {
   // Barcode lookup — finds the most recent student record for this barcode
   // number. Picks the highest school_year so a stale roster (old grade) is
   // superseded by the current one.
-  const { data: barcodeStudent } = useQuery({
+  const { data: barcodeStudent, error: barcodeLookupError, refetch: retryBarcodeLookup } = useQuery({
     queryKey: ['student-by-barcode', urlBarcode],
     queryFn: async () => {
-      const matches = await base44.entities.Student.filter({ barcode_number: urlBarcode });
+      const matches = await requestWithRetry(() =>
+        base44.entities.Student.filter({ barcode_number: urlBarcode })
+      );
       if (!matches?.length) return null;
       return matches.sort((a, b) =>
         (b.school_year || '').localeCompare(a.school_year || '')
@@ -226,9 +229,9 @@ export default function LetterGame() {
     }
   }, [barcodeStudent, urlBarcode, studentData]);
 
-  const { data: students } = useQuery({
+  const { data: students, error: studentLoadError, refetch: retryStudentLoad } = useQuery({
     queryKey: ['students'],
-    queryFn: () => base44.entities.Student.list(),
+    queryFn: () => requestWithRetry(() => base44.entities.Student.list()),
     enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
     // The full roster is heavy. Cache 5 min and update it in place on
     // mutations below (instead of invalidating → full refetch), which was
@@ -244,15 +247,17 @@ export default function LetterGame() {
   });
 
   const updateStudentMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.Student.update(id, data),
+    mutationFn: ({ id, data }) => requestWithRetry(() => base44.entities.Student.update(id, data)),
     onSuccess: (data) => {
       queryClient.setQueryData(['students'], old => Array.isArray(old) ? old.map(s => s.id === data.id ? data : s) : old);
       setStudentData(data);
     },
-    onError: () => {
-      // Student record was deleted, reset so it gets recreated
-      setStudentData(null);
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+    onError: (error) => {
+      // A transient failure is not a logout or evidence of deletion.
+      if (errorStatus(error) === 404) {
+        queryClient.invalidateQueries({ queryKey: ['students'] });
+      }
+      console.error('Student progress save failed; preserving identity', error);
     }
   });
 
@@ -275,7 +280,9 @@ export default function LetterGame() {
         // Sync the student's content language to their class's configured
         // language (Mendez/Schwarz = English) so all literacy audio and word
         // pools pull from English on Supabase.
-        const classLang = languageFor(selectedStudent.class_name);
+        const classLang = configs.some(c => c.class_name === selectedStudent.class_name)
+          ? languageFor(selectedStudent.class_name)
+          : existing.language;
         const langPatch = classLang && existing.language !== classLang ? { language: classLang } : {};
         if (Object.keys(langPatch).length) {
           base44.entities.Student.update(existing.id, langPatch);
