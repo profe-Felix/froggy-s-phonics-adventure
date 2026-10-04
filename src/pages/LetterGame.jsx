@@ -565,6 +565,32 @@ export default function LetterGame() {
     return <StudentLogin onSelectStudent={setSelectedStudent} preselectedClass={urlClass || null} />;
   }
 
+  if (!studentData && (studentLoadError || directStudentError || barcodeLookupError || classConfigError)) {
+    return (
+      <div
+        role="alert"
+        className="min-h-screen flex flex-col items-center justify-center gap-5 bg-sky-50 p-6 text-center"
+      >
+        <h1 className="text-xl font-bold">
+          Your student page could not load yet.
+        </h1>
+        <p>Your login link or selected class and number are still kept. Try the connection again.</p>
+        <button
+          type="button"
+          onClick={() => {
+            if (classConfigError) retryClassConfig();
+            if (directStudentId) retryDirectStudent();
+            else if (urlBarcode) retryBarcodeLookup();
+            else retryStudentLoad();
+          }}
+          className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white"
+        >
+          Retry connection
+        </button>
+      </div>
+    );
+  }
+
   if (!studentData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-300 to-green-200 flex items-center justify-center">
