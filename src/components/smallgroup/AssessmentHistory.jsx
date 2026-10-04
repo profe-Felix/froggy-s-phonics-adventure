@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { parseName } from '@/lib/nameNormalize';
 import { X, TrendingDown } from 'lucide-react';
+import { DECODING_LEVELS } from '@/lib/decodingSyllables';
 
 const TYPE_LABELS = {
   decoding: 'Decoding',
@@ -128,6 +129,40 @@ export default function AssessmentHistory({ student, history, onClose }) {
                   )}
                   {attempt.incorrect?.length === 0 && attempt.correct?.length > 0 && (
                     <p className="text-xs text-green-600 mt-1">All correct! 🎉</p>
+                  )}
+                  {attempt.type === 'decoding' && attempt.levels && (
+                    <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
+                      <p className="text-xs font-bold text-slate-600">By decoding level:</p>
+                      {DECODING_LEVELS.map((lvl) => {
+                        const ld = attempt.levels[lvl.id];
+                        if (!ld) return null;
+                        const c = (ld.correct || []).length;
+                        const i = (ld.incorrect || []).length;
+                        const total = c + i;
+                        const acc = total > 0 ? Math.round((c / total) * 100) : 0;
+                        return (
+                          <div key={lvl.id} className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-slate-700">{lvl.label}</span>
+                              <span className="text-xs">
+                                <span className="text-green-600 font-bold">{c}✓</span>{' '}
+                                <span className="text-red-600 font-bold">{i}✗</span>{' '}
+                                <span className="text-slate-400">({acc}%)</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {(ld.correct || []).map((w, k) => (
+                                <span key={`c${k}`} className="px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-xs font-medium">{w}</span>
+                              ))}
+                              {(ld.incorrect || []).map((w, k) => (
+                                <span key={`i${k}`} className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 text-xs font-medium">{w}</span>
+                              ))}
+                              {total === 0 && <span className="text-xs text-slate-400">Not assessed</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                   {resolveNotes(attempt).length > 0 && (
                     <div className="mt-2 border-t border-slate-100 pt-2">
