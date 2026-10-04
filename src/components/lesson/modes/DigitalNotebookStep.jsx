@@ -1,6 +1,8 @@
 import {
   useMemo,
   useState,
+  useRef,
+  useCallback,
 } from 'react';
 
 import {
@@ -158,6 +160,12 @@ export default function DigitalNotebookStep({
   const [completing, setCompleting] =
     useState(false);
 
+  const notebookSaveRef = useRef(null);
+  const [finishError, setFinishError] = useState('');
+  const registerNotebookSave = useCallback(save => {
+    notebookSaveRef.current = save;
+  }, []);
+
   const selectedPages = useMemo(
     () =>
       getSelectedPages(stepConfig),
@@ -214,25 +222,36 @@ export default function DigitalNotebookStep({
     <button
       type="button"
       disabled={completing}
-      onClick={() => {
+      onClick={async () => {
         if (completing) return;
-
         setCompleting(true);
+        setFinishError('');
 
-        onComplete?.({
-          correctCount:
-            selectedPages.length,
-          totalItems:
-            selectedPages.length,
-          pages: selectedPages,
-        });
+        try {
+          const saved = await notebookSaveRef.current?.();
+
+          if (saved !== true) {
+            setFinishError('Your notebook is not saved yet. Keep it open and try Finish again.');
+            return;
+          }
+
+          await onComplete?.({
+            correctCount: selectedPages.length,
+            totalItems: selectedPages.length,
+            pages: selectedPages,
+          });
+        } catch (error) {
+          setFinishError('The activity could not finish yet. Your notebook stays open; try again.');
+        } finally {
+          setCompleting(false);
+        }
       }}
       className="px-3 py-2 rounded-xl bg-green-500 text-white font-black text-xs inline-flex items-center gap-1 disabled:opacity-60"
     >
       <Check className="w-4 h-4" />
 
       {completing
-        ? 'Done!'
+        ? 'Saving…'
         : 'Finish notebook'}
     </button>
   );
@@ -253,8 +272,16 @@ export default function DigitalNotebookStep({
           firstPage
         }
         onBack={() => {}}
+        registerSave={registerNotebookSave}
         extraHeaderContent={
-          finishButton
+          <div className="flex items-center gap-2">
+            {finishError && (
+              <span role="alert" className="text-xs text-amber-300 max-w-xs">
+                {finishError}
+              </span>
+            )}
+            {finishButton}
+          </div>
         }
       />
     </div>
