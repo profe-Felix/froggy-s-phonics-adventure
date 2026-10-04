@@ -427,13 +427,20 @@ export default function StudentNotebookView({
           strokes_by_page: {},
         });
 
+        if (!alive) return;
         setSession(newSession);
         latestSessionRef.current = newSession;
         currentPageRef.current = desiredPage;
         setCurrentPage(desiredPage);
       }
+      } catch (error) {
+        if (alive) {
+          setNotebookLoadError('Your notebook could not load yet. Keep your class and number selected and retry.');
+        }
+      }
     })();
-  }, [selectedAssignment, className, studentNumber]);
+    return () => { alive = false; };
+  }, [selectedAssignment?.id, className, studentNumber, notebookLoadAttempt]);
 
   useEffect(() => {
     latestSessionRef.current = session;
@@ -455,7 +462,13 @@ export default function StudentNotebookView({
     localDirtyRef.current = false;
 
     const pageData = session.strokes_by_page?.[String(currentPage)];
-    const localDraft = draftKey ? localStorage.getItem(draftKey) : null;
+    let localDraft = null;
+    try {
+      localDraft = draftKey ? localStorage.getItem(draftKey) : null;
+    } catch {
+      setSaveError('Local recovery storage is unavailable. Keep this notebook open until saving succeeds.');
+    }
+    localDirtyRef.current = Boolean(localDraft) || pendingSavesRef.current.size > 0;
 
     if (localDraft) {
       try {
@@ -475,193 +488,125 @@ export default function StudentNotebookView({
   }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
 
   const saveStrokes = useCallback((pageOverride, preCapturedData) => {
-    if (!canvasRef.current) {
-      return Promise.resolve();
+    if (!canvasRef.current || !latestSessionRef.current) {
+      return Promise.resolve(false);
     }
 
-    // Capture the page and strokes before any asynchronous work.
-    const savePage =
-      pageOverride ??
-      currentPageRef.current;
-
-    const strokeData =
-      preCapturedData ??
-      canvasRef.current.getStrokes();
-
-    const activeSession =
-      latestSessionRef.current;
-
-    if (!activeSession) {
-      return Promise.resolve();
-    }
-
-    const pageKey = String(savePage);
-    const saveDraftKey =
-      `notebook-draft-${activeSession.id}-${savePage}`;
-
+    const active = latestSessionRef.current;
+    const page = pageOverride ?? currentPageRef.current;
+    const key = String(page);
     const payload = {
-      ...strokeData,
-      canvasWidth:
-        pdfRenderedSize?.w ||
-        canvasSize.w,
-      canvasHeight:
-        pdfRenderedSize?.h ||
-        canvasSize.h,
+      ...(preCapturedData ?? canvasRef.current.getStrokes()),
+      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
+      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
       normalized: true,
     };
+    const serialized = JSON.stringify(payload);
+    const draftKey = `notebook-draft-${active.id}-${page}`;
 
-    // Create the local recovery copy before any network request.
-    localStorage.setItem(
-      saveDraftKey,
-      JSON.stringify(payload)
-    );
-
-    localDirtyRef.current = true;
-
-    // A newer save may replace an older pending save for the same page,
-    // but it cannot replace a save belonging to another page.
-    pendingSavesRef.current.set(pageKey, {
-      page: savePage,
-      pageKey,
-      payload,
-      draftKey: saveDraftKey,
-      sessionId: activeSession.id,
-    });
-
-    // Do not begin network work in the middle of a stroke.
-    // handleStrokeEnd will call saveStrokes again with the final data.
-    if (isDrawingRef.current) {
-      return Promise.resolve();
-    }
-
-    // A worker is already processing the queue.
-    if (saveDrainPromiseRef.current) {
-      return saveDrainPromiseRef.current;
-    }
-
-    const drainPromise = (async () => {
-      saveInFlightRef.current = true;
-      setSaving(true);
-
+    if (
+      active.strokes_by_page?.[key] !== serialized ||
+      pendingSavesRef.current.has(key) ||
+      saveInFlightRef.current
+    ) {
       try {
-        while (pendingSavesRef.current.size > 0) {
-          const nextEntry =
-            pendingSavesRef.current.entries().next().value;
+        localStorage.setItem(draftKey, serialized);
+      } catch {
+        setSaveError('Local recovery storage is unavailable. Keep this page open until saving succeeds.');
+      }
+      pendingSavesRef.current.set(key, {
+        sessionId: active.id,
+        page,
+        payload,
+        draftKey,
+      });
+      localDirtyRef.current = true;
+    }
 
-          if (!nextEntry) break;
+    if (isDrawingRef.current) {
+      setSaveError('Finish the current pen stroke before finishing the notebook.');
+      return Promise.resolve(false);
+    }
 
-          const [
-            queuedPageKey,
-            queuedSave,
-          ] = nextEntry;
+    if (saveDrainPromiseRef.current) return saveDrainPromiseRef.current;
+    if (!pendingSavesRef.current.size) return Promise.resolve(true);
 
-          // Remove this version before saving. If the page changes again while
-          // the request is running, a newer entry will be added for that page.
-          pendingSavesRef.current.delete(
-            queuedPageKey
+    saveInFlightRef.current = true;
+    setSaving(true);
+
+    saveDrainPromiseRef.current = (async () => {
+      // Capture strokes locally immediately, then coalesce short bursts.
+      await new Promise(resolve => setTimeout(resolve, 650));
+
+      while (pendingSavesRef.current.size) {
+        const [pageKey, queued] =
+          pendingSavesRef.current.entries().next().value;
+
+        pendingSavesRef.current.delete(pageKey);
+        if (latestSessionRef.current?.id !== queued.sessionId) continue;
+
+        try {
+          // Do not overwrite other pages using a failed/stale merge read.
+          const fresh = await requestWithRetry(() =>
+            base44.entities.NotebookSession.get(queued.sessionId)
           );
-
-          const currentSession =
-            latestSessionRef.current;
-
-          if (
-            !currentSession ||
-            currentSession.id !==
-              queuedSave.sessionId
-          ) {
-            continue;
-          }
-
-          let baseStrokesByPage =
-            currentSession.strokes_by_page || {};
-
-          try {
-            const freshSession =
-              await base44.entities.NotebookSession.get(
-                queuedSave.sessionId
-              );
-
-            if (freshSession?.strokes_by_page) {
-              baseStrokesByPage =
-                freshSession.strokes_by_page;
-            }
-          } catch {
-            // Use the latest local session if the merge read fails.
-          }
-
-          const updatedStrokesByPage = {
-            ...baseStrokesByPage,
-            [queuedPageKey]: JSON.stringify(
-              queuedSave.payload
-            ),
+          const strokesByPage = {
+            ...(fresh.strokes_by_page || {}),
+            [pageKey]: JSON.stringify(queued.payload),
           };
 
-          try {
-            const savedAt =
-              new Date().toISOString();
+          await requestWithRetry(() =>
+            base44.entities.NotebookSession.update(queued.sessionId, {
+              strokes_by_page: strokesByPage,
+              last_active: new Date().toISOString(),
+            })
+          );
 
-            await base44.entities.NotebookSession.update(
-              queuedSave.sessionId,
-              {
-                strokes_by_page:
-                  updatedStrokesByPage,
-                last_active: savedAt,
-              }
-            );
-
-            // If a newer version of this page was queued during the request,
-            // keep its recovery draft until that newer version is saved.
-            if (
-              !pendingSavesRef.current.has(
-                queuedPageKey
-              )
-            ) {
-              localStorage.removeItem(
-                queuedSave.draftKey
-              );
-            }
-
-            const nextSession = {
-              ...currentSession,
+          if (latestSessionRef.current?.id === queued.sessionId) {
+            const next = {
               ...latestSessionRef.current,
-              strokes_by_page:
-                updatedStrokesByPage,
-              current_page:
-                latestSessionRef.current
-                  ?.current_page ??
-                currentPageRef.current,
-              last_active: savedAt,
+              strokes_by_page: strokesByPage,
             };
-
-            latestSessionRef.current =
-              nextSession;
-
-            setSession(nextSession);
-          } catch (error) {
-            // Keep the local draft after a failed server save.
-            console.error(
-              `Unable to save notebook page ${queuedSave.page}`,
-              error
-            );
+            latestSessionRef.current = next;
+            setSession(next);
           }
+
+          if (!pendingSavesRef.current.has(pageKey)) {
+            try {
+              localStorage.removeItem(queued.draftKey);
+            } catch {}
+          }
+
+          setSaveError('');
+        } catch (error) {
+          // Keep failed work queued and retain its recovery draft.
+          // Do not replace a newer pending version of the same page.
+          if (!pendingSavesRef.current.has(pageKey)) {
+            pendingSavesRef.current.set(pageKey, queued);
+          }
+          setSaveError('Not saved to the server yet — keeping your draft and retrying. Keep this notebook open.');
+          console.error('Notebook save failed', error);
+          return false;
         }
-      } finally {
-        saveInFlightRef.current = false;
-        saveDrainPromiseRef.current = null;
-
-        localDirtyRef.current =
-          pendingSavesRef.current.size > 0 ||
-          isDrawingRef.current;
-
-        setSaving(false);
       }
-    })();
 
-    saveDrainPromiseRef.current =
-      drainPromise;
+      return true;
+    })().finally(() => {
+      saveInFlightRef.current = false;
+      saveDrainPromiseRef.current = null;
+      localDirtyRef.current =
+        pendingSavesRef.current.size > 0 || isDrawingRef.current;
+      setSaving(false);
+    });
 
-    return drainPromise;
-  }, [pdfRenderedSize, canvasSize]);
+    return saveDrainPromiseRef.current;
+  }, [canvasSize, pdfRenderedSize]);
+
+  useEffect(() => {
+    if (!registerSave) return;
+    registerSave(() => saveStrokes(currentPageRef.current));
+    return () => registerSave(null);
+  }, [registerSave, saveStrokes]);
 
   const handlePdfRendered = useCallback((width, height) => {
     const nextWidth = Math.round(width * 100) / 100;
@@ -861,7 +806,7 @@ export default function StudentNotebookView({
 
       if (isDrawingRef.current) return;
       if (saveInFlightRef.current) return;
-      if (localDirtyRef.current) return;
+      if (localDirtyRef.current || pendingSavesRef.current.size > 0) return;
 
       const pageKey = String(
         currentPageRef.current
@@ -1309,6 +1254,36 @@ export default function StudentNotebookView({
     window.history.replaceState(null, '', newUrl);
   }, [currentPage, selectedAssignment, isEmbedded]);
 
+  if (assignmentLoadError && !assignments.length) {
+    return (
+      <div role="alert" className="p-8 text-center space-y-4">
+        <p>Notebook assignments could not load yet. Your class and number are still selected.</p>
+        <button
+          type="button"
+          onClick={() => retryAssignments()}
+          className="rounded-xl bg-indigo-600 text-white px-5 py-3"
+        >
+          Retry connection
+        </button>
+      </div>
+    );
+  }
+
+  if (notebookLoadError) {
+    return (
+      <div role="alert" className="p-8 text-center space-y-4">
+        <p>{notebookLoadError}</p>
+        <button
+          type="button"
+          onClick={() => setNotebookLoadAttempt(n => n + 1)}
+          className="rounded-xl bg-indigo-600 text-white px-5 py-3"
+        >
+          Retry notebook
+        </button>
+      </div>
+    );
+  }
+
   if (!selectedAssignment) {
     const visibleAssignments = assignments.filter(a => !a.hidden);
     return <AssignmentPicker assignments={visibleAssignments} onSelect={setSelectedAssignment} className={className} />;
@@ -1330,7 +1305,8 @@ export default function StudentNotebookView({
         <BackButton
           tone="indigo"
           onClick={async () => {
-            await saveStrokes();
+            const saved = await saveStrokes();
+            if (saved !== true) return;
             loadedKeyRef.current = null;
             setSelectedAssignment(null);
           }}
@@ -1344,6 +1320,18 @@ export default function StudentNotebookView({
         </span>
         <span className="text-indigo-300 text-sm font-bold">Page {currentPage}</span>
         {saving && <span className="text-xs text-indigo-400 animate-pulse">Saving…</span>}
+        {saveError && (
+          <span role="alert" className="text-xs text-amber-300">
+            {saveError}{' '}
+            <button
+              type="button"
+              onClick={() => { void saveStrokes(); }}
+              className="underline font-bold"
+            >
+              Retry save
+            </button>
+          </span>
+        )}
         {extraHeaderContent}
         <button
           onClick={() => setShowQR(true)}
