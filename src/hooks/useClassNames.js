@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { useClassConfigs } from '@/hooks/useClassConfigs';
 
 // Dynamic class list driven by ClassConfig records, so teachers can add/remove
 // classes without code changes. Every dashboard that used to hardcode
@@ -14,23 +15,9 @@ export function useClassNames() {
   const {
     data: configs = [],
     isLoading,
-  } = useQuery({
-    queryKey: ['class-configs'],
-
-    queryFn: () =>
-      base44.entities.ClassConfig.list(
-        '-updated_date',
-        100
-      ),
-
-    staleTime: 10 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-    retry: false,
-  });
+    error,
+    refetch,
+  } = useClassConfigs();
 
   const names = configs.map((c) => c.class_name).filter(Boolean);
   const classList = names.length ? names : FALLBACK_CLASSES;
@@ -57,5 +44,5 @@ export function useClassNames() {
     });
   };
 
-  return { classList, configs, isLoading, addClass, removeClass };
+  return { classList, configs, isLoading, addClass, removeClass, error, retry: refetch };
 }
