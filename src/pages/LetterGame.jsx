@@ -151,7 +151,8 @@ export default function LetterGame() {
     if (!activeNotebookAssessment) return;
     if (liveSession || activeDictationSession) return; // live lesson / dictation take priority
     if (!activeNotebookAssessment.assignment_id) return;
-    const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${activeNotebookAssessment.id}&fromLive=1`;
+    if (!selectedStudent?.number) return;
+    const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
     window.location.href = url;
   }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent]);
 
