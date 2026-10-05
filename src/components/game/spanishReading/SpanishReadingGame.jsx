@@ -24,6 +24,7 @@ import {
 } from '@/lib/literacy/adaptiveDifficulty';
 import { getDecodableWords } from '@/lib/wordBankDifficulty';
 import { buildAdaptiveDecodingRound, decodingListName } from '@/lib/decodingProgression';
+import { useHeadphoneMonitor } from '@/hooks/useHeadphoneMonitor';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -579,6 +580,11 @@ export default function SpanishReadingGame({
   // the student's current decoding level (CV / CVC / CVCV / inverse). Null
   // for every other section or when driven by a lesson preset.
   const [decodingLevel, setDecodingLevel] = useState(null);
+
+  // Shared headphone-monitoring hook. Lifted to this parent (which does NOT
+  // remount per item) so the session intent and volume persist across items —
+  // SlideToReadCanvas is keyed per item and would reset a local hook each time.
+  const monitor = useHeadphoneMonitor();
 
   const isDriven = !!drivenItems;
   const activeListName = isDriven
@@ -1448,6 +1454,7 @@ export default function SpanishReadingGame({
             onBack={() => setViewMode('overview')}
             micEnabled={continuousBlending}
             recordingEnabled={isDriven}
+            monitor={monitor}
           />
         </div>
       ) : (

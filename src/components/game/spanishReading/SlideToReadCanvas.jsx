@@ -576,6 +576,9 @@ export default function SlideToReadCanvas({
   // When false (free play), no audio is captured or uploaded — the student just
   // drags the slider and self-checks. Lesson/assigned practice keeps it true.
   recordingEnabled = true,
+  // Optional shared monitor hook (lifted to the parent so the session intent
+  // and volume persist across per-item remounts). Falls back to a local hook.
+  monitor: monitorProp,
 }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
@@ -597,8 +600,11 @@ export default function SlideToReadCanvas({
 
   // Live headphone monitoring — hears own mic through verified headphones.
   // Separate audio graph from the analyser (balloon) and the MediaRecorder;
-  // its gain never affects continuity or the saved recording.
-  const monitor = useHeadphoneMonitor();
+  // its gain never affects continuity or the saved recording. When a parent
+  // passes a shared hook, use it so the session intent + volume survive
+  // per-item remounts; otherwise create a local one.
+  const localMonitor = useHeadphoneMonitor();
+  const monitor = monitorProp || localMonitor;
 
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);
