@@ -398,67 +398,12 @@ export default function LessonModeRouter({
         totalSteps
       );
 
-      // ---------------------------------------------------------------
-      // FIRST-TIME REWARD ECONOMY
-      //
-      // Letter Sort (performance-tiered):
-      //   0 mistakes = +8, ≤3 mistakes = +4, else +2
-      //
-      // Completion / participation:
-      //   +4 coins
-      //
-      // Mastery:
-      //   100% = 10 coins, 80% threshold = 5 coins
-      //   (below-threshold is blocked above — never reaches here)
-      //
-      // Tracing:
-      //   FREE SPIN handled inside LetterTracingMode / WordTracingMode
-      //   instead of coins.
-      // ---------------------------------------------------------------
-
-      if (isTracingMode) {
-        return;
-      }
-
-      if (step?.mode === 'letter_sort') {
-        const total = meta?.total || letterSortFirstTry.total || 0;
-        const firstTryCorrect = meta?.firstTryCorrect ?? letterSortFirstTry.correct ?? 0;
-        const amount = total > 0 ? Math.max(1, Math.round((firstTryCorrect / total) * 10)) : 0;
-        awardStepCoins(amount, 'letter_sort');
-        return;
-      }
-
-      if (comp.type === 'mastery') {
-        // Tiered mastery rewards: 100% = 10 coins, 80% threshold = 5 coins.
-        // meta.correctCount/totalItems come from activities (via completeStep);
-        // for progress-based mastery, maybeComplete passes the mastered count.
-        const target = comp.target || 1;
-        const correctCount = meta?.correctCount ?? meta?.masteredCount ?? 0;
-        const totalItems = meta?.totalItems ?? target;
-
-        if (correctCount >= totalItems) {
-          awardStepCoins(10, 'first_mastery_100');
-        } else {
-          awardStepCoins(5, 'first_mastery_80');
-        }
-
-        return;
-      }
-
-      awardStepCoins(
-        4,
-        'first_completion'
-      );
+      // Coins are no longer awarded after lesson steps. Tracing free spins
+      // are still handled inside LetterTracingMode / WordTracingMode.
     }, [
       stepIndex,
       totalSteps,
       markStepComplete,
-      isTracingMode,
-      comp.type,
-      comp.threshold,
-      comp.target,
-      step?.mode,
-      awardStepCoins,
     ]);
 
   const finishReplayRun =
@@ -494,53 +439,14 @@ export default function LessonModeRouter({
 
       setDone(true);
 
-      // ---------------------------------------------------------------
-      // REPLAY REWARD ECONOMY
-      //
-      // Letter Sort (performance-tiered, same as first run):
-      //   0 mistakes = +8, ≤3 mistakes = +4, else +2
-      //
-      // Ordinary completion:
-      //   0 coins
-      //
-      // Mastery:
-      //   +5 coins (only when threshold met — gated above)
-      //
-      // Tracing:
-      //   +8 coins
-      //
-      // LessonProgress is intentionally NOT changed again.
-      // ---------------------------------------------------------------
-
-      if (isTracingMode) {
-        awardStepCoins(
-          8,
-          'tracing_replay'
-        );
-
-        return;
-      }
-
-      // Replaying with a new set awards a flat 5 coins for any activity.
-      if (step?.mode === 'letter_sort') {
-        awardStepCoins(5, 'letter_sort_replay');
-        return;
-      }
-
-      if (comp.type === 'mastery') {
-        awardStepCoins(5, 'mastery_replay');
-        return;
-      }
-
-      // View/completion replays: 5 coins too, to motivate replaying different games.
-      awardStepCoins(5, 'completion_replay');
+      // No coins awarded on replay either. LessonProgress is intentionally
+      // NOT changed again.
     }, [
-      isTracingMode,
       comp.type,
       comp.threshold,
       comp.target,
       step?.mode,
-      awardStepCoins,
+      isTracingMode,
     ]);
 
   const maybeComplete =
@@ -1642,65 +1548,6 @@ export default function LessonModeRouter({
                       🎡 Free spin earned!
                     </p>
                   )}
-
-                {!isReplayRun &&
-                  !isTracingMode &&
-                  comp.type ===
-                    'mastery' && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +{(comp.threshold || 1) < 1 ? '5–10' : '10'} coins
-                    </p>
-                  )}
-
-                {!isReplayRun &&
-                  !isTracingMode &&
-                  comp.type !==
-                    'mastery' && !isLetterSort && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +4 coins
-                    </p>
-                  )}
-
-                {!isReplayRun &&
-                  !isTracingMode &&
-                  isLetterSort && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +{letterSortAmount} coins
-                    </p>
-                  )}
-
-                {isReplayRun &&
-                  isTracingMode && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +5 replay coins
-                    </p>
-                  )}
-
-                {isReplayRun &&
-                  !isTracingMode &&
-                  comp.type ===
-                    'mastery' && !isLetterSort && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +5 replay coins
-                    </p>
-                  )}
-
-                {isReplayRun &&
-                  !isTracingMode &&
-                  isLetterSort && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +5 replay coins
-                    </p>
-                  )}
-
-                {isReplayRun &&
-                  !isTracingMode &&
-                  comp.type !==
-                    'mastery' && !isLetterSort && (
-                    <p className="text-amber-600 text-sm font-black mt-2">
-                      🪙 +5 replay coins
-                    </p>
-                  )}
               </div>
 
               <div className="flex flex-col gap-2 w-full">
@@ -1712,23 +1559,6 @@ export default function LessonModeRouter({
                 >
                   <RotateCcw className="w-5 h-5 mr-2" />
                   Play Again
-                </Button>
-
-                <Button
-                  onClick={
-                    stepperMode
-                      ? onNext
-                      : wrappedBack
-                  }
-                  className="bg-green-500 hover:bg-green-600 text-white font-bold text-base px-8 py-2.5"
-                >
-                  <ArrowLeft className="w-5 h-5 mr-2" />
-
-                  {stepperMode
-                    ? isLast
-                      ? 'Finish'
-                      : 'Next Step'
-                    : 'Return to Lesson'}
                 </Button>
               </div>
             </div>
