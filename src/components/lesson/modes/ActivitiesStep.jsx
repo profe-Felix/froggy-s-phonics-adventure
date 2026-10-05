@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import HuntActivity from '@/components/activities/HuntActivity';
 import RhymeActivity from '@/components/activities/RhymeActivity';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
+import { buildHuntItemsFromBank } from '@/lib/activities/huntItems';
 import StepDoneBar from './StepDoneBar';
 
 // Parse a textarea string into activity items based on the mode.
@@ -44,6 +45,26 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
     ? Math.ceil(totalForThreshold * masteryThreshold)
     : totalForThreshold;
   const metMastery = !isMastery || score.correctCount >= neededCorrect;
+  // Auto-generated items from the WordBank when the teacher hasn't entered
+  // custom examples for a text_hunt activity.
+  const [bankItems, setBankItems] = useState(null);
+  const [bankLoading, setBankLoading] = useState(false);
+  const isHuntNoExamples = (stepConfig?.activityMode === 'text_hunt') && !(stepConfig?.itemsText && stepConfig.itemsText.trim());
+
+  useEffect(() => {
+    if (!isHuntNoExamples) { setBankItems(null); return; }
+    let cancelled = false;
+    setBankLoading(true);
+    buildHuntItemsFromBank({
+      huntType: stepConfig?.huntType || 'phoneme',
+      huntTarget: stepConfig?.huntTarget,
+      lessonLiteracy: stepConfig?.lessonLiteracy,
+    })
+      .then((items) => { if (!cancelled) { setBankItems(items); setBankLoading(false); } })
+      .catch(() => { if (!cancelled) { setBankItems([]); setBankLoading(false); } });
+    return () => { cancelled = true; };
+  }, [isHuntNoExamples, stepConfig?.huntType, stepConfig?.huntTarget, stepConfig?.lessonLiteracy]);
+
   const config = useMemo(() => {
     const cfg = stepConfig || {};
     // If a preset is selected, use it as the base.
@@ -66,15 +87,35 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
       }
       return out;
     }
+    // text_hunt with no examples: use auto-generated items from the WordBank.
+    if (mode === 'text_hunt' && bankItems && bankItems.length > 0) {
+      return {
+        mode: 'text_hunt',
+        items: bankItems,
+        huntType: cfg.huntType || 'phoneme',
+        target: cfg.huntTarget || '',
+      };
+    }
     // Fall back to default counting words.
     return DEFAULT_CONFIG;
-  }, [stepConfig]);
+  }, [stepConfig, bankItems]);
 
   const mode = config.mode || 'counting_words';
   const name = studentName || 'Estudiante';
 
   if (isLoading && stepConfig?.preset && !PRESETS[stepConfig.preset]) {
     return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading activity…</div>;
+  }
+
+  if (bankLoading && mode === 'text_hunt') {
+    return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Generando palabras del banco…</div>;
+  }
+
+  // text_hunt with no examples and no matching word-bank words
+  if (mode === 'text_hunt' && !bankLoading && bankItems !== null && bankItems.length === 0 && !(stepConfig?.itemsText && stepConfig.itemsText.trim())) {
+    return <div className="flex-1 flex items-center justify-center text-slate-400 text-sm text-center px-6">
+      No hay palabras en el banco de palabras que contengan "{stepConfig?.huntTarget || ''}". Añade palabras en la página Word Bank o escribe ejemplos directamente.
+    </div>;
   }
 
   return (
