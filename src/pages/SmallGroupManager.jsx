@@ -6,17 +6,9 @@ import { getHomeroomForClass, ROTATION_TEACHERS } from '@/lib/classRotation';
 import { Loader2, ArrowLeft, Users, Shuffle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import GroupStudentCard from '@/components/smallgroup/GroupStudentCard';
+import { COLOR_GROUPS } from '@/lib/smallGroupColors';
 
 const BLOCKS = ['A', 'B', 'C'];
-
-const COLOR_GROUPS = [
-  { id: 'red',    label: 'Red',    header: 'bg-red-500',    bg: 'bg-red-50',    border: 'border-red-300',    text: 'text-red-700' },
-  { id: 'orange', label: 'Orange', header: 'bg-orange-500', bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-700' },
-  { id: 'yellow', label: 'Yellow', header: 'bg-yellow-500', bg: 'bg-yellow-50', border: 'border-yellow-300', text: 'text-yellow-700' },
-  { id: 'green',  label: 'Green',  header: 'bg-green-500',  bg: 'bg-green-50',  border: 'border-green-300',  text: 'text-green-700' },
-  { id: 'blue',   label: 'Blue',   header: 'bg-blue-500',   bg: 'bg-blue-50',   border: 'border-blue-300',   text: 'text-blue-700' },
-  { id: 'purple', label: 'Purple', header: 'bg-purple-500', bg: 'bg-purple-50', border: 'border-purple-300', text: 'text-purple-700' },
-];
 
 export default function SmallGroupManager() {
   const [students, setStudents] = useState(null);
@@ -71,10 +63,14 @@ export default function SmallGroupManager() {
     return map;
   }, [students]);
 
-  // Map of student_id → assignment record
+  // Map of student_id → array of assignment records (a student can be in
+  // multiple color groups, so we keep all their records).
   const assignmentMap = useMemo(() => {
     const map = {};
-    if (assignments) for (const a of assignments) map[a.student_id] = a;
+    if (assignments) for (const a of assignments) {
+      if (!map[a.student_id]) map[a.student_id] = [];
+      map[a.student_id].push(a);
+    }
     return map;
   }, [assignments]);
 
@@ -91,34 +87,31 @@ export default function SmallGroupManager() {
     return groups;
   }, [assignments, studentMap]);
 
-  // Unassigned students (in homeroom but no assignment for this teacher+block)
+  // Unassigned students (in homeroom but not in any color group)
   const unassignedStudents = useMemo(
-    () => blockStudents.filter((s) => !assignmentMap[s.id]),
+    () => blockStudents.filter((s) => !(assignmentMap[s.id] || []).length),
     [blockStudents, assignmentMap]
   );
 
   const handleAssign = async (student, colorGroup) => {
     if (!student || !colorGroup) return;
-    const existing = assignmentMap[student.id];
-    if (existing && existing.color_group === colorGroup) {
+    // A student can be in multiple groups — only add if not already in this one.
+    const existing = (assignmentMap[student.id] || []).find(a => a.color_group === colorGroup);
+    if (existing) {
       setSelectedStudent(null);
       return; // already in this group
     }
     setSaving(true);
     try {
-      if (existing) {
-        await base44.entities.SmallGroupAssignment.update(existing.id, { color_group: colorGroup });
-      } else {
-        await base44.entities.SmallGroupAssignment.create({
-          teacher_name: selectedTeacher,
-          block: selectedBlock,
-          student_id: student.id,
-          student_number: student.student_number,
-          class_name: student.class_name,
-          color_group: colorGroup,
-          school_year: ACTIVE_SCHOOL_YEAR,
-        });
-      }
+      await base44.entities.SmallGroupAssignment.create({
+        teacher_name: selectedTeacher,
+        block: selectedBlock,
+        student_id: student.id,
+        student_number: student.student_number,
+        class_name: student.class_name,
+        color_group: colorGroup,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      });
       await loadAssignments();
     } catch (err) {
       alert('Failed to assign: ' + (err.message || 'Unknown error'));
@@ -126,11 +119,10 @@ export default function SmallGroupManager() {
     setSaving(false);
   };
 
-  const handleUnassign = async (student) => {
-    const existing = assignmentMap[student.id];
+  const handleUnassign = async (student, colorGroup) => {
+    const existing = (assignmentMap[student.id] || []).find(a => a.color_group === colorGroup);
     if (!existing) return;
     setSaving(true);
-    setSelectedStudent(null);
     try {
       await base44.entities.SmallGroupAssignment.delete(existing.id);
       await loadAssignments();
@@ -167,7 +159,9 @@ export default function SmallGroupManager() {
   };
 
   const selectedStudentObj = selectedStudent ? studentMap[selectedStudent] : null;
-  const selectedStudentGroup = selectedStudent ? assignmentMap[selectedStudent]?.color_group : null;
+  const selectedStudentGroups = selectedStudent
+    ? (assignmentMap[selectedStudent] || []).map(a => a.color_group)
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -330,7 +324,7 @@ export default function SmallGroupManager() {
                           student={s}
                           isSelected={selectedStudent === s.id}
                           onClick={() => setSelectedStudent(selectedStudent === s.id ? null : s.id)}
-                          onUnassign={handleUnassign}
+                          onUnassign={(stu) => handleUnassign(stu, cg.id)}
                         />
                       ))}
                       {groupStudents.length === 0 && (
@@ -362,15 +356,15 @@ export default function SmallGroupManager() {
                 </div>
               )}
               <span className="text-sm font-bold text-slate-800">{selectedStudentObj.name}</span>
-              {selectedStudentGroup && (
+              {selectedStudentGroups.length > 0 && (
                 <span className="text-xs text-slate-500">
-                  → <span className="font-medium capitalize">{selectedStudentGroup}</span>
+                  In: <span className="font-medium capitalize">{selectedStudentGroups.join(', ')}</span>
                 </span>
               )}
             </div>
             <div className="h-6 w-px bg-slate-200" />
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Move to:</span>
+              <span className="text-xs text-slate-500">Add to:</span>
               {COLOR_GROUPS.map((cg) => (
                 <button
                   key={cg.id}
@@ -378,19 +372,11 @@ export default function SmallGroupManager() {
                   className={cn(
                     'w-7 h-7 rounded-full border-2 transition-all hover:scale-110',
                     cg.header,
-                    selectedStudentGroup === cg.id ? 'ring-2 ring-slate-800 ring-offset-1' : 'border-white/30'
+                    selectedStudentGroups.includes(cg.id) ? 'ring-2 ring-slate-800 ring-offset-1' : 'border-white/30'
                   )}
                   title={cg.label}
                 />
               ))}
-              {selectedStudentGroup && (
-                <button
-                  onClick={() => handleUnassign(selectedStudentObj)}
-                  className="ml-1 text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
-                >
-                  Unassign
-                </button>
-              )}
             </div>
           </div>
         )}

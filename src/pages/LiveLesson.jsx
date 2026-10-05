@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
@@ -11,6 +11,9 @@ import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
 import LiveNotebookAssessmentPanel from '@/components/live/LiveNotebookAssessmentPanel';
 import { useClassNames } from '@/hooks/useClassNames';
+import { getHomeroomForClass, ROTATION_TEACHERS } from '@/lib/classRotation';
+import { cn } from '@/lib/utils';
+import { COLOR_GROUPS } from '@/lib/smallGroupColors';
 
 const LIVE_WEEKDAYS = [
   'sunday',
@@ -29,6 +32,8 @@ const LIVE_DAY_OPTIONS = [
   { value: 'thursday', label: 'Thursday' },
   { value: 'friday', label: 'Friday' },
 ];
+
+const BLOCKS = ['A', 'B', 'C'];
 
 function getLiveLessonSteps(lesson, selectedDay = '') {
   if (!lesson) {
@@ -90,7 +95,9 @@ export default function LiveLesson() {
   const [selectedLessonDay, setSelectedLessonDay] = useState('');
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');
-  const [pickedStudents, setPickedStudents] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState([]);
+  const [groupTeacher, setGroupTeacher] = useState('Felix');
+  const [groupBlock, setGroupBlock] = useState('A');
   const [starting, setStarting] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -153,15 +160,54 @@ export default function LiveLesson() {
     });
   }, [selectedLessonId]);
 
-  const { data: classStudents = [] } = useQuery({
-    queryKey: ['class-students-live', className],
+  // Small-group assignments for the selected teacher+block (from Small Group
+  // Manager). When "Small group" is selected, the teacher picks color groups
+  // here instead of tapping individual student numbers.
+  const { data: groupAssignments = [] } = useQuery({
+    queryKey: ['small-group-assignments-live', groupTeacher, groupBlock],
     queryFn: () =>
-      base44.entities.Student.filter({
-        class_name: className,
+      base44.entities.SmallGroupAssignment.filter({
+        teacher_name: groupTeacher,
+        block: groupBlock,
         school_year: ACTIVE_SCHOOL_YEAR,
       }),
-    enabled: !!className,
+    enabled: !!groupTeacher && !!groupBlock,
   });
+
+  // Default the teacher+block to the selected class's homeroom so the
+  // relevant groups show without the teacher having to switch.
+  useEffect(() => {
+    if (!className) return;
+    setGroupTeacher(ROTATION_TEACHERS.includes(className) ? className : 'Felix');
+    setGroupBlock('A');
+    setSelectedGroups([]);
+  }, [className]);
+
+  const groupStudentsByColor = useMemo(() => {
+    const map = {};
+    for (const cg of COLOR_GROUPS) map[cg.id] = [];
+    for (const a of groupAssignments || []) {
+      if (map[a.color_group]) map[a.color_group].push(a);
+    }
+    return map;
+  }, [groupAssignments]);
+
+  // Students in the selected color groups → the lesson's target_students.
+  const pickedStudents = useMemo(() => {
+    if (targetMode !== 'group') return [];
+    const ids = new Set(selectedGroups);
+    const out = [];
+    const seen = new Set();
+    for (const a of groupAssignments || []) {
+      if (!ids.has(a.color_group)) continue;
+      const key = `${a.class_name}:${a.student_number}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ class_name: a.class_name, student_number: a.student_number });
+    }
+    out.sort((a, b) => a.student_number - b.student_number);
+    return out;
+  }, [targetMode, selectedGroups, groupAssignments]);
 
   // Real-time subscription to the active session.
   //
@@ -471,34 +517,9 @@ export default function LiveLesson() {
     setSession(null);
     setSelectedLessonId('');
     setClassName('');
-    setPickedStudents([]);
+    setSelectedGroups([]);
     setTargetMode('class');
     setShowQR(false);
-  };
-
-  const toggleStudent = (s) => {
-    const key =
-      `${s.class_name}:${s.student_number}`;
-
-    setPickedStudents(prev => {
-      const exists = prev.some(
-        p =>
-          `${p.class_name}:${p.student_number}` === key
-      );
-
-      return exists
-        ? prev.filter(
-            p =>
-              `${p.class_name}:${p.student_number}` !== key
-          )
-        : [
-            ...prev,
-            {
-              class_name: s.class_name,
-              student_number: s.student_number,
-            },
-          ];
-    });
   };
 
   // ---------- SETUP SCREEN ----------
@@ -688,39 +709,83 @@ export default function LiveLesson() {
               </div>
 
               {targetMode === 'group' && className && (
-                <div className="border-2 border-gray-100 rounded-xl p-3 max-h-48 overflow-y-auto">
-
-                  <div className="grid grid-cols-6 gap-2">
-                    {classStudents.map(s => {
-                      const picked =
-                        pickedStudents.some(
-                          p =>
-                            p.class_name === s.class_name &&
-                            p.student_number === s.student_number
-                        );
-
-                      return (
+                <div className="border-2 border-gray-100 rounded-xl p-3 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-gray-500">Groups from:</span>
+                    <div className="flex gap-1">
+                      {ROTATION_TEACHERS.map(t => (
                         <button
-                          key={s.id}
-                          onClick={() =>
-                            toggleStudent(s)
-                          }
-                          className={`h-11 rounded-lg font-bold text-sm border-2 transition ${
-                            picked
+                          key={t}
+                          type="button"
+                          onClick={() => { setGroupTeacher(t); setSelectedGroups([]); }}
+                          className={`px-2 py-1 rounded text-xs font-bold border transition ${
+                            groupTeacher === t
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1">
+                      {BLOCKS.map(b => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => { setGroupBlock(b); setSelectedGroups([]); }}
+                          className={`px-2 py-1 rounded text-xs font-bold border transition ${
+                            groupBlock === b
                               ? 'bg-rose-500 text-white border-rose-500'
                               : 'bg-white text-gray-600 border-gray-200 hover:border-rose-300'
                           }`}
                         >
-                          {s.student_number}
+                          Block {b}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      → {getHomeroomForClass(groupTeacher, groupBlock)} homeroom
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {COLOR_GROUPS.map(cg => {
+                      const count = (groupStudentsByColor[cg.id] || []).length;
+                      const selected = selectedGroups.includes(cg.id);
+                      return (
+                        <button
+                          key={cg.id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedGroups(prev =>
+                              selected ? prev.filter(g => g !== cg.id) : [...prev, cg.id]
+                            )
+                          }
+                          className={`rounded-lg border-2 p-2 text-center transition ${
+                            selected
+                              ? `${cg.header} text-white border-transparent`
+                              : `${cg.bg} ${cg.border} text-gray-700 hover:shadow-sm`
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{cg.label}</div>
+                          <div className="text-lg font-black leading-tight">{count}</div>
                         </button>
                       );
                     })}
                   </div>
 
-                  <p className="text-xs text-gray-400 mt-2">
-                    {pickedStudents.length} student(s) selected
-                  </p>
+                  {selectedGroups.length === 0 && (groupAssignments || []).length === 0 && (
+                    <p className="text-xs text-gray-400">
+                      No groups set up for {groupTeacher} Block {groupBlock}.{' '}
+                      <Link to="/SmallGroupManager" className="text-rose-500 underline">Set up groups</Link>.
+                    </p>
+                  )}
 
+                  <p className="text-xs text-gray-500">
+                    {pickedStudents.length} student(s) selected
+                    {selectedGroups.length > 0 && ` from ${selectedGroups.length} group(s)`}
+                  </p>
                 </div>
               )}
             </div>
