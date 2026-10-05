@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useBlueToRed } from '@/hooks/useBlueToRed';
 import { replaceBlueWithRed, dataUrlToBlob } from '@/lib/blueToRed';
 import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft, Layers } from 'lucide-react';
 import { getCurriculumPositionList, getGraphemesAtKey } from '@/lib/literacy/curriculumPositions';
@@ -351,7 +350,11 @@ function GraphemeCardEditor({ grapheme, phonemeCard, graphemeCard, onUpload, onD
 // ── Upload slot showing preview or upload button ─────────────────────────────
 function CardSlot({ label, card, onPick, onDelete, onDropFile, onEditCovers, uploading }) {
   const [dragOver, setDragOver] = useState(false);
-  const processedImageUrl = useBlueToRed(card?.image_url);
+  // The stored image_url is already the red-processed version (the upload flow
+  // saves UP_<name> as image_url), so we display it directly — no per-card
+  // canvas pixel-scan on render. Unprocessed legacy cards can be batch-fixed
+  // with the "Process all cards" button.
+  const processedImageUrl = card?.image_url;
 
   const handleDrop = (e) => {
     e.preventDefault();
