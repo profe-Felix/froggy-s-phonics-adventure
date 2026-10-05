@@ -67,6 +67,7 @@ import SmallGroupAssessment from './pages/SmallGroupAssessment';
 import SmallGroupAssessmentStudent from './pages/SmallGroupAssessmentStudent';
 import LiveSpanishReading from './pages/LiveSpanishReading';
 import LiveSpanishReadingStudent from './pages/LiveSpanishReadingStudent';
+import SmallGroupLessonPlanner from './pages/SmallGroupLessonPlanner';
 import TableRotationManager from './pages/TableRotationManager';
 import CreandoOraciones from './pages/CreandoOraciones';
 import WorkSamples from './pages/WorkSamples';
@@ -185,6 +186,7 @@ const AuthenticatedApp = () => {
       <Route path="/SmallGroupAssessmentStudent" element={<SmallGroupAssessmentStudent />} />
       <Route path="/LiveSpanishReading" element={<LiveSpanishReading />} />
       <Route path="/LiveSpanishReadingStudent" element={<LiveSpanishReadingStudent />} />
+      <Route path="/SmallGroupLessonPlanner" element={<SmallGroupLessonPlanner />} />
       <Route path="/TableRotationManager" element={<TableRotationManager />} />
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />

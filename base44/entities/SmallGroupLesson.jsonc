@@ -1,0 +1,138 @@
+{
+  "name": "SmallGroupLesson",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Week title shown to the teacher e.g. 'Red Group \u2014 Week 7'"
+    },
+    "week_label": {
+      "type": "string",
+      "default": "",
+      "description": "Teacher-facing label for ordering weeks e.g. 'Week 7' or 'Week of Oct 5'. Used only for sorting the planner list."
+    },
+    "class_name": {
+      "type": "string",
+      "description": "Homeroom class this weekly plan belongs to (e.g. Felix, Valero). A red group in one class is independent of a red group in another."
+    },
+    "color_group": {
+      "type": "string",
+      "enum": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "blue",
+        "purple"
+      ],
+      "description": "Which color group within the class this plan is for."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
+    },
+    "daily_lessons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday"
+            ],
+            "description": "Weekday slot"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "False means no school / no assignment for this weekday"
+          },
+          "title": {
+            "type": "string",
+            "default": "",
+            "description": "Optional teacher-facing title for the day e.g. 'Introduce m'"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "default": [],
+            "description": "Ordered activity steps for this day. Same step shape as the Lesson entity (mode, title, emoji, color, live_scope, access_scope, completion, config)."
+          }
+        },
+        "required": [
+          "day"
+        ]
+      },
+      "default": [],
+      "description": "Monday through Friday plan. Each day holds an ordered list of activity steps."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive plans are hidden from the live runner and student quests."
+    },
+    "notes": {
+      "type": "string",
+      "default": "",
+      "description": "Optional teacher notes for this week (not shown to students)."
+    }
+  },
+  "required": [
+    "title",
+    "class_name",
+    "color_group"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

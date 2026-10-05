@@ -306,24 +306,29 @@ export default function SmallGroupManager() {
                     </div>
 
                     {/* Action buttons */}
-                    {groupStudents.length > 0 && (
-                      <div className="flex border-b border-slate-200">
-                        <Link
-                          to={`/SmallGroupAssessment?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex-1 text-center text-[10px] font-bold text-slate-600 hover:text-slate-800 py-1 bg-white/60 transition-colors hover:bg-white"
-                        >
-                          📋 Assess
-                        </Link>
-                        <Link
-                          to={`/LiveSpanishReading?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex-1 text-center text-[10px] font-bold text-indigo-600 hover:text-indigo-800 py-1 bg-indigo-50/60 transition-colors hover:bg-indigo-50 border-l border-slate-200"
-                        >
-                          📖 Live Reading
-                        </Link>
-                      </div>
-                    )}
+                    <div className="flex border-b border-slate-200">
+                      <Link
+                        to={`/SmallGroupLessonPlanner?class=${encodeURIComponent(homeroom)}&group=${cg.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-center text-[10px] font-bold text-emerald-600 hover:text-emerald-800 py-1 bg-emerald-50/60 transition-colors hover:bg-emerald-50"
+                      >
+                        🗓 Plan week
+                      </Link>
+                      <Link
+                        to={`/SmallGroupAssessment?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-center text-[10px] font-bold text-slate-600 hover:text-slate-800 py-1 bg-white/60 transition-colors hover:bg-white border-l border-slate-200"
+                      >
+                        📋 Assess
+                      </Link>
+                      <Link
+                        to={`/LiveSpanishReading?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-center text-[10px] font-bold text-indigo-600 hover:text-indigo-800 py-1 bg-indigo-50/60 transition-colors hover:bg-indigo-50 border-l border-slate-200"
+                      >
+                        📖 Live
+                      </Link>
+                    </div>
 
                     {/* Students */}
                     <div className="p-2 flex flex-col gap-1.5 min-h-[200px] flex-1">

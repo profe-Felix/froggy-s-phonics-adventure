@@ -24,7 +24,7 @@ import SubstepEditor from '@/components/spanishReading/SubstepEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
-function blankStep(mode = 'letter_sounds') {
+export function blankStep(mode = 'letter_sounds') {
   const m = MODE_BY_VALUE[mode];
   return {
     mode,
@@ -41,7 +41,7 @@ function blankStep(mode = 'letter_sounds') {
   };
 }
 
-const WEEKDAYS = [
+export const WEEKDAYS = [
   { value: 'monday', label: 'Monday' },
   { value: 'tuesday', label: 'Tuesday' },
   { value: 'wednesday', label: 'Wednesday' },
@@ -96,7 +96,7 @@ function blankLesson() {
   };
 }
 
-function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
+export function StepEditor({ step, index, total, onChange, onRemove, onMove, lessonClass }) {
   const { presets: ACTIVITY_PRESETS } = useActivityPresets();
 
   const {
