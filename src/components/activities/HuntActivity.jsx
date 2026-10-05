@@ -209,7 +209,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-5xl sm:text-8xl tracking-tighter' : 'text-2xl sm:text-4xl'}`}>
+        <p className={`font-bold text-slate-800 leading-snug ${letterHunt ? 'text-5xl sm:text-8xl tracking-tighter' : 'text-2xl sm:text-4xl'}`}>
           <HuntSegments
             segments={segments}
             marks={marks}
