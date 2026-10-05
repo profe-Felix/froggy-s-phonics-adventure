@@ -100,10 +100,10 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     return () => { cancelled = true; };
   }, []);
 
-  // Derive the available formation groups from the per-letter progression
-  // (TracingSettings.enabled_letters). A group becomes available for free play
-  // once ALL its letters are enabled — so the teacher's per-letter progression
-  // controls both lesson steps (single letter) and free play (whole group).
+  // Load the enabled formation groups from TracingSettings. The teacher
+  // toggles whole groups on/off from the Progression page (enabled_groups).
+  // If enabled_groups is empty (not yet set), fall back to deriving from
+  // enabled_letters — a group shows if ALL its letters are individually enabled.
   useEffect(() => {
     let cancelled = false;
     const cls = studentData?.class_name;
@@ -111,20 +111,28 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
       LETTER_FORMATION_GROUPS
         .filter((g) => g.letters.every((l) => (letters || []).includes(l)))
         .map((g) => g.key);
+    const applySettings = (rec) => {
+      if (rec && Array.isArray(rec.enabled_groups) && rec.enabled_groups.length > 0) {
+        setEnabledGroups(rec.enabled_groups);
+        return true;
+      }
+      if (rec && Array.isArray(rec.enabled_letters)) {
+        setEnabledGroups(derive(rec.enabled_letters));
+        return true;
+      }
+      return false;
+    };
     const load = async () => {
       try {
         if (cls) {
           const perClass = await base44.entities.TracingSettings.filter({ scope: cls });
           if (cancelled) return;
-          if (perClass?.length && Array.isArray(perClass[0].enabled_letters)) {
-            setEnabledGroups(derive(perClass[0].enabled_letters));
-            return;
-          }
+          if (perClass?.length && applySettings(perClass[0])) return;
         }
         const def = await base44.entities.TracingSettings.filter({ scope: 'default' });
         if (cancelled) return;
-        if (def?.length && Array.isArray(def[0].enabled_letters)) {
-          setEnabledGroups(derive(def[0].enabled_letters));
+        if (def?.length) {
+          applySettings(def[0]);
         }
       } catch {}
     };

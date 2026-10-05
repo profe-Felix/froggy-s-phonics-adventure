@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Save, Check, Link2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useClassNames } from '@/hooks/useClassNames';
+import { LETTER_FORMATION_GROUPS } from '@/lib/literacy/letterFormationGroups';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
@@ -55,6 +56,7 @@ export default function TracingLetterToggle() {
   const { classList } = useClassNames();
   const [selectedClasses, setSelectedClasses] = useState(() => readUrlClasses());
   const [enabled, setEnabled] = useState(() => new Set(DEFAULT_ENABLED));
+  const [enabledGroups, setEnabledGroups] = useState(() => new Set());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -72,23 +74,39 @@ export default function TracingLetterToggle() {
     base44.entities.TracingSettings.filter({ scope: scopeKey })
       .then((records) => {
         if (cancelled) return;
-        if (records && records.length && Array.isArray(records[0].enabled_letters)) {
-          setEnabled(new Set(records[0].enabled_letters));
+        if (records && records.length) {
+          if (Array.isArray(records[0].enabled_letters)) {
+            setEnabled(new Set(records[0].enabled_letters));
+          }
+          if (Array.isArray(records[0].enabled_groups)) {
+            setEnabledGroups(new Set(records[0].enabled_groups));
+          } else {
+            setEnabledGroups(new Set());
+          }
         } else if (!isDefault) {
           // No per-class override yet — fall back to the global default so the
           // teacher sees what's currently in effect before overriding.
           return base44.entities.TracingSettings.filter({ scope: 'default' })
             .then((def) => {
               if (cancelled) return;
-              if (def && def.length && Array.isArray(def[0].enabled_letters)) {
-                setEnabled(new Set(def[0].enabled_letters));
+              if (def && def.length) {
+                if (Array.isArray(def[0].enabled_letters)) {
+                  setEnabled(new Set(def[0].enabled_letters));
+                }
+                if (Array.isArray(def[0].enabled_groups)) {
+                  setEnabledGroups(new Set(def[0].enabled_groups));
+                } else {
+                  setEnabledGroups(new Set());
+                }
               } else {
                 setEnabled(new Set(DEFAULT_ENABLED));
+                setEnabledGroups(new Set());
               }
               setLoaded(true);
             });
         } else {
           setEnabled(new Set(DEFAULT_ENABLED));
+          setEnabledGroups(new Set());
         }
         setLoaded(true);
       })
@@ -126,16 +144,27 @@ export default function TracingLetterToggle() {
     });
   };
 
+  const toggleGroup = (key) => {
+    setEnabledGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       const letters = Array.from(enabled);
+      const groups = Array.from(enabledGroups);
       const targets = isDefault ? ['default'] : selectedClasses;
       for (const scopeKey of targets) {
         const existing = await base44.entities.TracingSettings.filter({ scope: scopeKey });
         if (existing.length) {
           await base44.entities.TracingSettings.update(existing[0].id, {
             enabled_letters: letters,
+            enabled_groups: groups,
             class_name: scopeKey === 'default' ? '' : scopeKey,
           });
         } else {
@@ -143,6 +172,7 @@ export default function TracingLetterToggle() {
             scope: scopeKey,
             class_name: scopeKey === 'default' ? '' : scopeKey,
             enabled_letters: letters,
+            enabled_groups: groups,
           });
         }
       }
@@ -255,6 +285,44 @@ export default function TracingLetterToggle() {
       <div className="text-xs font-bold text-slate-500 mb-2">
         Editing: <span className="text-indigo-700">{selectionLabel}</span>
         {!isDefault && <span className="text-slate-400 ml-1">— saves to each selected class's own progression</span>}
+      </div>
+
+      {/* Formation groups — controls the GROUP practice mode (game mode) */}
+      <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wide">Formation Groups (Game Mode)</h3>
+            <p className="text-xs text-amber-700 mt-0.5">Toggle whole groups ON for the Letter Tracing game mode. Students trace letters that share a starting stroke, in pedagogical order.</p>
+          </div>
+          <span className="text-xs font-bold text-amber-600 shrink-0 ml-2">{enabledGroups.size}/{LETTER_FORMATION_GROUPS.length} on</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {LETTER_FORMATION_GROUPS.map((group) => {
+            const on = enabledGroups.has(group.key);
+            return (
+              <button
+                key={group.key}
+                onClick={() => toggleGroup(group.key)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition active:scale-95 ${
+                  on
+                    ? 'bg-emerald-500 text-white border-emerald-600 shadow'
+                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${on ? 'bg-white/25' : 'bg-slate-100'}`}>
+                  {on && <Check className="w-3.5 h-3.5" />}
+                </div>
+                <div className="min-w-0">
+                  <div className={`text-sm font-bold ${on ? 'text-white' : 'text-slate-700'}`}>{group.label}</div>
+                  <div className={`text-xs font-mono ${on ? 'text-white/70' : 'text-slate-400'}`}>{group.letters.join(' ')}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {enabledGroups.size === 0 && (
+          <p className="text-xs text-amber-600 font-bold mt-2">⚠ No groups enabled — students see an empty state in the game mode. Turn on at least one group above.</p>
+        )}
       </div>
 
       <div className="space-y-3">
