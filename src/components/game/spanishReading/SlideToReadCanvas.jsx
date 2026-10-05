@@ -734,7 +734,6 @@ export default function SlideToReadCanvas({
     setRecordingState('idle'); setActiveLine(0); setThumbX(null); setDragging(false);
     advanceDirRef.current = 0;
     activeLineRef.current = 0; thumbXRef.current = null; recordingStateRef.current = 'idle';
-    monitor.stop();
     if (micEnabled) voice.stop();
     monitor.detachStream();
     if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
@@ -858,8 +857,9 @@ export default function SlideToReadCanvas({
         continuityDataRef.current = history.map(h => ({ t: h.t - baseT, c: h.c }));
       }
     }
-    // Mute headphone monitoring before the shared stream stops.
-    monitor.stop();
+    // Tear down the monitoring graph before the shared stream stops (preserves
+    // the session intent so monitoring resumes on the next item).
+    monitor.detachStream();
     let blob = null;
     if (recordingEnabled) {
       blob = await stopAudioRecording(recordingRef.current);
@@ -867,8 +867,6 @@ export default function SlideToReadCanvas({
     recordingRef.current = null;
     // Stop the voice stream AFTER the recorder stops so no audio is lost
     if (micEnabled) voice.stop();
-    // Tear down the monitoring graph (stream is gone).
-    monitor.detachStream();
     if (blob) {
       setReviewUrl(URL.createObjectURL(blob));
       setAudioBlob(blob);
@@ -1136,8 +1134,8 @@ export default function SlideToReadCanvas({
               )}
               <motion.button whileTap={{ scale: 0.95 }} onClick={handleStop}
                 className="flex-1 py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
-                style={{ background: '#dc2626' }}>
-                ⏹ Stop & Grade
+                style={{ background: recordingEnabled ? '#dc2626' : '#16a34a' }}>
+                {recordingEnabled ? '⏹ Stop & Grade' : '✓ Done'}
               </motion.button>
               </div>
 
