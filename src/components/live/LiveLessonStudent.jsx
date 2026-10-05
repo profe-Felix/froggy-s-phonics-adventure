@@ -24,10 +24,7 @@ function getLiveLessonSteps(lesson, selectedDay = '') {
     return [];
   }
 
-  if (
-    lesson.assignment_type === 'class' &&
-    Array.isArray(lesson.daily_lessons)
-  ) {
+  if (Array.isArray(lesson.daily_lessons)) {
     const usableDailyLessons = lesson.daily_lessons.filter(
       (dailyLesson) =>
         dailyLesson.active !== false &&
@@ -76,7 +73,11 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   const { data: lesson, error: lessonError, refetch: retryLesson } = useQuery({
     queryKey: ['live-lesson-data', session.lesson_id],
     queryFn: async () => {
-      const list = await requestWithRetry(() => base44.entities.Lesson.filter({ id: session.lesson_id }));
+      const source = session.lesson_source || 'lesson';
+      const entity = source === 'small_group'
+        ? base44.entities.SmallGroupLesson
+        : base44.entities.Lesson;
+      const list = await requestWithRetry(() => entity.filter({ id: session.lesson_id }));
       return list?.[0];
     },
     enabled: !!session?.lesson_id,

@@ -40,10 +40,7 @@ function getLiveLessonSteps(lesson, selectedDay = '') {
     return [];
   }
 
-  if (
-    lesson.assignment_type === 'class' &&
-    Array.isArray(lesson.daily_lessons)
-  ) {
+  if (Array.isArray(lesson.daily_lessons)) {
     const usableDailyLessons = lesson.daily_lessons.filter(
       (dailyLesson) =>
         dailyLesson.active !== false &&
@@ -92,7 +89,9 @@ export default function LiveLesson() {
   const sessionRef = useRef(session);
   const { classList: CLASSES } = useClassNames();
   const [selectedLessonId, setSelectedLessonId] = useState('');
+  const [selectedSGLessonId, setSelectedSGLessonId] = useState('');
   const [selectedLessonDay, setSelectedLessonDay] = useState('');
+  const skipGroupClearRef = useRef(false);
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');
   const [selectedGroups, setSelectedGroups] = useState([]);
@@ -111,10 +110,29 @@ export default function LiveLesson() {
     queryFn: () => base44.entities.Lesson.filter({ active: true }),
   });
 
-  const selectedLesson = lessons.find(l => l.id === selectedLessonId);
+  const { data: sgLessons = [] } = useQuery({
+    queryKey: ['small-group-lessons-live', ACTIVE_SCHOOL_YEAR],
+    queryFn: () => base44.entities.SmallGroupLesson.filter({ active: true, school_year: ACTIVE_SCHOOL_YEAR }),
+    enabled: targetMode === 'group',
+  });
+
+  const selectedLesson = targetMode === 'group'
+    ? sgLessons.find(l => l.id === selectedSGLessonId)
+    : lessons.find(l => l.id === selectedLessonId);
+
+  // When a small group plan is picked, auto-fill the class and color group
+  // so the teacher doesn't have to set them manually below. The ref prevents
+  // the className-change effect from clearing the groups we just set.
+  useEffect(() => {
+    if (targetMode !== 'group' || !selectedSGLessonId) return;
+    const sg = sgLessons.find(l => l.id === selectedSGLessonId);
+    if (!sg) return;
+    skipGroupClearRef.current = true;
+    setClassName(sg.class_name);
+    setSelectedGroups([sg.color_group]);
+  }, [targetMode, selectedSGLessonId, sgLessons]);
 
   const selectableDailyLessons =
-    selectedLesson?.assignment_type === 'class' &&
     Array.isArray(selectedLesson?.daily_lessons)
       ? LIVE_DAY_OPTIONS.map((dayOption) => {
           const dailyLesson = selectedLesson.daily_lessons.find(
@@ -158,7 +176,7 @@ export default function LiveLesson() {
         ? today
         : selectableDailyLessons[0].value;
     });
-  }, [selectedLessonId]);
+  }, [selectedLessonId, selectedSGLessonId]);
 
   // Small-group assignments for the selected teacher+block (from Small Group
   // Manager). When "Small group" is selected, the teacher picks color groups
@@ -180,7 +198,11 @@ export default function LiveLesson() {
     if (!className) return;
     setGroupTeacher(ROTATION_TEACHERS.includes(className) ? className : 'Felix');
     setGroupBlock('A');
-    setSelectedGroups([]);
+    if (skipGroupClearRef.current) {
+      skipGroupClearRef.current = false;
+    } else {
+      setSelectedGroups([]);
+    }
   }, [className]);
 
   const groupStudentsByColor = useMemo(() => {
@@ -324,7 +346,8 @@ export default function LiveLesson() {
   }, [session?.id, session?.active]);
 
   const startSession = async () => {
-    if (!selectedLessonId || !className) return;
+    const hasLesson = targetMode === 'group' ? !!selectedSGLessonId : !!selectedLessonId;
+    if (!hasLesson || !className) return;
 
     setStarting(true);
 
@@ -366,7 +389,8 @@ export default function LiveLesson() {
     const created =
       await base44.entities.LiveLessonSession.create({
         code,
-        lesson_id: selectedLessonId,
+        lesson_id: targetMode === 'group' ? selectedSGLessonId : selectedLessonId,
+        lesson_source: targetMode === 'group' ? 'small_group' : 'lesson',
         lesson_title: selectedLesson?.title || '',
         lesson_day: selectedLessonDay || '',
         class_name: className,
@@ -516,6 +540,7 @@ export default function LiveLesson() {
 
     setSession(null);
     setSelectedLessonId('');
+    setSelectedSGLessonId('');
     setClassName('');
     setSelectedGroups([]);
     setTargetMode('class');
@@ -582,34 +607,53 @@ export default function LiveLesson() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">
-                1. Pick a lesson
+                1. {targetMode === 'group' ? 'Pick a small group plan' : 'Pick a lesson'}
               </label>
 
-              <select
-                value={selectedLessonId}
-                onChange={(e) => {
-                  setSelectedLessonId(e.target.value);
-                  setSelectedLessonDay('');
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium"
-              >
-                <option value="">
-                  Select a lesson…
-                </option>
-
-                {lessons.map((lesson) => (
-                  <option
-                    key={lesson.id}
-                    value={lesson.id}
-                  >
-                    {lesson.title} · {lesson.assignment_type === 'guided'
-                      ? 'Guided'
-                      : lesson.assignment_type === 'side_quest'
-                        ? 'Small group'
-                        : 'Path'}
+              {targetMode === 'group' ? (
+                <select
+                  value={selectedSGLessonId}
+                  onChange={(e) => {
+                    setSelectedSGLessonId(e.target.value);
+                    setSelectedLessonDay('');
+                  }}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium"
+                >
+                  <option value="">
+                    Select a small group plan…
                   </option>
-                ))}
-              </select>
+                  {sgLessons.map((sg) => (
+                    <option key={sg.id} value={sg.id}>
+                      {sg.class_name} · {sg.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={selectedLessonId}
+                  onChange={(e) => {
+                    setSelectedLessonId(e.target.value);
+                    setSelectedLessonDay('');
+                  }}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium"
+                >
+                  <option value="">
+                    Select a lesson…
+                  </option>
+                  {lessons.map((lesson) => (
+                    <option
+                      key={lesson.id}
+                      value={lesson.id}
+                    >
+                      {lesson.title} · {lesson.assignment_type === 'guided'
+                        ? 'Guided'
+                        : lesson.assignment_type === 'side_quest'
+                          ? 'Small group'
+                          : 'Path'}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {selectableDailyLessons.length > 0 && (
@@ -682,9 +726,11 @@ export default function LiveLesson() {
 
               <div className="flex gap-2 mb-3">
                 <button
-                  onClick={() =>
-                    setTargetMode('class')
-                  }
+                  onClick={() => {
+                    setTargetMode('class');
+                    setSelectedSGLessonId('');
+                    setSelectedGroups([]);
+                  }}
                   className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
                     targetMode === 'class'
                       ? 'bg-rose-500 text-white border-rose-500'
@@ -695,9 +741,10 @@ export default function LiveLesson() {
                 </button>
 
                 <button
-                  onClick={() =>
-                    setTargetMode('group')
-                  }
+                  onClick={() => {
+                    setTargetMode('group');
+                    setSelectedLessonId('');
+                  }}
                   className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
                     targetMode === 'group'
                       ? 'bg-rose-500 text-white border-rose-500'
@@ -793,7 +840,7 @@ export default function LiveLesson() {
             <Button
               onClick={startSession}
               disabled={
-                !selectedLessonId ||
+                !(targetMode === 'group' ? selectedSGLessonId : selectedLessonId) ||
                 !className ||
                 starting ||
                 (

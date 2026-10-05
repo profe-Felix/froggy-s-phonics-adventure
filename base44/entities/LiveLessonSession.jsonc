@@ -8,7 +8,16 @@
     },
     "lesson_id": {
       "type": "string",
-      "description": "ID of the Lesson being run live"
+      "description": "ID of the Lesson or SmallGroupLesson being run live"
+    },
+    "lesson_source": {
+      "type": "string",
+      "enum": [
+        "lesson",
+        "small_group"
+      ],
+      "default": "lesson",
+      "description": "Which entity lesson_id refers to: 'lesson' = Lesson path entity, 'small_group' = SmallGroupLesson planner entity."
     },
     "lesson_title": {
       "type": "string",
