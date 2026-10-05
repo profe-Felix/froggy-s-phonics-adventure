@@ -75,19 +75,24 @@ export async function buildHuntItemsFromBank(config) {
     }
   }
 
-  // Fallback: build simple sentences from word bank words if no patterns
+  // Fallback: build simple sentences from word bank NOUNS (words with a
+  // NounGender entry) so article-based patterns are grammatical. Non-noun
+  // words (verbs, adjectives) are only used as standalone word items.
   if (sentences.length === 0) {
-    const simplePatterns = [
-      (w, art) => `${art} ${w} come.`,
-      (w, art) => `Veo ${art} ${w}.`,
-      (w, art) => `Me gusta ${art} ${w}.`,
-    ];
-    for (const w of shuffled.slice(0, 3)) {
-      const g = genderMap[norm(w)];
-      const art = g?.article || 'el';
-      const fn = simplePatterns[Math.floor(Math.random() * simplePatterns.length)];
-      const s = fn(w, art);
-      if (containsTarget(s, target)) sentences.push(s);
+    const nouns = shuffled.filter((w) => genderMap[norm(w)]);
+    if (nouns.length > 0) {
+      const simplePatterns = [
+        (w, art) => `${art} ${w} come.`,
+        (w, art) => `Veo ${art} ${w}.`,
+        (w, art) => `Me gusta ${art} ${w}.`,
+      ];
+      for (const w of nouns.slice(0, 4)) {
+        const g = genderMap[norm(w)];
+        const art = g?.article || 'el';
+        const fn = simplePatterns[Math.floor(Math.random() * simplePatterns.length)];
+        const s = fn(w, art);
+        if (containsTarget(s, target)) sentences.push(s);
+      }
     }
   }
 
