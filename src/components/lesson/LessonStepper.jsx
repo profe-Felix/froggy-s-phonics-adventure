@@ -168,22 +168,29 @@ export default function LessonStepper({
 
       {/* Body: dots | activity | arrows */}
       <div className="flex-1 relative flex min-h-0">
-        {/* Left dots — one per step */}
+        {/* Left dots — one per step, colored by mastery:
+            green = completed, yellow = attempted (not mastered), black = unattempted. */}
         <div className="flex flex-col items-center justify-center gap-3 px-2 sm:px-3">
           {visibleSteps.map(({ step: s, originalIndex }, i) => {
             const done = completedSteps.includes(originalIndex);
             const current = i === stepIdx;
-            const clickable = done || current || modelStudent;
+            const mp = studentData?.mode_progress?.[s?.mode];
+            const attempted = !done && !!mp && (
+              (mp.total_attempts || 0) > 0 ||
+              (mp.mastered_items?.length || 0) > 0 ||
+              (mp.learning_items?.length || 0) > 0
+            );
+            const bg = done ? '#22A44B' : attempted ? '#F5C518' : '#1A1A1A';
             return (
               <button
                 key={i}
-                disabled={!clickable}
-                onClick={() => clickable && setStepIdx(i)}
+                onClick={() => setStepIdx(i)}
                 title={s?.title || `Step ${i + 1}`}
-                className="w-3.5 h-3.5 rounded-full transition"
+                className="w-3.5 h-3.5 rounded-full transition hover:scale-125"
                 style={{
-                  background: done ? NAVY : current ? 'transparent' : 'rgba(38,38,77,0.2)',
-                  border: current ? `2px solid ${NAVY}` : 'none',
+                  background: bg,
+                  border: current ? `2px solid #26264d` : '2px solid transparent',
+                  boxShadow: current ? '0 0 0 2px #fff' : 'none',
                 }}
               />
             );

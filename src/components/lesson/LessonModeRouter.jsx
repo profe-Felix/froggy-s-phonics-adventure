@@ -1519,11 +1519,19 @@ export default function LessonModeRouter({
         </div>
       )}
 
-      {/* Completion overlay — hidden in live mode because teacher drives pacing. */}
+      {/* Completion overlay — hidden in live mode because teacher drives pacing.
+          Tap anywhere to dismiss; the dot turns green and students navigate
+          with the dots/arrows. */}
       {done &&
         !liveMode && (
-          <div className="absolute inset-0 z-[100] bg-black/40 flex items-center justify-center p-6">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center gap-4">
+          <div
+            onClick={() => setDone(false)}
+            className="absolute inset-0 z-[100] bg-black/40 flex items-center justify-center p-6 cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center flex flex-col items-center gap-4 cursor-default"
+            >
               <span className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
                 <Check
                   className="w-9 h-9 text-green-600"
@@ -1550,17 +1558,9 @@ export default function LessonModeRouter({
                   )}
               </div>
 
-              <div className="flex flex-col gap-2 w-full">
-                <Button
-                  onClick={
-                    startReplay
-                  }
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white font-black text-lg px-8 py-3"
-                >
-                  <RotateCcw className="w-5 h-5 mr-2" />
-                  Play Again
-                </Button>
-              </div>
+              <p className="text-xs text-gray-400 font-medium">
+                Tap anywhere to continue
+              </p>
             </div>
           </div>
         )}
