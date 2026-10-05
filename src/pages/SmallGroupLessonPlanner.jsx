@@ -43,6 +43,10 @@ export default function SmallGroupLessonPlanner() {
   const [editing, setEditing] = useState(null);
   const [expandedDay, setExpandedDay] = useState('monday');
   const [copyOpen, setCopyOpen] = useState(false);
+  // Week being duplicated from the list view (null = closed). When set, the
+  // duplicate modal opens so the teacher can pick a target class + group —
+  // either the same group (in-place duplicate) or another group.
+  const [dupSource, setDupSource] = useState(null);
 
   // Default the class once the list loads.
   useEffect(() => {
@@ -100,15 +104,6 @@ export default function SmallGroupLessonPlanner() {
     qc.invalidateQueries({ queryKey: ['small-group-lessons'] });
   };
 
-  const duplicate = async (w) => {
-    const { id, created_date, updated_date, created_by_id, ...payload } = w;
-    await base44.entities.SmallGroupLesson.create({
-      ...payload,
-      title: (w.title || 'Week') + ' (copy)',
-    });
-    qc.invalidateQueries({ queryKey: ['small-group-lessons'] });
-  };
-
   const copyTo = async (targetClass, targetGroup) => {
     if (!editing?.id) return;
     const { id, created_date, updated_date, created_by_id, ...payload } = editing;
@@ -121,6 +116,23 @@ export default function SmallGroupLessonPlanner() {
     qc.invalidateQueries({ queryKey: ['small-group-lessons'] });
     setCopyOpen(false);
     alert(`Copied to ${targetClass} / ${targetGroup}`);
+  };
+
+  // Duplicate a week from the list view to a chosen target class + group.
+  // Defaults to the current class + group (in-place duplicate); the teacher
+  // can pick another group to duplicate into it instead.
+  const dupToTarget = async (targetClass, targetGroup) => {
+    if (!dupSource) return;
+    const { id, created_date, updated_date, created_by_id, ...payload } = dupSource;
+    await base44.entities.SmallGroupLesson.create({
+      ...payload,
+      class_name: targetClass,
+      color_group: targetGroup,
+      title: (dupSource.title || 'Week') + ' (copy)',
+    });
+    qc.invalidateQueries({ queryKey: ['small-group-lessons'] });
+    setDupSource(null);
+    alert(`Duplicated to ${targetClass} / ${targetGroup}`);
   };
 
   // ── Edit view ──
@@ -327,6 +339,18 @@ export default function SmallGroupLessonPlanner() {
           </div>
 
           {copyOpen && <CopyModal onClose={() => setCopyOpen(false)} onCopy={copyTo} classList={classList} />}
+
+          {dupSource && (
+            <CopyModal
+              onClose={() => setDupSource(null)}
+              onCopy={dupToTarget}
+              classList={classList}
+              defaultClass={className}
+              defaultGroup={colorGroup}
+              title="Duplicate week to…"
+              confirmLabel="Duplicate"
+            />
+          )}
         </div>
       </div>
     );
@@ -429,9 +453,9 @@ export default function SmallGroupLessonPlanner() {
                       Edit
                     </button>
                     <button
-                      onClick={() => duplicate(w)}
+                      onClick={() => setDupSource(w)}
                       className="px-3 py-2 bg-sky-50 text-sky-600 rounded-xl hover:bg-sky-100"
-                      title="Duplicate in this group"
+                      title="Duplicate to this or another group"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
@@ -452,14 +476,16 @@ export default function SmallGroupLessonPlanner() {
   );
 }
 
-function CopyModal({ onClose, onCopy, classList }) {
-  const [targetClass, setTargetClass] = useState(classList[0] || '');
-  const [targetGroup, setTargetGroup] = useState(COLOR_GROUPS[0]?.id || 'red');
+function CopyModal({ onClose, onCopy, classList, defaultClass, defaultGroup, title = 'Copy week to…', confirmLabel = 'Copy week' }) {
+  const [targetClass, setTargetClass] = useState(defaultClass || classList[0] || '');
+  const [targetGroup, setTargetGroup] = useState(
+    COLOR_GROUPS.some((g) => g.id === defaultGroup) ? defaultGroup : COLOR_GROUPS[0]?.id || 'red'
+  );
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-4 w-full max-w-sm flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-black text-gray-800">Copy week to…</h2>
+          <h2 className="font-black text-gray-800">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-4 h-4" />
           </button>
@@ -495,7 +521,7 @@ function CopyModal({ onClose, onCopy, classList }) {
           onClick={() => onCopy(targetClass, targetGroup)}
           className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 inline-flex items-center justify-center gap-1.5"
         >
-          <Copy className="w-4 h-4" /> Copy week
+          <Copy className="w-4 h-4" /> {confirmLabel}
         </button>
       </div>
     </div>
