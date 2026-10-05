@@ -2,27 +2,16 @@ import { Headphones, Volume2 } from 'lucide-react';
 
 // HeadphoneMonitorPanel — compact control for live mic-through-headphones
 // monitoring. Shown only while a mic stream is live. Renders one of:
-//   unsupported  → honest "not supported" message (no enumerateDevices)
+//   unsupported → "isn't supported in this browser"
 //   checking     → "Checking for headphones…"
-//   not-detected → "No headphones detected — monitoring off." (desktop, blocked)
-//   error        → "Couldn't verify headphones — monitoring off."
-//   verified     → "Enable headphone monitoring" (desktop, route bound via setSinkId)
+//   verified     → "Enable headphone monitoring" (bound to a detected device)
 //   available    → "Enable headphone monitoring" + "Use headphones" reminder
-//                  (Safari/iPad — setSinkId unavailable, trust OS routing)
+//                  (can't positively detect — trust OS routing)
 //   monitoring   → "Stop monitoring" + volume slider
 //
-// This panel never auto-activates. The parent only renders it when a mic
-// stream exists; the hook refuses to start without a verified route on
-// platforms that support setSinkId.
+// Never auto-activates. The parent only renders it when a mic stream exists.
 export default function HeadphoneMonitorPanel({ monitor }) {
-  const {
-    outputStatus,
-    monitoring,
-    monitorVolume,
-    start,
-    stop,
-    setVolume,
-  } = monitor;
+  const { outputStatus, monitoring, monitorVolume, start, stop, setVolume } = monitor;
 
   if (outputStatus === 'unsupported') {
     return (
@@ -80,24 +69,11 @@ export default function HeadphoneMonitorPanel({ monitor }) {
     );
   }
 
-  if (outputStatus === 'checking') {
-    return (
-      <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
-        <Headphones className="w-3.5 h-3.5 text-slate-400 shrink-0 animate-pulse" />
-        <span className="text-[11px] font-semibold text-slate-500">Checking for headphones…</span>
-      </div>
-    );
-  }
-
-  // not-detected, error, or idle
+  // checking, idle
   return (
     <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
-      <Headphones className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-      <span className="text-[11px] font-semibold text-slate-500">
-        {outputStatus === 'error'
-          ? "Couldn't verify headphones — monitoring off."
-          : 'No headphones detected — monitoring off.'}
-      </span>
+      <Headphones className="w-3.5 h-3.5 text-slate-400 shrink-0 animate-pulse" />
+      <span className="text-[11px] font-semibold text-slate-500">Checking for headphones…</span>
     </div>
   );
 }

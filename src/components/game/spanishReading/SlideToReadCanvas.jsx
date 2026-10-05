@@ -613,6 +613,8 @@ export default function SlideToReadCanvas({
   const recStartTimeRef = useRef(0);
   const replayAudioRef = useRef(null);
   const stopReplayRef = useRef(null);
+  const autoStartedForRef = useRef('');
+  const handleStartRecordingRef = useRef(null);
 
   const units = useMemo(() => parseText(text), [text]);
 
@@ -744,6 +746,19 @@ export default function SlideToReadCanvas({
     continuityDataRef.current = [];
   }, [text]);
 
+  // ── Auto-start: skip the "Start Reading" tap so students begin immediately ──
+  // Declared after the reset effect so on a new item the state is already idle.
+  // Falls back to the manual button if the mic can't start (e.g. first-time
+  // permission not yet granted).
+  useEffect(() => {
+    if (replayData) return;
+    if (autoStartedForRef.current === text) return;
+    if (recordingStateRef.current !== 'idle') return;
+    if (!layoutRef.current) return;
+    autoStartedForRef.current = text;
+    handleStartRecordingRef.current?.();
+  }, [text, canvasSize, replayData]);
+
   // ── Silent headphone-output check on mount (no playback, no prompt) ──
   useEffect(() => { monitor.checkOutput(); }, []);
 
@@ -818,6 +833,7 @@ export default function SlideToReadCanvas({
     recStartTimeRef.current = Date.now();
     sliderDataRef.current.push({ t: 0, p: 0, line: 0 });
   };
+  handleStartRecordingRef.current = handleStartRecording;
 
   // ── Stop recording — enter review mode ──
   const handleStop = async () => {
