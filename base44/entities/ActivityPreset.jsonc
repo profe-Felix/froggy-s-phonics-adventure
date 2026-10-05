@@ -32,6 +32,11 @@
       "description": "For text_hunt mode with phoneme/letter: the target to find",
       "default": ""
     },
+    "record_audio": {
+      "type": "boolean",
+      "default": false,
+      "description": "For text_hunt mode: when true, students must press 'Listo' to start recording before tapping. When false (default), students can tap immediately without recording \u2014 faster for quick practice. Teachers enable this for long sentences with many targets as a final check."
+    },
     "palette_data": {
       "type": "string",
       "description": "For phoneme_manipulation mode: JSON-encoded color array",

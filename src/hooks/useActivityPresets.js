@@ -25,6 +25,7 @@ export function useActivityPresets() {
         items: r.items_data ? safeParse(r.items_data, []) : [],
         ...(r.hunt_type ? { huntType: r.hunt_type } : {}),
         ...(r.hunt_target ? { target: r.hunt_target } : {}),
+        ...(r.record_audio ? { recordAudio: true } : {}),
         ...(r.palette_data ? { palette: safeParse(r.palette_data, []) } : {}),
         _dbId: r.id,
       };

@@ -8,8 +8,12 @@ import { RefreshCw, Volume2, Mic, Send, CheckCircle2 } from 'lucide-react';
 // "Caza en el texto" (student). Renders a passage as tappable ranges; each tap
 // gets instant feedback (green = a correct target, red = a wrong tap). "Verificar"
 // reveals any correct targets the student missed in amber and locks the round.
-// Voice + the tap timeline are recorded for teacher replay, same as the other
-// activities.
+//
+// Recording is optional (config.recordAudio). When OFF (default), students can
+// tap immediately without pressing "Listo" — faster for quick practice. When ON,
+// students press "Listo" to start recording, then tap; the audio + tap timeline
+// are saved for teacher replay. Teachers enable recording for long sentences
+// with many targets as a final check.
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -22,9 +26,13 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
     return its.map((it) => (typeof it === 'string' ? { text: it } : it)).filter((it) => it.text);
   }, [config]);
 
+  const recordAudio = config?.recordAudio === true;
+
+  // When recording is off, the activity starts in 'playing' (no recording).
+  // When recording is on, it starts in 'ready' (press Listo to begin recording).
   const [order, setOrder] = useState([]);
   const [pos, setPos] = useState(0);
-  const [phase, setPhase] = useState('ready');
+  const [phase, setPhase] = useState(recordAudio ? 'ready' : 'playing');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [marks, setMarks] = useState({}); // index -> 'correct' | 'wrong' | 'missed'
@@ -35,7 +43,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   const marksRef = useRef({});
   const tapsRef = useRef([]);
   const checkedRef = useRef(false);
-  const phaseRef = useRef('ready');
+  const phaseRef = useRef(phase);
   const pendingRef = useRef(false);
 
   const huntType = config?.huntType || 'phoneme';
@@ -70,7 +78,8 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   }, [recorder.state]);
 
   function resetRound() {
-    setPhase('ready'); phaseRef.current = 'ready';
+    const p = recordAudio ? 'ready' : 'playing';
+    setPhase(p); phaseRef.current = p;
     setMarks({}); marksRef.current = {};
     tapsRef.current = [];
     setChecked(false); checkedRef.current = false;
@@ -89,7 +98,8 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   }
 
   function tap(seg) {
-    if (phaseRef.current !== 'recording' || checkedRef.current) return;
+    // Tapping is allowed in both 'recording' (recordAudio on) and 'playing' (recordAudio off).
+    if ((phaseRef.current !== 'recording' && phaseRef.current !== 'playing') || checkedRef.current) return;
     if (!seg || !seg.tap) return;
     if (marksRef.current[seg.index]) return;
     const correct = !!seg.correct;
@@ -100,7 +110,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   }
 
   function verificar() {
-    if (phaseRef.current !== 'recording' || checkedRef.current) return;
+    if ((phaseRef.current !== 'recording' && phaseRef.current !== 'playing') || checkedRef.current) return;
     let missed = 0;
     const m = { ...marksRef.current };
     for (const seg of segments) {
@@ -112,20 +122,26 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   }
 
   function enviar() {
-    if (phaseRef.current !== 'recording' || saving) return;
-    pendingRef.current = true;
-    recorder.stopRecording();
+    if ((phaseRef.current !== 'recording' && phaseRef.current !== 'playing') || saving) return;
+    if (recordAudio && recorder.state === 'recording') {
+      pendingRef.current = true;
+      recorder.stopRecording();
+    } else {
+      doSubmit();
+    }
   }
 
   async function doSubmit() {
     setSaving(true); setErr(null);
     try {
       let audioUrl = '';
-      const blob = recorder.getBlob();
-      if (blob) {
-        const f = new File([blob], `hunt-${Date.now()}.webm`, { type: blob.type });
-        const up = await base44.integrations.Core.UploadFile({ file: f });
-        audioUrl = up?.file_url || '';
+      if (recordAudio) {
+        const blob = recorder.getBlob();
+        if (blob) {
+          const f = new File([blob], `hunt-${Date.now()}.webm`, { type: blob.type });
+          const up = await base44.integrations.Core.UploadFile({ file: f });
+          audioUrl = up?.file_url || '';
+        }
       }
       const missedIdx = segments.filter((s) => s.tap && s.correct && !marksRef.current[s.index]).map((s) => s.index);
       await base44.entities.ActivityResponse.create({
@@ -177,6 +193,8 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
 
   if (!hasItems) return <div className="p-6 text-slate-500 text-center">Añade un texto para cazar.</div>;
 
+  const canAct = phase === 'recording' || phase === 'playing';
+
   return (
     <div className="flex flex-col gap-4 p-4 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -196,7 +214,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
             segments={segments}
             marks={marks}
             onTap={tap}
-            interactive={phase === 'recording' && !checked}
+            interactive={canAct && !checked}
             isSpaceHunt={hunt.type === 'space'}
             letterHunt={letterHunt}
           />
@@ -212,12 +230,14 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
             <Mic className="w-4 h-4" /> Listo
           </button>
         )}
-        {phase === 'recording' && (
+        {canAct && (
           <>
-            <span className="inline-flex items-center gap-1.5 text-red-600 font-bold">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-              Grabando {recorder.formatTime(recorder.elapsed)}
-            </span>
+            {phase === 'recording' && (
+              <span className="inline-flex items-center gap-1.5 text-red-600 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                Grabando {recorder.formatTime(recorder.elapsed)}
+              </span>
+            )}
             <button onClick={verificar} className="px-4 py-2 rounded-lg bg-amber-500 text-white font-bold flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" /> Verificar
             </button>

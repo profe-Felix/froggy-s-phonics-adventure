@@ -1207,6 +1207,15 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
             </div>
           )}
 
+          {step.config?.activityMode === 'text_hunt' && (
+            <label className="flex items-center gap-2 text-xs text-gray-600 font-bold">
+              <input type="checkbox" checked={step.config?.recordAudio === true}
+                onChange={e => update({ config: { ...step.config, recordAudio: e.target.checked } })}
+                className="w-4 h-4" />
+              <span className="font-normal">Record audio (students press "Listo" first). Off by default — students tap immediately. Enable for long sentences as a final check.</span>
+            </label>
+          )}
+
           <label className="text-xs text-gray-600 font-bold">Examples (one per line{step.config?.activityMode === 'rhyme_identification' ? ' · word1, word2, sí/no' : ''})
             <textarea value={step.config?.itemsText || ''}
               onChange={e => update({ config: { ...step.config, itemsText: e.target.value, preset: '' } })}

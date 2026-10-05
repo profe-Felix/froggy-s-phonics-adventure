@@ -7,7 +7,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Plus, Pencil, Trash2, Lock } from 'lucide-react';
 
-const EMPTY_FORM = { label: '', mode: 'counting_words', itemsText: '', huntType: 'phoneme', huntTarget: '', palette: '#4DA6FF,#F87171' };
+const EMPTY_FORM = { label: '', mode: 'counting_words', itemsText: '', huntType: 'phoneme', huntTarget: '', recordAudio: false, palette: '#4DA6FF,#F87171' };
 
 export default function ActivityPresets() {
   const { presets, dbRecords, isLoading, invalidate } = useActivityPresets();
@@ -29,6 +29,7 @@ export default function ActivityPresets() {
       itemsText: serializeItems(r.mode, p.items || []),
       huntType: p.huntType || 'phoneme',
       huntTarget: p.target || '',
+      recordAudio: !!p.recordAudio,
       palette: Array.isArray(p.palette) ? p.palette.join(',') : '#4DA6FF,#F87171',
     });
   }
@@ -43,6 +44,7 @@ export default function ActivityPresets() {
       items_data: JSON.stringify(items),
       hunt_type: editing.mode === 'text_hunt' ? editing.huntType : '',
       hunt_target: editing.mode === 'text_hunt' ? editing.huntTarget : '',
+      record_audio: editing.mode === 'text_hunt' ? !!editing.recordAudio : false,
       palette_data: editing.mode === 'phoneme_manipulation' ? JSON.stringify(editing.palette.split(',').map(s => s.trim()).filter(Boolean)) : '',
     };
     try {
@@ -113,6 +115,14 @@ export default function ActivityPresets() {
                   </label>
                 )}
               </div>
+            )}
+
+            {editing.mode === 'text_hunt' && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editing.recordAudio} onChange={e => setEditing({ ...editing, recordAudio: e.target.checked })}
+                  className="w-4 h-4" />
+                <span className="text-slate-600 font-medium">Record audio — students press "Listo" to start recording before tapping. Off by default (faster practice). Enable for long sentences with many targets as a final check.</span>
+              </label>
             )}
 
             {editing.mode === 'phoneme_manipulation' && (

@@ -72,7 +72,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
       const p = PRESETS[cfg.preset];
       let out = { ...p };
       if (p.mode === 'text_hunt') {
-        out = { ...out, huntType: cfg.huntType || p.huntType, target: cfg.huntTarget || p.target };
+        out = { ...out, huntType: cfg.huntType || p.huntType, target: cfg.huntTarget || p.target, recordAudio: cfg.recordAudio === true || !!p.recordAudio };
       }
       return out;
     }
@@ -84,6 +84,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
       if (mode === 'text_hunt') {
         out.huntType = cfg.huntType || 'phoneme';
         if (cfg.huntTarget) out.target = cfg.huntTarget;
+        out.recordAudio = cfg.recordAudio === true;
       }
       return out;
     }
@@ -94,6 +95,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
         items: bankItems,
         huntType: cfg.huntType || 'phoneme',
         target: cfg.huntTarget || '',
+        recordAudio: cfg.recordAudio === true,
       };
     }
     // Fall back to default counting words.
