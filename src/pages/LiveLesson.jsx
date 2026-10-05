@@ -91,7 +91,6 @@ export default function LiveLesson() {
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [selectedSGLessonId, setSelectedSGLessonId] = useState('');
   const [selectedLessonDay, setSelectedLessonDay] = useState('');
-  const skipGroupClearRef = useRef(false);
   const [className, setClassName] = useState('');
   const [targetMode, setTargetMode] = useState('class');
   const [selectedGroups, setSelectedGroups] = useState([]);
@@ -120,15 +119,13 @@ export default function LiveLesson() {
     ? sgLessons.find(l => l.id === selectedSGLessonId)
     : lessons.find(l => l.id === selectedLessonId);
 
-  // When a small group plan is picked, auto-fill the class and color group
-  // so the teacher doesn't have to set them manually below. The ref prevents
-  // the className-change effect from clearing the groups we just set.
+  // When a small group plan is picked, auto-fill the color group. The homeroom
+  // (className) is already derived from the teacher's groupTeacher+groupBlock
+  // selection below, so we don't override it here.
   useEffect(() => {
     if (targetMode !== 'group' || !selectedSGLessonId) return;
     const sg = sgLessons.find(l => l.id === selectedSGLessonId);
     if (!sg) return;
-    skipGroupClearRef.current = true;
-    setClassName(sg.class_name);
     setSelectedGroups([sg.color_group]);
   }, [targetMode, selectedSGLessonId, sgLessons]);
 
@@ -192,18 +189,29 @@ export default function LiveLesson() {
     enabled: !!groupTeacher && !!groupBlock,
   });
 
-  // Default the teacher+block to the selected class's homeroom so the
-  // relevant groups show without the teacher having to switch.
+  // Whole-class mode: default the teacher+block to the selected class's
+  // homeroom so the relevant groups show without the teacher having to switch.
   useEffect(() => {
+    if (targetMode === 'group') return;
     if (!className) return;
     setGroupTeacher(ROTATION_TEACHERS.includes(className) ? className : 'Felix');
     setGroupBlock('A');
-    if (skipGroupClearRef.current) {
-      skipGroupClearRef.current = false;
-    } else {
-      setSelectedGroups([]);
+    setSelectedGroups([]);
+  }, [targetMode, className]);
+
+  // Small-group mode: the teacher picks their name + block, and the homeroom
+  // (className) is derived from the rotation. Felix Block B → Gutierrez
+  // homeroom, Valero Block C → Gutierrez homeroom, etc. Each teacher gets
+  // their own tailored SmallGroupLesson for the same homeroom.
+  useEffect(() => {
+    if (targetMode !== 'group') return;
+    const homeroom = getHomeroomForClass(groupTeacher, groupBlock);
+    if (homeroom && homeroom !== className) {
+      setClassName(homeroom);
+      setSelectedSGLessonId('');
     }
-  }, [className]);
+    setSelectedGroups([]);
+  }, [targetMode, groupTeacher, groupBlock]);
 
   const groupStudentsByColor = useMemo(() => {
     const map = {};
@@ -622,7 +630,7 @@ export default function LiveLesson() {
                   <option value="">
                     Select a small group plan…
                   </option>
-                  {sgLessons.map((sg) => (
+                  {sgLessons.filter(sg => sg.class_name === className).map((sg) => (
                     <option key={sg.id} value={sg.id}>
                       {sg.class_name} · {sg.title}
                     </option>
