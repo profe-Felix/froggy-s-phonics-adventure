@@ -571,6 +571,9 @@ export default function SlideToReadCanvas({
   // during recording. Sustained voice keeps it up; pauses let it descend behind
   // the letters. The slider still controls horizontal movement.
   micEnabled = false,
+  // When false (free play), no audio is captured or uploaded — the student just
+  // drags the slider and self-checks. Lesson/assigned practice keeps it true.
+  recordingEnabled = true,
 }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
@@ -777,7 +780,7 @@ export default function SlideToReadCanvas({
     if (micEnabled) {
       // Reuse the voice monitoring stream for audio recording — no second mic
       const stream = await voice.start();
-      if (stream) {
+      if (stream && recordingEnabled) {
         try {
           recordingRef.current = await startRecordingFromStream(stream);
         } catch (err) {
@@ -785,7 +788,7 @@ export default function SlideToReadCanvas({
           recordingRef.current = null;
         }
       }
-    } else {
+    } else if (recordingEnabled) {
       try {
         recordingRef.current = await startAudioRecording();
       } catch (err) {
@@ -821,20 +824,22 @@ export default function SlideToReadCanvas({
         continuityDataRef.current = history.map(h => ({ t: h.t - baseT, c: h.c }));
       }
     }
-    const blob = await stopAudioRecording(recordingRef.current);
+    let blob = null;
+    if (recordingEnabled) {
+      blob = await stopAudioRecording(recordingRef.current);
+    }
     recordingRef.current = null;
     // Stop the voice stream AFTER the recorder stops so no audio is lost
     if (micEnabled) voice.stop();
     if (blob) {
       setReviewUrl(URL.createObjectURL(blob));
       setAudioBlob(blob);
-      setRecordingState('review');
-      recordingStateRef.current = 'review';
-      onRecordingComplete?.({ audioBlob: blob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current });
-    } else {
-      setRecordingState('idle');
-      recordingStateRef.current = 'idle';
     }
+    // Always enter review so the student can self-check — even without audio
+    // (free play skips recording but still needs the 👍/👎 self-grade).
+    setRecordingState('review');
+    recordingStateRef.current = 'review';
+    onRecordingComplete?.({ audioBlob: blob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current });
   };
 
   // ── Review: replay audio + slider animation on the canvas ──
@@ -1053,7 +1058,7 @@ export default function SlideToReadCanvas({
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleStartRecording}
             className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
             style={{ background: '#007bff' }}>
-            🔴 Start Recording
+            {recordingEnabled ? '🔴 Start Recording' : '▶ Start Reading'}
           </motion.button>
         )}
         {recordingState === 'recording' && micEnabled && voiceState === 'requesting' && (
@@ -1103,11 +1108,13 @@ export default function SlideToReadCanvas({
         )}
         {recordingState === 'review' && (
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-            <button onClick={playReviewRecording} disabled={isReplaying}
-              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${isReplaying ? 'opacity-60' : ''}`}
-              style={{ background: '#007bff' }}>
-              {isReplaying ? '▶ Playing…' : '▶ Review'}
-            </button>
+            {audioBlob && (
+              <button onClick={playReviewRecording} disabled={isReplaying}
+                className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${isReplaying ? 'opacity-60' : ''}`}
+                style={{ background: '#007bff' }}>
+                {isReplaying ? '▶ Playing…' : '▶ Review'}
+              </button>
+            )}
             <button onClick={handleRerecord}
               className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-gray-700 text-sm shadow transition active:scale-95"
               style={{ background: '#e5e7eb' }}>

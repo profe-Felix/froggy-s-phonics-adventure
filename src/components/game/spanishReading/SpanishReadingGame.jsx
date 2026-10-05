@@ -23,6 +23,7 @@ import {
   getMaxTier,
 } from '@/lib/literacy/adaptiveDifficulty';
 import { getDecodableWords } from '@/lib/wordBankDifficulty';
+import { buildAdaptiveDecodingRound, decodingListName } from '@/lib/decodingProgression';
 
 const SUPABASE_LISTS_URL = 'https://dmlsiyyqpcupbizpxwhp.supabase.co/storage/v1/object/public/app-presets/slidetoread/lists.json';
 
@@ -574,12 +575,19 @@ export default function SpanishReadingGame({
   const [drivenSection, setDrivenSection] = useState(null);
   const [drivenListName, setDrivenListName] = useState('');
 
+  // When Sílabas free play uses the adaptive decoding progression, this holds
+  // the student's current decoding level (CV / CVC / CVCV / inverse). Null
+  // for every other section or when driven by a lesson preset.
+  const [decodingLevel, setDecodingLevel] = useState(null);
+
   const isDriven = !!drivenItems;
   const activeListName = isDriven
     ? drivenListName
-    : literacyContext
-      ? `${selectedSection || ''} Lesson ${literacyContext.currentLessonNumber}`
-      : `${selectedSection || ''} M${selectedModule || ''}`;
+    : decodingLevel
+      ? decodingListName(decodingLevel)
+      : literacyContext
+        ? `${selectedSection || ''} Lesson ${literacyContext.currentLessonNumber}`
+        : `${selectedSection || ''} M${selectedModule || ''}`;
 
   // Load reading lists and the teacher-managed Spanish Word Dictionary.
   useEffect(() => {
@@ -921,6 +929,7 @@ export default function SpanishReadingGame({
     setSelectedSection(sectionKey);
     setSelectedModule(null);
     setRoundSessions([]);
+    setDecodingLevel(null);
 
     // Fetch recent sessions to compute adaptive difficulty + mastery sorting.
     let recentSessions = [];
@@ -931,6 +940,28 @@ export default function SpanishReadingGame({
         school_year: ACTIVE_SCHOOL_YEAR,
       });
     } catch {}
+
+    // Sílabas free play uses the adaptive decoding progression (CV → CVC →
+    // CVCV → inverse) instead of the lesson-grapheme pool. Students start at
+    // CV and unlock harder levels as self-check accuracy reaches 80%.
+    if (sectionKey === 'Sílabas' && literacyContext?.curriculumPosition) {
+      const moduleNumber = Number(literacyContext.curriculumPosition.module_number);
+      const lessonNumber = Number(literacyContext.curriculumPosition.curriculum_lesson_number);
+      if (moduleNumber > 0 && lessonNumber > 0) {
+        const { levelId, items } = buildAdaptiveDecodingRound(
+          recentSessions, moduleNumber, lessonNumber
+        );
+        const pool = items.map((text) => ({ text }));
+        pool.forEach((item) => { if (item.text) preloadTts(item.text, 'es'); });
+        setDecodingLevel(levelId);
+        setItems(pool);
+        setCurrentIdx(0);
+        setViewMode('reading');
+        setLoadingModule(false);
+        fetchCompleted();
+        return;
+      }
+    }
 
     const adaptiveLevel = computeAdaptiveLevel(recentSessions);
     const adaptiveRatio = getAdaptiveRatio(adaptiveLevel);
@@ -1416,6 +1447,7 @@ export default function SpanishReadingGame({
             onRerecord={handleRerecordSession}
             onBack={() => setViewMode('overview')}
             micEnabled={continuousBlending}
+            recordingEnabled={isDriven}
           />
         </div>
       ) : (
