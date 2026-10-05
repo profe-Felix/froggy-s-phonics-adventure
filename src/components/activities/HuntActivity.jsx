@@ -16,7 +16,7 @@ function shuffle(arr) {
   return a;
 }
 
-export default function HuntActivity({ config, studentName }) {
+export default function HuntActivity({ config, studentName, externalAdvance = false }) {
   const items = useMemo(() => {
     const its = Array.isArray(config?.items) ? config.items : [];
     return its.map((it) => (typeof it === 'string' ? { text: it } : it)).filter((it) => it.text);
@@ -191,7 +191,7 @@ export default function HuntActivity({ config, studentName }) {
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-4xl sm:text-5xl' : 'text-2xl sm:text-4xl'}`}>
+        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-5xl sm:text-7xl' : 'text-2xl sm:text-4xl'}`}>
           <HuntSegments
             segments={segments}
             marks={marks}
@@ -229,7 +229,12 @@ export default function HuntActivity({ config, studentName }) {
         {phase === 'submitted' && (
           <>
             <span className="font-bold text-lg text-green-600">¡Enviado! 🎉</span>
-            <button onClick={next} className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-bold">Siguiente</button>
+            {!externalAdvance && (
+              <button onClick={next} className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-bold">Siguiente</button>
+            )}
+            {externalAdvance && (
+              <span className="text-sm text-slate-500 font-medium">Espera a tu maestro…</span>
+            )}
           </>
         )}
       </div>

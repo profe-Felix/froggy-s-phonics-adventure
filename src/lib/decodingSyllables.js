@@ -429,3 +429,47 @@ export function canAssessLevel(levelId, moduleNumber, lessonNumber) {
   if (!level) return false;
   return level.generate(graphemes).length > 0;
 }
+
+// ── Consonant-subset generation (for live small-group Spanish Reading) ──────
+// Unlike generateDecodingItems (which uses the class's curriculum graphemes),
+// this generates items using ONLY the consonants the teacher picked for the
+// small group (e.g. just m, s, l). Vowels are all five. Used by the live
+// blending practice so a teacher can focus a group on specific letters.
+
+// Some simple consonants map to multiple grapheme keys for CV generation.
+const CONSONANT_TO_CV_GRAPHEMES = {
+  c: ['c-fuerte', 'c-suave'],
+  g: ['g-fuerte', 'g-suave'],
+  r: ['r-inicial'],
+  y: ['y-inicial'],
+};
+
+function cvGraphemesFor(consonant) {
+  return CONSONANT_TO_CV_GRAPHEMES[consonant] || [consonant];
+}
+
+export function generateDecodingItemsForConsonants(levelId, consonants) {
+  const level = DECODING_LEVELS.find((l) => l.id === levelId);
+  if (!level || !consonants.length) return [];
+
+  if (levelId === 'CV') {
+    const out = new Set();
+    for (const c of consonants) {
+      for (const g of cvGraphemesFor(c)) {
+        const map = GRAPHEME_CV_MAP[g];
+        if (!map) continue;
+        for (const syl of map) out.add(syl);
+      }
+    }
+    return [...out].sort();
+  }
+
+  const lists = { CVC: REAL_CVC_WORDS, CVCV: REAL_CVCV_WORDS, inverse: REAL_INVERSE_WORDS };
+  const list = lists[levelId] || [];
+  // Longest-match-first so 'ch' isn't caught by a bare 'c'.
+  const sortedCons = [...consonants].sort((a, b) => b.length - a.length);
+  return list
+    .filter((entry) => sortedCons.some((c) => entry.word.startsWith(c)))
+    .map((e) => e.word)
+    .sort();
+}

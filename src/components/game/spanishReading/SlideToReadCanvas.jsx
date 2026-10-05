@@ -579,6 +579,11 @@ export default function SlideToReadCanvas({
   // Optional shared monitor hook (lifted to the parent so the session intent
   // and volume persist across per-item remounts). Falls back to a local hook.
   monitor: monitorProp,
+  // groupMode: live small-group practice. The teacher (not the student's
+  // self-grade) controls when the item advances, so the review state hides the
+  // 👍/👎 grade buttons and just offers Redo + Listen. The item changes when
+  // the parent passes a new `text` (teacher advanced), which resets the canvas.
+  groupMode = false,
 }) {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
@@ -1166,7 +1171,13 @@ export default function SlideToReadCanvas({
               style={{ background: '#e5e7eb' }}>
               🔄 Redo
             </button>
-            {demoMode ? (
+            {groupMode ? (
+              <button onClick={handlePlayAudio} disabled={playing}
+                className={`flex items-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-white text-sm shadow transition active:scale-95 ${playing ? 'opacity-60' : ''}`}
+                style={{ background: '#f87171' }}>
+                🔊 Listen
+              </button>
+            ) : demoMode ? (
               <>
                 <div className="flex-1 min-w-2" />
                 <button onClick={() => onDemoRecorded?.({ audioBlob, sliderData: sliderDataRef.current, continuityData: continuityDataRef.current })}

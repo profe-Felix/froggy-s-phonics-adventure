@@ -305,15 +305,24 @@ export default function SmallGroupManager() {
                       </span>
                     </div>
 
-                    {/* Assess button */}
+                    {/* Action buttons */}
                     {groupStudents.length > 0 && (
-                      <Link
-                        to={`/SmallGroupAssessment?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="block text-center text-[10px] font-bold text-slate-600 hover:text-slate-800 py-1 bg-white/60 border-b border-slate-200 transition-colors hover:bg-white"
-                      >
-                        📋 Quick Assess
-                      </Link>
+                      <div className="flex border-b border-slate-200">
+                        <Link
+                          to={`/SmallGroupAssessment?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 text-center text-[10px] font-bold text-slate-600 hover:text-slate-800 py-1 bg-white/60 transition-colors hover:bg-white"
+                        >
+                          📋 Assess
+                        </Link>
+                        <Link
+                          to={`/LiveSpanishReading?teacher=${encodeURIComponent(selectedTeacher)}&block=${selectedBlock}&group=${cg.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 text-center text-[10px] font-bold text-indigo-600 hover:text-indigo-800 py-1 bg-indigo-50/60 transition-colors hover:bg-indigo-50 border-l border-slate-200"
+                        >
+                          📖 Live Reading
+                        </Link>
+                      </div>
                     )}
 
                     {/* Students */}

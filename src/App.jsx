@@ -65,6 +65,8 @@ import SoundWallManager from './pages/SoundWallManager';
 import SmallGroupManager from './pages/SmallGroupManager';
 import SmallGroupAssessment from './pages/SmallGroupAssessment';
 import SmallGroupAssessmentStudent from './pages/SmallGroupAssessmentStudent';
+import LiveSpanishReading from './pages/LiveSpanishReading';
+import LiveSpanishReadingStudent from './pages/LiveSpanishReadingStudent';
 import TableRotationManager from './pages/TableRotationManager';
 import CreandoOraciones from './pages/CreandoOraciones';
 import WorkSamples from './pages/WorkSamples';
@@ -181,6 +183,8 @@ const AuthenticatedApp = () => {
       <Route path="/SmallGroupManager" element={<SmallGroupManager />} />
       <Route path="/SmallGroupAssessment" element={<SmallGroupAssessment />} />
       <Route path="/SmallGroupAssessmentStudent" element={<SmallGroupAssessmentStudent />} />
+      <Route path="/LiveSpanishReading" element={<LiveSpanishReading />} />
+      <Route path="/LiveSpanishReadingStudent" element={<LiveSpanishReadingStudent />} />
       <Route path="/TableRotationManager" element={<TableRotationManager />} />
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />

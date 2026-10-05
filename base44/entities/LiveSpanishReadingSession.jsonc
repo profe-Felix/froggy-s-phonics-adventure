@@ -1,0 +1,93 @@
+{
+  "name": "LiveSpanishReadingSession",
+  "type": "object",
+  "properties": {
+    "teacher_name": {
+      "type": "string",
+      "description": "Teacher who owns this live Spanish Reading session (Felix, Gutierrez, Valero)."
+    },
+    "block": {
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ],
+      "description": "Which block/class period this session is for."
+    },
+    "color_group": {
+      "type": "string",
+      "enum": [
+        "red",
+        "orange",
+        "yellow",
+        "green",
+        "blue",
+        "purple"
+      ],
+      "description": "Which color group is practicing together."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed"
+      ],
+      "default": "active",
+      "description": "active = in progress, completed = teacher ended the session."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "blending",
+        "letter_hunt"
+      ],
+      "default": "blending",
+      "description": "blending = synced SlideToReadCanvas practice (syllables/words). letter_hunt = synced letter hunt in random words/sentences."
+    },
+    "config": {
+      "type": "object",
+      "default": {},
+      "description": "Teacher-selected config. blending: { syllable_types: ['CV','CVC',...], consonants: ['m','s',...] }. letter_hunt: { target_letter: 'm', source: 'words'|'sentences' }."
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "The generated practice items (syllables/words, or hunt words/sentences). All students see items[current_index]."
+    },
+    "current_index": {
+      "type": "integer",
+      "default": 0,
+      "description": "Which item the whole group is on. Teacher advances this; students follow in realtime."
+    },
+    "started_at": {
+      "type": "string",
+      "description": "ISO timestamp when the session started"
+    },
+    "ended_at": {
+      "type": "string",
+      "default": "",
+      "description": "ISO timestamp when the session ended"
+    }
+  },
+  "required": [
+    "teacher_name",
+    "block",
+    "color_group",
+    "mode"
+  ],
+  "rls": {
+    "read": {},
+    "create": {},
+    "update": {},
+    "delete": {}
+  }
+}
