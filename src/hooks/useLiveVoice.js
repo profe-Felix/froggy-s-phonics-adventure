@@ -145,6 +145,13 @@ export function useLiveVoice() {
       const audioContext = new AudioContextConstructor();
       audioContextRef.current = audioContext;
 
+      // On iPad/iOS Safari the AudioContext starts suspended and must be
+      // resumed within a user gesture. Without this, getFloatTimeDomainData
+      // returns all zeros → no voice detection → balloons never lift.
+      if (audioContext.state === 'suspended') {
+        try { await audioContext.resume(); } catch { /* best-effort */ }
+      }
+
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 1024;

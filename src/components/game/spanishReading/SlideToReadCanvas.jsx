@@ -17,19 +17,25 @@ const SLIDER_TRACK = '#d3d3d3';
 const SLIDER_FILLED = '#007bff';
 const THUMB_COLOR = '#007bff';
 
+// Try to play a pre-recorded audio file from the Supabase bucket by item id.
+// Returns a Promise that resolves to true if the file played successfully,
+// or false if no file was found — so the caller can fall back to TTS.
 function playAudioById(id, itemType) {
-  if (!id) return;
+  if (!id) return Promise.resolve(false);
   const category = itemType === 'sentence' ? 'sentences' : 'words';
   const base = `${AUDIO_BASE}/es/${category}`;
   const candidates = [`${base}/${id}.mp3`, `${base}/${id}.wav`];
   let i = 0;
-  const tryNext = () => {
-    if (i >= candidates.length) return;
-    const a = new Audio(candidates[i++]);
-    a.onerror = tryNext;
-    a.play().catch(() => {});
-  };
-  tryNext();
+  return new Promise((resolve) => {
+    const tryNext = () => {
+      if (i >= candidates.length) { resolve(false); return; }
+      const a = new Audio(candidates[i++]);
+      a.onended = () => resolve(true);
+      a.onerror = tryNext;
+      a.play().catch(tryNext);
+    };
+    tryNext();
+  });
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -794,13 +800,17 @@ export default function SlideToReadCanvas({
     setPlaying(true);
     try {
       if (itemId) {
-        playAudioById(itemId, itemType);
-        setTimeout(() => setPlaying(false), 2000);
+        const played = await playAudioById(itemId, itemType);
+        if (!played) {
+          // No pre-recorded file in the bucket — fall back to cloud TTS so
+          // every word/syllable has audio when the student taps Listen.
+          await playTts(text, 'es', 0.85);
+        }
       } else {
         await playTts(text, 'es', 0.85);
-        setPlaying(false);
       }
-    } catch { setPlaying(false); }
+    } catch { /* best-effort */ }
+    setPlaying(false);
   };
 
   // ── Start recording (audio-only + slider data capture) ──
