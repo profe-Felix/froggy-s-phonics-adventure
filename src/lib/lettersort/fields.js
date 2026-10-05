@@ -4,6 +4,7 @@
 
 export const FIELDS = {
   letters: { label: 'Letras', type: 'text', ph: 'a, b, ch' },
+  lettermatch: { label: 'Coincidencia de letra', type: 'select', options: ['initial', 'contains'] },
   syllables: { label: 'Sílabas', type: 'text', ph: 'ma, pa, sa' },
   syllmatch: { label: 'Coincidencia', type: 'select', options: ['initial', 'any'] },
   syllcmp: { label: 'Comparador', type: 'select', options: ['equals', 'contains', 'prefix', 'suffix'] },

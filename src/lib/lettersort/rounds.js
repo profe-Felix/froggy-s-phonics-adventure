@@ -41,6 +41,8 @@ function inferClassicMode(v) {
 const LABELS = {
   is: (L) => `/${L}/`,
   not: (L) => `No empieza con /${L}/`,
+  containsIs: (L) => `Tiene /${L}/`,
+  containsNot: (L) => `No tiene /${L}/`,
   emojiIs: (L) => `👍 Sílaba con /${L}/`,
   emojiNot: (L) => `👎 Sílaba sin /${L}/`,
   syllOne: (n) => `${n} sílaba`,
@@ -69,6 +71,7 @@ export function buildConfig(modeKey, internalMode, v = {}) {
     headertype: v.headertype || 'text',
     cardtype: v.cardtype || (isClassic(mode) ? 'image' : 'word'),
     match: v.match || 'syllable-start',
+    lettermatch: v.lettermatch || 'initial',
     layout: v.layout || 'side',
     direction: v.direction || 'bottom-up',
     bottom: v.bottom || '', top: v.top || '', left: v.left || '', right: v.right || '',
@@ -106,6 +109,14 @@ function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i-
 
 function initialSyll(coreRaw) { return syllablesNormalized(coreRaw)[0] || ''; }
 
+// "contains" letter match: true when the pretty, accent-stripped word contains
+// the target letter anywhere (e.g. "oso", "gato", "limón" all contain /o/).
+function wordContainsLetter(coreRaw, letter) {
+  const word = stripDiacritics(normalizeMarkers(coreRaw));
+  const target = stripDiacritics(normalizeMarkers(letter));
+  return !!target && word.includes(target);
+}
+
 function applyTitleOverrides(cols, titles) {
   if (!titles || !titles.length) return cols;
   return cols.map((c, i) => ({ ...c, label: titles[i] || c.label }));
@@ -125,8 +136,9 @@ function withHeaderImages(columns, headerimages) {
   });
 }
 
-function labelTextFor(letter, type, labelStyle) {
+function labelTextFor(letter, type, labelStyle, lettermatch) {
   if (labelStyle === 'emoji') return type === 'is' ? LABELS.emojiIs(letter) : LABELS.emojiNot(letter);
+  if (lettermatch === 'contains') return type === 'is' ? LABELS.containsIs(letter) : LABELS.containsNot(letter);
   return type === 'is' ? LABELS.is(letter) : LABELS.not(letter);
 }
 
@@ -181,14 +193,17 @@ function buildWordCards(words, imageFiles, { splitCards, cardtype }) {
 }
 
 // ---- column builders ----
-function columnsForLetters(letters, labelStyle, titles) {
+function columnsForLetters(letters, labelStyle, titles, lettermatch) {
+  const matchFn = lettermatch === 'contains'
+    ? (c, L) => wordContainsLetter(c, L)
+    : (c, L) => initialFromStem(c) === L;
   const cols = [];
   if (letters.length === 1) {
     const L = letters[0];
-    cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle), match: (c) => initialFromStem(c) === L });
-    cols.push({ key: `not-${L}`, label: labelTextFor(L, 'not', labelStyle), match: (c) => initialFromStem(c) !== L });
+    cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle, lettermatch), match: (c) => matchFn(c, L) });
+    cols.push({ key: `not-${L}`, label: labelTextFor(L, 'not', labelStyle, lettermatch), match: (c) => !matchFn(c, L) });
   } else {
-    letters.forEach((L) => cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle), match: (c) => initialFromStem(c) === L }));
+    letters.forEach((L) => cols.push({ key: L, label: labelTextFor(L, 'is', labelStyle, lettermatch), match: (c) => matchFn(c, L) }));
   }
   return applyTitleOverrides(cols, titles);
 }
@@ -288,7 +303,7 @@ export function buildRound(config, imageFiles = []) {
   const {
     mode, letters, syllables, counts, phonemes, stress, pool, words, per,
     splitCards, titles, labelStyle, syllmatch, syllcmp,
-    groups, rows, rowsyll, headers, answers, headertype, cardtype, match,
+    groups, rows, rowsyll, headers, answers, headertype, cardtype, match, lettermatch,
     direction, bottom, top, left, right, distractors, riddle, columns: colLabels, slots, headerimages,
     roundIndex,
   } = config;
@@ -307,19 +322,16 @@ export function buildRound(config, imageFiles = []) {
 
   // ----- column-group modes (ColumnsView) -----
   if (mode === 'letters') {
-    const columns = withHeaderImages(columnsForLetters(letters, labelStyle, titles), headerimages);
+    const columns = withHeaderImages(columnsForLetters(letters, labelStyle, titles, lettermatch), headerimages);
     let cards;
     if (hasWords) { cards = buildWordCards(words, files, config); return { view: 'columns', columns, cards }; }
     cards = [];
-    const byInitial = new Map();
-    for (const f of files) { const k = f.initial; if (!byInitial.has(k)) byInitial.set(k, []); byInitial.get(k).push(f); }
     const used = new Set();
     for (const col of columns) {
-      const picks = col.key.startsWith('not-')
-        ? pickNoRepeat(files.filter((f) => f.initial !== col.key.slice(4)), per, used)
-        : pickNoRepeat(byInitial.get(col.key) || [], per, used);
-      picks.forEach((f) => used.add(f.path));
-      picks.forEach((f) => cards.push(...makeCardsFromFile(f, splitCards)));
+      // Use the column's own match predicate so 'contains' and 'initial' modes
+      // both pick the right cards (and the binary "not-" column works for both).
+      const pool = files.filter((f) => col.match(f.rawCore));
+      pickNoRepeat(pool, per, used).forEach((f) => { used.add(f.path); cards.push(...makeCardsFromFile(f, splitCards)); });
     }
     return { view: 'columns', columns, cards };
   }

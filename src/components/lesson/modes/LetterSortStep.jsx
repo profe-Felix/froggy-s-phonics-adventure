@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Check, AlertCircle } from 'lucide-react';
 import LetterSortActivity from '@/components/lettersort/LetterSortActivity';
-import { configForPreset, presetModeKey } from '@/lib/lettersort/presetConfig';
+import { configForPreset } from '@/lib/lettersort/presetConfig';
 import { buildConfig } from '@/lib/lettersort/rounds';
 import { useLetterSortPresets } from '@/hooks/useLetterSortPresets';
 import { useClassColors } from '@/hooks/useClassColors';
@@ -23,16 +23,16 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
   const [lastResult, setLastResult] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const config = useMemo(() => {
-    // A teacher-assigned custom preset (anything other than the plain
-    // "letters" type) wins over curriculum auto-build.
+    // A teacher-assigned preset wins over curriculum auto-build (any mode,
+    // including 'letters'). If the teacher picked a preset, they want it.
     if (presetId && presets[presetId]) {
-      const pk = presetModeKey(presets[presetId]);
-      if (pk && pk !== 'letters') {
-        const c = configForPreset(presets[presetId]);
-        if (c) return c;
-      }
+      const c = configForPreset(presets[presetId]);
+      if (c) return c;
     }
-    // Curriculum-driven mode: build letters from M#.L# grapheme progression
+    // Curriculum-driven mode: build letters from M#.L# grapheme progression.
+    // Dedupe the weighted spiral pool so each letter is one column — otherwise
+    // a single-letter lesson (e.g. M1.L1 "o") renders N identical /o/ columns
+    // instead of a binary "empieza con / no empieza con" sort.
     if (curriculumPosition) {
       const pos = curriculumPositionOverride
         ? parseCurriculumKey(curriculumPositionOverride)
@@ -40,15 +40,11 @@ export default function LetterSortStep({ onComplete, presetId, curriculumPositio
       const moduleNumber = Number(pos?.module_number);
       const lessonNumber = Number(pos?.curriculum_lesson_number);
       if (moduleNumber > 0 && lessonNumber > 0) {
-        const letters = buildLetterSortLetters({ moduleNumber, lessonNumber });
+        const letters = [...new Set(buildLetterSortLetters({ moduleNumber, lessonNumber }))];
         if (letters.length > 0) {
           return buildConfig('letters', null, { letters: letters.join(','), per: 4 });
         }
       }
-    }
-    if (presetId && presets[presetId]) {
-      const c = configForPreset(presets[presetId]);
-      if (c) return c;
     }
     return buildConfig('letters', null, DEFAULT_VALS);
   }, [presetId, presets, curriculumPosition, curriculumPositionOverride]);
