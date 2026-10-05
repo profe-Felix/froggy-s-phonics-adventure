@@ -1,10 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Check, RefreshCw } from 'lucide-react';
+import { Check, RefreshCw, Volume2 } from 'lucide-react';
 import SortCard from './SortCard';
 import { useSortSensors } from '@/hooks/useSortSensors';
 import { classifyCard } from '@/lib/lettersort/rounds';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
+import { playLetterSound, playTts, stopAllAudio } from '@/lib/audio';
+
+// Play the phoneme sound of the column's target letter, then speak a short
+// instruction so non-readers can hear what each column asks for.
+function playColumnInstruction(col, config, isNotPair, targetLetter) {
+  stopAllAudio();
+  let phoneme = '';
+  let text = '';
+
+  if (col.headerKind === 'position') {
+    phoneme = col.targetLetter || '';
+    const positions = ['principio', 'medio', 'final'];
+    const pos = positions[col.posIndex] || 'principio';
+    text = `Va en el ${pos}`;
+  } else if (isNotPair && targetLetter) {
+    phoneme = targetLetter;
+    const isNot = col.key.startsWith('not-');
+    if (config.lettermatch === 'contains') {
+      text = isNot ? 'No tiene este sonido' : 'Tiene este sonido';
+    } else {
+      text = isNot ? 'No empieza con este sonido' : 'Empieza con este sonido';
+    }
+  } else {
+    return;
+  }
+
+  if (phoneme) playLetterSound(phoneme, 'es');
+  if (text) setTimeout(() => playTts(text, 'es', 0.85), 700);
+}
 
 const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };
 
@@ -356,7 +385,7 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
     const filled = 'bg-green-100 text-green-700 border-green-300';
     const empty = 'border-slate-300 bg-slate-50';
     return (
-      <div className="flex justify-center mb-2">
+      <div className="flex justify-center mb-2 items-center gap-1.5">
         <div className="flex items-center gap-1.5">
           {[0, 1, 2].map((i) => (
             <div
@@ -367,6 +396,13 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
             </div>
           ))}
         </div>
+        <button
+          onClick={() => playColumnInstruction(col, config, isNotPair, targetLetter)}
+          className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 flex items-center justify-center shrink-0"
+          title="Escuchar instrucción"
+        >
+          <Volume2 className="w-4 h-4" />
+        </button>
       </div>
     );
   }
@@ -376,17 +412,24 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
     const isNot = col.key.startsWith('not-');
     if (isNot) {
       return (
-        <div className="flex justify-center mb-2">
+        <div className="flex justify-center mb-2 items-center gap-1.5">
           <div className="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 font-bold text-sm text-center min-w-[3rem]">
             {col.label}
           </div>
+          <button
+            onClick={() => playColumnInstruction(col, config, isNotPair, targetLetter)}
+            className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center shrink-0"
+            title="Escuchar instrucción"
+          >
+            <Volume2 className="w-4 h-4" />
+          </button>
         </div>
       );
     }
     const filled = 'bg-green-100 text-green-700 border-green-300';
     const empty = 'border-slate-300 bg-slate-50';
     return (
-      <div className="flex justify-center mb-2">
+      <div className="flex justify-center mb-2 items-center gap-1.5">
         <div className="flex items-center gap-1.5">
           {[0, 1, 2].map((i) => (
             <div
@@ -397,6 +440,13 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
             </div>
           ))}
         </div>
+        <button
+          onClick={() => playColumnInstruction(col, config, isNotPair, targetLetter)}
+          className="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 flex items-center justify-center shrink-0"
+          title="Escuchar instrucción"
+        >
+          <Volume2 className="w-4 h-4" />
+        </button>
       </div>
     );
   }
