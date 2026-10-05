@@ -6,7 +6,7 @@ import { buildConfig } from './rounds';
 // mode.mode === null  -> classic columns (no ?mode= param), uses field params
 // `desc` is the short helper shown under the selector (and lives in the guide).
 export const MODES = [
-  { key: 'letters', label: 'Por letra (al inicio o en cualquier posición)', mode: null, fields: ['letters', 'lettermatch', 'per'], desc: 'Ordena por una letra objetivo. "initial" = ¿con qué empieza? Con una sola letra se crean dos columnas: empieza con / no empieza con. "contains" = la letra aparece en cualquier posición de la palabra.' },
+  { key: 'letters', label: 'Por letra (inicio, posición, o contiene)', mode: null, fields: ['letters', 'lettermatch', 'per'], desc: 'Ordena por una letra objetivo. "initial" = ¿con qué empieza? (dos columnas: empieza / no empieza). "contains" = la letra aparece en cualquier posición (tiene / no tiene). "position" = ¿dónde está la letra? Inicio / medio / final (tres columnas con cajas verdes).' },
   { key: 'randinit', label: 'Por letra inicial al azar', mode: 'randinit', fields: ['pool', 'per'], desc: 'Como "letras iniciales", pero el maestro define un pool de sonidos y la app elige al azar.' },
   { key: 'syllables', label: 'Por sílaba (al inicio o en cualquier posición)', mode: null, fields: ['syllables', 'syllmatch', 'syllcmp', 'per'], desc: 'Ordena por una sílaba objetivo (al inicio o en cualquier posición).' },
   { key: 'syllcount', label: 'Por número de sílabas', mode: null, fields: ['counts', 'per'], desc: 'Ordena palabras según cuántas sílabas tienen.' },

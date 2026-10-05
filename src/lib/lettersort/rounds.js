@@ -117,6 +117,19 @@ function wordContainsLetter(coreRaw, letter) {
   return !!target && word.includes(target);
 }
 
+// "position" letter match: returns where the target letter appears in the
+// word — 'beginning' (first char), 'end' (last char, not first), or 'middle'
+// (anywhere else). Each word maps to exactly one position so the three-column
+// sort is unambiguous. Words without the letter return null.
+function wordLetterPosition(coreRaw, letter) {
+  const word = stripDiacritics(normalizeMarkers(coreRaw)).toLowerCase();
+  const target = stripDiacritics(normalizeMarkers(letter)).toLowerCase();
+  if (!target || !word.includes(target)) return null;
+  if (word[0] === target) return 'beginning';
+  if (word[word.length - 1] === target) return 'end';
+  return 'middle';
+}
+
 function applyTitleOverrides(cols, titles) {
   if (!titles || !titles.length) return cols;
   return cols.map((c, i) => ({ ...c, label: titles[i] || c.label }));
@@ -194,6 +207,15 @@ function buildWordCards(words, imageFiles, { splitCards, cardtype }) {
 
 // ---- column builders ----
 function columnsForLetters(letters, labelStyle, titles, lettermatch) {
+  if (lettermatch === 'position') {
+    const L = letters[0] || 'o';
+    const cols = [
+      { key: `posbeg:${L}`, label: 'Al inicio', match: (c) => wordLetterPosition(c, L) === 'beginning', headerKind: 'position', posIndex: 0, targetLetter: L },
+      { key: `posmid:${L}`, label: 'En medio', match: (c) => wordLetterPosition(c, L) === 'middle', headerKind: 'position', posIndex: 1, targetLetter: L },
+      { key: `posend:${L}`, label: 'Al final', match: (c) => wordLetterPosition(c, L) === 'end', headerKind: 'position', posIndex: 2, targetLetter: L },
+    ];
+    return applyTitleOverrides(cols, titles);
+  }
   const matchFn = lettermatch === 'contains'
     ? (c, L) => wordContainsLetter(c, L)
     : (c, L) => initialFromStem(c) === L;

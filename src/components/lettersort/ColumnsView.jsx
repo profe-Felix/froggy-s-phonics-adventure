@@ -274,12 +274,12 @@ export default function ColumnsView({ config, round, onNewRound, onRoundComplete
                     ref={prov.innerRef}
                     {...prov.droppableProps}
                     data-droppable-id={col.key}
-                    className="flex flex-col gap-1.5 content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[240px]"
+                    className="flex flex-col gap-1.5 items-center content-start p-1.5 rounded-xl bg-indigo-50/60 border-2 border-indigo-200 border-dashed min-h-[200px]"
                   >
                     {(colCards[col.key] || []).map((card, i) => (
                       <Draggable key={card.id} draggableId={card.id} index={i} isDragDisabled={locked.has(card.id)}>
                         {(p) => (
-                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-full shrink-0">
+                          <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps} className="w-[170px] shrink-0">
                             <SortCard
                               card={card}
                               tilesOnly={config.tilesOnly}
@@ -350,13 +350,10 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
       </div>
     );
   }
-  // is/not letter pair shown as Elkonin boxes: the target sound's box is filled
-  // (green = the sound is at the start, red = the sound is NOT at the start),
-  // with empty boxes for the other sounds in the word.
-  if (isNotPair && targetLetter) {
-    const isNot = col.key.startsWith('not-');
-    const soundIdx = isNot ? 1 : 0; // is -> first box; not -> a later box
-    const filled = isNot ? 'bg-red-100 text-red-700 border-red-300' : 'bg-green-100 text-green-700 border-green-300';
+  // Position mode: three columns (beginning/middle/end), each with the green
+  // target letter in the matching Elkonin box.
+  if (col.headerKind === 'position') {
+    const filled = 'bg-green-100 text-green-700 border-green-300';
     const empty = 'border-slate-300 bg-slate-50';
     return (
       <div className="flex justify-center mb-2">
@@ -364,9 +361,39 @@ function ColumnHeader({ col, config, isNotPair, targetLetter }) {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className={`h-9 min-w-[2.25rem] px-1 rounded-md border-2 flex items-center justify-center font-bold text-lg ${i === soundIdx ? filled : empty}`}
+              className={`h-9 min-w-[2.25rem] px-1 rounded-md border-2 flex items-center justify-center font-bold text-lg ${i === col.posIndex ? filled : empty}`}
             >
-              {i === soundIdx ? `/${targetLetter}/` : ''}
+              {i === col.posIndex ? `/${col.targetLetter}/` : ''}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // is/not pair: the "is" column shows green /o/ in the first box; the "not"
+  // column shows a plain text label (no red box).
+  if (isNotPair && targetLetter) {
+    const isNot = col.key.startsWith('not-');
+    if (isNot) {
+      return (
+        <div className="flex justify-center mb-2">
+          <div className="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 font-bold text-sm text-center min-w-[3rem]">
+            {col.label}
+          </div>
+        </div>
+      );
+    }
+    const filled = 'bg-green-100 text-green-700 border-green-300';
+    const empty = 'border-slate-300 bg-slate-50';
+    return (
+      <div className="flex justify-center mb-2">
+        <div className="flex items-center gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={`h-9 min-w-[2.25rem] px-1 rounded-md border-2 flex items-center justify-center font-bold text-lg ${i === 0 ? filled : empty}`}
+            >
+              {i === 0 ? `/${targetLetter}/` : ''}
             </div>
           ))}
         </div>
