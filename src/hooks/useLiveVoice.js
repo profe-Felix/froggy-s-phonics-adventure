@@ -72,8 +72,25 @@ export function useLiveVoice() {
     const analyser = analyserRef.current;
     if (!analyser) return;
 
+    // On iPad/iOS, the AudioContext may start suspended and only resume
+    // within a user gesture. Retry resume() on each frame — it's a no-op
+    // if already running, and once a touch/click fires it will succeed.
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
     const samples = new Float32Array(analyser.fftSize);
-    analyser.getFloatTimeDomainData(samples);
+    if (typeof analyser.getFloatTimeDomainData === 'function') {
+      analyser.getFloatTimeDomainData(samples);
+    } else {
+      // Fallback for older WebKit: getByteTimeDomainData returns 0-255
+      const byteSamples = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(byteSamples);
+      for (let i = 0; i < byteSamples.length; i++) {
+        samples[i] = (byteSamples[i] - 128) / 128;
+      }
+    }
     let sumSquares = 0;
     for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
 
@@ -129,13 +146,20 @@ export function useLiveVoice() {
     continuityHistoryRef.current = [{ t: performance.now(), c: 0.08, v: 0 }];
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+      } catch {
+        // iPad Safari may reject specific audio constraints — fall back
+        // to default constraints so the microphone still works.
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       if (!mountedRef.current) {
         stream.getTracks().forEach(track => track.stop());
         return;
@@ -145,19 +169,32 @@ export function useLiveVoice() {
       const audioContext = new AudioContextConstructor();
       audioContextRef.current = audioContext;
 
-      // On iPad/iOS Safari the AudioContext starts suspended and must be
-      // resumed within a user gesture. Without this, getFloatTimeDomainData
-      // returns all zeros → no voice detection → balloons never lift.
-      if (audioContext.state === 'suspended') {
-        try { await audioContext.resume(); } catch { /* best-effort */ }
-      }
-
+      // Set up the audio graph FIRST — connections work even when the
+      // context is suspended. This ensures the analyser exists and the
+      // sample loop can start immediately.
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 1024;
       source.connect(analyser);
       analyserRef.current = analyser;
       streamRef.current = stream;
+
+      // On iPad/iOS Safari the AudioContext starts suspended and resume()
+      // only succeeds within a user gesture. Don't block on it — the auto-
+      // start fires from a useEffect (no gesture), so awaiting resume()
+      // would hang the whole setup. Instead: fire resume() without waiting,
+      // add a one-time gesture listener to catch the first touch/click,
+      // and let the sample loop retry resume() on each frame.
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => {});
+        const resumeOnGesture = () => {
+          if (audioContextRef.current === audioContext) {
+            audioContext.resume().catch(() => {});
+          }
+        };
+        document.addEventListener('touchend', resumeOnGesture, { once: true, passive: true });
+        document.addEventListener('pointerup', resumeOnGesture, { once: true, passive: true });
+      }
 
       setState('active');
       frameRef.current = requestAnimationFrame(sampleVoice);
