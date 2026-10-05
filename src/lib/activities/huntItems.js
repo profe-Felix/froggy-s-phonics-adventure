@@ -1,9 +1,13 @@
-// Auto-populate "Caza en el texto" items from the WordBank and the lesson's
-// sentence patterns when the teacher hasn't entered custom examples.
-// Returns a mix of single words and sentences that contain the target letter.
+// Auto-populate "Caza en el texto" items from the WordBank and Spanish Reading
+// sentence presets when the teacher hasn't entered custom examples.
+// Returns a mix of single words (from WordBank) and sentences (from Spanish
+// Reading "Oraciones" presets) that contain the target letter/phoneme.
+//
+// Sentences are NEVER auto-generated from templates or word-bank nouns —
+// they only come from sentences the teacher already saved in Spanish Reading
+// presets, or from examples typed inline in the lesson step.
 
 import { base44 } from '@/api/base44Client';
-import { splitLiteracyList } from '@/lib/literacy/lessonProgression';
 import { stripDiacritics } from '@/lib/lettersort/phonics';
 
 function shuffle(arr) {
@@ -24,81 +28,49 @@ function startsWithTarget(text, target) {
   return norm(text).startsWith(norm(target));
 }
 
-// Build hunt items from the WordBank + sentence patterns.
-// config: { huntType, huntTarget/target, lessonLiteracy }
+// Build hunt items from WordBank words + Spanish Reading sentence presets.
+// config: { huntType, huntTarget/target }
 export async function buildHuntItemsFromBank(config) {
   const huntType = config?.huntType || 'phoneme';
   const target = (config?.huntTarget || config?.target || '').trim();
 
-  // Fetch WordBank words
+  // Fetch WordBank words (used for single-word items only)
   let bankWords = [];
   try {
     const records = await base44.entities.WordBank.list('-updated_date', 500);
     bankWords = records.filter((w) => w.active !== false).map((w) => w.word).filter(Boolean);
   } catch { /* best-effort */ }
 
-  // Fetch NounGender for articles (el/la) so sentences are grammatical
-  let genderMap = {};
+  // Fetch sentences from Spanish Reading presets (section "Oraciones")
+  let presetSentences = [];
   try {
-    const genders = await base44.entities.NounGender.list('-updated_date', 500);
-    for (const g of genders) {
-      if (g.active !== false && g.word) genderMap[norm(g.word)] = g;
+    const presets = await base44.entities.SpanishReadingPreset.list('-updated_date', 500);
+    for (const p of presets) {
+      if (p.section !== 'Oraciones') continue;
+      let items = [];
+      try { items = JSON.parse(p.items_data || '[]'); } catch { items = []; }
+      if (!Array.isArray(items)) items = [];
+      for (const it of items) {
+        const text = typeof it === 'string' ? it : it?.text;
+        if (text && text.trim()) presetSentences.push(text.trim());
+      }
     }
   } catch { /* best-effort */ }
 
   // Filter words by hunt type
-  const matching = bankWords.filter((w) =>
+  const matchingWords = bankWords.filter((w) =>
     huntType === 'word' ? startsWithTarget(w, target) : containsTarget(w, target)
   );
-  if (matching.length === 0) return [];
 
-  const shuffled = shuffle(matching);
+  // Filter preset sentences by target (only sentences containing the target)
+  const matchingSentences = presetSentences.filter((s) => containsTarget(s, target));
 
-  // Sentence patterns + picture words from the lesson's literacy progression
-  const literacy = config?.lessonLiteracy || {};
-  const patterns = splitLiteracyList(literacy.sentencePatterns);
-  const pictureWords = splitLiteracyList(literacy.pictureWords);
+  // If we have no matching words or sentences, return empty
+  if (matchingWords.length === 0 && matchingSentences.length === 0) return [];
 
-  // Fill sentence patterns with picture words, keep only those containing the target
-  const sentences = [];
-  if (patterns.length > 0) {
-    const fillers = pictureWords.length > 0 ? pictureWords : shuffled;
-    for (const pattern of patterns.slice(0, 4)) {
-      let filled = pattern;
-      let attempts = 0;
-      while (filled.includes('{picture}') && attempts < 6) {
-        const pw = fillers[Math.floor(Math.random() * fillers.length)];
-        filled = filled.replace('{picture}', pw);
-        attempts++;
-      }
-      if (containsTarget(filled, target)) sentences.push(filled);
-    }
-  }
-
-  // Fallback: build simple sentences from word bank NOUNS (words with a
-  // NounGender entry) so article-based patterns are grammatical. Non-noun
-  // words (verbs, adjectives) are only used as standalone word items.
-  if (sentences.length === 0) {
-    const nouns = shuffled.filter((w) => genderMap[norm(w)]);
-    if (nouns.length > 0) {
-      const simplePatterns = [
-        (w, art) => `${art} ${w} come.`,
-        (w, art) => `Veo ${art} ${w}.`,
-        (w, art) => `Me gusta ${art} ${w}.`,
-      ];
-      for (const w of nouns.slice(0, 4)) {
-        const g = genderMap[norm(w)];
-        const art = g?.article || 'el';
-        const fn = simplePatterns[Math.floor(Math.random() * simplePatterns.length)];
-        const s = fn(w, art);
-        if (containsTarget(s, target)) sentences.push(s);
-      }
-    }
-  }
-
-  // Mix: ~4 words + up to 2 sentences
-  const wordItems = shuffled.slice(0, 4).map((w) => ({ text: w }));
-  const sentenceItems = shuffle(sentences).slice(0, 2).map((s) => ({ text: s }));
+  // Mix: up to 4 words + up to 2 sentences
+  const wordItems = shuffle(matchingWords).slice(0, 4).map((w) => ({ text: w }));
+  const sentenceItems = shuffle(matchingSentences).slice(0, 2).map((s) => ({ text: s }));
 
   return shuffle([...wordItems, ...sentenceItems]);
 }
