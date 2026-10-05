@@ -618,6 +618,25 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
               <option value="Oraciones">Oraciones</option>
             </select>
           </label>
+          {(step.config?.section || 'Sílabas') === 'Sílabas' && (
+            <div className="flex items-end gap-2">
+              <label className="text-xs text-gray-600 font-bold flex-1">Consonants (auto-generate sílabas)
+                <input value={step.config?.syllableConsonants || ''} onChange={e => update({ config: { ...step.config, syllableConsonants: e.target.value } })}
+                  placeholder="m, s, l"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5" />
+              </label>
+              <button type="button"
+                onClick={() => {
+                  const VOWELS = ['a', 'e', 'i', 'o', 'u'];
+                  const consonants = (step.config?.syllableConsonants || '').split(/[\s,]+/).map(c => c.trim().toLowerCase()).filter(Boolean);
+                  const generated = consonants.flatMap(c => VOWELS.map(v => c + v));
+                  update({ config: { ...step.config, itemsText: generated.join('\n'), preset: '' } });
+                }}
+                className="px-3 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 whitespace-nowrap">
+                Generate
+              </button>
+            </div>
+          )}
           <label className="text-xs text-gray-600 font-bold">Inline items (one per line — overrides preset)
             <textarea value={step.config?.itemsText || ''} onChange={e => update({ config: { ...step.config, itemsText: e.target.value, preset: '' } })} rows={4}
               placeholder={step.config?.section === 'Oraciones' ? 'La mama ama a mi.\nMi mamá me mima.' : 'ma\nme\nmi\nmo\nmu'}
