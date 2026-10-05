@@ -4,6 +4,8 @@ import { Mic, Headphones } from 'lucide-react';
 import { parseText } from './phonetics';
 import { AUDIO_BASE, playTts } from '@/lib/audio';
 import { useLiveVoice } from '@/hooks/useLiveVoice';
+import { useHeadphoneMonitor } from '@/hooks/useHeadphoneMonitor';
+import HeadphoneMonitorPanel from './HeadphoneMonitorPanel';
 
 // ── Colors (white bg, black text) ─────────────────────────────────────────────
 const THEMES = {
@@ -593,6 +595,11 @@ export default function SlideToReadCanvas({
   const voice = useLiveVoice();
   const { continuity, state: voiceState, hasHeadphones, hasHeardVoice } = voice;
 
+  // Live headphone monitoring — hears own mic through verified headphones.
+  // Separate audio graph from the analyser (balloon) and the MediaRecorder;
+  // its gain never affects continuity or the saved recording.
+  const monitor = useHeadphoneMonitor();
+
   const recordingRef = useRef(null);
   const layoutRef = useRef(null);
   const ctxRef = useRef(null);
@@ -725,7 +732,9 @@ export default function SlideToReadCanvas({
     setRecordingState('idle'); setActiveLine(0); setThumbX(null); setDragging(false);
     advanceDirRef.current = 0;
     activeLineRef.current = 0; thumbXRef.current = null; recordingStateRef.current = 'idle';
+    monitor.stop();
     if (micEnabled) voice.stop();
+    monitor.detachStream();
     if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
     setAudioBlob(null);
@@ -735,8 +744,12 @@ export default function SlideToReadCanvas({
     continuityDataRef.current = [];
   }, [text]);
 
+  // ── Silent headphone-output check on mount (no playback, no prompt) ──
+  useEffect(() => { monitor.checkOutput(); }, []);
+
   // ── Cleanup ──
   useEffect(() => () => {
+    monitor.stop();
     if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
     if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
     if (reviewUrl) URL.revokeObjectURL(reviewUrl);
@@ -788,6 +801,8 @@ export default function SlideToReadCanvas({
           recordingRef.current = null;
         }
       }
+      // Wire headphone monitoring from the SAME stream (no duplicate mic).
+      monitor.attachStream(stream);
     } else if (recordingEnabled) {
       try {
         recordingRef.current = await startAudioRecording();
@@ -795,7 +810,10 @@ export default function SlideToReadCanvas({
         console.warn('Audio recording unavailable:', err);
         recordingRef.current = null;
       }
+      // Wire headphone monitoring from the recording stream.
+      if (recordingRef.current?.stream) monitor.attachStream(recordingRef.current.stream);
     }
+    // else: free play with no continuous blending → no mic stream, monitoring off.
 
     recStartTimeRef.current = Date.now();
     sliderDataRef.current.push({ t: 0, p: 0, line: 0 });
@@ -824,6 +842,8 @@ export default function SlideToReadCanvas({
         continuityDataRef.current = history.map(h => ({ t: h.t - baseT, c: h.c }));
       }
     }
+    // Mute headphone monitoring before the shared stream stops.
+    monitor.stop();
     let blob = null;
     if (recordingEnabled) {
       blob = await stopAudioRecording(recordingRef.current);
@@ -831,6 +851,8 @@ export default function SlideToReadCanvas({
     recordingRef.current = null;
     // Stop the voice stream AFTER the recorder stops so no audio is lost
     if (micEnabled) voice.stop();
+    // Tear down the monitoring graph (stream is gone).
+    monitor.detachStream();
     if (blob) {
       setReviewUrl(URL.createObjectURL(blob));
       setAudioBlob(blob);
@@ -910,6 +932,7 @@ export default function SlideToReadCanvas({
 
   const handleRerecord = () => {
     onRerecord?.();
+    monitor.stop();
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
     setAudioBlob(null);
     setRecordingState('idle');
@@ -1100,9 +1123,12 @@ export default function SlideToReadCanvas({
                 style={{ background: '#dc2626' }}>
                 ⏹ Stop & Grade
               </motion.button>
-            </div>
-          </>
-        )}
+              </div>
+
+              {/* Headphone monitoring — only rendered when a mic stream is live */}
+              {(micEnabled || recordingEnabled) && <HeadphoneMonitorPanel monitor={monitor} />}
+              </>
+              )}
         {recordingState === 'stopping' && (
           <div className="text-center py-3 text-gray-500 font-bold text-sm">⏳ Stopping…</div>
         )}
