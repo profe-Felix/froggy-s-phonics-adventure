@@ -773,8 +773,10 @@ export default function SlideToReadCanvas({
   useEffect(() => { monitor.checkOutput(); }, []);
 
   // ── Cleanup ──
+  // detachStream (not stop) so the shared session intent survives the per-item
+  // remount — stop() would flip monitoring off for the rest of the session.
   useEffect(() => () => {
-    monitor.stop();
+    monitor.detachStream();
     if (recordingRef.current) { stopAudioRecording(recordingRef.current); recordingRef.current = null; }
     if (stopReplayRef.current) { stopReplayRef.current(); stopReplayRef.current = null; }
     if (reviewUrl) URL.revokeObjectURL(reviewUrl);
@@ -957,7 +959,7 @@ export default function SlideToReadCanvas({
 
   const handleRerecord = () => {
     onRerecord?.();
-    monitor.stop();
+    monitor.detachStream();
     if (reviewUrl) { URL.revokeObjectURL(reviewUrl); setReviewUrl(null); }
     setAudioBlob(null);
     setRecordingState('idle');
