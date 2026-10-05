@@ -30,6 +30,7 @@ function startsWithTarget(text, target) {
 
 // Build hunt items from WordBank words + Spanish Reading sentence presets.
 // config: { huntType, huntTarget/target }
+// Returns up to 12 items (mix of words and sentences).
 export async function buildHuntItemsFromBank(config) {
   const huntType = config?.huntType || 'phoneme';
   const target = (config?.huntTarget || config?.target || '').trim();
@@ -68,9 +69,10 @@ export async function buildHuntItemsFromBank(config) {
   // If we have no matching words or sentences, return empty
   if (matchingWords.length === 0 && matchingSentences.length === 0) return [];
 
-  // Mix: up to 4 words + up to 2 sentences
-  const wordItems = shuffle(matchingWords).slice(0, 4).map((w) => ({ text: w }));
-  const sentenceItems = shuffle(matchingSentences).slice(0, 2).map((s) => ({ text: s }));
+  // Mix: up to 4 sentences + enough words to reach 12 total
+  const sentenceItems = shuffle(matchingSentences).slice(0, 4).map((s) => ({ text: s }));
+  const wordCount = Math.max(0, 12 - sentenceItems.length);
+  const wordItems = shuffle(matchingWords).slice(0, wordCount).map((w) => ({ text: w }));
 
   return shuffle([...wordItems, ...sentenceItems]);
 }

@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { buildActivity } from '@/lib/activities/engine';
+import { buildHuntItemsFromBank } from '@/lib/activities/huntItems';
 import { DEFAULT_PALETTE } from '@/lib/activities/palette';
 import VideoModelPlayer from './VideoModelPlayer';
 import CountingModelCanvas from './CountingModelCanvas';
@@ -25,6 +26,27 @@ function parseItems(text) {
 export default function TeacherModelPanel({ step, stepIndex, send, className, lesson }) {
   const { presets: PRESETS, isLoading } = useActivityPresets();
 
+  // Auto-fetch bank items for text_hunt when the teacher hasn't entered custom
+  // examples. In LiveLesson the teacher drives the synced list — students mirror
+  // the teacher's broadcast, so the list order is the same for everyone.
+  const isHuntNoExamples = step?.mode === 'activities' &&
+    !(step?.config?.preset) &&
+    step?.config?.activityMode === 'text_hunt' &&
+    !(step?.config?.itemsText && step.config.itemsText.trim());
+
+  const [bankItems, setBankItems] = useState(null);
+  useEffect(() => {
+    if (!isHuntNoExamples) { setBankItems(null); return; }
+    let cancelled = false;
+    buildHuntItemsFromBank({
+      huntType: step?.config?.huntType || 'phoneme',
+      huntTarget: step?.config?.huntTarget,
+    })
+      .then((items) => { if (!cancelled) setBankItems(items); })
+      .catch(() => { if (!cancelled) setBankItems([]); });
+    return () => { cancelled = true; };
+  }, [isHuntNoExamples, step?.config?.huntType, step?.config?.huntTarget]);
+
   const { config, activity } = useMemo(() => {
     if (step?.mode !== 'activities') return { config: null, activity: null };
     const cfg = step?.config || {};
@@ -41,12 +63,15 @@ export default function TeacherModelPanel({ step, stepIndex, send, className, le
       if (cfg.itemsText && cfg.itemsText.trim()) {
         c = { mode, items: parseItems(cfg.itemsText) };
         if (mode === 'text_hunt') { c.huntType = cfg.huntType || 'phoneme'; if (cfg.huntTarget) c.target = cfg.huntTarget; }
+      } else if (mode === 'text_hunt' && bankItems && bankItems.length > 0) {
+        c = { mode: 'text_hunt', items: bankItems, huntType: cfg.huntType || 'phoneme' };
+        if (cfg.huntTarget) c.target = cfg.huntTarget;
       } else {
         c = { mode: 'counting_words', items: [{ text: 'El gato come' }] };
       }
     }
     try { return { config: c, activity: buildActivity(c) }; } catch { return { config: c, activity: null }; }
-  }, [step, PRESETS]);
+  }, [step, PRESETS, bankItems]);
 
   if (step?.mode === 'video') {
     return <VideoModelPlayer videoUrl={step?.config?.videoUrl} title={step.title} send={send} />;
@@ -83,6 +108,9 @@ export default function TeacherModelPanel({ step, stepIndex, send, className, le
       return <ManipulationModelCanvas items={activity.items || []} modeDef={activity.modeDef} palette={palette} send={send} />;
     }
     if (mode === 'text_hunt') {
+      if (isHuntNoExamples && bankItems === null) {
+        return <div className="p-10 text-center text-slate-400">Loading hunt items…</div>;
+      }
       return <HuntModelPanel items={activity.items || []} huntType={config?.huntType || 'phoneme'} target={config?.target || ''} send={send} />;
     }
     return <Student30Preview step={step} stepIndex={stepIndex} lesson={lesson} className={className} />;

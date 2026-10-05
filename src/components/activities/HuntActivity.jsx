@@ -20,7 +20,7 @@ function shuffle(arr) {
   return a;
 }
 
-export default function HuntActivity({ config, studentName, externalAdvance = false }) {
+export default function HuntActivity({ config, studentName, externalAdvance = false, onRegenerate }) {
   const items = useMemo(() => {
     const its = Array.isArray(config?.items) ? config.items : [];
     return its.map((it) => (typeof it === 'string' ? { text: it } : it)).filter((it) => it.text);
@@ -178,8 +178,15 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   }
 
   function next() {
-    const np = (pos + 1) % items.length;
-    setPos(np);
+    if (pos + 1 >= items.length) {
+      // Exhausted all items — regenerate a new batch if callback provided
+      // (independent practice), otherwise cycle back to the first item.
+      if (onRegenerate) { onRegenerate(); return; }
+      setPos(0);
+      resetRound();
+      return;
+    }
+    setPos(pos + 1);
     resetRound();
   }
 

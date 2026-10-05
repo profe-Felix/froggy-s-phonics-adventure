@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import HuntActivity from '@/components/activities/HuntActivity';
@@ -51,19 +51,21 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
   const [bankLoading, setBankLoading] = useState(false);
   const isHuntNoExamples = (stepConfig?.activityMode === 'text_hunt') && !(stepConfig?.itemsText && stepConfig.itemsText.trim());
 
-  useEffect(() => {
-    if (!isHuntNoExamples) { setBankItems(null); return; }
-    let cancelled = false;
+  const fetchBankItems = useCallback(() => {
     setBankLoading(true);
     buildHuntItemsFromBank({
       huntType: stepConfig?.huntType || 'phoneme',
       huntTarget: stepConfig?.huntTarget,
       lessonLiteracy: stepConfig?.lessonLiteracy,
     })
-      .then((items) => { if (!cancelled) { setBankItems(items); setBankLoading(false); } })
-      .catch(() => { if (!cancelled) { setBankItems([]); setBankLoading(false); } });
-    return () => { cancelled = true; };
-  }, [isHuntNoExamples, stepConfig?.huntType, stepConfig?.huntTarget, stepConfig?.lessonLiteracy]);
+      .then((items) => { setBankItems(items); setBankLoading(false); })
+      .catch(() => { setBankItems([]); setBankLoading(false); });
+  }, [stepConfig?.huntType, stepConfig?.huntTarget, stepConfig?.lessonLiteracy]);
+
+  useEffect(() => {
+    if (!isHuntNoExamples) { setBankItems(null); return; }
+    fetchBankItems();
+  }, [isHuntNoExamples, fetchBankItems]);
 
   const config = useMemo(() => {
     const cfg = stepConfig || {};
@@ -126,7 +128,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
         {mode === 'phoneme_manipulation' ? (
           <PhonemeManipulationActivity config={config} studentName={name} />
         ) : mode === 'text_hunt' ? (
-          <HuntActivity config={config} studentName={name} />
+          <HuntActivity config={config} studentName={name} onRegenerate={isHuntNoExamples ? fetchBankItems : undefined} />
         ) : mode === 'rhyme_identification' ? (
           <RhymeActivity config={config} studentName={name} />
         ) : (
