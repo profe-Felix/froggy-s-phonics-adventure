@@ -38,13 +38,13 @@ export default function HuntSegments({ segments, marks = {}, onTap, interactive 
           <span
             key={i}
             onClick={onTap ? () => onTap(seg) : undefined}
-            className={`${interactive ? 'cursor-pointer ' : ''}rounded ${letterHunt ? 'inline-block min-w-[1.15em] text-center px-1.5 py-2' : 'px-1.5 py-0.5'} leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
+            className={`${interactive ? 'cursor-pointer ' : ''}rounded ${letterHunt ? 'inline-block min-w-[0.85em] text-center px-0.5 py-2' : 'px-1.5 py-0.5'} leading-loose border-b border-dotted border-slate-300 ${st ? statusClass(st) : (interactive ? 'hover:bg-slate-200 active:bg-slate-300' : '')}`}
           >{seg.text}</span>
         );
       }
     } else {
       flush();
-      out.push(letterHunt ? <span key={`sp${k++}`} className="inline-block w-6 sm:w-8" aria-hidden="true" /> : ' ');
+      out.push(letterHunt ? <span key={`sp${k++}`} className="inline-block w-3 sm:w-4" aria-hidden="true" /> : ' ');
     }
   });
   flush();

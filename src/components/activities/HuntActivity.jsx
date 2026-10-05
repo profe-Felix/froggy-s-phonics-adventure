@@ -178,7 +178,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   if (!hasItems) return <div className="p-6 text-slate-500 text-center">Añade un texto para cazar.</div>;
 
   return (
-    <div className="flex flex-col gap-4 p-4 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-4 p-4 max-w-5xl mx-auto">
       <div className="flex items-center gap-2 flex-wrap text-sm">
         <span className="text-xs text-slate-400">Texto {pos + 1} / {items.length}</span>
         <span className="ml-auto font-semibold text-slate-600">
@@ -191,7 +191,7 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
         <div className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">
           {hunt.typeDef.label}{hunt.typeDef.needsTarget ? ` · "${config?.target || ''}"` : ''}
         </div>
-        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-5xl sm:text-7xl' : 'text-2xl sm:text-4xl'}`}>
+        <p className={`font-bold text-slate-800 leading-loose ${letterHunt ? 'text-5xl sm:text-7xl tracking-tight' : 'text-2xl sm:text-4xl'}`}>
           <HuntSegments
             segments={segments}
             marks={marks}
