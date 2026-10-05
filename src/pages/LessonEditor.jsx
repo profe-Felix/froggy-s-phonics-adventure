@@ -21,6 +21,8 @@ import MissingLetterPresetEditor from '@/components/missingletter/MissingLetterP
 import { useSpanishReadingPresets } from '@/hooks/useSpanishReadingPresets';
 import SpanishReadingPresetEditor from '@/components/spanishReading/SpanishReadingPresetEditor';
 import SubstepEditor from '@/components/spanishReading/SubstepEditor';
+import { useWordBuilderPresets } from '@/hooks/useWordBuilderPresets';
+import WordBuilderPresetEditor from '@/components/wordbuilder/WordBuilderPresetEditor';
 import BookPicker from '@/components/lesson/BookPicker';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -149,9 +151,11 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
   const { list: letterSortList } = useLetterSortPresets();
   const { list: missingLetterList } = useMissingLetterPresets();
   const { list: spanishReadingList, refresh: refreshSpanishReadingPresets } = useSpanishReadingPresets();
+  const { list: wordBuilderList, refresh: refreshWordBuilderPresets } = useWordBuilderPresets();
   const [lsEditor, setLsEditor] = useState(null);
   const [mlEditor, setMlEditor] = useState(null);
   const [srEditor, setSrEditor] = useState(null);
+  const [wbEditor, setWbEditor] = useState(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const [targetsText, setTargetsText] = useState(
@@ -728,6 +732,29 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
               </Link>
             )}
           </details>
+        </div>
+      ) : step.mode === 'word_builder' ? (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-600 font-bold">Preset
+            <select value={step.config?.preset || ''} onChange={e => update({ config: { ...step.config, preset: e.target.value } })}
+              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white">
+              <option value="">— default —</option>
+              {wordBuilderList.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setWbEditor('new')} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Plus className="w-3 h-3" /> New preset</button>
+            {step.config?.preset && (
+              <button type="button" onClick={() => setWbEditor(step.config.preset)} className="text-xs font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"><Settings className="w-3 h-3" /> Edit / duplicate preset</button>
+            )}
+          </div>
+          {wbEditor && (
+            <WordBuilderPresetEditor
+              presetKey={wbEditor === 'new' ? null : wbEditor}
+              onClose={() => setWbEditor(null)}
+              onSaved={(k) => { refreshWordBuilderPresets(); update({ config: { ...step.config, preset: k } }); }}
+            />
+          )}
         </div>
       ) : getPresetList(step.mode).length > 0 ? (
         <label className="text-xs text-gray-600 font-bold">Preset

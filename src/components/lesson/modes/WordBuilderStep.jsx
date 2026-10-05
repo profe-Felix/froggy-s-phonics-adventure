@@ -1,7 +1,7 @@
 import React from 'react';
 import WordSentenceBuilder from '@/pages/WordSentenceBuilder';
 import StepDoneBar from './StepDoneBar';
-import { getWordBuilderPreset } from '@/lib/presets';
+import { useWordBuilderPresets } from '@/hooks/useWordBuilderPresets';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
 
@@ -19,11 +19,22 @@ export default function WordBuilderStep({
   presetId,
   curriculumPosition,
 }) {
+  const { presets: wbPresets, isLoading: wbLoading } = useWordBuilderPresets();
   const preset = presetId
-    ? getWordBuilderPreset(presetId)
+    ? wbPresets[presetId] || null
     : null;
 
   const awardCoins = useCoinAward(studentData, onStudentPatch);
+
+  // While DB presets are loading and a preset was requested but not yet
+  // resolved, show a spinner instead of flashing the default config.
+  if (wbLoading && presetId && !preset) {
+    return (
+      <div className="relative h-full flex flex-col bg-blue-50 items-center justify-center">
+        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const handleWordComplete = (result) => {
     if (!result?.target) return;

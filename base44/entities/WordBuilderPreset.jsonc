@@ -1,0 +1,68 @@
+{
+  "name": "WordBuilderPreset",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "description": "Unique preset key (e.g. 'Syllables2' or 'M2.L19.WB.A1'). Lesson steps reference presets by this key. A DB record with the same key as a built-in preset overrides it."
+    },
+    "label": {
+      "type": "string",
+      "description": "Display label shown in the preset picker.",
+      "default": ""
+    },
+    "content_data": {
+      "type": "string",
+      "description": "JSON-encoded content object: { boxes, rows, perRow, letters, syllables, words, answers, toggles }. Consumed by the Word Builder at runtime."
+    }
+  },
+  "required": [
+    "key",
+    "content_data"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
