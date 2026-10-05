@@ -7,32 +7,47 @@ import { classifyCard } from '@/lib/lettersort/rounds';
 import { playWordAudio, preloadAudio } from '@/lib/lettersort/audio';
 import { playLetterSound, playTts, stopAllAudio } from '@/lib/audio';
 
-// Play the phoneme sound of the column's target letter, then speak a short
-// instruction so non-readers can hear what each column asks for.
+// Speak the instruction prefix, then play the phoneme sound when the speech
+// finishes — concatenated, not overlapping, so students hear "Empieza con el
+// sonido" followed by the target phoneme.
 function playColumnInstruction(col, config, isNotPair, targetLetter) {
   stopAllAudio();
   let phoneme = '';
-  let text = '';
+  let prefix = '';
+  let suffix = '';
 
   if (col.headerKind === 'position') {
     phoneme = col.targetLetter || '';
     const positions = ['principio', 'medio', 'final'];
     const pos = positions[col.posIndex] || 'principio';
-    text = `Va en el ${pos}`;
+    prefix = 'Contiene el sonido';
+    suffix = `en el ${pos}`;
   } else if (isNotPair && targetLetter) {
     phoneme = targetLetter;
     const isNot = col.key.startsWith('not-');
     if (config.lettermatch === 'contains') {
-      text = isNot ? 'No tiene este sonido' : 'Tiene este sonido';
+      prefix = isNot ? 'No tiene el sonido' : 'Tiene el sonido';
     } else {
-      text = isNot ? 'No empieza con este sonido' : 'Empieza con este sonido';
+      prefix = isNot ? 'No empieza con el sonido' : 'Empieza con el sonido';
     }
   } else {
     return;
   }
 
-  if (phoneme) playLetterSound(phoneme, 'es');
-  if (text) setTimeout(() => playTts(text, 'es', 0.85), 700);
+  if (!phoneme) return;
+
+  if (prefix && suffix) {
+    // position: "Contiene el sonido" → [phoneme] → "en el principio"
+    playTts(prefix, 'es', 0.85, '', () => {
+      playLetterSound(phoneme, 'es');
+      setTimeout(() => playTts(suffix, 'es', 0.85), 900);
+    });
+  } else if (prefix) {
+    // initial/contains: "Empieza con el sonido" → [phoneme]
+    playTts(prefix, 'es', 0.85, '', () => playLetterSound(phoneme, 'es'));
+  } else {
+    playLetterSound(phoneme, 'es');
+  }
 }
 
 const AUDIO_OPTS = { bucket: 'audio', prefix: 'es/words' };

@@ -113,7 +113,7 @@ export async function preloadSilenceStart(url) {
 // browser's speech synthesizer if the backend is unreachable.
 const ttsCache = new Map();
 
-export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
+export async function playTts(text, lang = 'es', rate = 0.85, voice = '', onEnded) {
   if (!text) return;
   // When no explicit voice is passed, use the teacher's configured default
   // (TtsVoiceSetting entity → es-US-Wavenet-A) so every "Escuchar" button
@@ -135,6 +135,7 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
     try {
       const a = _trackAudio(new Audio(url));
       a.playbackRate = rate;
+      if (onEnded) a.addEventListener('ended', onEnded, { once: true });
       a.play().catch(() => {});
       return;
     } catch { /* fall through */ }
@@ -146,6 +147,7 @@ export async function playTts(text, lang = 'es', rate = 0.85, voice = '') {
     const fallbackLang = lang === 'en' ? 'en-US' : (langFromVoice(effectiveVoice) || 'es-US');
     u.lang = fallbackLang;
     u.rate = rate;
+    if (onEnded) u.addEventListener('end', onEnded, { once: true });
     window.speechSynthesis?.speak(u);
   } catch { /* best-effort */ }
 }
