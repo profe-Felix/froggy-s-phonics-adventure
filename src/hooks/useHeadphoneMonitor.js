@@ -78,9 +78,12 @@ export function useHeadphoneMonitor() {
   useEffect(() => { volumeRef.current = monitorVolume; }, [monitorVolume]);
 
   const teardownGraph = useCallback(() => {
+    // Disconnect source/gain but KEEP the AudioContext alive across items so
+    // it stays resumed. Closing it on every detach would re-create a suspended
+    // context that needs a fresh user gesture to resume — that's why monitoring
+    // had to be re-enabled each item even though the session intent persisted.
     if (monitorSourceRef.current) { try { monitorSourceRef.current.disconnect(); } catch {} monitorSourceRef.current = null; }
     if (monitorGainRef.current) { try { monitorGainRef.current.disconnect(); } catch {} monitorGainRef.current = null; }
-    if (monitorCtxRef.current) { try { monitorCtxRef.current.close(); } catch {} monitorCtxRef.current = null; }
   }, []);
 
   // Ramp the monitor gain up or down and set the session intent + monitoring flag.
@@ -109,12 +112,15 @@ export function useHeadphoneMonitor() {
   }, []);
 
   const buildGraph = useCallback((stream) => {
-    teardownGraph();
+    // Disconnect any old source/gain, but reuse the AudioContext if it exists
+    // so it stays resumed across items (see teardownGraph).
+    if (monitorSourceRef.current) { try { monitorSourceRef.current.disconnect(); } catch {} monitorSourceRef.current = null; }
+    if (monitorGainRef.current) { try { monitorGainRef.current.disconnect(); } catch {} monitorGainRef.current = null; }
     if (!stream) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    const ctx = new AC();
-    monitorCtxRef.current = ctx;
+    if (!monitorCtxRef.current) monitorCtxRef.current = new AC();
+    const ctx = monitorCtxRef.current;
     const source = ctx.createMediaStreamSource(stream);
     const gain = ctx.createGain();
     gain.gain.value = 0;
@@ -122,7 +128,7 @@ export function useHeadphoneMonitor() {
     gain.connect(ctx.destination);
     monitorSourceRef.current = source;
     monitorGainRef.current = gain;
-  }, [teardownGraph]);
+  }, []);
 
   // Silent output check (informational). Auto-enables on first headphone detection.
   const checkOutput = useCallback(async () => {
@@ -150,10 +156,14 @@ export function useHeadphoneMonitor() {
     }
   }, [setEnabled]);
 
-  const attachStream = useCallback((stream) => {
+  const attachStream = useCallback(async (stream) => {
     streamRef.current = stream;
     if (!stream) return;
     buildGraph(stream);
+    // Make sure the (reused) context is running before restoring the gain,
+    // otherwise the ramp is scheduled on a suspended context and stays silent.
+    const ctx = monitorCtxRef.current;
+    if (ctx && ctx.state === 'suspended') { try { await ctx.resume(); } catch {} }
     // Restore the session: if it was on, re-enable immediately.
     if (sessionEnabledRef.current === true) {
       setEnabled(true);
@@ -228,6 +238,7 @@ export function useHeadphoneMonitor() {
       mountedRef.current = false;
       genRef.current += 1;
       teardownGraph();
+      if (monitorCtxRef.current) { try { monitorCtxRef.current.close(); } catch {} monitorCtxRef.current = null; }
     };
   }, [teardownGraph]);
 
