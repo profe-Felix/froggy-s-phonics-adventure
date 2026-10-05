@@ -1,31 +1,45 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-// useHeadphoneMonitor — safe live microphone playback through verified headphones.
+// useHeadphoneMonitor — safe live microphone playback through headphones.
 //
-// "Voice monitoring" = the learner hears their own live microphone through
-// headphones while reading. It is NOT speech recognition or grading. This hook
-// adds a second audio branch (microphone → monitor gain → verified headphone
-// output) that is completely separate from the analyser (balloon/continuity)
-// branch and from the MediaRecorder (saved audio). Changing the monitor
-// volume never affects the continuity measurement or the recording.
+// "Voice monitoring" (sidetone) = the learner hears their own live microphone
+// while reading. It is NOT speech recognition or grading. This hook adds a
+// second audio branch (microphone → monitor gain → output) that is completely
+// separate from the analyser (balloon/continuity) branch and from the
+// MediaRecorder (saved audio). Changing the monitor volume never affects the
+// continuity measurement or the recording.
 //
-// NON-NEGOTIABLE GATE
-//   Monitoring defaults to OFF and only activates when ALL of:
-//     1. setSinkId is supported (AudioContext.setSinkId or
-//        HTMLMediaElement.setSinkId). Safari/iPad does not support either →
-//        status 'unsupported' → monitoring unavailable.
-//     2. A real (non-default, non-communications) audio output device exists
-//        whose label matches a headphone pattern (Headphones/AirPods/EarBuds/
-//        Headset/Buds…). A generic default output or a label regex alone is
-//        not enough — both must hold.
-//     3. setSinkId successfully routes playback to that specific device.
-//   The monitor gain is held at zero and the output disconnected until route
-//   selection has succeeded, the route revalidated, AND the learner explicitly
-//   taps "Enable monitoring". Connecting headphones never auto-activates.
+// HOW IT ROUTES (platform-aware)
+//   • Desktop Chrome / Edge — AudioContext.setSinkId is supported. We bind
+//     playback to a SPECIFIC verified headphone device so audio can never go
+//     to the desktop speakers (which would cause feedback).
+//   • Firefox — HTMLMediaElement.setSinkId is supported; we route through a
+//     MediaStreamDestination → <audio> element and bind that to the headphone
+//     device.
+//   • Safari / iPadOS — setSinkId is NOT supported, but it isn't needed: iOS
+//     routes audio to headphones at the OS level whenever they are connected,
+//     so audioCtx.destination already goes to the headphones. We connect to
+//     the default destination and trust OS routing, with a "Use headphones"
+//     reminder. This is exactly what the reference sidetone test does and it
+//     works on iPad.
 //
-// On headphone disconnect, device change, permission loss, routing failure, or
-// unmount: monitoring is muted/disconnected and the enabled state cleared. A
-// fresh check and explicit activation are required before resuming.
+// THE GATE (when monitoring may activate)
+//   Monitoring defaults to OFF and only activates when:
+//     1. A real (non-default, non-communications) audio output device whose
+//        label matches a headphone pattern is visible via enumerateDevices
+//        (Chrome/Firefox/iPad when labels are exposed), OR
+//     2. setSinkId is unavailable (Safari/iPad) — in that case we cannot
+//        positively detect headphones, so we allow activation with an explicit
+//        tap and a "Use headphones" reminder, trusting iOS OS routing.
+//   On platforms WITH setSinkId, no headphone output → 'not-detected' →
+//   blocked (prevents desktop speaker feedback). On platforms WITHOUT
+//   setSinkId, status is 'available' and activation is allowed.
+//   The monitor gain is held at zero until the learner explicitly taps
+//   "Enable monitoring". Connecting headphones never auto-activates.
+//
+// On headphone disconnect / device change / routing failure / unmount:
+// monitoring is muted and the enabled state cleared. A fresh check and
+// explicit activation are required before resuming.
 //
 // STREAM REUSE
 //   attachStream(stream) wires the monitoring graph from an EXISTING
@@ -33,8 +47,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 //   duplicate getUserMedia calls. If no stream is attached, monitoring stays
 //   off (no mic to play back).
 
-// Headphone-like output labels. Deliberately narrow: matches head-worn /
-// ear-worn audio, NOT "Built-in Output", "Speakers", or "Bluetooth Speaker".
+// Headphone-like output labels. Narrow: matches head-worn / ear-worn audio,
+// NOT "Built-in Output", "Speakers", or a generic "Bluetooth Speaker".
 const HEADPHONE_LABEL_RE = /\b(headphones?|airpods?|earbuds?|earphones?|earpods?|headset|buds)\b/i;
 
 function isHeadphoneLabel(label) {
@@ -42,7 +56,11 @@ function isHeadphoneLabel(label) {
   return HEADPHONE_LABEL_RE.test(label);
 }
 
-// Feature-detect the sink-routing API. Returns 'audioContext' | 'mediaElement' | null.
+// Feature-detect the sink-routing API.
+// Returns 'audioContext' | 'mediaElement' | 'default'.
+//   'audioContext' — AudioContext.setSinkId (Chrome/Edge desktop)
+//   'mediaElement' — HTMLMediaElement.setSinkId (Firefox)
+//   'default'      — neither (Safari/iPadOS); rely on OS-level routing
 function detectSinkSupport() {
   if (typeof AudioContext !== 'undefined' &&
       typeof AudioContext.prototype.setSinkId === 'function') {
@@ -52,7 +70,7 @@ function detectSinkSupport() {
       typeof HTMLMediaElement.prototype.setSinkId === 'function') {
     return 'mediaElement';
   }
-  return null;
+  return 'default';
 }
 
 // Find a verified headphone output device. Returns { deviceId, label } | null.
@@ -68,8 +86,17 @@ async function findHeadphoneOutput() {
   return match ? { deviceId: match.deviceId, label: match.label } : null;
 }
 
+// Whether any real (non-default) audio output is visible at all. Used to tell
+// "no real devices visible yet (no permission)" from "real devices but none
+// are headphones".
+async function hasAnyRealOutput() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const real = devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+  return real.length > 0;
+}
+
 export function useHeadphoneMonitor() {
-  // outputStatus: 'idle' | 'checking' | 'verified' | 'not-detected' | 'unsupported' | 'error'
+  // outputStatus: 'idle' | 'checking' | 'verified' | 'available' | 'not-detected' | 'unsupported' | 'error'
   const [outputStatus, setOutputStatus] = useState('idle');
   const [monitoring, setMonitoring] = useState(false);
   const [monitorVolume, setMonitorVolume] = useState(0.3);
@@ -87,7 +114,6 @@ export function useHeadphoneMonitor() {
   const genRef = useRef(0);                 // cancels in-flight start() on stop/unmount
   const mountedRef = useRef(true);
 
-  // Keep volumeRef in sync so start() can read the latest value after awaits.
   useEffect(() => { volumeRef.current = monitorVolume; }, [monitorVolume]);
 
   // ── Tear down the monitoring audio graph (keeps nothing connected). ──
@@ -131,11 +157,9 @@ export function useHeadphoneMonitor() {
     monitorSourceRef.current = source;
     monitorGainRef.current = gain;
 
-    if (sinkModeRef.current === 'audioContext') {
-      // gain → ctx.destination; routing handled by ctx.setSinkId on start().
-      gain.connect(ctx.destination);
-    } else if (sinkModeRef.current === 'mediaElement') {
-      // gain → MediaStreamDestination → <audio> element; routing via el.setSinkId.
+    const mode = sinkModeRef.current;
+    if (mode === 'mediaElement') {
+      // gain → MediaStreamDestination → <audio>; routing via el.setSinkId.
       const dest = ctx.createMediaStreamDestination();
       gain.connect(dest);
       monitorDestRef.current = dest;
@@ -143,13 +167,18 @@ export function useHeadphoneMonitor() {
       el.srcObject = dest.stream;
       el.muted = false; // actual level controlled by the gain node
       monitorElRef.current = el;
+    } else {
+      // 'audioContext' and 'default' both play through ctx.destination.
+      // On 'audioContext' we additionally call ctx.setSinkId on start().
+      // On 'default' (Safari/iPad) iOS routes ctx.destination to headphones.
+      gain.connect(ctx.destination);
     }
   }, [teardownGraph]);
 
   // ── Silent output check: enumerate + find headphone output. ──
   // Does NOT activate playback. Updates outputStatus only.
   const checkOutput = useCallback(async () => {
-    if (!sinkModeRef.current) {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.enumerateDevices !== 'function') {
       setOutputStatus('unsupported');
       return;
     }
@@ -157,16 +186,21 @@ export function useHeadphoneMonitor() {
     try {
       const found = await findHeadphoneOutput();
       if (!mountedRef.current) return;
+      const mode = sinkModeRef.current;
       if (found) {
         sinkDeviceIdRef.current = found.deviceId;
         setOutputStatus('verified');
+      } else if (mode === 'default') {
+        // Safari/iPad: setSinkId unavailable and we can't positively detect
+        // headphones (iOS often doesn't expose output labels). Allow
+        // activation with an explicit tap + "Use headphones" reminder,
+        // trusting iOS OS-level routing to headphones.
+        setOutputStatus('available');
       } else {
-        sinkDeviceIdRef.current = null;
-        // Distinguish "no real devices visible" (likely no permission yet)
-        // from "real devices but none are headphones".
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const real = devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
-        setOutputStatus(real.length > 0 ? 'not-detected' : 'checking');
+        // setSinkId available but no headphone output found.
+        const any = await hasAnyRealOutput();
+        if (!mountedRef.current) return;
+        setOutputStatus(any ? 'not-detected' : 'checking');
       }
     } catch {
       if (mountedRef.current) setOutputStatus('error');
@@ -179,8 +213,8 @@ export function useHeadphoneMonitor() {
     if (!stream) return;
     // (Re)build the graph so it reads from the current stream. Gain stays 0.
     buildGraph(stream);
-    // Re-check the output now that mic permission has likely been granted
-    // (labels become visible), so we can verify headphones.
+    // Re-check now that mic permission has likely been granted (labels
+    // become visible), so we can verify headphones.
     checkOutput();
   }, [buildGraph, checkOutput]);
 
@@ -192,7 +226,7 @@ export function useHeadphoneMonitor() {
     teardownGraph();
   }, [teardownGraph]);
 
-  // ── Internal: route to the verified device and ramp gain up. ──
+  // ── Internal: route to the verified device (if setSinkId) and ramp gain. ──
   const routeAndEnable = useCallback(async () => {
     const myGen = genRef.current;
     const ctx = monitorCtxRef.current;
@@ -202,37 +236,33 @@ export function useHeadphoneMonitor() {
     if (ctx.state === 'suspended') {
       try { await ctx.resume(); } catch {}
     }
-    if (myGen !== genRef.current) return false; // cancelled while resuming
+    if (myGen !== genRef.current) return false;
 
-    const deviceId = sinkDeviceIdRef.current;
-    if (!deviceId) return false;
+    const mode = sinkModeRef.current;
 
-    // Revalidate by (re)finding the headphone output — it may have changed.
-    let target = deviceId;
-    try {
+    if (mode === 'audioContext' || mode === 'mediaElement') {
+      // Revalidate the headphone route — it may have changed.
       const found = await findHeadphoneOutput();
-      if (!found) return false; // headphones no longer present
-      target = found.deviceId;
-      sinkDeviceIdRef.current = target;
-    } catch {
-      return false;
-    }
-    if (myGen !== genRef.current) return false; // cancelled while revalidating
-
-    // Bind playback to the specific verified device.
-    try {
-      if (sinkModeRef.current === 'audioContext') {
-        await ctx.setSinkId(target);
-      } else if (sinkModeRef.current === 'mediaElement') {
-        const el = monitorElRef.current;
-        if (!el) return false;
-        await el.setSinkId(target);
-        await el.play().catch(() => {});
+      if (myGen !== genRef.current) return false;
+      if (!found) return false; // headphones no longer present → do NOT enable
+      sinkDeviceIdRef.current = found.deviceId;
+      try {
+        if (mode === 'audioContext') {
+          await ctx.setSinkId(found.deviceId);
+        } else {
+          const el = monitorElRef.current;
+          if (!el) return false;
+          await el.setSinkId(found.deviceId);
+          await el.play().catch(() => {});
+        }
+      } catch {
+        return false; // routing failed — do NOT enable
       }
-    } catch {
-      return false; // routing failed — do NOT enable
+      if (myGen !== genRef.current) return false;
     }
-    if (myGen !== genRef.current) return false; // cancelled while routing
+    // 'default' mode (Safari/iPad): no setSinkId, no positive detection —
+    // connect to ctx.destination and trust iOS OS routing. Headphone reminder
+    // is shown in the panel.
 
     // Ramp gain to the conservative volume.
     const gain = monitorGainRef.current;
@@ -246,9 +276,9 @@ export function useHeadphoneMonitor() {
   }, []);
 
   // ── Start monitoring (explicit user gesture). ──
-  // Revalidates the route before any sound is heard.
+  // Revalidates the route (where detectable) before any sound is heard.
   const start = useCallback(async () => {
-    if (!sinkModeRef.current) { setOutputStatus('unsupported'); return; }
+    if (!navigator.mediaDevices?.enumerateDevices) { setOutputStatus('unsupported'); return; }
     if (!streamRef.current) return; // no mic stream to monitor
     genRef.current += 1; // cancel any previous in-flight start
     const myGen = genRef.current;
@@ -259,13 +289,24 @@ export function useHeadphoneMonitor() {
     if (ok) {
       enabledRef.current = true;
       setMonitoring(true);
-      setOutputStatus('verified');
+      // Set an honest post-enable status.
+      const mode = sinkModeRef.current;
+      if (mode === 'default') {
+        setOutputStatus('available');
+      } else {
+        setOutputStatus('verified');
+      }
     } else {
       enabledRef.current = false;
       setMonitoring(false);
-      // Re-check to give an honest reason.
       const found = await findHeadphoneOutput().catch(() => null);
-      setOutputStatus(found ? 'error' : 'not-detected');
+      if (!mountedRef.current) return;
+      const mode = sinkModeRef.current;
+      if (mode === 'default') {
+        setOutputStatus('available');
+      } else {
+        setOutputStatus(found ? 'error' : 'not-detected');
+      }
     }
   }, [routeAndEnable]);
 
@@ -301,12 +342,18 @@ export function useHeadphoneMonitor() {
   // ── devicechange: re-check; if monitoring active and route lost, stop. ──
   useEffect(() => {
     const handler = async () => {
+      const mode = sinkModeRef.current;
       if (!enabledRef.current) {
-        // Just refresh status silently.
         checkOutput();
         return;
       }
-      // Monitoring is active — revalidate the route.
+      // Monitoring is active.
+      if (mode === 'default') {
+        // Can't positively detect on Safari/iPad — just refresh status.
+        checkOutput();
+        return;
+      }
+      // setSinkId path: revalidate the route.
       const found = await findHeadphoneOutput().catch(() => null);
       if (!mountedRef.current) return;
       if (!found) {
@@ -334,14 +381,14 @@ export function useHeadphoneMonitor() {
   }, [teardownGraph]);
 
   return {
-    outputStatus,      // 'idle' | 'checking' | 'verified' | 'not-detected' | 'unsupported' | 'error'
+    outputStatus,      // 'idle' | 'checking' | 'verified' | 'available' | 'not-detected' | 'unsupported' | 'error'
     monitoring,        // bool — live playback currently active
     monitorVolume,     // 0..1
-    sinkSupported: !!sinkModeRef.current,
+    sinkSupported: sinkModeRef.current !== 'default',
     checkOutput,       // silent re-check (no playback)
     attachStream,      // (stream) — wire graph from existing mic stream
     detachStream,      // () — recording stopped; mute + teardown
-    start,             // () — explicit enable (revalidates first)
+    start,             // () — explicit enable (revalidates where possible)
     stop,              // () — mute + clear enabled
     setVolume,         // (0..1) — monitor gain only
   };

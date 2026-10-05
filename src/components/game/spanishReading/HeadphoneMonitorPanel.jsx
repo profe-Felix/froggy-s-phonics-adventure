@@ -2,27 +2,29 @@ import { Headphones, Volume2 } from 'lucide-react';
 
 // HeadphoneMonitorPanel — compact control for live mic-through-headphones
 // monitoring. Shown only while a mic stream is live. Renders one of:
-//   unsupported  → honest "not supported" message
+//   unsupported  → honest "not supported" message (no enumerateDevices)
 //   checking     → "Checking for headphones…"
-//   not-detected → "No headphones detected — monitoring off."
+//   not-detected → "No headphones detected — monitoring off." (desktop, blocked)
 //   error        → "Couldn't verify headphones — monitoring off."
-//   verified     → "Enable headphone monitoring" button (explicit activation)
+//   verified     → "Enable headphone monitoring" (desktop, route bound via setSinkId)
+//   available    → "Enable headphone monitoring" + "Use headphones" reminder
+//                  (Safari/iPad — setSinkId unavailable, trust OS routing)
 //   monitoring   → "Stop monitoring" + volume slider
 //
 // This panel never auto-activates. The parent only renders it when a mic
-// stream exists; the hook refuses to start without a verified headphone route.
+// stream exists; the hook refuses to start without a verified route on
+// platforms that support setSinkId.
 export default function HeadphoneMonitorPanel({ monitor }) {
   const {
     outputStatus,
     monitoring,
     monitorVolume,
-    sinkSupported,
     start,
     stop,
     setVolume,
   } = monitor;
 
-  if (!sinkSupported || outputStatus === 'unsupported') {
+  if (outputStatus === 'unsupported') {
     return (
       <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
         <Headphones className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -59,15 +61,22 @@ export default function HeadphoneMonitorPanel({ monitor }) {
     );
   }
 
-  if (outputStatus === 'verified') {
+  if (outputStatus === 'verified' || outputStatus === 'available') {
     return (
-      <button
-        onClick={start}
-        className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-95 transition"
-      >
-        <Headphones className="w-4 h-4 text-indigo-600 shrink-0" />
-        <span className="text-xs font-bold text-indigo-700">Enable headphone monitoring</span>
-      </button>
+      <div className="mt-2 flex flex-col gap-1">
+        <button
+          onClick={start}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 active:scale-95 transition"
+        >
+          <Headphones className="w-4 h-4 text-indigo-600 shrink-0" />
+          <span className="text-xs font-bold text-indigo-700">Enable headphone monitoring</span>
+        </button>
+        {outputStatus === 'available' && (
+          <span className="text-[11px] font-semibold text-amber-600 px-1">
+            🎧 Use headphones to avoid echo.
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -80,7 +89,7 @@ export default function HeadphoneMonitorPanel({ monitor }) {
     );
   }
 
-  // not-detected or error (idle falls through here too)
+  // not-detected, error, or idle
   return (
     <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200">
       <Headphones className="w-3.5 h-3.5 text-slate-400 shrink-0" />
