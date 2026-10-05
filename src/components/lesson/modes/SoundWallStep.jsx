@@ -1,55 +1,114 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import CameraMirror from '@/components/soundwall/CameraMirror';
 import RevealCard from '@/components/soundwall/RevealCard';
 import { playLetterSound } from '@/lib/audio';
 import { ChevronLeft, ChevronRight, Volume2, Check } from 'lucide-react';
 
-// Student-facing Sound Wall step. Shows a sequential progression on a single
-// page for each grapheme:
+// Student-facing Sound Wall step. For each grapheme (sound), presents a
+// 3-stage progression on its own page:
 //   1. Phoneme mouth card — "We make it this way"
 //   2. Camera mirror      — "Now you try it!"
 //   3. Grapheme card      — "This sound is written as…"
 //
-// When stepConfig.curriculumKey is set (e.g. "M1.L3"), cards are auto-loaded
-// from the SoundWallCard entity for that curriculum position. Manual
-// stepConfig.cards still work as a fallback.
+// Cards are loaded from the SoundWallCard entity. Two lookup strategies:
+//   - curriculumKey set (e.g. "M1.L3") → filter by curriculum_key
+//   - manual cards with `sound` but no `imageUrl` → look up by grapheme
+//     across all curriculum positions, so a lesson can combine sounds
+//     introduced at different positions (e.g. /o/ at M1.L1 + /a/ at M1.L6).
+//
+// Manual stepConfig.cards still work as a fallback when they have real
+// imageUrl + cardType values.
+
+function mapRecs(recs) {
+  return (recs || []).map((r) => ({
+    label: r.label || r.grapheme,
+    imageUrl: r.image_url,
+    sound: r.grapheme,
+    cardType: r.card_type,
+    grapheme: r.grapheme,
+    id: r.id,
+    covers: r.covers || [],
+    active_reveal_id: r.active_reveal_id || '',
+  }));
+}
+
 export default function SoundWallStep({ onComplete, stepConfig }) {
   const lang = stepConfig?.language || 'es';
   const curriculumKey = stepConfig?.curriculumKey || '';
+  const manualCards = stepConfig?.cards || [];
 
   const [entityCards, setEntityCards] = useState([]);
   const [loadingCards, setLoadingCards] = useState(false);
 
-  useEffect(() => {
-    if (!curriculumKey) { setEntityCards([]); return; }
-    let cancelled = false;
-    setLoadingCards(true);
-    base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey })
-      .then((recs) => {
-        if (cancelled) return;
-        setEntityCards((recs || []).map((r) => ({
-          label: r.label || r.grapheme,
-          imageUrl: r.image_url,
-          sound: r.grapheme,
-          cardType: r.card_type,
-          grapheme: r.grapheme,
-          id: r.id,
-          covers: r.covers || [],
-          active_reveal_id: r.active_reveal_id || '',
-        })));
-      })
-      .catch(() => { if (!cancelled) setEntityCards([]); })
-      .finally(() => { if (!cancelled) setLoadingCards(false); });
-    return () => { cancelled = true; };
-  }, [curriculumKey]);
+  const manualKey = JSON.stringify(manualCards);
 
-  // Build sequential stages: phoneme → camera → grapheme for each grapheme.
-  const stages = useMemo(() => {
+  useEffect(() => {
+    let cancelled = false;
+
+    // Strategy 1: curriculumKey set → load by curriculum position.
+    if (curriculumKey) {
+      setLoadingCards(true);
+      base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey })
+        .then((recs) => {
+          if (cancelled) return;
+          setEntityCards(mapRecs(recs));
+          setLoadingCards(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setEntityCards([]);
+          setLoadingCards(false);
+        });
+      return () => { cancelled = true; };
+    }
+
+    // Strategy 2: manual cards with sounds but no images → look up by grapheme.
+    const soundsToLookup = manualCards
+      .filter((c) => c.sound && !c.imageUrl)
+      .map((c) => c.sound);
+
+    if (soundsToLookup.length === 0) {
+      setEntityCards([]);
+      return;
+    }
+
+    setLoadingCards(true);
+    Promise.all(
+      soundsToLookup.map((s) =>
+        base44.entities.SoundWallCard.filter({ grapheme: s })
+      )
+    )
+      .then((results) => {
+        if (cancelled) return;
+        // Deduplicate by id (a grapheme may appear at multiple curriculum keys).
+        const seen = new Set();
+        const all = [];
+        for (const recs of results) {
+          for (const r of recs || []) {
+            if (seen.has(r.id)) continue;
+            seen.add(r.id);
+            all.push(r);
+          }
+        }
+        setEntityCards(mapRecs(all));
+        setLoadingCards(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEntityCards([]);
+        setLoadingCards(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [curriculumKey, manualKey]);
+
+  // Build per-grapheme stage groups: phoneme → camera → grapheme.
+  const soundGroups = useMemo(() => {
     let cards = [];
     if (entityCards.length > 0) cards = entityCards;
-    else if (stepConfig?.cards?.length) cards = stepConfig.cards;
+    else if (manualCards.length) cards = manualCards;
     else if (stepConfig?.cardUrl)
       cards = [{ label: stepConfig.cardLabel || '', imageUrl: stepConfig.cardUrl, sound: stepConfig.sound || '', cardType: 'phoneme', grapheme: stepConfig.sound || '' }];
 
@@ -66,23 +125,50 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     const result = [];
     for (const g of order) {
       const pair = byGrapheme[g];
-      if (pair.phoneme) result.push({ type: 'phoneme', grapheme: g, card: pair.phoneme });
-      result.push({ type: 'camera', grapheme: g, card: pair.phoneme || pair.grapheme });
-      if (pair.grapheme) result.push({ type: 'grapheme', grapheme: g, card: pair.grapheme });
+      const stages = [];
+      if (pair.phoneme) stages.push({ type: 'phoneme', card: pair.phoneme });
+      stages.push({ type: 'camera', card: pair.phoneme || pair.grapheme });
+      if (pair.grapheme) stages.push({ type: 'grapheme', card: pair.grapheme });
+      result.push({ grapheme: g, stages });
     }
     return result;
-  }, [entityCards, stepConfig]);
+  }, [entityCards, manualKey, stepConfig]);
 
+  const [currentSoundIndex, setCurrentSoundIndex] = useState(0);
   const [revealedCount, setRevealedCount] = useState(1);
   const [done, setDone] = useState(false);
+
+  // Reset reveal when switching sounds.
+  useEffect(() => {
+    setRevealedCount(1);
+  }, [currentSoundIndex]);
 
   const playSound = (sound) => {
     if (sound) playLetterSound(sound, lang);
   };
 
+  const currentGroup = soundGroups[currentSoundIndex];
+  const currentStages = currentGroup?.stages || [];
+
   const next = () => {
-    if (revealedCount < stages.length) setRevealedCount(revealedCount + 1);
-    else if (!done) { setDone(true); onComplete?.(); }
+    if (revealedCount < currentStages.length) {
+      setRevealedCount(revealedCount + 1);
+    } else if (currentSoundIndex < soundGroups.length - 1) {
+      setCurrentSoundIndex(currentSoundIndex + 1);
+      setRevealedCount(1);
+    } else if (!done) {
+      setDone(true);
+      onComplete?.();
+    }
+  };
+
+  const prev = () => {
+    if (revealedCount > 1) {
+      setRevealedCount(revealedCount - 1);
+    } else if (currentSoundIndex > 0) {
+      setCurrentSoundIndex(currentSoundIndex - 1);
+      setRevealedCount((soundGroups[currentSoundIndex - 1]?.stages || []).length || 1);
+    }
   };
 
   if (loadingCards) {
@@ -93,18 +179,16 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     );
   }
 
-  if (stages.length === 0) {
+  if (soundGroups.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 text-gray-400">
         <p className="text-lg font-bold">No sound wall cards for {curriculumKey || 'this step'}.</p>
-        {curriculumKey && (
-          <a
-            href="/SoundWallManager"
-            className="text-sm text-indigo-500 hover:text-indigo-700 font-bold underline"
-          >
-            Upload cards in the Sound Wall Manager →
-          </a>
-        )}
+        <a
+          href="/SoundWallManager"
+          className="text-sm text-indigo-500 hover:text-indigo-700 font-bold underline"
+        >
+          Upload cards in the Sound Wall Manager →
+        </a>
       </div>
     );
   }
@@ -115,12 +199,16 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     grapheme: { color: 'text-green-600', text: 'This sound is written as' },
   };
 
+  const totalStages = soundGroups.reduce((sum, g) => sum + g.stages.length, 0);
+  const stagesBefore = soundGroups.slice(0, currentSoundIndex).reduce((sum, g) => sum + g.stages.length, 0);
+  const globalProgress = stagesBefore + revealedCount;
+
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* All stages on one page, appearing one after another */}
+      {/* Sound pager — one sound per page */}
       <div className="flex-1 flex items-center justify-center min-h-0 p-4 overflow-auto">
         <div className="flex flex-col lg:flex-row gap-4 items-center justify-center w-full max-w-5xl">
-          {stages.map((stage, i) => {
+          {currentStages.map((stage, i) => {
             const label = stageLabels[stage.type];
             const isRevealed = i < revealedCount;
             return (
@@ -170,16 +258,32 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
 
       {/* Navigation */}
       <div className="flex items-center justify-center gap-3 p-4 shrink-0 bg-white border-t border-gray-100">
+        <button
+          onClick={prev}
+          disabled={currentSoundIndex === 0 && revealedCount === 1}
+          className="px-3 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold inline-flex items-center gap-1 hover:bg-slate-200 disabled:opacity-40"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
         <span className="text-sm font-bold text-gray-500">
-          {revealedCount} / {stages.length}
+          {globalProgress} / {totalStages}
+          {soundGroups.length > 1 && (
+            <span className="ml-2 text-indigo-500">
+              · Sound {currentSoundIndex + 1} of {soundGroups.length}: /{currentGroup?.grapheme}/
+            </span>
+          )}
         </span>
+
         <button
           onClick={next}
           disabled={done}
           className="px-6 py-2.5 rounded-xl bg-green-500 text-white font-bold inline-flex items-center gap-1.5 hover:bg-green-600 disabled:opacity-60"
         >
-          {revealedCount < stages.length ? (
+          {revealedCount < currentStages.length ? (
             <>Show next <ChevronRight className="w-5 h-5" /></>
+          ) : currentSoundIndex < soundGroups.length - 1 ? (
+            <>Next sound <ChevronRight className="w-5 h-5" /></>
           ) : (
             <><Check className="w-5 h-5" /> {done ? 'Done!' : 'Done'}</>
           )}

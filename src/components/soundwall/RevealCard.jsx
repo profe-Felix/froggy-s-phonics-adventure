@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock } from 'lucide-react';
-import { useBlueToRed } from '@/hooks/useBlueToRed';
 
 // Renders a Sound Wall card image with optional covers drawn over it.
 // The cover whose id matches activeRevealId animates away (slides up + fades)
 // when the student taps it, "unlocking" the sound underneath.
 // Other covers stay in place as static hidden parts.
+//
+// The stored image_url is already the red-processed version (the upload flow
+// saves UP_<name> as image_url), so we display it directly — matching the
+// Sound Wall Manager. No per-render canvas pixel-scan (which could fail on
+// CORS and leave the image blank).
 //
 // covers: [{ id, x_pct, y_pct, w_pct, h_pct, label }]
 // activeRevealId: string | ''
@@ -14,7 +18,7 @@ export default function RevealCard({ card, className = '' }) {
   const covers = Array.isArray(card?.covers) ? card.covers : [];
   const activeRevealId = card?.active_reveal_id || '';
   const [revealedIds, setRevealedIds] = useState(() => new Set());
-  const processedImageUrl = useBlueToRed(card?.imageUrl);
+  const processedImageUrl = card?.imageUrl;
 
   // Reset revealed state whenever the card changes so the reveal can replay.
   useEffect(() => {
