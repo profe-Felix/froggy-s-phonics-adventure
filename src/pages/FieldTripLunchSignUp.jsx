@@ -1,7 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { QRCodeCanvas } from 'qrcode.react';
-import { Download } from 'lucide-react';
 
 const TEXT = {
   es: {
@@ -93,7 +91,7 @@ export default function FieldTripLunchSignUp() {
     setError('');
     setSubmitting(true);
     try {
-      await base44.entities.FieldTripLunchResponse.create({
+      await base44.functions.invoke('submitFieldTripLunchResponse', {
         student_name: studentName.trim(),
         needs_school_lunch: lunchChoice === 'school',
         language,
@@ -116,20 +114,8 @@ export default function FieldTripLunchSignUp() {
     setError('');
   };
 
-  const qrEsRef = useRef(null);
-  const qrEnRef = useRef(null);
-
-  const downloadQR = (ref, filename) => {
-    const canvas = ref.current?.querySelector('canvas');
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-slate-50 flex flex-col items-center p-5">
+    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-slate-50 flex items-start justify-center p-5">
       <div className="w-full max-w-2xl bg-white/80 backdrop-blur rounded-3xl shadow-xl p-6 sm:p-8 mt-6">
         {/* Language toggle */}
         <div className="flex justify-end mb-4">
@@ -255,58 +241,6 @@ export default function FieldTripLunchSignUp() {
             </form>
           </>
         )}
-      </div>
-
-      {/* QR codes for sharing — both languages */}
-      <div className="w-full max-w-2xl mt-4 mb-6 bg-white/80 backdrop-blur rounded-3xl shadow-xl p-6">
-        <h3 className="text-lg font-black text-slate-800 mb-1 text-center">
-          🔗 {language === 'es' ? 'Compartir el formulario' : 'Share the form'}
-        </h3>
-        <p className="text-sm text-slate-500 text-center mb-5">
-          {language === 'es'
-            ? 'Imprima o descargue el código QR para compartir con los padres.'
-            : 'Print or download the QR code to share with parents.'}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex flex-col items-center">
-            <p className="font-bold text-slate-700 mb-2">🇲🇽 Español</p>
-            <div ref={qrEsRef} className="bg-white rounded-2xl p-3 shadow flex justify-center">
-              <QRCodeCanvas
-                value={`${window.location.origin}/FieldTripLunch?lang=es`}
-                size={800}
-                level="M"
-                marginSize={4}
-                style={{ width: 180, height: 180 }}
-              />
-            </div>
-            <button
-              onClick={() => downloadQR(qrEsRef, 'FieldTripLunch_QR_Espanol.png')}
-              className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition"
-            >
-              <Download className="w-4 h-4" />
-              {language === 'es' ? 'Descargar' : 'Download'}
-            </button>
-          </div>
-          <div className="flex flex-col items-center">
-            <p className="font-bold text-slate-700 mb-2">🇺🇸 English</p>
-            <div ref={qrEnRef} className="bg-white rounded-2xl p-3 shadow flex justify-center">
-              <QRCodeCanvas
-                value={`${window.location.origin}/FieldTripLunch?lang=en`}
-                size={800}
-                level="M"
-                marginSize={4}
-                style={{ width: 180, height: 180 }}
-              />
-            </div>
-            <button
-              onClick={() => downloadQR(qrEnRef, 'FieldTripLunch_QR_English.png')}
-              className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 transition"
-            >
-              <Download className="w-4 h-4" />
-              {language === 'es' ? 'Descargar' : 'Download'}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
