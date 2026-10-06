@@ -214,6 +214,25 @@
     transform: none !important;
     width: auto !important;
   }
+  .booklet-zoom-container {
+    --bk-zoom: 1 !important;
+    width: auto !important;
+    height: auto !important;
+    break-after: page;
+  }
+  .booklet-zoom-container:last-child {
+    break-after: auto;
+  }
+  .booklet-scale-wrap {
+    transform: none !important;
+    width: auto !important;
+  }
+  .booklet-page {
+    border: none !important;
+    box-shadow: none !important;
+    width: auto !important;
+    min-height: 0 !important;
+  }
   .practice-sheet {
     padding: 0.1in 0 !important;
   }
@@ -424,6 +443,53 @@
   transform: scale(var(--np-zoom, 1));
   transform-origin: top left;
   width: 8.5in;
+}
+
+/* Practice Booklet — landscape letter sheet with handwriting guide lines,
+   student name title, and auto page number at the bottom. Scaled down so
+   multiple rows fit per page; teacher picks page count for double-sided
+   booklet printing. */
+.booklet-page {
+  width: 11in;
+  min-height: 8.5in;
+  padding: 0.3in 0.4in;
+  box-sizing: border-box;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.booklet-title {
+  text-align: center;
+  font-family: 'Teachers', sans-serif;
+  font-size: 0.32in;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.05in;
+  flex-shrink: 0;
+}
+.booklet-page-number {
+  position: absolute;
+  bottom: 0.12in;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.26in;
+  color: #64748b;
+  font-family: 'Teachers', sans-serif;
+}
+.booklet-zoom-container {
+  width: calc(11in * var(--bk-zoom, 1));
+  margin: 0 auto;
+}
+.booklet-scale-wrap {
+  transform: scale(var(--bk-zoom, 1));
+  transform-origin: top left;
+  width: 11in;
 }
 .page-break-indicator {
   border-top: 2px dashed #94a3b8;

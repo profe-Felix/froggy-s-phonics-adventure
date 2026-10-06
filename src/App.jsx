@@ -45,6 +45,7 @@ import LetterTracingStrokes from './pages/LetterTracingStrokes';
 import StudentRoster from './pages/StudentRoster';
 import StudentIdCards from './pages/StudentIdCards';
 import NamePractice from './pages/NamePractice';
+import BookletPractice from './pages/BookletPractice';
 import NameTracingReview from './pages/NameTracingReview';
 import Desk from './pages/Desk';
 import Carpet from './pages/Carpet';
@@ -166,6 +167,7 @@ const AuthenticatedApp = () => {
       <Route path="/StudentRoster" element={<StudentRoster />} />
       <Route path="/StudentIdCards" element={<StudentIdCards />} />
       <Route path="/NamePractice" element={<NamePractice />} />
+      <Route path="/BookletPractice" element={<BookletPractice />} />
       <Route path="/NameTracingReview" element={<NameTracingReview />} />
       <Route path="/Desk" element={<Desk />} />
       <Route path="/Carpet" element={<Carpet />} />
