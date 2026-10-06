@@ -23,48 +23,60 @@ function HalfPage({ lang, origin, qrRef }) {
   const m = MESSAGES[lang];
   return (
     <div style={{
-      width: '5.5in', height: '8.5in', padding: '0.35in 0.3in',
+      width: '5.5in', height: '8.5in', padding: '0.4in 0.35in',
       boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
-      alignItems: 'center',
+      alignItems: 'center', justifyContent: 'center',
     }}>
-      <div className="text-3xl mb-1">🚌</div>
-      <h2 className="text-lg font-black text-slate-800 mb-2 text-center" style={{ fontFamily: "'Teachers', sans-serif" }}>
+      <div style={{ fontSize: '2.2rem', marginBottom: '0.15in' }}>🚌</div>
+      <h2 style={{
+        fontFamily: "'Teachers', sans-serif",
+        fontSize: '1.4rem', fontWeight: 800, color: '#1e293b',
+        marginBottom: '0.2in', textAlign: 'center',
+      }}>
         {m.title}
       </h2>
-      <p className="text-xs text-slate-600 leading-relaxed mb-3 text-center">
+      <p style={{
+        fontSize: '0.95rem', lineHeight: 1.5, color: '#475569',
+        marginBottom: '0.25in', textAlign: 'center', maxWidth: '4.5in',
+      }}>
         {m.message}
       </p>
-      <div ref={qrRef} className="bg-white p-2 rounded-xl shadow-sm mb-2">
+      <div ref={qrRef} style={{
+        background: '#fff', padding: '0.12in', borderRadius: '0.15in',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '0.2in',
+      }}>
         <QRCodeCanvas
           value={`${origin}/FieldTripLunch?lang=${lang}`}
           size={600}
           level="M"
           marginSize={4}
-          style={{ width: 140, height: 140 }}
+          style={{ width: 170, height: 170 }}
         />
       </div>
-      <p className="text-xs font-bold text-slate-700 text-center">{m.scan}</p>
+      <p style={{ fontSize: '0.9rem', fontWeight: 700, color: '#334155', textAlign: 'center' }}>
+        {m.scan}
+      </p>
     </div>
   );
 }
 
-function FlyerContent({ origin, qrEsRef, qrEnRef }) {
+function FlyerContent({ lang, origin, qrRef }) {
   return (
     <div className="flyer-sheet" style={{
       width: '11in', height: '8.5in', display: 'flex',
       background: '#fff', boxSizing: 'border-box',
     }}>
       <div style={{ borderRight: '2px dashed #94a3b8' }}>
-        <HalfPage lang="es" origin={origin} qrRef={qrEsRef} />
+        <HalfPage lang={lang} origin={origin} qrRef={qrRef} />
       </div>
-      <HalfPage lang="en" origin={origin} qrRef={qrEnRef} />
+      <HalfPage lang={lang} origin={origin} qrRef={qrRef} />
     </div>
   );
 }
 
 export default function FieldTripLunchFlyer() {
-  const qrEsRef = useRef(null);
-  const qrEnRef = useRef(null);
+  const qrRef = useRef(null);
+  const [lang, setLang] = useState('es');
   const [sheetUrl, setSheetUrl] = useState('');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -104,6 +116,22 @@ export default function FieldTripLunchFlyer() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-base font-bold text-gray-800">🚌 Lunch Form Flyer</h1>
+          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm ml-2">
+            <button
+              type="button"
+              onClick={() => setLang('es')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${lang === 'es' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              Español
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang('en')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${lang === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              English
+            </button>
+          </div>
           <div className="flex-1" />
           <button
             onClick={() => window.print()}
@@ -136,7 +164,7 @@ export default function FieldTripLunchFlyer() {
       {/* Flyer preview — landscape sheet with 2 portrait half-pages */}
       <main className="flex justify-center py-6 overflow-x-auto">
         <div className="printable shadow-2xl">
-          <FlyerContent origin={origin} qrEsRef={qrEsRef} qrEnRef={qrEnRef} />
+          <FlyerContent lang={lang} origin={origin} qrRef={qrRef} />
         </div>
       </main>
     </div>
