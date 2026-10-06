@@ -82,6 +82,21 @@ function getEffectiveLockedPage(assignment) {
   );
 }
 
+function snapToAllowedPage(targetPage, currentPage, allowedPages) {
+  if (!allowedPages || allowedPages.length === 0) return targetPage;
+  if (allowedPages.includes(targetPage)) return targetPage;
+  const min = allowedPages[0];
+  const max = allowedPages[allowedPages.length - 1];
+  const clamped = Math.max(min, Math.min(max, targetPage));
+  if (allowedPages.includes(clamped)) return clamped;
+  if (targetPage > currentPage) {
+    const next = allowedPages.find(p => p > currentPage);
+    return next ?? max;
+  }
+  const prev = [...allowedPages].reverse().find(p => p < currentPage);
+  return prev ?? min;
+}
+
 function AssignmentPicker({ assignments, onSelect, className }) {
   return (
     <div className="min-h-screen flex flex-col items-center py-8 px-4" style={{ background: '#0f0f1a' }}>
@@ -118,6 +133,7 @@ export default function StudentNotebookView({
   extraHeaderContent,
   embedded = false,
   liveAssessmentId = null,
+  pageLock = null,
   registerSave = null,
 }) {
   const qc = useQueryClient();
@@ -401,24 +417,32 @@ export default function StudentNotebookView({
         setSession(activeSession);
         latestSessionRef.current = activeSession;
         const page = activeSession.current_page || 1;
-        const desiredPage =
-          selectedAssignment.page_mode === 'locked'
-            ? getEffectiveLockedPage(selectedAssignment)
-            : Math.max(
-                minAllowed,
-                Math.min(maxAllowed, directPage || page)
-              );
+        let desiredPage;
+        if (pageLock && pageLock.length > 0) {
+          desiredPage = snapToAllowedPage(directPage || page || pageLock[0], pageLock[0], pageLock);
+        } else if (selectedAssignment.page_mode === 'locked') {
+          desiredPage = getEffectiveLockedPage(selectedAssignment);
+        } else {
+          desiredPage = Math.max(
+            minAllowed,
+            Math.min(maxAllowed, directPage || page)
+          );
+        }
 
         currentPageRef.current = desiredPage;
         setCurrentPage(desiredPage);
       } else {
-        const desiredPage =
-          selectedAssignment.page_mode === 'locked'
-            ? getEffectiveLockedPage(selectedAssignment)
-            : Math.max(
-                minAllowed,
-                Math.min(maxAllowed, directPage || 1)
-              );
+        let desiredPage;
+        if (pageLock && pageLock.length > 0) {
+          desiredPage = snapToAllowedPage(directPage || pageLock[0], pageLock[0], pageLock);
+        } else if (selectedAssignment.page_mode === 'locked') {
+          desiredPage = getEffectiveLockedPage(selectedAssignment);
+        } else {
+          desiredPage = Math.max(
+            minAllowed,
+            Math.min(maxAllowed, directPage || 1)
+          );
+        }
 
         const newSession = await base44.entities.NotebookSession.create({
           assignment_id: selectedAssignment.id,
@@ -1082,10 +1106,11 @@ export default function StudentNotebookView({
   }, []);
 
   const pageBounds = getAssignmentPageBounds(selectedAssignment);
-  const minPage = pageBounds.min;
-  const maxPage = pageBounds.max;
+  const lockedPages = pageLock && pageLock.length > 0 ? pageLock : null;
+  const minPage = lockedPages ? lockedPages[0] : pageBounds.min;
+  const maxPage = lockedPages ? lockedPages[lockedPages.length - 1] : pageBounds.max;
   const pdfTotal = pageBounds.total;
-  const isPageLocked = selectedAssignment?.page_mode === 'locked';
+  const isPageLocked = selectedAssignment?.page_mode === 'locked' || !!lockedPages;
 
   const goToPage = async (requestedPage, assignmentOverride = null) => {
     const effectiveAssignment =
@@ -1097,13 +1122,17 @@ export default function StudentNotebookView({
 
     const bounds = getAssignmentPageBounds(effectiveAssignment);
 
-    const targetPage =
-      effectiveAssignment.page_mode === 'locked'
-        ? getEffectiveLockedPage(effectiveAssignment)
-        : Math.max(
-            bounds.min,
-            Math.min(bounds.max, Number(requestedPage) || bounds.min)
-          );
+    let targetPage;
+    if (lockedPages) {
+      targetPage = snapToAllowedPage(Number(requestedPage) || lockedPages[0], currentPageRef.current, lockedPages);
+    } else if (effectiveAssignment.page_mode === 'locked') {
+      targetPage = getEffectiveLockedPage(effectiveAssignment);
+    } else {
+      targetPage = Math.max(
+        bounds.min,
+        Math.min(bounds.max, Number(requestedPage) || bounds.min)
+      );
+    }
 
     const fromPage = currentPageRef.current;
 
@@ -1661,7 +1690,7 @@ export default function StudentNotebookView({
         </div>
       )}
 
-      {selectedAssignment.page_mode !== 'locked' && !(liveActive && liveAssessment?.release_mode === 'follow') && (
+      {(!isPageLocked || (lockedPages && lockedPages.length > 1)) && !(liveActive && liveAssessment?.release_mode === 'follow') && (
         <PageNavBar
           currentPage={currentPage}
           minPage={minPage}

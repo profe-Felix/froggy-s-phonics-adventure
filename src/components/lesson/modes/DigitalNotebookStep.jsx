@@ -172,6 +172,10 @@ export default function DigitalNotebookStep({
     [stepConfig]
   );
 
+  // Lock students to the step's selected pages so they can't wander off.
+  // "all" = no lock (student can navigate the whole notebook freely).
+  const pageLock = stepConfig?.pageSelection === 'all' ? null : selectedPages;
+
   const assignmentTitle =
     stepConfig?.assignmentTitle ||
     '';
@@ -270,6 +274,9 @@ export default function DigitalNotebookStep({
         }
         directPage={
           firstPage
+        }
+        pageLock={
+          pageLock
         }
         onBack={() => {}}
         registerSave={registerNotebookSave}
