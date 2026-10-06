@@ -163,7 +163,7 @@ export default function FieldTripLunchFlyer() {
 
       {/* Flyer preview — landscape sheet with 2 portrait half-pages */}
       <main className="flex justify-center py-6 overflow-x-auto">
-        <div className="printable shadow-2xl">
+        <div className="printable flyer-printable shadow-2xl">
           <FlyerContent lang={lang} origin={origin} qrRef={qrRef} />
         </div>
       </main>

@@ -602,6 +602,18 @@
 .flyer-sheet {
   page: FieldTripFlyer;
 }
+.flyer-printable {
+  page: FieldTripFlyer;
+}
+@media print {
+  .flyer-printable {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 11in !important;
+    height: 8.5in !important;
+  }
+}
 
 /* Conference confirmation printout — half-page cards (2 per letter sheet),
    grouped by teacher. The teacher opens the print view (a full-screen
