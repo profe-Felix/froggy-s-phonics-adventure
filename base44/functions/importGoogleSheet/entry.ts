@@ -10,9 +10,9 @@ export default async function(req: Request): Promise<Response> {
     if (!sheetUrl) return Response.json({ error: 'A Google Sheets URL is required' }, { status: 400 });
 
     const incoming = await fetchSheetStudents(sheetUrl);
-    const { created, updated, unmatched } = await upsertStudents(base44.asServiceRole, incoming, schoolYear);
+    const { created, updated, deleted, unmatched } = await upsertStudents(base44.asServiceRole, incoming, schoolYear);
 
-    return Response.json({ imported: created, updated, unmatched, total: created + updated });
+    return Response.json({ imported: created, updated, deleted, unmatched, total: created + updated });
   } catch (error) {
     return Response.json({ error: (error as Error).message }, { status: 500 });
   }

@@ -67,7 +67,7 @@ export default function ImportSheetDialog({ open, onOpenChange, onImported }) {
           {error && <p className="text-sm text-destructive">{error}</p>}
           {result && (
             <p className="text-sm text-green-600">
-              {result.imported} new, {result.updated} updated
+              {result.imported} new, {result.updated} updated{result.deleted ? `, ${result.deleted} removed` : ''}
               {result.unmatched?.length ? `, ${result.unmatched.length} unmatched (no number)` : ''}.
             </p>
           )}

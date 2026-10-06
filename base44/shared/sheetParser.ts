@@ -212,6 +212,36 @@ export async function upsertStudents(base44: any, incoming: SheetStudent[], scho
       unmatched.push(s.name || s.barcode_number || '(no name)');
     }
   }
+  // Reconciliation: the sheet is the source of truth. For each class that
+  // appears in the incoming set, delete DB students whose (class, number) slot
+  // is NOT in the sheet — they've been withdrawn or moved to another class.
+  const touchedClasses = new Set<string>();
+  const incomingSlots = new Set<string>();
+  for (const s of incoming) {
+    const cls = String(s.class_name || '').toLowerCase();
+    if (cls && s.student_number) {
+      touchedClasses.add(cls);
+      incomingSlots.add(`${cls}:${s.student_number}`);
+    }
+  }
+  const toDelete: string[] = [];
+  for (const s of existing) {
+    if (schoolYear && s.school_year && s.school_year !== schoolYear) continue;
+    const cls = String(s.class_name || '').toLowerCase();
+    if (!touchedClasses.has(cls)) continue;
+    if (!s.student_number) continue;
+    if (!incomingSlots.has(`${cls}:${s.student_number}`)) {
+      toDelete.push(s.id);
+    }
+  }
+  let deleted = 0;
+  for (const id of toDelete) {
+    try {
+      await base44.entities.Student.delete(id);
+      deleted++;
+    } catch {}
+  }
+
   let created = 0;
   let updated = 0;
   if (toCreate.length) {
@@ -222,5 +252,5 @@ export async function upsertStudents(base44: any, incoming: SheetStudent[], scho
     await base44.entities.Student.bulkUpdate(toUpdate);
     updated = toUpdate.length;
   }
-  return { created, updated, unmatched };
+  return { created, updated, deleted, unmatched };
 }

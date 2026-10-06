@@ -17,8 +17,8 @@ export default async function(req: Request): Promise<Response> {
     for (const link of target) {
       try {
         const incoming = await fetchSheetStudents(link.sheet_url);
-        const { created, updated } = await upsertStudents(base44.asServiceRole, incoming, schoolYear);
-        results.push({ teacher: link.teacher_name, created, updated });
+        const { created, updated, deleted } = await upsertStudents(base44.asServiceRole, incoming, schoolYear);
+        results.push({ teacher: link.teacher_name, created, updated, deleted });
       } catch (e) {
         results.push({ teacher: link.teacher_name, error: (e as Error).message });
       }

@@ -54,8 +54,9 @@ export default function SheetLinkManager({ open, onOpenChange, onSynced }) {
       const ok = (data.results || []).filter((r) => !r.error);
       const totalCreated = ok.reduce((sum, r) => sum + (r.created || 0), 0);
       const totalUpdated = ok.reduce((sum, r) => sum + (r.updated || 0), 0);
+      const totalDeleted = ok.reduce((sum, r) => sum + (r.deleted || 0), 0);
       const errors = (data.results || []).filter((r) => r.error);
-      setSyncMsg(`Synced ${ok.length} sheet(s) · ${totalCreated} new, ${totalUpdated} updated${errors.length ? ` · ${errors.length} failed` : ''}`);
+      setSyncMsg(`Synced ${ok.length} sheet(s) · ${totalCreated} new, ${totalUpdated} updated${totalDeleted ? `, ${totalDeleted} removed` : ''}${errors.length ? ` · ${errors.length} failed` : ''}`);
       onSynced?.();
     } catch (e) {
       setSyncMsg(e?.message || 'Sync failed');
