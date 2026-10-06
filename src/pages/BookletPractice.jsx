@@ -1,28 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
-import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Printer, ArrowLeft, Loader2 } from 'lucide-react';
+import { Printer, ArrowLeft } from 'lucide-react';
 import BookletPracticeSheet from '@/components/print/BookletPracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import TracingGuideTuner from '@/components/tracing/TracingGuideTuner';
 
 export default function BookletPractice() {
-  const [students, setStudents] = useState(null);
-  const [mode, setMode] = useState('first');
-  const [allStudents, setAllStudents] = useState(false);
-  const [selectedId, setSelectedId] = useState('');
-  const [classFilter, setClassFilter] = useState('');
   const [pageCount, setPageCount] = useState(4);
   const [fontSize, setFontSize] = useState(1.35);
   const [lineSize, setLineSize] = useState(0.67);
   const [offset, setOffset] = useState(0);
   const [scale, setScale] = useState(0.5);
   const [zoom, setZoom] = useState(1);
-  const [searchParams] = useSearchParams();
-  const classParam = searchParams.get('class') || '';
 
   // Scale the 11in landscape page down to fit the viewport
   useEffect(() => {
@@ -37,45 +28,13 @@ export default function BookletPractice() {
   }, []);
 
   const guideHook = useTracingGuideSettings();
-
-  const load = useCallback(async () => {
-    const list = await base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-created_date', 500);
-    setStudents(list);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const classes = students
-    ? [...new Set(students.map((s) => s.class_name).filter(Boolean))].sort()
-    : [];
-
-  let visible = students ?? [];
-  if (classParam) visible = visible.filter((s) => s.class_name === classParam);
-  if (classFilter) visible = visible.filter((s) => s.class_name === classFilter);
-  visible = visible.filter((s) => (s.name || '').trim());
-
-  useEffect(() => {
-    if (classParam && !classFilter) setClassFilter(classParam);
-  }, [classParam, classFilter]);
-
-  useEffect(() => {
-    if (visible.length && !visible.find((s) => s.id === selectedId)) {
-      setSelectedId(visible[0].id);
-    }
-  }, [students, classParam, classFilter, selectedId]);
-
-  const selected = visible.find((s) => s.id === selectedId) || visible[0];
+  const gs = guideHook.settings;
 
   const effFont = fontSize * scale;
   const effLine = lineSize * scale;
   const effOffset = offset * scale;
-  const gs = guideHook.settings;
 
-  // Build the list of (student, page) pairs to render
-  const booklets = allStudents
-    ? visible.flatMap((s) => Array.from({ length: pageCount }, (_, i) => ({ student: s, pageNum: i + 1 })))
-    : selected
-      ? Array.from({ length: pageCount }, (_, i) => ({ student: selected, pageNum: i + 1 }))
-      : [];
+  const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
@@ -83,51 +42,14 @@ export default function BookletPractice() {
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" size="icon">
-              <Link to="/StudentRoster"><ArrowLeft className="w-4 h-4" /></Link>
+              <Link to="/Dashboard"><ArrowLeft className="w-4 h-4" /></Link>
             </Button>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">Practice Booklet</h1>
-              <p className="text-xs text-muted-foreground">
-                {students ? `${visible.length} student${visible.length === 1 ? '' : 's'}` : 'Loading…'}
-              </p>
+              <h1 className="text-lg font-semibold leading-tight">Handwriting Paper Booklet</h1>
+              <p className="text-xs text-muted-foreground">Blank template — adjust scale for your students</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            {classes.length > 0 && (
-              <select
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">All classes</option>
-                {classes.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            )}
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-              <Checkbox checked={allStudents} onCheckedChange={(v) => setAllStudents(!!v)} />
-              All students
-            </label>
-            {!allStudents && (
-              <select
-                value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {visible.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            )}
-            <div className="flex border rounded-md overflow-hidden">
-              <Button size="sm" variant={mode === 'first' ? 'default' : 'ghost'} onClick={() => setMode('first')}>
-                First name
-              </Button>
-              <Button size="sm" variant={mode === 'firstlast' ? 'default' : 'ghost'} onClick={() => setMode('firstlast')}>
-                First &amp; Last
-              </Button>
-            </div>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               Pages
               <input
@@ -167,43 +89,35 @@ export default function BookletPractice() {
           </label>
           <Button size="sm" variant="ghost" onClick={() => { setFontSize(1.35); setLineSize(0.67); setOffset(0); setScale(0.5); }}>Reset</Button>
         </div>
+        <TracingGuideTuner {...guideHook} />
       </header>
 
       <main className="py-8 print:block print:py-0">
-        {students === null ? (
-          <div className="flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : visible.length === 0 ? (
-          <div className="text-center text-muted-foreground py-20">No students.</div>
-        ) : booklets.length === 0 ? null : (
-          <div>
-            {booklets.map((b, i) => (
-              <div
-                key={i}
-                className="booklet-zoom-container"
-                style={{ '--bk-zoom': zoom, ...(i < booklets.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : {}) }}
-              >
-                <div className="booklet-scale-wrap" style={{ '--bk-zoom': zoom }}>
-                  <BookletPracticeSheet
-                    student={b.student}
-                    mode={mode}
-                    fontSize={effFont}
-                    lineSize={effLine}
-                    offset={effOffset}
-                    pageNumber={b.pageNum}
-                    totalPages={pageCount}
-                    emojiHeightFactor={gs.emojiHeightFactor}
-                    emojiFeetFactor={gs.emojiFeetFactor}
-                    emojiSpacingRatio={gs.emojiSpacingRatio}
-                    emojiXRatio={gs.emojiXRatio}
-                    fenceGapRatio={gs.fenceGapRatio}
-                    fenceWidthRatio={gs.fenceWidthRatio}
-                    fenceOffsetRatio={gs.fenceOffsetRatio}
-                  />
-                </div>
+        <div>
+          {pages.map((pageNum, i) => (
+            <div
+              key={i}
+              className="booklet-zoom-container"
+              style={{ '--bk-zoom': zoom, ...(i < pages.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : {}) }}
+            >
+              <div className="booklet-scale-wrap" style={{ '--bk-zoom': zoom }}>
+                <BookletPracticeSheet
+                  fontSize={effFont}
+                  lineSize={effLine}
+                  offset={effOffset}
+                  pageNumber={pageNum}
+                  emojiHeightFactor={gs.emojiHeightFactor}
+                  emojiFeetFactor={gs.emojiFeetFactor}
+                  emojiSpacingRatio={gs.emojiSpacingRatio}
+                  emojiXRatio={gs.emojiXRatio}
+                  fenceGapRatio={gs.fenceGapRatio}
+                  fenceWidthRatio={gs.fenceWidthRatio}
+                  fenceOffsetRatio={gs.fenceOffsetRatio}
+                />
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </main>
     </div>
   );
