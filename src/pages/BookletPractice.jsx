@@ -14,6 +14,8 @@ export default function BookletPractice() {
   const [offset, setOffset] = useState(0);
   const [scale, setScale] = useState(0.5);
   const [zoom, setZoom] = useState(1);
+  const [showGuides, setShowGuides] = useState(true);
+  const [showPageNumber, setShowPageNumber] = useState(true);
 
   // Scale the 11in landscape page down to fit the viewport
   useEffect(() => {
@@ -61,6 +63,14 @@ export default function BookletPractice() {
                 className="w-16 h-9 rounded-md border border-input bg-background px-2 text-sm text-center"
               />
             </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} className="w-4 h-4" />
+              Guides
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input type="checkbox" checked={showPageNumber} onChange={(e) => setShowPageNumber(e.target.checked)} className="w-4 h-4" />
+              Page #
+            </label>
             <Button onClick={() => printWithPage('size: letter landscape; margin: 0.25in')}>
               <Printer className="w-4 h-4 mr-2" /> Print
             </Button>
@@ -106,6 +116,8 @@ export default function BookletPractice() {
                   lineSize={effLine}
                   offset={effOffset}
                   pageNumber={pageNum}
+                  showGuides={showGuides}
+                  showPageNumber={showPageNumber}
                   emojiHeightFactor={gs.emojiHeightFactor}
                   emojiFeetFactor={gs.emojiFeetFactor}
                   emojiSpacingRatio={gs.emojiSpacingRatio}
