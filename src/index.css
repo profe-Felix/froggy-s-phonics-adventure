@@ -592,6 +592,17 @@
   }
 }
 
+/* Field Trip Lunch flyer — landscape letter, 2 portrait half-pages side by side
+   (Spanish left, English right). Zero margin so the content fills the full
+   sheet; a dashed cut line separates the two halves. */
+@page FieldTripFlyer {
+  size: letter landscape;
+  margin: 0;
+}
+.flyer-sheet {
+  page: FieldTripFlyer;
+}
+
 /* Conference confirmation printout — half-page cards (2 per letter sheet),
    grouped by teacher. The teacher opens the print view (a full-screen
    overlay), clicks Print, and only the confirmations + not-signed-up list
