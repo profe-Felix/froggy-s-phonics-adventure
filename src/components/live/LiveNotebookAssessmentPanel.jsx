@@ -290,7 +290,10 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
                       ) : (
                         <>
                           <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-56 overflow-y-auto">
-                            {students.map(s => {
+                            {students
+                              .filter(s => s.name || s.photo_url)
+                              .sort((a, b) => (a.student_number || 0) - (b.student_number || 0))
+                              .map(s => {
                               const selected = selectedStudentNumbers.has(s.student_number);
                               return (
                                 <button
