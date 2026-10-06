@@ -137,6 +137,15 @@ export default function HfwCards() {
   const gridRef = useRef(null);
   const measureRef = useRef(null);
   const [sharedFontPx, setSharedFontPx] = useState(null);
+  const [fontsReady, setFontsReady] = useState(false);
+
+  useEffect(() => {
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => setFontsReady(true)).catch(() => setFontsReady(true));
+    } else {
+      setFontsReady(true);
+    }
+  }, []);
 
   const textOnlyWords = useMemo(
     () => cards.filter((c) => !c.imageUrl).map((c) => c.word).filter(Boolean),
@@ -144,7 +153,7 @@ export default function HfwCards() {
   );
 
   useLayoutEffect(() => {
-    if (loading || textOnlyWords.length === 0) { setSharedFontPx(null); return; }
+    if (loading || !fontsReady || textOnlyWords.length === 0) { setSharedFontPx(null); return; }
     const grid = gridRef.current;
     const measure = measureRef.current;
     if (!grid || !measure) return;
@@ -156,19 +165,23 @@ export default function HfwCards() {
     const targetW = cardW - 2 * padPx;
     const targetH = cardH - 2 * padPx;
 
-    const longest = textOnlyWords.reduce((a, b) => (a.length > b.length ? a : b));
-    measure.textContent = longest;
-
+    // Binary search: find the largest font where ALL text-only words fit,
+    // not just the longest by char count — "también" (wide m+b) can be
+    // wider than a 7-char word with narrow letters.
     let lo = 0.15 * 96;
     let hi = 1.2 * 96;
     for (let i = 0; i < 24; i++) {
       const mid = (lo + hi) / 2;
       measure.style.fontSize = mid + 'px';
-      if (measure.offsetWidth <= targetW && measure.offsetHeight <= targetH) lo = mid;
+      const allFit = textOnlyWords.every(word => {
+        measure.textContent = word;
+        return measure.offsetWidth <= targetW && measure.offsetHeight <= targetH;
+      });
+      if (allFit) lo = mid;
       else hi = mid;
     }
     setSharedFontPx(lo);
-  }, [textOnlyWords, loading]);
+  }, [textOnlyWords, loading, fontsReady]);
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">

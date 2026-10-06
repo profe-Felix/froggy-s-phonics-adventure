@@ -4,7 +4,7 @@
   "properties": {
     "class_name": {
       "type": "string",
-      "description": "Class this live notebook assessment is broadcasting to. Students in this class are forced into the notebook assignment."
+      "description": "Class this live notebook assessment is broadcasting to. Students in this class are forced into the notebook assignment (unless target_students is non-empty, in which case only those students join)."
     },
     "assignment_id": {
       "type": "string",
@@ -20,10 +20,35 @@
       "default": "",
       "description": "School year tag e.g. '26-27'."
     },
+    "target_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": [],
+      "description": "Specific students targeted. Empty array = whole class auto-joins. Non-empty = only these students are pulled in (useful for absent students or small-group modeling)."
+    },
+    "release_mode": {
+      "type": "string",
+      "enum": [
+        "follow",
+        "free"
+      ],
+      "default": "follow",
+      "description": "follow = students are locked to the teacher's current_page and cannot navigate on their own. free = students can navigate pages at their own pace; the teacher's page advances are not forced on them."
+    },
     "current_page": {
       "type": "integer",
       "default": 1,
-      "description": "Page all students are locked to. Teacher advances this; students follow in realtime."
+      "description": "Page all students are locked to (in 'follow' mode). Teacher advances this; students follow in realtime. In 'free' mode this is just the teacher's own view."
     },
     "total_pages": {
       "type": "integer",

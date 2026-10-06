@@ -174,7 +174,16 @@ export function useStudentLockdown({
     activeLiveSessions,
     activeDictation: queries[3].data?.find(s => s.active) || null,
     activeTracingLock: queries[4].data?.find(s => s.active) || null,
-    activeNotebookAssessment: queries[5].data?.find(s => s.active) || null,
+    activeNotebookAssessment: queries[5].data?.find(s => {
+      if (!s.active) return false;
+      // Whole class (empty target_students) = everyone joins.
+      if (!s.target_students || s.target_students.length === 0) return true;
+      // Targeted: only listed students join.
+      return s.target_students.some(
+        t => String(t.class_name || '') === String(className || '') &&
+          Number(t.student_number) === Number(studentNumber)
+      );
+    }) || null,
     assessmentBroadcast: matching
       ? { session: matching, broadcast: matching.broadcast_state }
       : null,

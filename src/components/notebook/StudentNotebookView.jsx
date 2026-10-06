@@ -183,7 +183,7 @@ export default function StudentNotebookView({
         onBackRef.current?.();
         return;
       }
-      if (event.data && ['active', 'paused', 'current_page'].some(key => key in event.data)) {
+      if (event.data && ['active', 'paused', 'current_page', 'release_mode'].some(key => key in event.data)) {
         apply(event.data);
       } else {
         void load();
@@ -206,14 +206,16 @@ export default function StudentNotebookView({
     };
   }, [liveAssessmentId]);
 
-  // Follow the teacher's page when the live session advances.
+  // Follow the teacher's page when the live session advances — but only in
+  // 'follow' mode. In 'free' mode students navigate at their own pace.
   useEffect(() => {
     if (!liveAssessment?.current_page) return;
+    if (liveAssessment.release_mode === 'free') return;
     const target = Number(liveAssessment.current_page);
     if (target !== currentPageRef.current) {
       goToPage(target);
     }
-  }, [liveAssessment?.current_page]);
+  }, [liveAssessment?.current_page, liveAssessment?.release_mode]);
 
   // Lesson activities provide extraHeaderContent for their Finish button.
   // In that case, keep the notebook inside its parent instead of covering
@@ -1659,7 +1661,7 @@ export default function StudentNotebookView({
         </div>
       )}
 
-      {selectedAssignment.page_mode !== 'locked' && (
+      {selectedAssignment.page_mode !== 'locked' && !(liveActive && liveAssessment?.release_mode === 'follow') && (
         <PageNavBar
           currentPage={currentPage}
           minPage={minPage}

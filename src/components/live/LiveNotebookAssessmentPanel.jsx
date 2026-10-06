@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Radio, Eye, EyeOff, ChevronLeft, ChevronRight, X, Pause, Play } from 'lucide-react';
+import { ArrowLeft, Radio, Eye, EyeOff, ChevronLeft, ChevronRight, X, Pause, Play, Lock, Unlock, Footprints, Users, UserCheck } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
 
@@ -12,14 +12,13 @@ import { useClassNames } from '@/hooks/useClassNames';
 // Teacher picks a class + a DigitalNotebookAssignment + a start page, then
 // starts a LiveNotebookAssessment session. Students in that class auto-join
 // (forced open) the notebook on the teacher's page. The teacher can:
-//   - advance / go back a page (students follow in realtime)
-//   - PAUSE → every student's notebook shows an "Eyes on board" overlay and
-//     drawing/navigation is frozen (used when someone comes to the door)
+//   - advance / go back a page (students follow in realtime in 'follow' mode)
+//   - PAUSE → every student's notebook shows an "Eyes on board" overlay
 //   - RESUME → lift the overlay
+//   - toggle Follow / Free — follow locks students to the teacher's page;
+//     free lets students navigate at their own pace
+//   - select specific students (for absent students or small-group modeling)
 //   - END → release students back to their normal home
-//
-// This panel is rendered inside LiveLesson's "Assessment" tab. It owns its
-// own session state so the lesson tab's logic stays untouched.
 
 export default function LiveNotebookAssessmentPanel({ onBack }) {
   const [session, setSession] = useState(null);
@@ -31,12 +30,31 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   const [startPage, setStartPage] = useState(1);
   const [starting, setStarting] = useState(false);
 
+  // Student targeting: 'class' = whole class, 'selected' = pick students
+  const [targetMode, setTargetMode] = useState('class');
+  const [selectedStudentNumbers, setSelectedStudentNumbers] = useState(new Set());
+  // Release mode: 'follow' = locked to teacher page, 'free' = own pace
+  const [releaseMode, setReleaseMode] = useState('follow');
+
   const { data: assignments = [] } = useQuery({
     queryKey: ['notebook-assignments-live-assessment', className],
     queryFn: () =>
       base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
     enabled: !!className,
     retry: false,
+  });
+
+  // Load students for the selected class (for the student picker grid)
+  const { data: students = [] } = useQuery({
+    queryKey: ['students-for-notebook-assessment', className],
+    queryFn: () =>
+      base44.entities.Student.filter({
+        class_name: className,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      }),
+    enabled: !!className && targetMode === 'selected',
+    retry: false,
+    staleTime: 60000,
   });
 
   const selectedAssignment = assignments.find(a => a.id === selectedAssignmentId);
@@ -54,7 +72,17 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         setSession(null);
         return;
       }
-      setSession(prev => prev ? { ...prev, ...event.data } : event.data);
+      setSession(prev => {
+        if (!prev) return event.data;
+        // Preserve teacher's own controls (release_mode toggle, page) from
+        // being overwritten by delayed realtime echoes.
+        return {
+          ...prev,
+          ...event.data,
+          release_mode: prev.release_mode,
+          current_page: prev.current_page,
+        };
+      });
     });
     return unsub;
   }, [session?.id]);
@@ -70,8 +98,6 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   const startSession = async () => {
     if (!selectedAssignmentId || !className) return;
     setStarting(true);
-    // Deactivate any leftover active sessions for this class so students
-    // auto-join THIS new assessment instead of a stale one.
     try {
       const stale = await base44.entities.LiveNotebookAssessment.filter({
         active: true,
@@ -85,11 +111,17 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     } catch {}
 
     const page = Math.max(1, Math.min(totalPages, Number(startPage) || 1));
+    const targetStudents = targetMode === 'selected'
+      ? Array.from(selectedStudentNumbers).map(n => ({ class_name: className, student_number: n }))
+      : [];
+
     const created = await base44.entities.LiveNotebookAssessment.create({
       class_name: className,
       assignment_id: selectedAssignmentId,
       assignment_title: selectedAssignment?.title || '',
       school_year: ACTIVE_SCHOOL_YEAR,
+      target_students: targetStudents,
+      release_mode: releaseMode,
       current_page: page,
       total_pages: totalPages,
       paused: false,
@@ -107,6 +139,9 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     setSelectedAssignmentId('');
     setClassName('');
     setStartPage(1);
+    setSelectedStudentNumbers(new Set());
+    setTargetMode('class');
+    setReleaseMode('follow');
   };
 
   const goToPage = (dir) => {
@@ -123,6 +158,20 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
 
   const togglePause = () => {
     updateSession({ paused: !session.paused });
+  };
+
+  const toggleReleaseMode = () => {
+    const next = session.release_mode === 'follow' ? 'free' : 'follow';
+    updateSession({ release_mode: next });
+  };
+
+  const toggleStudent = (num) => {
+    setSelectedStudentNumbers(prev => {
+      const next = new Set(prev);
+      if (next.has(num)) next.delete(num);
+      else next.add(num);
+      return next;
+    });
   };
 
   // ---------- SETUP SCREEN ----------
@@ -148,7 +197,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
                 {CLASSES.map(c => (
                   <button
                     key={c}
-                    onClick={() => { setClassName(c); setSelectedAssignmentId(''); }}
+                    onClick={() => { setClassName(c); setSelectedAssignmentId(''); setSelectedStudentNumbers(new Set()); }}
                     className={`px-3 py-2 rounded-lg text-sm font-bold border-2 transition ${
                       className === c
                         ? 'bg-rose-500 text-white border-rose-500'
@@ -190,26 +239,132 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
             )}
 
             {selectedAssignmentId && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">3. Start page</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={1}
-                    max={totalPages}
-                    value={startPage}
-                    onChange={e => setStartPage(e.target.value)}
-                    className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-center"
-                  />
-                  <span className="text-sm text-gray-400">of {totalPages}</span>
-                  <span className="text-xs text-gray-400 ml-2">Default page 1 — change for long files.</span>
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">3. Start page</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={startPage}
+                      onChange={e => setStartPage(e.target.value)}
+                      className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-center"
+                    />
+                    <span className="text-sm text-gray-400">of {totalPages}</span>
+                    <span className="text-xs text-gray-400 ml-2">Default page 1 — change for long files.</span>
+                  </div>
                 </div>
-              </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">4. Who joins?</label>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => { setTargetMode('class'); setSelectedStudentNumbers(new Set()); }}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
+                        targetMode === 'class'
+                          ? 'bg-rose-500 text-white border-rose-500'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 inline mr-1.5" />
+                      Whole class
+                    </button>
+                    <button
+                      onClick={() => setTargetMode('selected')}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
+                        targetMode === 'selected'
+                          ? 'bg-rose-500 text-white border-rose-500'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      <UserCheck className="w-4 h-4 inline mr-1.5" />
+                      Select students
+                    </button>
+                  </div>
+
+                  {targetMode === 'selected' && (
+                    <div className="border-2 border-gray-100 rounded-xl p-3">
+                      {students.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-4">No students found for {className}.</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-56 overflow-y-auto">
+                            {students.map(s => {
+                              const selected = selectedStudentNumbers.has(s.student_number);
+                              return (
+                                <button
+                                  key={s.id}
+                                  onClick={() => toggleStudent(s.student_number)}
+                                  className={`relative rounded-xl border-2 overflow-hidden transition ${
+                                    selected
+                                      ? 'border-rose-500 ring-2 ring-rose-300'
+                                      : 'border-gray-200 hover:border-rose-300'
+                                  }`}
+                                >
+                                  {s.photo_url ? (
+                                    <img src={s.photo_url} alt={s.name || `#${s.student_number}`} className="w-full aspect-square object-cover" />
+                                  ) : (
+                                    <div className={`w-full aspect-square flex items-center justify-center text-2xl font-black ${selected ? 'bg-rose-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                      {s.student_number}
+                                    </div>
+                                  )}
+                                  {selected && (
+                                    <div className="absolute top-0.5 right-0.5 bg-rose-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">✓</span>
+                                    </div>
+                                  )}
+                                  {s.name && (
+                                    <div className="text-[10px] text-center font-bold text-gray-600 truncate px-0.5">{s.name.split(' ')[0]}</div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2 text-center">
+                            {selectedStudentNumbers.size} student(s) selected
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">5. Mode</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setReleaseMode('follow')}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
+                        releaseMode === 'follow'
+                          ? 'bg-sky-500 text-white border-sky-500'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      <Lock className="w-4 h-4 inline mr-1.5" />
+                      Follow me
+                      <span className="block text-[10px] font-normal mt-0.5 opacity-80">Students locked to my page</span>
+                    </button>
+                    <button
+                      onClick={() => setReleaseMode('free')}
+                      className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border-2 transition ${
+                        releaseMode === 'free'
+                          ? 'bg-violet-500 text-white border-violet-500'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      <Footprints className="w-4 h-4 inline mr-1.5" />
+                      Free
+                      <span className="block text-[10px] font-normal mt-0.5 opacity-80">Students go at own pace</span>
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
 
             <Button
               onClick={startSession}
-              disabled={!selectedAssignmentId || !className || starting}
+              disabled={!selectedAssignmentId || !className || starting || (targetMode === 'selected' && selectedStudentNumbers.size === 0)}
               className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black text-lg py-3"
             >
               <Radio className="w-5 h-5 mr-2" />
@@ -225,6 +380,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   const total = session.total_pages || totalPages;
   const currentPage = session.current_page || 1;
   const paused = !!session.paused;
+  const currentReleaseMode = session.release_mode || 'follow';
 
   return (
     <div className="relative h-screen bg-slate-900 text-white overflow-hidden">
@@ -237,8 +393,33 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           </span>
           <h1 className="text-base font-bold truncate">{session.assignment_title || 'Notebook Assessment'}</h1>
           <span className="text-xs text-slate-500 hidden sm:inline">· {session.class_name}</span>
+          {session.target_students?.length > 0 && (
+            <span className="text-xs text-amber-400 font-bold hidden sm:inline">
+              · {session.target_students.length} students
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Follow / Free toggle */}
+          <button
+            onClick={toggleReleaseMode}
+            className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border transition ${
+              currentReleaseMode === 'free'
+                ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 hover:bg-violet-500/30'
+                : 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
+            }`}
+            title={
+              currentReleaseMode === 'free'
+                ? 'Students are free to navigate — tap to lock them to your page'
+                : 'Students are locked to your page — tap to let them go at their own pace'
+            }
+          >
+            {currentReleaseMode === 'free'
+              ? <><Footprints className="w-4 h-4" /> Free</>
+              : <><Lock className="w-4 h-4" /> Follow me</>
+            }
+          </button>
+
           <button
             onClick={endSession}
             className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-red-500/90 hover:bg-red-500 text-white"
@@ -254,10 +435,16 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         className={`fixed right-3 top-[4.25rem] z-[10001] pointer-events-none rounded-full px-3 py-1.5 text-xs font-black shadow-lg border ${
           paused
             ? 'bg-amber-500 text-slate-950 border-amber-200'
-            : 'bg-green-500 text-slate-950 border-green-200'
+            : currentReleaseMode === 'free'
+              ? 'bg-violet-500 text-white border-violet-300'
+              : 'bg-green-500 text-slate-950 border-green-200'
         }`}
       >
-        {paused ? 'STUDENTS: PAUSED — EYES ON BOARD' : 'STUDENTS: ASSESSING'}
+        {paused
+          ? 'STUDENTS: PAUSED — EYES ON BOARD'
+          : currentReleaseMode === 'free'
+            ? 'STUDENTS: FREE PACE'
+            : 'STUDENTS: FOLLOWING'}
       </div>
 
       {/* Main control area */}
@@ -312,21 +499,29 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
             </button>
           </div>
           <p className="text-slate-500 text-xs text-center max-w-xs">
-            Students follow this page automatically. Use Pause before walking to the door.
+            {currentReleaseMode === 'free'
+              ? 'Students are free to navigate. Use Pause before walking to the door.'
+              : 'Students follow this page automatically. Use Pause before walking to the door.'}
           </p>
         </div>
 
-        {/* Pause state indicator */}
+        {/* State indicators */}
         {paused && (
           <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
             <EyeOff className="w-5 h-5" />
             Student screens are frozen with an "Eyes on board" overlay.
           </div>
         )}
-        {!paused && (
+        {!paused && currentReleaseMode === 'follow' && (
           <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
-            <Eye className="w-5 h-5" />
-            Students are on page {currentPage} and can draw.
+            <Lock className="w-5 h-5" />
+            Students are locked to page {currentPage} and can draw.
+          </div>
+        )}
+        {!paused && currentReleaseMode === 'free' && (
+          <div className="flex items-center gap-2 text-violet-400 font-bold text-sm">
+            <Unlock className="w-5 h-5" />
+            Students are free to navigate at their own pace.
           </div>
         )}
       </div>
