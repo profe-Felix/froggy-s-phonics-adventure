@@ -1,0 +1,72 @@
+{
+  "name": "FieldTripLunchResponse",
+  "type": "object",
+  "properties": {
+    "student_name": {
+      "type": "string",
+      "description": "Student name as entered by the parent on the lunch form."
+    },
+    "needs_school_lunch": {
+      "type": "boolean",
+      "description": "True = child needs a school lunch. False = bringing lunch from home."
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "es",
+        "en"
+      ],
+      "default": "es",
+      "description": "Language the parent submitted the form in."
+    }
+  },
+  "required": [
+    "student_name",
+    "needs_school_lunch"
+  ],
+  "rls": {
+    "create": null,
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

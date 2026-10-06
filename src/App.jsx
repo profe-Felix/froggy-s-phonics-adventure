@@ -51,6 +51,7 @@ import Carpet from './pages/Carpet';
 import DocumentCamera from './pages/DocumentCamera';
 import ConferenceDashboard from './pages/ConferenceDashboard';
 import ConferenceSignUp from './pages/ConferenceSignUp';
+import FieldTripLunchSignUp from './pages/FieldTripLunchSignUp';
 import HfwCards from './pages/HfwCards';
 import NounGenderEditor from './pages/NounGenderEditor';
 import AbsenceDashboard from './pages/AbsenceDashboard';
@@ -170,6 +171,7 @@ const AuthenticatedApp = () => {
       <Route path="/DocumentCamera" element={<DocumentCamera />} />
       <Route path="/ConferenceDashboard" element={<ConferenceDashboard />} />
       <Route path="/ConferenceSignUp" element={<ConferenceSignUp />} />
+      <Route path="/FieldTripLunch" element={<FieldTripLunchSignUp />} />
       <Route path="/HfwCards" element={<HfwCards />} />
       <Route path="/NounGenderEditor" element={<NounGenderEditor />} />
       <Route path="/AbsenceDashboard" element={<AbsenceDashboard />} />
