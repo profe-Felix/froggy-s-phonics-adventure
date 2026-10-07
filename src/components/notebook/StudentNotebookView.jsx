@@ -140,6 +140,11 @@ export default function StudentNotebookView({
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
   const [saveError, setSaveError] = useState('');
+  const [saveStatus, setSaveStatus] = useState('');
+  const [liveEnded, setLiveEnded] = useState(false);
+  const pageDraftsRef = useRef(new Map());
+  const pendingNavigationRef = useRef(null);
+  const navigateRef = useRef(null);
   const [notebookLoadError, setNotebookLoadError] = useState('');
   const [notebookLoadAttempt, setNotebookLoadAttempt] = useState(0);
   const { classList } = useClassNames();
@@ -149,6 +154,8 @@ export default function StudentNotebookView({
   // the teacher's page in realtime, show an "Eyes on board" overlay when
   // paused, and exit back to home when the session ends.
   const [liveAssessment, setLiveAssessment] = useState(null);
+  const liveAssessmentRef = useRef(null);
+  liveAssessmentRef.current = liveAssessment;
   const livePaused = !!liveAssessment?.paused;
   const liveActive = !!liveAssessmentId;
 
@@ -163,7 +170,7 @@ export default function StudentNotebookView({
     const apply = fresh => {
       if (!alive || !fresh) return;
       if (fresh.active === false) {
-        onBackRef.current?.();
+        setLiveEnded(true);
         return;
       }
       setLiveAssessment(previous => ({
@@ -196,7 +203,7 @@ export default function StudentNotebookView({
       if (!alive || (event.id || event.data?.id) !== liveAssessmentId) return;
       version += 1;
       if (event.type === 'delete') {
-        onBackRef.current?.();
+        setLiveEnded(true);
         return;
       }
       if (event.data && ['active', 'paused', 'current_page', 'release_mode'].some(key => key in event.data)) {
@@ -222,16 +229,7 @@ export default function StudentNotebookView({
     };
   }, [liveAssessmentId]);
 
-  // Follow the teacher's page when the live session advances — but only in
-  // 'follow' mode. In 'free' mode students navigate at their own pace.
-  useEffect(() => {
-    if (!liveAssessment?.current_page) return;
-    if (liveAssessment.release_mode === 'free') return;
-    const target = Number(liveAssessment.current_page);
-    if (target !== currentPageRef.current) {
-      goToPage(target);
-    }
-  }, [liveAssessment?.current_page, liveAssessment?.release_mode]);
+  // Teacher-page following is registered below goToPage, after notebook state is ready.
 
   // Lesson activities provide extraHeaderContent for their Finish button.
   // In that case, keep the notebook inside its parent instead of covering
@@ -337,13 +335,9 @@ export default function StudentNotebookView({
     if (match) setSelectedAssignment(match);
   }, [assignments, directAssignmentName, selectedAssignment]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     loadedKeyRef.current = null;
-  }, [selectedAssignment?.id]);
-
-  useEffect(() => {
-    loadedKeyRef.current = null;
-  }, [session?.id]);
+  }, [selectedAssignment?.id, session?.id]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -474,44 +468,33 @@ export default function StudentNotebookView({
 
   useLayoutEffect(() => {
     if (!session || !canvasRef.current || !pdfRenderedSize) return;
+    if (session.assignment_id !== selectedAssignment?.id) return;
 
-    // IMPORTANT:
-    // Do NOT include pdfRenderedSize in the key.
-    // PDF/canvas resize/render events were causing the canvas to clear/reload.
     const key = `${session.id}-${currentPage}`;
-    if (loadedKeyRef.current === key) return;
+    if (canvasRef.current.pageIdentity !== key || loadedKeyRef.current === key) return;
 
-    // A different page must always replace the long-lived canvas immediately.
-    // Never let dirty/drawing flags from the page we just left suppress this
-    // load; otherwise its ink remains in memory and can be saved on this page.
-    loadedKeyRef.current = key;
-    localDirtyRef.current = false;
-
-    const pageData = session.strokes_by_page?.[String(currentPage)];
+    const memory = pageDraftsRef.current.get(key);
     let localDraft = null;
+
     try {
       localDraft = draftKey ? localStorage.getItem(draftKey) : null;
     } catch {
-      setSaveError('Local recovery storage is unavailable. Keep this notebook open until saving succeeds.');
+      setSaveError('Local storage is unavailable. Keep this notebook open until the server confirms saving.');
     }
-    localDirtyRef.current = Boolean(localDraft) || pendingSavesRef.current.size > 0;
 
-    if (localDraft) {
-      try {
-        canvasRef.current.loadStrokes(JSON.parse(localDraft));
-      } catch {
-        canvasRef.current.loadStrokes(null);
-      }
-    } else if (pageData) {
-      try {
-        canvasRef.current.loadStrokes(typeof pageData === 'string' ? JSON.parse(pageData) : pageData);
-      } catch {
-        canvasRef.current.loadStrokes(null);
-      }
-    } else {
-      canvasRef.current.loadStrokes(null);
+    const source = memory?.payload ?? localDraft ?? session.strokes_by_page?.[String(currentPage)] ?? null;
+
+    try {
+      const data = typeof source === 'string' ? JSON.parse(source) : source;
+      canvasRef.current.loadStrokes(data);
+      loadedKeyRef.current = key;
+      isDrawingRef.current = false;
+      localDirtyRef.current = Boolean(memory || localDraft) || pendingSavesRef.current.size > 0;
+    } catch {
+      loadedKeyRef.current = null;
+      setNotebookLoadError('This page has unreadable recovery data. It has NOT been erased. Keep this device open and ask your teacher for help.');
     }
-  }, [currentPage, session?.id, draftKey, !!pdfRenderedSize]);
+  }, [currentPage, session?.id, selectedAssignment?.id, draftKey, !!pdfRenderedSize]);
 
   const saveStrokes = useCallback((pageOverride, preCapturedData) => {
     if (!canvasRef.current || !latestSessionRef.current) {
@@ -520,6 +503,12 @@ export default function StudentNotebookView({
 
     const active = latestSessionRef.current;
     const page = pageOverride ?? currentPageRef.current;
+    const identity = `${active.id}-${page}`;
+
+    if (canvasRef.current.pageIdentity !== identity || loadedKeyRef.current !== identity) {
+      return Promise.resolve(false);
+    }
+
     const key = String(page);
     const payload = {
       ...(preCapturedData ?? canvasRef.current.getStrokes()),
@@ -530,27 +519,27 @@ export default function StudentNotebookView({
     const serialized = JSON.stringify(payload);
     const draftKey = `notebook-draft-${active.id}-${page}`;
 
-    if (
+    const existingDraft = pageDraftsRef.current.get(identity);
+    const alreadyCaptured = existingDraft && JSON.stringify(existingDraft.payload) === serialized;
+
+    if (!alreadyCaptured && (
       active.strokes_by_page?.[key] !== serialized ||
       pendingSavesRef.current.has(key) ||
       saveInFlightRef.current
-    ) {
+    )) {
       try {
         localStorage.setItem(draftKey, serialized);
       } catch {
         setSaveError('Local recovery storage is unavailable. Keep this page open until saving succeeds.');
       }
-      pendingSavesRef.current.set(key, {
-        sessionId: active.id,
-        page,
-        payload,
-        draftKey,
-      });
+      const entry = { sessionId: active.id, page, payload, draftKey };
+      pendingSavesRef.current.set(key, entry);
+      pageDraftsRef.current.set(identity, entry);
       localDirtyRef.current = true;
+      setSaveStatus('Unsaved changes');
     }
 
     if (isDrawingRef.current) {
-      setSaveError('Finish the current pen stroke before finishing the notebook.');
       return Promise.resolve(false);
     }
 
@@ -581,12 +570,21 @@ export default function StudentNotebookView({
             [pageKey]: JSON.stringify(queued.payload),
           };
 
-          await requestWithRetry(() =>
+          const written = await requestWithRetry(() =>
             base44.entities.NotebookSession.update(queued.sessionId, {
               strokes_by_page: strokesByPage,
               last_active: new Date().toISOString(),
             })
           );
+
+          const expectedPage = JSON.stringify(queued.payload);
+          const confirmed = written?.strokes_by_page?.[pageKey] === expectedPage
+            ? written
+            : await requestWithRetry(() => base44.entities.NotebookSession.get(queued.sessionId));
+
+          if (confirmed?.strokes_by_page?.[pageKey] !== expectedPage) {
+            throw new Error('Server did not confirm this page; retaining its draft.');
+          }
 
           if (latestSessionRef.current?.id === queued.sessionId) {
             const next = {
@@ -597,7 +595,10 @@ export default function StudentNotebookView({
             setSession(next);
           }
 
-          if (!pendingSavesRef.current.has(pageKey)) {
+          const identity = `${queued.sessionId}-${queued.page}`;
+
+          if (pageDraftsRef.current.get(identity) === queued) {
+            pageDraftsRef.current.delete(identity);
             try {
               localStorage.removeItem(queued.draftKey);
             } catch {}
@@ -616,6 +617,8 @@ export default function StudentNotebookView({
         }
       }
 
+      if (isDrawingRef.current) return false;
+      setSaveStatus('Saved to server');
       return true;
     })().finally(() => {
       saveInFlightRef.current = false;
@@ -628,11 +631,43 @@ export default function StudentNotebookView({
     return saveDrainPromiseRef.current;
   }, [canvasSize, pdfRenderedSize]);
 
+  const flushNotebook = useCallback(() => {
+    canvasRef.current?.finishPendingStroke?.();
+    isDrawingRef.current = false;
+    return saveStrokes(currentPageRef.current);
+  }, [saveStrokes]);
+
   useEffect(() => {
     if (!registerSave) return;
-    registerSave(() => saveStrokes(currentPageRef.current));
+    registerSave(flushNotebook);
     return () => registerSave(null);
-  }, [registerSave, saveStrokes]);
+  }, [registerSave, flushNotebook]);
+
+  useEffect(() => {
+    if (!liveEnded || !session?.id || !pdfRenderedSize) return;
+
+    let alive = true;
+    let timer;
+
+    const finish = async () => {
+      const saved = await flushNotebook();
+      if (!alive) return;
+
+      if (saved === true) {
+        onBackRef.current?.();
+      } else {
+        setSaveError('The teacher ended this activity, but your work is not confirmed saved yet. Keep this notebook open; saving will retry.');
+        timer = setTimeout(finish, 10000);
+      }
+    };
+
+    void finish();
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [liveEnded, session?.id, !!pdfRenderedSize, flushNotebook]);
 
   const handlePdfRendered = useCallback((width, height) => {
     const nextWidth = Math.round(width * 100) / 100;
@@ -657,6 +692,7 @@ export default function StudentNotebookView({
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
     localDirtyRef.current = true;
+    setSaveStatus('Unsaved changes');
   }, []);
 
   const handleStrokeEnd = useCallback(() => {
@@ -801,12 +837,12 @@ export default function StudentNotebookView({
 
   useEffect(() => {
     const handlePageHide = () => {
-      void saveStrokes();
+      void flushNotebook();
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
-        void saveStrokes();
+        void flushNotebook();
       }
     };
 
@@ -817,7 +853,7 @@ export default function StudentNotebookView({
       window.removeEventListener('pagehide', handlePageHide);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [saveStrokes]);
+  }, [flushNotebook]);
 
   // Realtime synchronization for changes made in another device or tab.
   useEffect(() => {
@@ -1112,81 +1148,84 @@ export default function StudentNotebookView({
   const pdfTotal = pageBounds.total;
   const isPageLocked = selectedAssignment?.page_mode === 'locked' || !!lockedPages;
 
-  const goToPage = async (requestedPage, assignmentOverride = null) => {
-    const effectiveAssignment =
-      assignmentOverride ||
-      selectedAssignment;
+  const goToPage = async (requestedPage, assignmentOverride = null, followTeacher = false) => {
+    const assignment = assignmentOverride || selectedAssignment;
+    if (!assignment) return;
 
-    if (!effectiveAssignment) return;
+    if (liveActive && liveAssessmentRef.current?.release_mode !== 'free' && !followTeacher) return;
+
+    pendingNavigationRef.current = { requestedPage, assignment, followTeacher };
     if (navigationInFlightRef.current) return;
-
-    const bounds = getAssignmentPageBounds(effectiveAssignment);
-
-    let targetPage;
-    if (lockedPages) {
-      targetPage = snapToAllowedPage(Number(requestedPage) || lockedPages[0], currentPageRef.current, lockedPages);
-    } else if (effectiveAssignment.page_mode === 'locked') {
-      targetPage = getEffectiveLockedPage(effectiveAssignment);
-    } else {
-      targetPage = Math.max(
-        bounds.min,
-        Math.min(bounds.max, Number(requestedPage) || bounds.min)
-      );
-    }
-
-    const fromPage = currentPageRef.current;
-
-    if (targetPage === fromPage) return;
 
     navigationInFlightRef.current = true;
 
-    // Capture the old page before changing any refs or React state.
-    const strokeSnapshot = canvasRef.current?.getStrokes();
-    const activeSession = latestSessionRef.current;
-    const updatedAt = new Date().toISOString();
-
-    // saveStrokes writes the local recovery draft synchronously before its
-    // first await. Keep its promise so navigation can happen immediately.
-    const savePromise = saveStrokes(
-      fromPage,
-      strokeSnapshot
-    );
-
-    // Switch the visible page immediately. The old page's immutable stroke
-    // snapshot continues saving in the background.
-    localDirtyRef.current = false;
-    loadedKeyRef.current = null;
-    currentPageRef.current = targetPage;
-    setCurrentPage(targetPage);
-
-    if (activeSession) {
-      const optimisticSession = {
-        ...latestSessionRef.current,
-        current_page: targetPage,
-        last_active: updatedAt,
-      };
-
-      latestSessionRef.current = optimisticSession;
-      setSession(optimisticSession);
-    }
-
     try {
-      const tasks = [savePromise];
+      while (pendingNavigationRef.current) {
+        const request = pendingNavigationRef.current;
+        pendingNavigationRef.current = null;
 
-      if (activeSession) {
-        tasks.push(
-          commitSessionPage(
-            activeSession.id,
-            targetPage
-          )
-        );
+        const bounds = getAssignmentPageBounds(request.assignment);
+        let target;
+
+        if (request.followTeacher) {
+          target = Math.max(1, Math.min(bounds.total, Number(request.requestedPage) || 1));
+        } else if (lockedPages) {
+          target = snapToAllowedPage(Number(request.requestedPage) || lockedPages[0], currentPageRef.current, lockedPages);
+        } else if (request.assignment.page_mode === 'locked') {
+          target = getEffectiveLockedPage(request.assignment);
+        } else {
+          target = Math.max(bounds.min, Math.min(bounds.max, Number(request.requestedPage) || bounds.min));
+        }
+
+        const fromPage = currentPageRef.current;
+        if (target === fromPage) continue;
+
+        const active = latestSessionRef.current;
+        const identity = active ? `${active.id}-${fromPage}` : null;
+
+        if (!identity || canvasRef.current?.pageIdentity !== identity || loadedKeyRef.current !== identity) {
+          pendingNavigationRef.current = request;
+          break;
+        }
+
+        canvasRef.current.finishPendingStroke?.();
+        isDrawingRef.current = false;
+
+        const snapshot = canvasRef.current.getStrokes();
+        void saveStrokes(fromPage, snapshot);
+
+        loadedKeyRef.current = null;
+        currentPageRef.current = target;
+        setCurrentPage(target);
+
+        const next = { ...latestSessionRef.current, current_page: target };
+        latestSessionRef.current = next;
+        setSession(next);
+
+        void commitSessionPage(active.id, target).catch(() => {
+          setSaveError('Page position could not sync yet. Your drawing draft is retained.');
+        });
+
+        // Wait for the destination canvas to mount, NOT for network saving.
+        await new Promise(resolve => requestAnimationFrame(resolve));
       }
-
-      await Promise.allSettled(tasks);
     } finally {
       navigationInFlightRef.current = false;
     }
   };
+
+  navigateRef.current = goToPage;
+
+  useEffect(() => {
+    if (!liveAssessment?.current_page || liveAssessment.release_mode === 'free' || liveEnded) return;
+    if (!session?.id || !selectedAssignment || !pdfRenderedSize) return;
+
+    const target = Number(liveAssessment.current_page);
+
+    if (target !== currentPageRef.current) {
+      void navigateRef.current?.(target, null, true);
+    }
+  }, [liveAssessment?.current_page, liveAssessment?.release_mode, liveEnded, session?.id, selectedAssignment?.id, currentPage, !!pdfRenderedSize]);
 
   useEffect(() => {
     const assignmentId = selectedAssignment?.id;
@@ -1336,7 +1375,7 @@ export default function StudentNotebookView({
         <BackButton
           tone="indigo"
           onClick={async () => {
-            const saved = await saveStrokes();
+            const saved = await flushNotebook();
             if (saved !== true) return;
             loadedKeyRef.current = null;
             setSelectedAssignment(null);
@@ -1356,13 +1395,14 @@ export default function StudentNotebookView({
             {saveError}{' '}
             <button
               type="button"
-              onClick={() => { void saveStrokes(); }}
+              onClick={() => { void flushNotebook(); }}
               className="underline font-bold"
             >
               Retry save
             </button>
           </span>
         )}
+        {!saving && saveStatus && <span role="status" className={`text-xs font-bold ${saveStatus === 'Saved to server' ? 'text-green-300' : 'text-amber-300'}`}>{saveStatus}</span>}
         {extraHeaderContent}
         <button
           onClick={() => setShowQR(true)}
@@ -1374,7 +1414,7 @@ export default function StudentNotebookView({
         </button>
         <button
           onClick={async () => {
-            await saveStrokes();
+            await flushNotebook();
           }}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
           style={{ background: '#4338ca' }}
@@ -1517,6 +1557,8 @@ export default function StudentNotebookView({
                   />
                 {pdfRenderedSize && (
                   <AnnotationCanvas
+                    key={`${session?.id || 'pending'}-${currentPage}`}
+                    pageIdentity={`${session?.id || 'pending'}-${currentPage}`}
                     ref={canvasRef}
                     width={pdfRenderedSize.w}
                     height={pdfRenderedSize.h}
@@ -1730,11 +1772,12 @@ export default function StudentNotebookView({
 
       {/* Live assessment "Eyes on board" overlay — freezes drawing/navigation
           when the teacher pauses the session. */}
-      {liveActive && livePaused && (
-        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-slate-900/95 text-white">
-          <div className="text-6xl mb-4">👀</div>
-          <p className="text-2xl font-black mb-1">Eyes on the board</p>
-          <p className="text-sm text-slate-300">Wait for your teacher to continue.</p>
+      {liveActive && (livePaused || liveEnded) && (
+        <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-slate-900/95 text-white p-6 text-center">
+          <p className="text-2xl font-black mb-2">{liveEnded ? 'Saving your notebook before leaving…' : 'Eyes on the board'}</p>
+          <p className="text-sm text-slate-300">{liveEnded ? 'Keep this page open. You will leave after the server confirms your drawing is saved.' : 'Wait for your teacher to continue.'}</p>
+          {liveEnded && <button type="button" onClick={() => { void flushNotebook(); }} className="mt-4 rounded-xl bg-indigo-600 px-5 py-3 font-bold">Retry save</button>}
+          {liveEnded && saveError && <p role="alert" className="mt-4 max-w-lg text-amber-300">{saveError}</p>}
         </div>
       )}
     </div>
