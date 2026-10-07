@@ -9,6 +9,7 @@ import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { LETTER_FORMATION_GROUPS, isLetterSoundIntroduced } from '@/lib/literacy/letterFormationGroups';
 import { inchesToCssPx } from '@/lib/physicalSize';
+import { useViewportScale } from '@/hooks/useViewportScale';
 
 // Letter Tracing GROUP practice (game mode / free play). Students trace a
 // formation family together — all its letters on one ruled line, in
@@ -51,6 +52,7 @@ const PHASES = [
 ];
 
 export default function LetterGroupTracingMode({ studentData, onStudentPatch, classConfig, tracingOnly, onBack }) {
+  const viewportScale = useViewportScale();
   const [enabledGroups, setEnabledGroups] = useState([]);
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const [selectedKey, setSelectedKey] = useState(null);
@@ -290,7 +292,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   // capping at real handwriting size.
   const copies = letters.map((l) => ({ letter: l, strokes: waypoints[l]?.strokes || [] }));
   const denom = letters.length + ((COPY_GAP * (letters.length - 1) + GUIDE_W) / CANVAS_W);
-  const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN);
+  const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN) / viewportScale;
   // Always keep real physical size; if the line is wider than the screen
   // (portrait phones), it scrolls horizontally instead of shrinking.
   const fitCopyWidth = physicalPaperCopyWidth;
@@ -472,7 +474,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             dotOnly={dotOnly}
             silent={letterSilent}
             fillHeight
-            writingHeight={inchesToCssPx(4.5)}
+            writingHeight={inchesToCssPx(4.5) / viewportScale}
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}

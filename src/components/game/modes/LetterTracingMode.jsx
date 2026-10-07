@@ -10,6 +10,7 @@ import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import FreehandReplayModal from '@/components/tracing/FreehandReplayModal';
 import { inchesToCssPx } from '@/lib/physicalSize';
+import { useViewportScale } from '@/hooks/useViewportScale';
 
 const DEFAULT_ENABLED_LETTERS = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
 
@@ -90,6 +91,7 @@ export default function LetterTracingMode({
   locked = false,
   onBack,
 }) {
+  const viewportScale = useViewportScale();
   const [currentLetter, setCurrentLetter] = useState(null);
 
   // Cohort size — shared by all non-new letters. Advances only when every
@@ -1040,7 +1042,7 @@ export default function LetterTracingMode({
           silent={silent}
           fillHeight
           sizeScale={sizeScale}
-          writingHeight={inchesToCssPx(SIZE_HEIGHTS_IN[currentSizeLevel] || 1.5)}
+          writingHeight={inchesToCssPx(SIZE_HEIGHTS_IN[currentSizeLevel] || 1.5) / viewportScale}
           onMistake={() => handleMistake(currentLetter)}
           onComplete={() => handleComplete(currentLetter)}
           onAccuracy={handleAccuracy}
