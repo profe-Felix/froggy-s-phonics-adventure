@@ -21,6 +21,32 @@ export default function CardSlot({
   const startRef = useRef(null);
 
   const ITEM_H = 100;
+  const imageFrameRef = useRef(null);
+  const [cardWidth, setCardWidth] = useState(200);
+  const [compact, setCompact] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px), (max-height: 500px)').matches
+  );
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 639px), (max-height: 500px)');
+    const update = () => setCompact(query.matches);
+    update();
+    if (query.addEventListener) query.addEventListener('change', update);
+    else query.addListener(update);
+    return () => {
+      if (query.removeEventListener) query.removeEventListener('change', update);
+      else query.removeListener(update);
+    };
+  }, []);
+  useEffect(() => {
+    const frame = imageFrameRef.current;
+    if (!frame) return;
+    const observer = new ResizeObserver(entries => {
+      setCardWidth(Math.max(1, Math.round(entries[0].contentRect.width)));
+    });
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+  const cardHeight = compact ? 64 : 100;
   const SPIN_MS = 2600;
 
   const selectedCard = CARD_MAP[selectedCardId];
@@ -109,12 +135,13 @@ export default function CardSlot({
     >
       <p className="text-sm font-bold" style={{ color: category.color }}>{category.label}</p>
       <div
+        ref={imageFrameRef}
         className="relative bg-white rounded-lg overflow-hidden flex items-center justify-center"
-        style={{ width: '100%', height: 100, border: '2px solid #1a1a2e', cursor: 'pointer' }}
+        style={{ width: '100%', height: cardHeight, border: '2px solid #1a1a2e', cursor: 'pointer' }}
         onClick={() => !spinning && onSelectCard?.(displayCardId, true)}
       >
         {isSpinning && reel.length > 0 ? (
-          <div style={{ height: ITEM_H, overflow: 'hidden', position: 'relative', width: '100%' }}>
+          <div style={{ height: cardHeight, overflow: 'hidden', position: 'relative', width: '100%' }}>
             <div style={{ transform: `translateY(${-offset}px)`, willChange: 'transform' }}>
               {reel.map((card, i) => (
                 <div key={i} style={{ height: ITEM_H, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -142,8 +169,8 @@ export default function CardSlot({
         {artMode === 'bw' && (
           <AnnotationCanvas
             ref={canvasRef}
-            width={200}
-            height={100}
+            width={cardWidth}
+            height={cardHeight}
             color={color}
             size={size}
             tool={tool}
