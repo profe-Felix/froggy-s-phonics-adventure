@@ -232,6 +232,10 @@
     box-shadow: none !important;
     width: auto !important;
     min-height: 0 !important;
+    padding: 0 !important;
+  }
+  .booklet-page .practice-sheet {
+    padding: 0 !important;
   }
   .practice-sheet {
     padding: 0.1in 0 !important;
