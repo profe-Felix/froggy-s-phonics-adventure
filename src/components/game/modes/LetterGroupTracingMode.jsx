@@ -42,7 +42,7 @@ const GUIDE_W = 260;
 const PAPER_COPY_WIDTH = 220;
 // Physical-inch target for paper-size copies. Converted to CSS px per device
 // so the letter is the same physical size on phones and tablets.
-const PAPER_COPY_WIDTH_IN = 1.1 * (300 / 375); // ~0.88" per copy width
+const PAPER_COPY_WIDTH_IN = 1.4 * (300 / 375); // ~1.12" per copy width → 1.4" canvas (matches Creando Oraciones line height)
 
 const PHASES = [
   { key: 'guided', label: 'Trace', desc: 'Follow the dot guide' },
