@@ -138,7 +138,7 @@ function splitStrokeByPixelErase(s, px, py, w, h, eraserRadius) {
 }
 
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
-  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false, scrollContainerRef = null },
+  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false, scrollContainerRef = null, pageIdentity = null },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -152,6 +152,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const strokeIdCounter = useRef(1);
   const current = useRef(null);
   const drawing = useRef(false);
+  const finishPendingStrokeRef = useRef(null);
   const [eraserCursorPos, setEraserCursorPos] = useState(null);
   const twoFingerScroll = useRef({
     active: false,
@@ -325,8 +326,11 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   };
 
   const cancelStrokeForScroll = () => {
+    const wasDrawing = drawing.current;
+    finishPendingStrokeRef.current?.();
     current.current = null;
     drawing.current = false;
+    if (!wasDrawing) onStrokeEnd?.();
     redraw();
   };
 
@@ -490,6 +494,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     };
 
     const onMouseUp = () => {
+      const hadGesture = drawing.current;
       if (tool === 'eraser_object' || tool === 'eraser_pixel') {
         let changed = false;
 
@@ -532,38 +537,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
 
     const onMouseLeave = () => {
       setEraserCursorPos(null);
-
-      if (tool === 'eraser_object' || tool === 'eraser_pixel') {
-        if (tool === 'eraser_pixel' && current.current && current.current.pts.length >= 1) {
-          const pixelEvent = {
-            ...current.current,
-            removedStrokes: Array.from(current.current.removedMap?.values() || []).map(cloneStroke),
-            resultStrokes: strokes.current
-              .filter(s => Array.from(current.current.removedMap?.keys() || []).includes(s.originalId || s.id))
-              .map(cloneStroke),
-          };
-
-          delete pixelEvent.removedMap;
-          delete pixelEvent.resultMap;
-
-          history.current.push(cloneStroke(pixelEvent));
-          redoStack.current = [];
-          limitHistory();
-          current.current = null;
-          onStrokeEnd?.();
-        }
-
-        if (tool === 'eraser_object' && eraserChanged.current) {
-          onStrokeEnd?.();
-        }
-
-        drawing.current = false;
-        eraserUndoPushed.current = false;
-        eraserChanged.current = false;
-        return;
-      }
-
-      finishStroke();
+      onMouseUp();
     };
 
     const getTouchCenter = (e) => {
@@ -682,6 +656,7 @@ const onTouchStart = (e) => {
     };
 
     const onTouchEnd = (e) => {
+      const hadGesture = drawing.current;
       if (twoFingerScroll.current.active) {
         if (!e.touches || e.touches.length < 2) {
           endTwoFingerScroll();
@@ -718,7 +693,7 @@ const onTouchStart = (e) => {
         eraserUndoPushed.current = false;
         eraserChanged.current = false;
 
-        if (changed) {
+        if (changed || hadGesture) {
           onStrokeEnd?.();
         }
 
@@ -738,6 +713,14 @@ const onTouchStart = (e) => {
     // never interrupts drawing.
     const onContextMenu = (e) => { e.preventDefault(); };
 
+    finishPendingStrokeRef.current = onMouseUp;
+    const finishWhenHidden = () => {
+      if (document.visibilityState === 'hidden') onMouseUp();
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('blur', onMouseUp);
+    document.addEventListener('visibilitychange', finishWhenHidden);
+
     c.addEventListener('mousedown', onMouseDown);
     c.addEventListener('mousemove', onMouseMove);
     c.addEventListener('mouseup', onMouseUp);
@@ -749,6 +732,12 @@ const onTouchStart = (e) => {
     c.addEventListener('contextmenu', onContextMenu);
 
     return () => {
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('blur', onMouseUp);
+      document.removeEventListener('visibilitychange', finishWhenHidden);
+      if (finishPendingStrokeRef.current === onMouseUp) {
+        finishPendingStrokeRef.current = null;
+      }
       c.removeEventListener('mousedown', onMouseDown);
       c.removeEventListener('mousemove', onMouseMove);
       c.removeEventListener('mouseup', onMouseUp);
@@ -767,6 +756,8 @@ const onTouchStart = (e) => {
   }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd, scrollContainerRef]);
 
   useImperativeHandle(ref, () => ({
+    pageIdentity,
+    finishPendingStroke: () => finishPendingStrokeRef.current?.(),
     getStrokes: () => ({
       // Return a true snapshot. Save requests may be queued while the student
       // keeps drawing, so exposing the live arrays can move later ink into the
