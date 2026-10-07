@@ -43,7 +43,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
   const bubbleText = current.title || '';
 
   return (
-    <div className="flex flex-col h-full" style={{ background: C.bg }}>
+    <div className="relative flex flex-col h-full min-h-0 min-w-0" style={{ background: C.bg }}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 shrink-0">
         <button
@@ -78,9 +78,9 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col sm:flex-row overflow-hidden relative">
         {/* Progress dots */}
-        <div className="flex flex-col items-center gap-2 py-4 px-2 shrink-0">
+        <div className="flex sm:flex-col items-center justify-center gap-2 py-2 sm:py-4 px-2 shrink-0 overflow-x-auto">
           {substeps.map((_, i) => {
             const isCurrent = i === currentIdx;
             const isDone = i < currentIdx;
@@ -100,7 +100,7 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
         </div>
 
         {/* Substep content */}
-        <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto py-2 px-2 min-w-0">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-start sm:justify-center overflow-y-auto py-2 px-2 min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentIdx}
@@ -128,19 +128,19 @@ export default function ParentLedReadingPlayer({ substeps = [], onComplete, onBa
         </div>
 
         {/* Navigation arrows */}
-        <div className="flex flex-col items-center justify-center gap-2 px-2 shrink-0">
-          <div className="flex flex-col gap-2 bg-white rounded-2xl p-1.5 shadow-md">
+        <div className="flex sm:flex-col items-center justify-center gap-2 px-2 py-2 sm:py-0 shrink-0">
+          <div className="flex sm:flex-col gap-2 bg-white rounded-2xl p-1.5 shadow-md">
             <button
               onClick={goPrev}
               disabled={currentIdx === 0}
-              className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-30 active:scale-90 transition"
+              className="w-11 h-11 rounded-xl flex items-center justify-center disabled:opacity-30 active:scale-90 transition"
               style={{ color: C.text }}
             >
               <ChevronUp className="w-6 h-6" strokeWidth={2.5} />
             </button>
             <button
               onClick={goNext}
-              className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-90 transition"
+              className="w-11 h-11 rounded-xl flex items-center justify-center active:scale-90 transition"
               style={{ color: C.text }}
             >
               <ChevronDown className="w-6 h-6" strokeWidth={2.5} />
