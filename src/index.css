@@ -389,7 +389,9 @@
   .hfw-sheet-wrap,
   .hfw-sheet-wrap *,
   .page-preview,
-  .page-preview * {
+  .page-preview *,
+  .booklet-zoom-container,
+  .booklet-zoom-container * {
     visibility: visible;
   }
   .printable {
