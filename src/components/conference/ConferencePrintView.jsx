@@ -49,7 +49,10 @@ export default function ConferencePrintView({ conference, slots, onBack }) {
   });
 
   const { booked, groups, notSignedByClass, unmatchedCount } = useMemo(() => {
-    const booked = slots.filter((s) => s.status === 'booked');
+    // Exclude completed meetings — they've already been held, so no
+    // confirmation needs to go home. Missed + scheduled still print so the
+    // teacher can follow up with the family.
+    const booked = slots.filter((s) => s.status === 'booked' && (s.meeting_status || 'scheduled') !== 'completed');
 
     // Scope the roster to this conference's teachers. teacher_name may be a
     // single teacher or a comma-separated list (e.g. "Felix, Valero,

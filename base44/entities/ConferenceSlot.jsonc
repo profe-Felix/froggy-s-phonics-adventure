@@ -37,6 +37,16 @@
       "default": "open",
       "description": "open = available for booking, booked = a parent has claimed it."
     },
+    "meeting_status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "completed",
+        "missed"
+      ],
+      "default": "scheduled",
+      "description": "Teacher's meeting outcome tracking. scheduled = upcoming/default, completed = meeting held, missed = family didn't show. Completed slots are excluded from print confirmations."
+    },
     "parent_name": {
       "type": "string",
       "default": "",
