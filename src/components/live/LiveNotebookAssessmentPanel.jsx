@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { requestWithRetry } from '@/lib/classroomSync';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,9 @@ import { useClassNames } from '@/hooks/useClassNames';
 export default function LiveNotebookAssessmentPanel({ onBack }) {
   const [session, setSession] = useState(null);
   const sessionRef = useRef(session);
+  const controlsQueueRef = useRef(new Map());
+  const [controlError, setControlError] = useState('');
+  const [controlsSaving, setControlsSaving] = useState(false);
   sessionRef.current = session;
   const { classList: CLASSES } = useClassNames();
   const [className, setClassName] = useState('');
@@ -68,7 +72,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     const unsub = base44.entities.LiveNotebookAssessment.subscribe((event) => {
       const eventId = event.id || event.data?.id;
       if (eventId !== session.id) return;
-      if (event.type === 'delete' || !event.data?.active) {
+      if (event.type === 'delete' || event.data?.active === false) {
         setSession(null);
         return;
       }
@@ -88,11 +92,49 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   }, [session?.id]);
 
   const updateSession = async (patch) => {
-    if (!session?.id) return;
-    setSession(prev => prev ? { ...prev, ...patch } : prev);
-    try {
-      await base44.entities.LiveNotebookAssessment.update(session.id, patch);
-    } catch {}
+    const current = sessionRef.current;
+    if (!current?.id) return false;
+
+    const id = current.id;
+    let channel = controlsQueueRef.current.get(id);
+
+    if (!channel) {
+      channel = { pending: null, running: null };
+      controlsQueueRef.current.set(id, channel);
+    }
+
+    channel.pending = { ...channel.pending, ...patch };
+    sessionRef.current = { ...current, ...patch };
+    setSession(sessionRef.current);
+
+    if (channel.running) return channel.running;
+
+    setControlsSaving(true);
+
+    channel.running = (async () => {
+      while (channel.pending) {
+        const next = channel.pending;
+        channel.pending = null;
+
+        try {
+          await requestWithRetry(() =>
+            base44.entities.LiveNotebookAssessment.update(id, next)
+          );
+          setControlError('');
+        } catch (error) {
+          channel.pending = { ...next, ...channel.pending };
+          setControlError('Teacher controls have NOT reached the server yet. Students may still be on the previous page. Use Retry controls.');
+          return false;
+        }
+      }
+
+      return true;
+    })().finally(() => {
+      channel.running = null;
+      setControlsSaving(false);
+    });
+
+    return channel.running;
   };
 
   const startSession = async () => {
@@ -134,7 +176,9 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
 
   const endSession = async () => {
     if (!session?.id) return;
-    await updateSession({ active: false, paused: false });
+    const saved = await updateSession({ active: false, paused: false });
+    if (saved !== true) return;
+    sessionRef.current = null;
     setSession(null);
     setSelectedAssignmentId('');
     setClassName('');
@@ -387,6 +431,22 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
 
   return (
     <div className="relative h-screen bg-slate-900 text-white overflow-hidden">
+      {(controlsSaving || controlError) && (
+        <div role="status" className="fixed left-3 top-16 z-[10002] max-w-lg rounded-xl bg-amber-100 text-amber-950 p-3 text-sm">
+          {controlsSaving
+            ? 'Sending teacher controls — not confirmed yet.'
+            : controlError}
+          {controlError && !controlsSaving && (
+            <button
+              type="button"
+              onClick={() => { void updateSession({}); }}
+              className="ml-3 font-bold underline"
+            >
+              Retry controls
+            </button>
+          )}
+        </div>
+      )}
       {/* Top bar */}
       <div className="fixed top-0 inset-x-0 z-[10000] h-14 flex items-center justify-between gap-3 px-4 bg-slate-950 border-b border-slate-700 shadow-xl">
         <div className="flex items-center gap-3 min-w-0">
