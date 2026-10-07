@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useRef, useLayoutEffect, useState, useImperativeHandle } from 'react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 import SentenceModelAnimation from './SentenceModelAnimation';
@@ -9,7 +9,8 @@ import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 // students can see how the letters sit on the lines, plus N blank practice
 // lines below for their own freehand writing (AnnotationCanvas overlay).
 const CANVAS_H = 375;
-const RENDER_H_PER_LINE = 100; // half of Letter Tracing Medium — compact per line
+const RENDER_H_PER_LINE = 140;
+const LEGACY_RENDER_H_PER_LINE = 100;
 const SKY_Y = 0.10 * CANVAS_H;
 const FENCE_Y = 0.367 * CANVAS_H;
 const GRASS_Y = 0.633 * CANVAS_H;
@@ -23,37 +24,64 @@ export default function SentenceWritingLines({
   scrub = null, onProgress = null,
 }) {
   const containerRef = useRef(null);
+  const viewportRef = useRef(null);
+  const inkRef = useRef(null);
+  const loadedRef = useRef(false);
+  const [panMode, setPanMode] = useState(false);
   const hasModel = !!modelText;
+  const savedHeight = Number(row.writing_strokes?.canvasHeight);
+  const legacyInk = Boolean(row.writing_strokes?.strokes?.length || row.writing_strokes?.history?.length);
+  const [lineHeight] = useState(() =>
+    savedHeight > 0 ? savedHeight / Math.max(1, lineCount)
+      : legacyInk ? LEGACY_RENDER_H_PER_LINE : RENDER_H_PER_LINE
+  );
   const totalLines = (hasModel ? 1 : 0) + lineCount;
-  const totalRenderH = totalLines * RENDER_H_PER_LINE;
-  const modelRenderH = hasModel ? RENDER_H_PER_LINE : 0;
-  const practiceRenderH = lineCount * RENDER_H_PER_LINE;
-  const [dims, setDims] = useState({ w: 300, h: totalRenderH });
+  const totalRenderH = totalLines * lineHeight;
+  const modelRenderH = hasModel ? lineHeight : 0;
+  const practiceRenderH = lineCount * lineHeight;
+  const [dims, setDims] = useState(null);
   const { settings: gs } = useTracingGuideSettings();
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const obs = new ResizeObserver((entries) => {
-      const { width } = entries[0].contentRect;
-      setDims({ w: Math.round(width), h: totalRenderH });
-    });
-    obs.observe(container);
-    return () => obs.disconnect();
-  }, [totalRenderH]);
+  useLayoutEffect(() => {
+    if (dims || !containerRef.current) return;
+    const saved = row.writing_strokes;
+    const savedWidth = Number(saved?.canvasWidth);
+    const legacyInk = !savedWidth && Boolean(saved?.strokes?.length || saved?.history?.length);
+    const width = savedWidth > 0
+      ? savedWidth
+      : legacyInk
+        ? Math.max(280, Math.round(containerRef.current.getBoundingClientRect().width))
+        : 800;
+    setDims({ w: width, h: totalRenderH });
+  }, [dims, row.writing_strokes, totalRenderH]);
+
+  useImperativeHandle(canvasRef, () => new Proxy({}, {
+    get(_, key) {
+      if (key === 'getStrokes') {
+        return () => {
+          if (!loadedRef.current || !inkRef.current || !dims) return undefined;
+          return {
+            ...inkRef.current.getStrokes(),
+            canvasWidth: dims.w,
+            canvasHeight: practiceRenderH,
+            normalized: true,
+          };
+        };
+      }
+      const value = inkRef.current?.[key];
+      return typeof value === 'function' ? value.bind(inkRef.current) : value;
+    },
+  }), [dims?.w, practiceRenderH]);
 
   useLayoutEffect(() => {
-    if (!canvasRef.current) return;
+    if (!dims || !inkRef.current || loadedRef.current) return;
     const data = row.writing_strokes;
-    if (data && Object.keys(data).length > 0) {
-      canvasRef.current.loadStrokes(data);
-    } else {
-      canvasRef.current.loadStrokes(null);
-    }
-  }, [row.writing_strokes]);
+    inkRef.current.loadStrokes(data && Object.keys(data).length ? data : null);
+    loadedRef.current = true;
+  }, [dims?.w, row.writing_strokes]);
 
   // viewBox maintains uniform scale so GuideKeyVisual isn't stretched
-  const vbW = dims.w * (CANVAS_H / RENDER_H_PER_LINE);
+  const vbW = (dims?.w || 800) * (CANVAS_H / lineHeight);
   const vbH = totalLines * CANVAS_H;
 
   // Model sentence auto-fit: the animation component handles its own scaling.
@@ -61,7 +89,28 @@ export default function SentenceWritingLines({
   const modelMaxX = vbW - 40;
 
   return (
-    <div ref={containerRef} className="relative" style={{ height: totalRenderH }}>
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2 py-1">
+        <button type="button" aria-pressed={panMode}
+          onClick={() => {
+            inkRef.current?.finishPendingStroke?.();
+            setPanMode(v => !v);
+          }}
+          className="min-h-11 rounded-lg border px-3 text-xs font-bold">
+          {panMode ? '✍️ Escribir' : '↔ Mover'}
+        </button>
+        <button type="button" aria-label="Mover a la izquierda"
+          onClick={() => viewportRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
+          className="min-h-11 min-w-11 rounded-lg border">←</button>
+        <button type="button" aria-label="Mover a la derecha"
+          onClick={() => viewportRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+          className="min-h-11 min-w-11 rounded-lg border">→</button>
+      </div>
+      <div ref={viewportRef} className="w-full overflow-x-auto overscroll-x-contain"
+        style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div ref={containerRef} className="relative"
+          style={{ width: dims?.w || '100%', height: totalRenderH }}>
+      {dims && <>
       <svg
         viewBox={`0 0 ${vbW} ${vbH}`}
         preserveAspectRatio="xMidYMid meet"
@@ -118,7 +167,9 @@ export default function SentenceWritingLines({
         style={{ top: modelRenderH, height: practiceRenderH }}
       >
         <AnnotationCanvas
-          ref={canvasRef}
+          ref={inkRef}
+          passThrough={panMode}
+          scrollContainerRef={viewportRef}
           width={dims.w}
           height={practiceRenderH}
           color={color}
@@ -127,6 +178,9 @@ export default function SentenceWritingLines({
           onStrokeStart={() => { onStrokeStart?.(); onActivateCanvas?.(canvasRef); onActivate?.(); }}
           onStrokeEnd={onStrokeEnd}
         />
+      </div>
+      </>}
+        </div>
       </div>
     </div>
   );
