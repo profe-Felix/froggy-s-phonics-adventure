@@ -92,7 +92,12 @@ export default function LetterTracingCanvas({
   const _aspect = TOTAL_W / CANVAS_H;
   let effectiveCopyWidth;
   let renderH;
-  if (Number(writingHeight) > 0) {
+  if (Number(writingHeight) > 0 && fillHeight && fitSize) {
+    // Fill the container but cap at the physical-inch target so the letter
+    // fits small landscape screens while never exceeding real size on big ones.
+    renderH = Math.min(Number(writingHeight), fitSize.height);
+    effectiveCopyWidth = renderH * (CANVAS_W / CANVAS_H);
+  } else if (Number(writingHeight) > 0) {
     renderH = Number(writingHeight);
     effectiveCopyWidth = renderH * (CANVAS_W / CANVAS_H);
   } else if (fillHeight && fitSize) {
@@ -350,10 +355,11 @@ export default function LetterTracingCanvas({
   // before paint, so the remounted canvas paints at the correct fill size.
   useLayoutEffect(() => {
     if (!fillHeight) return;
-    // When writingHeight is set (fixed physical size), skip container
-    // measurement entirely — the height is device-DPI-based, not viewport-
-    // based, so orientation changes must NOT resize the canvas.
-    if (Number(writingHeight) > 0) return;
+    // When writingHeight is set WITHOUT fillHeight, skip measurement — the
+    // height is device-DPI-based, not viewport-based. When BOTH are set, we
+    // DO measure so we can cap the letter at the physical target while still
+    // fitting small landscape screens.
+    if (Number(writingHeight) > 0 && !fillHeight) return;
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const measure = () => {
@@ -1284,18 +1290,18 @@ export default function LetterTracingCanvas({
       </div>
 
       {Number(writingHeight) > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 py-1 shrink-0">
+        <div className="flex flex-wrap justify-center gap-1.5 py-0.5 shrink-0">
           <button type="button" onClick={e => { handlePointerUp(e); setPanMode(v => !v); }}
             aria-pressed={panMode}
-            className="min-h-11 rounded-xl border px-3 text-sm font-bold">
+            className="h-8 rounded-lg border px-2.5 text-xs font-bold">
             {panMode ? '✍️ Write / Escribir' : '↔ Move / Mover'}
           </button>
           <button type="button" aria-label="Scroll writing left"
             onClick={() => wrapRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
-            className="min-h-11 min-w-11 rounded-xl border">←</button>
+            className="h-8 w-8 rounded-lg border text-sm">←</button>
           <button type="button" aria-label="Scroll writing right"
             onClick={() => wrapRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
-            className="min-h-11 min-w-11 rounded-xl border">→</button>
+            className="h-8 w-8 rounded-lg border text-sm">→</button>
         </div>
       )}
       <div
