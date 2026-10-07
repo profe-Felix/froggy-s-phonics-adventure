@@ -1069,15 +1069,15 @@ export default function SlideToReadCanvas({
   // ── Replay mode (no recording controls) ──
   if (replayData) {
     return (
-      <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
-        <div className="flex-1 relative overflow-hidden">
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
+        <div className="flex-1 min-h-[220px] relative overflow-hidden">
           <canvas
             ref={canvasRef}
             className="absolute inset-0 w-full h-full"
             style={{ touchAction: 'none' }}
           />
         </div>
-        <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2" style={{ background: '#f8f9fa' }}>
+        <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2 [&_button]:min-h-11" style={{ background: '#f8f9fa' }}>
           {!isReplaying ? (
             <motion.button whileTap={{ scale: 0.95 }} onClick={handleReplayDemo}
               className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
@@ -1098,9 +1098,9 @@ export default function SlideToReadCanvas({
 
     // ── Mic-enabled mode: CSS letter ink fill (replaces canvas slider) ──
     return (
-      <div className="flex flex-col h-full" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
         {/* Canvas */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 min-h-[220px] relative overflow-hidden">
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full"
@@ -1113,7 +1113,7 @@ export default function SlideToReadCanvas({
       </div>
 
       {/* Controls */}
-      <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2" style={{ background: '#f8f9fa' }}>
+      <div className="shrink-0 px-2 sm:px-4 pb-3 sm:pb-4 pt-2 [&_button]:min-h-11" style={{ background: '#f8f9fa' }}>
         {recordingState === 'idle' && (
           <motion.button whileTap={{ scale: 0.95 }} onClick={handleStartRecording}
             className="w-full py-2.5 sm:py-3 rounded-xl font-black text-white text-sm shadow-lg"
@@ -1129,7 +1129,7 @@ export default function SlideToReadCanvas({
             <p className="text-red-600 font-bold text-sm">
               {voiceState === 'denied' ? '🚫 Microphone access was blocked' : `⚠️ ${voice.errorMessage || 'Microphone error'}`}
             </p>
-            <div className="flex gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center">
               <button onClick={() => voice.start()}
                 className="px-4 py-2 rounded-xl font-bold text-white text-sm" style={{ background: '#0d9488' }}>
                 Try again
@@ -1148,7 +1148,7 @@ export default function SlideToReadCanvas({
                 ⏸ Pause — keep going!
               </div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {micEnabled && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
                   <Mic className="w-4 h-4 text-teal-600 animate-pulse" />
