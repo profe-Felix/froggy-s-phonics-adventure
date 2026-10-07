@@ -967,7 +967,7 @@ export default function LetterTracingMode({
       : `${SIZES[effectiveSize(currentLetter)]?.label || 'Huge'} ${currentPhase.label}`;
 
   return (
-    <div className="h-full bg-slate-50 flex flex-col items-center py-1.5 px-3 gap-1">
+    <div className="h-full min-h-0 min-w-0 bg-slate-50 flex flex-col items-center py-1.5 px-2 sm:px-3 gap-1">
       <div className="flex items-center justify-between w-full max-w-3xl gap-2 shrink-0">
         <button
           onClick={() => { setRedoMode(false); setCurrentLetter(null); setRedoSuccesses(0); }}
@@ -1033,6 +1033,7 @@ export default function LetterTracingMode({
           silent={silent}
           fillHeight
           sizeScale={sizeScale}
+          writingHeight={600 * sizeScale}
           onMistake={() => handleMistake(currentLetter)}
           onComplete={() => handleComplete(currentLetter)}
           onAccuracy={handleAccuracy}
