@@ -95,7 +95,9 @@ function calculateLayout(
   isPicturePhrase = false,
   phraseNoun = ''
 ) {
-  const padding = Math.max(16, canvasW * 0.06);
+  // Cap padding at 8% of height so wide landscape screens don't waste
+  // horizontal-margin space that should go to taller text.
+  const padding = Math.max(16, Math.min(canvasW * 0.06, canvasH * 0.08));
   const contentW = canvasW - padding * 2;
 
   const pillH = Math.max(6, canvasH * 0.014);
@@ -104,7 +106,7 @@ function calculateLayout(
   const clusterSpace = pillH + sliderH + thumbR * 2 + Math.max(6, canvasH * 0.01);
 
   let fontSize = 16, lines = null, lineHeight = 22;
-  const maxFs = Math.min(140, canvasH * 0.45, contentW * 0.28);
+  const maxFs = Math.min(140, canvasH * 0.55, contentW * 0.32);
 
   for (let fs = maxFs; fs >= 14; fs -= 1) {
     const wrapped = wrapLines(ctx, units, contentW, fs);
@@ -675,30 +677,38 @@ export default function SlideToReadCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // Debounce via rAF so orientation changes (which fire several rapid
+    // resizes with intermediate sizes) apply only the final stable size —
+    // prevents the canvas/text from jumping through intermediate states.
+    let rafId = null;
     const resize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-      const ctx = canvas.getContext('2d');
-      // Reset the transform BEFORE scaling — getContext('2d') returns the
-      // same context each call, so without setTransform the dpr scale
-      // accumulates on every resize (orientation change fires multiple
-      // resizes), causing the slider and text to drift/misalign.
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
-      ctxRef.current = ctx;
-      setCanvasSize({ w: rect.width, h: rect.height });
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const parent = canvas.parentElement;
+        if (!parent) return;
+        const rect = parent.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        const ctx = canvas.getContext('2d');
+        // Reset the transform BEFORE scaling — getContext('2d') returns the
+        // same context each call, so without setTransform the dpr scale
+        // accumulates on every resize (orientation change fires multiple
+        // resizes), causing the slider and text to drift/misalign.
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctxRef.current = ctx;
+        setCanvasSize({ w: rect.width, h: rect.height });
+      });
     };
     const obs = new ResizeObserver(resize);
     obs.observe(canvas.parentElement);
     resize();
-    return () => obs.disconnect();
+    return () => { if (rafId) cancelAnimationFrame(rafId); obs.disconnect(); };
   }, []);
 
   // ── Layout (only when text or canvas size changes) ──
@@ -1116,6 +1126,11 @@ export default function SlideToReadCanvas({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         />
+        {recordingState === 'recording' && micEnabled && hasHeardVoice && continuity < 0.15 && (
+          <div className="absolute top-2 left-0 right-0 text-center text-amber-600 font-bold text-sm animate-pulse pointer-events-none z-10">
+            ⏸ Pause — keep going!
+          </div>
+        )}
       </div>
 
       {/* Controls */}
@@ -1149,11 +1164,6 @@ export default function SlideToReadCanvas({
         )}
         {recordingState === 'recording' && (!micEnabled || voiceState === 'active') && (
           <>
-            {micEnabled && hasHeardVoice && continuity < 0.15 && (
-              <div className="text-center py-2 text-amber-600 font-bold text-sm animate-pulse">
-                ⏸ Pause — keep going!
-              </div>
-            )}
             <div className="flex flex-wrap items-center gap-2">
               {micEnabled && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 shrink-0">
