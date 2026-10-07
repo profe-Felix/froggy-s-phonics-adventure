@@ -231,11 +231,12 @@
     border: none !important;
     box-shadow: none !important;
     width: auto !important;
-    min-height: 0 !important;
+    min-height: 8in !important;
     padding: 0 !important;
   }
   .booklet-page .practice-sheet {
     padding: 0 !important;
+    gap: 0.25in !important;
   }
   .practice-sheet {
     padding: 0.1in 0 !important;

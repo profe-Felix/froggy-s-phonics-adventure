@@ -71,7 +71,7 @@ export default function BookletPractice() {
               <input type="checkbox" checked={showPageNumber} onChange={(e) => setShowPageNumber(e.target.checked)} className="w-4 h-4" />
               Page #
             </label>
-            <Button onClick={() => printWithPage('size: letter landscape; margin: 0')}>
+            <Button onClick={() => printWithPage('size: letter landscape; margin: 0.25in')}>
               <Printer className="w-4 h-4 mr-2" /> Print
             </Button>
           </div>
