@@ -36,6 +36,7 @@ export default function LetterTracingCanvas({
   silent = false,
   fillHeight = false,
   sizeScale = 1,
+  writingHeight = null,
   freehandMode = false,
   dotOnly = false,
   onFreehandStrokes,
@@ -83,6 +84,7 @@ export default function LetterTracingCanvas({
   // had a null container and never panned to the next copy.
   const wrapRef = useRef(null);
   const [fitSize, setFitSize] = useState(null);
+  const [panMode, setPanMode] = useState(false);
 
   // When fillHeight is set (e.g. the Letter Sounds feedback popup) the SVG
   // fills its measured container so the writing area stays as big as possible,
@@ -90,7 +92,10 @@ export default function LetterTracingCanvas({
   const _aspect = TOTAL_W / CANVAS_H;
   let effectiveCopyWidth;
   let renderH;
-  if (fillHeight && fitSize) {
+  if (Number(writingHeight) > 0) {
+    renderH = Number(writingHeight);
+    effectiveCopyWidth = renderH * (CANVAS_W / CANVAS_H);
+  } else if (fillHeight && fitSize) {
     const _vw2 = typeof window !== 'undefined' ? window.innerWidth : 800;
     const _vh2 = typeof window !== 'undefined' ? window.innerHeight : 800;
     const isPhone = Math.min(_vw2, _vh2) < 500;
@@ -1196,7 +1201,9 @@ export default function LetterTracingCanvas({
   }, [showGuide, drawing, awaitingLift, isSuccess, densePath, currentPath]);
 
   return (
-    <div className={fillHeight ? `flex flex-col h-full w-full select-none` : "flex flex-col items-center gap-3 select-none"}>
+    <div className={Number(writingHeight) > 0
+      ? "flex flex-col h-full w-full min-h-0 min-w-0 max-w-full overflow-hidden select-none"
+      : fillHeight ? `flex flex-col h-full w-full select-none` : "flex flex-col items-center gap-3 select-none"}>
       {/* Status prompt — fixed height is reserved ALWAYS. Previously this row
           collapsed to 0px when idle, so the moment the "Lift your finger!"
           banner appeared at stroke-end the canvas height dropped, the
@@ -1272,9 +1279,26 @@ export default function LetterTracingCanvas({
         )}
       </div>
 
+      {Number(writingHeight) > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 py-1 shrink-0">
+          <button type="button" onClick={e => { handlePointerUp(e); setPanMode(v => !v); }}
+            aria-pressed={panMode}
+            className="min-h-11 rounded-xl border px-3 text-sm font-bold">
+            {panMode ? '✍️ Write / Escribir' : '↔ Move / Mover'}
+          </button>
+          <button type="button" aria-label="Scroll writing left"
+            onClick={() => wrapRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
+            className="min-h-11 min-w-11 rounded-xl border">←</button>
+          <button type="button" aria-label="Scroll writing right"
+            onClick={() => wrapRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+            className="min-h-11 min-w-11 rounded-xl border">→</button>
+        </div>
+      )}
       <div
         ref={wrapRef}
-        className={fillHeight
+        className={Number(writingHeight) > 0
+          ? "flex-1 min-h-0 w-full overflow-auto"
+          : fillHeight
           ? `flex-1 min-h-0 flex items-center ${copyCount > 1 ? 'justify-start overflow-x-auto overflow-y-hidden' : 'justify-center'} w-full`
           : (Array.isArray(copies) && copies.length
               ? "w-full overflow-x-auto overflow-y-hidden"
@@ -1294,21 +1318,22 @@ export default function LetterTracingCanvas({
           margin: copyCount <= 1 ? '0 auto' : '0',
           width: `${totalRenderW}px`,
           height: `${renderH}px`,
-          cursor: 'crosshair',
-          touchAction: 'none',
+          flexShrink: 0,
+          cursor: panMode ? 'grab' : 'crosshair',
+          touchAction: panMode ? 'auto' : 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none'
         }}
         onContextMenu={(e) => e.preventDefault()}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
+        onPointerDown={panMode ? undefined : handlePointerDown}
+        onPointerMove={panMode ? undefined : handlePointerMove}
+        onPointerUp={panMode ? undefined : handlePointerUp}
+        onPointerCancel={panMode ? undefined : handlePointerUp}
+        onTouchStart={panMode ? undefined : handleTouchStart}
+        onTouchMove={panMode ? undefined : handleTouchMove}
+        onTouchEnd={panMode ? undefined : handleTouchEnd}
+        onTouchCancel={panMode ? undefined : handleTouchEnd}
       >
         {/* Guide letter removed until suitable font is found */}
 
