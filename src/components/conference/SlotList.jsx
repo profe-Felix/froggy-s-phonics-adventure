@@ -28,7 +28,7 @@ export default function SlotList({ slots, conferenceId }) {
     onSuccess: invalidate,
   });
   const setMeetingStatus = useMutation({
-    mutationFn: ({ id, meeting_status }) => base44.entities.ConferenceSlot.update(id, { meeting_status }),
+    mutationFn: ({ id, meeting_status }) => base44.functions.invoke('manageConferenceSlot', { slot_id: id, action: 'set_meeting_status', meeting_status }),
     onSuccess: invalidate,
   });
 

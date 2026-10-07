@@ -9,7 +9,8 @@ export default async function(req) {
   try {
     const body = await req.json();
     const slot_id = body?.slot_id;
-    const action = body?.action; // 'cancel' | 'delete'
+    const action = body?.action; // 'cancel' | 'delete' | 'set_meeting_status'
+    const meeting_status = body?.meeting_status; // for set_meeting_status: 'scheduled' | 'completed' | 'missed'
 
     if (!slot_id || !action) {
       return Response.json({ error: 'Missing slot_id or action' }, { status: 400 });
@@ -43,6 +44,11 @@ export default async function(req) {
     } else if (action === 'delete') {
       waitUntil(syncSlotToSheet(svc, slot, 'delete').catch(() => {}));
       await svc.entities.ConferenceSlot.delete(slot_id);
+    } else if (action === 'set_meeting_status') {
+      if (!['scheduled', 'completed', 'missed'].includes(meeting_status)) {
+        return Response.json({ error: 'Invalid meeting_status' }, { status: 400 });
+      }
+      await svc.entities.ConferenceSlot.update(slot_id, { meeting_status });
     } else {
       return Response.json({ error: 'Unknown action' }, { status: 400 });
     }
