@@ -17,9 +17,6 @@ export default async function(req) {
     }
 
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
     const svc = base44.asServiceRole;
 
     // Read the slot before mutating so the sheet sync has the original data.
