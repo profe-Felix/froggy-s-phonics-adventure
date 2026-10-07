@@ -1085,7 +1085,7 @@ export default function SlideToReadCanvas({
   // ── Replay mode (no recording controls) ──
   if (replayData) {
     return (
-      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg, paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="flex-1 min-h-[220px] relative overflow-hidden">
           <canvas
             ref={canvasRef}
@@ -1114,7 +1114,7 @@ export default function SlideToReadCanvas({
 
     // ── Mic-enabled mode: CSS letter ink fill (replaces canvas slider) ──
     return (
-      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg }}>
+      <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-y-auto" style={{ background: (THEMES[theme] || THEMES.default).bg, paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Canvas */}
       <div className="flex-1 min-h-[220px] relative overflow-hidden">
         <canvas
