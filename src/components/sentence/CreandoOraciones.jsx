@@ -129,6 +129,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
   // ── Save logic ──
   const doSave = useCallback(async () => {
     if (!sessionRef.current) return;
+    const savingId = sessionRef.current.id;
     const currentRows = (Array.isArray(sessionRef.current.rows) ? sessionRef.current.rows : DEFAULT_ROWS).map((row, i) => ({
       ...row,
       writing_strokes: writingRefs[i].current?.getStrokes() || row.writing_strokes || {},
@@ -148,8 +149,12 @@ export default function CreandoOraciones({ studentNumber, className, studentName
       art_mode: artModeRef.current, last_active: new Date().toISOString(),
     };
     try {
-      await base44.entities.SentenceActivitySession.update(sessionRef.current.id, payload);
-      sessionRef.current = { ...sessionRef.current, ...payload };
+      const snapshot = { ...sessionRef.current, ...payload };
+      if (sessionRef.current?.id === savingId) {
+        sessionRef.current = snapshot;
+      }
+      setAllPages(prev => prev.map(page => page.id === savingId ? { ...page, ...payload } : page));
+      await base44.entities.SentenceActivitySession.update(savingId, payload);
     } catch {}
   }, []);
 
@@ -213,9 +218,9 @@ export default function CreandoOraciones({ studentNumber, className, studentName
     activeCanvasHandle.current = canvasRef.current;
   };
 
-  const handleUndo = () => activeCanvasHandle.current?.undo();
-  const handleRedo = () => activeCanvasHandle.current?.redo();
-  const handleClear = () => activeCanvasHandle.current?.clearStrokes();
+  const handleUndo = () => activeCanvasHandle.current?.undo?.();
+  const handleRedo = () => activeCanvasHandle.current?.redo?.();
+  const handleClear = () => activeCanvasHandle.current?.clearStrokes?.();
 
   const handleArtModeToggle = (mode) => {
     // Save current coloring before switching
@@ -246,15 +251,23 @@ export default function CreandoOraciones({ studentNumber, className, studentName
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
+      <style>{`
+        @media (max-width: 639px), (max-height: 500px) {
+          .sentence-main-header, .sentence-picture-strip {
+            position: static !important;
+            top: auto !important;
+          }
+        }
+      `}</style>
       {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-30 px-4 py-2 flex items-center gap-3">
+      <div className="sentence-main-header bg-white border-b sm:sticky top-0 z-30 px-2 sm:px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3">
         {onBack && (
           <button onClick={onBack} className="text-slate-400 hover:text-slate-700">
             <ArrowLeft className="w-5 h-5" />
           </button>
         )}
         <h1 className="font-bold text-lg text-slate-800">Creando oraciones</h1>
-        <span className="text-xs text-slate-400">©Hola Bilinguals</span>
+        <span className="hidden sm:inline text-xs text-slate-400">©Hola Bilinguals</span>
         <div className="flex-1" />
         {/* Page navigation */}
         {allPages.length > 0 && (
@@ -307,7 +320,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
 
       {/* Worksheet */}
       <div className="flex-1 flex justify-center px-2 py-4">
-        <div className="w-full max-w-4xl bg-white rounded-xl shadow-lg border-2 border-slate-800 p-4 sm:p-6 relative">
+        <div className="w-full min-w-0 max-w-4xl bg-white rounded-xl shadow-lg border-2 border-slate-800 p-2 sm:p-6 relative">
           {/* Nombre line + page date */}
           <div className="flex items-center gap-2 mb-4">
             <span className="font-bold text-sm text-slate-700">Nombre:</span>
@@ -320,7 +333,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
           </div>
 
           {/* Card slots — sticky near top so students scroll to write */}
-          <div className="sticky top-12 z-20 bg-white -mx-4 sm:-mx-6 px-4 sm:px-6 pt-1 pb-3 mb-3 border-b border-slate-200 rounded-t-xl">
+          <div className="sentence-picture-strip sm:sticky sm:top-12 z-20 bg-white -mx-2 sm:-mx-6 px-2 sm:px-6 pt-1 pb-2 sm:pb-3 mb-2 sm:mb-3 border-b border-slate-200 rounded-t-xl">
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {CARD_CATEGORIES.map((cat) => {
                 // Hide 'where' slot in 2-part mode
@@ -404,6 +417,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
               return (
                 <div key={i}>
                   <SentenceWritingArea
+                    key={`${session?.id || 'pending'}-${i}`}
                     index={i}
                     row={row}
                     sentenceText={rowSentence}
