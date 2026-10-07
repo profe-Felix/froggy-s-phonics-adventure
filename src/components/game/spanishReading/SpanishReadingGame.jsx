@@ -1285,7 +1285,7 @@ export default function SpanishReadingGame({
   // ── Parent-led substep flow ── (when the lesson step has substeps configured)
   if (substeps && substeps.length > 0) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col">
+      <div className="fixed inset-0 z-50 flex flex-col min-h-0 min-w-0">
         <ParentLedReadingPlayer
           substeps={substeps}
           onComplete={onComplete || onBack}
@@ -1396,7 +1396,7 @@ export default function SpanishReadingGame({
           title="Session overview">
           📊
         </button>
-        <div className="w-20 sm:w-32 shrink-0">
+        <div className="w-14 sm:w-32 shrink-0">
           <RecordingsProgressBar studentNumber={studentNumber} className={className} refreshKey={refreshKey} />
         </div>
       </div>
@@ -1438,7 +1438,7 @@ export default function SpanishReadingGame({
           }}
         />
       ) : currentItem ? (
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto flex flex-col">
           <SlideToReadCanvas
             key={`${selectedSection}-${selectedModule}-${currentIdx}`}
             text={itemText}
