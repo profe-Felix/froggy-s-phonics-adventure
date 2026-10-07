@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import FreehandReplayModal from '@/components/tracing/FreehandReplayModal';
+import { inchesToCssPx } from '@/lib/physicalSize';
 
 const DEFAULT_ENABLED_LETTERS = ['o', 'O', 'i', 'I', 'a', 'A', 'u', 'U', 'e', 'E'];
 
@@ -46,6 +47,12 @@ const SIZE_LEVELS = [
 // renders visibly smaller. Geometric progression from 1.0 → 0.22 (each tier
 // ~74% of the previous), easing kids down to real lined-paper size on iPad.
 const SIZE_SCALES = [1.0, 0.74, 0.55, 0.40, 0.30, 0.22];
+
+// Canvas heights in physical inches for each size tier. Converted to CSS
+// pixels using the device's estimated DPI so the letter renders at the
+// same physical size on phones and tablets (Zaner-Bloser consistency).
+// Paper (1.1") gives a ~0.9" writing zone — close to standard manuscript paper.
+const SIZE_HEIGHTS_IN = [4.5, 3.3, 2.5, 1.8, 1.4, 1.1];
 
 const REQUIRED_CLEAN_STREAK = 2;
 const MAX_REPAIR_REPS = 2;
@@ -1033,7 +1040,7 @@ export default function LetterTracingMode({
           silent={silent}
           fillHeight
           sizeScale={sizeScale}
-          writingHeight={600 * sizeScale}
+          writingHeight={inchesToCssPx(SIZE_HEIGHTS_IN[currentSizeLevel] || 1.5)}
           onMistake={() => handleMistake(currentLetter)}
           onComplete={() => handleComplete(currentLetter)}
           onAccuracy={handleAccuracy}

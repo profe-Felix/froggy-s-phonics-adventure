@@ -3,14 +3,16 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 import SentenceModelAnimation from './SentenceModelAnimation';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import { inchesToCssPx } from '@/lib/physicalSize';
 
 // SVG-based handwriting guide lines matching Letter Tracing / Name Tracing size.
 // Supports an optional faint "model" sentence printed on a top guide line so
 // students can see how the letters sit on the lines, plus N blank practice
 // lines below for their own freehand writing (AnnotationCanvas overlay).
 const CANVAS_H = 375;
-const RENDER_H_PER_LINE = 140;
-const LEGACY_RENDER_H_PER_LINE = 100;
+// Line height in physical inches — consistent across phones and tablets.
+const LINE_HEIGHT_IN = 1.4;
+const LEGACY_LINE_HEIGHT_IN = 1.0;
 const SKY_Y = 0.10 * CANVAS_H;
 const FENCE_Y = 0.367 * CANVAS_H;
 const GRASS_Y = 0.633 * CANVAS_H;
@@ -33,7 +35,7 @@ export default function SentenceWritingLines({
   const legacyInk = Boolean(row.writing_strokes?.strokes?.length || row.writing_strokes?.history?.length);
   const [lineHeight] = useState(() =>
     savedHeight > 0 ? savedHeight / Math.max(1, lineCount)
-      : legacyInk ? LEGACY_RENDER_H_PER_LINE : RENDER_H_PER_LINE
+      : legacyInk ? inchesToCssPx(LEGACY_LINE_HEIGHT_IN) : inchesToCssPx(LINE_HEIGHT_IN)
   );
   const totalLines = (hasModel ? 1 : 0) + lineCount;
   const totalRenderH = totalLines * lineHeight;

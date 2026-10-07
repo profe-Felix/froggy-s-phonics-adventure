@@ -679,12 +679,18 @@ export default function SlideToReadCanvas({
       const parent = canvas.parentElement;
       if (!parent) return;
       const rect = parent.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
       canvas.style.width = rect.width + 'px';
       canvas.style.height = rect.height + 'px';
       const ctx = canvas.getContext('2d');
+      // Reset the transform BEFORE scaling — getContext('2d') returns the
+      // same context each call, so without setTransform the dpr scale
+      // accumulates on every resize (orientation change fires multiple
+      // resizes), causing the slider and text to drift/misalign.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
       ctxRef.current = ctx;
       setCanvasSize({ w: rect.width, h: rect.height });

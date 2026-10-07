@@ -8,6 +8,7 @@ import LetterTracingCanvas from '../LetterTracingCanvas';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { LETTER_FORMATION_GROUPS, isLetterSoundIntroduced } from '@/lib/literacy/letterFormationGroups';
+import { inchesToCssPx } from '@/lib/physicalSize';
 
 // Letter Tracing GROUP practice (game mode / free play). Students trace a
 // formation family together — all its letters on one ruled line, in
@@ -39,6 +40,9 @@ const GUIDE_W = 260;
 // Cap the per-letter width at the "Paper" size tier so the line never grows
 // beyond real handwriting size on wide screens.
 const PAPER_COPY_WIDTH = 220;
+// Physical-inch target for paper-size copies. Converted to CSS px per device
+// so the letter is the same physical size on phones and tablets.
+const PAPER_COPY_WIDTH_IN = 1.1 * (300 / 375); // ~0.88" per copy width
 
 const PHASES = [
   { key: 'guided', label: 'Trace', desc: 'Follow the dot guide' },
@@ -286,7 +290,8 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   // capping at real handwriting size.
   const copies = letters.map((l) => ({ letter: l, strokes: waypoints[l]?.strokes || [] }));
   const denom = letters.length + ((COPY_GAP * (letters.length - 1) + GUIDE_W) / CANVAS_W);
-  const fitCopyWidth = wrapW > 0 ? Math.min(PAPER_COPY_WIDTH, wrapW / denom) : PAPER_COPY_WIDTH;
+  const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN);
+  const fitCopyWidth = wrapW > 0 ? Math.min(physicalPaperCopyWidth, wrapW / denom) : physicalPaperCopyWidth;
 
   const handleComplete = () => {
     const nextLetterIdx = letterIdx + 1;
@@ -463,6 +468,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             dotOnly={dotOnly}
             silent={letterSilent}
             fillHeight
+            writingHeight={inchesToCssPx(4.5)}
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}

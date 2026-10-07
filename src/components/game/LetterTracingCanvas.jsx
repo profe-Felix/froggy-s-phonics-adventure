@@ -350,6 +350,10 @@ export default function LetterTracingCanvas({
   // before paint, so the remounted canvas paints at the correct fill size.
   useLayoutEffect(() => {
     if (!fillHeight) return;
+    // When writingHeight is set (fixed physical size), skip container
+    // measurement entirely — the height is device-DPI-based, not viewport-
+    // based, so orientation changes must NOT resize the canvas.
+    if (Number(writingHeight) > 0) return;
     const el = wrapRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const measure = () => {
@@ -360,7 +364,7 @@ export default function LetterTracingCanvas({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fillHeight]);
+  }, [fillHeight, writingHeight]);
 
   // Reset when letter changes
   useEffect(() => {
