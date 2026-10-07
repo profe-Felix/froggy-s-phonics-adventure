@@ -291,7 +291,9 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const copies = letters.map((l) => ({ letter: l, strokes: waypoints[l]?.strokes || [] }));
   const denom = letters.length + ((COPY_GAP * (letters.length - 1) + GUIDE_W) / CANVAS_W);
   const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN);
-  const fitCopyWidth = wrapW > 0 ? Math.min(physicalPaperCopyWidth, wrapW / denom) : physicalPaperCopyWidth;
+  // Always keep real physical size; if the line is wider than the screen
+  // (portrait phones), it scrolls horizontally instead of shrinking.
+  const fitCopyWidth = physicalPaperCopyWidth;
 
   const handleComplete = () => {
     const nextLetterIdx = letterIdx + 1;
@@ -433,6 +435,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
       {/* Canvas */}
       <div ref={wrapRef} className="flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center">
         {sizeMode === 'paper' ? (
+          <div className="w-full min-w-0">
           <LetterTracingCanvas
             key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-paper`}
             letter={currentLetter}
@@ -454,6 +457,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             wobbleRadius={60}
             offTravelBudget={150}
           />
+          </div>
         ) : (
           <LetterTracingCanvas
             key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-big`}
