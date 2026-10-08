@@ -23,7 +23,7 @@ function HalfPage({ lang, origin }) {
   const m = MESSAGES[lang];
   return (
     <div style={{
-      width: '8.5in', height: '5.5in', padding: '0.3in 0.5in',
+      width: '5.5in', height: '8.5in', padding: '0.4in 0.35in',
       boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
     }}>
@@ -37,7 +37,7 @@ function HalfPage({ lang, origin }) {
       </h2>
       <p style={{
         fontSize: '0.95rem', lineHeight: 1.5, color: '#475569',
-        marginBottom: '0.25in', textAlign: 'center', maxWidth: '6in',
+        marginBottom: '0.25in', textAlign: 'center', maxWidth: '4.5in',
       }}>
         {m.message}
       </p>
@@ -63,11 +63,10 @@ function HalfPage({ lang, origin }) {
 function FlyerPage({ lang, origin }) {
   return (
     <div className="flyer-sheet" style={{
-      width: '8.5in', height: '11in', display: 'flex',
-      flexDirection: 'column',
+      width: '11in', height: '8.5in', display: 'flex',
       background: '#fff', boxSizing: 'border-box',
     }}>
-      <div style={{ borderBottom: '2px dashed #94a3b8' }}>
+      <div style={{ borderRight: '2px dashed #94a3b8' }}>
         <HalfPage lang={lang} origin={origin} />
       </div>
       <HalfPage lang={lang} origin={origin} />
