@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Printer, Table, Loader2 } from 'lucide-react';
@@ -19,11 +19,11 @@ const MESSAGES = {
   },
 };
 
-function HalfPage({ lang, origin, qrRef }) {
+function HalfPage({ lang, origin }) {
   const m = MESSAGES[lang];
   return (
     <div style={{
-      width: '5.5in', height: '8.5in', padding: '0.4in 0.35in',
+      width: '8.5in', height: '5.5in', padding: '0.3in 0.5in',
       boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
     }}>
@@ -37,13 +37,13 @@ function HalfPage({ lang, origin, qrRef }) {
       </h2>
       <p style={{
         fontSize: '0.95rem', lineHeight: 1.5, color: '#475569',
-        marginBottom: '0.25in', textAlign: 'center', maxWidth: '4.5in',
+        marginBottom: '0.25in', textAlign: 'center', maxWidth: '6in',
       }}>
         {m.message}
       </p>
-      <div ref={qrRef} style={{
+      <div style={{
         background: '#fff', padding: '0.12in', borderRadius: '0.15in',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '0.2in',
+        marginBottom: '0.2in',
       }}>
         <QRCodeCanvas
           value={`${origin}/FieldTripLunch?lang=${lang}`}
@@ -60,23 +60,22 @@ function HalfPage({ lang, origin, qrRef }) {
   );
 }
 
-function FlyerContent({ lang, origin, qrRef }) {
+function FlyerPage({ lang, origin }) {
   return (
     <div className="flyer-sheet" style={{
-      width: '11in', height: '8.5in', display: 'flex',
+      width: '8.5in', height: '11in', display: 'flex',
+      flexDirection: 'column',
       background: '#fff', boxSizing: 'border-box',
     }}>
-      <div style={{ borderRight: '2px dashed #94a3b8' }}>
-        <HalfPage lang={lang} origin={origin} qrRef={qrRef} />
+      <div style={{ borderBottom: '2px dashed #94a3b8' }}>
+        <HalfPage lang={lang} origin={origin} />
       </div>
-      <HalfPage lang={lang} origin={origin} qrRef={qrRef} />
+      <HalfPage lang={lang} origin={origin} />
     </div>
   );
 }
 
 export default function FieldTripLunchFlyer() {
-  const qrRef = useRef(null);
-  const [lang, setLang] = useState('es');
   const [sheetUrl, setSheetUrl] = useState('');
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -116,22 +115,7 @@ export default function FieldTripLunchFlyer() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-base font-bold text-gray-800">🚌 Lunch Form Flyer</h1>
-          <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm ml-2">
-            <button
-              type="button"
-              onClick={() => setLang('es')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${lang === 'es' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-            >
-              Español
-            </button>
-            <button
-              type="button"
-              onClick={() => setLang('en')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${lang === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-            >
-              English
-            </button>
-          </div>
+          <span className="text-xs text-slate-400 ml-2">Front: Spanish · Back: English · Double-sided</span>
           <div className="flex-1" />
           <button
             onClick={() => window.print()}
@@ -161,10 +145,15 @@ export default function FieldTripLunchFlyer() {
         </div>
       </header>
 
-      {/* Flyer preview — landscape sheet with 2 portrait half-pages */}
-      <main className="flex justify-center py-6 overflow-x-auto">
+      {/* Flyer preview — portrait, two pages for double-sided printing */}
+      <main className="flex flex-col items-center gap-6 py-6 overflow-x-auto print:gap-0 print:py-0">
+        <div className="no-print text-xs font-bold text-slate-400 uppercase tracking-wide">Front — Spanish</div>
         <div className="printable flyer-printable shadow-2xl">
-          <FlyerContent lang={lang} origin={origin} qrRef={qrRef} />
+          <FlyerPage lang="es" origin={origin} />
+        </div>
+        <div className="no-print text-xs font-bold text-slate-400 uppercase tracking-wide">Back — English</div>
+        <div className="printable flyer-printable shadow-2xl">
+          <FlyerPage lang="en" origin={origin} />
         </div>
       </main>
     </div>

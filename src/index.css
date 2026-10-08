@@ -670,7 +670,7 @@
    (Spanish left, English right). Zero margin so the content fills the full
    sheet; a dashed cut line separates the two halves. */
 @page FieldTripFlyer {
-  size: letter landscape;
+  size: letter portrait;
   margin: 0;
 }
 .flyer-sheet {
@@ -681,11 +681,19 @@
 }
 @media print {
   .flyer-printable {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 11in !important;
-    height: 8.5in !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    box-shadow: none !important;
+    break-after: page;
+  }
+  .flyer-printable:last-child {
+    break-after: auto;
+  }
+  .flyer-printable * {
+    box-shadow: none !important;
   }
 }
 
