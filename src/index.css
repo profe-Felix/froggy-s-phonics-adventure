@@ -348,6 +348,14 @@
   margin-top: 0;
 }
 
+/* Named page for QR sheet printing — zero margin so the grid fills the
+   full 8.5in × 11in sheet. The .qr-grid padding (0.15in) provides the edge
+   spacing for cutting. More reliable than JS-injected @page rules. */
+@page QrSheet {
+  size: letter portrait;
+  margin: 0;
+}
+
 /* QR code print grid — portrait letter, 5 cols × 6 rows = 30 cards per sheet.
    Tight 0.01in gap for precision blade cutting (same as HFW cards). */
 .qr-grid {
@@ -358,6 +366,7 @@
   width: 100%;
   padding: 0.15in;
   box-sizing: border-box;
+  page: QrSheet;
 }
 .qr-card {
   break-inside: avoid;
@@ -378,9 +387,18 @@
   background: transparent;
 }
 
-/* QR code print layout — native window.print() shows only the QR grid.
-   @page rule is injected per-print by printWithPage() in JS — no @page here
-   so it can't override the injected rule. */
+/* QR code print layout — named @page QrSheet (above) sets zero margins.
+   The .qr-sheet-wrap class forces the sheet to fill the full page width,
+   overriding the global .sheet-wrap { width: auto } that would otherwise
+   leave it content-sized inside the flex container. */
+@media print {
+  .qr-sheet-wrap {
+    width: 100% !important;
+  }
+  .qr-sheet-wrap .sheet {
+    width: 100% !important;
+  }
+}
 @media print {
   .no-print {
     display: none !important;
