@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { ArrowLeft, Printer, RefreshCw, CheckCheck, Square, ZoomIn, ZoomOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { printWithPage } from '@/lib/printWithPage';
 
 const CARDS_PER_SHEET = 30; // 5 cols × 6 rows
 
@@ -168,7 +169,7 @@ export default function QRGenerator() {
               </button>
             )}
             <button
-              onClick={() => window.print()}
+              onClick={() => printWithPage('size: letter portrait; margin: 0;')}
               disabled={selectedStudents.length === 0}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-40"
             >
