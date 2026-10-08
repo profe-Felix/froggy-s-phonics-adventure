@@ -353,6 +353,7 @@
 .qr-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
+  grid-auto-rows: 1.5in;
   gap: 0.01in;
   width: 100%;
   padding: 0.15in;
@@ -370,7 +371,7 @@
   border: 1px dashed #cbd5e1;
   background: #fff;
   overflow: hidden;
-  min-height: 1.5in;
+  height: 1.5in;
 }
 .qr-card--empty {
   border: 1px dashed transparent;

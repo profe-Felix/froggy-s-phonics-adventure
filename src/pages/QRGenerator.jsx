@@ -17,11 +17,11 @@ const DEFAULT_PROGRESS = {
 
 export default function QRGenerator() {
   const [classes, setClasses] = useState([]);
-  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedClasses, setSelectedClasses] = useState(new Set());
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [selected, setSelected] = useState(new Set());
+  const [selected, setSelected] = useState(new Set()); // student ids
   const [zoom, setZoom] = useState(1.4);
   const [qrContext, setQrContext] = useState('school');
 
@@ -31,57 +31,71 @@ export default function QRGenerator() {
     base44.entities.Student.filter({ school_year: ACTIVE_SCHOOL_YEAR }, '-updated_date', 200).then(all => {
       const unique = [...new Set(all.map(s => s.class_name).filter(Boolean))].sort();
       setClasses(unique);
-      if (unique.length > 0) setSelectedClass(unique[0]);
+      if (unique.length > 0) setSelectedClasses(new Set(unique));
       setLoading(false);
     });
   }, []);
 
-  const loadStudents = async (cls) => {
-    const all = await base44.entities.Student.filter({ class_name: cls, school_year: ACTIVE_SCHOOL_YEAR });
+  const loadStudents = async (classList) => {
+    if (!classList || classList.size === 0) { setStudents([]); setSelected(new Set()); return; }
+    const results = await Promise.all(
+      Array.from(classList).map(cls =>
+        base44.entities.Student.filter({ class_name: cls, school_year: ACTIVE_SCHOOL_YEAR })
+      )
+    );
+    const all = results.flat();
     setStudents(all);
-    // Default: select all students that HAVE a barcode
-    setSelected(new Set(all.filter(s => s.barcode_number).map(s => s.student_number)));
+    setSelected(new Set(all.filter(s => s.barcode_number).map(s => s.id)));
   };
 
   useEffect(() => {
-    if (!selectedClass) return;
-    loadStudents(selectedClass);
-  }, [selectedClass]);
+    loadStudents(selectedClasses);
+  }, [selectedClasses]);
 
-  const ensureStudents = async () => {
-    setGenerating(true);
-    const existing = await base44.entities.Student.filter({ class_name: selectedClass, school_year: ACTIVE_SCHOOL_YEAR });
-    const existingNums = new Set(existing.map(s => s.student_number));
-    const missing = Array.from({ length: 30 }, (_, i) => i + 1).filter(n => !existingNums.has(n));
-    if (missing.length > 0) {
-      await base44.entities.Student.bulkCreate(missing.map(n => ({
-        student_number: n,
-        class_name: selectedClass,
-        school_year: ACTIVE_SCHOOL_YEAR,
-        mode_progress: DEFAULT_PROGRESS,
-        current_mode: 'letter_sounds'
-      })));
-    }
-    await loadStudents(selectedClass);
-    setGenerating(false);
-  };
-
-  const toggle = (num) => {
-    setSelected(prev => {
+  const toggleClass = (cls) => {
+    setSelectedClasses(prev => {
       const n = new Set(prev);
-      if (n.has(num)) n.delete(num); else n.add(num);
+      if (n.has(cls)) n.delete(cls); else n.add(cls);
       return n;
     });
   };
-  const selectAll = () => setSelected(new Set(students.filter(s => s.barcode_number).map(s => s.student_number)));
+
+  const ensureStudents = async () => {
+    setGenerating(true);
+    for (const cls of selectedClasses) {
+      const existing = await base44.entities.Student.filter({ class_name: cls, school_year: ACTIVE_SCHOOL_YEAR });
+      const existingNums = new Set(existing.map(s => s.student_number));
+      const missing = Array.from({ length: 30 }, (_, i) => i + 1).filter(n => !existingNums.has(n));
+      if (missing.length > 0) {
+        await base44.entities.Student.bulkCreate(missing.map(n => ({
+          student_number: n,
+          class_name: cls,
+          school_year: ACTIVE_SCHOOL_YEAR,
+          mode_progress: DEFAULT_PROGRESS,
+          current_mode: 'letter_sounds'
+        })));
+      }
+    }
+    await loadStudents(selectedClasses);
+    setGenerating(false);
+  };
+
+  const toggle = (id) => {
+    setSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+  const selectAll = () => setSelected(new Set(students.filter(s => s.barcode_number).map(s => s.id)));
   const clearAll = () => setSelected(new Set());
 
   // Only students with a barcode are eligible for printing
   const printableStudents = students
     .filter(s => s.barcode_number)
-    .sort((a, b) => a.student_number - b.student_number);
+    .sort((a, b) => (a.class_name || '').localeCompare(b.class_name || '') || a.student_number - b.student_number);
 
-  const selectedStudents = printableStudents.filter(s => selected.has(s.student_number));
+  const selectedStudents = printableStudents.filter(s => selected.has(s.id));
 
   // Paginate into sheets of 30
   const sheets = [];
@@ -89,8 +103,16 @@ export default function QRGenerator() {
     sheets.push(selectedStudents.slice(i, i + CARDS_PER_SHEET));
   }
 
-  const byNumber = {};
-  students.forEach(s => { byNumber[s.student_number] = s; });
+  // Group students by class for the checkbox grid
+  const byClass = {};
+  students.forEach(s => {
+    if (!s.class_name) return;
+    if (!byClass[s.class_name]) byClass[s.class_name] = {};
+    byClass[s.class_name][s.student_number] = s;
+  });
+
+  const multiClass = selectedClasses.size > 1;
+  const totalSlots = 30 * selectedClasses.size;
 
   return (
     <div className="min-h-screen bg-slate-200 print:bg-white">
@@ -135,7 +157,7 @@ export default function QRGenerator() {
                 <ZoomIn className="w-4 h-4" />
               </button>
             </div>
-            {selectedClass && students.length < 30 && (
+            {selectedClasses.size > 0 && students.length < totalSlots && (
               <button
                 onClick={ensureStudents}
                 disabled={generating}
@@ -157,8 +179,9 @@ export default function QRGenerator() {
       </header>
 
       <main className="py-8 print:py-0">
-        {/* Class picker + checkbox grid — no-print */}
+        {/* Class picker (multi-select) + checkbox grid — no-print */}
         <div className="no-print flex flex-col items-center gap-4 w-full max-w-3xl mx-auto mb-8">
+          <p className="text-xs text-gray-400">Tap multiple classes to print them together</p>
           <div className="flex gap-2 flex-wrap justify-center">
             {loading ? (
               <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
@@ -168,8 +191,8 @@ export default function QRGenerator() {
               classes.map(cls => (
                 <button
                   key={cls}
-                  onClick={() => setSelectedClass(cls)}
-                  className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClass === cls ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-blue-50'}`}
+                  onClick={() => toggleClass(cls)}
+                  className={`px-4 py-2 rounded-full font-medium text-sm transition ${selectedClasses.has(cls) ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border hover:bg-blue-50'}`}
                 >
                   Class {cls}
                 </button>
@@ -177,33 +200,43 @@ export default function QRGenerator() {
             )}
           </div>
 
-          {selectedClass && (
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
-                const s = byNumber[num];
-                const hasBarcode = s && s.barcode_number;
-                const checked = selected.has(num);
-                if (!hasBarcode) return (
-                  <div key={num} className="aspect-[3/4] rounded-xl border border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-gray-300">
-                    <span className="text-lg font-bold">{num}</span>
-                    <span className="text-[9px]">no barcode</span>
-                  </div>
-                );
+          {selectedClasses.size > 0 && (
+            <div className="flex flex-col gap-6 w-full">
+              {Array.from(selectedClasses).sort().map(cls => {
+                const classByNumber = byClass[cls] || {};
                 return (
-                  <button
-                    key={num}
-                    onClick={() => toggle(num)}
-                    className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${checked ? 'border-blue-500 ring-2 ring-blue-300 bg-white' : 'border-gray-200 bg-white opacity-50'}`}
-                  >
-                    {s?.photo_url && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
-                    <div className="relative z-10 flex flex-col items-center" style={{ textShadow: s?.photo_url ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
-                      <span className={`text-xl font-black ${s?.photo_url ? 'text-white' : 'text-gray-700'}`}>{num}</span>
-                      {s?.name && <span className={`text-[10px] font-bold ${s?.photo_url ? 'text-white' : 'text-gray-500'}`}>{s.name}</span>}
+                  <div key={cls} className="flex flex-col items-center gap-3">
+                    <h3 className="text-sm font-bold text-gray-600 uppercase tracking-wide">Class {cls}</h3>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {Array.from({ length: 30 }, (_, i) => i + 1).map(num => {
+                        const s = classByNumber[num];
+                        const hasBarcode = s && s.barcode_number;
+                        const checked = s && selected.has(s.id);
+                        if (!hasBarcode) return (
+                          <div key={num} className="aspect-[3/4] rounded-xl border border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-gray-300">
+                            <span className="text-lg font-bold">{num}</span>
+                            <span className="text-[9px]">no barcode</span>
+                          </div>
+                        );
+                        return (
+                          <button
+                            key={num}
+                            onClick={() => toggle(s.id)}
+                            className={`relative aspect-[3/4] rounded-xl border-2 overflow-hidden flex flex-col items-center justify-center transition ${checked ? 'border-blue-500 ring-2 ring-blue-300 bg-white' : 'border-gray-200 bg-white opacity-50'}`}
+                          >
+                            {s?.photo_url && <img src={s.photo_url} alt={String(num)} className="absolute inset-0 w-full h-full object-cover" />}
+                            <div className="relative z-10 flex flex-col items-center" style={{ textShadow: s?.photo_url ? '0 1px 4px rgba(0,0,0,0.7)' : 'none' }}>
+                              <span className={`text-xl font-black ${s?.photo_url ? 'text-white' : 'text-gray-700'}`}>{num}</span>
+                              {s?.name && <span className={`text-[10px] font-bold ${s?.photo_url ? 'text-white' : 'text-gray-500'}`}>{s.name}</span>}
+                            </div>
+                            <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 ${checked ? 'bg-blue-600' : 'bg-gray-400/70'}`}>
+                              {checked ? '✓' : ''}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className={`absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold z-20 ${checked ? 'bg-blue-600' : 'bg-gray-400/70'}`}>
-                      {checked ? '✓' : ''}
-                    </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -227,7 +260,9 @@ export default function QRGenerator() {
                         <div key={ci} className="qr-card">
                           <QRCodeSVG value={url} size={100} />
                           <div style={{ fontSize: '0.2in', fontWeight: 700, color: '#1e293b', marginTop: '0.03in', lineHeight: 1.1 }}>{s.student_number}</div>
-                          <div style={{ fontSize: '0.11in', color: '#64748b', lineHeight: 1.1, marginTop: '0.02in' }}>{s.name || `Class ${selectedClass}`}</div>
+                          <div style={{ fontSize: '0.11in', color: '#64748b', lineHeight: 1.1, marginTop: '0.02in', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                            {multiClass ? `Class ${s.class_name}` : (s.name || `Class ${s.class_name}`)}
+                          </div>
                         </div>
                       );
                     })}
