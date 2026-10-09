@@ -3,15 +3,13 @@
 // font has built-in directional arrows for letter formation), right = picture.
 // Designed for the "who" nouns from the Creando Oraciones card set.
 
-import WaypointWord from '@/components/print/WaypointWord';
-
 // Strip the Spanish article (El/La/Los/Las) from the noun text so students
 // practice only the noun itself on the handwriting lines.
 function stripArticle(text) {
   return String(text || '').replace(/^(El|La|Los|Las)\s+/i, '');
 }
 
-export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65, vOffset = 0, letterStyle = 'font', waypoints }) {
+export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65, vOffset = 0 }) {
   const g = lineGap; // gap between handwriting zones (inches)
   const asc = fontSize * 1.166667; // ascender height for baseline alignment
 
@@ -109,21 +107,6 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   borderTop: '2px solid #795548',
                 }}
               />
-              {letterStyle === 'waypoints' ? (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '0.2in',
-                    top: `${vOffset}in`,
-                    display: 'flex',
-                    gap: '0.25in',
-                  }}
-                >
-                  {stripArticle(noun.text).split(/\s+/).filter(Boolean).map((w, wi) => (
-                    <WaypointWord key={wi} word={w} waypoints={waypoints} lineGap={g} />
-                  ))}
-                </div>
-              ) : (
               <div
                 style={{
                   position: 'absolute',
@@ -138,7 +121,6 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
               >
                 {stripArticle(noun.text)}
               </div>
-              )}
             </div>
 
             {/* Right: picture */}
@@ -149,7 +131,9 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '0.08in',
-                borderLeft: '2px dotted #cbd5e1',
+                border: '2px dashed #475569',
+                borderRadius: '8px',
+                margin: '0.04in',
               }}
             >
               <img
@@ -157,7 +141,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 alt={noun.text}
                 style={{
                   maxWidth: '100%',
-                  maxHeight: `${3 * g - 0.16}in`,
+                  maxHeight: `${3 * g - 0.2}in`,
                   objectFit: 'contain',
                 }}
               />
