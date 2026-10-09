@@ -25,15 +25,13 @@ export default function NounPractice() {
     return pages;
   }, [rowsPerPage]);
 
-  // Line gap grows with font size so handwriting lines always fit the text;
-  // also auto-fits to page height when font is small.
+  // Auto-fit line gap to page height based on rows per page only.
   const lineGap = useMemo(() => {
     const usableHeight = 10.5;
     const gapBetweenRows = 0.12;
     const totalGaps = (rowsPerPage - 1) * gapBetweenRows;
-    const autoFit = (usableHeight - totalGaps) / (3 * rowsPerPage);
-    return Math.max(autoFit, fontSize * 1.25);
-  }, [rowsPerPage, fontSize]);
+    return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
+  }, [rowsPerPage]);
 
   // Scale the 8.5in page down to fit the viewport
   useEffect(() => {
