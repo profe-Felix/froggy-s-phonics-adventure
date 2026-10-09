@@ -1236,31 +1236,40 @@ export default function AdaptiveWordPractice({
               Usa el teclado para escribir la {targetTypeLabel}.
             </p>
 
-            <div className="flex items-center gap-1 flex-wrap justify-center max-w-2xl">
-              {[...String(currentTarget || '')].map((c, i) => {
-                const isTyped = i < typed.length;
-                const charCorrect = buildError ? buildCharResults[i] : null;
-                return (
-                  <div
-                    key={i}
-                    className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
-                      buildCorrect
-                        ? 'border-green-400 bg-green-50 text-green-600'
-                        : buildError
-                          ? charCorrect
-                            ? 'border-green-400 bg-green-50 text-green-600'
-                            : 'border-red-400 bg-red-50 text-red-500'
-                          : isTyped
-                            ? 'border-blue-400 bg-blue-50 text-blue-700'
-                            : i === typed.length
-                              ? 'border-blue-300 bg-blue-50/50 text-blue-200 animate-pulse'
-                              : 'border-gray-200 bg-gray-50 text-gray-300'
-                    }`}
-                  >
-                    {isTyped ? typed[i] : ''}
-                  </div>
-                );
-              })}
+            <div
+              className={`min-h-[72px] w-full max-w-md rounded-2xl border-4 flex items-center justify-center px-6 py-3 ${
+                buildCorrect
+                  ? 'border-green-400 bg-green-50'
+                  : buildError
+                    ? 'border-red-300 bg-red-50/30'
+                    : 'border-blue-300 bg-blue-50/50'
+              }`}
+            >
+              {typed.length === 0 && !buildError && !buildCorrect ? (
+                <span className="text-3xl">✏️</span>
+              ) : (
+                <div className="flex items-center gap-1 flex-wrap justify-center">
+                  {[...String(typed || '')].map((c, i) => {
+                    const charCorrect = buildError ? buildCharResults[i] : null;
+                    return (
+                      <span
+                        key={i}
+                        className={`text-4xl md:text-5xl font-black lowercase ${
+                          buildCorrect
+                            ? 'text-green-600'
+                            : buildError
+                              ? charCorrect
+                                ? 'text-green-600'
+                                : 'text-red-500'
+                              : 'text-blue-700'
+                        }`}
+                      >
+                        {c}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {buildCorrect ? (
