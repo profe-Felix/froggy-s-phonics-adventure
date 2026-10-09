@@ -97,14 +97,14 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   borderTop: '2px solid #43a047',
                 }}
               />
-              {/* Dirt line (bottom) */}
+              {/* Dirt line (bottom) — darker brown like the sky's dark line */}
               <div
                 style={{
                   position: 'absolute',
                   top: `${3 * g}in`,
                   left: 0,
                   right: 0,
-                  borderTop: '2px solid #795548',
+                  borderTop: '2px solid #4e342e',
                 }}
               />
               <div
@@ -132,7 +132,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '0.06in',
-                border: '2px solid #2e7d32',
+                border: '4px solid #2e7d32',
                 boxSizing: 'border-box',
                 height: `${3 * g}in`,
               }}
