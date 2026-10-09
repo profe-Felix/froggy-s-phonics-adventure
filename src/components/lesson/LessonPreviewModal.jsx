@@ -23,6 +23,14 @@ const STEP_COLORS = {
 };
 const FALLBACK_COLOR = '#52d5e8';
 
+const WEEKDAYS = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+];
+
 // Rotated star badge — filled (completed) or outlined (incomplete).
 function StarBadge({ filled }) {
   return (
@@ -400,7 +408,16 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
   const body = studentName
     ? `${studentName} will ${subtitle.charAt(0).toLowerCase()}${subtitle.slice(1)}`
     : subtitle;
-  const steps = lesson.steps || [];
+  const hasDailyLessons = (lesson.daily_lessons || []).length > 0;
+  const steps = lesson.steps?.length > 0
+    ? lesson.steps
+    : hasDailyLessons
+      ? WEEKDAYS.map(({ value, label }) => {
+          const dl = (lesson.daily_lessons || []).find(d => d.day === value);
+          if (!dl || dl.active === false || !(dl.steps || []).length) return null;
+          return { title: label, emoji: '📅', color: 'blue' };
+        }).filter(Boolean)
+      : [];
 
   return (
     <div className="lp-overlay">
@@ -446,7 +463,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                     className="lp-step"
                     type="button"
                     aria-label={`${step.title}, lesson step ${i + 1}`}
-                    onClick={() => onStartStep?.(step, i, lesson)}
+                    onClick={() => lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay()}
                   >
                     <div className="lp-step-card" style={{ background: color }}>
                       <span className="lp-number">{i + 1}</span>
