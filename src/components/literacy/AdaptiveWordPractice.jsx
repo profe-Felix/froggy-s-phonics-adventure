@@ -712,7 +712,8 @@ export default function AdaptiveWordPractice({
   useEffect(() => {
     if (
       !currentTarget ||
-      stage !== 'build'
+      (stage !== 'build' &&
+        stage !== 'freehand')
     ) {
       return;
     }
@@ -1057,7 +1058,8 @@ export default function AdaptiveWordPractice({
                 : 'palabras'}
             </p>
 
-            {stage === 'build' ? (
+            {stage === 'build' ||
+            stage === 'freehand' ? (
               <div className="mt-2 flex items-center gap-3">
                 <button
                   type="button"
@@ -1080,7 +1082,9 @@ export default function AdaptiveWordPractice({
 
                 <div>
                   <h2 className="text-xl font-black text-slate-800">
-                    Escucha y construye
+                    {stage === 'freehand'
+                      ? 'Escucha y escribe'
+                      : 'Escucha y construye'}
                   </h2>
 
                   <p className="text-sm font-semibold text-slate-500">
@@ -1146,82 +1150,74 @@ export default function AdaptiveWordPractice({
           </div>
         </div>
 
+        {stage === 'freehand' && (
+          <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-blue-100 bg-white p-6 shadow-sm gap-4">
+            <div className="text-center">
+              <h3 className="text-2xl font-black text-slate-800">
+                Intenta escribir la {targetTypeLabel}
+              </h3>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Escribe lo que escuchas en las líneas. No te preocupes si no sale bien.
+              </p>
+            </div>
+            <FreehandWriteCanvas onNext={finishFreehand} />
+          </div>
+        )}
+
         {stage === 'build' && (
-          <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-blue-100 bg-white p-6 shadow-sm gap-4">
             <h3 className="text-2xl font-black text-slate-800">
               Construye la {targetTypeLabel}
             </h3>
 
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              Toca las letras en el orden correcto.
+            <p className="text-sm font-semibold text-slate-500">
+              Usa el teclado para escribir la {targetTypeLabel}.
             </p>
 
-            <div
-              className={`mt-5 flex min-h-24 min-w-[280px] flex-wrap items-center justify-center gap-2 rounded-3xl border-4 border-dashed px-5 py-4 ${
-                buildError
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-blue-200 bg-blue-50'
-              }`}
-            >
-              {builtTiles.length === 0 && (
-                <span className="text-sm font-bold text-blue-300">
-                  La {targetTypeLabel} va aquí
-                </span>
-              )}
-
-              {builtTiles.map(
-                (tile, index) => (
-                  <button
-                    key={tile.id}
-                    type="button"
-                    onClick={() =>
-                      removeBuiltTile(
-                        tile,
-                        index
-                      )
-                    }
-                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl border-2 border-blue-300 bg-white px-4 text-3xl font-black text-blue-700 shadow-sm"
+            <div className="flex items-center gap-1 flex-wrap justify-center max-w-2xl">
+              {[...String(currentTarget || '')].map((c, i) => {
+                const isTyped = i < typed.length;
+                const isCorrect = isTyped && typed[i] === c;
+                return (
+                  <div
+                    key={i}
+                    className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
+                      buildError
+                        ? 'border-red-400 bg-red-50 text-red-500'
+                        : isTyped
+                          ? 'border-blue-400 bg-blue-50 text-blue-700'
+                          : i === typed.length
+                            ? 'border-blue-300 bg-blue-50/50 text-blue-200 animate-pulse'
+                            : 'border-gray-200 bg-gray-50 text-gray-300'
+                    }`}
                   >
-                    {tile.letter}
-                  </button>
-                )
-              )}
+                    {isTyped ? typed[i] : ''}
+                  </div>
+                );
+              })}
             </div>
 
             {buildError && (
-              <p className="mt-3 font-black text-red-500">
+              <p className="font-black text-red-500">
                 Inténtalo otra vez.
               </p>
             )}
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              {availableTiles.map(
-                (tile) => (
-                  <button
-                    key={tile.id}
-                    type="button"
-                    onClick={() =>
-                      chooseTile(tile)
-                    }
-                    className="flex h-16 min-w-14 items-center justify-center rounded-2xl bg-amber-300 px-4 text-3xl font-black text-amber-950 shadow-md"
-                  >
-                    {tile.letter}
-                  </button>
-                )
-              )}
-            </div>
+            {typed.length > 0 && (
+              <button
+                type="button"
+                onClick={handleBackspace}
+                className="text-sm text-gray-500 hover:text-gray-700 font-bold inline-flex items-center gap-1"
+              >
+                ⌫ Borrar
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={checkBuild}
-              disabled={
-                builtTiles.length !==
-                currentTarget.length
-              }
-              className="mt-8 rounded-2xl bg-blue-600 px-8 py-3 text-lg font-black text-white shadow-md disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              Revisar
-            </button>
+            <MissingLetterKeyboard
+              introducedSet={introducedSet}
+              onKeyPress={handleKeyPress}
+              disabled={buildError}
+            />
           </div>
         )}
 
