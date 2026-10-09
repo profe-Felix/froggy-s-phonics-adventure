@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock } from 'lucide-react';
+import { Lock, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 
 // Renders a Sound Wall card image with optional covers drawn over it.
 // The cover whose id matches activeRevealId animates away (slides up + fades)
 // when the student taps it, "unlocking" the sound underneath.
 // Other covers stay in place as static hidden parts.
 //
-// The stored image_url is already the red-processed version (the upload flow
-// saves UP_<name> as image_url), so we display it directly — matching the
-// Sound Wall Manager. No per-render canvas pixel-scan (which could fail on
-// CORS and leave the image blank).
+// The stored image_url is already the red-processed + optimized version
+// (the upload flow saves it as image_url), so we display it directly.
+// No per-render canvas pixel-scan.
 //
 // covers: [{ id, x_pct, y_pct, w_pct, h_pct, label }]
 // activeRevealId: string | ''
@@ -20,10 +19,15 @@ export default function RevealCard({ card, className = '' }) {
   const [revealedIds, setRevealedIds] = useState(() => new Set());
   const processedImageUrl = card?.imageUrl;
 
-  // Reset revealed state whenever the card changes so the reveal can replay.
+  // Image load state: 'loading' | 'loaded' | 'error'
+  const [imgState, setImgState] = useState('loading');
+  const [retryKey, setRetryKey] = useState(0);
+
+  // Reset revealed state and image load state whenever the card changes.
   useEffect(() => {
     setRevealedIds(new Set());
-  }, [card?.imageUrl, card?.id]);
+    setImgState('loading');
+  }, [card?.imageUrl, card?.id, retryKey]);
 
   const reveal = (id) => {
     if (!id) return;
@@ -33,18 +37,52 @@ export default function RevealCard({ card, className = '' }) {
   return (
     <div className={`relative w-full h-full ${className}`}>
       {processedImageUrl ? (
-        <img src={processedImageUrl} alt={card?.label || 'Sound card'} className="absolute inset-0 w-full h-full object-contain" />
+        <>
+          {imgState !== 'error' && (
+            <img
+              key={retryKey}
+              src={processedImageUrl}
+              alt={card?.label || 'Sound card'}
+              className="absolute inset-0 w-full h-full object-contain"
+              onLoad={() => setImgState('loaded')}
+              onError={() => setImgState('error')}
+              draggable={false}
+            />
+          )}
+
+          {/* Loading overlay */}
+          {imgState === 'loading' && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            </div>
+          )}
+
+          {/* Error overlay with retry */}
+          {imgState === 'error' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-50 p-4 text-center">
+              <AlertCircle className="w-8 h-8 text-red-400" />
+              <p className="text-xs font-bold text-slate-500">Image failed to load</p>
+              <button
+                onClick={() => {
+                  setImgState('loading');
+                  setRetryKey((k) => k + 1);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-xs font-bold shadow hover:bg-indigo-600 transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Retry
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
       )}
 
-      {/* Covers */}
-      {covers.map((c) => {
+      {/* Covers — only show once the image is loaded, so they don't float over a blank card */}
+      {imgState === 'loaded' && covers.map((c) => {
         const isActive = c.id === activeRevealId;
         const isRevealed = revealedIds.has(c.id);
 
-        // Non-active covers are always visible (static hidden parts).
-        // The active cover is visible until the student taps to unlock it.
         if (!isActive || isRevealed) return null;
 
         return (

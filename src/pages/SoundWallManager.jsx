@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { replaceBlueWithRed, dataUrlToBlob } from '@/lib/blueToRed';
-import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft, Layers } from 'lucide-react';
+import { optimizeImage, checkImageNeedsOptimization } from '@/lib/imageOptimize';
+import { invalidateCards } from '@/lib/soundWallCardCache';
+import { Upload, Trash2, Loader2, Image as ImageIcon, FileText, ArrowLeft, Layers, Zap } from 'lucide-react';
 import { getCurriculumPositionList, getGraphemesAtKey } from '@/lib/literacy/curriculumPositions';
 import { pdfFirstPageToPng, isPdfFile } from '@/lib/pdfToImage';
 import CardCoverEditor from '@/components/soundwall/CardCoverEditor';
@@ -54,24 +55,25 @@ export default function SoundWallManager() {
         imageFile = new File([pngBlob], `${grapheme}_${cardType}.png`, { type: 'image/png' });
       }
 
-      const ext = (imageFile.name.split('.').pop() || 'png').toLowerCase();
       const baseName = `${grapheme}_${cardType}`;
 
       // 1. Upload the original as OG_<name> (backup with blue/orange frame).
-      const ogFile = new File([imageFile], `OG_${baseName}.${ext}`, { type: imageFile.type });
+      const ogExt = (imageFile.name.split('.').pop() || 'png').toLowerCase();
+      const ogFile = new File([imageFile], `OG_${baseName}.${ogExt}`, { type: imageFile.type });
       const { file_url: originalUrl } = await base44.integrations.Core.UploadPublicFile({ file: ogFile });
 
-      // 2. Process blue/orange → red on canvas.
-      const processedDataUrl = await replaceBlueWithRed(originalUrl);
+      // 2. Optimize: resize to max 1200px, replace blue/orange frame → red,
+      //    and convert to WebP. This produces a small display image (~50-200KB
+      //    instead of ~100MB) that loads instantly.
+      const { blob: optimizedBlob } = await optimizeImage(originalUrl, {
+        maxEdge: 1200,
+        quality: 0.85,
+        replaceFrame: true,
+      });
 
-      let finalUrl = originalUrl;
-      if (processedDataUrl !== originalUrl) {
-        // 3. Frame was replaced — upload processed version as UP_<name>.
-        const processedBlob = dataUrlToBlob(processedDataUrl);
-        const upFile = new File([processedBlob], `UP_${baseName}.png`, { type: 'image/png' });
-        const { file_url: upUrl } = await base44.integrations.Core.UploadPublicFile({ file: upFile });
-        finalUrl = upUrl;
-      }
+      // 3. Upload the optimized display image.
+      const upFile = new File([optimizedBlob], `UP_${baseName}.webp`, { type: 'image/webp' });
+      const { file_url: upUrl } = await base44.integrations.Core.UploadPublicFile({ file: upFile });
 
       // Check if a card already exists for this grapheme + type at this position.
       const existing = cards.find(
@@ -82,7 +84,7 @@ export default function SoundWallManager() {
         card_type: cardType,
         grapheme,
         label,
-        image_url: finalUrl,
+        image_url: upUrl,
         original_image_url: originalUrl,
         curriculum_key: selectedKey,
         module_number: positionInfo?.moduleNumber,
@@ -97,6 +99,7 @@ export default function SoundWallManager() {
         await base44.entities.SoundWallCard.create(payload);
       }
 
+      invalidateCards();
       await loadCards(selectedKey);
     } catch (err) {
       alert('Upload failed: ' + (err.message || 'Unknown error'));
@@ -109,48 +112,84 @@ export default function SoundWallManager() {
     if (!confirm('Delete this card?')) return;
     try {
       await base44.entities.SoundWallCard.delete(cardId);
+      invalidateCards();
       setCards((prev) => prev.filter((c) => c.id !== cardId));
     } catch {
       alert('Could not delete card.');
     }
   };
 
-  // Batch-process all existing cards across all curriculum positions.
-  // Downloads each card image, replaces the frame color, uploads the
-  // processed version as UP_<name>, and updates image_url so students
-  // see red immediately without client-side canvas processing.
-  const handleProcessAll = async () => {
-    if (!confirm('This will process ALL Sound Wall cards across all positions — replacing blue/orange frames with red and saving the result. Continue?')) return;
+  // Batch-optimize all existing cards across all curriculum positions.
+  // For each card: checks if the image needs optimization (HEAD request for
+  // size/type), and if so, downloads it, resizes to max 1200px, replaces
+  // blue/orange frames with red, converts to WebP, uploads the optimized
+  // version, and updates image_url — preserving the original as backup.
+  //
+  // Resumable: skips cards whose images are already optimized (small WebP).
+  // Safe: updates image_url only after the new file uploads successfully.
+  // Does not create duplicate records or delete original files.
+  const handleOptimizeAll = async () => {
+    if (!confirm('This will optimize ALL Sound Wall cards — resizing to 1200px max, replacing blue/orange frames with red, and converting to WebP. Already-optimized cards are skipped. Continue?')) return;
     setProcessingAll(true);
-    let total = 0, processed = 0, skipped = 0, failed = 0;
+    let total = 0, optimized = 0, skipped = 0, failed = 0;
+    const failures = [];
 
     for (const pos of positions) {
-      setProcessProgress(`${pos.key}…`);
+      setProcessProgress(`${pos.key} (${optimized + skipped + failed}/${total})…`);
       try {
         const posCards = await base44.entities.SoundWallCard.filter({ curriculum_key: pos.key });
         for (const card of posCards) {
           if (!card.image_url) continue;
           total++;
           try {
-            const processedDataUrl = await replaceBlueWithRed(card.image_url);
-            if (processedDataUrl === card.image_url) {
-              skipped++; // already red or no frame detected
+            // Check if already optimized (small WebP).
+            const check = await checkImageNeedsOptimization(card.image_url);
+            if (!check.needsOptimization) {
+              skipped++;
               continue;
             }
 
+            // Try image_url first; fall back to original_image_url if the
+            // image_url is broken (some old UP_ uploads returned 400).
+            let sourceUrl = card.image_url;
+            let optimizeResult;
+            try {
+              optimizeResult = await optimizeImage(sourceUrl, {
+                maxEdge: 1200,
+                quality: 0.85,
+                replaceFrame: true,
+              });
+            } catch {
+              if (card.original_image_url && card.original_image_url !== card.image_url) {
+                sourceUrl = card.original_image_url;
+                optimizeResult = await optimizeImage(sourceUrl, {
+                  maxEdge: 1200,
+                  quality: 0.85,
+                  replaceFrame: true,
+                });
+              } else {
+                throw new Error('Image load failed (no fallback available)');
+              }
+            }
+            const { blob: optimizedBlob } = optimizeResult;
+
             const baseName = `${card.grapheme}_${card.card_type}`;
-            const processedBlob = dataUrlToBlob(processedDataUrl);
-            const upFile = new File([processedBlob], `UP_${baseName}.png`, { type: 'image/png' });
+            const upFile = new File([optimizedBlob], `UP_${baseName}.webp`, { type: 'image/webp' });
             const { file_url: upUrl } = await base44.integrations.Core.UploadPublicFile({ file: upFile });
 
+            // Update image_url only after successful upload. Preserve
+            // original_image_url as backup (set it if missing or if we
+            // used it as the fallback source.
+            const originalToPreserve = card.original_image_url || (sourceUrl !== card.image_url ? sourceUrl : card.image_url);
             await base44.entities.SoundWallCard.update(card.id, {
               image_url: upUrl,
-              original_image_url: card.image_url,
+              original_image_url: originalToPreserve,
             });
-            processed++;
+            optimized++;
           } catch (err) {
-            console.error(`Failed to process ${card.grapheme} ${card.card_type}:`, err);
+            console.error(`Failed to optimize ${card.grapheme} ${card.card_type}:`, err);
             failed++;
+            failures.push(`${card.grapheme} (${card.card_type}): ${err.message || 'error'}`);
           }
         }
       } catch (err) {
@@ -160,8 +199,15 @@ export default function SoundWallManager() {
 
     setProcessingAll(false);
     setProcessProgress('');
+    invalidateCards();
     await loadCards(selectedKey);
-    alert(`Done!\nProcessed: ${processed}\nAlready red: ${skipped}\nFailed: ${failed}\nTotal: ${total}`);
+
+    const summary = `Done!\nOptimized: ${optimized}\nAlready optimized: ${skipped}\nFailed: ${failed}\nTotal: ${total}`;
+    if (failures.length > 0) {
+      alert(summary + '\n\nFailures:\n' + failures.slice(0, 10).join('\n'));
+    } else {
+      alert(summary);
+    }
   };
 
   const getCardFor = (grapheme, cardType) =>
@@ -180,17 +226,20 @@ export default function SoundWallManager() {
           </h1>
           <div className="flex-1" />
           <button
-            onClick={handleProcessAll}
+            onClick={handleOptimizeAll}
             disabled={processingAll}
-            className="text-sm font-bold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg disabled:opacity-60 flex items-center gap-1.5"
+            className="text-sm font-bold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg disabled:opacity-60 flex items-center gap-1.5"
           >
             {processingAll ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {processProgress || 'Processing…'}
+                {processProgress || 'Optimizing…'}
               </>
             ) : (
-              'Process all cards'
+              <>
+                <Zap className="w-3.5 h-3.5" />
+                Optimize all cards
+              </>
             )}
           </button>
           <a

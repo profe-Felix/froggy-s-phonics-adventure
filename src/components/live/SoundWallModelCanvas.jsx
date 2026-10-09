@@ -4,15 +4,14 @@ import { base44 } from '@/api/base44Client';
 import CameraMirror from '@/components/soundwall/CameraMirror';
 import RevealCard from '@/components/soundwall/RevealCard';
 import { playLetterSound } from '@/lib/audio';
+import { getCachedCards, invalidateCards, fetchWithRetry } from '@/lib/soundWallCardCache';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import { ChevronRight, Volume2, Check } from 'lucide-react';
 
 // Teacher's model panel for the Sound Wall activity during a live lesson.
 // Loads phoneme + grapheme cards from the SoundWallCard entity (by curriculum
-// key) or falls back to manual step config. Drives a sequential progression:
-//   1. Phoneme mouth card — "We make it this way"
-//   2. Camera mirror      — "Now you try it!"
-//   3. Grapheme card      — "This sound is written as…"
-// The teacher advances with "Show next"; student mirrors follow in realtime.
+// key) via a bounded cache with in-flight deduplication. Preloads upcoming
+// images so "Show next" displays instantly.
 export default function SoundWallModelCanvas({ step, send }) {
   const cfg = step?.config || {};
   const lang = cfg.language || 'es';
@@ -20,12 +19,16 @@ export default function SoundWallModelCanvas({ step, send }) {
 
   const [entityCards, setEntityCards] = useState([]);
   const [loadingCards, setLoadingCards] = useState(false);
+  const [cardError, setCardError] = useState(false);
 
   useEffect(() => {
     if (!curriculumKey) { setEntityCards([]); return; }
     let cancelled = false;
     setLoadingCards(true);
-    base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey })
+    setCardError(false);
+    getCachedCards({ curriculum_key: curriculumKey }, () =>
+      fetchWithRetry(() => base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey }))
+    )
       .then((recs) => {
         if (cancelled) return;
         setEntityCards((recs || []).map((r) => ({
@@ -39,7 +42,7 @@ export default function SoundWallModelCanvas({ step, send }) {
           active_reveal_id: r.active_reveal_id || '',
         })));
       })
-      .catch(() => { if (!cancelled) setEntityCards([]); })
+      .catch(() => { if (!cancelled) { setEntityCards([]); setCardError(true); } })
       .finally(() => { if (!cancelled) setLoadingCards(false); });
     return () => { cancelled = true; };
   }, [curriculumKey]);
@@ -89,6 +92,18 @@ export default function SoundWallModelCanvas({ step, send }) {
     });
   }, [revealedCount, stages, lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Preload upcoming image URLs (next 2 after the current visible stage).
+  const upcomingImageUrls = useMemo(() => {
+    const urls = [];
+    for (let i = revealedCount; i < stages.length; i++) {
+      const card = stages[i]?.card;
+      if (card?.imageUrl) urls.push(card.imageUrl);
+    }
+    return urls;
+  }, [stages, revealedCount]);
+
+  useImagePreload(upcomingImageUrls, { count: 2 });
+
   const playSound = (sound) => {
     if (sound) playLetterSound(sound, lang);
   };
@@ -99,8 +114,23 @@ export default function SoundWallModelCanvas({ step, send }) {
 
   if (loadingCards) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-full flex flex-col items-center justify-center gap-2">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        <p className="text-xs text-white/40 font-bold">Loading sound cards…</p>
+      </div>
+    );
+  }
+
+  if (cardError && stages.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+        <p className="text-lg font-bold">Couldn't load sound cards.</p>
+        <button
+          onClick={() => { invalidateCards(); setEntityCards([]); }}
+          className="text-sm text-indigo-400 hover:text-indigo-300 font-bold underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
@@ -110,7 +140,7 @@ export default function SoundWallModelCanvas({ step, send }) {
       <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
         <p className="text-lg font-bold">No sound wall cards for {curriculumKey || 'this step'}.</p>
         {curriculumKey && (
-          <a href="/SoundWallManager" className="text-sm text-indigo-500 hover:text-indigo-700 font-bold underline">
+          <a href="/SoundWallManager" className="text-sm text-indigo-400 hover:text-indigo-300 font-bold underline">
             Upload cards in the Sound Wall Manager →
           </a>
         )}

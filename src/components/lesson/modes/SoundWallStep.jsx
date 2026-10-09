@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import CameraMirror from '@/components/soundwall/CameraMirror';
 import RevealCard from '@/components/soundwall/RevealCard';
 import { playLetterSound } from '@/lib/audio';
+import { getCachedCards, invalidateCards, fetchWithRetry } from '@/lib/soundWallCardCache';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import { ChevronLeft, ChevronRight, Volume2, Check } from 'lucide-react';
 
 // Student-facing Sound Wall step. For each grapheme (sound), presents a
@@ -12,14 +14,9 @@ import { ChevronLeft, ChevronRight, Volume2, Check } from 'lucide-react';
 //   2. Camera mirror      — "Now you try it!"
 //   3. Grapheme card      — "This sound is written as…"
 //
-// Cards are loaded from the SoundWallCard entity. Two lookup strategies:
-//   - curriculumKey set (e.g. "M1.L3") → filter by curriculum_key
-//   - manual cards with `sound` but no `imageUrl` → look up by grapheme
-//     across all curriculum positions, so a lesson can combine sounds
-//     introduced at different positions (e.g. /o/ at M1.L1 + /a/ at M1.L6).
-//
-// Manual stepConfig.cards still work as a fallback when they have real
-// imageUrl + cardType values.
+// Cards are loaded from the SoundWallCard entity via a bounded cache with
+// in-flight deduplication. Sounds are deduplicated before querying by
+// grapheme so repeated entries don't generate parallel requests.
 
 function mapRecs(recs) {
   return (recs || []).map((r) => ({
@@ -41,6 +38,7 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
 
   const [entityCards, setEntityCards] = useState([]);
   const [loadingCards, setLoadingCards] = useState(false);
+  const [cardError, setCardError] = useState(false);
 
   const manualKey = JSON.stringify(manualCards);
 
@@ -50,7 +48,10 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     // Strategy 1: curriculumKey set → load by curriculum position.
     if (curriculumKey) {
       setLoadingCards(true);
-      base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey })
+      setCardError(false);
+      getCachedCards({ curriculum_key: curriculumKey }, () =>
+        fetchWithRetry(() => base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey }))
+      )
         .then((recs) => {
           if (cancelled) return;
           setEntityCards(mapRecs(recs));
@@ -60,14 +61,18 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
           if (cancelled) return;
           setEntityCards([]);
           setLoadingCards(false);
+          setCardError(true);
         });
       return () => { cancelled = true; };
     }
 
     // Strategy 2: manual cards with sounds but no images → look up by grapheme.
-    const soundsToLookup = manualCards
-      .filter((c) => c.sound && !c.imageUrl)
-      .map((c) => c.sound);
+    // Deduplicate sounds first so repeated entries don't fire parallel requests.
+    const soundsToLookup = [...new Set(
+      manualCards
+        .filter((c) => c.sound && !c.imageUrl)
+        .map((c) => c.sound)
+    )];
 
     if (soundsToLookup.length === 0) {
       setEntityCards([]);
@@ -75,14 +80,19 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     }
 
     setLoadingCards(true);
+    setCardError(false);
+
+    // Use cached lookups for each unique grapheme — in-flight dedup prevents
+    // duplicate parallel requests for the same grapheme.
     Promise.all(
       soundsToLookup.map((s) =>
-        base44.entities.SoundWallCard.filter({ grapheme: s })
+        getCachedCards({ grapheme: s }, () =>
+          fetchWithRetry(() => base44.entities.SoundWallCard.filter({ grapheme: s }))
+        )
       )
     )
       .then((results) => {
         if (cancelled) return;
-        // Deduplicate by id (a grapheme may appear at multiple curriculum keys).
         const seen = new Set();
         const all = [];
         for (const recs of results) {
@@ -99,6 +109,7 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
         if (cancelled) return;
         setEntityCards([]);
         setLoadingCards(false);
+        setCardError(true);
       });
 
     return () => { cancelled = true; };
@@ -112,7 +123,6 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     else if (stepConfig?.cardUrl)
       cards = [{ label: stepConfig.cardLabel || '', imageUrl: stepConfig.cardUrl, sound: stepConfig.sound || '', cardType: 'phoneme', grapheme: stepConfig.sound || '' }];
 
-    // Group by grapheme, preserving first-seen order.
     const byGrapheme = {};
     const order = [];
     for (const c of cards) {
@@ -138,10 +148,27 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
   const [revealedCount, setRevealedCount] = useState(1);
   const [done, setDone] = useState(false);
 
-  // Reset reveal when switching sounds.
   useEffect(() => {
     setRevealedCount(1);
   }, [currentSoundIndex]);
+
+  // Collect all upcoming image URLs in order for preloading.
+  // The current visible stage is first; the hook preloads the next N.
+  const upcomingImageUrls = useMemo(() => {
+    const urls = [];
+    for (let si = currentSoundIndex; si < soundGroups.length; si++) {
+      const group = soundGroups[si];
+      for (let i = 0; i < group.stages.length; i++) {
+        // Skip stages already revealed in the current sound.
+        if (si === currentSoundIndex && i < revealedCount) continue;
+        const card = group.stages[i].card;
+        if (card?.imageUrl) urls.push(card.imageUrl);
+      }
+    }
+    return urls;
+  }, [soundGroups, currentSoundIndex, revealedCount]);
+
+  useImagePreload(upcomingImageUrls, { count: 2 });
 
   const playSound = (sound) => {
     if (sound) playLetterSound(sound, lang);
@@ -171,10 +198,40 @@ export default function SoundWallStep({ onComplete, stepConfig }) {
     }
   };
 
+  const retryLoad = () => {
+    invalidateCards();
+    setEntityCards([]);
+    setLoadingCards(true);
+    setCardError(false);
+    // Re-trigger the effect by toggling a state — simplest: reload
+    if (curriculumKey) {
+      getCachedCards({ curriculum_key: curriculumKey }, () =>
+        fetchWithRetry(() => base44.entities.SoundWallCard.filter({ curriculum_key: curriculumKey }))
+      )
+        .then((recs) => { setEntityCards(mapRecs(recs)); setLoadingCards(false); })
+        .catch(() => { setLoadingCards(false); setCardError(true); });
+    }
+  };
+
   if (loadingCards) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-full flex flex-col items-center justify-center gap-2">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        <p className="text-xs text-slate-400 font-bold">Loading sound cards…</p>
+      </div>
+    );
+  }
+
+  if (cardError && soundGroups.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-2 text-gray-400">
+        <p className="text-lg font-bold">Couldn't load sound cards.</p>
+        <button
+          onClick={retryLoad}
+          className="text-sm text-indigo-500 hover:text-indigo-700 font-bold underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
