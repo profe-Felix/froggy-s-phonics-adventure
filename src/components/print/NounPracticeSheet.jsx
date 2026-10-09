@@ -15,7 +15,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
 
   return (
     <div className="page-preview" style={{ padding: '0.25in' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12in' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3in' }}>
         {nouns.map((noun, i) => (
           <div
             key={noun.id || i}
@@ -95,11 +95,12 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   borderTop: '2px solid #43a047',
                 }}
               />
-              {/* Dirt line (bottom) — darker brown like the sky's dark line */}
+              {/* Dirt line (bottom) — aligned with the picture's green border
+                  bottom edge so cutting stays straight. */}
               <div
                 style={{
                   position: 'absolute',
-                  top: `${3 * g}in`,
+                  top: `calc(${3 * g}in - 2px)`,
                   left: 0,
                   right: 0,
                   borderTop: '2px solid #4e342e',

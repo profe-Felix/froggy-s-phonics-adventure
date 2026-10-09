@@ -33,7 +33,7 @@ export default function NounPractice() {
   // Auto-fit line gap to page height based on rows per page only.
   const lineGap = useMemo(() => {
     const usableHeight = 10.5;
-    const gapBetweenRows = 0.12;
+    const gapBetweenRows = 0.3;
     const totalGaps = (rowsPerPage - 1) * gapBetweenRows;
     return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
   }, [rowsPerPage]);
