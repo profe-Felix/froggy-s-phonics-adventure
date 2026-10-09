@@ -822,7 +822,7 @@ export default function AdaptiveWordPractice({
       });
 
       setTimeout(() => {
-        advanceToNextTarget(0, true);
+        advanceToNextTarget(0, false);
       }, 1500);
 
       return;
