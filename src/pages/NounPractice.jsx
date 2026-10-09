@@ -19,10 +19,6 @@ export default function NounPractice() {
   useEffect(() => { localStorage.setItem('np_vOffset', vOffset); }, [vOffset]);
   useEffect(() => { localStorage.setItem('np_rowsPerPage', rowsPerPage); }, [rowsPerPage]);
 
-  // Max font size that keeps descenders inside the dirt zone (must match
-  // the clamp in NounPracticeSheet). Drives the slider upper bound so the
-  // user sees the real limit for the current row count.
-  const maxFontSize = lineGap / 0.533333;
   const totalPages = Math.ceil(NOUNS.length / rowsPerPage);
 
   // Split nouns into pages
@@ -41,6 +37,11 @@ export default function NounPractice() {
     const totalGaps = (rowsPerPage - 1) * gapBetweenRows;
     return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
   }, [rowsPerPage]);
+
+  // Max font size that keeps descenders inside the dirt zone (must match
+  // the clamp in NounPracticeSheet). Drives the slider upper bound so the
+  // user sees the real limit for the current row count.
+  const maxFontSize = lineGap / 0.533333;
 
   // Scale the 8.5in page down to fit the viewport
   useEffect(() => {
