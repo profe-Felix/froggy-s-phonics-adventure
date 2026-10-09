@@ -378,7 +378,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
           lesson={previewLesson.lesson}
           isCompleted={previewLesson.done}
           studentName={studentData?.name?.split(' ')[0]}
-          onPlay={() => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l); }}
+          onPlay={(day) => { const l = previewLesson.lesson; setPreviewLesson(null); onOpenLesson(l, day); }}
           onClose={() => setPreviewLesson(null)}
           onStartStep={(step, index, l) => {
             setPreviewLesson(null);

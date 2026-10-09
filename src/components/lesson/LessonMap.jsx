@@ -93,6 +93,7 @@ export default function LessonMap({
   onLogout,
   onFreePlay,
   initialLessonId,
+  initialDay,
   onBack,
   onLessonComplete,
   accessContext = 'school',
@@ -100,7 +101,7 @@ export default function LessonMap({
   const className = selectedStudent?.class_name;
   const [lessonIdx, setLessonIdx] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(initialDay || null);
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -133,9 +134,9 @@ export default function LessonMap({
 
     if (idx >= 0) {
       setLessonIdx(idx);
-      setSelectedDay(null);
+      setSelectedDay(initialDay || null);
     }
-  }, [initialLessonId, myLessons]);
+  }, [initialLessonId, initialDay, myLessons]);
 
   if (!myLessons.length) {
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;

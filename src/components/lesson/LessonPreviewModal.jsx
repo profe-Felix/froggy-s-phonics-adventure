@@ -415,7 +415,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
       ? WEEKDAYS.map(({ value, label }) => {
           const dl = (lesson.daily_lessons || []).find(d => d.day === value);
           if (!dl || dl.active === false || !(dl.steps || []).length) return null;
-          return { title: label, emoji: '📅', color: 'blue' };
+          return { title: label, emoji: '📅', color: 'blue', _day: value };
         }).filter(Boolean)
       : [];
 
@@ -463,7 +463,7 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
                     className="lp-step"
                     type="button"
                     aria-label={`${step.title}, lesson step ${i + 1}`}
-                    onClick={() => lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay()}
+                    onClick={() => lesson.steps?.length > 0 ? onStartStep?.(step, i, lesson) : onPlay(step._day)}
                   >
                     <div className="lp-step-card" style={{ background: color }}>
                       <span className="lp-number">{i + 1}</span>
@@ -486,7 +486,17 @@ export default function LessonPreviewModal({ lesson, isCompleted, studentName, o
       )}
 
       {/* Start / Play again button */}
-      <button className="lp-start" type="button" onClick={onPlay}>
+      <button className="lp-start" type="button" onClick={() => {
+        if (hasDailyLessons) {
+          const firstDay = WEEKDAYS.find(({ value }) => {
+            const dl = (lesson.daily_lessons || []).find(d => d.day === value);
+            return dl && dl.active !== false && (dl.steps || []).length > 0;
+          });
+          onPlay(firstDay?.value);
+        } else {
+          onPlay();
+        }
+      }}>
         <span className="lp-start-icon">🦊</span>
         <span className="lp-start-text">{isCompleted ? 'Play again' : 'Start lesson'}</span>
         <Play className="lp-start-arrow" size={20} strokeWidth={2.5} />

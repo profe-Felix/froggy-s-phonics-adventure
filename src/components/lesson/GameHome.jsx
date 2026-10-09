@@ -136,7 +136,7 @@ export default function GameHome({
           <LevelPath
             studentData={studentData}
             selectedStudent={selectedStudent}
-            onOpenLesson={setOpenLesson}
+            onOpenLesson={(l, day) => setOpenLesson({ id: l.id, day })}
             onStartStep={onStartStep}
             onLogout={onLogout}
             onStudentPatch={onStudentPatch}
@@ -150,6 +150,7 @@ export default function GameHome({
             studentData={studentData}
             selectedStudent={selectedStudent}
             initialLessonId={openLesson.id}
+            initialDay={openLesson.day}
             onBack={() => setOpenLesson(null)}
             onFreePlay={() => go('games')}
             onLogout={onLogout}
