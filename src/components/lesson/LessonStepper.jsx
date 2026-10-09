@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
-import { X, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
+import StepCarousel from './StepCarousel';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
 import { stopAllAudio } from '@/lib/audio';
 
@@ -166,83 +167,45 @@ export default function LessonStepper({
         <div className="w-9" />
       </div>
 
-      {/* Body: dots | activity | arrows */}
-      <div className="flex-1 relative flex min-h-0">
-        {/* Left dots — one per step, colored by mastery:
-            green = completed, yellow = attempted (not mastered), black = unattempted. */}
-        <div className="flex flex-col items-center justify-center gap-3 px-2 sm:px-3">
-          {visibleSteps.map(({ step: s, originalIndex }, i) => {
-            const done = completedSteps.includes(originalIndex);
-            const current = i === stepIdx;
-            const mp = studentData?.mode_progress?.[s?.mode];
-            const attempted = !done && !!mp && (
-              (mp.total_attempts || 0) > 0 ||
-              (mp.mastered_items?.length || 0) > 0 ||
-              (mp.learning_items?.length || 0) > 0
-            );
-            const bg = done ? '#22A44B' : attempted ? '#F5C518' : '#1A1A1A';
-            return (
-              <button
-                key={i}
-                onClick={() => setStepIdx(i)}
-                title={s?.title || `Step ${i + 1}`}
-                className="w-3.5 h-3.5 rounded-full transition hover:scale-125"
-                style={{
-                  background: bg,
-                  border: current ? `2px solid #26264d` : '2px solid transparent',
-                  boxShadow: current ? '0 0 0 2px #fff' : 'none',
-                }}
-              />
-            );
-          })}
-        </div>
-
-        {/* Activity */}
-        <div className="flex-1 relative min-w-0">
-          <LessonModeRouter
-            key={stepIdx}
-            step={step}
-            stepIndex={curOriginalIndex}
-            lessonId={lessonId}
-            totalSteps={completionStepCount}
-            studentData={studentData}
-            selectedStudent={selectedStudent}
-            onUpdateProgress={onUpdateProgress}
-            onStudentPatch={onStudentPatch}
-            onBack={onBack}
-            stepperMode
-            onNext={goNext}
-            isLast={isLast}
-          />
-        </div>
-
-        {/* Right arrows */}
-        <div className="flex flex-col items-center justify-center gap-3 px-2 sm:px-3">
-          <button
-            onClick={goPrev}
-            disabled={!canPrev}
-            className="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center disabled:opacity-30 hover:bg-white/90"
-            style={{ color: NAVY }}
-          >
-            <ChevronUp className="w-6 h-6" />
-          </button>
-          <button
-            onClick={goNext}
-            disabled={!canNext}
-            className="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center disabled:opacity-30 hover:bg-white/90"
-            style={{ color: NAVY }}
-          >
-            <ChevronDown className="w-6 h-6" />
-          </button>
-        </div>
+      {/* Activity fills the space */}
+      <div className="flex-1 relative min-h-0">
+        <LessonModeRouter
+          key={stepIdx}
+          step={step}
+          stepIndex={curOriginalIndex}
+          lessonId={lessonId}
+          totalSteps={completionStepCount}
+          studentData={studentData}
+          selectedStudent={selectedStudent}
+          onUpdateProgress={onUpdateProgress}
+          onStudentPatch={onStudentPatch}
+          onBack={onBack}
+          stepperMode
+          onNext={goNext}
+          isLast={isLast}
+        />
       </div>
 
-      {/* Lesson complete banner */}
-      {allDone && (
+      {/* Bottom: step carousel (or lesson complete banner) */}
+      {allDone ? (
         <div className="shrink-0 pb-4 flex justify-center">
           <button onClick={onBack} className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center gap-2">
             <Check className="w-5 h-5" /> Lesson Complete! Return to Path
           </button>
+        </div>
+      ) : (
+        <div className="shrink-0 pb-3 flex justify-center">
+          <StepCarousel
+            steps={visibleSteps}
+            currentIdx={stepIdx}
+            completedSteps={completedSteps}
+            studentData={studentData}
+            onStepClick={(i) => setStepIdx(i)}
+            onPrev={goPrev}
+            onNext={goNext}
+            canPrev={canPrev}
+            canNext={canNext}
+          />
         </div>
       )}
     </div>

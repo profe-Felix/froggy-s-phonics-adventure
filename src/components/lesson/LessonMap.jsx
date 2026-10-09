@@ -5,6 +5,7 @@ import { fetchLessons } from '@/lib/lessonsLoader';
 import LessonStepper from './LessonStepper';
 import { STEP_COLORS, colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 import { ArrowLeft, Lock, Check, Star, ChevronRight } from 'lucide-react';
+import DayCarousel from './DayCarousel';
 
 const WEEKDAYS = [
   { value: 'monday', label: 'Monday' },
@@ -232,100 +233,13 @@ export default function LessonMap({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {dailyLessons.map((dailyLesson) => {
-              const availableSteps =
-                dailyLesson.steps.filter(isStepAvailable);
-
-              const activityCount = availableSteps.length;
-
-              const canOpen =
-                dailyLesson.active !== false &&
-                activityCount > 0;
-
-              const weekdayIndex = WEEKDAYS.findIndex(
-                ({ value }) => value === dailyLesson.day
-              );
-
-              const isComplete =
-                canOpen &&
-                weekdayIndex >= 0 &&
-                (weekProgress?.completed_steps || []).includes(
-                  weekdayIndex
-                );
-
-              return (
-                <button
-                  key={dailyLesson.day}
-                  type="button"
-                  disabled={!canOpen}
-                  onClick={() => canOpen && setSelectedDay(dailyLesson.day)}
-                  className={[
-                    'rounded-3xl border-4 p-5 text-left shadow-md transition',
-                    isComplete
-                      ? 'bg-green-50 border-green-300 hover:scale-[1.02] hover:shadow-lg'
-                      : canOpen
-                        ? 'bg-white border-white hover:scale-[1.02] hover:shadow-lg'
-                        : 'bg-gray-100 border-white opacity-65 cursor-not-allowed',
-                  ].join(' ')}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xl font-black text-gray-800">
-                        {dailyLesson.label}
-                      </p>
-
-                      {dailyLesson.active !== false ? (
-                        <p className="text-sm font-black text-indigo-600 mt-1">
-                          M{dailyLesson.module_number}.L{dailyLesson.curriculum_lesson_number}
-                        </p>
-                      ) : (
-                        <p className="text-sm font-bold text-gray-500 mt-1">
-                          No school
-                        </p>
-                      )}
-                    </div>
-
-                    <span className="text-3xl">
-                      {isComplete
-                        ? '✅'
-                        : dailyLesson.active === false
-                          ? '🏫'
-                          : '📚'}
-                    </span>
-                  </div>
-
-                  {dailyLesson.active !== false && (
-                    <>
-                      {dailyLesson.title && (
-                        <p className="text-sm font-bold text-gray-700 mt-3">
-                          {dailyLesson.title}
-                        </p>
-                      )}
-
-                      <p
-                        className={[
-                          'text-xs mt-2',
-                          isComplete
-                            ? 'font-black text-green-600'
-                            : 'text-gray-500',
-                        ].join(' ')}
-                      >
-                        {isComplete
-                          ? `Complete • ${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
-                          : activityCount > 0
-                            ? `${activityCount} activit${activityCount === 1 ? 'y' : 'ies'}`
-                            : accessContext === 'home' &&
-                              dailyLesson.steps.length > 0
-                              ? 'School activities only'
-                              : 'No activities assigned yet'}
-                      </p>
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <DayCarousel
+            dailyLessons={dailyLessons}
+            isStepAvailable={isStepAvailable}
+            accessContext={accessContext}
+            weekProgress={weekProgress}
+            onSelectDay={setSelectedDay}
+          />
         </div>
       </div>
     );
