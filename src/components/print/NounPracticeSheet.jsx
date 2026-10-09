@@ -11,10 +11,12 @@ function stripArticle(text) {
 
 export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65, vOffset = 0 }) {
   const g = lineGap; // gap between handwriting zones (inches)
-  // Clamp font size so descenders (0.5333 × fontSize) fit within the dirt
-  // zone (height = g). Without this, descender letters like "p" spill past
-  // the bottom dirt line when bands shrink (many rows / small lineGap).
-  const maxFontSize = g / 0.533333;
+  // The ZBKidLettersArrowDot font's visual glyphs are much smaller than its
+  // em square (arrows + stroke-order numbers eat the space), so the old
+  // descender-based cap kept letters too small to reach the guide lines.
+  // Allow a generous multiple of the band height; the teacher uses the
+  // font-size slider + vOffset to fine-tune alignment.
+  const maxFontSize = g * 2.4;
   const effectiveFontSize = Math.min(fontSize, maxFontSize);
   const asc = effectiveFontSize * 1.166667; // ascender height for baseline alignment
 

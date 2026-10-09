@@ -38,10 +38,12 @@ export default function NounPractice() {
     return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
   }, [rowsPerPage]);
 
-  // Max font size that keeps descenders inside the dirt zone (must match
-  // the clamp in NounPracticeSheet). Drives the slider upper bound so the
-  // user sees the real limit for the current row count.
-  const maxFontSize = lineGap / 0.533333;
+  // Max font size. The ZBKidLettersArrowDot font's visual glyphs are much
+  // smaller than its em square (arrows + stroke-order numbers eat the
+  // space), so the old descender-based cap starved the slider. Use a
+  // generous multiple of the band height so letters can actually reach the
+  // guide lines; vOffset + the slider let the teacher fine-tune.
+  const maxFontSize = lineGap * 2.4;
 
   // Scale the 8.5in page down to fit the viewport
   useEffect(() => {
