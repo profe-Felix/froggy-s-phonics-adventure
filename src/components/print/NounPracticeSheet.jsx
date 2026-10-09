@@ -3,6 +3,12 @@
 // font has built-in directional arrows for letter formation), right = picture.
 // Designed for the "who" nouns from the Creando Oraciones card set.
 
+// Strip the Spanish article (El/La/Los/Las) from the noun text so students
+// practice only the noun itself on the handwriting lines.
+function stripArticle(text) {
+  return String(text || '').replace(/^(El|La|Los|Las)\s+/i, '');
+}
+
 export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65 }) {
   const g = lineGap; // gap between handwriting zones (inches)
   const asc = fontSize * 1.166667; // ascender height for baseline alignment
@@ -114,7 +120,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   lineHeight: 1.7,
                 }}
               >
-                {noun.text}
+                {stripArticle(noun.text)}
               </div>
             </div>
 
