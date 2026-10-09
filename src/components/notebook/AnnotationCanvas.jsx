@@ -153,6 +153,13 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const current = useRef(null);
   const drawing = useRef(false);
   const finishPendingStrokeRef = useRef(null);
+  // Store callback props in refs so the main effect doesn't tear down and
+  // re-register listeners (finishing the current stroke mid-draw) when the
+  // parent re-renders and passes new callback identities.
+  const onStrokeStartRef = useRef(onStrokeStart);
+  const onStrokeEndRef = useRef(onStrokeEnd);
+  onStrokeStartRef.current = onStrokeStart;
+  onStrokeEndRef.current = onStrokeEnd;
   const [eraserCursorPos, setEraserCursorPos] = useState(null);
   const twoFingerScroll = useRef({
     active: false,
@@ -318,7 +325,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const beginStrokeAt = (p) => {
     current.current = { color, size, tool: makeToolName(), pts: [p] };
     drawing.current = true;
-    onStrokeStart?.();
+    onStrokeStartRef.current?.();
     redraw();
   };
 
@@ -335,7 +342,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     current.current = null;
     drawing.current = false;
     redraw();
-    onStrokeEnd?.();
+    onStrokeEndRef.current?.();
   };
 
   const cancelStrokeForScroll = () => {
@@ -343,7 +350,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     finishPendingStrokeRef.current?.();
     current.current = null;
     drawing.current = false;
-    if (!wasDrawing) onStrokeEnd?.();
+    if (!wasDrawing) onStrokeEndRef.current?.();
     redraw();
   };
 
@@ -456,7 +463,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         drawing.current = true;
         eraserUndoPushed.current = false;
         eraserChanged.current = false;
-        onStrokeStart?.();
+        onStrokeStartRef.current?.();
         pushUndo();
         eraserUndoPushed.current = true;
         eraseStrokeAt(getPos(e));
@@ -468,7 +475,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         drawing.current = true;
         eraserUndoPushed.current = false;
         eraserChanged.current = false;
-        onStrokeStart?.();
+        onStrokeStartRef.current?.();
         pushUndo();
         eraserUndoPushed.current = true;
         current.current = ensureStrokeId({ color: '#000', size, tool: 'eraser_pixel', pts: [p] });
@@ -539,7 +546,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
         eraserChanged.current = false;
 
         if (changed) {
-          onStrokeEnd?.();
+          onStrokeEndRef.current?.();
         }
 
         return;
@@ -619,7 +626,7 @@ const onTouchStart = (e) => {
       if (tool === 'eraser_object') {
         drawing.current = true;
         eraserChanged.current = false;
-        onStrokeStart?.();
+        onStrokeStartRef.current?.();
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         eraseStrokeAt(getPos(e));
         return;
@@ -629,7 +636,7 @@ const onTouchStart = (e) => {
         const p = getPos(e);
         drawing.current = true;
         eraserChanged.current = false;
-        onStrokeStart?.();
+        onStrokeStartRef.current?.();
         if (!eraserUndoPushed.current) { pushUndo(); eraserUndoPushed.current = true; }
         current.current = ensureStrokeId({ color: '#000', size, tool: 'eraser_pixel', pts: [p] });
         pixelEraseAt(p);
@@ -707,7 +714,7 @@ const onTouchStart = (e) => {
         eraserChanged.current = false;
 
         if (changed || hadGesture) {
-          onStrokeEnd?.();
+          onStrokeEndRef.current?.();
         }
 
         return;
@@ -766,7 +773,7 @@ const onTouchStart = (e) => {
         onMouseUp();
       }
     };
-  }, [mode, color, size, tool, width, height, passThrough, onStrokeStart, onStrokeEnd, scrollContainerRef]);
+  }, [mode, color, size, tool, width, height, passThrough, scrollContainerRef]);
 
   useImperativeHandle(ref, () => ({
     pageIdentity,
@@ -853,7 +860,7 @@ const onTouchStart = (e) => {
       drawing.current = false;
       redraw();
 
-      onStrokeEnd?.();
+      onStrokeEndRef.current?.();
     },
 
     undo: () => {
@@ -867,7 +874,7 @@ const onTouchStart = (e) => {
       current.current = null;
       drawing.current = false;
       redraw();
-      onStrokeEnd?.();
+      onStrokeEndRef.current?.();
     },
 
     redo: () => {
@@ -881,7 +888,7 @@ const onTouchStart = (e) => {
       current.current = null;
       drawing.current = false;
       redraw();
-      onStrokeEnd?.();
+      onStrokeEndRef.current?.();
     },
 
     replayStrokes: (data, onFrame) => {
