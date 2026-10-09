@@ -74,6 +74,7 @@ import SmallGroupLessonPlanner from './pages/SmallGroupLessonPlanner';
 import TableRotationManager from './pages/TableRotationManager';
 import CreandoOraciones from './pages/CreandoOraciones';
 import NounPractice from './pages/NounPractice';
+import FontPreview from './pages/FontPreview';
 import WorkSamples from './pages/WorkSamples';
 import LiteracyDashboard from './pages/LiteracyDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -198,6 +199,7 @@ const AuthenticatedApp = () => {
       <Route path="/TableRotationManager" element={<TableRotationManager />} />
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
       <Route path="/NounPractice" element={<NounPractice />} />
+      <Route path="/FontPreview" element={<FontPreview />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />
       <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
       <Route path="*" element={<PageNotFound />} />

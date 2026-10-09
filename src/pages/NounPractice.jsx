@@ -73,6 +73,12 @@ export default function NounPractice() {
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">
               {NOUNS.length} nouns
             </span>
+            <Link
+              to="/FontPreview"
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              Font Preview
+            </Link>
           </div>
 
           <button
@@ -149,12 +155,12 @@ export default function NounPractice() {
               type="range"
               min="-0.3"
               max="0.3"
-              step="0.05"
+              step="0.01"
               value={vOffset}
               onChange={(e) => setVOffset(parseFloat(e.target.value))}
               className="w-24"
             />
-            <span className="w-12 text-sm font-semibold text-slate-500">
+            <span className="w-16 text-sm font-semibold text-slate-500">
               {vOffset > 0 ? '+' : ''}{vOffset.toFixed(2)}in
             </span>
           </div>
