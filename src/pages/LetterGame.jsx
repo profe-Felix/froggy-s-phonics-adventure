@@ -769,6 +769,7 @@ export default function LetterGame() {
       )}
       {currentMode === 'missing_letter' && (
         <MissingLetterMode
+          classConfig={configs.find((c) => c.class_name === studentData?.class_name)}
           studentData={studentData}
           onUpdateProgress={handleUpdateProgress}
           onStudentPatch={handlePersistPatch}
