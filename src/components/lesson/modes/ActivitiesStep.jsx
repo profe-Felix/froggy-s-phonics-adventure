@@ -40,7 +40,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
   const isMastery = completion?.type === 'mastery';
   const masteryThreshold = completion?.threshold || 1;
   const masteryTarget = completion?.target || 1;
-  const totalForThreshold = score.totalItems || (isMastery ? masteryTarget : 0);
+  const totalForThreshold = isMastery ? masteryTarget : score.totalItems;
   const neededCorrect = masteryThreshold < 1
     ? Math.ceil(totalForThreshold * masteryThreshold)
     : totalForThreshold;
@@ -143,7 +143,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
       </div>
       <StepDoneBar
         onDone={() => onComplete(score)}
-        disabled={score.totalItems > 0 && !metMastery}
+        disabled={isMastery && !metMastery}
         label={score.totalItems > 0
           ? (isMastery ? `Master ${score.correctCount}/${neededCorrect}` : `Done (${score.correctCount}/${score.totalItems})`)
           : 'Done'}

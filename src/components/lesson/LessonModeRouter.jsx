@@ -378,7 +378,7 @@ export default function LessonModeRouter({
         const threshold = comp.threshold || 1;
         const correctCount =
           meta?.correctCount ?? meta?.masteredCount ?? 0;
-        const totalItems = meta?.totalItems ?? target;
+        const totalItems = target;
         const metThreshold =
           correctCount >= totalItems ||
           (threshold < 1 &&
@@ -424,7 +424,7 @@ export default function LessonModeRouter({
         const threshold = comp.threshold || 1;
         const correctCount =
           meta?.correctCount ?? meta?.masteredCount ?? 0;
-        const totalItems = meta?.totalItems ?? target;
+        const totalItems = target;
         const metThreshold =
           correctCount >= totalItems ||
           (threshold < 1 &&

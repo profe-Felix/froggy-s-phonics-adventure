@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Star, Play, Check } from 'lucide-react';
+import { ArrowLeft, Star, Play, Check, RotateCcw } from 'lucide-react';
 import { colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 
 // Lesson overview — the carousel IS the main view. Large colorful cards
@@ -25,6 +25,8 @@ export default function LessonOverview({
   onBack,
   allDone,
   onLessonComplete,
+  replayMode,
+  onReplay,
 }) {
   const firstIncomplete = steps.findIndex(
     ({ originalIndex }) => !completedSteps.includes(originalIndex)
@@ -56,16 +58,24 @@ export default function LessonOverview({
 
         {/* Cards */}
         <div className="flex-1 flex items-center justify-center px-4 pb-6">
-          {allDone ? (
+          {(allDone && !replayMode) ? (
             <div className="text-center flex flex-col items-center gap-4">
               <div className="text-6xl">🎉</div>
               <h2 className="text-2xl font-black text-green-600">Lesson Complete!</h2>
-              <button
-                onClick={onLessonComplete}
-                className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg hover:bg-green-600 inline-flex items-center gap-2"
-              >
-                <Check className="w-5 h-5" /> Return to Path
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={onReplay}
+                  className="px-6 py-3 bg-indigo-500 text-white font-black rounded-2xl shadow-lg hover:bg-indigo-600 inline-flex items-center gap-2"
+                >
+                  <RotateCcw className="w-5 h-5" /> Replay
+                </button>
+                <button
+                  onClick={onLessonComplete}
+                  className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg hover:bg-green-600 inline-flex items-center gap-2"
+                >
+                  <Check className="w-5 h-5" /> Return to Path
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex gap-4 flex-wrap justify-center max-w-4xl">

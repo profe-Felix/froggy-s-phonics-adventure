@@ -27,6 +27,7 @@ export default function LessonStepper({
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
   const [viewMode, setViewMode] = useState('overview');
+  const [replayMode, setReplayMode] = useState(false);
 
   // Independent lessons never show live-only activities. Home sessions also
   // hide activities marked school-only.
@@ -130,6 +131,8 @@ export default function LessonStepper({
         onBack={onBack}
         allDone={allDone}
         onLessonComplete={() => onBack?.()}
+        replayMode={replayMode}
+        onReplay={() => setReplayMode(true)}
       />
     );
   }
