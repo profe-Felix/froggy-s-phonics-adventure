@@ -1,0 +1,130 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Printer, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CARDS_BY_CATEGORY } from '@/components/data/sentenceCards';
+import NounPracticeSheet from '@/components/print/NounPracticeSheet';
+import { printWithPage } from '@/lib/printWithPage';
+
+const ROWS_PER_PAGE = 5;
+const NOUNS = CARDS_BY_CATEGORY.who; // 18 "who" nouns from Creando Oraciones
+
+export default function NounPractice() {
+  const [page, setPage] = useState(0);
+  const [fontSize, setFontSize] = useState(0.45);
+  const [zoom, setZoom] = useState(1);
+
+  const totalPages = Math.ceil(NOUNS.length / ROWS_PER_PAGE);
+
+  // Split nouns into pages
+  const allPages = useMemo(() => {
+    const pages = [];
+    for (let i = 0; i < NOUNS.length; i += ROWS_PER_PAGE) {
+      pages.push(NOUNS.slice(i, i + ROWS_PER_PAGE));
+    }
+    return pages;
+  }, []);
+
+  // Scale the 8.5in page down to fit the viewport
+  useEffect(() => {
+    const updateZoom = () => {
+      const available = window.innerWidth - 48;
+      const pageWidthPx = 8.5 * 96;
+      setZoom(Math.min(1, available / pageWidthPx));
+    };
+    updateZoom();
+    window.addEventListener('resize', updateZoom);
+    return () => window.removeEventListener('resize', updateZoom);
+  }, []);
+
+  const handlePrint = () => {
+    printWithPage('size: letter portrait; margin: 0.25in');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4">
+      <div className="mx-auto max-w-5xl">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/CreandoOraciones"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+            <h1 className="text-xl font-black text-slate-800">
+              Noun Practice Sheets
+            </h1>
+            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">
+              {NOUNS.length} nouns
+            </span>
+          </div>
+
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
+          >
+            <Printer className="h-5 w-5" />
+            Print All
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-30"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <span className="text-sm font-bold text-slate-700">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:opacity-30"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-bold text-slate-600">
+              Font size
+            </label>
+            <input
+              type="range"
+              min="0.3"
+              max="0.55"
+              step="0.05"
+              value={fontSize}
+              onChange={(e) => setFontSize(parseFloat(e.target.value))}
+              className="w-28"
+            />
+            <span className="w-12 text-sm font-semibold text-slate-500">
+              {fontSize.toFixed(2)}in
+            </span>
+          </div>
+        </div>
+
+        {/* Preview — all pages render; only current shows on screen, all print */}
+        <div className="np-zoom-container printable" style={{ '--np-zoom': zoom }}>
+          <div className="np-scale-wrap">
+            {allPages.map((nouns, i) => (
+              <div
+                key={i}
+                className={`noun-page ${i !== page ? 'noun-page--screen-hidden' : ''}`}
+              >
+                <NounPracticeSheet nouns={nouns} fontSize={fontSize} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

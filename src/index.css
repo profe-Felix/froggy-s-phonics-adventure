@@ -471,6 +471,25 @@
   width: 8.5in;
 }
 
+/* Noun Practice — multi-page print: each page breaks to its own sheet.
+   On screen, only the current page is shown; in print, all pages appear. */
+.noun-page {
+  break-after: page;
+  page-break-after: always;
+}
+.noun-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+.noun-page--screen-hidden {
+  display: none;
+}
+@media print {
+  .noun-page--screen-hidden {
+    display: block !important;
+  }
+}
+
 /* Practice Booklet — landscape letter sheet with handwriting guide lines,
    student name title, and auto page number at the bottom. Scaled down so
    multiple rows fit per page; teacher picks page count for double-sided
