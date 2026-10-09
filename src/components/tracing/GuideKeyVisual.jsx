@@ -106,13 +106,15 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
       <rect x={0} y={fenceY} width={bgDrawWidth} height={grassH} fill="#e8f5e9" opacity={opacity} />
       <rect x={0} y={grassY} width={bgDrawWidth} height={dirtH} fill="#f5ebe0" opacity={opacity} />
 
-      {/* Capital walking figure — feet at grass, head at sky (LEFT) */}
+      {/* Capital walking figure — feet at grass, head at sky (LEFT).
+          Figures use full opacity so the colorful SVG stays vivid; only
+          the background zones use the lower `opacity` prop. */}
       <WalkingFigure
         x={capX - capFSize * 0.4}
         y={skyY}
         width={capFSize * 0.8}
         height={capZoneH}
-        opacity={opacity}
+        opacity={1}
       />
 
       {/* Lowercase walking figure — feet at grass, head at fence (next to capital) */}
@@ -121,7 +123,7 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
         y={fenceY}
         width={lowFSize * 0.8}
         height={lowZoneH}
-        opacity={opacity}
+        opacity={1}
       />
 
       {/* Fence — full height, clipped to show a window of pickets */}
