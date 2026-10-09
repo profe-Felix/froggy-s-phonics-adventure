@@ -11,6 +11,7 @@ import {
   LETTER_WAYPOINTS,
 } from '@/components/data/letterWaypoints';
 
+import confetti from 'canvas-confetti';
 import {
   Loader2,
   Volume2,
@@ -536,9 +537,10 @@ export default function AdaptiveWordPractice({
   }, [syllables, words]);
 
   const resetTarget = (
-    target
+    target,
+    skipFreehand = false
   ) => {
-    setStage('freehand');
+    setStage(skipFreehand ? 'build' : 'freehand');
 
     setAvailableTiles(
       createLetterTiles(
@@ -813,6 +815,16 @@ export default function AdaptiveWordPractice({
       setBuildCharResults([]);
       setBuildCorrect(true);
 
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+
+      setTimeout(() => {
+        advanceToNextTarget(0, true);
+      }, 1500);
+
       return;
     }
 
@@ -860,15 +872,6 @@ export default function AdaptiveWordPractice({
       typed + letter;
 
     setTyped(newTyped);
-
-    if (
-      newTyped.length >=
-      currentTarget.length
-    ) {
-      checkSubmission(
-        newTyped
-      );
-    }
   };
 
   const handleSubmit = () => {
@@ -914,120 +917,53 @@ export default function AdaptiveWordPractice({
     );
   };
 
-  const finishWrite = (
-    writingAccuracy
+  const advanceToNextTarget = (
+    writingAccuracy = 0,
+    skipFreehand = false
   ) => {
     const result = {
-      target:
-        currentTarget,
-
-      type:
-        practiceLevel ===
-        'syllables'
-          ? 'syllable'
-          : 'word',
-
-      buildCorrectFirstAttempt:
-        firstAttemptCorrect,
-
+      target: currentTarget,
+      type: practiceLevel === 'syllables' ? 'syllable' : 'word',
+      buildCorrectFirstAttempt: firstAttemptCorrect,
       writingAccuracy,
     };
 
-    const completedResults = [
-      ...roundResults,
-      result,
-    ];
+    const completedResults = [...roundResults, result];
+    onWordComplete?.(result);
 
-    onWordComplete?.(
-      result
-    );
-
-    const completedRound =
-      targetIndex >=
-      roundTargets.length - 1;
+    const completedRound = targetIndex >= roundTargets.length - 1;
 
     if (!completedRound) {
-      const nextIndex =
-        targetIndex + 1;
-
-      setRoundResults(
-        completedResults
-      );
-
-      setTargetIndex(
-        nextIndex
-      );
-
-      resetTarget(
-        roundTargets[
-          nextIndex
-        ]
-      );
-
+      const nextIndex = targetIndex + 1;
+      setRoundResults(completedResults);
+      setTargetIndex(nextIndex);
+      resetTarget(roundTargets[nextIndex], skipFreehand);
       return;
     }
 
-    const correctCount =
-      completedResults.filter(
-        (item) =>
-          item
-            .buildCorrectFirstAttempt
-      ).length;
-
-    const accuracy =
-      Math.round(
-        (
-          correctCount /
-          completedResults.length
-        ) *
-          100
-      );
-
-    const passed =
-      accuracy >=
-      PASSING_ACCURACY;
+    const correctCount = completedResults.filter((item) => item.buildCorrectFirstAttempt).length;
+    const accuracy = Math.round((correctCount / completedResults.length) * 100);
+    const passed = accuracy >= PASSING_ACCURACY;
 
     setLastRoundSummary({
       level: practiceLevel,
       correctCount,
-      total:
-        completedResults.length,
+      total: completedResults.length,
       accuracy,
       passed,
     });
 
-    // Passing the syllable round advances the student
-    // to complete words when words are available.
-    if (
-      practiceLevel ===
-        'syllables' &&
-      passed &&
-      traceableWords.length
-    ) {
-      setTimeout(() => {
-        beginRound(
-          'words',
-          traceableWords
-        );
-      }, 1800);
-
+    if (practiceLevel === 'syllables' && passed && traceableWords.length) {
+      setTimeout(() => beginRound('words', traceableWords), 1800);
       return;
     }
 
-    // Repeat the same instructional level with a newly
-    // shuffled round.
-    const nextPool =
-      practiceLevel ===
-      'syllables'
-        ? traceableSyllables
-        : traceableWords;
+    const nextPool = practiceLevel === 'syllables' ? traceableSyllables : traceableWords;
+    setTimeout(() => beginRound(practiceLevel, nextPool), 1800);
+  };
 
-    setTimeout(() => {
-      beginRound(
-        practiceLevel,
-        nextPool
-      );
-    }, 1800);
+  const finishWrite = (writingAccuracy) => {
+    advanceToNextTarget(writingAccuracy, false);
   };
 
   if (
@@ -1286,15 +1222,7 @@ export default function AdaptiveWordPractice({
               </p>
             ) : null}
 
-            {buildCorrect ? (
-              <button
-                type="button"
-                onClick={handleContinueToTrace}
-                className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-full shadow-lg text-lg"
-              >
-                Siguiente →
-              </button>
-            ) : (
+            {!buildCorrect && (
               <div className="flex items-center gap-4">
                 {typed.length > 0 && !buildError && (
                   <button
