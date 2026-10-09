@@ -13,6 +13,10 @@ import {
   determineMode,
   generateLetterItems,
   generateSyllableItems,
+  generateWordItems,
+  generatePhraseItems,
+  classifySyllable,
+  getCoinReward,
 } from '@/lib/missingLetterProgression';
 import { Volume2, RotateCcw, Trophy, Delete } from 'lucide-react';
 
@@ -43,22 +47,39 @@ export default function MissingLetterMode({
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const [traceAccuracy, setTraceAccuracy] = useState(null);
   const [loading, setLoading] = useState(true);
+  // effectiveMode may differ from `mode` when the determined mode had no
+  // decodable items and we fell back to a lower mode.
+  const [effectiveMode, setEffectiveMode] = useState(mode);
 
   const lang = getLanguage(studentData);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
 
-  // Generate items based on the progression mode.
+  // Generate items based on the progression mode, with fallback to a lower
+  // mode if no decodable items are available at the student's current level.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     (async () => {
       try {
-        let its;
-        if (mode === 'syllable') {
+        let its = null;
+        let effectiveMode = mode;
+
+        if (mode === 'phrase') {
+          its = generatePhraseItems(classConfig);
+          if (!its || !its.length) effectiveMode = 'word';
+        }
+        if (effectiveMode === 'word') {
+          its = await generateWordItems(classConfig);
+          if (!its || !its.length) effectiveMode = 'syllable';
+        }
+        if (effectiveMode === 'syllable') {
           its = generateSyllableItems(classConfig);
-        } else {
+          if (!its || !its.length) effectiveMode = 'letter';
+        }
+        if (effectiveMode === 'letter') {
           its = await generateLetterItems(classConfig);
         }
+
         if (cancelled || !its || !its.length) { if (!cancelled) setLoading(false); return; }
         // Shuffle
         const shuffled = its.slice();
@@ -67,6 +88,7 @@ export default function MissingLetterMode({
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         if (!cancelled) {
+          setEffectiveMode(effectiveMode);
           setItems(shuffled);
           setLoading(false);
         }
@@ -117,7 +139,7 @@ export default function MissingLetterMode({
   // Resolve random images for letter-mode items.
   useEffect(() => {
     let cancelled = false;
-    if (!items.length || mode !== 'letter') return;
+    if (!items.length || effectiveMode !== 'letter') return;
     (async () => {
       const next = {};
       for (let i = 0; i < items.length; i++) {
@@ -131,47 +153,101 @@ export default function MissingLetterMode({
       setImageCache((prev) => ({ ...prev, ...next }));
     })();
     return () => { cancelled = true; };
-  }, [items, mode]);
+  }, [items, effectiveMode]);
+
+  // Resolve images for phrase-mode items (use the content word's image).
+  useEffect(() => {
+    let cancelled = false;
+    if (!items.length || effectiveMode !== 'phrase') return;
+    (async () => {
+      const next = {};
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (!imageCache[i] && it.contentWord) {
+          const f = await resolveImageForWord(it.contentWord, { bucket: IMG_BUCKET });
+          if (f) next[i] = f.url;
+        }
+      }
+      if (cancelled || !Object.keys(next).length) return;
+      setImageCache((prev) => ({ ...prev, ...next }));
+    })();
+    return () => { cancelled = true; };
+  }, [items, effectiveMode]);
 
   // ---- letter mode helpers ----
   const correctLetter = useMemo(() => {
-    if (!item || mode !== 'letter') return '';
+    if (!item || effectiveMode !== 'letter') return '';
     return item.position === 'final' ? item.word[item.word.length - 1] : item.word[0];
-  }, [item, mode]);
+  }, [item, effectiveMode]);
 
   const displayLetters = useMemo(() => {
-    if (!item || mode !== 'letter') return [];
+    if (!item || effectiveMode !== 'letter') return [];
     const rest = item.position === 'final' ? item.word.slice(0, -1) : item.word.slice(1);
     return rest.split('');
-  }, [item, mode]);
+  }, [item, effectiveMode]);
 
   const playWord = useCallback(() => {
-    if (!item || mode !== 'letter') return;
+    if (!item || effectiveMode !== 'letter') return;
     try {
       const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
       a.play().catch(() => {});
     } catch {}
-  }, [item, lang, mode]);
+  }, [item, lang, effectiveMode]);
 
   // ---- syllable mode helpers ----
   const correctSyllable = useMemo(() => {
-    if (!item || mode !== 'syllable') return '';
+    if (!item || effectiveMode !== 'syllable') return '';
     return item.missingSyllable || '';
-  }, [item, mode]);
+  }, [item, effectiveMode]);
+
+  // ---- word / phrase mode helpers ----
+  // The full string the student types: the missing syllable (syllable mode),
+  // the entire word (word mode), or the entire phrase including spaces
+  // (phrase mode).
+  const target = useMemo(() => {
+    if (!item) return '';
+    if (effectiveMode === 'syllable') return item.missingSyllable || '';
+    if (effectiveMode === 'word') return item.word || '';
+    if (effectiveMode === 'phrase') return item.phrase || '';
+    return '';
+  }, [item, effectiveMode]);
 
   const playSyllableWord = useCallback(() => {
-    if (!item || mode !== 'syllable') return;
+    if (!item || effectiveMode !== 'syllable') return;
     try {
       const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
       a.play().catch(() => {});
     } catch {}
-  }, [item, lang, mode]);
+  }, [item, lang, effectiveMode]);
+
+  // ---- word mode audio ----
+  const playWordItem = useCallback(() => {
+    if (!item || effectiveMode !== 'word') return;
+    try {
+      const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
+      a.play().catch(() => {});
+    } catch {}
+  }, [item, lang, effectiveMode]);
+
+  // ---- phrase mode audio ----
+  // Uses speechSynthesis for the full phrase since we don't have phrase
+  // audio files. Falls back to the content word's audio file.
+  const playPhrase = useCallback(() => {
+    if (!item || effectiveMode !== 'phrase') return;
+    try {
+      const contentWord = item.contentWord || item.words?.[1] || '';
+      if (contentWord) {
+        const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(contentWord)}.mp3`);
+        a.play().catch(() => {});
+      }
+    } catch {}
+  }, [item, lang, effectiveMode]);
 
   // ---- keyboard handler ----
   const handleKeyPress = useCallback((letter) => {
     if (phase !== 'choose') return;
 
-    if (mode === 'letter') {
+    if (effectiveMode === 'letter') {
       if (letter === correctLetter) {
         setPlaced(letter);
         setWrong(false);
@@ -185,15 +261,15 @@ export default function MissingLetterMode({
         setTimeout(() => { setWrong(false); setWrongLetter(null); setPlaced(null); }, 700);
       }
     } else {
-      // syllable mode — build the syllable letter by letter
+      // syllable / word / phrase — build the target string letter by letter
       const newTyped = typed + letter;
-      if (correctSyllable.startsWith(newTyped)) {
+      if (target.startsWith(newTyped)) {
         setTyped(newTyped);
         setWrong(false);
         setWrongLetter(null);
-        if (newTyped === correctSyllable) {
-          // Syllable complete — celebrate and advance
-          setTimeout(() => handleSyllableComplete(), 500);
+        if (newTyped === target) {
+          // Target complete — celebrate and advance
+          setTimeout(() => handleTypingComplete(), 500);
         }
       } else {
         setWrong(true);
@@ -202,21 +278,25 @@ export default function MissingLetterMode({
         setTimeout(() => { setWrong(false); setWrongLetter(null); }, 700);
       }
     }
-  }, [phase, mode, correctLetter, correctSyllable, typed]);
+  }, [phase, effectiveMode, correctLetter, target, typed]);
 
-  // Delete last typed letter (syllable mode backspace).
+  // Delete last typed letter (syllable / word / phrase backspace).
   const handleBackspace = useCallback(() => {
-    if (phase !== 'choose' || mode !== 'syllable') return;
+    if (phase !== 'choose' || effectiveMode === 'letter') return;
     setTyped((t) => t.slice(0, -1));
     setWrong(false);
     setWrongLetter(null);
-  }, [phase, mode]);
+  }, [phase, effectiveMode]);
 
-  const handleSyllableComplete = useCallback(() => {
+  // Unified completion for all typing modes (syllable, word, phrase).
+  // Coin reward scales by mode and syllable difficulty.
+  const handleTypingComplete = useCallback(() => {
     const isFirstTry = itemMistakes === 0;
+    const sylType = effectiveMode === 'syllable' ? classifySyllable(item?.missingSyllable) : null;
+    const coins = getCoinReward(effectiveMode, sylType);
     if (isFirstTry) {
       setFirstTryCount((c) => c + 1);
-      awardCoins(4);
+      awardCoins(coins);
     }
     setCompleted((c) => c + 1);
     onUpdateProgress?.('missing_letter', {
@@ -231,14 +311,13 @@ export default function MissingLetterMode({
     } else {
       setIdx(idx + 1);
     }
-  }, [itemMistakes, awardCoins, completed, idx, items.length, onUpdateProgress, onComplete]);
+  }, [itemMistakes, awardCoins, effectiveMode, item, completed, idx, items.length, onUpdateProgress, onComplete]);
 
   const handleTraced = useCallback(() => {
     const isFirstTry = itemMistakes === 0;
     if (isFirstTry) {
       setFirstTryCount((c) => c + 1);
-      const isGreen = traceAccuracy == null || traceAccuracy >= 80;
-      awardCoins(isGreen ? 4 : 2);
+      awardCoins(getCoinReward('letter'));
     }
     setCompleted((c) => c + 1);
     setTraceAccuracy(null);
@@ -305,9 +384,14 @@ export default function MissingLetterMode({
     );
   }
 
-  // ---- letter mode: picture helper ----
+  // ---- letter / word mode: picture helper ----
   const picture = (() => {
-    if (mode !== 'letter' || !item) return null;
+    if (!item) return null;
+    if (effectiveMode === 'phrase') {
+      const url = imageCache[idx];
+      return url ? <img src={url} alt={item.contentWord} className="max-h-32 max-w-full rounded-2xl object-contain" /> : <div className="h-32 w-32 rounded-2xl bg-indigo-100 animate-pulse" />;
+    }
+    if (effectiveMode !== 'letter' && effectiveMode !== 'word') return null;
     if (item.image_source === 'emoji') return <span className="text-6xl leading-none select-none">{item.emoji || '❓'}</span>;
     if (item.image_source === 'upload' && item.image_url) return <img src={item.image_url} alt={item.word} className="max-h-32 max-w-full rounded-2xl object-contain" />;
     if (item.image_source === 'random') {
@@ -318,7 +402,12 @@ export default function MissingLetterMode({
   })();
 
   const compactPicture = (() => {
-    if (mode !== 'letter' || !item) return null;
+    if (!item) return null;
+    if (effectiveMode === 'phrase') {
+      const url = imageCache[idx];
+      return url ? <img src={url} alt={item.contentWord} className="max-h-16 max-w-16 rounded-xl object-contain" /> : <div className="h-16 w-16 rounded-xl bg-indigo-100 animate-pulse" />;
+    }
+    if (effectiveMode !== 'letter' && effectiveMode !== 'word') return null;
     if (item.image_source === 'emoji') return <span className="text-3xl leading-none select-none">{item.emoji || '❓'}</span>;
     if (item.image_source === 'upload' && item.image_url) return <img src={item.image_url} alt={item.word} className="max-h-16 max-w-16 rounded-xl object-contain" />;
     if (item.image_source === 'random') {
@@ -328,7 +417,7 @@ export default function MissingLetterMode({
     return <span className="text-2xl">❓</span>;
   })();
 
-  const wp = mode === 'letter' ? waypoints[correctLetter] : null;
+  const wp = effectiveMode === 'letter' ? waypoints[correctLetter] : null;
   const hasWaypoints = !!wp && Array.isArray(wp.strokes) && wp.strokes.length;
 
   return (
@@ -339,7 +428,7 @@ export default function MissingLetterMode({
       {/* progress bar */}
       <div className="flex items-center justify-between px-4 py-2 shrink-0">
         <span className="text-xs font-black text-indigo-500 bg-white/70 rounded-full px-3 py-1">
-          {mode === 'syllable' ? 'Sílabas' : 'Letter'} {idx + 1} of {items.length}
+          {effectiveMode === 'phrase' ? 'Frases' : effectiveMode === 'word' ? 'Palabras' : effectiveMode === 'syllable' ? 'Sílabas' : 'Letter'} {idx + 1} of {items.length}
         </span>
         <div className="flex items-center gap-2">
           {itemMistakes > 0 && (
@@ -353,7 +442,7 @@ export default function MissingLetterMode({
       </div>
 
       <div className={`flex-1 flex flex-col gap-3 px-4 pb-2 min-h-0 ${phase === 'tracing' && hasWaypoints ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        {mode === 'letter' && phase === 'tracing' && hasWaypoints ? (
+        {effectiveMode === 'letter' && phase === 'tracing' && hasWaypoints ? (
           /* ---- letter mode: tracing phase ---- */
           <div className="flex flex-col items-center gap-2 w-full flex-1 self-stretch max-w-4xl min-h-0">
             <div className="flex items-center gap-3 shrink-0">
@@ -381,7 +470,7 @@ export default function MissingLetterMode({
               />
             </div>
           </div>
-        ) : mode === 'letter' ? (
+        ) : effectiveMode === 'letter' ? (
           /* ---- letter mode: choose phase ---- */
           <div className="flex flex-col items-center justify-center gap-3 w-full max-w-2xl mx-auto flex-1">
             <div className="flex flex-col items-center gap-2 shrink-0">
@@ -408,7 +497,7 @@ export default function MissingLetterMode({
               )}
             </div>
           </div>
-        ) : (
+        ) : effectiveMode === 'syllable' ? (
           /* ---- syllable mode ---- */
           <div className="flex flex-col items-center justify-center gap-4 w-full max-w-2xl mx-auto flex-1">
             <button
@@ -454,6 +543,38 @@ export default function MissingLetterMode({
               {item.position === 'final' && '👆 Type the last syllable'}
             </p>
           </div>
+        ) : effectiveMode === 'word' ? (
+          /* ---- word mode: type the full word ---- */
+          <div className="flex flex-col items-center justify-center gap-4 w-full max-w-2xl mx-auto flex-1">
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <div className="bg-white rounded-3xl shadow-md border-2 border-indigo-100 flex items-center justify-center px-4 py-3 min-h-32 min-w-32">
+                {picture}
+              </div>
+              <button
+                onClick={playWordItem}
+                className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
+              >
+                <Volume2 className="w-4 h-4" /> Hear it
+              </button>
+            </div>
+            <TypingBoxes target={item.word} typed={typed} wrong={wrong} />
+          </div>
+        ) : (
+          /* ---- phrase mode: type the full phrase with spaces ---- */
+          <div className="flex flex-col items-center justify-center gap-4 w-full max-w-3xl mx-auto flex-1">
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <div className="bg-white rounded-3xl shadow-md border-2 border-indigo-100 flex items-center justify-center px-4 py-3 min-h-32 min-w-32">
+                {picture}
+              </div>
+              <button
+                onClick={playPhrase}
+                className="bg-white/80 hover:bg-white text-indigo-600 font-bold text-sm px-4 py-1.5 rounded-full shadow inline-flex items-center gap-1.5"
+              >
+                <Volume2 className="w-4 h-4" /> Hear it
+              </button>
+            </div>
+            <TypingBoxes target={item.phrase} typed={typed} wrong={wrong} />
+          </div>
         )}
 
         {/* keyboard — only during choose phase */}
@@ -464,8 +585,9 @@ export default function MissingLetterMode({
               onKeyPress={handleKeyPress}
               disabled={phase !== 'choose'}
               wrongLetter={wrongLetter}
+              showSpaceBar={effectiveMode === 'phrase'}
             />
-            {mode === 'syllable' && typed.length > 0 && (
+            {effectiveMode !== 'letter' && typed.length > 0 && (
               <button
                 onClick={handleBackspace}
                 className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
@@ -473,14 +595,14 @@ export default function MissingLetterMode({
                 <Delete className="w-4 h-4" /> Delete
               </button>
             )}
-            {mode === 'letter' && (
+            {effectiveMode === 'letter' && (
               <p className="text-xs text-gray-400">Tap the green letters to fill the box</p>
             )}
           </div>
         )}
 
         {/* no waypoints fallback — letter mode only */}
-        {mode === 'letter' && phase === 'tracing' && !hasWaypoints && (
+        {effectiveMode === 'letter' && phase === 'tracing' && !hasWaypoints && (
           <div className="flex flex-col items-center gap-3 py-4">
             <p className="text-sm text-gray-500">No tracing path found for "{correctLetter}".</p>
             <button onClick={handleTraced} className="bg-indigo-500 text-white font-bold px-5 py-2 rounded-full">Skip →</button>
@@ -505,6 +627,47 @@ function BlankSlot({ placed, wrong }) {
       }`}
     >
       {placed || ''}
+    </div>
+  );
+}
+
+// Typing boxes for word and phrase modes — renders one box per character of
+// the target string. Spaces are rendered as wider gaps. Typed characters
+// appear green; the current box pulses; wrong input flashes red.
+function TypingBoxes({ target, typed, wrong }) {
+  const chars = (target || '').split('');
+  return (
+    <div className="flex items-center gap-1 flex-wrap justify-center max-w-2xl">
+      {chars.map((c, i) => {
+        const isSpace = c === ' ';
+        const isTyped = i < typed.length;
+        const isCurrent = i === typed.length;
+
+        if (isSpace) {
+          return (
+            <div key={i} className="w-6 h-14 md:h-16 flex items-center justify-center shrink-0">
+              {isTyped && <span className="text-2xl text-gray-400">␣</span>}
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={i}
+            className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
+              isCurrent && wrong
+                ? 'border-red-400 bg-red-50 text-red-500'
+                : isTyped
+                  ? 'border-green-400 bg-green-50 text-green-600'
+                  : isCurrent
+                    ? 'border-indigo-300 bg-indigo-50/50 text-indigo-200 animate-pulse'
+                    : 'border-gray-200 bg-gray-50 text-gray-300'
+            }`}
+          >
+            {isTyped ? c : ''}
+          </div>
+        );
+      })}
     </div>
   );
 }

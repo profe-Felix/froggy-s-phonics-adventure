@@ -75,15 +75,77 @@ export function getIntroducedConsonants(introducedSet) {
   return [...introducedSet].filter(l => !VOWELS.includes(l)).sort();
 }
 
-// Syllable mode activates when the student knows all 5 vowels + at least
-// 3 consonants — enough to build meaningful CV syllables.
+// Progression thresholds (consonant count, assuming all 5 vowels known):
+//   letter   — 0-2 consonants (identify missing letter, then trace it)
+//   syllable — 3-4 consonants (type a missing syllable)
+//   word     — 5-6 consonants (type a complete word)
+//   phrase   — 7+ consonants  (type a short phrase with sight words + spaces)
 export function determineMode(classConfig) {
   const introduced = getIntroducedLetters(classConfig);
   const vowels = getIntroducedVowels(introduced);
   const consonants = getIntroducedConsonants(introduced);
+  if (vowels.length >= 5 && consonants.length >= 7) return 'phrase';
+  if (vowels.length >= 5 && consonants.length >= 5) return 'word';
   if (vowels.length >= 5 && consonants.length >= 3) return 'syllable';
   return 'letter';
 }
+
+// Tiered coin rewards: letter=1, CV syllable=2, complex syllable=3, word=4, phrase=5.
+export function classifySyllable(syllable) {
+  if (!syllable) return 'complex';
+  if (syllable.length === 1 && VOWELS.includes(syllable)) return 'simple'; // V
+  if (syllable.length === 2) {
+    const [c, v] = syllable;
+    if (!VOWELS.includes(c) && VOWELS.includes(v)) return 'simple'; // CV
+  }
+  return 'complex'; // CVC, VC, CCV, etc.
+}
+
+export function getCoinReward(mode, syllableType) {
+  switch (mode) {
+    case 'letter': return 1;
+    case 'syllable': return syllableType === 'simple' ? 2 : 3;
+    case 'word': return 4;
+    case 'phrase': return 5;
+    default: return 1;
+  }
+}
+
+// Spanish sight words that appear in phrases. Students memorize these as
+// whole words, so they don't need to be decodable.
+export const SIGHT_WORDS = new Set([
+  'el', 'la', 'los', 'las', 'un', 'una', 'y', 'mi', 'su', 'o',
+]);
+
+// Short phrases for phrase mode. Each has a sight word + a decodable content
+// word. The student types the entire phrase including the space.
+const PHRASES = [
+  { phrase: 'el oso', words: ['el', 'oso'] },
+  { phrase: 'la masa', words: ['la', 'masa'] },
+  { phrase: 'mi mama', words: ['mi', 'mama'] },
+  { phrase: 'su papa', words: ['su', 'papa'] },
+  { phrase: 'mi mapa', words: ['mi', 'mapa'] },
+  { phrase: 'la sopa', words: ['la', 'sopa'] },
+  { phrase: 'el mono', words: ['el', 'mono'] },
+  { phrase: 'la luna', words: ['la', 'luna'] },
+  { phrase: 'un oso', words: ['un', 'oso'] },
+  { phrase: 'mi moto', words: ['mi', 'moto'] },
+  { phrase: 'la papa', words: ['la', 'papa'] },
+  { phrase: 'el polo', words: ['el', 'polo'] },
+  { phrase: 'la sala', words: ['la', 'sala'] },
+  { phrase: 'mi sala', words: ['mi', 'sala'] },
+  { phrase: 'la loma', words: ['la', 'loma'] },
+  { phrase: 'mi nota', words: ['mi', 'nota'] },
+  { phrase: 'la nota', words: ['la', 'nota'] },
+  { phrase: 'el nene', words: ['el', 'nene'] },
+  { phrase: 'la nena', words: ['la', 'nena'] },
+  { phrase: 'mi pera', words: ['mi', 'pera'] },
+  { phrase: 'la pera', words: ['la', 'pera'] },
+  { phrase: 'el pato', words: ['el', 'pato'] },
+  { phrase: 'mi pato', words: ['mi', 'pato'] },
+  { phrase: 'la taza', words: ['la', 'taza'] },
+  { phrase: 'mi taza', words: ['mi', 'taza'] },
+];
 
 // Strip vowel accents for matching (á→a). ñ is preserved.
 function stripVowelAccents(s) {
@@ -262,6 +324,59 @@ export function generateSyllableItems(classConfig, { maxItems = 20 } = {}) {
           : 'middle',
     });
 
+    if (items.length >= maxItems) break;
+  }
+
+  return items;
+}
+
+// Generate word-mode items: decodable words from the Letter Sort image
+// bucket that the student types in full (not just a missing syllable).
+export async function generateWordItems(classConfig, { bucket = 'lettersort-images', maxItems = 20 } = {}) {
+  const graphemes = getIntroducedGraphemes(classConfig);
+  const introduced = getIntroducedLetters(classConfig);
+  const introducedNorm = new Set([...introduced].map(l => stripVowelAccents(l)));
+
+  if (!introducedNorm.size) return [];
+
+  const images = await listAllImagesJpg({ bucket });
+  const seen = new Set();
+  const items = [];
+
+  for (const img of images.sort(() => Math.random() - 0.5)) {
+    if (!img.core) continue;
+    const word = stripVowelAccents(img.core);
+    if (seen.has(word) || word.length < 2 || word.length > 5) continue;
+    if (!canDecodeWord(word, graphemes)) continue;
+    seen.add(word);
+    items.push({
+      word,
+      image_source: 'upload',
+      image_url: img.url,
+    });
+    if (items.length >= maxItems) break;
+  }
+
+  return items;
+}
+
+// Generate phrase-mode items: short sight-word + decodable-word phrases.
+// The student types the entire phrase including the space between words.
+export function generatePhraseItems(classConfig, { maxItems = 15 } = {}) {
+  const graphemes = getIntroducedGraphemes(classConfig);
+  const items = [];
+
+  for (const p of shuffle(PHRASES)) {
+    // Check that all content words (non-sight-words) are decodable.
+    const contentWords = p.words.filter(w => !SIGHT_WORDS.has(w));
+    const allDecodable = contentWords.every(w => canDecodeWord(w, graphemes));
+    if (!allDecodable) continue;
+
+    items.push({
+      phrase: p.phrase,
+      words: p.words,
+      contentWord: contentWords[0] || p.words[0],
+    });
     if (items.length >= maxItems) break;
   }
 

@@ -9,7 +9,7 @@ const VOWEL_SET = new Set(KEYBOARD_VOWELS);
 // Vowels get a small green dot underneath so students can easily spot them
 // and ensure they include a vowel when spelling. Non-vowels have a blank
 // spacer of the same size to keep keys aligned.
-export default function MissingLetterKeyboard({ introducedSet, onKeyPress, disabled = false, wrongLetter = null }) {
+export default function MissingLetterKeyboard({ introducedSet, onKeyPress, disabled = false, wrongLetter = null, showSpaceBar = false }) {
   const rows = getKeyboardRows();
 
   return (
@@ -123,6 +123,53 @@ export default function MissingLetterKeyboard({ introducedSet, onKeyPress, disab
           })}
         </div>
       ))}
+      {showSpaceBar && (
+        <div className="flex justify-center gap-1.5 mt-1.5">
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              if (!disabled) onKeyPress?.(' ');
+            }}
+            disabled={disabled}
+            className="box-border rounded-xl transition-all disabled:opacity-40 disabled:pointer-events-none"
+            style={{
+              width: '220px',
+              height: '50px',
+              borderWidth: '1.5px',
+              borderStyle: 'solid',
+              ...(wrongLetter === ' '
+                ? {
+                    borderColor: '#f87171',
+                    background: '#fee2e2',
+                    boxShadow: '0 2px 0 #fca5a5',
+                    transform: 'scale(0.95)',
+                  }
+                : {
+                    borderColor: '#a9c9a2',
+                    background: 'linear-gradient(180deg,#eef7eb,#e4f0df)',
+                    boxShadow: '0 2px 0 #c9ddc3',
+                  }),
+              color: '#39713d',
+              fontSize: '20px',
+              fontWeight: 700,
+              lineHeight: 1,
+              touchAction: 'none',
+            }}
+            onPointerDownCapture={(e) => {
+              if (disabled || wrongLetter === ' ') return;
+              e.currentTarget.style.transform = 'translateY(1px)';
+              e.currentTarget.style.boxShadow = '0 1px 0 #bdd7b6';
+            }}
+            onPointerUpCapture={(e) => {
+              if (disabled || wrongLetter === ' ') return;
+              e.currentTarget.style.transform = '';
+              e.currentTarget.style.boxShadow = '0 2px 0 #c9ddc3';
+            }}
+          >
+            espacio
+          </button>
+        </div>
+      )}
     </div>
   );
 }
