@@ -9,7 +9,7 @@ function stripArticle(text) {
   return String(text || '').replace(/^(El|La|Los|Las)\s+/i, '');
 }
 
-export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65 }) {
+export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65, vOffset = 0 }) {
   const g = lineGap; // gap between handwriting zones (inches)
   const asc = fontSize * 1.166667; // ascender height for baseline alignment
 
@@ -112,7 +112,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 style={{
                   position: 'absolute',
                   left: '0.2in',
-                  top: `${2 * g - asc}in`,
+                  top: `${2 * g - asc + vOffset}in`,
                   fontFamily: 'ZBKidLettersArrowDot, ui-sans-serif, sans-serif',
                   fontSize: `${fontSize}in`,
                   color: '#2e7d32',

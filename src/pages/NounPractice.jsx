@@ -5,24 +5,33 @@ import { CARDS_BY_CATEGORY } from '@/components/data/sentenceCards';
 import NounPracticeSheet from '@/components/print/NounPracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
 
-const ROWS_PER_PAGE = 5;
 const NOUNS = CARDS_BY_CATEGORY.who; // 18 "who" nouns from Creando Oraciones
 
 export default function NounPractice() {
   const [page, setPage] = useState(0);
   const [fontSize, setFontSize] = useState(0.45);
+  const [vOffset, setVOffset] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(6);
   const [zoom, setZoom] = useState(1);
 
-  const totalPages = Math.ceil(NOUNS.length / ROWS_PER_PAGE);
+  const totalPages = Math.ceil(NOUNS.length / rowsPerPage);
 
   // Split nouns into pages
   const allPages = useMemo(() => {
     const pages = [];
-    for (let i = 0; i < NOUNS.length; i += ROWS_PER_PAGE) {
-      pages.push(NOUNS.slice(i, i + ROWS_PER_PAGE));
+    for (let i = 0; i < NOUNS.length; i += rowsPerPage) {
+      pages.push(NOUNS.slice(i, i + rowsPerPage));
     }
     return pages;
-  }, []);
+  }, [rowsPerPage]);
+
+  // Auto-fit line gap so all rows fit within the page height
+  const lineGap = useMemo(() => {
+    const usableHeight = 10.5; // 11in page minus 0.25in padding top+bottom
+    const gapBetweenRows = 0.12;
+    const totalGaps = (rowsPerPage - 1) * gapBetweenRows;
+    return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
+  }, [rowsPerPage]);
 
   // Scale the 8.5in page down to fit the viewport
   useEffect(() => {
@@ -94,12 +103,29 @@ export default function NounPractice() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-bold text-slate-600">
+              Rows
+            </label>
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value));
+                setPage(0);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-bold text-slate-700"
+            >
+              <option value={5}>5</option>
+              <option value={6}>6</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-bold text-slate-600">
               Font size
             </label>
             <input
               type="range"
               min="0.3"
-              max="0.55"
+              max="0.85"
               step="0.05"
               value={fontSize}
               onChange={(e) => setFontSize(parseFloat(e.target.value))}
@@ -107,6 +133,24 @@ export default function NounPractice() {
             />
             <span className="w-12 text-sm font-semibold text-slate-500">
               {fontSize.toFixed(2)}in
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-bold text-slate-600">
+              Shift ↕
+            </label>
+            <input
+              type="range"
+              min="-0.3"
+              max="0.3"
+              step="0.05"
+              value={vOffset}
+              onChange={(e) => setVOffset(parseFloat(e.target.value))}
+              className="w-24"
+            />
+            <span className="w-12 text-sm font-semibold text-slate-500">
+              {vOffset > 0 ? '+' : ''}{vOffset.toFixed(2)}in
             </span>
           </div>
         </div>
@@ -119,7 +163,7 @@ export default function NounPractice() {
                 key={i}
                 className={`noun-page ${i !== page ? 'noun-page--screen-hidden' : ''}`}
               >
-                <NounPracticeSheet nouns={nouns} fontSize={fontSize} />
+                <NounPracticeSheet nouns={nouns} fontSize={fontSize} lineGap={lineGap} vOffset={vOffset} />
               </div>
             ))}
           </div>
