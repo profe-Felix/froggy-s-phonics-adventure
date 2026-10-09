@@ -19,6 +19,10 @@ export default function NounPractice() {
   useEffect(() => { localStorage.setItem('np_vOffset', vOffset); }, [vOffset]);
   useEffect(() => { localStorage.setItem('np_rowsPerPage', rowsPerPage); }, [rowsPerPage]);
 
+  // Max font size that keeps descenders inside the dirt zone (must match
+  // the clamp in NounPracticeSheet). Drives the slider upper bound so the
+  // user sees the real limit for the current row count.
+  const maxFontSize = lineGap / 0.533333;
   const totalPages = Math.ceil(NOUNS.length / rowsPerPage);
 
   // Split nouns into pages
@@ -136,14 +140,14 @@ export default function NounPractice() {
             <input
               type="range"
               min="0.3"
-              max="1.6"
+              max={maxFontSize}
               step="0.05"
-              value={fontSize}
+              value={Math.min(fontSize, maxFontSize)}
               onChange={(e) => setFontSize(parseFloat(e.target.value))}
               className="w-28"
             />
             <span className="w-12 text-sm font-semibold text-slate-500">
-              {fontSize.toFixed(2)}in
+              {Math.min(fontSize, maxFontSize).toFixed(2)}in
             </span>
           </div>
 

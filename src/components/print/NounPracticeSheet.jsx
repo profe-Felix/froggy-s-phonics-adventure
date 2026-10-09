@@ -14,7 +14,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
   // Clamp font size so descenders (0.5333 × fontSize) fit within the dirt
   // zone (height = g). Without this, descender letters like "p" spill past
   // the bottom dirt line when bands shrink (many rows / small lineGap).
-  const maxFontSize = (g / 0.533333) * 0.95; // 5% safety margin
+  const maxFontSize = g / 0.533333;
   const effectiveFontSize = Math.min(fontSize, maxFontSize);
   const asc = effectiveFontSize * 1.166667; // ascender height for baseline alignment
 
