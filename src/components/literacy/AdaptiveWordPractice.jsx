@@ -362,6 +362,11 @@ export default function AdaptiveWordPractice({
   ] = useState([]);
 
   const [
+    buildCorrect,
+    setBuildCorrect,
+  ] = useState(false);
+
+  const [
     attemptCount,
     setAttemptCount,
   ] = useState(1);
@@ -545,6 +550,7 @@ export default function AdaptiveWordPractice({
     setBuiltTiles([]);
     setBuildError(false);
     setBuildCharResults([]);
+    setBuildCorrect(false);
     setAttemptCount(1);
 
     setFirstAttemptCorrect(
@@ -805,12 +811,7 @@ export default function AdaptiveWordPractice({
     ) {
       setBuildError(false);
       setBuildCharResults([]);
-      setStage('trace');
-
-      setCanvasKey(
-        (previous) =>
-          previous + 1
-      );
+      setBuildCorrect(true);
 
       return;
     }
@@ -879,6 +880,15 @@ export default function AdaptiveWordPractice({
     }
 
     checkSubmission(typed);
+  };
+
+  const handleContinueToTrace = () => {
+    setStage('trace');
+
+    setCanvasKey(
+      (previous) =>
+        previous + 1
+    );
   };
 
   const handleBackspace = () => {
@@ -1234,15 +1244,17 @@ export default function AdaptiveWordPractice({
                   <div
                     key={i}
                     className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
-                      buildError
-                        ? charCorrect
-                          ? 'border-green-400 bg-green-50 text-green-600'
-                          : 'border-red-400 bg-red-50 text-red-500'
-                        : isTyped
-                          ? 'border-blue-400 bg-blue-50 text-blue-700'
-                          : i === typed.length
-                            ? 'border-blue-300 bg-blue-50/50 text-blue-200 animate-pulse'
-                            : 'border-gray-200 bg-gray-50 text-gray-300'
+                      buildCorrect
+                        ? 'border-green-400 bg-green-50 text-green-600'
+                        : buildError
+                          ? charCorrect
+                            ? 'border-green-400 bg-green-50 text-green-600'
+                            : 'border-red-400 bg-red-50 text-red-500'
+                          : isTyped
+                            ? 'border-blue-400 bg-blue-50 text-blue-700'
+                            : i === typed.length
+                              ? 'border-blue-300 bg-blue-50/50 text-blue-200 animate-pulse'
+                              : 'border-gray-200 bg-gray-50 text-gray-300'
                     }`}
                   >
                     {isTyped ? typed[i] : ''}
@@ -1251,7 +1263,11 @@ export default function AdaptiveWordPractice({
               })}
             </div>
 
-            {buildError ? (
+            {buildCorrect ? (
+              <p className="font-black text-green-500">
+                ¡Perfecto! 🎉
+              </p>
+            ) : buildError ? (
               <p className="font-black text-red-500">
                 Mira las letras verdes — esas están bien. Corrige las rojas.
               </p>
@@ -1261,33 +1277,45 @@ export default function AdaptiveWordPractice({
               </p>
             ) : null}
 
-            <div className="flex items-center gap-4">
-              {typed.length > 0 && !buildError && (
-                <button
-                  type="button"
-                  onClick={handleBackspace}
-                  className="text-sm text-gray-500 hover:text-gray-700 font-bold inline-flex items-center gap-1"
-                >
-                  ⌫ Borrar
-                </button>
-              )}
+            {buildCorrect ? (
+              <button
+                type="button"
+                onClick={handleContinueToTrace}
+                className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-full shadow-lg text-lg"
+              >
+                Siguiente →
+              </button>
+            ) : (
+              <div className="flex items-center gap-4">
+                {typed.length > 0 && !buildError && (
+                  <button
+                    type="button"
+                    onClick={handleBackspace}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-bold inline-flex items-center gap-1"
+                  >
+                    ⌫ Borrar
+                  </button>
+                )}
 
-              {typed.length > 0 && !buildError && (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 py-2 rounded-full shadow"
-                >
-                  Listo ✓
-                </button>
-              )}
-            </div>
+                {typed.length > 0 && !buildError && (
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 py-2 rounded-full shadow"
+                  >
+                    Listo ✓
+                  </button>
+                )}
+              </div>
+            )}
 
-            <MissingLetterKeyboard
-              introducedSet={introducedSet}
-              onKeyPress={handleKeyPress}
-              disabled={buildError}
-            />
+            {!buildCorrect && (
+              <MissingLetterKeyboard
+                introducedSet={introducedSet}
+                onKeyPress={handleKeyPress}
+                disabled={buildError}
+              />
+            )}
           </div>
         )}
 
