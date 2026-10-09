@@ -123,17 +123,18 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
               </div>
             </div>
 
-            {/* Right: picture */}
+            {/* Right: picture — solid green border aligns exactly with the
+                sky line (top) and dirt line (bottom) for clean cutting. */}
             <div
               style={{
                 flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0.08in',
-                border: '2px dashed #475569',
-                borderRadius: '8px',
-                margin: '0.04in',
+                padding: '0.06in',
+                border: '2px solid #2e7d32',
+                boxSizing: 'border-box',
+                height: `${3 * g}in`,
               }}
             >
               <img
@@ -141,7 +142,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 alt={noun.text}
                 style={{
                   maxWidth: '100%',
-                  maxHeight: `${3 * g - 0.2}in`,
+                  maxHeight: '100%',
                   objectFit: 'contain',
                 }}
               />
