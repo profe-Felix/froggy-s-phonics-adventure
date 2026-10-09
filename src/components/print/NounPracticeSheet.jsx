@@ -11,7 +11,12 @@ function stripArticle(text) {
 
 export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap = 0.65, vOffset = 0 }) {
   const g = lineGap; // gap between handwriting zones (inches)
-  const asc = fontSize * 1.166667; // ascender height for baseline alignment
+  // Clamp font size so descenders (0.5333 × fontSize) fit within the dirt
+  // zone (height = g). Without this, descender letters like "p" spill past
+  // the bottom dirt line when bands shrink (many rows / small lineGap).
+  const maxFontSize = (g / 0.533333) * 0.95; // 5% safety margin
+  const effectiveFontSize = Math.min(fontSize, maxFontSize);
+  const asc = effectiveFontSize * 1.166667; // ascender height for baseline alignment
 
   return (
     <div className="page-preview" style={{ padding: '0.25in' }}>
@@ -112,7 +117,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   left: '0.2in',
                   top: `${2 * g - asc + vOffset}in`,
                   fontFamily: 'ZBKidLettersArrowDot, ui-sans-serif, sans-serif',
-                  fontSize: `${fontSize}in`,
+                  fontSize: `${effectiveFontSize}in`,
                   color: '#2e7d32',
                   whiteSpace: 'nowrap',
                   lineHeight: 1.7,
