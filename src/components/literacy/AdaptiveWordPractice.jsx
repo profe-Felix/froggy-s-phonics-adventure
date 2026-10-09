@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 
 import WordTracingCanvas from '@/components/game/WordTracingCanvas';
+import MissingLetterKeyboard from '@/components/missingletter/MissingLetterKeyboard';
+import FreehandWriteCanvas from '@/components/literacy/FreehandWriteCanvas';
 
 import {
   getDefaultVoice,
@@ -27,18 +29,23 @@ const PASSING_ACCURACY = 80;
 
 const STAGES = [
   {
-    key: 'build',
+    key: 'freehand',
     number: 1,
+    label: 'Intenta',
+  },
+  {
+    key: 'build',
+    number: 2,
     label: 'Construye',
   },
   {
     key: 'trace',
-    number: 2,
+    number: 3,
     label: 'Traza',
   },
   {
     key: 'write',
-    number: 3,
+    number: 4,
     label: 'Escribe',
   },
 ];
@@ -354,6 +361,8 @@ export default function AdaptiveWordPractice({
     setFirstAttemptCorrect,
   ] = useState(true);
 
+  const [typed, setTyped] = useState('');
+
   const [
     canvasKey,
     setCanvasKey,
@@ -501,10 +510,20 @@ export default function AdaptiveWordPractice({
       waypoints,
     ]);
 
+  const introducedSet = useMemo(() => {
+    const set = new Set();
+    [...(syllables || []), ...(words || [])].forEach((target) => {
+      [...String(target || '')].forEach((letter) =>
+        set.add(letter.toLowerCase())
+      );
+    });
+    return set;
+  }, [syllables, words]);
+
   const resetTarget = (
     target
   ) => {
-    setStage('build');
+    setStage('freehand');
 
     setAvailableTiles(
       createLetterTiles(
@@ -519,6 +538,8 @@ export default function AdaptiveWordPractice({
     setFirstAttemptCorrect(
       true
     );
+
+    setTyped('');
 
     setCanvasKey(
       (previous) => previous + 1
@@ -608,7 +629,8 @@ export default function AdaptiveWordPractice({
     async () => {
       if (
         !currentTarget ||
-        stage !== 'build'
+        (stage !== 'build' &&
+          stage !== 'freehand')
       ) {
         return;
       }
@@ -626,10 +648,15 @@ export default function AdaptiveWordPractice({
           await getDefaultVoice();
 
         const instruction =
-          practiceLevel ===
-          'syllables'
-            ? 'Construye la sílaba'
-            : 'Construye la palabra';
+          stage === 'freehand'
+            ? practiceLevel ===
+              'syllables'
+              ? 'Escribe la sílaba'
+              : 'Escribe la palabra'
+            : practiceLevel ===
+              'syllables'
+              ? 'Construye la sílaba'
+              : 'Construye la palabra';
 
         const [
           instructionUrl,
@@ -694,6 +721,7 @@ export default function AdaptiveWordPractice({
   }, [
     currentTarget,
     practiceLevel,
+    stage,
   ]);
 
   useEffect(
@@ -747,28 +775,72 @@ export default function AdaptiveWordPractice({
     );
   };
 
-  const checkBuild = () => {
-    if (
-      builtTarget !==
-      currentTarget
-    ) {
-      setBuildError(true);
-
-      // Any incorrect check means this target was not
-      // correct on the first attempt.
-      setFirstAttemptCorrect(
-        false
-      );
-
-      return;
-    }
-
-    setBuildError(false);
-    setStage('trace');
+  const finishFreehand = () => {
+    setStage('build');
 
     setCanvasKey(
       (previous) => previous + 1
     );
+  };
+
+  const handleKeyPress = (
+    letter
+  ) => {
+    if (
+      stage !== 'build'
+    ) {
+      return;
+    }
+
+    setBuildError(false);
+
+    const newTyped =
+      typed + letter;
+
+    setTyped(newTyped);
+
+    if (
+      newTyped.length >=
+      currentTarget.length
+    ) {
+      if (
+        newTyped ===
+        currentTarget
+      ) {
+        setBuildError(false);
+        setStage('trace');
+
+        setCanvasKey(
+          (previous) =>
+            previous + 1
+        );
+      } else {
+        setBuildError(true);
+
+        setFirstAttemptCorrect(
+          false
+        );
+
+        setTimeout(() => {
+          setTyped('');
+          setBuildError(false);
+        }, 1200);
+      }
+    }
+  };
+
+  const handleBackspace = () => {
+    if (
+      stage !== 'build'
+    ) {
+      return;
+    }
+
+    setTyped((prev) =>
+      prev.slice(0, -1)
+    );
+
+    setBuildError(false);
   };
 
   const finishTrace = () => {
