@@ -3,19 +3,30 @@ import { getKeyboardRows, KEYBOARD_VOWELS } from '@/lib/missingLetterProgression
 const VOWEL_SET = new Set(KEYBOARD_VOWELS);
 
 // QWERTY keyboard for the Missing Letter activity. Letters that have been
-// introduced (from the curriculum) are highlighted; letters not yet
+// introduced (from the curriculum) are highlighted green; letters not yet
 // introduced are greyed out but still tappable.
 //
-// Vowels get a distinct indigo color so students can easily spot them and
-// ensure they include a vowel when spelling. Introduced consonants stay
-// green; introduced vowels are indigo.
+// Vowels get a small green dot underneath so students can easily spot them
+// and ensure they include a vowel when spelling. Non-vowels have a blank
+// spacer of the same size to keep keys aligned.
 export default function MissingLetterKeyboard({ introducedSet, onKeyPress, disabled = false, wrongLetter = null }) {
   const rows = getKeyboardRows();
 
   return (
-    <div className="flex flex-col items-center gap-1.5 select-none">
+    <div
+      className="flex flex-col items-center gap-1.5 select-none mx-auto"
+      style={{
+        padding: '14px 16px',
+        background: '#f7fbf5',
+        border: '1px solid #d8e6d2',
+        borderRadius: '18px',
+        boxShadow: '0 5px 14px rgba(43,78,36,.11), 0 2px 0 #e5efdf',
+        width: 'max-content',
+        maxWidth: '100%',
+      }}
+    >
       {rows.map((row, ri) => (
-        <div key={ri} className="flex gap-1.5 justify-center">
+        <div key={ri} className="flex justify-center gap-1.5">
           {row.map((letter) => {
             const introduced = introducedSet?.has(letter);
             const isVowel = VOWEL_SET.has(letter);
@@ -28,21 +39,85 @@ export default function MissingLetterKeyboard({ introducedSet, onKeyPress, disab
                   if (!disabled) onKeyPress?.(letter);
                 }}
                 disabled={disabled}
-                className={`w-11 h-11 rounded-xl text-2xl font-black lowercase flex items-center justify-center transition-all
-                  ${isWrong
-                    ? 'bg-red-100 border-2 border-red-400 text-red-500 scale-90'
+                className="box-border flex flex-col items-center justify-center gap-px rounded-xl transition-all disabled:opacity-40 disabled:pointer-events-none"
+                style={{
+                  width: '44px',
+                  height: '50px',
+                  padding: '3px 0 2px',
+                  borderWidth: '1.5px',
+                  borderStyle: 'solid',
+                  touchAction: 'none',
+                  fontSize: '23px',
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  ...(isWrong
+                    ? {
+                        borderColor: '#f87171',
+                        background: '#fee2e2',
+                        color: '#ef4444',
+                        boxShadow: '0 2px 0 #fca5a5',
+                        transform: 'scale(0.9)',
+                      }
                     : introduced
-                      ? isVowel
-                        ? 'bg-indigo-100 border-2 border-indigo-400 text-indigo-700 hover:scale-105 active:scale-95'
-                        : 'bg-green-100 border-2 border-green-400 text-green-700 hover:scale-105 active:scale-95'
-                      : isVowel
-                        ? 'bg-indigo-50 border-2 border-indigo-200 text-indigo-300 hover:scale-105 active:scale-95'
-                        : 'bg-gray-100 border-2 border-gray-200 text-gray-300 hover:scale-105 active:scale-95'
+                      ? {
+                          borderColor: '#a9c9a2',
+                          background: 'linear-gradient(180deg,#eef7eb,#e4f0df)',
+                          color: '#39713d',
+                          boxShadow: '0 2px 0 #c9ddc3',
+                        }
+                      : {
+                          borderColor: '#d1d5db',
+                          background: '#f3f4f6',
+                          color: '#9ca3af',
+                          boxShadow: 'none',
+                        }),
+                }}
+                onMouseEnter={(e) => {
+                  if (disabled || isWrong) return;
+                  if (introduced) {
+                    e.currentTarget.style.background = '#e0efdb';
+                    e.currentTarget.style.borderColor = '#83b67d';
+                    e.currentTarget.style.boxShadow = '0 3px 0 #bdd7b6';
                   }
-                  disabled:opacity-40 disabled:pointer-events-none`}
-                style={{ touchAction: 'none' }}
+                }}
+                onMouseLeave={(e) => {
+                  if (disabled || isWrong) return;
+                  if (introduced) {
+                    e.currentTarget.style.background = 'linear-gradient(180deg,#eef7eb,#e4f0df)';
+                    e.currentTarget.style.borderColor = '#a9c9a2';
+                    e.currentTarget.style.boxShadow = '0 2px 0 #c9ddc3';
+                  }
+                }}
+                onPointerDownCapture={(e) => {
+                  if (disabled || isWrong) return;
+                  if (introduced) {
+                    e.currentTarget.style.transform = 'translateY(1px)';
+                    e.currentTarget.style.boxShadow = '0 1px 0 #bdd7b6';
+                  }
+                }}
+                onPointerUpCapture={(e) => {
+                  if (disabled || isWrong) return;
+                  if (introduced) {
+                    e.currentTarget.style.transform = '';
+                    e.currentTarget.style.boxShadow = '0 2px 0 #c9ddc3';
+                  }
+                }}
               >
-                {letter}
+                <span className="lowercase">{letter}</span>
+                {isVowel ? (
+                  <span
+                    className="rounded-full"
+                    style={{
+                      width: '5px',
+                      height: '5px',
+                      flex: '0 0 5px',
+                      background: isWrong ? '#ef4444' : introduced ? '#5e9459' : '#9ca3af',
+                      boxShadow: introduced ? '0 0 0 1px rgba(67,119,62,.08)' : 'none',
+                    }}
+                  />
+                ) : (
+                  <span style={{ width: '5px', height: '5px', flex: '0 0 5px' }} />
+                )}
               </button>
             );
           })}
