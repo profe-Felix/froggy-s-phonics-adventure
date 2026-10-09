@@ -8,8 +8,10 @@ import WordBuilderDashboard from './WordBuilderDashboard';
 import PrizeDashboard from './PrizeDashboard';
 import Lessons from './Lessons';
 import SightWordTracker from './SightWordTracker';
+import LiteracyDashboard from './LiteracyDashboard';
 
 const TABS = [
+  { id: 'literacy', label: 'Literacy', icon: '🎮', Comp: LiteracyDashboard },
   { id: 'progress', label: 'Progress', icon: '📊', Comp: Dashboard },
   { id: 'math', label: 'Math', icon: '🧮', Comp: MathDashboard },
   { id: 'reading', label: 'Spanish Reading', icon: '📖', Comp: SpanishReadingDashboard },
@@ -31,7 +33,7 @@ const TABS = [
 ];
 
 export default function TeacherHub() {
-  const [active, setActive] = useState('progress');
+  const [active, setActive] = useState('literacy');
   const ActiveComp = TABS.find((t) => t.id === active)?.Comp || Dashboard;
 
   return (

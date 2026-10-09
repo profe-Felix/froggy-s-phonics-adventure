@@ -75,6 +75,7 @@ import TableRotationManager from './pages/TableRotationManager';
 import CreandoOraciones from './pages/CreandoOraciones';
 import NounPractice from './pages/NounPractice';
 import WorkSamples from './pages/WorkSamples';
+import LiteracyDashboard from './pages/LiteracyDashboard';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -198,6 +199,7 @@ const AuthenticatedApp = () => {
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
       <Route path="/NounPractice" element={<NounPractice />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />
+      <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
