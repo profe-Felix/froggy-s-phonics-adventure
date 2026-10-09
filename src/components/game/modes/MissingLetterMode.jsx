@@ -5,7 +5,7 @@ import { NUMBER_WAYPOINTS } from '../../data/numberWaypoints';
 import MissingLetterWordCanvas from '../MissingLetterWordCanvas';
 import MissingLetterKeyboard from '@/components/missingletter/MissingLetterKeyboard';
 import { resolveImageForWord } from '@/lib/lettersort/storage';
-import { AUDIO_BASE, toAudioName } from '@/lib/audio';
+import { AUDIO_BASE, toAudioName, playTts } from '@/lib/audio';
 import { getLanguage } from '@/lib/language';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import {
@@ -36,9 +36,10 @@ export default function MissingLetterMode({
   const [items, setItems] = useState([]);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState('choose'); // choose | tracing | done
-  const [itemMistakes, setItemMistakes] = useState(0);
+  const [attemptCount, setAttemptCount] = useState(1); // 1, 2, or 3 (3 = show answer)
+  const [showAnswer, setShowAnswer] = useState(false);
   const [placed, setPlaced] = useState(null);       // letter mode: letter in the blank
-  const [typed, setTyped] = useState('');            // syllable mode: letters typed so far
+  const [typed, setTyped] = useState('');            // syllable/word/phrase: letters typed so far
   const [wrong, setWrong] = useState(false);
   const [wrongLetter, setWrongLetter] = useState(null);
   const [imageCache, setImageCache] = useState({});
@@ -127,7 +128,8 @@ export default function MissingLetterMode({
 
   // Reset per-item state when the item changes.
   useEffect(() => {
-    setItemMistakes(0);
+    setAttemptCount(1);
+    setShowAnswer(false);
     setPlaced(null);
     setTyped('');
     setWrong(false);
@@ -186,13 +188,30 @@ export default function MissingLetterMode({
     return rest.split('');
   }, [item, effectiveMode]);
 
+  // Audio fallback: try the recorded mp3 first, fall back to cloud TTS if the
+  // file doesn't exist (some words have no recorded audio).
+  const playWordAudio = useCallback((word) => {
+    if (!word) return;
+    try {
+      const url = `${AUDIO_BASE}/${lang}/words/${toAudioName(word)}.mp3`;
+      const a = new Audio(url);
+      let fallbackFired = false;
+      const tryFallback = () => {
+        if (fallbackFired) return;
+        fallbackFired = true;
+        playTts(word, lang, 0.8);
+      };
+      a.addEventListener('error', tryFallback, { once: true });
+      a.play().catch(tryFallback);
+    } catch {
+      playTts(word, lang, 0.8);
+    }
+  }, [lang]);
+
   const playWord = useCallback(() => {
     if (!item || effectiveMode !== 'letter') return;
-    try {
-      const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
-      a.play().catch(() => {});
-    } catch {}
-  }, [item, lang, effectiveMode]);
+    playWordAudio(item.word);
+  }, [item, effectiveMode, playWordAudio]);
 
   // ---- syllable mode helpers ----
   const correctSyllable = useMemo(() => {
@@ -214,38 +233,57 @@ export default function MissingLetterMode({
 
   const playSyllableWord = useCallback(() => {
     if (!item || effectiveMode !== 'syllable') return;
-    try {
-      const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
-      a.play().catch(() => {});
-    } catch {}
-  }, [item, lang, effectiveMode]);
+    playWordAudio(item.word);
+  }, [item, effectiveMode, playWordAudio]);
 
   // ---- word mode audio ----
   const playWordItem = useCallback(() => {
     if (!item || effectiveMode !== 'word') return;
-    try {
-      const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(item.word)}.mp3`);
-      a.play().catch(() => {});
-    } catch {}
-  }, [item, lang, effectiveMode]);
+    playWordAudio(item.word);
+  }, [item, effectiveMode, playWordAudio]);
 
   // ---- phrase mode audio ----
-  // Uses speechSynthesis for the full phrase since we don't have phrase
-  // audio files. Falls back to the content word's audio file.
+  // Uses cloud TTS for the full phrase since we don't have phrase audio files.
   const playPhrase = useCallback(() => {
     if (!item || effectiveMode !== 'phrase') return;
-    try {
-      const contentWord = item.contentWord || item.words?.[1] || '';
-      if (contentWord) {
-        const a = new Audio(`${AUDIO_BASE}/${lang}/words/${toAudioName(contentWord)}.mp3`);
-        a.play().catch(() => {});
-      }
-    } catch {}
+    playTts(item.phrase, lang, 0.8);
   }, [item, lang, effectiveMode]);
+
+  // ---- coin calculation for attempt-based scoring ----
+  // 1st attempt correct = full coins, 2nd = half (min 1), 3rd = 0 (show answer).
+  const getCoinsForAttempt = useCallback((mode, attempt, currentItem) => {
+    const sylType = mode === 'syllable' ? classifySyllable(currentItem?.missingSyllable) : null;
+    const base = getCoinReward(mode, sylType);
+    if (attempt === 1) return base;
+    if (attempt === 2) return Math.max(1, Math.floor(base / 2));
+    return 0;
+  }, []);
+
+  // Advance to the next item (or finish). Awards coins and updates progress
+  // only when isSuccess is true; the "show answer" path calls with false.
+  const advanceItem = useCallback((isSuccess, coinsToAward = 0) => {
+    if (isSuccess && coinsToAward > 0) {
+      if (attemptCount === 1) setFirstTryCount((c) => c + 1);
+      awardCoins(coinsToAward);
+    }
+    setCompleted((c) => c + 1);
+    onUpdateProgress?.('missing_letter', {
+      total_attempts: completed + 1,
+      total_correct: isSuccess ? completed + 1 : completed,
+      mastered_items: [],
+      learning_items: [],
+    });
+    if (idx + 1 >= items.length) {
+      setPhase('done');
+      onComplete?.({});
+    } else {
+      setIdx(idx + 1);
+    }
+  }, [attemptCount, awardCoins, completed, idx, items.length, onUpdateProgress, onComplete]);
 
   // ---- keyboard handler ----
   const handleKeyPress = useCallback((letter) => {
-    if (phase !== 'choose') return;
+    if (phase !== 'choose' || showAnswer) return;
 
     if (effectiveMode === 'letter') {
       if (letter === correctLetter) {
@@ -254,86 +292,66 @@ export default function MissingLetterMode({
         setWrongLetter(null);
         setTimeout(() => setPhase('tracing'), 450);
       } else {
+        // Wrong letter — flash red, increment attempt
         setWrong(true);
         setWrongLetter(letter);
-        setItemMistakes((m) => m + 1);
         setPlaced(letter);
-        setTimeout(() => { setWrong(false); setWrongLetter(null); setPlaced(null); }, 700);
+        if (attemptCount >= 3) {
+          // 3rd attempt wrong — show the answer, no coins, advance
+          setTimeout(() => {
+            setShowAnswer(true);
+            setWrong(false);
+            setWrongLetter(null);
+            setPlaced(correctLetter);
+            setTimeout(() => advanceItem(false), 2500);
+          }, 700);
+        } else {
+          setAttemptCount((c) => c + 1);
+          setTimeout(() => { setWrong(false); setWrongLetter(null); setPlaced(null); }, 700);
+        }
       }
     } else {
-      // syllable / word / phrase — build the target string letter by letter
+      // syllable / word / phrase — accept ALL letters (wrong ones shown red),
+      // auto-check when the student has typed the full target length.
       const newTyped = typed + letter;
-      if (target.startsWith(newTyped)) {
-        setTyped(newTyped);
-        setWrong(false);
-        setWrongLetter(null);
-        if (newTyped === target) {
-          // Target complete — celebrate and advance
-          setTimeout(() => handleTypingComplete(), 500);
+      setTyped(newTyped);
+
+      if (newTyped.length >= target.length) {
+        // Auto-check: is every position correct?
+        const allCorrect = newTyped.split('').every((c, i) => c === target[i]);
+        if (allCorrect) {
+          setWrongLetter(null);
+          const coins = getCoinsForAttempt(effectiveMode, attemptCount, item);
+          setTimeout(() => advanceItem(true, coins), 600);
+        } else if (attemptCount >= 3) {
+          // 3rd attempt still wrong — show the correct answer, then advance
+          setTimeout(() => {
+            setShowAnswer(true);
+            setTimeout(() => advanceItem(false), 2500);
+          }, 1200);
+        } else {
+          // Wrong but attempts remain — show green/red feedback, then clear
+          setAttemptCount((c) => c + 1);
+          setTimeout(() => { setTyped(''); }, 1200);
         }
-      } else {
-        setWrong(true);
-        setWrongLetter(letter);
-        setItemMistakes((m) => m + 1);
-        setTimeout(() => { setWrong(false); setWrongLetter(null); }, 700);
       }
     }
-  }, [phase, effectiveMode, correctLetter, target, typed]);
+  }, [phase, showAnswer, effectiveMode, correctLetter, target, typed, attemptCount, getCoinsForAttempt, advanceItem, item]);
 
   // Delete last typed letter (syllable / word / phrase backspace).
   const handleBackspace = useCallback(() => {
-    if (phase !== 'choose' || effectiveMode === 'letter') return;
+    if (phase !== 'choose' || effectiveMode === 'letter' || showAnswer) return;
     setTyped((t) => t.slice(0, -1));
     setWrong(false);
     setWrongLetter(null);
-  }, [phase, effectiveMode]);
+  }, [phase, effectiveMode, showAnswer]);
 
-  // Unified completion for all typing modes (syllable, word, phrase).
-  // Coin reward scales by mode and syllable difficulty.
-  const handleTypingComplete = useCallback(() => {
-    const isFirstTry = itemMistakes === 0;
-    const sylType = effectiveMode === 'syllable' ? classifySyllable(item?.missingSyllable) : null;
-    const coins = getCoinReward(effectiveMode, sylType);
-    if (isFirstTry) {
-      setFirstTryCount((c) => c + 1);
-      awardCoins(coins);
-    }
-    setCompleted((c) => c + 1);
-    onUpdateProgress?.('missing_letter', {
-      total_attempts: completed + 1,
-      total_correct: completed + 1,
-      mastered_items: [],
-      learning_items: [],
-    });
-    if (idx + 1 >= items.length) {
-      setPhase('done');
-      onComplete?.({});
-    } else {
-      setIdx(idx + 1);
-    }
-  }, [itemMistakes, awardCoins, effectiveMode, item, completed, idx, items.length, onUpdateProgress, onComplete]);
-
+  // Letter mode — tracing complete. Coins based on which attempt got it right.
   const handleTraced = useCallback(() => {
-    const isFirstTry = itemMistakes === 0;
-    if (isFirstTry) {
-      setFirstTryCount((c) => c + 1);
-      awardCoins(getCoinReward('letter'));
-    }
-    setCompleted((c) => c + 1);
+    const coins = getCoinsForAttempt('letter', attemptCount, item);
     setTraceAccuracy(null);
-    onUpdateProgress?.('missing_letter', {
-      total_attempts: completed + 1,
-      total_correct: completed + 1,
-      mastered_items: [],
-      learning_items: [],
-    });
-    if (idx + 1 >= items.length) {
-      setPhase('done');
-      onComplete?.({});
-    } else {
-      setIdx(idx + 1);
-    }
-  }, [itemMistakes, awardCoins, traceAccuracy, completed, idx, items.length, onUpdateProgress, onComplete]);
+    advanceItem(true, coins);
+  }, [attemptCount, getCoinsForAttempt, advanceItem, item]);
 
   const restart = () => {
     setIdx(0);
@@ -343,7 +361,8 @@ export default function MissingLetterMode({
     setPlaced(null);
     setTyped('');
     setWrong(false);
-    setItemMistakes(0);
+    setAttemptCount(1);
+    setShowAnswer(false);
   };
 
   // ---- render: loading ----
@@ -431,9 +450,16 @@ export default function MissingLetterMode({
           {effectiveMode === 'phrase' ? 'Frases' : effectiveMode === 'word' ? 'Palabras' : effectiveMode === 'syllable' ? 'Sílabas' : 'Letter'} {idx + 1} of {items.length}
         </span>
         <div className="flex items-center gap-2">
-          {itemMistakes > 0 && (
-            <span className="text-xs font-bold text-amber-500 bg-amber-50 rounded-full px-2 py-0.5">
-              No bonus ⚠️
+          {attemptCount > 1 && !showAnswer && (
+            <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${
+              attemptCount >= 3 ? 'text-red-500 bg-red-50' : 'text-amber-500 bg-amber-50'
+            }`}>
+              {attemptCount >= 3 ? 'Last try! ⚠️' : `Try ${attemptCount} ⚠️`}
+            </span>
+          )}
+          {showAnswer && (
+            <span className="text-xs font-bold text-indigo-500 bg-indigo-50 rounded-full px-2 py-0.5">
+              Answer shown 💡
             </span>
           )}
           <span className="text-xs font-bold text-gray-400">⭐ {firstTryCount}</span>
@@ -487,13 +513,13 @@ export default function MissingLetterMode({
             {/* word with blank */}
             <div className="flex items-center gap-1 flex-wrap justify-center">
               {item.position === 'initial' && (
-                <BlankSlot placed={placed} wrong={wrong} correctLetter={correctLetter} />
+                <BlankSlot placed={placed} wrong={wrong} showAnswer={showAnswer} correctLetter={correctLetter} />
               )}
               {displayLetters.map((c, i) => (
                 <span key={i} className="font-black text-gray-700 lowercase text-5xl md:text-6xl">{c}</span>
               ))}
               {item.position === 'final' && (
-                <BlankSlot placed={placed} wrong={wrong} correctLetter={correctLetter} />
+                <BlankSlot placed={placed} wrong={wrong} showAnswer={showAnswer} correctLetter={correctLetter} />
               )}
             </div>
           </div>
@@ -511,18 +537,24 @@ export default function MissingLetterMode({
               {item.syllables.map((syl, si) => {
                 const isMissing = si === item.missingIdx;
                 if (isMissing) {
+                  const display = showAnswer ? correctSyllable : typed;
                   return (
                     <div
                       key={si}
-                      className={`min-w-20 h-16 rounded-2xl border-4 border-dashed flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors ${
-                        wrong
-                          ? 'border-red-400 bg-red-50 text-red-500'
-                          : typed.length === correctSyllable.length
-                            ? 'border-green-400 bg-green-50 text-green-600'
-                            : 'border-indigo-300 bg-indigo-50/50 text-indigo-700'
+                      className={`min-w-20 h-16 rounded-2xl border-4 border-dashed flex items-center justify-center gap-0.5 text-4xl md:text-5xl font-black lowercase transition-colors ${
+                        showAnswer
+                          ? 'border-green-400 bg-green-50'
+                          : 'border-indigo-300 bg-indigo-50/50'
                       }`}
                     >
-                      {typed || ''}
+                      {display ? display.split('').map((c, ci) => {
+                        const isCorrect = c === correctSyllable[ci];
+                        return (
+                          <span key={ci} className={showAnswer || isCorrect ? 'text-green-600' : 'text-red-500'}>
+                            {c}
+                          </span>
+                        );
+                      }) : ''}
                     </div>
                   );
                 }
@@ -557,7 +589,7 @@ export default function MissingLetterMode({
                 <Volume2 className="w-4 h-4" /> Hear it
               </button>
             </div>
-            <TypingBoxes target={item.word} typed={typed} wrong={wrong} />
+            <TypingBoxes target={item.word} typed={typed} showAnswer={showAnswer} />
           </div>
         ) : (
           /* ---- phrase mode: type the full phrase with spaces ---- */
@@ -573,7 +605,7 @@ export default function MissingLetterMode({
                 <Volume2 className="w-4 h-4" /> Hear it
               </button>
             </div>
-            <TypingBoxes target={item.phrase} typed={typed} wrong={wrong} />
+            <TypingBoxes target={item.phrase} typed={typed} showAnswer={showAnswer} />
           </div>
         )}
 
@@ -583,7 +615,7 @@ export default function MissingLetterMode({
             <MissingLetterKeyboard
               introducedSet={introducedSet}
               onKeyPress={handleKeyPress}
-              disabled={phase !== 'choose'}
+              disabled={phase !== 'choose' || showAnswer}
               wrongLetter={wrongLetter}
               showSpaceBar={effectiveMode === 'phrase'}
             />
@@ -614,27 +646,31 @@ export default function MissingLetterMode({
 }
 
 // The empty box for letter mode — shows the placed letter (green when correct,
-// red when wrong) and pulses while empty.
-function BlankSlot({ placed, wrong }) {
+// red when wrong) and pulses while empty. When showAnswer is true, displays
+// the correct letter in green (used after 3 failed attempts).
+function BlankSlot({ placed, wrong, showAnswer, correctLetter }) {
   return (
     <div
       className={`w-12 h-14 md:w-14 md:h-16 rounded-2xl border-4 border-dashed flex items-center justify-center text-5xl md:text-6xl font-black lowercase transition-colors ${
-        wrong
-          ? 'border-red-400 bg-red-50 text-red-500'
-          : placed
-            ? 'border-green-400 bg-green-50 text-green-600'
-            : 'border-indigo-300 bg-indigo-50/50 text-indigo-200 animate-pulse'
+        showAnswer
+          ? 'border-green-400 bg-green-50 text-green-600'
+          : wrong
+            ? 'border-red-400 bg-red-50 text-red-500'
+            : placed
+              ? 'border-green-400 bg-green-50 text-green-600'
+              : 'border-indigo-300 bg-indigo-50/50 text-indigo-200 animate-pulse'
       }`}
     >
-      {placed || ''}
+      {showAnswer ? correctLetter : (placed || '')}
     </div>
   );
 }
 
 // Typing boxes for word and phrase modes — renders one box per character of
-// the target string. Spaces are rendered as wider gaps. Typed characters
-// appear green; the current box pulses; wrong input flashes red.
-function TypingBoxes({ target, typed, wrong }) {
+// the target string. Spaces are rendered as wider gaps. Each typed letter is
+// shown green (correct position) or red (wrong position). When showAnswer is
+// true, all boxes display the correct answer in green.
+function TypingBoxes({ target, typed, showAnswer }) {
   const chars = (target || '').split('');
   return (
     <div className="flex items-center gap-1 flex-wrap justify-center max-w-2xl">
@@ -642,6 +678,7 @@ function TypingBoxes({ target, typed, wrong }) {
         const isSpace = c === ' ';
         const isTyped = i < typed.length;
         const isCurrent = i === typed.length;
+        const isCorrect = isTyped && typed[i] === c;
 
         if (isSpace) {
           return (
@@ -655,16 +692,18 @@ function TypingBoxes({ target, typed, wrong }) {
           <div
             key={i}
             className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
-              isCurrent && wrong
-                ? 'border-red-400 bg-red-50 text-red-500'
+              showAnswer
+                ? 'border-green-400 bg-green-50 text-green-600'
                 : isTyped
-                  ? 'border-green-400 bg-green-50 text-green-600'
+                  ? isCorrect
+                    ? 'border-green-400 bg-green-50 text-green-600'
+                    : 'border-red-400 bg-red-50 text-red-500'
                   : isCurrent
                     ? 'border-indigo-300 bg-indigo-50/50 text-indigo-200 animate-pulse'
                     : 'border-gray-200 bg-gray-50 text-gray-300'
             }`}
           >
-            {isTyped ? c : ''}
+            {showAnswer ? c : (isTyped ? typed[i] : '')}
           </div>
         );
       })}
