@@ -4,12 +4,15 @@ import { Printer, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CARDS_BY_CATEGORY } from '@/components/data/sentenceCards';
 import NounPracticeSheet from '@/components/print/NounPracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
+import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 
 const NOUNS = CARDS_BY_CATEGORY.who; // 18 "who" nouns from Creando Oraciones
 
 export default function NounPractice() {
   const [page, setPage] = useState(0);
-  const [fontSize, setFontSize] = useState(0.45);
+  const [fontSize, setFontSize] = useState(0.95);
+  const [letterStyle, setLetterStyle] = useState('font');
+  const waypoints = useMergedWaypoints();
   const [vOffset, setVOffset] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(6);
   const [zoom, setZoom] = useState(1);
@@ -120,12 +123,26 @@ export default function NounPractice() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-bold text-slate-600">
+              Letters
+            </label>
+            <select
+              value={letterStyle}
+              onChange={(e) => setLetterStyle(e.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-bold text-slate-700"
+            >
+              <option value="font">Font</option>
+              <option value="waypoints">Our tracing paths</option>
+            </select>
+          </div>
+
+          <div className={`flex items-center gap-2 ${letterStyle === 'waypoints' ? 'opacity-40 pointer-events-none' : ''}`}>
+            <label className="text-sm font-bold text-slate-600">
               Font size
             </label>
             <input
               type="range"
               min="0.3"
-              max="1.2"
+              max="1.6"
               step="0.05"
               value={fontSize}
               onChange={(e) => setFontSize(parseFloat(e.target.value))}
@@ -163,7 +180,7 @@ export default function NounPractice() {
                 key={i}
                 className={`noun-page ${i !== page ? 'noun-page--screen-hidden' : ''}`}
               >
-                <NounPracticeSheet nouns={nouns} fontSize={fontSize} lineGap={lineGap} vOffset={vOffset} />
+                <NounPracticeSheet nouns={nouns} fontSize={fontSize} lineGap={lineGap} vOffset={vOffset} letterStyle={letterStyle} waypoints={waypoints} />
               </div>
             ))}
           </div>
