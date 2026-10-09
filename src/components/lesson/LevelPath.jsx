@@ -4,9 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { Lock, Star, Pencil, Save, X, Plus } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
-import CoinBadge from '@/components/game/CoinBadge';
 import CharacterDock from '@/components/game/CharacterDock';
-import PrizeWheel from '@/components/game/PrizeWheel';
 import { getCharacters } from '@/lib/characters';
 import { useClassColors } from '@/hooks/useClassColors';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
@@ -34,7 +32,7 @@ function defaultPos(i) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onStartStep, onLogout, onStudentPatch, parentView }) {
+export default function LevelPath({ studentData, selectedStudent, onOpenLesson, onStartStep, onLogout, onStudentPatch, parentView, onOpenWheel }) {
   const className = selectedStudent?.class_name || '';
   const studentNumber = selectedStudent?.number;
   const qc = useQueryClient();
@@ -50,51 +48,13 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   });
   const canEdit = me?.role === 'admin' || me?.role === 'teacher';
 
-  // Character collection + coin state for the dock / wheel.
+  // Character collection for the dock.
   const [characters, setCharacters] = useState([]);
-  const [wheelOpen, setWheelOpen] = useState(false);
-  const [wheelFreeSpin, setWheelFreeSpin] = useState(false);
   useEffect(() => { getCharacters().then(setCharacters); }, []);
-  const coins = Number(studentData?.coins || 0);
   const unlockedChars = studentData?.unlocked_characters || [];
-  const [redeemedPrizes, setRedeemedPrizes] = useState(
-    () => studentData?.redeemed_prizes || []
-  );
 
   const handleSetActiveChar = (id) =>
     onStudentPatch?.({ active_character: id });
-
-  const handleClaimPrize = (prize) => {
-    setWheelOpen(false);
-
-    // If this was a banked free spin, it's now used up.
-    if (wheelFreeSpin && studentData?.id) {
-      const banked = Math.max(0, (studentData.banked_spins || 0) - 1);
-      onStudentPatch?.({ banked_spins: banked });
-    }
-    setWheelFreeSpin(false);
-
-    if (
-      prize?.oneTime &&
-      !redeemedPrizes.includes(prize.id)
-    ) {
-      const updated = [
-        ...redeemedPrizes,
-        prize.id,
-      ];
-
-      setRedeemedPrizes(updated);
-
-      onStudentPatch?.({
-        redeemed_prizes: updated,
-      });
-    }
-  };
-
-  const handleCloseWheel = () => {
-    setWheelOpen(false);
-    setWheelFreeSpin(false);
-  };
 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
@@ -318,10 +278,9 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
                 </button>
               </>
             )}
-            <CoinBadge coins={coins} onClick={() => { setWheelFreeSpin(false); setWheelOpen(true); }} />
             {(studentData?.banked_spins || 0) > 0 && (
               <button
-                onClick={() => { setWheelFreeSpin(true); setWheelOpen(true); }}
+                onClick={() => onOpenWheel?.(true)}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-400 text-white text-sm font-bold shadow animate-pulse"
               >
                 🎟️ {studentData.banked_spins} free spin{studentData.banked_spins !== 1 ? 's' : ''}
@@ -409,21 +368,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
         )}
 
         {!editing && (
-          <>
-            <CharacterDock studentData={studentData} characters={characters} onSetActive={handleSetActiveChar} />
-            {wheelOpen && (
-              <PrizeWheel
-                key="level-path-wheel"
-                studentData={studentData}
-                onStudentPatch={onStudentPatch}
-                redeemedPrizes={redeemedPrizes}
-                onClaim={handleClaimPrize}
-                onClose={handleCloseWheel}
-                freeSpin={wheelFreeSpin}
-                source="level-path"
-              />
-            )}
-          </>
+          <CharacterDock studentData={studentData} characters={characters} onSetActive={handleSetActiveChar} />
         )}
       </div>
 

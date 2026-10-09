@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Gamepad2, PlayCircle, ListChecks, Compass, LogOut, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, Gamepad2, PlayCircle, ListChecks, Compass, LogOut, Eye, EyeOff, Coins } from 'lucide-react';
 import { useClassColors } from '@/hooks/useClassColors';
 
 // Vertical side menu (right edge) — switches the student between the level
@@ -14,7 +14,7 @@ const ITEMS = [
   { key: 'videos', label: 'Videos', Icon: PlayCircle },
 ];
 
-export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly, barcodeLogin, parentView, onToggleParentView }) {
+export default function LevelSideNav({ active, onSelect, onLogout, studentData, selectedStudent, isTracingOnly, barcodeLogin, parentView, onToggleParentView, onOpenWheel }) {
   const { colorFor } = useClassColors();
   const className = selectedStudent?.class_name || '';
   const classColor = colorFor(className);
@@ -28,7 +28,7 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
     : ITEMS;
 
   return (
-    <div className="sidebar-nav absolute right-3 lg:right-5 z-30 flex flex-col gap-1.5 rounded-3xl bg-[#1a1a2e] px-2 py-2 shadow-xl" style={{ top: 'max(0.5rem, env(safe-area-inset-top))' }}>
+    <div className="sidebar-nav absolute right-3 lg:right-5 z-30 flex flex-col gap-1.5 rounded-3xl bg-[#1a1a2e] px-2 py-2 shadow-xl" style={{ top: 'max(1.5rem, calc(env(safe-area-inset-top) + 0.75rem))' }}>
       {/* Pinned profile — photo + name + class so students see who's logged in */}
       <div className="flex flex-col items-center gap-0.5 w-14 pb-1.5 border-b border-white/10">
         <span
@@ -57,6 +57,23 @@ export default function LevelSideNav({ active, onSelect, onLogout, studentData, 
         )}
         <span className="text-[8px] font-bold text-white/60">{className}</span>
       </div>
+
+      {/* Coin balance — tappable to open the prize wheel. Lives in the menu
+          so it's always visible and easy to press from any section. */}
+      <button
+        onClick={() => onOpenWheel?.(false)}
+        className="flex flex-col items-center gap-0.5 w-14 pb-1.5 border-b border-white/10"
+      >
+        <span className="flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-amber-400 text-amber-950 text-xs font-black shadow active:scale-95 transition">
+          <Coins className="w-3 h-3" />
+          <span className="tabular-nums">{Number(studentData?.coins || 0)}</span>
+        </span>
+        {(Number(studentData?.banked_spins || 0)) > 0 && (
+          <span className="text-[8px] font-bold text-amber-300 animate-pulse leading-tight text-center">
+            🎟️ {studentData.banked_spins} free
+          </span>
+        )}
+      </button>
 
       {items.map(({ key, label, Icon }) => {
         const on = active === key;

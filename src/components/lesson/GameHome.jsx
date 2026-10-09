@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import LevelPath from './LevelPath';
 import LevelSideNav from './LevelSideNav';
 import LessonMap from './LessonMap';
 import LessonStepper from './LessonStepper';
 import SideQuests from './SideQuests';
+import PrizeWheel from '@/components/game/PrizeWheel';
 import { useClassColors } from '@/hooks/useClassColors';
 import { BookOpen, PlayCircle } from 'lucide-react';
 import { fetchLessons } from '@/lib/lessonsLoader';
@@ -96,6 +97,38 @@ export default function GameHome({
     setSection(s);
   };
 
+  // Prize wheel state — lifted from LevelPath so the side-nav coin button
+  // can open the wheel from any section, not just the level path.
+  const [wheelOpen, setWheelOpen] = useState(false);
+  const [wheelFreeSpin, setWheelFreeSpin] = useState(false);
+  const [redeemedPrizes, setRedeemedPrizes] = useState(
+    () => studentData?.redeemed_prizes || []
+  );
+
+  const openWheel = useCallback((freeSpin) => {
+    setWheelFreeSpin(freeSpin);
+    setWheelOpen(true);
+  }, []);
+
+  const handleCloseWheel = () => {
+    setWheelOpen(false);
+    setWheelFreeSpin(false);
+  };
+
+  const handleClaimPrize = (prize) => {
+    setWheelOpen(false);
+    if (wheelFreeSpin && studentData?.id) {
+      const banked = Math.max(0, (studentData.banked_spins || 0) - 1);
+      onStudentPatch?.({ banked_spins: banked });
+    }
+    setWheelFreeSpin(false);
+    if (prize?.oneTime && !redeemedPrizes.includes(prize.id)) {
+      const updated = [...redeemedPrizes, prize.id];
+      setRedeemedPrizes(updated);
+      onStudentPatch?.({ redeemed_prizes: updated });
+    }
+  };
+
   return (
     <div className="relative h-screen overflow-hidden bg-white">
       <div className="absolute inset-0">
@@ -108,6 +141,7 @@ export default function GameHome({
             onLogout={onLogout}
             onStudentPatch={onStudentPatch}
             parentView={parentView}
+            onOpenWheel={openWheel}
           />
         )}
 
@@ -189,7 +223,20 @@ export default function GameHome({
         )}
       </div>
 
-      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} barcodeLogin={barcodeLogin} parentView={parentView} onToggleParentView={() => setParentView(v => !v)} />}
+      {!openLesson && !openSideQuest && <LevelSideNav active={section} onSelect={go} onLogout={onLogout} studentData={studentData} selectedStudent={selectedStudent} isTracingOnly={isTracingOnly} barcodeLogin={barcodeLogin} parentView={parentView} onToggleParentView={() => setParentView(v => !v)} onOpenWheel={openWheel} />}
+
+      {wheelOpen && (
+        <PrizeWheel
+          key="gamehome-wheel"
+          studentData={studentData}
+          onStudentPatch={onStudentPatch}
+          redeemedPrizes={redeemedPrizes}
+          onClaim={handleClaimPrize}
+          onClose={handleCloseWheel}
+          freeSpin={wheelFreeSpin}
+          source="gamehome"
+        />
+      )}
     </div>
   );
 }
