@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Star } from 'lucide-react';
 
 // Scoped styles matching the approved design snippet exactly.
 // The navigator is a blue-tinted pill containing a horizontal strip of
@@ -49,6 +49,7 @@ const STYLES = `
   line-height: 1.15;
   text-align: center;
   cursor: pointer;
+  position: relative;
   box-shadow: 0 3px 7px rgba(27,55,86,.07);
   transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   flex-shrink: 0;
@@ -65,6 +66,16 @@ const STYLES = `
 }
 .step-card .sc-emoji { font-size: 21px; line-height: 1.1; }
 .step-card .sc-title { white-space: nowrap; }
+.step-card .sc-star {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.step-card .sc-star.done { color: #f5b921; fill: #f5b921; }
+.step-card .sc-star.pending { color: #c8d0db; fill: none; }
 .step-card:hover { background: #f1f7ff; box-shadow: 0 5px 12px rgba(27,55,86,.15); }
 .step-card:active { transform: scale(.98); }
 .step-card.current:active { transform: scale(1.02); }
@@ -155,6 +166,9 @@ export default function StepCarousel({
                 className={classes.join(' ')}
                 title={step?.title || `Step ${i + 1}`}
               >
+                <span className={`sc-star ${done ? 'done' : 'pending'}`}>
+                  <Star strokeWidth={2.5} fill={done ? '#f5b921' : 'none'} />
+                </span>
                 <span className="sc-emoji">{step?.emoji || '⭐'}</span>
                 <span className="sc-title">{step?.title || `Step ${i + 1}`}</span>
               </button>

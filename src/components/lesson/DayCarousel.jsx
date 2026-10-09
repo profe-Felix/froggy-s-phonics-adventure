@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, Star } from 'lucide-react';
 
 // Horizontal carousel of day cards (Monday–Friday) replacing the old grid.
 // Same visual language as StepCarousel: blue-tinted pill container, cards
@@ -36,6 +36,7 @@ const STYLES = `
   border-radius: 15px;
   background: #fff;
   cursor: pointer;
+  position: relative;
   box-shadow: 0 3px 7px rgba(27,55,86,.07);
   transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   flex-shrink: 0;
@@ -55,6 +56,16 @@ const STYLES = `
 .day-card .dc-title { font-size: 12px; font-weight: 700; color: #43556c; line-height: 1.2; }
 .day-card .dc-count { font-size: 11px; font-weight: 700; color: #6b7d94; }
 .day-card .dc-count.complete { color: #38a779; }
+.day-card .dc-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.day-card .dc-star.done { color: #f5b921; }
+.day-card .dc-star.pending { color: #c8d0db; }
 `;
 
 export default function DayCarousel({
@@ -104,9 +115,12 @@ export default function DayCarousel({
                   )}
                 </div>
                 <span className="dc-emoji">
-                  {isComplete ? '✅' : dl.active === false ? '🏫' : '📚'}
+                  {dl.active === false ? '🏫' : '📚'}
                 </span>
               </div>
+              <span className={`dc-star ${isComplete ? 'done' : 'pending'}`}>
+                <Star strokeWidth={2.5} fill={isComplete ? '#f5b921' : 'none'} />
+              </span>
 
               {dl.active !== false && dl.title && (
                 <div className="dc-title">{dl.title}</div>
