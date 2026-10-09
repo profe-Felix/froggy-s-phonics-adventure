@@ -262,7 +262,7 @@ export default function LessonMap({
         }}
         steps={selectedDailyLesson.steps}
         lessonId={`${currentLesson.id}:${selectedDailyLesson.day}`}
-        onBack={() => setSelectedDay(null)}
+        onBack={onBack}
         onLessonComplete={handleDailyLessonComplete}
         onUpdateProgress={onUpdateProgress}
         onStudentPatch={onStudentPatch}
