@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Star, Play, Check, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Star, Play, Check } from 'lucide-react';
 import { colorOf, MODE_BY_VALUE } from '@/lib/lessonColors';
 
 // Lesson overview — the carousel IS the main view. Large colorful cards
@@ -25,8 +25,6 @@ export default function LessonOverview({
   onBack,
   allDone,
   onLessonComplete,
-  replayMode,
-  onReplay,
 }) {
   const firstIncomplete = steps.findIndex(
     ({ originalIndex }) => !completedSteps.includes(originalIndex)
@@ -46,9 +44,18 @@ export default function LessonOverview({
             <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
           </button>
           <div className="text-center">
-            <h1 className="text-xl font-black" style={{ color: '#26264d' }}>
-              {lesson?.title || `Lesson ${lesson?.lesson_number || ''}`}
-            </h1>
+            <div className="flex items-center justify-center gap-2">
+              {allDone && (
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-500">
+                  <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                </span>
+              )}
+              <h1 className="text-xl font-black" style={{ color: '#26264d' }}>
+                {allDone
+                  ? `Lesson ${lesson?.lesson_number || ''} Complete!`
+                  : (lesson?.title || `Lesson ${lesson?.lesson_number || ''}`)}
+              </h1>
+            </div>
             {lesson?.subtitle && (
               <p className="text-sm text-gray-500 mt-0.5">{lesson.subtitle}</p>
             )}
@@ -58,26 +65,6 @@ export default function LessonOverview({
 
         {/* Cards */}
         <div className="flex-1 flex items-center justify-center px-4 pb-6">
-          {(allDone && !replayMode) ? (
-            <div className="text-center flex flex-col items-center gap-4">
-              <div className="text-6xl">🎉</div>
-              <h2 className="text-2xl font-black text-green-600">Lesson Complete!</h2>
-              <div className="flex gap-3">
-                <button
-                  onClick={onReplay}
-                  className="px-6 py-3 bg-indigo-500 text-white font-black rounded-2xl shadow-lg hover:bg-indigo-600 inline-flex items-center gap-2"
-                >
-                  <RotateCcw className="w-5 h-5" /> Replay
-                </button>
-                <button
-                  onClick={onLessonComplete}
-                  className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg hover:bg-green-600 inline-flex items-center gap-2"
-                >
-                  <Check className="w-5 h-5" /> Return to Path
-                </button>
-              </div>
-            </div>
-          ) : (
             <div className="flex gap-4 flex-wrap justify-center max-w-4xl">
               {steps.map(({ step, originalIndex }, i) => {
                 const done = completedSteps.includes(originalIndex);
@@ -128,7 +115,6 @@ export default function LessonOverview({
                 );
               })}
             </div>
-          )}
         </div>
       </div>
     </>
