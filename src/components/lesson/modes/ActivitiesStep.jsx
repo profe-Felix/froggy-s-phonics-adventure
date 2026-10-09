@@ -128,7 +128,7 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
         {mode === 'phoneme_manipulation' ? (
           <PhonemeManipulationActivity config={config} studentName={name} />
         ) : mode === 'text_hunt' ? (
-          <HuntActivity config={config} studentName={name} onRegenerate={isHuntNoExamples ? fetchBankItems : undefined} />
+          <HuntActivity config={config} studentName={name} onRegenerate={isHuntNoExamples ? fetchBankItems : undefined} onScoreUpdate={setScore} />
         ) : mode === 'rhyme_identification' ? (
           <RhymeActivity config={config} studentName={name} />
         ) : (

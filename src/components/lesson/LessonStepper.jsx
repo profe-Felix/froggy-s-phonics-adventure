@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { X, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
-import StepCarousel from './StepCarousel';
 import LessonOverview from './LessonOverview';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
 import { stopAllAudio } from '@/lib/audio';
@@ -141,9 +140,6 @@ export default function LessonStepper({
   const isLast = stepIdx >= visibleSteps.length - 1;
   // Teacher-model account (student 30) can advance without completing steps.
   const modelStudent = isTeacherModelStudent(selectedStudent?.number);
-  const canNext = (curDone || modelStudent) && !isLast;
-  const canPrev = stepIdx > 0;
-
   // When an activity completes, return to overview so the student sees the
   // star fill in and the next card pulsate.
   const goNext = () => {
@@ -151,13 +147,6 @@ export default function LessonStepper({
     stopAllAudio();
     setViewMode('overview');
   };
-  // Carousel arrows navigate between activities directly (stay in activity mode).
-  const carouselNext = () => {
-    if (!curDone && !modelStudent) return;
-    if (isLast) { onBack?.(); return; }
-    setStepIdx(i => i + 1);
-  };
-  const goPrev = () => canPrev && setStepIdx(i => i - 1);
   const step = cur?.step;
 
   return (
@@ -192,26 +181,12 @@ export default function LessonStepper({
         />
       </div>
 
-      {/* Bottom: step carousel (or lesson complete banner) */}
-      {allDone ? (
+      {/* Bottom: lesson complete banner (only when all done) */}
+      {allDone && (
         <div className="shrink-0 pb-4 flex justify-center">
           <button onClick={onBack} className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center gap-2">
             <Check className="w-5 h-5" /> Lesson Complete! Return to Path
           </button>
-        </div>
-      ) : (
-        <div className="shrink-0 pb-3 flex justify-center">
-          <StepCarousel
-            steps={visibleSteps}
-            currentIdx={stepIdx}
-            completedSteps={completedSteps}
-            studentData={studentData}
-            onStepClick={(i) => setStepIdx(i)}
-            onPrev={goPrev}
-            onNext={carouselNext}
-            canPrev={canPrev}
-            canNext={canNext}
-          />
         </div>
       )}
     </div>

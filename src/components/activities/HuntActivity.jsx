@@ -20,7 +20,7 @@ function shuffle(arr) {
   return a;
 }
 
-export default function HuntActivity({ config, studentName, externalAdvance = false, onRegenerate }) {
+export default function HuntActivity({ config, studentName, externalAdvance = false, onRegenerate, onScoreUpdate }) {
   const items = useMemo(() => {
     const its = Array.isArray(config?.items) ? config.items : [];
     return its.map((it) => (typeof it === 'string' ? { text: it } : it)).filter((it) => it.text);
@@ -38,6 +38,9 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
   const [marks, setMarks] = useState({}); // index -> 'correct' | 'wrong' | 'missed'
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState({ found: 0, missed: 0 });
+  // Cumulative score across all submitted items — reported back to the parent
+  // (ActivitiesStep) so mastery completion can track progress.
+  const [cumScore, setCumScore] = useState({ correctCount: 0, totalItems: 0 });
 
   const recorder = useAudioRecorder();
   const marksRef = useRef({});
@@ -60,6 +63,8 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
     if (!items.length) return;
     setOrder(shuffle(items.map((_, i) => i)));
     setPos(0);
+    setCumScore({ correctCount: 0, totalItems: 0 });
+    onScoreUpdate?.({ correctCount: 0, totalItems: 0 });
     resetRound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
@@ -170,6 +175,18 @@ export default function HuntActivity({ config, studentName, externalAdvance = fa
         teacher_note: '',
       });
       setPhase('submitted'); phaseRef.current = 'submitted';
+      // Report cumulative score to the parent so mastery completion can track
+      // how many items the student got fully correct.
+      const foundCount = Object.values(marksRef.current).filter(m => m === 'correct').length;
+      const isCorrect = foundCount === correctCount;
+      setCumScore(prev => {
+        const next = {
+          correctCount: prev.correctCount + (isCorrect ? 1 : 0),
+          totalItems: prev.totalItems + 1,
+        };
+        onScoreUpdate?.(next);
+        return next;
+      });
     } catch (e) {
       setErr('Error al guardar: ' + (e?.message || e));
     } finally {
