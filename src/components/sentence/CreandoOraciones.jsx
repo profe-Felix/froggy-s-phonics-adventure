@@ -59,13 +59,31 @@ export default function CreandoOraciones({ studentNumber, className, studentName
         });
         // Sort by page_number ascending so navigation goes in order
         const sorted = existing.sort((a, b) => (a.page_number || 1) - (b.page_number || 1));
-        setAllPages(sorted);
-        if (sorted.length > 0) {
+        const today = new Date().toISOString().slice(0, 10);
+        // If the latest page is from a previous day, auto-create a new blank
+        // page so each day starts fresh (the student's previous work is
+        // preserved in earlier pages, navigable via the page controls).
+        if (sorted.length > 0 && sorted[sorted.length - 1].page_date === today) {
           const latest = sorted[sorted.length - 1];
+          setAllPages(sorted);
           setSession(latest);
           setArtMode(latest.art_mode || 'color');
           sessionRef.current = latest;
           setCurrentPageIndex(sorted.length - 1);
+        } else if (sorted.length > 0) {
+          // Previous day's work exists — create today's new page
+          const s = await base44.entities.SentenceActivitySession.create({
+            student_number: studentNumber, class_name: className, school_year: ACTIVE_SCHOOL_YEAR,
+            page_number: sorted.length + 1, page_date: today,
+            art_mode: 'color', rows: DEFAULT_ROWS, card_coloring: {}, drawing_strokes: {},
+            last_active: new Date().toISOString(),
+          });
+          const newPages = [...sorted, s];
+          setAllPages(newPages);
+          setSession(s);
+          setArtMode('color');
+          sessionRef.current = s;
+          setCurrentPageIndex(newPages.length - 1);
         } else {
           const today = new Date().toISOString().slice(0, 10);
           const s = await base44.entities.SentenceActivitySession.create({

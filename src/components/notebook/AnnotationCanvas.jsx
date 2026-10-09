@@ -277,6 +277,19 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     }
   };
 
+  // Batch redraws with requestAnimationFrame so fast drawing on slow devices
+  // (Fire Tablet) doesn't block the event loop and drop touch events. Multiple
+  // touchmove events between frames only trigger one canvas redraw.
+  const redrawScheduled = useRef(false);
+  const scheduleRedraw = () => {
+    if (redrawScheduled.current) return;
+    redrawScheduled.current = true;
+    requestAnimationFrame(() => {
+      redrawScheduled.current = false;
+      redraw();
+    });
+  };
+
   useEffect(() => {
     setupCanvas();
     redraw();
@@ -490,7 +503,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       if (!current.current) return;
       e.preventDefault();
       current.current.pts.push(getPos(e));
-      redraw();
+      scheduleRedraw();
     };
 
     const onMouseUp = () => {
@@ -652,7 +665,7 @@ const onTouchStart = (e) => {
       if (!current.current) return;
       e.preventDefault();
       current.current.pts.push(getPos(e));
-      redraw();
+      scheduleRedraw();
     };
 
     const onTouchEnd = (e) => {

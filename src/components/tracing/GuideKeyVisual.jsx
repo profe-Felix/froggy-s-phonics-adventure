@@ -19,6 +19,7 @@
  */
 
 import { useId } from 'react';
+import WalkingFigure from './WalkingFigure';
 
 const FENCE_URL = 'https://media.base44.com/images/public/6972eada24fac6b62ccbab8e/bf7297494_156818.svg';
 const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
@@ -106,10 +107,22 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
       <rect x={0} y={grassY} width={bgDrawWidth} height={dirtH} fill="#f5ebe0" opacity={opacity} />
 
       {/* Capital walking figure — feet at grass, head at sky (LEFT) */}
-      <text x={capX} y={capY} fontSize={capFSize} textAnchor="middle">🚶‍➡️</text>
+      <WalkingFigure
+        x={capX - capFSize * 0.4}
+        y={skyY}
+        width={capFSize * 0.8}
+        height={capZoneH}
+        opacity={opacity}
+      />
 
       {/* Lowercase walking figure — feet at grass, head at fence (next to capital) */}
-      <text x={lowX} y={lowY} fontSize={lowFSize} textAnchor="middle">🚶‍➡️</text>
+      <WalkingFigure
+        x={lowX - lowFSize * 0.4}
+        y={fenceY}
+        width={lowFSize * 0.8}
+        height={lowZoneH}
+        opacity={opacity}
+      />
 
       {/* Fence — full height, clipped to show a window of pickets */}
       <clipPath id={clipId}>
