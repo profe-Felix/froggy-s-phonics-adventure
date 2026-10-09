@@ -9,10 +9,15 @@ const NOUNS = CARDS_BY_CATEGORY.who; // 18 "who" nouns from Creando Oraciones
 
 export default function NounPractice() {
   const [page, setPage] = useState(0);
-  const [fontSize, setFontSize] = useState(0.95);
-  const [vOffset, setVOffset] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(6);
+  const [fontSize, setFontSize] = useState(() => parseFloat(localStorage.getItem('np_fontSize')) || 0.95);
+  const [vOffset, setVOffset] = useState(() => parseFloat(localStorage.getItem('np_vOffset')) || 0);
+  const [rowsPerPage, setRowsPerPage] = useState(() => parseInt(localStorage.getItem('np_rowsPerPage')) || 6);
   const [zoom, setZoom] = useState(1);
+
+  // Persist settings so they survive page reloads
+  useEffect(() => { localStorage.setItem('np_fontSize', fontSize); }, [fontSize]);
+  useEffect(() => { localStorage.setItem('np_vOffset', vOffset); }, [vOffset]);
+  useEffect(() => { localStorage.setItem('np_rowsPerPage', rowsPerPage); }, [rowsPerPage]);
 
   const totalPages = Math.ceil(NOUNS.length / rowsPerPage);
 
@@ -80,7 +85,7 @@ export default function NounPractice() {
         </div>
 
         {/* Controls */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}

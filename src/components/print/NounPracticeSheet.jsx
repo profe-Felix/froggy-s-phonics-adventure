@@ -23,7 +23,6 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
               display: 'flex',
               height: `${3 * g}in`,
               position: 'relative',
-              overflow: 'hidden',
             }}
           >
             {/* Left: handwriting lines */}
@@ -31,7 +30,6 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
               style={{
                 flex: '0 0 5.3in',
                 position: 'relative',
-                overflow: 'hidden',
               }}
             >
               {/* Sky band */}
