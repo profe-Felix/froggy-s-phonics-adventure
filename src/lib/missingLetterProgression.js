@@ -35,18 +35,20 @@ const GRAPHEME_TO_LETTERS = {
 
 const VOWELS = ['a', 'e', 'i', 'o', 'u'];
 
-// Alphabetical keyboard layout — 4 rows. Easier for non-readers to find
-// letters than QWERTY, still builds keyboarding skills (pressing keys to spell).
+// QWERTY keyboard layout — builds real keyboarding muscle memory. Vowels
+// get a distinct color in the keyboard component so students can ensure
+// they include a vowel when spelling.
 const KEYBOARD_ROWS = [
-  ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-  ['h', 'i', 'j', 'k', 'l', 'm', 'n'],
-  ['ñ', 'o', 'p', 'q', 'r', 's', 't'],
-  ['u', 'v', 'w', 'x', 'y', 'z'],
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'ñ'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
 ];
 
 export function getKeyboardRows() {
   return KEYBOARD_ROWS;
 }
+
+export const KEYBOARD_VOWELS = VOWELS;
 
 export function getIntroducedGraphemes(classConfig) {
   const mod = classConfig?.active_spanish_module || 1;
