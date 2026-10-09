@@ -20,6 +20,7 @@
 
 import { useId } from 'react';
 import WalkingFigure from './WalkingFigure';
+import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 
 const FENCE_URL = 'https://media.base44.com/images/public/6972eada24fac6b62ccbab8e/bf7297494_156818.svg';
 const FENCE_ASPECT = 1280 / 1000; // natural w/h of the fence SVG
@@ -39,13 +40,22 @@ const R_FENCE_GAP_F = 0.340;   // fenceGap / capFSize
 const R_FENCE_WIDTH_H = 0.487; // fenceWidth / grassH (shows ~3 planks)
 
 export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opacity = 0.5,
-  emojiHeightFactor = 0.84, emojiFeetFactor = 0.26, emojiSpacing, bgWidth,
-  fenceWidth, fenceOffset = 0, emojiX, fenceGap,
+  emojiHeightFactor, emojiFeetFactor, emojiSpacing, bgWidth,
+  fenceWidth, fenceOffset, emojiX, fenceGap,
   // Ratio-based overrides (proportional — scale across canvas sizes).
-  // When provided, these replace the default auto-scaling ratios.
+  // When provided, these replace the saved/default auto-scaling ratios.
   emojiSpacingRatio, emojiXRatio, fenceGapRatio, fenceWidthRatio, fenceOffsetRatio }) {
 
   const clipId = useId();
+
+  // Load the shared guide settings (saved via the TracingGuideTuner on any
+  // page). Saved values act as defaults; explicit props still override, and
+  // built-in ratios are the final fallback. This makes tuner edits universal
+  // across every canvas that renders this guide.
+  const { settings: saved } = useTracingGuideSettings();
+
+  const effEmojiHeightFactor = emojiHeightFactor ?? saved.emojiHeightFactor ?? 0.84;
+  const effEmojiFeetFactor = emojiFeetFactor ?? saved.emojiFeetFactor ?? 0.26;
 
   // Effective background width — falls back to `width` then to a default.
   const effBg = bgWidth ?? width ?? 80;
@@ -59,17 +69,15 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const lowZoneH = grassY - fenceY;
 
   // Emoji font-sizes (computed early so auto-scaling can use capFSize).
-  const capFSize = capZoneH * emojiHeightFactor;
-  const lowFSize = lowZoneH * emojiHeightFactor;
+  const capFSize = capZoneH * effEmojiHeightFactor;
+  const lowFSize = lowZoneH * effEmojiHeightFactor;
 
-  // Auto-scale layout by emoji font-size when not explicitly provided.
-  // NamePractice passes explicit absolute values → those override (unaffected).
-  // Tracing canvases pass ratio overrides → those replace the default ratios.
-  // Otherwise, the built-in default ratios apply.
-  const rEmojiX = emojiXRatio ?? R_EMOJI_X_F;
-  const rEmojiSpacing = emojiSpacingRatio ?? R_EMOJI_SPACING_F;
-  const rFenceGap = fenceGapRatio ?? R_FENCE_GAP_F;
-  const rFenceWidth = fenceWidthRatio ?? R_FENCE_WIDTH_H;
+  // Auto-scale layout by emoji font-size. Precedence: explicit prop → saved
+  // tuner value → built-in default ratio.
+  const rEmojiX = emojiXRatio ?? saved.emojiXRatio ?? R_EMOJI_X_F;
+  const rEmojiSpacing = emojiSpacingRatio ?? saved.emojiSpacingRatio ?? R_EMOJI_SPACING_F;
+  const rFenceGap = fenceGapRatio ?? saved.fenceGapRatio ?? R_FENCE_GAP_F;
+  const rFenceWidth = fenceWidthRatio ?? saved.fenceWidthRatio ?? R_FENCE_WIDTH_H;
 
   const baseX = capFSize * R_BASE_F;
   const effEmojiX = emojiX ?? capFSize * rEmojiX;
@@ -78,8 +86,8 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   const effFenceWidth = fenceWidth ?? grassH * rFenceWidth;
 
   // Y position: baseline at grassY, shifted up by emojiFeetFactor * fontSize
-  const capY = grassY - emojiFeetFactor * capFSize;
-  const lowY = grassY - emojiFeetFactor * lowFSize;
+  const capY = grassY - effEmojiFeetFactor * capFSize;
+  const lowY = grassY - effEmojiFeetFactor * lowFSize;
 
   // Emojis on the LEFT — capital then lowercase, spaced by emojiSpacing
   const capX = baseX + effEmojiX;
@@ -91,7 +99,8 @@ export default function GuideKeyVisual({ skyY, fenceY, grassY, dirtY, width, opa
   // otherwise fenceOffset (absolute) is used.
   const fenceImgW = grassH * FENCE_ASPECT;
   const fenceX = lowX + effFenceGap; // positioned after the lowercase emoji
-  const effFenceOffset = fenceOffsetRatio != null ? fenceOffsetRatio * fenceImgW : fenceOffset;
+  const effFenceOffsetRatio = fenceOffsetRatio ?? saved.fenceOffsetRatio;
+  const effFenceOffset = effFenceOffsetRatio != null ? effFenceOffsetRatio * fenceImgW : (fenceOffset ?? 0);
   const imgX = fenceX - effFenceOffset;
 
   // Background must cover all visual elements (emojis + fence) so the
