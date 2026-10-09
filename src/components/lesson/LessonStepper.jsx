@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { X, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
 import StepCarousel from './StepCarousel';
+import LessonOverview from './LessonOverview';
 import { isTeacherModelStudent } from '@/lib/teacherModel';
 import { stopAllAudio } from '@/lib/audio';
 
@@ -26,12 +27,7 @@ export default function LessonStepper({
   const { progress, isLoading, createError, retry } = useLessonProgress(selectedStudent?.number, selectedStudent?.class_name, lessonId);
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
-
-  // Only auto-land on the first incomplete step ONCE (initial load). Without
-  // this guard, the effect re-fires every time `progress` changes — including
-  // when the student completes the current step — and yanks them to the next
-  // step before they ever see the "Step Complete" coin celebration.
-  const didInitialLandRef = useRef(false);
+  const [viewMode, setViewMode] = useState('overview');
 
   // Independent lessons never show live-only activities. Home sessions also
   // hide activities marked school-only.
@@ -60,20 +56,6 @@ export default function LessonStepper({
 
   const completionStepCount =
     visibleSteps.length + completedHiddenStepCount;
-
-  // useLayoutEffect (not useEffect) so the step jump happens BEFORE the
-  // browser paints. With useEffect, step 0 briefly mounts → its audio
-  // autoplay fires → then we jump to the first incomplete step → step 1's
-  // audio also fires → both play at once. useLayoutEffect sets the correct
-  // step synchronously before paint, so step 0 never mounts and its audio
-  // never starts.
-  useLayoutEffect(() => {
-    if (!progress || !visibleSteps.length || didInitialLandRef.current) return;
-    didInitialLandRef.current = true;
-    const firstIncomplete = visibleSteps.findIndex(({ originalIndex }) => !completedSteps.includes(originalIndex));
-    const target = firstIncomplete === -1 ? visibleSteps.length - 1 : firstIncomplete;
-    setStepIdx(prev => prev !== target ? target : prev);
-  }, [progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stop all audio from the previous step when the step changes (manual nav
   // via arrows or dots). The key={stepIdx} remount unmounts the old component,
@@ -137,6 +119,22 @@ export default function LessonStepper({
     );
   }
 
+  // OVERVIEW MODE: show large colorful cards before jumping into an activity.
+  // The first incomplete card pulsates to show where to start.
+  if (viewMode === 'overview') {
+    return (
+      <LessonOverview
+        lesson={lesson}
+        steps={visibleSteps}
+        completedSteps={completedSteps}
+        onStepClick={(i) => { setStepIdx(i); setViewMode('activity'); }}
+        onBack={onBack}
+        allDone={allDone}
+        onLessonComplete={() => onBack?.()}
+      />
+    );
+  }
+
   const cur = visibleSteps[stepIdx];
   const curOriginalIndex = cur?.originalIndex ?? 0;
   const curDone = completedSteps.includes(curOriginalIndex);
@@ -146,7 +144,15 @@ export default function LessonStepper({
   const canNext = (curDone || modelStudent) && !isLast;
   const canPrev = stepIdx > 0;
 
+  // When an activity completes, return to overview so the student sees the
+  // star fill in and the next card pulsate.
   const goNext = () => {
+    if (!curDone && !modelStudent) return;
+    stopAllAudio();
+    setViewMode('overview');
+  };
+  // Carousel arrows navigate between activities directly (stay in activity mode).
+  const carouselNext = () => {
     if (!curDone && !modelStudent) return;
     if (isLast) { onBack?.(); return; }
     setStepIdx(i => i + 1);
@@ -158,7 +164,7 @@ export default function LessonStepper({
     <div className="relative h-screen flex flex-col bg-[#dae2f3]">
       {/* Top bar: exit + step title */}
       <div className="flex items-center justify-between px-4 py-3 z-30 shrink-0">
-        <button onClick={onBack} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
+        <button onClick={() => { stopAllAudio(); setViewMode('overview'); }} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
           <X className="w-5 h-5" />
         </button>
         <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
@@ -202,7 +208,7 @@ export default function LessonStepper({
             studentData={studentData}
             onStepClick={(i) => setStepIdx(i)}
             onPrev={goPrev}
-            onNext={goNext}
+            onNext={carouselNext}
             canPrev={canPrev}
             canNext={canNext}
           />
