@@ -357,6 +357,16 @@ export default function AdaptiveWordPractice({
   ] = useState(false);
 
   const [
+    buildCharResults,
+    setBuildCharResults,
+  ] = useState([]);
+
+  const [
+    attemptCount,
+    setAttemptCount,
+  ] = useState(1);
+
+  const [
     firstAttemptCorrect,
     setFirstAttemptCorrect,
   ] = useState(true);
@@ -534,6 +544,8 @@ export default function AdaptiveWordPractice({
 
     setBuiltTiles([]);
     setBuildError(false);
+    setBuildCharResults([]);
+    setAttemptCount(1);
 
     setFirstAttemptCorrect(
       true
@@ -784,6 +796,53 @@ export default function AdaptiveWordPractice({
     );
   };
 
+  const checkSubmission = (
+    submission
+  ) => {
+    if (
+      submission ===
+      currentTarget
+    ) {
+      setBuildError(false);
+      setBuildCharResults([]);
+      setStage('trace');
+
+      setCanvasKey(
+        (previous) =>
+          previous + 1
+      );
+
+      return;
+    }
+
+    const charResults =
+      [...String(currentTarget || '')].map(
+        (char, index) =>
+          submission[index] ===
+          char
+      );
+
+    setBuildError(true);
+    setBuildCharResults(
+      charResults
+    );
+
+    setFirstAttemptCorrect(
+      false
+    );
+
+    setAttemptCount(
+      (previous) =>
+        previous + 1
+    );
+
+    setTimeout(() => {
+      setTyped('');
+      setBuildError(false);
+      setBuildCharResults([]);
+    }, 1500);
+  };
+
   const handleKeyPress = (
     letter
   ) => {
@@ -794,6 +853,7 @@ export default function AdaptiveWordPractice({
     }
 
     setBuildError(false);
+    setBuildCharResults([]);
 
     const newTyped =
       typed + letter;
@@ -804,30 +864,21 @@ export default function AdaptiveWordPractice({
       newTyped.length >=
       currentTarget.length
     ) {
-      if (
-        newTyped ===
-        currentTarget
-      ) {
-        setBuildError(false);
-        setStage('trace');
-
-        setCanvasKey(
-          (previous) =>
-            previous + 1
-        );
-      } else {
-        setBuildError(true);
-
-        setFirstAttemptCorrect(
-          false
-        );
-
-        setTimeout(() => {
-          setTyped('');
-          setBuildError(false);
-        }, 1200);
-      }
+      checkSubmission(
+        newTyped
+      );
     }
+  };
+
+  const handleSubmit = () => {
+    if (
+      stage !== 'build' ||
+      !typed.length
+    ) {
+      return;
+    }
+
+    checkSubmission(typed);
   };
 
   const handleBackspace = () => {
@@ -842,6 +893,7 @@ export default function AdaptiveWordPractice({
     );
 
     setBuildError(false);
+    setBuildCharResults([]);
   };
 
   const finishTrace = () => {
@@ -1177,13 +1229,15 @@ export default function AdaptiveWordPractice({
             <div className="flex items-center gap-1 flex-wrap justify-center max-w-2xl">
               {[...String(currentTarget || '')].map((c, i) => {
                 const isTyped = i < typed.length;
-                const isCorrect = isTyped && typed[i] === c;
+                const charCorrect = buildError ? buildCharResults[i] : null;
                 return (
                   <div
                     key={i}
                     className={`w-11 h-14 md:w-12 md:h-16 rounded-2xl border-4 flex items-center justify-center text-4xl md:text-5xl font-black lowercase transition-colors shrink-0 ${
                       buildError
-                        ? 'border-red-400 bg-red-50 text-red-500'
+                        ? charCorrect
+                          ? 'border-green-400 bg-green-50 text-green-600'
+                          : 'border-red-400 bg-red-50 text-red-500'
                         : isTyped
                           ? 'border-blue-400 bg-blue-50 text-blue-700'
                           : i === typed.length
@@ -1197,21 +1251,37 @@ export default function AdaptiveWordPractice({
               })}
             </div>
 
-            {buildError && (
+            {buildError ? (
               <p className="font-black text-red-500">
-                Inténtalo otra vez.
+                Mira las letras verdes — esas están bien. Corrige las rojas.
               </p>
-            )}
+            ) : attemptCount >= 2 ? (
+              <p className="font-bold text-blue-500">
+                💡 La {targetTypeLabel} tiene {currentTarget.length} letras
+              </p>
+            ) : null}
 
-            {typed.length > 0 && (
-              <button
-                type="button"
-                onClick={handleBackspace}
-                className="text-sm text-gray-500 hover:text-gray-700 font-bold inline-flex items-center gap-1"
-              >
-                ⌫ Borrar
-              </button>
-            )}
+            <div className="flex items-center gap-4">
+              {typed.length > 0 && !buildError && (
+                <button
+                  type="button"
+                  onClick={handleBackspace}
+                  className="text-sm text-gray-500 hover:text-gray-700 font-bold inline-flex items-center gap-1"
+                >
+                  ⌫ Borrar
+                </button>
+              )}
+
+              {typed.length > 0 && !buildError && (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 py-2 rounded-full shadow"
+                >
+                  Listo ✓
+                </button>
+              )}
+            </div>
 
             <MissingLetterKeyboard
               introducedSet={introducedSet}
