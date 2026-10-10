@@ -52,14 +52,13 @@ export default function FontPreview() {
 
   const page = PAGE_SIZES[orientation];
   // The arrow-dot font's stroke-order numbers sit above the letter glyph and can
-  // extend above the first row. Reserve a spacer at the top so they don't clip
-  // at the page edge in print; shrink the line gap so rows still fit the page.
+  // extend above the first row. Add that overflow to the @page top margin so the
+  // numbers aren't clipped at the paper edge — no spacer div, so the content
+  // fills the page area with no visible gap (just a normal print margin).
   const g0 = fitLineGap(rows, page.usable);
-  const fontSize0 = calib.fontRatio * g0;
-  const vOffset0 = calib.shiftRatio * g0;
-  const overflow = Math.max(0, fontSize0 * ASC_FACTOR - 2 * g0 - vOffset0);
-  const spacerHeight = overflow > 0 ? overflow + 0.1 : 0;
-  const g = fitLineGap(rows, page.usable - spacerHeight);
+  const overflow = Math.max(0, calib.fontRatio * g0 * ASC_FACTOR - 2 * g0 - calib.shiftRatio * g0);
+  const topMargin = 0.25 + (overflow > 0 ? overflow + 0.1 : 0);
+  const g = fitLineGap(rows, page.usable - (topMargin - 0.25));
   const fontSize = calib.fontRatio * g;
   const vOffset = calib.shiftRatio * g;
   const dotsShift = calib.dotsShiftRatio * g;
@@ -95,7 +94,7 @@ export default function FontPreview() {
           </Link>
           <h1 className="text-xl font-black text-slate-800">Handwriting Handout</h1>
           <button
-            onClick={() => printWithPage(`size: letter ${orientation}; margin: 0.25in`)}
+            onClick={() => printWithPage(`size: letter ${orientation}; margin: ${topMargin}in 0.25in 0.25in 0.25in`)}
             className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
           >
             <Printer className="h-5 w-5" />
@@ -149,7 +148,6 @@ export default function FontPreview() {
               <div key={p} className="noun-page" style={{ marginBottom: '0.3in' }}>
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in`, width: `${page.w - 0.5}in` }}>
-                    {spacerHeight > 0 && <div style={{ height: `${spacerHeight}in`, flexShrink: 0 }} />}
                     {words.map((row, i) => (
                       <HandwritingLines key={i} word={row.word} mode={row.mode === 'dots' && showOutline ? 'outline' : row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
