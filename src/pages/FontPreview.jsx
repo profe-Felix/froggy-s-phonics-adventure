@@ -8,7 +8,7 @@ import AlignmentControls from '@/components/print/AlignmentControls';
 import FontColorPicker from '@/components/print/FontColorPicker';
 import { useHandwritingCalibration } from '@/hooks/useHandwritingCalibration';
 import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
-import { PAGE_SIZES, ROW_GAP_IN, fitLineGap } from '@/lib/handwritingLayout';
+import { PAGE_SIZES, ROW_GAP_IN, fitLineGap, ASC_FACTOR } from '@/lib/handwritingLayout';
 
 // Parse the textarea into rows. Each LINE (Enter) is one row; spaces inside a
 // line are literal so phrases like "mi mamá" stay on one handwriting line.
@@ -51,7 +51,15 @@ export default function FontPreview() {
   useEffect(() => { localStorage.setItem('fp_color', color); }, [color]);
 
   const page = PAGE_SIZES[orientation];
-  const g = fitLineGap(rows, page.usable);
+  // The arrow-dot font's stroke-order numbers sit above the letter glyph and can
+  // extend above the first row. Reserve a spacer at the top so they don't clip
+  // at the page edge in print; shrink the line gap so rows still fit the page.
+  const g0 = fitLineGap(rows, page.usable);
+  const fontSize0 = calib.fontRatio * g0;
+  const vOffset0 = calib.shiftRatio * g0;
+  const overflow = Math.max(0, fontSize0 * ASC_FACTOR - 2 * g0 - vOffset0);
+  const spacerHeight = overflow > 0 ? overflow + 0.1 : 0;
+  const g = fitLineGap(rows, page.usable - spacerHeight);
   const fontSize = calib.fontRatio * g;
   const vOffset = calib.shiftRatio * g;
   const dotsShift = calib.dotsShiftRatio * g;
@@ -141,6 +149,7 @@ export default function FontPreview() {
               <div key={p} className="noun-page" style={{ marginBottom: '0.3in' }}>
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in`, width: `${page.w - 0.5}in` }}>
+                    {spacerHeight > 0 && <div style={{ height: `${spacerHeight}in`, flexShrink: 0 }} />}
                     {words.map((row, i) => (
                       <HandwritingLines key={i} word={row.word} mode={row.mode === 'dots' && showOutline ? 'outline' : row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
