@@ -1,0 +1,24 @@
+{
+  "name": "HandwritingCalibration",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "default": "default",
+      "description": "Calibration key. 'default' = shared alignment used by all handwriting print sheets."
+    },
+    "font_ratio": {
+      "type": "number",
+      "default": 1.9,
+      "description": "Font size as a multiple of the line gap (zone height). Letters scale with the lines."
+    },
+    "shift_ratio": {
+      "type": "number",
+      "default": 0,
+      "description": "Vertical shift as a fraction of the line gap."
+    }
+  },
+  "required": [
+    "key"
+  ]
+}

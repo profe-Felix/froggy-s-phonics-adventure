@@ -2,42 +2,37 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Save, Trash2, Loader2 } from 'lucide-react';
 
-// Saved handwriting worksheets: pick one from the dropdown to load its
-// settings, or type a name and Save Worksheet to store the current settings.
-export default function WorksheetSaver({ text, fontSize, vOffset, onLoad }) {
+// Saved handwriting worksheets: pick one from the dropdown to load it, or
+// type a name and Save Worksheet to store the current words/rows/orientation.
+export default function WorksheetSaver({ values, onLoad }) {
   const [sheets, setSheets] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const refresh = async () => {
-    const page = await base44.entities.HandwritingWorksheet.filter({}, { sort: 'name', limit: 200 });
-    setSheets(page.items);
-  };
-
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    base44.entities.HandwritingWorksheet.filter({}, { sort: 'name', limit: 200 }).then((p) => setSheets(p.items));
+  }, []);
 
   const handleSelect = (id) => {
     setSelectedId(id);
     const s = sheets.find((x) => x.id === id);
     if (!s) return;
     setName(s.name);
-    onLoad({ text: s.text || '', fontSize: s.font_size ?? 1.2, vOffset: s.v_offset ?? 0 });
+    onLoad({ text: s.text || '', rows: s.rows_per_page || 6, orientation: s.orientation || 'portrait' });
   };
 
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setSaving(true);
-    const data = { name: trimmed, text, font_size: fontSize, v_offset: vOffset };
+    const data = { name: trimmed, text: values.text, rows_per_page: values.rows, orientation: values.orientation };
     const existing = sheets.find((s) => s.name.toLowerCase() === trimmed.toLowerCase());
     const rec = existing
       ? await base44.entities.HandwritingWorksheet.update(existing.id, data)
       : await base44.entities.HandwritingWorksheet.create(data);
     const saved = { ...(existing || {}), ...data, id: existing ? existing.id : rec.id };
-    setSheets((prev) =>
-      [...prev.filter((s) => s.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name))
-    );
+    setSheets((prev) => [...prev.filter((s) => s.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedId(saved.id);
     setSaving(false);
   };

@@ -9,17 +9,21 @@
     "text": {
       "type": "string",
       "default": "",
-      "description": "Words to practice (space-separated)"
+      "description": "Words to practice (space-separated, one per row)"
     },
-    "font_size": {
-      "type": "number",
-      "default": 1.2,
-      "description": "Font size in inches"
+    "rows_per_page": {
+      "type": "integer",
+      "default": 6,
+      "description": "Handwriting rows per page"
     },
-    "v_offset": {
-      "type": "number",
-      "default": 0,
-      "description": "Vertical shift in inches"
+    "orientation": {
+      "type": "string",
+      "enum": [
+        "portrait",
+        "landscape"
+      ],
+      "default": "portrait",
+      "description": "Page orientation"
     }
   },
   "required": [

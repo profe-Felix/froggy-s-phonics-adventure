@@ -4,19 +4,19 @@ import { Printer, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CARDS_BY_CATEGORY } from '@/components/data/sentenceCards';
 import NounPracticeSheet from '@/components/print/NounPracticeSheet';
 import { printWithPage } from '@/lib/printWithPage';
+import AlignmentControls from '@/components/print/AlignmentControls';
+import { useHandwritingCalibration } from '@/hooks/useHandwritingCalibration';
+import { PAGE_SIZES, fitLineGap } from '@/lib/handwritingLayout';
 
 const NOUNS = CARDS_BY_CATEGORY.who; // 18 "who" nouns from Creando Oraciones
 
 export default function NounPractice() {
   const [page, setPage] = useState(0);
-  const [fontSize, setFontSize] = useState(() => parseFloat(localStorage.getItem('np_fontSize')) || 0.95);
-  const [vOffset, setVOffset] = useState(() => parseFloat(localStorage.getItem('np_vOffset')) || 0);
+  const calib = useHandwritingCalibration();
   const [rowsPerPage, setRowsPerPage] = useState(() => parseInt(localStorage.getItem('np_rowsPerPage')) || 6);
   const [zoom, setZoom] = useState(1);
 
   // Persist settings so they survive page reloads
-  useEffect(() => { localStorage.setItem('np_fontSize', fontSize); }, [fontSize]);
-  useEffect(() => { localStorage.setItem('np_vOffset', vOffset); }, [vOffset]);
   useEffect(() => { localStorage.setItem('np_rowsPerPage', rowsPerPage); }, [rowsPerPage]);
 
   const totalPages = Math.ceil(NOUNS.length / rowsPerPage);
@@ -30,20 +30,10 @@ export default function NounPractice() {
     return pages;
   }, [rowsPerPage]);
 
-  // Auto-fit line gap to page height based on rows per page only.
-  const lineGap = useMemo(() => {
-    const usableHeight = 10.5;
-    const gapBetweenRows = 0.3;
-    const totalGaps = (rowsPerPage - 1) * gapBetweenRows;
-    return Math.min(0.65, (usableHeight - totalGaps) / (3 * rowsPerPage));
-  }, [rowsPerPage]);
-
-  // Max font size. The ZBKidLettersArrowDot font's visual glyphs are much
-  // smaller than its em square (arrows + stroke-order numbers eat the
-  // space), so the old descender-based cap starved the slider. Use a
-  // generous multiple of the band height so letters can actually reach the
-  // guide lines; vOffset + the slider let the teacher fine-tune.
-  const maxFontSize = lineGap * 2.4;
+  // Auto-fit line gap to the page; letter size + shift scale with it.
+  const lineGap = fitLineGap(rowsPerPage, PAGE_SIZES.portrait.usable);
+  const fontSize = calib.fontRatio * lineGap;
+  const vOffset = calib.shiftRatio * lineGap;
 
   // Scale the 8.5in page down to fit the viewport
   useEffect(() => {
@@ -131,46 +121,11 @@ export default function NounPractice() {
               }}
               className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm font-bold text-slate-700"
             >
-              <option value={5}>5</option>
-              <option value={6}>6</option>
+              {[3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-bold text-slate-600">
-              Font size
-            </label>
-            <input
-              type="range"
-              min="0.3"
-              max={maxFontSize}
-              step="0.05"
-              value={Math.min(fontSize, maxFontSize)}
-              onChange={(e) => setFontSize(parseFloat(e.target.value))}
-              className="w-28"
-            />
-            <span className="w-12 text-sm font-semibold text-slate-500">
-              {Math.min(fontSize, maxFontSize).toFixed(2)}in
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-bold text-slate-600">
-              Shift ↕
-            </label>
-            <input
-              type="range"
-              min="-0.3"
-              max="0.3"
-              step="0.01"
-              value={vOffset}
-              onChange={(e) => setVOffset(parseFloat(e.target.value))}
-              className="w-24"
-            />
-            <span className="w-16 text-sm font-semibold text-slate-500">
-              {vOffset > 0 ? '+' : ''}{vOffset.toFixed(2)}in
-            </span>
-          </div>
+          <AlignmentControls calib={calib} lineGap={lineGap} />
         </div>
 
         {/* Preview — all pages render; only current shows on screen, all print */}
