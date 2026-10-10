@@ -99,7 +99,11 @@ export default function WaypointWord({ word, waypoints, lineGap, color = '#2e7d3
         const start = seg[0];
         if (mode === 'dots') {
           if (!first) return null;
-          return <circle key={i} cx={start.x} cy={start.y} r={dotW * 1.6} fill={color} />;
+          return <circle key={i} cx={start.x} cy={start.y} r={dotW * 1.0} fill={color} />;
+        }
+        if (mode === 'outline') {
+          if (dot) return null;
+          return <path key={i} d={splinePathD(seg)} fill="none" stroke={color} strokeWidth={dotW} strokeLinecap="round" strokeDasharray={`0 ${dotW * 2}`} />;
         }
         if (dot) {
           return (

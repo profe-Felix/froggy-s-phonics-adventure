@@ -35,9 +35,9 @@ export default function HandwritingLines({ word = '', lineGap: g, fontSize, vOff
           {word}
         </div>
       )}
-      {word && mode === 'dots' && waypoints && (
+      {word && (mode === 'dots' || mode === 'outline') && waypoints && (
         <div style={{ position: 'absolute', left: '1.4in', top: `${dotsShift}in`, transform: `scale(${dotsScale})`, transformOrigin: 'top left' }}>
-          <WaypointWord word={word} waypoints={waypoints} lineGap={g} color={color} mode="dots" />
+          <WaypointWord word={word} waypoints={waypoints} lineGap={g} color={color} mode={mode} />
         </div>
       )}
     </div>

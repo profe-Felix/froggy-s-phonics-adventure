@@ -37,6 +37,7 @@ export default function FontPreview() {
   const [rows, setRows] = useState(() => parseInt(localStorage.getItem('fp_rows')) || 6);
   const [orientation, setOrientation] = useState(() => localStorage.getItem('fp_orientation') || 'portrait');
   const [color, setColor] = useState(() => localStorage.getItem('fp_color') || '#2e7d32');
+  const [showOutline, setShowOutline] = useState(false);
   const [zoom, setZoom] = useState(1);
   const calib = useHandwritingCalibration();
   const waypoints = useMergedWaypoints();
@@ -117,6 +118,13 @@ export default function FontPreview() {
             ))}
           </div>
           <FontColorPicker color={color} onChange={setColor} />
+          <button
+            onClick={() => setShowOutline((v) => !v)}
+            title="Show the full waypoint letter outline on dots rows to align them with the arrow-dot font"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-bold transition ${showOutline ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+          >
+            {showOutline ? 'Hide' : 'Show'} waypoint letters
+          </button>
           <AlignmentControls calib={calib} lineGap={g} showDots />
           <WorksheetSaver
             values={{ text, rows, orientation, color }}
@@ -131,7 +139,7 @@ export default function FontPreview() {
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in` }}>
                     {words.map((row, i) => (
-                      <HandwritingLines key={i} word={row.word} mode={row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
+                      <HandwritingLines key={i} word={row.word} mode={row.mode === 'dots' && showOutline ? 'outline' : row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
                   </div>
                 </div>
