@@ -45,7 +45,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  right: 0,
+                  width: '3in',
                   height: `${g}in`,
                   background: '#dceaf9',
                 }}
@@ -56,7 +56,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   position: 'absolute',
                   top: `${g}in`,
                   left: 0,
-                  right: 0,
+                  width: '3in',
                   height: `${g}in`,
                   background: '#e8f5e9',
                 }}
@@ -67,7 +67,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                   position: 'absolute',
                   top: `${2 * g}in`,
                   left: 0,
-                  right: 0,
+                  width: '3in',
                   height: `${g}in`,
                   background: '#f5ebe0',
                 }}

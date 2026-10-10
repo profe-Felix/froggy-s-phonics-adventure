@@ -1,16 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Printer } from 'lucide-react';
+import { printWithPage } from '@/lib/printWithPage';
 
 // Font preview page — type any word and see it rendered in ZBKidLettersArrowDot
 // (the arrow+number tracing font) on handwriting guide lines, same as the
 // NounPractice print sheets. Lets the teacher preview how words will look
 // before committing them to a print sheet.
 export default function FontPreview() {
-  const [text, setText] = useState('hola');
-  const [fontSize, setFontSize] = useState(1.2);
-  const [vOffset, setVOffset] = useState(0);
+  const [text, setText] = useState(() => localStorage.getItem('fp_text') || 'hola');
+  const [fontSize, setFontSize] = useState(() => parseFloat(localStorage.getItem('fp_fontSize')) || 1.2);
+  const [vOffset, setVOffset] = useState(() => parseFloat(localStorage.getItem('fp_vOffset')) || 0);
   const [zoom, setZoom] = useState(1);
+
+  // Persist settings so they survive page reloads
+  useEffect(() => { localStorage.setItem('fp_text', text); }, [text]);
+  useEffect(() => { localStorage.setItem('fp_fontSize', fontSize); }, [fontSize]);
+  useEffect(() => { localStorage.setItem('fp_vOffset', vOffset); }, [vOffset]);
 
   const g = 0.65; // line gap (inches)
   const asc = fontSize * 1.166667;
@@ -40,10 +46,17 @@ export default function FontPreview() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </Link>
-          <h1 className="text-xl font-black text-slate-800">Font Preview</h1>
+          <h1 className="text-xl font-black text-slate-800">Handwriting Handout</h1>
           <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-bold text-indigo-700">
             ZBKidLettersArrowDot
           </span>
+          <button
+            onClick={() => printWithPage('size: letter portrait; margin: 0.25in')}
+            className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
+          >
+            <Printer className="h-5 w-5" />
+            Print
+          </button>
         </div>
 
         {/* Controls */}
@@ -95,7 +108,7 @@ export default function FontPreview() {
         </div>
 
         {/* Preview */}
-        <div className="np-zoom-container" style={{ '--np-zoom': zoom }}>
+        <div className="np-zoom-container printable" style={{ '--np-zoom': zoom }}>
           <div className="np-scale-wrap">
             <div className="page-preview" style={{ padding: '0.25in' }}>
               {words.length === 0 ? (
@@ -113,11 +126,11 @@ export default function FontPreview() {
                       }}
                     >
                       {/* Sky band */}
-                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: `${g}in`, background: '#dceaf9' }} />
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3in', height: `${g}in`, background: '#dceaf9' }} />
                       {/* Grass band */}
-                      <div style={{ position: 'absolute', top: `${g}in`, left: 0, right: 0, height: `${g}in`, background: '#e8f5e9' }} />
+                      <div style={{ position: 'absolute', top: `${g}in`, left: 0, width: '3in', height: `${g}in`, background: '#e8f5e9' }} />
                       {/* Dirt band */}
-                      <div style={{ position: 'absolute', top: `${2 * g}in`, left: 0, right: 0, height: `${g}in`, background: '#f5ebe0' }} />
+                      <div style={{ position: 'absolute', top: `${2 * g}in`, left: 0, width: '3in', height: `${g}in`, background: '#f5ebe0' }} />
                       {/* Sky line */}
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTop: '2px solid #4a90e2' }} />
                       {/* Fence line (dashed midline) */}
