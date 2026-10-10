@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Save, Trash2, Loader2 } from 'lucide-react';
+import { Save, Trash2, Loader2, Layers } from 'lucide-react';
 
 // Saved handwriting worksheets: pick one from the dropdown to load it, or
 // type a name and Save Worksheet to store the current words/rows/orientation/color.
@@ -45,6 +45,30 @@ export default function WorksheetSaver({ values, onLoad }) {
     setName('');
   };
 
+  // Duplicate the current layout to a worksheet for every letter (A-Z uppercase
+  // + lowercase). The first letter found in the text is the "source" — every
+  // occurrence is replaced with the target letter. Re-running this later
+  // updates all letter worksheets with the current layout ("apply to all").
+  const handleDuplicateToLetters = async () => {
+    const srcMatch = (values.text || '').match(/[a-zA-Z]/);
+    if (!srcMatch) { alert('No letter found in the text to duplicate.'); return; }
+    const src = srcMatch[0];
+    if (!window.confirm(`Create/update worksheets for all 26 letters (uppercase + lowercase) using the current layout?`)) return;
+    setSaving(true);
+    const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const records = [];
+    for (const L of upper) {
+      records.push({ name: `Uppercase ${L}`, text: values.text.split(src).join(L), rows_per_page: values.rows, orientation: values.orientation, color: values.color });
+    }
+    for (const L of upper.map((l) => l.toLowerCase())) {
+      records.push({ name: `Lowercase ${L}`, text: values.text.split(src).join(L), rows_per_page: values.rows, orientation: values.orientation, color: values.color });
+    }
+    await base44.entities.HandwritingWorksheet.upsert(records, { key: 'name' });
+    const p = await base44.entities.HandwritingWorksheet.filter({}, { sort: 'name', limit: 200 });
+    setSheets(p.items);
+    setSaving(false);
+  };
+
   return (
     <div className="flex w-full flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
       <label className="text-sm font-bold text-slate-600">Saved</label>
@@ -74,6 +98,15 @@ export default function WorksheetSaver({ values, onLoad }) {
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save Worksheet
+      </button>
+      <button
+        onClick={handleDuplicateToLetters}
+        disabled={saving || !values.text}
+        title="Create a worksheet for every letter (A-Z, a-z) using the current layout. Re-run to update all letter sheets with the current layout."
+        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+      >
+        <Layers className="h-4 w-4" />
+        Duplicate to all letters
       </button>
     </div>
   );
