@@ -140,7 +140,7 @@ export default function FontPreview() {
             {pages.map((words, p) => (
               <div key={p} className="noun-page" style={{ marginBottom: '0.3in' }}>
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in` }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in`, width: `${page.w - 0.5}in` }}>
                     {words.map((row, i) => (
                       <HandwritingLines key={i} word={row.word} mode={row.mode === 'dots' && showOutline ? 'outline' : row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
