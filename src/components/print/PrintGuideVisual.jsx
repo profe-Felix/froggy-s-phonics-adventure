@@ -11,8 +11,13 @@ import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
  */
 export default function PrintGuideVisual({ lineGap, opacity = 0.5 }) {
   const gPx = lineGap * 96; // inches → pixels at 96dpi
-  const svgWidth = 1.4 * 96; // 1.4in — covers the guide visual
   const svgHeight = 3 * gPx;
+  // Approximate where the fence ends (emojis + fence) using the default
+  // layout ratios: fenceEnd ≈ 2.334 × gPx. Shrink the SVG to just past the
+  // fence when rows are small (many rows) so there's no wide blank colored
+  // area after the fence. Cap at 1.4in so fewer-row sheets keep the full guide.
+  const fenceEndApprox = 2.334 * gPx + 0.15 * 96;
+  const svgWidth = Math.min(1.4 * 96, Math.max(fenceEndApprox, 1.0 * 96));
 
   return (
     <svg
