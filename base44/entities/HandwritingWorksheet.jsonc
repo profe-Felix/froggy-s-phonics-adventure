@@ -1,0 +1,28 @@
+{
+  "name": "HandwritingWorksheet",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Worksheet name shown in the saved dropdown"
+    },
+    "text": {
+      "type": "string",
+      "default": "",
+      "description": "Words to practice (space-separated)"
+    },
+    "font_size": {
+      "type": "number",
+      "default": 1.2,
+      "description": "Font size in inches"
+    },
+    "v_offset": {
+      "type": "number",
+      "default": 0,
+      "description": "Vertical shift in inches"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
