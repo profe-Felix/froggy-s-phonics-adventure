@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft, Printer, Save } from 'lucide-react';
 import { printWithPage } from '@/lib/printWithPage';
+import PrintGuideVisual from '@/components/print/PrintGuideVisual';
 
 // Font preview page — type any word and see it rendered in ZBKidLettersArrowDot
 // (the arrow+number tracing font) on handwriting guide lines, same as the
@@ -12,11 +13,20 @@ export default function FontPreview() {
   const [fontSize, setFontSize] = useState(() => parseFloat(localStorage.getItem('fp_fontSize')) || 1.2);
   const [vOffset, setVOffset] = useState(() => parseFloat(localStorage.getItem('fp_vOffset')) || 0);
   const [zoom, setZoom] = useState(1);
+  const [saved, setSaved] = useState(false);
 
   // Persist settings so they survive page reloads
   useEffect(() => { localStorage.setItem('fp_text', text); }, [text]);
   useEffect(() => { localStorage.setItem('fp_fontSize', fontSize); }, [fontSize]);
   useEffect(() => { localStorage.setItem('fp_vOffset', vOffset); }, [vOffset]);
+
+  const handleSave = () => {
+    localStorage.setItem('fp_text', text);
+    localStorage.setItem('fp_fontSize', fontSize);
+    localStorage.setItem('fp_vOffset', vOffset);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   const g = 0.65; // line gap (inches)
   const asc = fontSize * 1.166667;
@@ -51,8 +61,15 @@ export default function FontPreview() {
             ZBKidLettersArrowDot
           </span>
           <button
+            onClick={handleSave}
+            className="ml-auto inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-green-700"
+          >
+            <Save className="h-5 w-5" />
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+          <button
             onClick={() => printWithPage('size: letter portrait; margin: 0.25in')}
-            className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
           >
             <Printer className="h-5 w-5" />
             Print
@@ -125,12 +142,9 @@ export default function FontPreview() {
                         position: 'relative',
                       }}
                     >
-                      {/* Sky band */}
-                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3in', height: `${g}in`, background: '#dceaf9' }} />
-                      {/* Grass band */}
-                      <div style={{ position: 'absolute', top: `${g}in`, left: 0, width: '3in', height: `${g}in`, background: '#e8f5e9' }} />
-                      {/* Dirt band */}
-                      <div style={{ position: 'absolute', top: `${2 * g}in`, left: 0, width: '3in', height: `${g}in`, background: '#f5ebe0' }} />
+                      {/* Guide visual — walking figures + fence with colored zones
+                          limited to the visual width (saves ink; no color behind letters). */}
+                      <PrintGuideVisual lineGap={g} />
                       {/* Sky line */}
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTop: '2px solid #4a90e2' }} />
                       {/* Fence line (dashed midline) */}
@@ -143,7 +157,7 @@ export default function FontPreview() {
                       <div
                         style={{
                           position: 'absolute',
-                          left: '0.2in',
+                          left: '1.4in',
                           top: `${2 * g - asc + vOffset}in`,
                           fontFamily: 'ZBKidLettersArrowDot, ui-sans-serif, sans-serif',
                           fontSize: `${fontSize}in`,

@@ -1,3 +1,5 @@
+import PrintGuideVisual from './PrintGuideVisual';
+
 // Printable noun practice sheet — portrait page with 5 rows.
 // Each row: left = handwriting lines with the noun in green (ZBKidLettersArrowDot
 // font has built-in directional arrows for letter formation), right = picture.
@@ -39,39 +41,9 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
                 position: 'relative',
               }}
             >
-              {/* Sky band */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '3in',
-                  height: `${g}in`,
-                  background: '#dceaf9',
-                }}
-              />
-              {/* Grass band */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${g}in`,
-                  left: 0,
-                  width: '3in',
-                  height: `${g}in`,
-                  background: '#e8f5e9',
-                }}
-              />
-              {/* Dirt band */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${2 * g}in`,
-                  left: 0,
-                  width: '3in',
-                  height: `${g}in`,
-                  background: '#f5ebe0',
-                }}
-              />
+              {/* Guide visual — walking figures + fence with colored zones
+                  limited to the visual width (saves ink; no color behind letters). */}
+              <PrintGuideVisual lineGap={lineGap} />
               {/* Top line (sky ceiling) */}
               <div
                 style={{
@@ -116,7 +88,7 @@ export default function NounPracticeSheet({ nouns = [], fontSize = 0.45, lineGap
               <div
                 style={{
                   position: 'absolute',
-                  left: '0.2in',
+                  left: '1.4in',
                   top: `${2 * g - asc + vOffset}in`,
                   fontFamily: 'ZBKidLettersArrowDot, ui-sans-serif, sans-serif',
                   fontSize: `${effectiveFontSize}in`,
