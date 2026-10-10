@@ -28,7 +28,7 @@ export default function HandwritingLines({ word = '', lineGap: g, fontSize, vOff
             fontFamily: 'ZBKidLettersArrowDot, ui-sans-serif, sans-serif',
             fontSize: `${fontSize}in`,
             color,
-            whiteSpace: 'nowrap',
+            whiteSpace: 'pre',
             lineHeight: 1.7,
           }}
         >
