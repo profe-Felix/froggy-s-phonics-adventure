@@ -9,7 +9,7 @@
     "text": {
       "type": "string",
       "default": "",
-      "description": "Words to practice (space-separated, one per row)"
+      "description": "Words to practice. One per row (space or newline separated). Use >: or .: before a word to force arrows or dots-only mode."
     },
     "rows_per_page": {
       "type": "integer",
@@ -24,6 +24,11 @@
       ],
       "default": "portrait",
       "description": "Page orientation"
+    },
+    "color": {
+      "type": "string",
+      "default": "#2e7d32",
+      "description": "Font color (hex)."
     }
   },
   "required": [

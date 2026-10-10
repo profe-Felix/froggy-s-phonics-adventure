@@ -47,7 +47,7 @@ function isRetrace(dense, prior, tol) {
   return dense.every((p) => prior.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < tol));
 }
 
-export default function WaypointWord({ word, waypoints, lineGap, color = '#2e7d32' }) {
+export default function WaypointWord({ word, waypoints, lineGap, color = '#2e7d32', mode = 'full' }) {
   const k = ZONE / lineGap; // canvas units per inch
   const dotW = 0.035 * k;
 
@@ -97,6 +97,10 @@ export default function WaypointWord({ word, waypoints, lineGap, color = '#2e7d3
     >
       {parts.map(({ seg, dense, dot, numbered, n, first }, i) => {
         const start = seg[0];
+        if (mode === 'dots') {
+          if (!first) return null;
+          return <circle key={i} cx={start.x} cy={start.y} r={dotW * 1.6} fill={color} />;
+        }
         if (dot) {
           return (
             <g key={i}>

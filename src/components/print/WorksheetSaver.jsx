@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Save, Trash2, Loader2 } from 'lucide-react';
 
 // Saved handwriting worksheets: pick one from the dropdown to load it, or
-// type a name and Save Worksheet to store the current words/rows/orientation.
+// type a name and Save Worksheet to store the current words/rows/orientation/color.
 export default function WorksheetSaver({ values, onLoad }) {
   const [sheets, setSheets] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -19,14 +19,14 @@ export default function WorksheetSaver({ values, onLoad }) {
     const s = sheets.find((x) => x.id === id);
     if (!s) return;
     setName(s.name);
-    onLoad({ text: s.text || '', rows: s.rows_per_page || 6, orientation: s.orientation || 'portrait' });
+    onLoad({ text: s.text || '', rows: s.rows_per_page || 6, orientation: s.orientation || 'portrait', color: s.color || '#2e7d32' });
   };
 
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setSaving(true);
-    const data = { name: trimmed, text: values.text, rows_per_page: values.rows, orientation: values.orientation };
+    const data = { name: trimmed, text: values.text, rows_per_page: values.rows, orientation: values.orientation, color: values.color };
     const existing = sheets.find((s) => s.name.toLowerCase() === trimmed.toLowerCase());
     const rec = existing
       ? await base44.entities.HandwritingWorksheet.update(existing.id, data)
