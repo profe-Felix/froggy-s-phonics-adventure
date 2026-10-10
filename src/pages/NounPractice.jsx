@@ -71,7 +71,7 @@ export default function NounPractice() {
               {NOUNS.length} nouns
             </span>
             <Link
-              to="/FontPreview"
+              to="/HandwritingHandout"
               className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700"
             >
               Font Preview

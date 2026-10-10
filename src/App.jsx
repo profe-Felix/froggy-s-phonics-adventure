@@ -199,7 +199,7 @@ const AuthenticatedApp = () => {
       <Route path="/TableRotationManager" element={<TableRotationManager />} />
       <Route path="/CreandoOraciones" element={<CreandoOraciones />} />
       <Route path="/NounPractice" element={<NounPractice />} />
-      <Route path="/FontPreview" element={<FontPreview />} />
+      <Route path="/HandwritingHandout" element={<FontPreview />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />
       <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
       <Route path="*" element={<PageNotFound />} />
