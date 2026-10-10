@@ -50,6 +50,7 @@ export default function FontPreview() {
   const g = fitLineGap(rows, page.usable);
   const fontSize = calib.fontRatio * g;
   const vOffset = calib.shiftRatio * g;
+  const dotsShift = calib.dotsShiftRatio * g;
 
   useEffect(() => {
     const updateZoom = () => {
@@ -116,7 +117,7 @@ export default function FontPreview() {
             ))}
           </div>
           <FontColorPicker color={color} onChange={setColor} />
-          <AlignmentControls calib={calib} lineGap={g} />
+          <AlignmentControls calib={calib} lineGap={g} showDots />
           <WorksheetSaver
             values={{ text, rows, orientation, color }}
             onLoad={(s) => { setText(s.text); setRows(s.rows); setOrientation(s.orientation); setColor(s.color); }}
@@ -130,7 +131,7 @@ export default function FontPreview() {
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in` }}>
                     {words.map((row, i) => (
-                      <HandwritingLines key={i} word={row.word} mode={row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} />
+                      <HandwritingLines key={i} word={row.word} mode={row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
                   </div>
                 </div>

@@ -16,6 +16,16 @@
       "type": "number",
       "default": 0,
       "description": "Vertical shift as a fraction of the line gap."
+    },
+    "dots_scale": {
+      "type": "number",
+      "default": 1,
+      "description": "Scale multiplier for the waypoint dots-only font, to align it with the arrow-dot font."
+    },
+    "dots_shift_ratio": {
+      "type": "number",
+      "default": 0,
+      "description": "Vertical shift for the dots-only font, as a fraction of the line gap."
     }
   },
   "required": [

@@ -6,7 +6,7 @@ import { ASC_FACTOR } from '@/lib/handwritingLayout';
 // sky / fence / grass / dirt lines, and the word in the chosen font/mode.
 //   mode='arrows' → ZBKidLettersArrowDot font (dotted letters w/ arrows + numbers)
 //   mode='dots'   → waypoint starting dots only (students form the letter)
-export default function HandwritingLines({ word = '', lineGap: g, fontSize, vOffset = 0, color = '#2e7d32', mode = 'arrows', waypoints = null }) {
+export default function HandwritingLines({ word = '', lineGap: g, fontSize, vOffset = 0, color = '#2e7d32', mode = 'arrows', waypoints = null, dotsScale = 1, dotsShift = 0 }) {
   const asc = fontSize * ASC_FACTOR;
   const line = (top, border) => (
     <div style={{ position: 'absolute', top, left: 0, right: 0, borderTop: border }} />
@@ -36,7 +36,7 @@ export default function HandwritingLines({ word = '', lineGap: g, fontSize, vOff
         </div>
       )}
       {word && mode === 'dots' && waypoints && (
-        <div style={{ position: 'absolute', left: '1.4in', top: `${vOffset}in` }}>
+        <div style={{ position: 'absolute', left: '1.4in', top: `${dotsShift}in`, transform: `scale(${dotsScale})`, transformOrigin: 'top left' }}>
           <WaypointWord word={word} waypoints={waypoints} lineGap={g} color={color} mode="dots" />
         </div>
       )}
