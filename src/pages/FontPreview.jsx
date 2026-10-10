@@ -10,22 +10,25 @@ import { useHandwritingCalibration } from '@/hooks/useHandwritingCalibration';
 import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 import { PAGE_SIZES, ROW_GAP_IN, fitLineGap } from '@/lib/handwritingLayout';
 
-// Parse the textarea into rows. Each whitespace-separated token is a row.
-//   >:   switches to arrows+numbers mode for following rows
-//   .:   switches to dots-only mode for following rows
-//   >:w  row "w" in arrows mode (prefix attached)
-//   .:w  row "w" in dots mode (prefix attached)
-//   w    row in the current mode (default arrows)
+// Parse the textarea into rows. Each LINE (Enter) is one row; spaces inside a
+// line are literal so phrases like "mi mamá" stay on one handwriting line.
+//   >:    on its own line → switch to arrows+numbers for following lines
+//   .:    on its own line → switch to dots-only for following lines
+//   >:w   a line starting with >: → that line in arrows mode
+//   .:w   a line starting with .: → that line in dots mode
+//   w     a line in the current mode (default arrows)
 function parseRows(text) {
-  const tokens = text.split(/\s+/).filter(Boolean);
+  const lines = text.split('\n');
   let mode = 'arrows';
   const rows = [];
-  for (const tok of tokens) {
-    if (tok === '>:') { mode = 'arrows'; continue; }
-    if (tok === '.:') { mode = 'dots'; continue; }
-    if (tok.startsWith('>:')) { rows.push({ word: tok.slice(2), mode: 'arrows' }); continue; }
-    if (tok.startsWith('.:')) { rows.push({ word: tok.slice(2), mode: 'dots' }); continue; }
-    rows.push({ word: tok, mode });
+  for (let raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line === '>:') { mode = 'arrows'; continue; }
+    if (line === '.:') { mode = 'dots'; continue; }
+    if (line.startsWith('>:')) { rows.push({ word: line.slice(2).trim(), mode: 'arrows' }); continue; }
+    if (line.startsWith('.:')) { rows.push({ word: line.slice(2).trim(), mode: 'dots' }); continue; }
+    rows.push({ word: line, mode });
   }
   return rows;
 }
@@ -98,7 +101,7 @@ export default function FontPreview() {
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={'Type words (one per row). Use >: for arrows, .: for dots-only.\nExample: >:m a .:m a'}
+              placeholder={'One line per row (Enter for a new row). Spaces stay on the same line.\nUse >: for arrows, .: for dots-only.\nExample:\n>:mi mamá\n.:me llama'}
               rows={3}
               className="flex-1 resize-y rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 focus:border-indigo-400 focus:outline-none"
             />
