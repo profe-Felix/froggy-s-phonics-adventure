@@ -8,7 +8,7 @@ import AlignmentControls from '@/components/print/AlignmentControls';
 import FontColorPicker from '@/components/print/FontColorPicker';
 import { useHandwritingCalibration } from '@/hooks/useHandwritingCalibration';
 import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
-import { PAGE_SIZES, ROW_GAP_IN, fitLineGap, ASC_FACTOR } from '@/lib/handwritingLayout';
+import { PAGE_SIZES, ROW_GAP_IN, fitLineGap } from '@/lib/handwritingLayout';
 
 // Parse the textarea into rows. Each LINE (Enter) is one row; spaces inside a
 // line are literal so phrases like "mi mamá" stay on one handwriting line.
@@ -51,14 +51,14 @@ export default function FontPreview() {
   useEffect(() => { localStorage.setItem('fp_color', color); }, [color]);
 
   const page = PAGE_SIZES[orientation];
-  // The arrow-dot font's stroke-order numbers sit above the letter glyph and can
-  // extend above the first row. Add that overflow to the @page top margin so the
-  // numbers aren't clipped at the paper edge — no spacer div, so the content
-  // fills the page area with no visible gap (just a normal print margin).
-  const g0 = fitLineGap(rows, page.usable);
-  const overflow = Math.max(0, calib.fontRatio * g0 * ASC_FACTOR - 2 * g0 - calib.shiftRatio * g0);
-  const topMargin = 0.25 + (overflow > 0 ? overflow + 0.1 : 0);
-  const g = fitLineGap(rows, page.usable - (topMargin - 0.25));
+  // A "Name:" line at the top of each page gives the student a place to write
+  // their name and pushes the first handwriting row down so the arrow-dot
+  // font's stroke-order numbers (which sit above the letter glyph) clear the
+  // printer's unprintable top edge. position:absolute top:0 in print goes to
+  // the paper edge (not the @page margin), so the room must come from inside
+  // the content, not from the @page margin.
+  const NAME_LINE_HEIGHT = 0.4; // inches
+  const g = fitLineGap(rows, page.usable - NAME_LINE_HEIGHT - ROW_GAP_IN);
   const fontSize = calib.fontRatio * g;
   const vOffset = calib.shiftRatio * g;
   const dotsShift = calib.dotsShiftRatio * g;
@@ -94,7 +94,7 @@ export default function FontPreview() {
           </Link>
           <h1 className="text-xl font-black text-slate-800">Handwriting Handout</h1>
           <button
-            onClick={() => printWithPage(`size: letter ${orientation}; margin: ${topMargin}in 0.25in 0.25in 0.25in`)}
+            onClick={() => printWithPage(`size: letter ${orientation}; margin: 0.25in`)}
             className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:bg-slate-900"
           >
             <Printer className="h-5 w-5" />
@@ -148,6 +148,9 @@ export default function FontPreview() {
               <div key={p} className="noun-page" style={{ marginBottom: '0.3in' }}>
                 <div className="page-preview" style={{ padding: '0.25in', width: `${page.w}in`, minHeight: `${page.h}in` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: `${ROW_GAP_IN}in`, width: `${page.w - 0.5}in` }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.15in', height: `${NAME_LINE_HEIGHT}in`, borderBottom: '2px solid #94a3b8', flexShrink: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.22in', color: '#475569' }}>Name:</span>
+                    </div>
                     {words.map((row, i) => (
                       <HandwritingLines key={i} word={row.word} mode={row.mode === 'dots' && showOutline ? 'outline' : row.mode} color={color} waypoints={waypoints} lineGap={g} fontSize={fontSize} vOffset={vOffset} dotsScale={calib.dotsScale} dotsShift={dotsShift} />
                     ))}
