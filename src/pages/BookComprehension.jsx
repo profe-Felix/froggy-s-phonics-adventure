@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle, HelpCircle } from 'lucide-react';
+import BookPageThumbnail from '@/components/book/BookPageThumbnail';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
@@ -17,10 +18,9 @@ const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
 function PresentMode({ questions, books, onExit }) {
   const isComparison = books.length > 1;
 
-  // Total pages: max of book page counts and question page numbers
+  // Total pages: the book's actual page count (don't let question page numbers extend past it)
   const bookPageCount = books.reduce((max, b) => Math.max(max, b.pdf_page_count || 1), 1);
-  const maxQuestionPage = questions.reduce((max, q) => Math.max(max, q.page_number || 0), 0);
-  const totalPages = Math.max(bookPageCount, maxQuestionPage, 1);
+  const totalPages = bookPageCount;
 
   // Page 0 (★) = general; 1..N = book pages
   const hasGeneral = questions.some(q => !q.page_number);
@@ -113,71 +113,84 @@ function PresentMode({ questions, books, onExit }) {
         })}
       </div>
 
-      {/* Center: question prompt or question bar */}
-      <div className="flex flex-1 items-center justify-center">
-        {hasQ && !showQ ? (
-          <button
-            onClick={() => { setShowQ(true); setQIdx(0); }}
-            className="flex flex-col items-center gap-3 text-white/70 transition hover:text-white"
-          >
-            <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
-              <HelpCircle className="h-24 w-24" style={{ color: '#f59e0b' }} strokeWidth={2} />
-            </motion.div>
-            <span className="text-xl font-black">
-              {pageQuestions.length} question{pageQuestions.length > 1 ? 's' : ''} for this page — click to show
-            </span>
-          </button>
-        ) : showQ && q ? (
+      {/* Center: page thumbnail + optional question bar */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4">
+        {/* Page thumbnail(s) */}
+        {currentPage > 0 && books.length > 0 ? (
+          <div className="relative flex gap-4">
+            {books.map((b, i) => (
+              <div key={b.id} className="relative overflow-hidden rounded-2xl bg-white/10 shadow-2xl" style={{ maxHeight: '45vh', maxWidth: isComparison ? '35vh' : '50vh' }}>
+                <BookPageThumbnail book={b} pageNumber={currentPage} width={isComparison ? 300 : 500} />
+                {isComparison && (
+                  <span className={`absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-xs font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
+                    {i === 0 ? 'Libro A' : 'Libro B'}
+                  </span>
+                )}
+              </div>
+            ))}
+            {/* ? badge to toggle questions */}
+            {hasQ && !showQ && (
+              <button
+                onClick={() => { setShowQ(true); setQIdx(0); }}
+                className="absolute -right-3 -top-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl transition hover:scale-110"
+              >
+                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                  <HelpCircle className="h-8 w-8" />
+                </motion.div>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-center text-white/30">
+            <p className="text-2xl font-black">★ General questions</p>
+          </div>
+        )}
+
+        {/* Hint text */}
+        {hasQ && !showQ && (
+          <p className="text-white/50 font-bold text-sm">
+            {pageQuestions.length} question{pageQuestions.length > 1 ? 's' : ''} — click ? to show
+          </p>
+        )}
+
+        {/* Question bar (when toggled) */}
+        {showQ && q && (
           <motion.div
             key={qIdx}
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="relative flex w-full max-w-5xl items-stretch gap-5 rounded-3xl bg-white p-8 shadow-2xl"
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="relative flex w-full max-w-4xl items-stretch gap-5 rounded-3xl bg-white p-6 shadow-2xl"
           >
-            {/* Close questions */}
             <button
               onClick={() => setShowQ(false)}
               className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100"
             >
               <X className="h-5 w-5" />
             </button>
-
-            {/* Sun/moon partner toggle */}
             <button
               onClick={() => setTurn(t => (t + 1) % 2)}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl px-5 transition hover:bg-slate-50"
+              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-4 transition hover:bg-slate-50"
             >
               <AnimatePresence mode="wait">
                 {isSol ? (
                   <motion.div key="sol" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                    <Sun className="h-20 w-20" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
+                    <Sun className="h-16 w-16" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
                   </motion.div>
                 ) : (
                   <motion.div key="luna" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                    <Moon className="h-20 w-20" style={{ color: '#6366f1' }} strokeWidth={2.5} />
+                    <Moon className="h-16 w-16" style={{ color: '#6366f1' }} strokeWidth={2.5} />
                   </motion.div>
                 )}
               </AnimatePresence>
-              <span className="text-2xl font-black" style={{ color: isSol ? '#f59e0b' : '#6366f1' }}>
-                {isSol ? 'Sol' : 'Luna'}
-              </span>
+              <span className="text-xl font-black" style={{ color: isSol ? '#f59e0b' : '#6366f1' }}>{isSol ? 'Sol' : 'Luna'}</span>
               <span className="text-xs font-bold text-slate-400">pregunta</span>
             </button>
-
-            {/* Question + sentence stem */}
-            <div className="flex flex-1 flex-col justify-center gap-3 border-l-2 border-slate-100 pl-6 pr-10">
-              <p className="text-3xl font-black leading-snug text-slate-800">{q.question_text}</p>
-              {q.sentence_stem && (
-                <p className="text-2xl font-bold leading-snug text-slate-500">{q.sentence_stem}</p>
-              )}
+            <div className="flex flex-1 flex-col justify-center gap-2 border-l-2 border-slate-100 pl-5 pr-10">
+              <p className="text-2xl font-black leading-snug text-slate-800">{q.question_text}</p>
+              {q.sentence_stem && <p className="text-xl font-bold leading-snug text-slate-500">{q.sentence_stem}</p>}
             </div>
           </motion.div>
-        ) : (
-          <div className="text-center text-white/30">
-            <p className="text-2xl font-black">No questions for this page</p>
-            <p className="mt-2 text-sm font-bold">Continue reading →</p>
-          </div>
         )}
       </div>
 
@@ -239,21 +252,25 @@ function QuestionRow({ q, onEdit, onDelete }) {
 }
 
 // ── Edit dialog ───────────────────────────────────────────────
-function QuestionEditor({ initial, onSave, onCancel }) {
+function QuestionEditor({ initial, onSave, onCancel, maxPages }) {
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
   const [page, setPage] = useState(initial?.page_number || 0);
+  const max = maxPages || 999;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
-        <label className="mb-1 block text-sm font-bold text-slate-600">Page number (0 = general ★)</label>
+        <label className="mb-1 block text-sm font-bold text-slate-600">
+          Page number (0 = general ★{maxPages ? `, max ${max}` : ''})
+        </label>
         <input
           type="number"
           min={0}
+          max={max}
           value={page}
-          onChange={e => setPage(Math.max(0, parseInt(e.target.value) || 0))}
+          onChange={e => setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)))}
           className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
         />
         <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
@@ -559,6 +576,7 @@ export default function BookComprehension() {
       {editing && (
         <QuestionEditor
           initial={editing === 'new' ? null : editing}
+          maxPages={books.reduce((mx, b) => Math.max(mx, b.pdf_page_count || 0), 0) || null}
           onSave={(question_text, sentence_stem, page_number) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number })}
           onCancel={() => setEditing(null)}
         />
