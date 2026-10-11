@@ -77,6 +77,7 @@ import NounPractice from './pages/NounPractice';
 import FontPreview from './pages/FontPreview';
 import WorkSamples from './pages/WorkSamples';
 import LiteracyDashboard from './pages/LiteracyDashboard';
+import BookComprehension from './pages/BookComprehension';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -202,6 +203,7 @@ const AuthenticatedApp = () => {
       <Route path="/HandwritingHandout" element={<FontPreview />} />
       <Route path="/WorkSamples" element={<WorkSamples />} />
       <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
+      <Route path="/BookComprehension" element={<BookComprehension />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

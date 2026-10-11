@@ -1,0 +1,73 @@
+{
+  "name": "BookComprehensionQuestion",
+  "type": "object",
+  "properties": {
+    "lesson_key": {
+      "type": "string",
+      "description": "Lesson key e.g. 'M2.L1'. Questions are organized per lesson so they can be reused across years."
+    },
+    "question_text": {
+      "type": "string",
+      "description": "The comprehension question to ask students."
+    },
+    "sentence_stem": {
+      "type": "string",
+      "default": "",
+      "description": "The sentence stem students use to answer, shown after the question e.g. 'Los personajes del cuento son _______."
+    },
+    "order": {
+      "type": "integer",
+      "default": 0,
+      "description": "Display order within the lesson."
+    }
+  },
+  "required": [
+    "lesson_key",
+    "question_text"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
