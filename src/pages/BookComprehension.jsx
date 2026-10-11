@@ -3,50 +3,74 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle } from 'lucide-react';
+import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle, HelpCircle } from 'lucide-react';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
 
 // ── Present mode ──────────────────────────────────────────────
-// Full-screen question bar with a sun/moon partner toggle on the
-// left. Teacher reads the question + sentence stem, students
-// answer in pairs. Click the toggle to flip Sol↔Luna (whose turn
-// to ask). Advance questions with arrows; the toggle auto-flips
-// on each advance so partners alternate roles.
-// Book title(s) show at the top so students know which book(s) the
-// questions are about — two titles for comparison lessons.
-function PresentMode({ questions, books, startIndex, onExit }) {
-  const [index, setIndex] = useState(startIndex);
-  const [turn, setTurn] = useState(0); // 0 = Sol asks, 1 = Luna asks
-  const q = questions[index];
-
-  const advance = (dir) => {
-    const next = index + dir;
-    if (next < 0 || next >= questions.length) return;
-    setIndex(next);
-    setTurn(t => (t + 1) % 2); // auto-flip on advance
-  };
-
-  if (!q) return null;
-
-  const isSol = turn === 0;
+// Page-by-page presentation. The teacher reads through the book
+// one page at a time. Pages that have questions show a pulsing ?
+// badge — click it to reveal the question bar (with the sun/moon
+// partner toggle), or skip it and continue to the next page.
+// Page 0 (★) = general questions not tied to a specific page.
+function PresentMode({ questions, books, onExit }) {
   const isComparison = books.length > 1;
 
+  // Total pages: max of book page counts and question page numbers
+  const bookPageCount = books.reduce((max, b) => Math.max(max, b.pdf_page_count || 1), 1);
+  const maxQuestionPage = questions.reduce((max, q) => Math.max(max, q.page_number || 0), 0);
+  const totalPages = Math.max(bookPageCount, maxQuestionPage, 1);
+
+  // Page 0 (★) = general; 1..N = book pages
+  const hasGeneral = questions.some(q => !q.page_number);
+  const pageNumbers = [...(hasGeneral ? [0] : []), ...Array.from({ length: totalPages }, (_, i) => i + 1)];
+
+  const [currentPage, setCurrentPage] = useState(pageNumbers[0] ?? 1);
+  const [showQ, setShowQ] = useState(false);
+  const [qIdx, setQIdx] = useState(0);
+  const [turn, setTurn] = useState(0);
+
+  const pageQuestions = questions.filter(q => (q.page_number || 0) === currentPage);
+  const hasQ = pageQuestions.length > 0;
+  const q = pageQuestions[qIdx];
+  const isSol = turn === 0;
+  const currentIdx = pageNumbers.indexOf(currentPage);
+
+  const changePage = (p) => {
+    setCurrentPage(p);
+    setShowQ(false);
+    setQIdx(0);
+    setTurn(0);
+  };
+
+  const advancePage = (dir) => {
+    const next = currentIdx + dir;
+    if (next < 0 || next >= pageNumbers.length) return;
+    changePage(pageNumbers[next]);
+  };
+
+  const advanceQ = (dir) => {
+    const next = qIdx + dir;
+    if (next < 0 || next >= pageQuestions.length) return;
+    setQIdx(next);
+    setTurn(t => (t + 1) % 2);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6" style={{ background: '#1e1b4b' }}>
+    <div className="fixed inset-0 z-50 flex flex-col px-6 py-10" style={{ background: '#1e1b4b' }}>
       <button onClick={onExit} className="absolute top-5 right-5 text-white/70 hover:text-white">
         <X className="h-8 w-8" />
       </button>
 
-      {/* Question counter */}
+      {/* Page counter */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 text-white/50 font-bold text-lg">
-        {index + 1} / {questions.length}
+        {currentPage === 0 ? '★ General' : `Page ${currentPage} / ${totalPages}`}
       </div>
 
       {/* Book title(s) */}
       {books.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+        <div className="mb-5 flex flex-wrap items-center justify-center gap-3">
           {books.map((b, i) => (
             <div key={b.id} className="flex items-center gap-2 rounded-full bg-white/10 px-5 py-2">
               <BookOpen className="h-5 w-5 text-white/60" />
@@ -65,58 +89,125 @@ function PresentMode({ questions, books, startIndex, onExit }) {
         </div>
       )}
 
-      {/* The question bar */}
-      <motion.div
-        key={index}
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="flex w-full max-w-5xl items-stretch gap-5 rounded-3xl bg-white p-8 shadow-2xl"
-      >
-        {/* Sun/moon partner toggle */}
-        <button
-          onClick={() => setTurn(t => (t + 1) % 2)}
-          className="flex flex-col items-center justify-center gap-2 rounded-2xl px-5 transition hover:bg-slate-50"
-        >
-          <AnimatePresence mode="wait">
-            {isSol ? (
-              <motion.div key="sol" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                <Sun className="h-20 w-20" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
-              </motion.div>
-            ) : (
-              <motion.div key="luna" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                <Moon className="h-20 w-20" style={{ color: '#6366f1' }} strokeWidth={2.5} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <span className="text-2xl font-black" style={{ color: isSol ? '#f59e0b' : '#6366f1' }}>
-            {isSol ? 'Sol' : 'Luna'}
-          </span>
-          <span className="text-xs font-bold text-slate-400">pregunta</span>
-        </button>
+      {/* Page strip — each page with questions has a ? badge */}
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+        {pageNumbers.map(p => {
+          const pQs = questions.filter(qq => (qq.page_number || 0) === p);
+          const isActive = p === currentPage;
+          return (
+            <button
+              key={p}
+              onClick={() => changePage(p)}
+              className={`relative flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black transition ${
+                isActive ? 'scale-110 bg-white text-indigo-900' : 'bg-white/10 text-white/60 hover:bg-white/20'
+              }`}
+            >
+              {p === 0 ? '★' : p}
+              {pQs.length > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg">
+                  <HelpCircle className="h-5 w-5" />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Question + sentence stem */}
-        <div className="flex flex-1 flex-col justify-center gap-3 border-l-2 border-slate-100 pl-6">
-          <p className="text-3xl font-black leading-snug text-slate-800">{q.question_text}</p>
-          {q.sentence_stem && (
-            <p className="text-2xl font-bold leading-snug text-slate-500">{q.sentence_stem}</p>
-          )}
-        </div>
-      </motion.div>
+      {/* Center: question prompt or question bar */}
+      <div className="flex flex-1 items-center justify-center">
+        {hasQ && !showQ ? (
+          <button
+            onClick={() => { setShowQ(true); setQIdx(0); }}
+            className="flex flex-col items-center gap-3 text-white/70 transition hover:text-white"
+          >
+            <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+              <HelpCircle className="h-24 w-24" style={{ color: '#f59e0b' }} strokeWidth={2} />
+            </motion.div>
+            <span className="text-xl font-black">
+              {pageQuestions.length} question{pageQuestions.length > 1 ? 's' : ''} for this page — click to show
+            </span>
+          </button>
+        ) : showQ && q ? (
+          <motion.div
+            key={qIdx}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="relative flex w-full max-w-5xl items-stretch gap-5 rounded-3xl bg-white p-8 shadow-2xl"
+          >
+            {/* Close questions */}
+            <button
+              onClick={() => setShowQ(false)}
+              className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
 
-      {/* Navigation */}
-      <div className="mt-8 flex items-center gap-6">
+            {/* Sun/moon partner toggle */}
+            <button
+              onClick={() => setTurn(t => (t + 1) % 2)}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl px-5 transition hover:bg-slate-50"
+            >
+              <AnimatePresence mode="wait">
+                {isSol ? (
+                  <motion.div key="sol" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.25 }}>
+                    <Sun className="h-20 w-20" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
+                  </motion.div>
+                ) : (
+                  <motion.div key="luna" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.25 }}>
+                    <Moon className="h-20 w-20" style={{ color: '#6366f1' }} strokeWidth={2.5} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <span className="text-2xl font-black" style={{ color: isSol ? '#f59e0b' : '#6366f1' }}>
+                {isSol ? 'Sol' : 'Luna'}
+              </span>
+              <span className="text-xs font-bold text-slate-400">pregunta</span>
+            </button>
+
+            {/* Question + sentence stem */}
+            <div className="flex flex-1 flex-col justify-center gap-3 border-l-2 border-slate-100 pl-6 pr-10">
+              <p className="text-3xl font-black leading-snug text-slate-800">{q.question_text}</p>
+              {q.sentence_stem && (
+                <p className="text-2xl font-bold leading-snug text-slate-500">{q.sentence_stem}</p>
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <div className="text-center text-white/30">
+            <p className="text-2xl font-black">No questions for this page</p>
+            <p className="mt-2 text-sm font-bold">Continue reading →</p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom navigation */}
+      <div className="mt-6 flex items-center justify-center gap-6">
         <button
-          onClick={() => advance(-1)}
-          disabled={index === 0}
+          onClick={() => advancePage(-1)}
+          disabled={currentIdx <= 0}
           className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
           <ChevronLeft className="h-7 w-7" />
         </button>
-        <span className="text-white/40 font-bold text-sm">click ☀️/🌙 to flip partners</span>
+        {showQ && pageQuestions.length > 1 ? (
+          <>
+            <button onClick={() => advanceQ(-1)} disabled={qIdx === 0} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <span className="text-white/50 font-bold text-sm">Q {qIdx + 1} / {pageQuestions.length}</span>
+            <button onClick={() => advanceQ(1)} disabled={qIdx === pageQuestions.length - 1} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        ) : (
+          <span className="text-white/40 font-bold text-sm">
+            {hasQ ? 'click ☀️/🌙 to flip partners' : 'no questions — continue'}
+          </span>
+        )}
         <button
-          onClick={() => advance(1)}
-          disabled={index === questions.length - 1}
+          onClick={() => advancePage(1)}
+          disabled={currentIdx >= pageNumbers.length - 1}
           className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
           <ChevronRight className="h-7 w-7" />
@@ -130,6 +221,9 @@ function PresentMode({ questions, books, startIndex, onExit }) {
 function QuestionRow({ q, onEdit, onDelete }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-sm font-black text-indigo-600">
+        {q.page_number ? `p${q.page_number}` : '★'}
+      </div>
       <div className="flex-1">
         <p className="font-black text-slate-800">{q.question_text}</p>
         {q.sentence_stem && <p className="mt-1 text-sm font-semibold text-slate-500">{q.sentence_stem}</p>}
@@ -148,11 +242,20 @@ function QuestionRow({ q, onEdit, onDelete }) {
 function QuestionEditor({ initial, onSave, onCancel }) {
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
+  const [page, setPage] = useState(initial?.page_number || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
+        <label className="mb-1 block text-sm font-bold text-slate-600">Page number (0 = general ★)</label>
+        <input
+          type="number"
+          min={0}
+          value={page}
+          onChange={e => setPage(Math.max(0, parseInt(e.target.value) || 0))}
+          className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+        />
         <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
         <textarea
           value={question}
@@ -173,7 +276,7 @@ function QuestionEditor({ initial, onSave, onCancel }) {
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
           <button
-            onClick={() => question.trim() && onSave(question.trim(), stem.trim())}
+            onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page)}
             className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
           >
             Save
@@ -356,14 +459,15 @@ export default function BookComprehension() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, question_text, sentence_stem }) => {
+    mutationFn: async ({ id, question_text, sentence_stem, page_number }) => {
       if (id) {
-        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem });
+        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number });
       } else {
         await base44.entities.BookComprehensionQuestion.create({
           lesson_key: lessonKey,
           question_text,
           sentence_stem,
+          page_number,
           order: questions.length,
         });
       }
@@ -455,14 +559,14 @@ export default function BookComprehension() {
       {editing && (
         <QuestionEditor
           initial={editing === 'new' ? null : editing}
-          onSave={(question_text, sentence_stem) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem })}
+          onSave={(question_text, sentence_stem, page_number) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number })}
           onCancel={() => setEditing(null)}
         />
       )}
 
       {/* Present mode */}
       {presenting && questions.length > 0 && (
-        <PresentMode questions={questions} books={books} startIndex={0} onExit={() => setPresenting(false)} />
+        <PresentMode questions={questions} books={books} onExit={() => setPresenting(false)} />
       )}
     </div>
   );
