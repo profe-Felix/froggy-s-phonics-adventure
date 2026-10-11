@@ -252,52 +252,83 @@ function QuestionRow({ q, onEdit, onDelete }) {
 }
 
 // ── Edit dialog ───────────────────────────────────────────────
-function QuestionEditor({ initial, onSave, onCancel, maxPages }) {
+function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
   const [page, setPage] = useState(initial?.page_number || 0);
   const max = maxPages || 999;
+  const isComparison = books.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
-        <label className="mb-1 block text-sm font-bold text-slate-600">
-          Page number (0 = general ★{maxPages ? `, max ${max}` : ''})
-        </label>
-        <input
-          type="number"
-          min={0}
-          max={max}
-          value={page}
-          onChange={e => setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)))}
-          className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
-        />
-        <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
-        <textarea
-          value={question}
-          onChange={e => setQuestion(e.target.value)}
-          autoFocus
-          rows={2}
-          className="mb-3 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
-          placeholder="¿Quiénes son los personajes del cuento?"
-        />
-        <label className="mb-1 block text-sm font-bold text-slate-600">Sentence stem (optional)</label>
-        <textarea
-          value={stem}
-          onChange={e => setStem(e.target.value)}
-          rows={2}
-          className="mb-4 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
-          placeholder="Los personajes del cuento son _______."
-        />
-        <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
-          <button
-            onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page)}
-            className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
-          >
-            Save
-          </button>
+      <div className="flex w-full max-w-3xl gap-4 rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+        {/* Left: live page thumbnail */}
+        <div className="flex w-44 flex-shrink-0 flex-col items-center">
+          <div className="mb-2 text-center text-xs font-black text-slate-500">
+            {page === 0 ? '★ General' : `Page ${page}`}
+          </div>
+          <div className="flex h-80 w-full items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {page === 0 ? (
+              <span className="text-4xl">★</span>
+            ) : books.length > 0 ? (
+              <div className="flex h-full w-full flex-col gap-1">
+                {books.map((b, i) => (
+                  <div key={b.id} className="relative flex-1 overflow-hidden rounded-lg">
+                    <BookPageThumbnail book={b} pageNumber={page} width={160} />
+                    {isComparison && (
+                      <span className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[10px] font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
+                        {i === 0 ? 'A' : 'B'}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs font-bold text-slate-300">No book selected</span>
+            )}
+          </div>
+        </div>
+
+        {/* Right: form fields */}
+        <div className="flex flex-1 flex-col">
+          <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
+          <label className="mb-1 block text-sm font-bold text-slate-600">
+            Page number (0 = general ★{maxPages ? `, max ${max}` : ''})
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={max}
+            value={page}
+            onChange={e => setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)))}
+            className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+          />
+          <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
+          <textarea
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            autoFocus
+            rows={2}
+            className="mb-3 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+            placeholder="¿Quiénes son los personajes del cuento?"
+          />
+          <label className="mb-1 block text-sm font-bold text-slate-600">Sentence stem (optional)</label>
+          <textarea
+            value={stem}
+            onChange={e => setStem(e.target.value)}
+            rows={2}
+            className="mb-4 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+            placeholder="Los personajes del cuento son _______."
+          />
+          <div className="flex justify-end gap-2">
+            <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
+            <button
+              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page)}
+              className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -577,6 +608,7 @@ export default function BookComprehension() {
         <QuestionEditor
           initial={editing === 'new' ? null : editing}
           maxPages={books.reduce((mx, b) => Math.max(mx, b.pdf_page_count || 0), 0) || null}
+          books={books}
           onSave={(question_text, sentence_stem, page_number) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number })}
           onCancel={() => setEditing(null)}
         />
