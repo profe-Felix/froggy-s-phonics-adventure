@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft } from 'lucide-react';
+import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle } from 'lucide-react';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
@@ -14,7 +14,9 @@ const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
 // answer in pairs. Click the toggle to flip Sol↔Luna (whose turn
 // to ask). Advance questions with arrows; the toggle auto-flips
 // on each advance so partners alternate roles.
-function PresentMode({ questions, startIndex, onExit }) {
+// Book title(s) show at the top so students know which book(s) the
+// questions are about — two titles for comparison lessons.
+function PresentMode({ questions, books, startIndex, onExit }) {
   const [index, setIndex] = useState(startIndex);
   const [turn, setTurn] = useState(0); // 0 = Sol asks, 1 = Luna asks
   const q = questions[index];
@@ -29,6 +31,7 @@ function PresentMode({ questions, startIndex, onExit }) {
   if (!q) return null;
 
   const isSol = turn === 0;
+  const isComparison = books.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6" style={{ background: '#1e1b4b' }}>
@@ -40,6 +43,27 @@ function PresentMode({ questions, startIndex, onExit }) {
       <div className="absolute top-6 left-1/2 -translate-x-1/2 text-white/50 font-bold text-lg">
         {index + 1} / {questions.length}
       </div>
+
+      {/* Book title(s) */}
+      {books.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+          {books.map((b, i) => (
+            <div key={b.id} className="flex items-center gap-2 rounded-full bg-white/10 px-5 py-2">
+              <BookOpen className="h-5 w-5 text-white/60" />
+              <span className="text-lg font-bold text-white">{b.title}</span>
+              {isComparison && i === 0 && (
+                <span className="ml-1 rounded-full bg-indigo-500 px-2 py-0.5 text-xs font-black text-white">Libro A</span>
+              )}
+              {isComparison && i === 1 && (
+                <span className="ml-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-black text-white">Libro B</span>
+              )}
+            </div>
+          ))}
+          {isComparison && (
+            <span className="text-white/40 font-bold text-sm">↔ comparing both books</span>
+          )}
+        </div>
+      )}
 
       {/* The question bar */}
       <motion.div
@@ -160,6 +184,112 @@ function QuestionEditor({ initial, onSave, onCancel }) {
   );
 }
 
+// ── Book picker ───────────────────────────────────────────────
+// Shows the book(s) assigned to this lesson and lets the teacher
+// pick from the BookCatalog (filtered by module). Solo lessons
+// get 1 book; comparison lessons get 2 (Libro A + Libro B).
+function BookPicker({ lessonKey, module, books, catalog, onSave }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const isComparison = lessonKey.endsWith('.L3') || lessonKey.endsWith('.L6') || lessonKey.endsWith('.L9') || lessonKey.endsWith('.L12') || lessonKey.endsWith('.L15');
+
+  const available = catalog.filter(b => !books.find(bb => bb.id === b.id));
+
+  const removeBook = (id) => {
+    onSave(books.filter(b => b.id !== id).map(b => b.id));
+  };
+
+  const addBook = (id) => {
+    const newIds = [...books.map(b => b.id), id];
+    onSave(newIds);
+    setPickerOpen(false);
+  };
+
+  return (
+    <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-center gap-2">
+        <BookOpen className="h-5 w-5 text-indigo-600" />
+        <span className="text-sm font-black text-slate-700">
+          {isComparison ? 'Comparison books (2)' : 'Book for this lesson'}
+        </span>
+        {books.length > 0 && (
+          <button
+            onClick={() => setPickerOpen(v => !v)}
+            className="ml-auto rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50"
+          >
+            {pickerOpen ? 'Done' : 'Change'}
+          </button>
+        )}
+      </div>
+
+      {/* Selected books */}
+      {books.length === 0 ? (
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 py-4 text-sm font-bold text-slate-400 hover:border-indigo-300 hover:text-indigo-500"
+        >
+          <Plus className="h-4 w-4" />
+          {isComparison ? 'Pick 2 books to compare' : 'Pick a book'}
+        </button>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          {books.map((b, i) => (
+            <div key={b.id} className="relative flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              {b.cover_image_url && (
+                <img src={b.cover_image_url} alt="" className="h-10 w-8 rounded object-cover" />
+              )}
+              <div>
+                <p className="text-sm font-bold text-slate-700">{b.title}</p>
+                {isComparison && (
+                  <p className="text-xs font-black text-slate-400">{i === 0 ? 'Libro A' : 'Libro B'}</p>
+                )}
+              </div>
+              <button onClick={() => removeBook(b.id)} className="ml-1 text-slate-300 hover:text-red-500">
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          {isComparison && books.length < 2 && !pickerOpen && (
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="flex items-center justify-center rounded-lg border-2 border-dashed border-slate-200 px-4 text-sm font-bold text-slate-400 hover:border-indigo-300 hover:text-indigo-500"
+            >
+              <Plus className="h-4 w-4" /> Add 2nd book
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Catalog picker */}
+      {pickerOpen && (
+        <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+          {available.length === 0 ? (
+            <p className="p-4 text-center text-sm text-slate-400">No more books in module {module}.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {available.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => addBook(b.id)}
+                  className="flex items-center gap-3 rounded-lg p-2 text-left hover:bg-white"
+                >
+                  {b.cover_image_url ? (
+                    <img src={b.cover_image_url} alt="" className="h-12 w-9 rounded object-cover" />
+                  ) : (
+                    <div className="flex h-12 w-9 items-center justify-center rounded bg-slate-200">
+                      <BookOpen className="h-5 w-5 text-slate-400" />
+                    </div>
+                  )}
+                  <span className="text-sm font-bold text-slate-700">{b.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────
 export default function BookComprehension() {
   const qc = useQueryClient();
@@ -172,6 +302,7 @@ export default function BookComprehension() {
   useEffect(() => { localStorage.setItem('bcq_module', module); }, [module]);
   useEffect(() => { localStorage.setItem('bcq_lesson', lesson); }, [lesson]);
 
+  // Questions for this lesson
   const { data: questions = [], isLoading } = useQuery({
     queryKey: ['book-comp-questions', lessonKey],
     queryFn: async () => {
@@ -181,6 +312,47 @@ export default function BookComprehension() {
       );
       return res.items;
     },
+  });
+
+  // BookCatalog books for this module
+  const { data: catalog = [] } = useQuery({
+    queryKey: ['book-catalog', module],
+    queryFn: async () => {
+      const res = await base44.entities.BookCatalog.filter(
+        { module },
+        { sort: 'title', limit: 100 }
+      );
+      return res.items;
+    },
+  });
+
+  // LessonBooks association for this lesson
+  const { data: lessonBooks } = useQuery({
+    queryKey: ['lesson-books', lessonKey],
+    queryFn: async () => {
+      const res = await base44.entities.LessonBooks.filter(
+        { lesson_key: lessonKey },
+        { limit: 1 }
+      );
+      return res.items[0] || null;
+    },
+  });
+
+  // Resolve book objects from catalog
+  const books = (lessonBooks?.book_ids || [])
+    .map(id => catalog.find(b => b.id === id))
+    .filter(Boolean);
+
+  // Save book association
+  const bookMutation = useMutation({
+    mutationFn: async (book_ids) => {
+      if (lessonBooks?.id) {
+        await base44.entities.LessonBooks.update(lessonBooks.id, { book_ids });
+      } else {
+        await base44.entities.LessonBooks.create({ lesson_key: lessonKey, book_ids });
+      }
+    },
+    onMutate: () => { qc.invalidateQueries({ queryKey: ['lesson-books', lessonKey] }); },
   });
 
   const saveMutation = useMutation({
@@ -246,6 +418,15 @@ export default function BookComprehension() {
           </div>
         </div>
 
+        {/* Book picker */}
+        <BookPicker
+          lessonKey={lessonKey}
+          module={module}
+          books={books}
+          catalog={catalog}
+          onSave={(book_ids) => bookMutation.mutate(book_ids)}
+        />
+
         {/* Question list */}
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -281,7 +462,7 @@ export default function BookComprehension() {
 
       {/* Present mode */}
       {presenting && questions.length > 0 && (
-        <PresentMode questions={questions} startIndex={0} onExit={() => setPresenting(false)} />
+        <PresentMode questions={questions} books={books} startIndex={0} onExit={() => setPresenting(false)} />
       )}
     </div>
   );

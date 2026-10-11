@@ -1,0 +1,66 @@
+{
+  "name": "LessonBooks",
+  "type": "object",
+  "properties": {
+    "lesson_key": {
+      "type": "string",
+      "description": "Lesson key e.g. 'M2.L1'. One record per lesson. Solo lessons have 1 book_id, comparison lessons have 2."
+    },
+    "book_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "BookCatalog IDs associated with this lesson. 1 for solo lessons, 2 for comparison lessons."
+    }
+  },
+  "required": [
+    "lesson_key"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
