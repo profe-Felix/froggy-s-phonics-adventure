@@ -3,6 +3,7 @@ import { Image as ImageIcon } from 'lucide-react';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import BackButton from '@/components/ui/BackButton';
 import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
+import { useKnownSightWords } from '@/hooks/useKnownSightWords';
 
 // ComparisonReader — opens multiple books in the familiar StudentBookReader
 // shell, concatenating all book pages into one continuous page range, then
@@ -12,7 +13,7 @@ import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
 //
 // Example: Book A (8 pp) + Book B (8 pp) + 2 questions = 18 pages total.
 // Pages 1-8 = Book A, 9-16 = Book B, 17-18 = question slides.
-export default function ComparisonReader({ books, questions, onExit }) {
+export default function ComparisonReader({ books, questions, onExit, lessonKey }) {
   // Build a flat virtual page list: book pages first, then question slides.
   const pageList = useMemo(() => {
     const pages = [];
@@ -32,6 +33,8 @@ export default function ComparisonReader({ books, questions, onExit }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [solFirst, setSolFirst] = useState(true);
   const [showAnchor, setShowAnchor] = useState(true);
+
+  const { data: knownWords } = useKnownSightWords(lessonKey);
 
   const page = pageList[currentPage - 1];
   const isQuestion = page?.type === 'question';
@@ -214,6 +217,7 @@ export default function ComparisonReader({ books, questions, onExit }) {
             question={page.question}
             solFirst={solFirst}
             setSolFirst={setSolFirst}
+            knownWords={knownWords}
           />
         </div>
       )}

@@ -423,7 +423,7 @@ export default function BookComprehension() {
 
       {/* Present mode */}
       {presenting && questions.length > 0 && (
-        <ComparisonReader questions={questions} books={books} onExit={() => setPresenting(false)} />
+        <ComparisonReader questions={questions} books={books} lessonKey={lessonKey} onExit={() => setPresenting(false)} />
       )}
     </div>
   );

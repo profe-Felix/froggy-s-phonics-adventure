@@ -118,7 +118,7 @@ export default function ComparisonLauncher({ onPresent }) {
         </p>
 
         <button
-          onClick={() => canPresent && onPresent(questions, books)}
+          onClick={() => canPresent && onPresent(questions, books, lessonKey)}
           disabled={!canPresent || qLoading}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-40"
         >

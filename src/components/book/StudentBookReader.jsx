@@ -532,7 +532,7 @@ export default function StudentBookReader({
 
   // Teacher-mode only: planned comprehension questions for the visible page(s).
   // Students never see the ? button or the Sol/Luna bar.
-  const bookQuestions = useBookQuestions(teacherMode ? book.catalog_book_id : null);
+  const { items: bookQuestions, lessonKey: bookLessonKey } = useBookQuestions(teacherMode ? book.catalog_book_id : null);
   const [activeQ, setActiveQ] = useState(null);
   useEffect(() => { setActiveQ(null); }, [recKey]);
   const visibleQuestions = teacherMode

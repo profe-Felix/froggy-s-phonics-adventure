@@ -97,7 +97,7 @@ export default function TeacherView() {
           <TeacherBookShelf className={activeClass} onSelectBook={setReaderBook} />
         )}
         {section === 'compare' && (
-          <ComparisonLauncher onPresent={(questions, books) => setComparing({ questions, books })} />
+          <ComparisonLauncher onPresent={(questions, books, lessonKey) => setComparing({ questions, books, lessonKey })} />
         )}
       </div>
 
@@ -105,6 +105,7 @@ export default function TeacherView() {
         <ComparisonReader
           questions={comparing.questions}
           books={comparing.books}
+          lessonKey={comparing.lessonKey}
           onExit={() => setComparing(null)}
         />
       )}

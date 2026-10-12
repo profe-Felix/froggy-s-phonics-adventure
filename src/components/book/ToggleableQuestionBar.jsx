@@ -1,42 +1,53 @@
 import { Sun, Moon } from 'lucide-react';
+import HighlightedText from '@/components/book/HighlightedText';
 
-// Sol/Luna question bar with a toggle: click Sol or Luna to set who asks
-// the question. The active side shows the question_text (bold), the inactive
-// side shows the sentence_stem (muted). Used by ComparisonReader on
-// question slides.
-export default function ToggleableQuestionBar({ question, solFirst, setSolFirst }) {
+// Sol/Luna question bar with an icon toggle. The question ALWAYS stays on the
+// left and the sentence stem ALWAYS stays on the right. Clicking either side
+// swaps the sun/moon icons so the teacher can choose which character "asks"
+// without moving the text. Known sight words are highlighted in both columns.
+export default function ToggleableQuestionBar({ question, solFirst, setSolFirst, knownWords }) {
+  const LeftIcon = solFirst ? Sun : Moon;
+  const RightIcon = solFirst ? Moon : Sun;
+  const leftColor = solFirst ? '#f59e0b' : '#6366f1';
+  const leftLabel = solFirst ? 'Sol' : 'Luna';
+  const rightColor = solFirst ? '#6366f1' : '#f59e0b';
+  const rightLabel = solFirst ? 'Luna' : 'Sol';
+
   return (
     <div className="relative grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-2xl">
+      {/* Question — always left */}
       <div
-        onClick={() => setSolFirst(true)}
-        className={`flex cursor-pointer items-start gap-3 pr-2 transition ${solFirst ? '' : 'opacity-60'}`}
+        onClick={() => setSolFirst(v => !v)}
+        className="flex cursor-pointer items-start gap-3 pr-2 transition"
       >
         <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
-          <Sun
-            className={`h-10 w-10 transition-transform ${solFirst ? 'scale-110' : ''}`}
-            style={{ color: '#f59e0b' }}
+          <LeftIcon
+            className="h-10 w-10 transition-transform scale-110"
+            style={{ color: leftColor }}
             strokeWidth={2.5}
           />
-          <span className="text-xs font-black" style={{ color: '#f59e0b' }}>Sol</span>
+          <span className="text-xs font-black" style={{ color: leftColor }}>{leftLabel}</span>
         </div>
-        <p className={`pt-1 text-lg leading-snug ${solFirst ? 'font-black text-slate-800' : 'font-bold text-slate-500'}`}>
-          {solFirst ? question.question_text : (question.sentence_stem || '—')}
+        <p className="pt-1 text-lg font-black leading-snug text-slate-800">
+          <HighlightedText knownWords={knownWords} text={question.question_text} />
         </p>
       </div>
+
+      {/* Sentence stem — always right */}
       <div
-        onClick={() => setSolFirst(false)}
-        className={`flex cursor-pointer items-start gap-3 border-l-2 border-slate-100 pl-4 pr-6 transition ${!solFirst ? '' : 'opacity-60'}`}
+        onClick={() => setSolFirst(v => !v)}
+        className={`flex cursor-pointer items-start gap-3 border-l-2 border-slate-100 pl-4 pr-6 transition ${question.sentence_stem ? '' : 'opacity-50'}`}
       >
         <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
-          <Moon
-            className={`h-10 w-10 transition-transform ${!solFirst ? 'scale-110' : ''}`}
-            style={{ color: '#6366f1' }}
+          <RightIcon
+            className="h-10 w-10 transition-transform"
+            style={{ color: rightColor }}
             strokeWidth={2.5}
           />
-          <span className="text-xs font-black" style={{ color: '#6366f1' }}>Luna</span>
+          <span className="text-xs font-black" style={{ color: rightColor }}>{rightLabel}</span>
         </div>
-        <p className={`pt-1 text-lg leading-snug ${!solFirst ? 'font-black text-slate-800' : 'font-bold text-slate-500'}`}>
-          {!solFirst ? question.question_text : (question.sentence_stem || '—')}
+        <p className="pt-1 text-lg font-bold leading-snug text-slate-500">
+          <HighlightedText knownWords={knownWords} text={question.sentence_stem || '—'} />
         </p>
       </div>
     </div>
