@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Presentation, ArrowLeft, BookOpen, XCircle, Upload, Loader2 } from 'lucide-react';
 import MarkEditor from '@/components/book/MarkEditor';
-import ComparisonPresent from '@/components/book/ComparisonPresent';
+import ComparisonReader from '@/components/book/ComparisonReader';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
@@ -414,7 +414,7 @@ export default function BookComprehension() {
 
       {/* Present mode */}
       {presenting && questions.length > 0 && (
-        <ComparisonPresent questions={questions} books={books} onExit={() => setPresenting(false)} />
+        <ComparisonReader questions={questions} books={books} onExit={() => setPresenting(false)} />
       )}
     </div>
   );

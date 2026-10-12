@@ -6,7 +6,7 @@ import LiveLessonLauncher from '@/components/teacher/LiveLessonLauncher';
 import TeacherBookShelf from '@/components/teacher/TeacherBookShelf';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import ComparisonLauncher from '@/components/teacher/ComparisonLauncher';
-import ComparisonPresent from '@/components/book/ComparisonPresent';
+import ComparisonReader from '@/components/book/ComparisonReader';
 
 // Teacher view — mirrors the student home (level path + bookshelf) but with
 // teacher-only behavior: tapping a level opens a pre-filled live-lesson
@@ -102,7 +102,7 @@ export default function TeacherView() {
       </div>
 
       {comparing && (
-        <ComparisonPresent
+        <ComparisonReader
           questions={comparing.questions}
           books={comparing.books}
           onExit={() => setComparing(null)}

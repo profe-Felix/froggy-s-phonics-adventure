@@ -123,7 +123,7 @@ export default function ComparisonLauncher({ onPresent }) {
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-40"
         >
           {qLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Presentation className="h-5 w-5" />}
-          Present Comparison Lesson
+          Open Reader
         </button>
         {!canPresent && !qLoading && books.length > 0 && questions.length === 0 && (
           <p className="mt-2 text-center text-xs text-white/40">Add questions in Book Comprehension first.</p>
