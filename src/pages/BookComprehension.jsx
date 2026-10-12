@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle, HelpCircle } from 'lucide-react';
 import BookPageThumbnail from '@/components/book/BookPageThumbnail';
+import MarkEditor from '@/components/book/MarkEditor';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
@@ -217,37 +218,24 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
   const [page, setPage] = useState(initial?.page_number || 0);
+  const [mark, setMark] = useState(initial?.mark?.shape ? initial.mark : null);
   const max = maxPages || 999;
-  const isComparison = books.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="flex w-full max-w-3xl gap-4 rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         {/* Left: live page thumbnail */}
-        <div className="flex w-44 flex-shrink-0 flex-col items-center">
+        <div className="flex max-h-[80vh] w-64 flex-shrink-0 flex-col overflow-y-auto">
           <div className="mb-2 text-center text-xs font-black text-slate-500">
             {page === 0 ? '★ General' : `Page ${page}`}
           </div>
-          <div className="flex h-80 w-full items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-            {page === 0 ? (
-              <span className="text-4xl">★</span>
-            ) : books.length > 0 ? (
-              <div className="flex h-full w-full flex-col gap-1">
-                {books.map((b, i) => (
-                  <div key={b.id} className="relative flex-1 overflow-hidden rounded-lg">
-                    <BookPageThumbnail book={b} pageNumber={page} width={160} />
-                    {isComparison && (
-                      <span className={`absolute bottom-1 left-1 rounded-full px-1.5 py-0.5 text-[10px] font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
-                        {i === 0 ? 'A' : 'B'}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <span className="text-xs font-bold text-slate-300">No book selected</span>
-            )}
-          </div>
+          {page === 0 ? (
+            <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-4xl">★</div>
+          ) : books.length > 0 ? (
+            <MarkEditor key={page} books={books} page={page} mark={mark} onChange={setMark} />
+          ) : (
+            <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-300">No book selected</div>
+          )}
         </div>
 
         {/* Right: form fields */}
@@ -261,7 +249,7 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
             min={0}
             max={max}
             value={page}
-            onChange={e => setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0)))}
+            onChange={e => { setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0))); setMark(null); }}
             className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
           />
           <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
@@ -284,7 +272,7 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
             <button
-              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page)}
+              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page, page > 0 ? mark : null)}
               className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
             >
               Save
@@ -468,15 +456,16 @@ export default function BookComprehension() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, question_text, sentence_stem, page_number }) => {
+    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark }) => {
       if (id) {
-        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number });
+        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number, mark: mark || {} });
       } else {
         await base44.entities.BookComprehensionQuestion.create({
           lesson_key: lessonKey,
           question_text,
           sentence_stem,
           page_number,
+          mark: mark || {},
           order: questions.length,
         });
       }
@@ -570,7 +559,7 @@ export default function BookComprehension() {
           initial={editing === 'new' ? null : editing}
           maxPages={books.reduce((mx, b) => Math.max(mx, b.pdf_page_count || 0), 0) || null}
           books={books}
-          onSave={(question_text, sentence_stem, page_number) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number })}
+          onSave={(question_text, sentence_stem, page_number, mark) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark })}
           onCancel={() => setEditing(null)}
         />
       )}
