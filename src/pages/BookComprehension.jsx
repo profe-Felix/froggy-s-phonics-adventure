@@ -290,7 +290,7 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
 // get 1 book; comparison lessons get 2 (Libro A + Libro B).
 function BookPicker({ lessonKey, module, books, catalog, onSave }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const isComparison = lessonKey.endsWith('.L3') || lessonKey.endsWith('.L6') || lessonKey.endsWith('.L9') || lessonKey.endsWith('.L12') || lessonKey.endsWith('.L15');
+  const isComparison = books.length > 1;
 
   const available = catalog.filter(b => !books.find(bb => bb.id === b.id));
 
@@ -299,6 +299,7 @@ function BookPicker({ lessonKey, module, books, catalog, onSave }) {
   };
 
   const addBook = (id) => {
+    if (books.length >= 2) return;
     const newIds = [...books.map(b => b.id), id];
     onSave(newIds);
     setPickerOpen(false);
@@ -348,7 +349,7 @@ function BookPicker({ lessonKey, module, books, catalog, onSave }) {
               </button>
             </div>
           ))}
-          {isComparison && books.length < 2 && !pickerOpen && (
+          {books.length === 1 && !pickerOpen && (
             <button
               onClick={() => setPickerOpen(true)}
               className="flex items-center justify-center rounded-lg border-2 border-dashed border-slate-200 px-4 text-sm font-bold text-slate-400 hover:border-indigo-300 hover:text-indigo-500"
@@ -408,9 +409,11 @@ export default function BookComprehension() {
     queryFn: async () => {
       const res = await base44.entities.BookComprehensionQuestion.filter(
         { lesson_key: lessonKey },
-        { sort: 'order', limit: 100 }
+        { sort: 'page_number', limit: 100 }
       );
-      return res.items;
+      return res.items.sort(
+        (a, b) => (a.page_number || 0) - (b.page_number || 0) || (a.order || 0) - (b.order || 0)
+      );
     },
   });
 
@@ -452,7 +455,7 @@ export default function BookComprehension() {
         await base44.entities.LessonBooks.create({ lesson_key: lessonKey, book_ids });
       }
     },
-    onMutate: () => { qc.invalidateQueries({ queryKey: ['lesson-books', lessonKey] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lesson-books', lessonKey] }); },
   });
 
   const saveMutation = useMutation({
@@ -470,13 +473,12 @@ export default function BookComprehension() {
         });
       }
     },
-    onMutate: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
-    onSuccess: () => { setEditing(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); setEditing(null); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.BookComprehensionQuestion.delete(id),
-    onMutate: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
   });
 
   return (

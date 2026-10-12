@@ -12,9 +12,11 @@ export default function useBookQuestions(catalogBookId) {
       if (keys.length === 0) return [];
       const res = await base44.entities.BookComprehensionQuestion.filter(
         { lesson_key: { $in: keys }, page_number: { $gt: 0 } },
-        { sort: 'order', limit: 200 }
+        { sort: 'page_number', limit: 200 }
       );
-      return res.items;
+      return res.items.sort(
+        (a, b) => (a.page_number || 0) - (b.page_number || 0) || (a.order || 0) - (b.order || 0)
+      );
     },
   });
   return data;
