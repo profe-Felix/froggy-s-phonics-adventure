@@ -5,6 +5,7 @@ import { normalizeSpanish } from '@/lib/literacy/lessonProgression';
 const pdfCache = new Map();
 const pageCache = new Map();
 const MAX_CACHED_PAGES = 16;
+let _measureCtx = null; // reused canvas context for word-width measurement
 
 function getPageCacheKey(pdfUrl, pageNumber) {
   return `${pdfUrl}::${pageNumber}`;
@@ -662,6 +663,12 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           // punctuation), highlight the full item width — perfect alignment.
           const wholeNorm = normalizeSpanish(str).replace(/[^a-zñü]/g, '');
           if (wholeNorm && highlightWords.has(wholeNorm)) {
+            // DEBUG: log item data for misaligned words
+            console.log('[HL]', wholeNorm, {
+              str, itemWidth, baseX, offsetX,
+              width: item.width, transform: item.transform.slice(4),
+              scale, containerW: containerSize.w, displayW: vp1.width * scale,
+            });
             rects.push({
               left: baseX + offsetX,
               top: baseY - itemHeight * 0.85 + offsetY,
@@ -671,33 +678,35 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
             continue;
           }
 
-          // Strategy 2: Multi-word items — use weighted character widths so
-          // spaces and punctuation don't skew the proportional offset.
+          // Strategy 2: Multi-word items — measure each word's width using the
+          // browser's font metrics, then scale the ratios to the PDF's actual
+          // item width. This accounts for variable character widths (i is
+          // narrow, m is wide) far better than equal-character or fixed-weight
+          // models.
           const tokens = str.match(/(\S+)|(\s+)/g) || [];
-          const charWeight = (ch) => {
-            if (/\s/.test(ch)) return 0.35;
-            if (/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]/.test(ch)) return 1.0;
-            return 0.55;
-          };
-          const weights = [...str].map(charWeight);
-          const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
-          let weightOffset = 0;
-
-          for (const tok of tokens) {
-            const tokWeight = [...tok].reduce((a, ch) => a + charWeight(ch), 0);
-            if (/\s/.test(tok)) { weightOffset += tokWeight; continue; }
-            const normalized = normalizeSpanish(tok).replace(/[^a-zñü]/g, '');
-            if (normalized && highlightWords.has(normalized)) {
-              const xRatio = weightOffset / totalWeight;
-              const wRatio = tokWeight / totalWeight;
-              rects.push({
-                left: baseX + xRatio * itemWidth + offsetX,
-                top: baseY - itemHeight * 0.85 + offsetY,
-                width: wRatio * itemWidth,
-                height: itemHeight * 1.15,
-              });
+          if (tokens.length > 1) {
+            const fontPx = Math.abs(item.transform[3]) * scale || 14;
+            const mctx = _measureCtx || (_measureCtx = document.createElement('canvas').getContext('2d'));
+            mctx.font = `${fontPx}px sans-serif`;
+            const totalPx = mctx.measureText(str).width || 1;
+            let pxOffset = 0;
+            for (const tok of tokens) {
+              const tokPx = mctx.measureText(tok).width;
+              if (/\s/.test(tok)) { pxOffset += tokPx; continue; }
+              const normalized = normalizeSpanish(tok).replace(/[^a-zñü]/g, '');
+              if (normalized && highlightWords.has(normalized)) {
+                const hlLeft = baseX + (pxOffset / totalPx) * itemWidth + offsetX;
+                const hlWidth = (tokPx / totalPx) * itemWidth;
+                console.log('[HL2]', normalized, { str, tok, baseX, itemWidth, offsetX, pxOffset, totalPx, tokPx, hlLeft, hlWidth, fontPx: Math.abs(item.transform[3]) * scale });
+                rects.push({
+                  left: hlLeft,
+                  top: baseY - itemHeight * 0.85 + offsetY,
+                  width: hlWidth,
+                  height: itemHeight * 1.15,
+                });
+              }
+              pxOffset += tokPx;
             }
-            weightOffset += tokWeight;
           }
         }
 
