@@ -147,7 +147,7 @@ export default function StudentBookReader({
   // Sort newest-first so if duplicate sessions exist (a known past bug), the
   // newest one — which has the latest recording — is preferred.
   const { data: sessions = [], refetch } = useQuery({
-    queryKey: ['book-sessions', book.id, studentNumber, today],
+    queryKey: ['book-sessions', book.id, studentNumber, className, today],
     queryFn: () => base44.entities.BookReadingSession.filter({
       book_id: book.id,
       class_name: className,
@@ -175,6 +175,23 @@ export default function StudentBookReader({
   useEffect(() => {
     writeRestore(className, studentNumber, book, currentPage);
   }, [className, studentNumber, book, currentPage]);
+
+  // When the teacher actively switches class (e.g. in the direct-link
+  // BookReader), start fresh on page 1 — one class may have finished the book
+  // while the next begins reading it. Skip the initial mount so the normal
+  // restore-on-open behavior is preserved.
+  const prevClassRef = useRef(className);
+  useEffect(() => {
+    if (prevClassRef.current && prevClassRef.current !== className) {
+      setCurrentPage(1);
+      setTwoPerPage(false);
+      setSpreadRecording(null);
+      justSavedRef.current = null;
+      setShowReplay(false);
+      setReplayLaserData([]);
+    }
+    prevClassRef.current = className;
+  }, [className]);
 
   const laserTracker = useLaserTracker({ containerRef, enabled: true });
 
