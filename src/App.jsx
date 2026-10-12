@@ -79,6 +79,7 @@ import WorkSamples from './pages/WorkSamples';
 import LiteracyDashboard from './pages/LiteracyDashboard';
 import BookComprehension from './pages/BookComprehension';
 import TeacherView from './pages/TeacherView';
+import BookReader from './pages/BookReader';
 import TeacherViewRedirect from '@/components/teacher/TeacherViewRedirect';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -209,6 +210,7 @@ const AuthenticatedApp = () => {
       <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
       <Route path="/BookComprehension" element={<BookComprehension />} />
       <Route path="/TeacherView" element={<TeacherView />} />
+      <Route path="/BookReader" element={<BookReader />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

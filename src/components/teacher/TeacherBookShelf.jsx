@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
+import { Link as LinkIcon } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { useToast } from '@/components/ui/use-toast';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
 
 // Teacher bookshelf: same class-filtered book list the student sees, but
@@ -10,6 +12,21 @@ import PdfThumbnail from '@/components/book/PdfThumbnail';
 // teacher reader (with comprehension questions).
 export default function TeacherBookShelf({ className, onSelectBook }) {
   const [selectedModule, setSelectedModule] = useState('All');
+  const { toast } = useToast();
+
+  const copyBookLink = (e, book) => {
+    e.stopPropagation();
+    const id = book.catalog_book_id;
+    if (!id) {
+      toast({ title: 'No catalog link available', variant: 'destructive' });
+      return;
+    }
+    const url = `${window.location.origin}/BookReader?bookId=${id}`;
+    navigator.clipboard?.writeText(url).then(
+      () => toast({ title: 'Book link copied!', description: 'Paste it into your Google Slide.' }),
+      () => toast({ title: 'Copy failed', description: url, variant: 'destructive' }),
+    );
+  };
 
   const { data: books = [], isLoading } = useQuery({
     queryKey: ['teacher-books', className],
@@ -83,14 +100,21 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
       )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {filtered.map((book) => (
-          <motion.button
+          <motion.div
             key={book.id}
             whileTap={{ scale: 0.97 }}
             whileHover={{ scale: 1.03 }}
             onClick={() => onSelectBook(book)}
-            className="flex flex-col overflow-hidden rounded-2xl text-left shadow-xl"
+            className="relative flex flex-col overflow-hidden rounded-2xl text-left shadow-xl cursor-pointer"
             style={{ background: '#134e4a', border: '2px solid #0d9488' }}
           >
+            <button
+              onClick={(e) => copyBookLink(e, book)}
+              title="Copy direct link for Google Slides"
+              className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-teal-200 backdrop-blur transition hover:bg-teal-600 hover:text-white"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </button>
             <div className="h-40 w-full overflow-hidden">
               {book.cover_image_url ? (
                 <img src={book.cover_image_url} alt={book.title} className="h-full w-full object-cover" />
@@ -111,7 +135,7 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
                 )}
               </div>
             </div>
-          </motion.button>
+          </motion.div>
         ))}
       </div>
     </div>
