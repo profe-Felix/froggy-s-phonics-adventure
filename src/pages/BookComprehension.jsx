@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle, HelpCircle } from 'lucide-react';
+import { Sun, Moon, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight, Presentation, ArrowLeft, BookOpen, XCircle, HelpCircle, Upload, Loader2 } from 'lucide-react';
 import BookPageThumbnail from '@/components/book/BookPageThumbnail';
 import MarkEditor from '@/components/book/MarkEditor';
 
@@ -115,7 +115,11 @@ function PresentMode({ questions, books, onExit }) {
 
       {/* Center: book page fills the screen like reading */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
-        {displayPage > 0 && books.length > 0 ? (
+        {showQ && q?.anchor_chart_url ? (
+          <div className="flex h-full items-center justify-center">
+            <img src={q.anchor_chart_url} alt="Anchor chart" className="max-h-full max-w-full rounded-xl bg-white shadow-2xl object-contain" />
+          </div>
+        ) : displayPage > 0 && books.length > 0 ? (
           <div className="relative flex h-full max-h-full items-center justify-center gap-4">
             {books.map((b, i) => (
               <div key={b.id} className="relative flex h-full max-h-full items-stretch justify-center overflow-hidden rounded-xl bg-white shadow-2xl">
@@ -287,7 +291,20 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
   const [stem, setStem] = useState(initial?.sentence_stem || '');
   const [page, setPage] = useState(initial?.page_number || 0);
   const [mark, setMark] = useState(initial?.mark?.shape ? initial.mark : null);
+  const [anchorChartUrl, setAnchorChartUrl] = useState(initial?.anchor_chart_url || '');
+  const [uploading, setUploading] = useState(false);
   const max = maxPages || 999;
+
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try {
+      const res = await base44.integrations.Core.UploadPublicFile({ file });
+      setAnchorChartUrl(res.file_url);
+    } catch (e) {
+      console.error('Upload failed', e);
+    }
+    setUploading(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
@@ -334,13 +351,28 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
             value={stem}
             onChange={e => setStem(e.target.value)}
             rows={2}
-            className="mb-4 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
+            className="mb-3 w-full resize-y rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
             placeholder="Los personajes del cuento son _______."
           />
+          <label className="mb-1 block text-sm font-bold text-slate-600">Anchor chart (optional)</label>
+          {anchorChartUrl ? (
+            <div className="relative mb-4">
+              <img src={anchorChartUrl} alt="Anchor chart" className="h-32 rounded-lg border border-slate-200 object-contain" />
+              <button onClick={() => setAnchorChartUrl('')} className="absolute right-1 top-1 rounded-lg bg-white/80 p-1 text-red-500 hover:bg-white">
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <label className="mb-4 flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 py-3 text-sm font-bold text-slate-400 hover:border-indigo-300 hover:text-indigo-500">
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {uploading ? 'Uploading...' : 'Upload anchor chart'}
+              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) handleUpload(f); }} />
+            </label>
+          )}
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
             <button
-              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page, page > 0 ? mark : null)}
+              onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page, page > 0 ? mark : null, anchorChartUrl)}
               className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
             >
               Save
@@ -527,9 +559,9 @@ export default function BookComprehension() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark }) => {
+    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark, anchor_chart_url }) => {
       if (id) {
-        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number, mark: mark || {} });
+        await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number, mark: mark || {}, anchor_chart_url: anchor_chart_url || '' });
       } else {
         await base44.entities.BookComprehensionQuestion.create({
           lesson_key: lessonKey,
@@ -537,6 +569,7 @@ export default function BookComprehension() {
           sentence_stem,
           page_number,
           mark: mark || {},
+          anchor_chart_url: anchor_chart_url || '',
           order: questions.length,
         });
       }
@@ -629,7 +662,7 @@ export default function BookComprehension() {
           initial={editing === 'new' ? null : editing}
           maxPages={books.reduce((mx, b) => Math.max(mx, b.pdf_page_count || 0), 0) || null}
           books={books}
-          onSave={(question_text, sentence_stem, page_number, mark) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark })}
+          onSave={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark, anchor_chart_url })}
           onCancel={() => setEditing(null)}
         />
       )}

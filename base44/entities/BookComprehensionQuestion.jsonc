@@ -20,6 +20,11 @@
       "default": 0,
       "description": "Book page number this question is tied to. 0 = general (not page-specific). In the book reader, pages with questions show a ? button so the teacher can reveal them on demand."
     },
+    "anchor_chart_url": {
+      "type": "string",
+      "default": "",
+      "description": "Optional anchor chart image URL displayed alongside the question in PresentMode (e.g. a main-character or setting reference chart). When set, the chart replaces the book pages in the center while the question bar is shown."
+    },
     "mark": {
       "type": "object",
       "description": "Optional mark drawn on the page when the question is shown. { shape: 'highlight'|'box'|'underline', book_id, x, y, w, h } with x/y/w/h normalized 0-1 relative to the page.",
