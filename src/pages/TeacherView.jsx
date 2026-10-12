@@ -5,6 +5,8 @@ import TeacherLevelPath from '@/components/teacher/TeacherLevelPath';
 import LiveLessonLauncher from '@/components/teacher/LiveLessonLauncher';
 import TeacherBookShelf from '@/components/teacher/TeacherBookShelf';
 import StudentBookReader from '@/components/book/StudentBookReader';
+import ComparisonLauncher from '@/components/teacher/ComparisonLauncher';
+import ComparisonPresent from '@/components/book/ComparisonPresent';
 
 // Teacher view — mirrors the student home (level path + bookshelf) but with
 // teacher-only behavior: tapping a level opens a pre-filled live-lesson
@@ -21,6 +23,7 @@ export default function TeacherView() {
   const [section, setSection] = useState('lessons'); // 'lessons' | 'books'
   const [launcherLesson, setLauncherLesson] = useState(null);
   const [readerBook, setReaderBook] = useState(null);
+  const [comparing, setComparing] = useState(null);
 
   // Pick the first class once the class list loads if none was chosen.
   useEffect(() => {
@@ -62,6 +65,7 @@ export default function TeacherView() {
           {[
             { id: 'lessons', label: 'Lessons' },
             { id: 'books', label: 'Books' },
+            { id: 'compare', label: 'Compare' },
           ].map((t) => (
             <button
               key={t.id}
@@ -92,8 +96,18 @@ export default function TeacherView() {
         {section === 'books' && activeClass && (
           <TeacherBookShelf className={activeClass} onSelectBook={setReaderBook} />
         )}
+        {section === 'compare' && (
+          <ComparisonLauncher onPresent={(questions, books) => setComparing({ questions, books })} />
+        )}
       </div>
 
+      {comparing && (
+        <ComparisonPresent
+          questions={comparing.questions}
+          books={comparing.books}
+          onExit={() => setComparing(null)}
+        />
+      )}
       {launcherLesson && (
         <LiveLessonLauncher
           lesson={launcherLesson}
