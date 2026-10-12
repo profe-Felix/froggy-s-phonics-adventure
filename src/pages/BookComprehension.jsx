@@ -23,18 +23,30 @@ function PresentMode({ questions, books, onExit }) {
   const bookPageCount = books.reduce((max, b) => Math.max(max, b.pdf_page_count || 1), 1);
   const totalPages = bookPageCount;
 
-  // Page 0 (★) = general; 1..N = book pages
   const hasGeneral = questions.some(q => !q.page_number);
-  const pageNumbers = [...(hasGeneral ? [0] : []), ...Array.from({ length: totalPages }, (_, i) => i + 1)];
+  // Comparison lessons: no ★ general page during reading — all questions go at the end
+  const pageNumbers = isComparison
+    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+    : [...(hasGeneral ? [0] : []), ...Array.from({ length: totalPages }, (_, i) => i + 1)];
 
+  const [phase, setPhase] = useState('reading'); // comparison only: 'reading' | 'questions'
+  const [solFirst, setSolFirst] = useState(true); // who asks the question
   const [currentPage, setCurrentPage] = useState(pageNumbers[0] ?? 1);
   const [showQ, setShowQ] = useState(false);
   const [qIdx, setQIdx] = useState(0);
 
-  const pageQuestions = questions.filter(q => (q.page_number || 0) === currentPage);
+  const inQuestionsPhase = isComparison && phase === 'questions';
+  // All questions in questions phase; page-filtered otherwise
+  const pageQuestions = inQuestionsPhase
+    ? questions
+    : questions.filter(q => (q.page_number || 0) === currentPage);
   const hasQ = pageQuestions.length > 0;
   const q = pageQuestions[qIdx];
   const currentIdx = pageNumbers.indexOf(currentPage);
+  // In questions phase, the displayed page follows the current question
+  const displayPage = inQuestionsPhase ? (q?.page_number || 1) : currentPage;
+  // ? badge: solo always; comparison only in questions phase (to reopen after closing)
+  const showBadge = hasQ && !showQ && (!isComparison || inQuestionsPhase);
 
   const changePage = (p) => {
     setCurrentPage(p);
@@ -43,6 +55,29 @@ function PresentMode({ questions, books, onExit }) {
   };
 
   const advancePage = (dir) => {
+    if (inQuestionsPhase) {
+      const next = qIdx + dir;
+      if (next >= pageQuestions.length) return;
+      if (next < 0) {
+        setPhase('reading');
+        setShowQ(false);
+        setQIdx(0);
+        setCurrentPage(pageNumbers[pageNumbers.length - 1]);
+        return;
+      }
+      setQIdx(next);
+      return;
+    }
+    if (isComparison) {
+      const next = currentIdx + dir;
+      if (next >= pageNumbers.length) {
+        if (questions.length > 0) { setPhase('questions'); setQIdx(0); setShowQ(true); }
+        return;
+      }
+      if (next < 0) return;
+      changePage(pageNumbers[next]);
+      return;
+    }
     const next = currentIdx + dir;
     if (next < 0 || next >= pageNumbers.length) return;
     changePage(pageNumbers[next]);
@@ -63,7 +98,7 @@ function PresentMode({ questions, books, onExit }) {
       {/* Compact top bar: page counter + book titles */}
       <div className="flex flex-wrap items-center justify-center gap-3 px-6 pt-4">
         <span className="text-white/50 font-bold text-sm">
-          {currentPage === 0 ? '★ General' : `Page ${currentPage} / ${totalPages}`}
+          {inQuestionsPhase ? `Question ${qIdx + 1} / ${pageQuestions.length}` : (currentPage === 0 ? '★ General' : `Page ${currentPage} / ${totalPages}`)}
         </span>
         {books.map((b, i) => (
           <span key={b.id} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-bold text-white">
@@ -80,11 +115,11 @@ function PresentMode({ questions, books, onExit }) {
 
       {/* Center: book page fills the screen like reading */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
-        {currentPage > 0 && books.length > 0 ? (
+        {displayPage > 0 && books.length > 0 ? (
           <div className="relative flex h-full max-h-full items-center justify-center gap-4">
             {books.map((b, i) => (
               <div key={b.id} className="relative flex h-full max-h-full items-stretch justify-center overflow-hidden rounded-xl bg-white shadow-2xl">
-                <BookPageThumbnail book={b} pageNumber={currentPage} width={isComparison ? 420 : 820} />
+                <BookPageThumbnail book={b} pageNumber={displayPage} width={isComparison ? 420 : 820} />
                 {isComparison && (
                   <span className={`absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-xs font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
                     {i === 0 ? 'Libro A' : 'Libro B'}
@@ -93,7 +128,7 @@ function PresentMode({ questions, books, onExit }) {
               </div>
             ))}
             {/* ? badge to reveal questions */}
-            {hasQ && !showQ && (
+            {showBadge && (
               <button
                 onClick={() => { setShowQ(true); setQIdx(0); }}
                 className="absolute right-3 top-3 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl transition hover:scale-110"
@@ -115,7 +150,7 @@ function PresentMode({ questions, books, onExit }) {
       <AnimatePresence>
         {showQ && q && (
           <motion.div
-            key={qIdx}
+            key={inQuestionsPhase ? `q${qIdx}` : `p${currentPage}-q${qIdx}`}
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
@@ -130,26 +165,32 @@ function PresentMode({ questions, books, onExit }) {
                 <X className="h-5 w-5" />
               </button>
 
-              {/* Sol — asks the question */}
-              <div className="flex items-start gap-3 pr-2">
+              {/* Sol — click to make Sol ask the question */}
+              <div
+                onClick={() => setSolFirst(true)}
+                className={`flex cursor-pointer items-start gap-3 pr-2 transition ${solFirst ? '' : 'opacity-60'}`}
+              >
                 <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
-                  <Sun className="h-10 w-10" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
+                  <Sun className={`h-10 w-10 transition-transform ${solFirst ? 'scale-110' : ''}`} style={{ color: '#f59e0b' }} strokeWidth={2.5} />
                   <span className="text-xs font-black" style={{ color: '#f59e0b' }}>Sol</span>
                 </div>
-                <p className="pt-1 text-lg font-black leading-snug text-slate-800">{q.question_text}</p>
+                <p className={`pt-1 text-lg leading-snug ${solFirst ? 'font-black text-slate-800' : 'font-bold text-slate-500'}`}>
+                  {solFirst ? q.question_text : (q.sentence_stem || '—')}
+                </p>
               </div>
 
-              {/* Luna — gives the sentence stem */}
-              <div className="flex items-start gap-3 border-l-2 border-slate-100 pl-4 pr-6">
+              {/* Luna — click to make Luna ask the question */}
+              <div
+                onClick={() => setSolFirst(false)}
+                className={`flex cursor-pointer items-start gap-3 border-l-2 border-slate-100 pl-4 pr-6 transition ${!solFirst ? '' : 'opacity-60'}`}
+              >
                 <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
-                  <Moon className="h-10 w-10" style={{ color: '#6366f1' }} strokeWidth={2.5} />
+                  <Moon className={`h-10 w-10 transition-transform ${!solFirst ? 'scale-110' : ''}`} style={{ color: '#6366f1' }} strokeWidth={2.5} />
                   <span className="text-xs font-black" style={{ color: '#6366f1' }}>Luna</span>
                 </div>
-                {q.sentence_stem ? (
-                  <p className="pt-1 text-lg font-bold leading-snug text-slate-500">{q.sentence_stem}</p>
-                ) : (
-                  <p className="pt-1 text-base font-bold italic leading-snug text-slate-300">—</p>
-                )}
+                <p className={`pt-1 text-lg leading-snug ${!solFirst ? 'font-black text-slate-800' : 'font-bold text-slate-500'}`}>
+                  {!solFirst ? q.question_text : (q.sentence_stem || '—')}
+                </p>
               </div>
             </div>
           </motion.div>
@@ -158,35 +199,62 @@ function PresentMode({ questions, books, onExit }) {
 
       {/* Bottom navigation */}
       <div className="flex items-center justify-center gap-6 px-6 pb-6 pt-2">
-        <button
-          onClick={() => advancePage(-1)}
-          disabled={currentIdx <= 0}
-          className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
-        >
-          <ChevronLeft className="h-7 w-7" />
-        </button>
-        {showQ && pageQuestions.length > 1 ? (
+        {inQuestionsPhase ? (
           <>
-            <button onClick={() => advanceQ(-1)} disabled={qIdx === 0} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
-              <ChevronLeft className="h-5 w-5" />
+            <button
+              onClick={() => advancePage(-1)}
+              className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20"
+            >
+              <ChevronLeft className="h-7 w-7" />
             </button>
-            <span className="text-white/50 font-bold text-sm">Q {qIdx + 1} / {pageQuestions.length}</span>
-            <button onClick={() => advanceQ(1)} disabled={qIdx === pageQuestions.length - 1} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
-              <ChevronRight className="h-5 w-5" />
+            <span className="text-white/60 font-bold text-sm">
+              Q {qIdx + 1} / {pageQuestions.length}
+            </span>
+            <button
+              onClick={() => advancePage(1)}
+              disabled={qIdx >= pageQuestions.length - 1}
+              className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
+            >
+              <ChevronRight className="h-7 w-7" />
             </button>
           </>
         ) : (
-          <span className="text-white/40 font-bold text-sm">
-            {hasQ ? (showQ ? 'close ✕ to keep reading' : 'tap ? to ask') : 'no questions — continue'}
-          </span>
+          <>
+            <button
+              onClick={() => advancePage(-1)}
+              disabled={currentIdx <= 0}
+              className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
+            >
+              <ChevronLeft className="h-7 w-7" />
+            </button>
+            {showQ && pageQuestions.length > 1 ? (
+              <>
+                <button onClick={() => advanceQ(-1)} disabled={qIdx === 0} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <span className="text-white/50 font-bold text-sm">Q {qIdx + 1} / {pageQuestions.length}</span>
+                <button onClick={() => advanceQ(1)} disabled={qIdx === pageQuestions.length - 1} className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-30">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </>
+            ) : (
+              <span className="text-white/40 font-bold text-sm">
+                {isComparison
+                  ? (currentIdx >= pageNumbers.length - 1
+                      ? (questions.length > 0 ? 'next → questions' : 'no questions')
+                      : 'read both books')
+                  : (hasQ ? (showQ ? 'close ✕ to keep reading' : 'tap ? to ask') : 'no questions — continue')}
+              </span>
+            )}
+            <button
+              onClick={() => advancePage(1)}
+              disabled={currentIdx >= pageNumbers.length - 1 && (!isComparison || questions.length === 0)}
+              className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
+            >
+              <ChevronRight className="h-7 w-7" />
+            </button>
+          </>
         )}
-        <button
-          onClick={() => advancePage(1)}
-          disabled={currentIdx >= pageNumbers.length - 1}
-          className="rounded-full bg-white/10 p-3 text-white transition hover:bg-white/20 disabled:opacity-30"
-        >
-          <ChevronRight className="h-7 w-7" />
-        </button>
       </div>
     </div>
   );
