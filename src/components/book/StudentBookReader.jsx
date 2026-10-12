@@ -96,6 +96,7 @@ export default function StudentBookReader({
   recordingPages,
   embedded = false,
   teacherMode = false,
+  headerExtra = null,
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -646,6 +647,7 @@ export default function StudentBookReader({
             onClick={handleBack}
           />
         )}
+        {headerExtra}
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold shrink-0">#{studentNumber}</span>
         <button onClick={handleToggle2Up}

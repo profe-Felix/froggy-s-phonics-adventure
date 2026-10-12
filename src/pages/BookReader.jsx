@@ -1,18 +1,40 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useClassNames } from '@/hooks/useClassNames';
+import ClassToggle from '@/components/teacher/ClassToggle';
 import StudentBookReader from '@/components/book/StudentBookReader';
 
 // Direct-link book reader. Opens a book by its BookCatalog ID from a URL
 // query param, so a teacher can drop a link on a Google Slide and jump
-// straight into the book lesson. Loads the permanent catalog record and
-// opens the teacher-mode reader (with comprehension questions).
+// straight into the book lesson. A class selector in the header lets the
+// teacher pick which class they're reading as — recordings persist under
+// student 30 of the selected class (matching the TeacherView behavior).
 //
-// URL: /BookReader?bookId=<BookCatalog id>
+// URL: /BookReader?bookId=<BookCatalog id>&class=<class name>
 export default function BookReader() {
   const params = new URLSearchParams(window.location.search);
   const bookId = params.get('bookId');
   const [book, setBook] = useState(null);
   const [error, setError] = useState(null);
+
+  const { classList, configs } = useClassNames();
+  const [activeClass, setActiveClass] = useState(
+    () => params.get('class') || localStorage.getItem('tv_class') || ''
+  );
+
+  // Pick the first class once the list loads if none was chosen.
+  useEffect(() => {
+    if (!activeClass && classList.length) setActiveClass(classList[0]);
+  }, [classList, activeClass]);
+
+  // Keep ?class= in the URL + localStorage so a refresh remembers it.
+  useEffect(() => {
+    if (!activeClass) return;
+    localStorage.setItem('tv_class', activeClass);
+    const p = new URLSearchParams(window.location.search);
+    p.set('class', activeClass);
+    window.history.replaceState(null, '', `/BookReader?${p.toString()}`);
+  }, [activeClass]);
 
   useEffect(() => {
     if (!bookId) { setError('Missing bookId'); return; }
@@ -53,8 +75,16 @@ export default function BookReader() {
     <StudentBookReader
       book={book}
       studentNumber={30}
-      className=""
+      className={activeClass}
       teacherMode
+      headerExtra={
+        <ClassToggle
+          activeClass={activeClass}
+          classes={classList}
+          configs={configs}
+          onSelect={setActiveClass}
+        />
+      }
       onBack={() => { window.location.href = '/TeacherView'; }}
     />
   );
