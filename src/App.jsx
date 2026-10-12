@@ -78,6 +78,8 @@ import FontPreview from './pages/FontPreview';
 import WorkSamples from './pages/WorkSamples';
 import LiteracyDashboard from './pages/LiteracyDashboard';
 import BookComprehension from './pages/BookComprehension';
+import TeacherView from './pages/TeacherView';
+import TeacherViewRedirect from '@/components/teacher/TeacherViewRedirect';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -116,9 +118,11 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
+        <TeacherViewRedirect>
+          <LayoutWrapper currentPageName={mainPageKey}>
+            <MainPage />
+          </LayoutWrapper>
+        </TeacherViewRedirect>
       } />
       {Object.entries(Pages).map(([path, Page]) => (
         <Route
@@ -204,6 +208,7 @@ const AuthenticatedApp = () => {
       <Route path="/WorkSamples" element={<WorkSamples />} />
       <Route path="/LiteracyDashboard" element={<LiteracyDashboard />} />
       <Route path="/BookComprehension" element={<BookComprehension />} />
+      <Route path="/TeacherView" element={<TeacherView />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

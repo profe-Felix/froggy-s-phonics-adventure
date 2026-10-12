@@ -10,6 +10,9 @@ import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
 import BackButton from '@/components/ui/BackButton';
+import useBookQuestions from '@/hooks/useBookQuestions';
+import ReaderQuestions from '@/components/book/ReaderQuestions';
+import PageMarkOverlay from '@/components/book/PageMarkOverlay';
 
 // localStorage key remembering the last book + page this student opened, so a
 // refresh (or re-entering Books from the game menu) drops them back on the
@@ -91,6 +94,7 @@ export default function StudentBookReader({
   onRecordingSaved,
   recordingPages,
   embedded = false,
+  teacherMode = false,
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -526,6 +530,19 @@ export default function StudentBookReader({
   const rightPageAnnotations = twoPerPage ? (book.teacher_annotations || []).filter(a => a.page === currentPage + 1) : [];
   const isRecording = recState === 'recording' || recState === 'paused';
 
+  // Teacher-mode only: planned comprehension questions for the visible page(s).
+  // Students never see the ? button or the Sol/Luna bar.
+  const bookQuestions = useBookQuestions(teacherMode ? book.catalog_book_id : null);
+  const [activeQ, setActiveQ] = useState(null);
+  useEffect(() => { setActiveQ(null); }, [recKey]);
+  const visibleQuestions = teacherMode
+    ? bookQuestions.filter((q) => visiblePageNumbers.includes(q.page_number))
+    : [];
+  const markFor = (pageNum) =>
+    teacherMode && activeQ?.mark?.shape && activeQ.page_number === pageNum && (!activeQ.mark.book_id || activeQ.mark.book_id === book.catalog_book_id)
+      ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
+      : null;
+
   const renderPage = (pageNum, align = 'center') => {
     if (book.book_type === 'images') {
       const img = (book.pages || []).find(p => p.page_number === pageNum);
@@ -655,10 +672,12 @@ export default function StudentBookReader({
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
               {renderPage(currentPage, 'flex-end')}
+              {markFor(currentPage)}
             </div>
             {currentPage + 1 <= totalPages && (
               <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
                 {renderPage(currentPage + 1, 'flex-start')}
+                {markFor(currentPage + 1)}
               </div>
             )}
             {pageAnnotations.map((ann, i) => (
@@ -675,6 +694,7 @@ export default function StudentBookReader({
         ) : (
           <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             {renderPage(currentPage)}
+            {markFor(currentPage)}
             {isRecording && <LaserOverlay trailPoints={laserTracker.trailPoints} />}
             {showReplay && replayLaserData.length > 0 && (
               <LaserReplayOverlay laserData={replayLaserData} audioRef={audioRef} containerWidth={containerSize.w} containerHeight={containerSize.h} />
@@ -687,6 +707,10 @@ export default function StudentBookReader({
         <audio ref={audioRef} src={spreadRecording?.audio_url || ''} style={{ display: 'none' }}
           onEnded={() => setShowReplay(false)} />
       </div>
+
+      {teacherMode && (
+        <ReaderQuestions key={recKey} questions={visibleQuestions} onActiveChange={setActiveQ} />
+      )}
 
       {/* Single combined bottom bar */}
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5" style={{ background: '#0f3d3a', borderTop: '1px solid #0d9488' }}>

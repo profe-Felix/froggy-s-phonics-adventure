@@ -104,6 +104,11 @@ export default function LiveLesson() {
   // delegates to LiveNotebookAssessmentPanel and owns its own session.
   const [setupMode, setSetupMode] = useState('lesson');
 
+  // Deep-link from the TeacherView launcher: ?session=<id> loads an existing
+  // session straight into the control screen (pre-filling lesson/day/class)
+  // instead of showing the setup form.
+  const sessionParam = new URLSearchParams(window.location.search).get('session');
+
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons-all-live'],
     queryFn: () => base44.entities.Lesson.filter({ active: true }),
@@ -174,6 +179,31 @@ export default function LiveLesson() {
         : selectableDailyLessons[0].value;
     });
   }, [selectedLessonId, selectedSGLessonId]);
+
+  // Auto-load a session deep-linked from the TeacherView launcher.
+  useEffect(() => {
+    if (!sessionParam || session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await base44.entities.LiveLessonSession.get(sessionParam);
+        if (cancelled || !s || !s.active) return;
+        setSession(s);
+        if (s.lesson_source === 'small_group') {
+          setSelectedSGLessonId(s.lesson_id);
+          setTargetMode('group');
+        } else {
+          setSelectedLessonId(s.lesson_id);
+          setTargetMode('class');
+        }
+        setSelectedLessonDay(s.lesson_day || '');
+        setClassName(s.class_name || '');
+      } catch {
+        /* ignore — fall back to the setup screen */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sessionParam, session]);
 
   // Small-group assignments for the selected teacher+block (from Small Group
   // Manager). When "Small group" is selected, the teacher picks color groups
