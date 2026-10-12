@@ -646,9 +646,12 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const offsetY = isFullHeightCalc ? (containerSize.h - displayH) / 2 : 0;
 
         const rects = [];
+        const _debug = [];
+        window.__hlDebug = { highlightWordsSize: highlightWords?.size || 0, items: [] };
         for (const item of textContent.items) {
           const str = item.str || '';
           if (!str.trim()) continue;
+          window.__hlDebug.items.push({ str: str.slice(0, 50), width: item.width, transform: [item.transform[4], item.transform[5], item.transform[0], item.transform[3]] });
 
           // Base position of this text item in display coordinates
           const [baseX, baseY] = displayViewport.convertToViewportPoint(
@@ -663,12 +666,8 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           // punctuation), highlight the full item width — perfect alignment.
           const wholeNorm = normalizeSpanish(str).replace(/[^a-zñü]/g, '');
           if (wholeNorm && highlightWords.has(wholeNorm)) {
-            // DEBUG: log item data for misaligned words
-            console.log('[HL]', wholeNorm, {
-              str, itemWidth, baseX, offsetX,
-              width: item.width, transform: item.transform.slice(4),
-              scale, containerW: containerSize.w, displayW: vp1.width * scale,
-            });
+            _debug.push({ strategy: 1, word: wholeNorm, str, itemWidth, baseX, offsetX,
+              pdfWidth: item.width, transform: item.transform.slice(4), fontScale: item.transform[0] });
             rects.push({
               left: baseX + offsetX,
               top: baseY - itemHeight * 0.85 + offsetY,
@@ -697,7 +696,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
               if (normalized && highlightWords.has(normalized)) {
                 const hlLeft = baseX + (pxOffset / totalPx) * itemWidth + offsetX;
                 const hlWidth = (tokPx / totalPx) * itemWidth;
-                console.log('[HL2]', normalized, { str, tok, baseX, itemWidth, offsetX, pxOffset, totalPx, tokPx, hlLeft, hlWidth, fontPx: Math.abs(item.transform[3]) * scale });
+                _debug.push({ strategy: 2, word: normalized, str, tok, baseX, itemWidth, offsetX, pxOffset, totalPx, tokPx, hlLeft, hlWidth, fontPx: Math.abs(item.transform[3]) * scale });
                 rects.push({
                   left: hlLeft,
                   top: baseY - itemHeight * 0.85 + offsetY,
@@ -710,7 +709,11 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           }
         }
 
-        if (!cancelled) setHighlights(rects);
+        if (!cancelled) {
+          window.__hlDebug.rects = rects;
+          window.__hlDebug.debug = _debug;
+          setHighlights(rects);
+        }
       } catch {
         if (!cancelled) setHighlights([]);
       }
