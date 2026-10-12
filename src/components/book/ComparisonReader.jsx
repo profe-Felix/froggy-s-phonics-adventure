@@ -109,6 +109,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         pdfUrl={book.pdf_url}
         pageNumber={pageNum}
         fitMode="contain"
+        highlightWords={knownWords}
       />
     );
   };

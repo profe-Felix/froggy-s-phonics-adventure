@@ -1,11 +1,12 @@
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, X } from 'lucide-react';
 import HighlightedText from '@/components/book/HighlightedText';
 
 // Sol/Luna question bar with an icon toggle. The question ALWAYS stays on the
 // left and the sentence stem ALWAYS stays on the right. Clicking either side
 // swaps the sun/moon icons so the teacher can choose which character "asks"
 // without moving the text. Known sight words are highlighted in both columns.
-export default function ToggleableQuestionBar({ question, solFirst, setSolFirst, knownWords }) {
+// Optional onClose renders an X button (used by the single-book reader).
+export default function ToggleableQuestionBar({ question, solFirst, setSolFirst, knownWords, onClose }) {
   const LeftIcon = solFirst ? Sun : Moon;
   const RightIcon = solFirst ? Moon : Sun;
   const leftColor = solFirst ? '#f59e0b' : '#6366f1';
@@ -15,6 +16,11 @@ export default function ToggleableQuestionBar({ question, solFirst, setSolFirst,
 
   return (
     <div className="relative grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-2xl">
+      {onClose && (
+        <button onClick={onClose} className="absolute right-2 top-2 z-10 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+          <X className="h-5 w-5" />
+        </button>
+      )}
       {/* Question — always left */}
       <div
         onClick={() => setSolFirst(v => !v)}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { pdfjsLib } from '@/lib/pdfWorkerSetup';
+import { normalizeSpanish } from '@/lib/literacy/lessonProgression';
 
 const pdfCache = new Map();
 const pageCache = new Map();
@@ -228,13 +229,15 @@ function renderPageToCachedRaster({
  *  - The "Loading page…" overlay only appears for a brand-new page, not for a
  *    resize of the current one.
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight, highlightWords }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
   const renderedKey = useRef('');
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [loading, setLoading] = useState(true);
+  const [highlights, setHighlights] = useState([]);
+  const displaySizeRef = useRef({ w: 0, h: 0 });
   // Natural page size at scale 1. Cached after first load so we can compute the
   // display size synchronously on every resize (before any await).
   const naturalSizeRef = useRef(null);
@@ -600,6 +603,92 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     targetHeight,
   ]);
 
+  // Extract text from the PDF page and overlay highlights on known sight words.
+  // Uses pdfjs getTextContent() — works on PDFs with a text layer (not scanned
+  // images). Each text item's position is converted to display coordinates
+  // using the same scale the canvas uses.
+  useEffect(() => {
+    if (!pdfUrl || !highlightWords || highlightWords.size === 0 || containerSize.w < 10) {
+      setHighlights([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const document = await getCachedPdfDocument(pdfUrl);
+        if (cancelled) return;
+        const safePageNumber = Math.max(1, Math.min(document.numPages, pageNumber));
+        const page = await getCachedPdfPage(pdfUrl, document, safePageNumber);
+        if (cancelled) return;
+
+        const vp1 = page.getViewport({ scale: 1 });
+        const availableW = targetWidth || containerSize.w;
+        const availableH = targetHeight || containerSize.h;
+        let scale;
+        if (fitMode === 'height' && availableH > 10) scale = availableH / vp1.height;
+        else if (fillHeight && availableH > 10) scale = Math.min(availableH / vp1.height, availableW / vp1.width);
+        else if (fitMode === 'contain' && availableH > 10) scale = Math.min(availableW / vp1.width, availableH / vp1.height);
+        else scale = availableW / vp1.width;
+
+        const isFullHeightCalc = fitMode === 'height' || fitMode === 'contain' || fillHeight;
+        const displayViewport = page.getViewport({ scale });
+        const textContent = await page.getTextContent();
+        if (cancelled) return;
+
+        // The canvas is centered in its flex container, so highlights need
+        // the same offset to align with the rendered page.
+        const displayW = vp1.width * scale;
+        const displayH = vp1.height * scale;
+        const offsetX = alignSelf === 'flex-start' ? 0 : alignSelf === 'flex-end' ? (containerSize.w - displayW) : (containerSize.w - displayW) / 2;
+        const offsetY = isFullHeightCalc ? (containerSize.h - displayH) / 2 : 0;
+
+        const rects = [];
+        for (const item of textContent.items) {
+          const str = item.str || '';
+          if (!str.trim()) continue;
+
+          // Base position of this text item in display coordinates
+          const [baseX, baseY] = displayViewport.convertToViewportPoint(
+            item.transform[4],
+            item.transform[5]
+          );
+          const itemHeight = Math.abs(item.transform[3]) * scale || item.height * scale || 14;
+          const itemWidth = item.width * scale;
+          if (itemWidth < 1) continue;
+
+          // Tokenize the item string and find known words by proportional offset
+          const tokens = str.match(/(\S+)|(\s+)/g) || [];
+          let charOffset = 0;
+          const totalChars = str.length || 1;
+
+          for (const tok of tokens) {
+            if (/\s/.test(tok)) { charOffset += tok.length; continue; }
+            const normalized = normalizeSpanish(tok).replace(/[^a-zñü]/g, '');
+            if (normalized && highlightWords.has(normalized)) {
+              const xRatio = charOffset / totalChars;
+              const wRatio = tok.length / totalChars;
+              rects.push({
+                left: baseX + xRatio * itemWidth + offsetX,
+                top: baseY - itemHeight * 0.85 + offsetY,
+                width: wRatio * itemWidth,
+                height: itemHeight * 1.15,
+              });
+            }
+            charOffset += tok.length;
+          }
+        }
+
+        if (!cancelled) setHighlights(rects);
+      } catch {
+        if (!cancelled) setHighlights([]);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [pdfUrl, pageNumber, highlightWords, containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight]);
+
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
   const isFullHeight = fitMode === 'height' || fitMode === 'contain' || fillHeight;
@@ -631,6 +720,22 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           height-fit page can overflow (clipped by the container) without being
           squished/distorted during re-renders. */}
       <canvas ref={canvasRef} style={{ display: 'block', opacity: loading ? 0 : 1 }} />
+      {highlights.length > 0 && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 5 }}>
+          {highlights.map((r, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: r.left,
+              top: r.top,
+              width: r.width,
+              height: r.height,
+              background: 'rgba(250, 204, 21, 0.35)',
+              borderRadius: '2px',
+              mixBlendMode: 'multiply',
+            }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

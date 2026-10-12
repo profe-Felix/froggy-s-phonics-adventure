@@ -559,6 +559,7 @@ export default function StudentBookReader({
         fitMode="contain"
         fillHeight={twoPerPage}
         alignSelf={align}
+        highlightWords={teacherMode ? bookKnownWords : null}
       />
     );
   };

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import QuestionBar from './QuestionBar';
+import ToggleableQuestionBar from './ToggleableQuestionBar';
 
 // ? button + slide-up question bar inside the book reader.
 // Remount with a key per page so it closes when the page changes.
 export default function ReaderQuestions({ questions, onActiveChange, knownWords }) {
   const [idx, setIdx] = useState(null);
+  const [solFirst, setSolFirst] = useState(true);
   if (questions.length === 0) return null;
   const q = idx === null ? null : questions[idx];
 
@@ -35,7 +36,7 @@ export default function ReaderQuestions({ questions, onActiveChange, knownWords 
                 <button onClick={() => open(idx + 1)} disabled={idx === questions.length - 1} className="rounded-full bg-slate-800/70 p-1.5 text-white disabled:opacity-30"><ChevronRight className="h-5 w-5" /></button>
               </div>
             )}
-            <QuestionBar question={q} onClose={close} knownWords={knownWords} />
+            <ToggleableQuestionBar question={q} solFirst={solFirst} setSolFirst={setSolFirst} knownWords={knownWords} onClose={close} />
           </motion.div>
         )}
       </AnimatePresence>
