@@ -13,7 +13,7 @@ import StudentBookReader from '@/components/book/StudentBookReader';
 // bookshelf). Reached via /?role=teacher → /TeacherView.
 export default function TeacherView() {
   const params = new URLSearchParams(window.location.search);
-  const { classList } = useClassNames();
+  const { classList, configs } = useClassNames();
 
   const [activeClass, setActiveClass] = useState(
     () => params.get('class') || localStorage.getItem('tv_class') || ''
@@ -76,7 +76,7 @@ export default function TeacherView() {
           ))}
         </div>
         <div className="pointer-events-auto">
-          <ClassToggle activeClass={activeClass} classes={classList} onSelect={setActiveClass} />
+          <ClassToggle activeClass={activeClass} classes={classList} configs={configs} onSelect={setActiveClass} />
         </div>
       </div>
 
