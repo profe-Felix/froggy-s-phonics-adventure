@@ -32,7 +32,7 @@ export default function ComparisonLauncher({ onPresent }) {
         { lesson_key: lessonKey },
         { sort: 'page_number', limit: 100 }
       );
-      return res.items.sort(
+      return (res.items || []).sort(
         (a, b) => (a.page_number || 0) - (b.page_number || 0) || (a.order || 0) - (b.order || 0)
       );
     },
@@ -42,7 +42,7 @@ export default function ComparisonLauncher({ onPresent }) {
     queryKey: ['cmp-catalog', module],
     queryFn: async () => {
       const res = await base44.entities.BookCatalog.filter({ module }, { sort: 'title', limit: 100 });
-      return res.items;
+      return res.items || [];
     },
   });
 
@@ -50,7 +50,7 @@ export default function ComparisonLauncher({ onPresent }) {
     queryKey: ['cmp-lesson-books', lessonKey],
     queryFn: async () => {
       const res = await base44.entities.LessonBooks.filter({ lesson_key: lessonKey }, { limit: 1 });
-      return res.items[0] || null;
+      return (res.items || [])[0] || null;
     },
   });
 

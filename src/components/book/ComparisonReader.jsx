@@ -14,20 +14,23 @@ import { useKnownSightWords } from '@/hooks/useKnownSightWords';
 // Example: Book A (8 pp) + Book B (8 pp) + 2 questions = 18 pages total.
 // Pages 1-8 = Book A, 9-16 = Book B, 17-18 = question slides.
 export default function ComparisonReader({ books, questions, onExit, lessonKey }) {
+  const safeBooks = Array.isArray(books) ? books : [];
+  const safeQuestions = Array.isArray(questions) ? questions.filter(Boolean) : [];
+
   // Build a flat virtual page list: book pages first, then question slides.
   const pageList = useMemo(() => {
     const pages = [];
-    books.forEach((book, bookIndex) => {
+    safeBooks.forEach((book, bookIndex) => {
       const pageCount = book.pdf_page_count || (book.pages || []).length || 1;
       for (let p = 1; p <= pageCount; p++) {
         pages.push({ type: 'book', bookIndex, pageNumber: p, book });
       }
     });
-    questions.forEach((q, qIdx) => {
+    safeQuestions.forEach((q, qIdx) => {
       pages.push({ type: 'question', qIdx, question: q });
     });
     return pages;
-  }, [books, questions]);
+  }, [safeBooks, safeQuestions]);
 
   const totalPages = pageList.length;
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,6 +38,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
   const [showAnchor, setShowAnchor] = useState(true);
 
   const { data: knownWords } = useKnownSightWords(lessonKey);
+  const safeKnownWords = knownWords instanceof Set ? knownWords : new Set();
 
   const page = pageList[currentPage - 1];
   const isQuestion = page?.type === 'question';
@@ -109,7 +113,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         pdfUrl={book.pdf_url}
         pageNumber={pageNum}
         fitMode="contain"
-        highlightWords={knownWords}
+        highlightWords={safeKnownWords}
       />
     );
   };
@@ -118,7 +122,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
     ? `Pregunta ${page.qIdx + 1}`
     : (currentBook?.title || '');
 
-  const hasAnchor = isQuestion && !!page.question.anchor_chart_url;
+  const hasAnchor = isQuestion && !!page.question?.anchor_chart_url;
 
   return (
     <div
@@ -218,7 +222,7 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
             question={page.question}
             solFirst={solFirst}
             setSolFirst={setSolFirst}
-            knownWords={knownWords}
+            knownWords={safeKnownWords}
           />
         </div>
       )}
