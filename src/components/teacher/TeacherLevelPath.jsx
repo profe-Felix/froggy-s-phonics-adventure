@@ -22,7 +22,7 @@ function defaultPos(i) {
   return { x, y };
 }
 
-export default function TeacherLevelPath({ className, onOpenLesson }) {
+export default function TeacherLevelPath({ className, onOpenLesson, activeModule = 0, activeLesson = 0 }) {
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
     queryFn: fetchLessons,
@@ -77,6 +77,43 @@ export default function TeacherLevelPath({ className, onOpenLesson }) {
 
   const posFor = (n) => savedPositions[String(n)] || defaultPos(n);
 
+  // Active slot = the path lesson covering the class's active curriculum
+  // position (set on the Class Manager). Each path lesson is a week of daily
+  // lessons; we find the week whose curriculum range reaches the active
+  // module/lesson. Falls back to the first placed lesson.
+  const activeSlot = useMemo(() => {
+    const sorted = [...myLessons].sort(
+      (a, b) => (a.lesson_number || 0) - (b.lesson_number || 0)
+    );
+    if (activeModule > 0 && activeLesson > 0) {
+      // Exact match: a day whose module/lesson equals the active position.
+      const exact = sorted.find((l) =>
+        (l.daily_lessons || []).some(
+          (d) =>
+            Number(d.module_number) === activeModule &&
+            Number(d.curriculum_lesson_number) === activeLesson
+        )
+      );
+      if (exact?.lesson_number) return exact.lesson_number;
+      // Otherwise: first week whose highest curriculum position reaches the
+      // active one (each module = 20 lessons).
+      const activeCum = (activeModule - 1) * 20 + activeLesson;
+      const reach = sorted.find((l) => {
+        const maxCum = Math.max(
+          0,
+          ...(l.daily_lessons || []).map(
+            (d) =>
+              (Number(d.module_number) - 1) * 20 +
+              Number(d.curriculum_lesson_number)
+          )
+        );
+        return maxCum >= activeCum;
+      });
+      if (reach?.lesson_number) return reach.lesson_number;
+    }
+    return sorted[0]?.lesson_number || null;
+  }, [myLessons, activeModule, activeLesson]);
+
   // Background image aspect + container width (same approach as LevelPath).
   const wrapRef = useRef(null);
   const [aspect, setAspect] = useState(0);
@@ -106,6 +143,15 @@ export default function TeacherLevelPath({ className, onOpenLesson }) {
   const dotSize = Math.min(56, Math.max(34, width * 0.047));
   const dotFont = Math.round(dotSize * 0.32);
 
+  // Auto-scroll the active puck into view on load. Pucks only render once
+  // `ready` is true, so the effect re-runs when ready flips — otherwise the
+  // scroll is missed and the page sits at the top.
+  const activeRef = useRef(null);
+  useEffect(() => {
+    if (!ready || !activeRef.current) return;
+    activeRef.current.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, [ready, activeSlot]);
+
   return (
     <div className="relative h-screen overflow-y-auto bg-[#a932d5]">
       <div
@@ -133,6 +179,7 @@ export default function TeacherLevelPath({ className, onOpenLesson }) {
             return (
               <button
                 key={n}
+                ref={n === activeSlot ? activeRef : null}
                 type="button"
                 disabled={!clickable}
                 onClick={() => clickable && onOpenLesson(lesson)}
@@ -143,7 +190,7 @@ export default function TeacherLevelPath({ className, onOpenLesson }) {
                   width: dotSize,
                   height: dotSize,
                   background: clickable ? '#ffffff' : '#e5e7eb',
-                  border: '3px solid #ffffff',
+                  border: n === activeSlot ? '4px solid #F48FB1' : '3px solid #ffffff',
                   opacity: clickable ? 1 : 0.5,
                   cursor: clickable ? 'pointer' : 'default',
                   zIndex: 10,

@@ -85,6 +85,8 @@ export default function TeacherView() {
           <TeacherLevelPath
             className={activeClass}
             onOpenLesson={(lesson) => setLauncherLesson(lesson)}
+            activeModule={Number(configs.find((c) => c.class_name === activeClass)?.active_spanish_module) || 0}
+            activeLesson={Number(configs.find((c) => c.class_name === activeClass)?.active_spanish_lesson) || 0}
           />
         )}
         {section === 'books' && activeClass && (
