@@ -29,19 +29,16 @@ function PresentMode({ questions, books, onExit }) {
   const [currentPage, setCurrentPage] = useState(pageNumbers[0] ?? 1);
   const [showQ, setShowQ] = useState(false);
   const [qIdx, setQIdx] = useState(0);
-  const [turn, setTurn] = useState(0);
 
   const pageQuestions = questions.filter(q => (q.page_number || 0) === currentPage);
   const hasQ = pageQuestions.length > 0;
   const q = pageQuestions[qIdx];
-  const isSol = turn === 0;
   const currentIdx = pageNumbers.indexOf(currentPage);
 
   const changePage = (p) => {
     setCurrentPage(p);
     setShowQ(false);
     setQIdx(0);
-    setTurn(0);
   };
 
   const advancePage = (dir) => {
@@ -54,7 +51,6 @@ function PresentMode({ questions, books, onExit }) {
     const next = qIdx + dir;
     if (next < 0 || next >= pageQuestions.length) return;
     setQIdx(next);
-    setTurn(t => (t + 1) % 2);
   };
 
   return (
@@ -63,39 +59,31 @@ function PresentMode({ questions, books, onExit }) {
         <X className="h-8 w-8" />
       </button>
 
-      {/* Top bar: page counter + book titles */}
-      <div className="flex flex-col items-center gap-2 px-6 pt-6">
-        <div className="text-white/50 font-bold text-lg">
+      {/* Compact top bar: page counter + book titles */}
+      <div className="flex flex-wrap items-center justify-center gap-3 px-6 pt-4">
+        <span className="text-white/50 font-bold text-sm">
           {currentPage === 0 ? '★ General' : `Page ${currentPage} / ${totalPages}`}
-        </div>
-        {books.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {books.map((b, i) => (
-              <div key={b.id} className="flex items-center gap-2 rounded-full bg-white/10 px-5 py-2">
-                <BookOpen className="h-5 w-5 text-white/60" />
-                <span className="text-lg font-bold text-white">{b.title}</span>
-                {isComparison && i === 0 && (
-                  <span className="ml-1 rounded-full bg-indigo-500 px-2 py-0.5 text-xs font-black text-white">Libro A</span>
-                )}
-                {isComparison && i === 1 && (
-                  <span className="ml-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-black text-white">Libro B</span>
-                )}
-              </div>
-            ))}
+        </span>
+        {books.map((b, i) => (
+          <span key={b.id} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-bold text-white">
+            <BookOpen className="h-4 w-4 text-white/60" />
+            {b.title}
             {isComparison && (
-              <span className="text-white/40 font-bold text-sm">↔ comparing both books</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
+                {i === 0 ? 'A' : 'B'}
+              </span>
             )}
-          </div>
-        )}
+          </span>
+        ))}
       </div>
 
-      {/* Center: large book page (reading view) */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-6 py-4">
+      {/* Center: book page fills the screen like reading */}
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
         {currentPage > 0 && books.length > 0 ? (
-          <div className="relative flex h-full max-h-full items-center justify-center gap-6">
+          <div className="relative flex h-full max-h-full items-center justify-center gap-4">
             {books.map((b, i) => (
-              <div key={b.id} className="relative flex h-full max-h-full items-center justify-center overflow-hidden rounded-2xl bg-white shadow-2xl">
-                <BookPageThumbnail book={b} pageNumber={currentPage} width={isComparison ? 360 : 560} />
+              <div key={b.id} className="relative flex h-full max-h-full items-stretch justify-center overflow-hidden rounded-xl bg-white shadow-2xl">
+                <BookPageThumbnail book={b} pageNumber={currentPage} width={isComparison ? 420 : 820} />
                 {isComparison && (
                   <span className={`absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-xs font-black text-white ${i === 0 ? 'bg-indigo-500' : 'bg-amber-500'}`}>
                     {i === 0 ? 'Libro A' : 'Libro B'}
@@ -107,10 +95,10 @@ function PresentMode({ questions, books, onExit }) {
             {hasQ && !showQ && (
               <button
                 onClick={() => { setShowQ(true); setQIdx(0); }}
-                className="absolute right-2 top-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl transition hover:scale-110"
+                className="absolute right-3 top-3 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl transition hover:scale-110"
               >
                 <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                  <HelpCircle className="h-8 w-8" />
+                  <HelpCircle className="h-7 w-7" />
                 </motion.div>
               </button>
             )}
@@ -122,7 +110,7 @@ function PresentMode({ questions, books, onExit }) {
         )}
       </div>
 
-      {/* Question bar — slides up from the bottom over the page */}
+      {/* Question bar — slides up from the bottom; Sol asks, Luna answers */}
       <AnimatePresence>
         {showQ && q && (
           <motion.div
@@ -131,36 +119,36 @@ function PresentMode({ questions, books, onExit }) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="relative z-10 mx-auto w-full max-w-4xl px-6 pb-2"
+            className="relative z-10 mx-auto w-full max-w-5xl px-6 pb-2"
           >
-            <div className="relative flex items-stretch gap-5 rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="relative grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-2xl">
               <button
                 onClick={() => setShowQ(false)}
-                className="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+                className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
               >
                 <X className="h-5 w-5" />
               </button>
-              <button
-                onClick={() => setTurn(t => (t + 1) % 2)}
-                className="flex flex-col items-center justify-center gap-1 rounded-2xl px-4 transition hover:bg-slate-50"
-              >
-                <AnimatePresence mode="wait">
-                  {isSol ? (
-                    <motion.div key="sol" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                      <Sun className="h-16 w-16" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
-                    </motion.div>
-                  ) : (
-                    <motion.div key="luna" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.25 }}>
-                      <Moon className="h-16 w-16" style={{ color: '#6366f1' }} strokeWidth={2.5} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <span className="text-xl font-black" style={{ color: isSol ? '#f59e0b' : '#6366f1' }}>{isSol ? 'Sol' : 'Luna'}</span>
-                <span className="text-xs font-bold text-slate-400">pregunta</span>
-              </button>
-              <div className="flex flex-1 flex-col justify-center gap-2 border-l-2 border-slate-100 pl-5 pr-10">
-                <p className="text-2xl font-black leading-snug text-slate-800">{q.question_text}</p>
-                {q.sentence_stem && <p className="text-xl font-bold leading-snug text-slate-500">{q.sentence_stem}</p>}
+
+              {/* Sol — asks the question */}
+              <div className="flex items-start gap-3 pr-2">
+                <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
+                  <Sun className="h-10 w-10" style={{ color: '#f59e0b' }} strokeWidth={2.5} />
+                  <span className="text-xs font-black" style={{ color: '#f59e0b' }}>Sol</span>
+                </div>
+                <p className="pt-1 text-lg font-black leading-snug text-slate-800">{q.question_text}</p>
+              </div>
+
+              {/* Luna — gives the sentence stem */}
+              <div className="flex items-start gap-3 border-l-2 border-slate-100 pl-4 pr-6">
+                <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
+                  <Moon className="h-10 w-10" style={{ color: '#6366f1' }} strokeWidth={2.5} />
+                  <span className="text-xs font-black" style={{ color: '#6366f1' }}>Luna</span>
+                </div>
+                {q.sentence_stem ? (
+                  <p className="pt-1 text-lg font-bold leading-snug text-slate-500">{q.sentence_stem}</p>
+                ) : (
+                  <p className="pt-1 text-base font-bold italic leading-snug text-slate-300">—</p>
+                )}
               </div>
             </div>
           </motion.div>
@@ -168,7 +156,7 @@ function PresentMode({ questions, books, onExit }) {
       </AnimatePresence>
 
       {/* Bottom navigation */}
-      <div className="flex items-center justify-center gap-6 px-6 pb-8 pt-2">
+      <div className="flex items-center justify-center gap-6 px-6 pb-6 pt-2">
         <button
           onClick={() => advancePage(-1)}
           disabled={currentIdx <= 0}
@@ -188,7 +176,7 @@ function PresentMode({ questions, books, onExit }) {
           </>
         ) : (
           <span className="text-white/40 font-bold text-sm">
-            {hasQ ? (showQ ? 'tap ☀️/🌙 to flip partners' : 'tap ? to ask') : 'no questions — continue'}
+            {hasQ ? (showQ ? 'close ✕ to keep reading' : 'tap ? to ask') : 'no questions — continue'}
           </span>
         )}
         <button
