@@ -39,6 +39,7 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
   const [anchorChartUrl, setAnchorChartUrl] = useState(initial?.anchor_chart_url || '');
   const [uploading, setUploading] = useState(false);
   const max = maxPages || 999;
+  const isQuestionSlide = page > 0 && page > max;
 
   const handleUpload = async (file) => {
     setUploading(true);
@@ -57,10 +58,19 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
         {/* Left: live page thumbnail */}
         <div className="flex max-h-[80vh] w-64 flex-shrink-0 flex-col overflow-y-auto">
           <div className="mb-2 text-center text-xs font-black text-slate-500">
-            {page === 0 ? '★ General' : `Page ${page}`}
+            {page === 0 ? '★ General' : isQuestionSlide ? `Question slide ${page}` : `Page ${page}`}
           </div>
           {page === 0 ? (
             <div className="flex h-72 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-4xl">★</div>
+          ) : isQuestionSlide ? (
+            <div className="flex h-72 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 gap-2">
+              {anchorChartUrl ? (
+                <img src={anchorChartUrl} alt="Anchor chart" className="h-48 rounded-lg object-contain" />
+              ) : (
+                <span className="text-4xl text-slate-300">?</span>
+              )}
+              <span className="text-xs font-bold text-slate-400">Question slide (no book page)</span>
+            </div>
           ) : books.length > 0 ? (
             <MarkEditor key={page} books={books} page={page} mark={mark} onChange={setMark} />
           ) : (
@@ -72,14 +82,13 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
         <div className="flex flex-1 flex-col">
           <h3 className="mb-4 text-lg font-black text-slate-800">{initial ? 'Edit question' : 'New question'}</h3>
           <label className="mb-1 block text-sm font-bold text-slate-600">
-            Page number (0 = general ★{maxPages ? `, max ${max}` : ''})
+            Slide number (0 = general ★{maxPages ? `, books 1–${max}, questions ${max + 1}+` : ''})
           </label>
           <input
             type="number"
             min={0}
-            max={max}
             value={page}
-            onChange={e => { setPage(Math.max(0, Math.min(max, parseInt(e.target.value) || 0))); setMark(null); }}
+            onChange={e => { setPage(Math.max(0, parseInt(e.target.value) || 0)); setMark(null); }}
             className="mb-3 w-full rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700 focus:border-indigo-400 focus:outline-none"
           />
           <label className="mb-1 block text-sm font-bold text-slate-600">Question</label>
@@ -405,7 +414,7 @@ export default function BookComprehension() {
       {editing && (
         <QuestionEditor
           initial={editing === 'new' ? null : editing}
-          maxPages={books.reduce((mx, b) => Math.max(mx, b.pdf_page_count || 0), 0) || null}
+          maxPages={books.reduce((sum, b) => sum + (b.pdf_page_count || 0), 0) || null}
           books={books}
           onSave={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark, anchor_chart_url })}
           onCancel={() => setEditing(null)}
