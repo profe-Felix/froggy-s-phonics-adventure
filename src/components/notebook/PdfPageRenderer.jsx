@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { pdfjsLib } from '@/lib/pdfWorkerSetup';
-import { normalizeSpanish } from '@/lib/literacy/lessonProgression';
+import { computeWordHighlights } from '@/lib/pdfWordHighlights';
 
 const pdfCache = new Map();
 const pageCache = new Map();
 const MAX_CACHED_PAGES = 16;
-let _measureCtx = null; // reused canvas context for word-width measurement
 
 function getPageCacheKey(pdfUrl, pageNumber) {
   return `${pdfUrl}::${pageNumber}`;
@@ -613,6 +612,8 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
       setHighlights([]);
       return;
     }
+    // Wait for the page raster so pdfjs has registered the embedded fonts.
+    if (loading) return;
 
     let cancelled = false;
 
@@ -645,82 +646,23 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
         const offsetX = alignSelf === 'flex-start' ? 0 : alignSelf === 'flex-end' ? (containerSize.w - displayW) : (containerSize.w - displayW) / 2;
         const offsetY = isFullHeightCalc ? (containerSize.h - displayH) / 2 : 0;
 
-        const rects = [];
-        const _debug = [];
-        window.__hlDebug = { highlightWordsSize: highlightWords?.size || 0, items: [] };
-        for (const item of textContent.items) {
-          const str = item.str || '';
-          if (!str.trim()) continue;
-          window.__hlDebug.items.push({ str: str.slice(0, 50), width: item.width, transform: [item.transform[4], item.transform[5], item.transform[0], item.transform[3]] });
+        const rects = computeWordHighlights({
+          textContent,
+          viewport: displayViewport,
+          scale,
+          offsetX,
+          offsetY,
+          highlightWords,
+        });
 
-          // Base position of this text item in display coordinates
-          const [baseX, baseY] = displayViewport.convertToViewportPoint(
-            item.transform[4],
-            item.transform[5]
-          );
-          const itemHeight = Math.abs(item.transform[3]) * scale || item.height * scale || 14;
-          const itemWidth = item.width * scale;
-          if (itemWidth < 1) continue;
-
-          // Strategy 1: If the entire item is a single known word (after stripping
-          // punctuation), highlight the full item width — perfect alignment.
-          const wholeNorm = normalizeSpanish(str).replace(/[^a-zñü]/g, '');
-          if (wholeNorm && highlightWords.has(wholeNorm)) {
-            _debug.push({ strategy: 1, word: wholeNorm, str, itemWidth, baseX, offsetX,
-              pdfWidth: item.width, transform: item.transform.slice(4), fontScale: item.transform[0] });
-            rects.push({
-              left: baseX + offsetX,
-              top: baseY - itemHeight * 0.85 + offsetY,
-              width: itemWidth,
-              height: itemHeight * 1.15,
-            });
-            continue;
-          }
-
-          // Strategy 2: Multi-word items — measure each word's width using the
-          // browser's font metrics, then scale the ratios to the PDF's actual
-          // item width. This accounts for variable character widths (i is
-          // narrow, m is wide) far better than equal-character or fixed-weight
-          // models.
-          const tokens = str.match(/(\S+)|(\s+)/g) || [];
-          if (tokens.length > 1) {
-            const fontPx = Math.abs(item.transform[3]) * scale || 14;
-            const mctx = _measureCtx || (_measureCtx = document.createElement('canvas').getContext('2d'));
-            mctx.font = `${fontPx}px sans-serif`;
-            const totalPx = mctx.measureText(str).width || 1;
-            let pxOffset = 0;
-            for (const tok of tokens) {
-              const tokPx = mctx.measureText(tok).width;
-              if (/\s/.test(tok)) { pxOffset += tokPx; continue; }
-              const normalized = normalizeSpanish(tok).replace(/[^a-zñü]/g, '');
-              if (normalized && highlightWords.has(normalized)) {
-                const hlLeft = baseX + (pxOffset / totalPx) * itemWidth + offsetX;
-                const hlWidth = (tokPx / totalPx) * itemWidth;
-                _debug.push({ strategy: 2, word: normalized, str, tok, baseX, itemWidth, offsetX, pxOffset, totalPx, tokPx, hlLeft, hlWidth, fontPx: Math.abs(item.transform[3]) * scale });
-                rects.push({
-                  left: hlLeft,
-                  top: baseY - itemHeight * 0.85 + offsetY,
-                  width: hlWidth,
-                  height: itemHeight * 1.15,
-                });
-              }
-              pxOffset += tokPx;
-            }
-          }
-        }
-
-        if (!cancelled) {
-          window.__hlDebug.rects = rects;
-          window.__hlDebug.debug = _debug;
-          setHighlights(rects);
-        }
+        if (!cancelled) setHighlights(rects);
       } catch {
         if (!cancelled) setHighlights([]);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, highlightWords, containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight]);
+  }, [pdfUrl, pageNumber, highlightWords, containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight, loading, alignSelf]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
