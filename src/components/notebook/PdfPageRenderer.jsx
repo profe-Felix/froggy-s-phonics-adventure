@@ -658,17 +658,38 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
           const itemWidth = item.width * scale;
           if (itemWidth < 1) continue;
 
-          // Tokenize the item string and find known words by proportional offset
+          // Strategy 1: If the entire item is a single known word (after stripping
+          // punctuation), highlight the full item width — perfect alignment.
+          const wholeNorm = normalizeSpanish(str).replace(/[^a-zñü]/g, '');
+          if (wholeNorm && highlightWords.has(wholeNorm)) {
+            rects.push({
+              left: baseX + offsetX,
+              top: baseY - itemHeight * 0.85 + offsetY,
+              width: itemWidth,
+              height: itemHeight * 1.15,
+            });
+            continue;
+          }
+
+          // Strategy 2: Multi-word items — use weighted character widths so
+          // spaces and punctuation don't skew the proportional offset.
           const tokens = str.match(/(\S+)|(\s+)/g) || [];
-          let charOffset = 0;
-          const totalChars = str.length || 1;
+          const charWeight = (ch) => {
+            if (/\s/.test(ch)) return 0.35;
+            if (/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]/.test(ch)) return 1.0;
+            return 0.55;
+          };
+          const weights = [...str].map(charWeight);
+          const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+          let weightOffset = 0;
 
           for (const tok of tokens) {
-            if (/\s/.test(tok)) { charOffset += tok.length; continue; }
+            const tokWeight = [...tok].reduce((a, ch) => a + charWeight(ch), 0);
+            if (/\s/.test(tok)) { weightOffset += tokWeight; continue; }
             const normalized = normalizeSpanish(tok).replace(/[^a-zñü]/g, '');
             if (normalized && highlightWords.has(normalized)) {
-              const xRatio = charOffset / totalChars;
-              const wRatio = tok.length / totalChars;
+              const xRatio = weightOffset / totalWeight;
+              const wRatio = tokWeight / totalWeight;
               rects.push({
                 left: baseX + xRatio * itemWidth + offsetX,
                 top: baseY - itemHeight * 0.85 + offsetY,
@@ -676,7 +697,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
                 height: itemHeight * 1.15,
               });
             }
-            charOffset += tok.length;
+            weightOffset += tokWeight;
           }
         }
 
