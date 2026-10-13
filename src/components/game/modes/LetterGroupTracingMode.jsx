@@ -10,6 +10,7 @@ import { useCoinAward } from '@/hooks/useCoinAward';
 import { LETTER_FORMATION_GROUPS, isLetterSoundIntroduced } from '@/lib/literacy/letterFormationGroups';
 import { inchesToCssPx } from '@/lib/physicalSize';
 import { useViewportScale } from '@/hooks/useViewportScale';
+import GroupTracingSizeChoice from '@/components/tracing/GroupTracingSizeChoice';
 
 // Letter Tracing GROUP practice (game mode / free play). Students trace a
 // formation family one letter at a time — each letter gets its own row of
@@ -21,30 +22,14 @@ import { useViewportScale } from '@/hooks/useViewportScale';
 //   Phase 3 "mixed"    — one row per letter, alternating guided / freehand.
 //
 // SIZE CHOICE:
-//   "paper" — letters at paper-writing size, ALL on one ruled line so
-//             students see the whole family and practice at real size.
-//             Worth 30 coins (the default).
-//   "big"   — one large letter at a time (fills the screen). Easier for
-//             beginners; worth 10 coins. Students weigh the trade-off.
-//
-// The bonus is awarded once per set per cycle; a set only pays again after
-// EVERY enabled set has been finished once (letter_group_awarded_sets on the
-// student record tracks the cycle). Pinch-zoom is disabled so students can't
-// scale the page to cheat the size.
-
-const COPIES_PER_LETTER = 5; // 5 copies of one letter per row → back-to-back practice
-const REWARD = { paper: 30, big: 10 };
-
-// LetterTracingCanvas viewBox constants (kept in sync with the canvas).
-const CANVAS_W = 300;
-const COPY_GAP = 24;
-const GUIDE_W = 260;
-// Cap the per-letter width at the "Paper" size tier so the line never grows
-// beyond real handwriting size on wide screens.
-const PAPER_COPY_WIDTH = 220;
-// Physical-inch target for paper-size copies. Converted to CSS px per device
-// so the letter is the same physical size on phones and tablets.
-const PAPER_COPY_WIDTH_IN = 1.4 * (300 / 375); // ~1.12" per copy width → 1.4" canvas (matches Creando Oraciones line height)
+//   "medium" — five copies on a scrolling line, at the Medium tracing tier.
+//   "big"    — one letter at a time, at the next larger (Big) tracing tier.
+// Existing set rewards and cycle rules are unchanged.
+const COPIES_PER_LETTER = 5;
+const REWARD = { medium: 30, big: 10 };
+const MEDIUM_HEIGHT_IN = 2.5;
+const BIG_HEIGHT_IN = 3.3;
+const SINGLE_CANVAS_ASPECT = (300 + 260) / 375;
 
 const PHASES = [
   { key: 'guided', label: 'Trace', desc: 'Follow the dot guide' },
@@ -57,7 +42,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [enabledGroups, setEnabledGroups] = useState([]);
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const [selectedKey, setSelectedKey] = useState(null);
-  const [sizeMode, setSizeMode] = useState('big'); // 'paper' | 'big'
+  const [sizeMode, setSizeMode] = useState('medium'); // 'medium' | 'big'
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [letterIdx, setLetterIdx] = useState(0); // which letter (row) within the phase
   const [copyIdx, setCopyIdx] = useState(0);      // which copy of that letter (0..4)
@@ -68,8 +53,8 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [lineStrokes, setLineStrokes] = useState([]);
   const awardCoins = useCoinAward(studentData, onStudentPatch);
 
-  // Measure the canvas wrapper so the paper-size line fits all letters on one
-  // screen (no horizontal scroll) while staying at real handwriting size.
+  // Keep the guide plus one Big letter visible on narrow screens. Medium
+  // scales proportionally, with its remaining copies scrolling inside the row.
   const wrapRef = useRef(null);
   const [wrapW, setWrapW] = useState(0);
   useLayoutEffect(() => {
@@ -199,6 +184,8 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           <p className="text-slate-500 text-sm mt-1">Practice letter families together. Finish a set to earn {coinReward} coins!</p>
         </div>
 
+        <GroupTracingSizeChoice value={sizeMode} onChange={setSizeMode} rewards={REWARD} />
+
         {groups.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center max-w-md">
             <div className="text-3xl mb-2">📭</div>
@@ -269,14 +256,21 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const doneLines = phaseIdx * linesPerPhase + letterIdx;
   const sectionProgress = Math.round((doneLines / totalLines) * 100);
 
-  // Paper-size row: COPIES_PER_LETTER copies of the SAME letter, the active
-  // one traceable. Fit at real handwriting size; wide rows scroll if needed.
+  // Medium row: five copies of the same letter. Scroll rather than shrinking
+  // the letters to fit every copy on screen.
   const copies = Array.from({ length: COPIES_PER_LETTER }, () => ({
     letter: currentLetter,
     strokes: letterData?.strokes || [],
   }));
-  const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN) / viewportScale;
-  const fitCopyWidth = physicalPaperCopyWidth;
+  const availableWidth = wrapW || Math.max(1, window.innerWidth - 24);
+  const bigHeight = Math.min(
+    inchesToCssPx(BIG_HEIGHT_IN) / viewportScale,
+    Math.max(1, availableWidth - 8) / SINGLE_CANVAS_ASPECT
+  );
+  const mediumHeight = Math.min(
+    inchesToCssPx(MEDIUM_HEIGHT_IN) / viewportScale,
+    bigHeight * (MEDIUM_HEIGHT_IN / BIG_HEIGHT_IN)
+  );
 
   const handleComplete = () => {
     // Advance through the copies of the current letter first (back-to-back),
@@ -337,7 +331,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     });
     if (!studentData?.student_number || !studentData?.class_name || !currentLetter) return;
     // Normalize strokes to 0-1 per letter (subtract this copy's offset).
-    const copyOffset = copyIdx * (300 + 24) + 260;
+    const copyOffset = (sizeMode === 'medium' ? copyIdx : 0) * (300 + 24) + 260;
     const normalized = strokes.map(stroke =>
       stroke.map(p => ({ x: (p.x - copyOffset) / 300, y: p.y / 375 }))
     );
@@ -349,12 +343,13 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
       phase: phase.key,
       mode: isGuidedLine ? 'dot_only' : 'freehand',
       strokes_data: JSON.stringify(normalized),
-      size_label: sizeMode === 'paper' ? 'Paper' : 'Big',
+      size_label: sizeMode === 'medium' ? 'Medium' : 'Big',
       source: 'group',
       group_key: selectedKey,
       accuracy: accuracy || 0,
       guided: isGuidedLine,
-      size_mode: sizeMode,
+      // Keep the existing row/single storage values compatible with saved samples.
+      size_mode: sizeMode === 'medium' ? 'paper' : 'big',
     }).catch(() => {});
   };
 
@@ -379,7 +374,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           ← {currentGroup.label}
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{sizeMode === 'paper' ? '📏 Paper' : '🔍 Big'}</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{sizeMode === 'medium' ? 'Medium' : 'Big'}</span>
           <div className="text-[11px] text-slate-400 font-bold leading-none">{phase.label} · {currentLetter} · {copyIdx + 1}/{COPIES_PER_LETTER}</div>
           <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${isGuidedLine ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-violet-700 bg-violet-50 border-violet-200'}`}>
             {isGuidedLine ? '● Trace' : '✍️ Write'}
@@ -393,9 +388,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
         </div>
       </div>
 
-      {/* Letter progress row — quick visual of the family order + sound status.
-          In paper mode the canvas line itself shows all letters; this row stays
-          as a compact progress/silent indicator. */}
+      {/* Letter progress row — family order and sound status in both sizes. */}
       <div className="flex items-center gap-1.5 flex-nowrap justify-center shrink-0 overflow-x-auto max-w-full">
         {letters.map((l, i) => {
           const done = i < letterIdx;
@@ -419,16 +412,17 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
 
       {/* Canvas */}
       <div ref={wrapRef} className="flex-1 min-h-0 w-full overflow-hidden flex items-center justify-center">
-        {sizeMode === 'paper' ? (
-          <div className="w-full min-w-0">
+        {sizeMode === 'medium' ? (
+          <div className="h-full w-full min-h-0 min-w-0">
           <LetterTracingCanvas
-            key={`${traceKey}-${currentLetter}-${phaseIdx}-${letterIdx}-${copyIdx}-paper`}
+            key={`${traceKey}-${currentLetter}-${phaseIdx}-${letterIdx}-${copyIdx}-medium`}
             letter={currentLetter}
             lang={lang}
             strokes={letterData.strokes}
             copies={copies}
             activeCopy={copyIdx}
-            renderWidth={fitCopyWidth}
+            fillHeight
+            writingHeight={mediumHeight}
             showGuide={showGuide}
             freehandMode={freehandMode}
             dotOnly={dotOnly}
@@ -457,7 +451,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             dotOnly={dotOnly}
             silent={letterSilent}
             fillHeight
-            writingHeight={inchesToCssPx(4.5) / viewportScale}
+            writingHeight={bigHeight}
             onComplete={handleComplete}
             onAccuracy={() => {}}
             onReset={() => {}}
