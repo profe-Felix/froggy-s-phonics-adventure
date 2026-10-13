@@ -4,10 +4,12 @@
 // illustration and a matching black-and-white line drawing.
 // Images are served from /sentence-cards/color/ and /sentence-cards/bw/.
 
+// Sentence-patterning color coding:
+//   ¿Quién? (nouns) → green, ¿Qué? (verbs) → orange, ¿Dónde? (prepositions) → dark blue.
 export const CARD_CATEGORIES = [
-  { id: 'who', label: '¿Quién?', color: '#ec4899', bg: '#fdf2f8', border: '#f9a8d4' },
-  { id: 'what', label: '¿Qué?', color: '#84cc16', bg: '#f7fee7', border: '#bef264' },
-  { id: 'where', label: '¿Dónde?', color: '#14b8a6', bg: '#f0fdfa', border: '#5eead4' },
+  { id: 'who', label: '¿Quién?', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+  { id: 'what', label: '¿Qué?', color: '#f97316', bg: '#fff7ed', border: '#fdba74' },
+  { id: 'where', label: '¿Dónde?', color: '#1d4ed8', bg: '#eff6ff', border: '#93c5fd' },
 ];
 
 const img = (filename) => ({

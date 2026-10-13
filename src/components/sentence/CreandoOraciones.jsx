@@ -7,6 +7,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import CardSlot from './CardSlot';
 import CardPicker from './CardPicker';
 import SentenceWritingArea from './SentenceWritingArea';
+import ColoredSentence from './ColoredSentence';
 import SelfChecks from './SelfChecks';
 import { Loader2, ArrowLeft, RefreshCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -413,11 +414,11 @@ export default function CreandoOraciones({ studentNumber, className, studentName
               </div>
             </div>
 
-            {/* Assembled sentence display */}
+            {/* Assembled sentence display — word-level sentence-patterning colors */}
             {assembledSentence && (
               <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-center">
-                <p className="text-sm font-bold text-slate-700" style={{ fontFamily: "'Andika', sans-serif" }}>
-                  {assembledSentence}
+                <p className="text-sm font-bold" style={{ fontFamily: "'Andika', sans-serif" }}>
+                  <ColoredSentence whoCard={whoCard} whatCard={whatCard} whereCard={whereCard} mode={activeRow.mode} />
                 </p>
               </div>
             )}
