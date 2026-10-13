@@ -7,6 +7,7 @@ import TeacherBookShelf from '@/components/teacher/TeacherBookShelf';
 import StudentBookReader from '@/components/book/StudentBookReader';
 import ComparisonLauncher from '@/components/teacher/ComparisonLauncher';
 import ComparisonReader from '@/components/book/ComparisonReader';
+import TeacherToolDock from '@/components/teacher/TeacherToolDock';
 
 // Teacher view — mirrors the student home (level path + bookshelf) but with
 // teacher-only behavior: tapping a level opens a pre-filled live-lesson
@@ -83,6 +84,8 @@ export default function TeacherView() {
           <ClassToggle activeClass={activeClass} classes={classList} configs={configs} onSelect={setActiveClass} />
         </div>
       </div>
+
+      {!readerBook && <TeacherToolDock activeClass={activeClass} />}
 
       <div className="h-full">
         {section === 'lessons' && activeClass && (
