@@ -560,7 +560,8 @@ export default function StudentNotebookView({
 
     saveDrainPromiseRef.current = (async () => {
       // Capture strokes locally immediately, then coalesce short bursts.
-      await new Promise(resolve => setTimeout(resolve, 650));
+      // Longer delay = fewer API calls under heavy classroom load.
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       while (pendingSavesRef.current.size) {
         const [pageKey, queued] =
@@ -570,30 +571,24 @@ export default function StudentNotebookView({
         if (latestSessionRef.current?.id !== queued.sessionId) continue;
 
         try {
-          // Do not overwrite other pages using a failed/stale merge read.
-          const fresh = await requestWithRetry(() =>
-            base44.entities.NotebookSession.get(queued.sessionId)
-          );
+          // Merge from local state instead of re-reading from the server.
+          // Each student is the sole writer of their own session, so the
+          // local strokes_by_page is always the most recent version. This
+          // eliminates one API call per save (halving total API volume).
+          const baseStrokes = latestSessionRef.current?.id === queued.sessionId
+            ? (latestSessionRef.current.strokes_by_page || {})
+            : {};
           const strokesByPage = {
-            ...(fresh.strokes_by_page || {}),
+            ...baseStrokes,
             [pageKey]: JSON.stringify(queued.payload),
           };
 
-          const written = await requestWithRetry(() =>
+          await requestWithRetry(() =>
             base44.entities.NotebookSession.update(queued.sessionId, {
               strokes_by_page: strokesByPage,
               last_active: new Date().toISOString(),
             })
           );
-
-          const expectedPage = JSON.stringify(queued.payload);
-          const confirmed = written?.strokes_by_page?.[pageKey] === expectedPage
-            ? written
-            : await requestWithRetry(() => base44.entities.NotebookSession.get(queued.sessionId));
-
-          if (confirmed?.strokes_by_page?.[pageKey] !== expectedPage) {
-            throw new Error('Server did not confirm this page; retaining its draft.');
-          }
 
           if (latestSessionRef.current?.id === queued.sessionId) {
             const next = {
