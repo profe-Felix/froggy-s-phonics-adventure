@@ -19,8 +19,9 @@ export default function DictadoLivePanel({ step, className }) {
     .map((l) => (typeof l === 'string' ? l.trim() : ''))
     .filter(Boolean);
 
+  const liveQueryKey = ['dictado-live-teacher', className, ACTIVE_SCHOOL_YEAR];
   const { data: liveSessions = [], isLoading: liveLoading } = useQuery({
-    queryKey: ['dictado-live-teacher', className, ACTIVE_SCHOOL_YEAR],
+    queryKey: liveQueryKey,
     queryFn: () =>
       base44.entities.LiveDictationSession.filter({
         class_name: className,
@@ -28,8 +29,21 @@ export default function DictadoLivePanel({ step, className }) {
         active: true,
       }),
     enabled: !!className,
-    refetchInterval: 1000,
+    refetchInterval: 4000, // fallback only — realtime drives instant updates
+    retry: false,
   });
+
+  // Realtime: invalidate on any LiveDictationSession change so the teacher
+  // sees Reveal/Next land instantly without a 1s poll (the old 1s poll caused
+  // 429 rate-limit cascades that made the panel look "stuck").
+  useEffect(() => {
+    if (!className) return;
+    const unsub = base44.entities.LiveDictationSession.subscribe(() => {
+      qc.invalidateQueries({ queryKey: liveQueryKey });
+    });
+    return unsub;
+  }, [className, qc, liveQueryKey]);
+
   const session = liveSessions?.[0] || null;
 
   const lines = session?.lines?.length ? session.lines : inlineLines;
@@ -55,7 +69,7 @@ export default function DictadoLivePanel({ step, className }) {
         school_year: ACTIVE_SCHOOL_YEAR,
       }),
     enabled: !!session?.assignment_id,
-    refetchInterval: 2500,
+    refetchInterval: 4000,
   });
   const subByNumber = {};
   for (const s of submissions || []) subByNumber[s.student_number] = s;
@@ -91,9 +105,21 @@ export default function DictadoLivePanel({ step, className }) {
 
   const updateBS = (patch) => {
     if (!session) return;
+    // Optimistic: update the local cache immediately so the teacher sees the
+    // change with zero latency, then persist. Reads the latest bs from the
+    // cached session so rapid consecutive clicks (Reveal → Next) don't clobber
+    // each other with a stale spread.
+    qc.setQueryData(liveQueryKey, (old) => {
+      if (!Array.isArray(old) || !old.length) return old;
+      const cur = old[0];
+      return [{ ...cur, broadcast_state: { ...(cur.broadcast_state || {}), ...patch } }];
+    });
     base44.entities.LiveDictationSession
       .update(session.id, { broadcast_state: { ...bs, ...patch } })
-      .catch(() => {});
+      .catch(() => {
+        // Revert on failure so the teacher's view matches the server.
+        qc.invalidateQueries({ queryKey: liveQueryKey });
+      });
   };
   const reveal = () => updateBS({ revealed: true });
   const hide = () => updateBS({ revealed: false });

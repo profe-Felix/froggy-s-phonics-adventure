@@ -8,22 +8,16 @@ import { Volume2 } from 'lucide-react';
 
 // Per-line dictado canvas driven by the teacher's live broadcast.
 //
-// Each line has:
-//   attempt (dark, freehand)  — the student's first try, full line width.
-//                              Editable only on the current line BEFORE reveal.
-//                              Locked everywhere else.
-//   trace   (red, validated)  — a waypoint model (DictadoTraceCanvas) shown on
-//                              the RIGHT half of the line on/after reveal. The
-//                              student traces the correct formation with the
-//                              SAME strictness as WordTracing (start-point hit,
-//                              forward-only coverage, wobble corridor, direction
-//                              reject). Positioned after the student's ink,
-//                              halfway across the line.
+// Each word gets an attempt row (dark, freehand, FULL line width) and, once
+// revealed, a trace row appears DIRECTLY UNDERNEATH it (red waypoint model,
+// also full width). Stacking vertically — instead of side-by-side — means:
+//   • the student's first try uses the whole line (more room to write), and
+//   • the red model never overlaps the student's ink (it's on its own line).
 //
 // Teacher controls (DictadoLivePanel) drive this via `currentLine` + `revealed`.
 
 const MAX_LINE_HEIGHT = 115;
-const MAX_PAGE_WIDTH = 740;
+const MAX_PAGE_WIDTH = 1100;
 const DARK = '#1e293b';
 
 export default function DictadoLinesCanvas({
@@ -35,7 +29,23 @@ export default function DictadoLinesCanvas({
   className,
   schoolYear,
 }) {
-  const lineCount = Math.min(Math.max(lines?.length || 1, 1), 6);
+  const words = lines || [];
+  const wordCount = Math.min(Math.max(words.length || 1, 1), 6);
+
+  // A trace row is shown for the current word once revealed, and for every
+  // past word (so finished corrections stay visible).
+  const showTraceFor = (w) => (w === currentLine && revealed) || w < currentLine;
+
+  // Build the visible row list: attempt row per word, + trace row underneath
+  // when revealed. This keeps the page the same height as before until the
+  // teacher reveals, then grows by one line per revealed word.
+  const rows = [];
+  for (let w = 0; w < wordCount; w++) {
+    rows.push({ wordIdx: w, type: 'attempt' });
+    if (showTraceFor(w)) rows.push({ wordIdx: w, type: 'trace' });
+  }
+  const lineCount = rows.length;
+
   const containerRef = useRef(null);
   const attemptRefs = useRef([]);
   const [pageWidth, setPageWidth] = useState(MAX_PAGE_WIDTH);
@@ -45,22 +55,16 @@ export default function DictadoLinesCanvas({
   const [saved, setSaved] = useState(true);
   const submissionId = useRef(null);
   const saveTimer = useRef(null);
-  // Saved trace progress per line index: { paths, accuracies, done, accuracy }
+  // Saved trace progress per word index: { paths, accuracies, done, accuracy }
   const traceRef = useRef({});
 
-  // Active drawing tool for the freehand attempt layer (pen / eraser).
   const [tool, setTool] = useState('pen');
-  // Tracks the last line the student drew on so Undo targets it.
-  const lastActiveLine = useRef(0);
+  const lastActiveWord = useRef(0);
 
-  // Live values kept in refs so the save / stroke-end callbacks stay stable
-  // (identity-stable) across re-renders. The DictationStudent page polls the
-  // live session every second, which re-renders this component; if the
-  // onStrokeEnd props passed to AnnotationCanvas changed identity each render,
-  // AnnotationCanvas's effect would re-run mid-stroke and COMMIT the in-progress
-  // stroke — visibly "interrupting" the student's drawing. Refs avoid that.
-  const dimsRef = useRef({ pageWidth, lineHeight, lineCount });
-  dimsRef.current = { pageWidth, lineHeight, lineCount };
+  // Live values in refs so save / stroke-end callbacks stay identity-stable
+  // across re-renders (the student page polls + realtime re-renders this).
+  const dimsRef = useRef({ pageWidth, lineHeight, wordCount });
+  dimsRef.current = { pageWidth, lineHeight, wordCount };
   const ctxRef = useRef({ assignmentId, studentNumber, className, schoolYear });
   ctxRef.current = { assignmentId, studentNumber, className, schoolYear };
   const submissionIdRef = useRef(null);
@@ -71,7 +75,7 @@ export default function DictadoLinesCanvas({
     if (!el) return;
     const measure = () => {
       const r = el.getBoundingClientRect();
-      const w = Math.min(MAX_PAGE_WIDTH, Math.max(280, r.width - 24));
+      const w = Math.min(MAX_PAGE_WIDTH, Math.max(320, r.width - 24));
       setPageWidth(w);
       setPageHeight(MAX_LINE_HEIGHT * lineCount);
     };
@@ -81,7 +85,7 @@ export default function DictadoLinesCanvas({
     return () => ro.disconnect();
   }, [lineCount]);
 
-  // Load existing submission (per-line attempt strokes; trace is re-traced
+  // Load existing submission (per-word attempt strokes; trace is re-traced
   // fresh each reveal so it isn't persisted as freehand ink).
   useEffect(() => {
     if (!assignmentId || !studentNumber || !className) return;
@@ -101,10 +105,10 @@ export default function DictadoLinesCanvas({
           const data = JSON.parse(existing[0].strokes_data);
           if (data?.lines) {
             for (const [idx, ld] of Object.entries(data.lines)) {
-              const i = parseInt(idx);
-              const aRef = attemptRefs.current[i];
+              const w = parseInt(idx);
+              const aRef = attemptRefs.current[w];
               if (aRef && ld?.attempt) aRef.loadStrokes(ld.attempt);
-              if (ld?.trace) traceRef.current[i] = ld.trace;
+              if (ld?.trace) traceRef.current[w] = ld.trace;
             }
           }
         }
@@ -116,16 +120,16 @@ export default function DictadoLinesCanvas({
 
   // Stable save: reads latest dims/ctx from refs so its identity never changes.
   const save = useCallback(() => {
-    const { pageWidth: pw, lineHeight: lh, lineCount: lc } = dimsRef.current;
+    const { pageWidth: pw, lineHeight: lh, wordCount: wc } = dimsRef.current;
     const { assignmentId: aid, studentNumber: sn, className: cn, schoolYear: sy } = ctxRef.current;
     if (!aid || !sn || !cn) return;
     const linesData = {};
     let count = 0;
-    for (let i = 0; i < lc; i++) {
-      const aRef = attemptRefs.current[i];
+    for (let w = 0; w < wc; w++) {
+      const aRef = attemptRefs.current[w];
       const attempt = aRef ? aRef.getStrokes() : { strokes: [] };
-      linesData[i] = { attempt };
-      if (traceRef.current[i]) linesData[i].trace = traceRef.current[i];
+      linesData[w] = { attempt };
+      if (traceRef.current[w]) linesData[w].trace = traceRef.current[w];
       count += (attempt.strokes || []).length;
     }
     const data = { lines: linesData, canvasWidth: pw, canvasHeight: lh, normalized: true };
@@ -149,8 +153,6 @@ export default function DictadoLinesCanvas({
     })();
   }, []);
 
-  // Stable stroke-end handler. `line` is baked in via a cached callback per
-  // line so the prop passed to each AnnotationCanvas never changes identity.
   const scheduleSave = useCallback(() => {
     setSaved(false);
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -158,38 +160,33 @@ export default function DictadoLinesCanvas({
   }, [save]);
 
   const attemptEndCache = useRef([]);
-  if (attemptEndCache.current.length !== lineCount) {
-    attemptEndCache.current = Array.from({ length: lineCount }, (_, i) => () => {
-      lastActiveLine.current = i;
+  if (attemptEndCache.current.length !== wordCount) {
+    attemptEndCache.current = Array.from({ length: wordCount }, (_, w) => () => {
+      lastActiveWord.current = w;
       scheduleSave();
     });
   }
 
   const traceEndCache = useRef([]);
-  if (traceEndCache.current.length !== lineCount) {
-    traceEndCache.current = Array.from({ length: lineCount }, (_, i) => (trace) => {
-      traceRef.current[i] = trace;
+  if (traceEndCache.current.length !== wordCount) {
+    traceEndCache.current = Array.from({ length: wordCount }, (_, w) => (trace) => {
+      traceRef.current[w] = trace;
       scheduleSave();
     });
   }
 
   const handleUndo = useCallback(() => {
-    const i = lastActiveLine.current;
-    attemptRefs.current[i]?.undo?.();
+    const w = lastActiveWord.current;
+    attemptRefs.current[w]?.undo?.();
     scheduleSave();
   }, [scheduleSave]);
 
   const handleClear = useCallback(() => {
     if (!confirm('Clear this line?')) return;
-    const i = lastActiveLine.current;
-    attemptRefs.current[i]?.clearStrokes?.();
+    const w = lastActiveWord.current;
+    attemptRefs.current[w]?.clearStrokes?.();
     scheduleSave();
   }, [scheduleSave]);
-
-  // Per-line editability for the attempt layer.
-  const attemptEditable = (i) => i === currentLine && !revealed;
-  const showTrace = (i) => (i === currentLine && revealed) || i < currentLine;
-  const traceWord = (i) => lines?.[i] || '';
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -200,48 +197,62 @@ export default function DictadoLinesCanvas({
             style={{ width: pageWidth, height: pageHeight }}
           >
             <LinedPaper width={pageWidth} height={pageHeight} lineCount={lineCount} />
-            {Array.from({ length: lineCount }).map((_, i) => {
-              const editable = attemptEditable(i);
-              const traced = showTrace(i);
-              const word = traceWord(i);
-              return (
-                <div
-                  key={i}
-                  className={`absolute left-0 ${editable ? 'ring-4 ring-indigo-400/70 ring-inset' : ''}`}
-                  style={{ top: i * lineHeight, width: pageWidth, height: lineHeight, borderRadius: 8 }}
-                >
-                  {/* Dark attempt layer — full line width, freehand */}
-                  <div className="absolute inset-0">
-                    <AnnotationCanvas
-                      ref={(el) => { attemptRefs.current[i] = el; }}
-                      width={pageWidth}
-                      height={lineHeight}
-                      color={DARK}
-                      size={5}
-                      tool={editable ? tool : 'pen'}
-                      mode={editable ? 'draw' : 'view'}
-                      onStrokeEnd={attemptEndCache.current[i]}
-                    />
-                  </div>
-                  {/* Waypoint trace model — right half of the line, on/after reveal.
-                      Positioned after the student's ink, halfway across the line. */}
-                  {traced && word && loaded && (
-                    <div className="absolute" style={{ left: pageWidth / 2, top: 0, width: pageWidth / 2, height: lineHeight, zIndex: 15, overflow: 'visible' }}>
-                      <DictadoTraceCanvas
-                        key={`${i}-${word}`}
-                        word={word}
-                        width={pageWidth / 2}
+            {rows.map((row, rowIdx) => {
+              const { wordIdx: w, type } = row;
+              const top = rowIdx * lineHeight;
+              const word = words[w] || '';
+
+              if (type === 'attempt') {
+                const editable = w === currentLine && !revealed;
+                return (
+                  <div
+                    key={`a-${w}`}
+                    className={`absolute left-0 ${editable ? 'ring-4 ring-indigo-400/70 ring-inset' : ''}`}
+                    style={{ top, width: pageWidth, height: lineHeight, borderRadius: 8 }}
+                  >
+                    <div className="absolute inset-0">
+                      <AnnotationCanvas
+                        ref={(el) => { attemptRefs.current[w] = el; }}
+                        width={pageWidth}
                         height={lineHeight}
-                        initialTrace={traceRef.current[i]}
-                        onTraceChange={traceEndCache.current[i]}
+                        color={DARK}
+                        size={5}
+                        tool={editable ? tool : 'pen'}
+                        mode={editable ? 'draw' : 'view'}
+                        onStrokeEnd={attemptEndCache.current[w]}
                       />
                     </div>
+                    {/* Word label on locked past lines so the student can see
+                        which word each row was. */}
+                    {!editable && (w < currentLine || (w === currentLine && revealed)) && (
+                      <span className="absolute left-2 top-1 text-[11px] font-bold text-slate-300 pointer-events-none">
+                        {w + 1}.
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+
+              // Trace row — full width, underneath the attempt.
+              return (
+                <div
+                  key={`t-${w}`}
+                  className="absolute left-0"
+                  style={{ top, width: pageWidth, height: lineHeight, borderRadius: 8 }}
+                >
+                  {loaded && word && (
+                    <DictadoTraceCanvas
+                      key={`${w}-${word}`}
+                      word={word}
+                      width={pageWidth}
+                      height={lineHeight}
+                      initialTrace={traceRef.current[w]}
+                      onTraceChange={traceEndCache.current[w]}
+                    />
                   )}
-                  {traced && (
-                    <span className="absolute right-2 top-1 text-[10px] font-bold text-red-500/70 pointer-events-none">
-                      ✎ trace
-                    </span>
-                  )}
+                  <span className="absolute right-2 top-1 text-[10px] font-bold text-red-500/70 pointer-events-none">
+                    ✎ model
+                  </span>
                 </div>
               );
             })}
