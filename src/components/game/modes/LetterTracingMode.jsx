@@ -63,6 +63,11 @@ const PAGE_SIZE = 10;
 // them writing at a smaller, more practical size right from the start.
 const STARTING_SIZE_INDEX = 2;
 
+// Maximum size tier students can reach. Capped at Medium (2) so letters never
+// shrink below a comfortable size — students practice bigger to nail formation
+// without the frustration of tiny letters rejecting their attempts.
+const MAX_SIZE_INDEX = 2;
+
 function makeLetterState() {
   return {
     sizeLevel: STARTING_SIZE_INDEX,  // 0=Huge, 1=Big, 2=Medium, 3=Small, 4=Tiny, 5=Paper
@@ -141,7 +146,7 @@ export default function LetterTracingMode({
     try {
       const params = new URLSearchParams(window.location.search);
       const v = parseInt(params.get('traceSize'), 10);
-      return v >= 0 && v < SIZES.length ? v : null;
+      return v >= 0 && v < MAX_SIZE_INDEX + 1 ? v : null;
     } catch { return null; }
   });
 
@@ -247,8 +252,8 @@ export default function LetterTracingMode({
         // Only keep mastery if sizesCompleted actually covers all current tiers;
         // otherwise demote to Big (second size) and restart guided tracing.
         const completed = s.sizesCompleted || 0;
-        if (completed >= SIZES.length) {
-          restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: SIZES.length - 1, sizesCompleted: SIZES.length };
+        if (completed >= MAX_SIZE_INDEX + 1) {
+          restored[letter] = { ...makeLetterState(), fullyMastered: true, sizeLevel: MAX_SIZE_INDEX, sizesCompleted: MAX_SIZE_INDEX + 1 };
           restoredCompleted.add(letter);
         } else {
           restored[letter] = { ...makeLetterState(), sizeLevel: 1, phase: 'guided', sizesCompleted: completed };
@@ -257,7 +262,7 @@ export default function LetterTracingMode({
         restored[letter] = { ...makeLetterState(), ...s, sizesCompleted: s.sizesCompleted || 0 };
       } else {
         // Old per-letter stage format → migrate.
-        const oldStage = Math.min(s.stageIndex || 0, SIZES.length - 1);
+        const oldStage = Math.min(s.stageIndex || 0, MAX_SIZE_INDEX);
         restored[letter] = { ...makeLetterState(), sizeLevel: oldStage, phase: 'guided' };
       }
     }
@@ -271,12 +276,12 @@ export default function LetterTracingMode({
       // bar reads 100% and redo uses the small size.
       const allMastered = Object.values(restored).every(p => p.fullyMastered);
       if (allMastered) {
-        setGlobalSizeIndex(SIZES.length - 1);
+        setGlobalSizeIndex(MAX_SIZE_INDEX);
       }
     }
 
     if (typeof savedGlobal === 'number' && savedGlobal > 0) {
-      setGlobalSizeIndex(Math.min(SIZES.length - 1, savedGlobal));
+      setGlobalSizeIndex(Math.min(MAX_SIZE_INDEX, savedGlobal));
     } else if (Object.keys(restored).length) {
       // Fallback: derive global size from the minimum sizesCompleted across
       // non-new, non-mastered letters. Fixes data saved before
@@ -285,7 +290,7 @@ export default function LetterTracingMode({
       const nonNew = Object.values(restored).filter(p => !p.isNew && !p.fullyMastered);
       if (nonNew.length) {
         const minCompleted = Math.min(...nonNew.map(p => p.sizesCompleted || 0));
-        if (minCompleted > 0 && minCompleted < SIZES.length) {
+        if (minCompleted > 0 && minCompleted < MAX_SIZE_INDEX + 1) {
           setGlobalSizeIndex(minCompleted);
         }
       }
@@ -349,12 +354,12 @@ export default function LetterTracingMode({
   // ---------------------------------------------------------------------------
   const sectionProgress = useMemo(() => {
     if (!LETTERS.length) return 0;
-    const sizeFraction = globalSizeIndex / SIZES.length;
+    const sizeFraction = globalSizeIndex / (MAX_SIZE_INDEX + 1);
     const doneAtSize = LETTERS.filter(l => {
       const p = letterProgress[l] || makeLetterState();
       return p.fullyMastered || p.doneAtSize;
     }).length;
-    const stagePortion = doneAtSize / LETTERS.length / SIZES.length;
+    const stagePortion = doneAtSize / LETTERS.length / (MAX_SIZE_INDEX + 1);
     return Math.max(0, Math.min(100, Math.round((sizeFraction + stagePortion) * 100)));
   }, [LETTERS, letterProgress, globalSizeIndex]);
 
@@ -376,7 +381,7 @@ export default function LetterTracingMode({
       itemAttempts[letter] = {
         correct: p.totalSuccesses || 0,
         total: p.totalAttempts || 0,
-        size: p.fullyMastered ? SIZES.length : (p.isNew ? p.sizeLevel : sizeIdx),
+        size: p.fullyMastered ? MAX_SIZE_INDEX + 1 : (p.isNew ? p.sizeLevel : sizeIdx),
         phase: p.phase,
         clean_streak: p.cleanStreak || 0,
         mistakes: p.mistakes || 0,
@@ -425,7 +430,7 @@ export default function LetterTracingMode({
     }
     for (const [lower, setLetters] of Object.entries(sets)) {
       if (setLetters.length < 2) continue;
-      for (let si = 0; si < SIZES.length; si++) {
+      for (let si = 0; si < MAX_SIZE_INDEX + 1; si++) {
         const allDone = setLetters.every(l => {
           const p = letterProgress[l] || makeLetterState();
           return (p.sizesCompleted || 0) > si || p.fullyMastered;
@@ -579,11 +584,11 @@ export default function LetterTracingMode({
         if (doneLetter.isNew) {
           // New letter: advance independently through sizes until it catches up.
           const nextSize = doneLetter.sizeLevel + 1;
-          if (nextSize > SIZES.length - 1) {
+          if (nextSize > MAX_SIZE_INDEX) {
             // All sizes done — don't auto-master. Mark pending review so
             // the teacher can check the dot-only playback before granting
             // mastery (and the set-completion roll that comes with it).
-            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, pendingReview: true, sizesCompleted: SIZES.length } };
+            finalProgress = { ...finalProgress, [letter]: { ...doneLetter, pendingReview: true, sizesCompleted: MAX_SIZE_INDEX + 1 } };
           } else if (nextSize >= globalSizeIndex) {
             // Caught up to the cohort — join it at the new size.
             finalProgress = { ...finalProgress, [letter]: { ...doneLetter, sizeLevel: nextSize, phase: 'guided', phaseSuccesses: 0, cleanStreak: 0, repairReps: 0, doneAtSize: false, isNew: false } };
@@ -598,7 +603,7 @@ export default function LetterTracingMode({
             return lp.isNew || lp.doneAtSize || lp.fullyMastered;
           });
           if (allCohortDone) {
-            if (globalSizeIndex < SIZES.length - 1) {
+            if (globalSizeIndex < MAX_SIZE_INDEX) {
               // Advance the cohort to the next size. Non-new letters reset to
               // guided; new letters keep their own independent state.
               nextGlobalSize = globalSizeIndex + 1;
@@ -617,7 +622,7 @@ export default function LetterTracingMode({
               for (const l of LETTERS) {
                 const lp = nextProgress[l] || makeLetterState();
                 if (lp.isNew) finalProgress[l] = lp;
-                else finalProgress[l] = { ...lp, pendingReview: true, sizesCompleted: SIZES.length };
+                else finalProgress[l] = { ...lp, pendingReview: true, sizesCompleted: MAX_SIZE_INDEX + 1 };
               }
             }
           } else {
