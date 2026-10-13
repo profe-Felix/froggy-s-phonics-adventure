@@ -22,7 +22,7 @@ const CAP_ZONE_H = GRASS_Y - SKY_Y;
 export default function SentenceWritingLines({
   row, canvasRef, tool, color, size,
   onStrokeStart, onStrokeEnd, onActivateCanvas, onActivate,
-  lineCount = 1, modelText = '', active = false, replayKey = 0, activeWordIndex = -1,
+  lineCount = 1, modelText = '', wordColors = [], active = false, replayKey = 0, activeWordIndex = -1,
   scrub = null, onProgress = null,
 }) {
   const containerRef = useRef(null);
@@ -150,6 +150,7 @@ export default function SentenceWritingLines({
               {hasModel && i === 0 && modelText && (
                 <SentenceModelAnimation
                   text={modelText}
+                  wordColors={wordColors}
                   startX={modelStartX}
                   maxX={modelMaxX}
                   lineIndex={0}

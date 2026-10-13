@@ -53,7 +53,7 @@ function computeSpaceWidth() {
 const BASE_SPACE_W = computeSpaceWidth();
 
 export default function SentenceModelAnimation({
-  text, startX, maxX, lineIndex = 0, activeWordIndex = -1, replayKey = 0,
+  text, wordColors = [], startX, maxX, lineIndex = 0, activeWordIndex = -1, replayKey = 0,
   scrub = null, onProgress = null,
 }) {
   const lineOffset = lineIndex * CH;
@@ -198,16 +198,30 @@ export default function SentenceModelAnimation({
     return Math.max(0, Math.min(1, progress - i)); // active word — animate
   };
 
+  // Map a char index to its word's sentence-patterning color (noun=green,
+  // verb=orange, article=pink/light blue, preposition=dark blue). Falls back
+  // to the default outline/ink color when no wordColors are provided.
+  const charColor = (i) => {
+    if (!wordColors.length) return OUTLINE;
+    for (let wi = 0; wi < wordRanges.length; wi++) {
+      if (i >= wordRanges[wi].start && i < wordRanges[wi].end) {
+        return wordColors[wi] || OUTLINE;
+      }
+    }
+    return OUTLINE;
+  };
+
   return (
     <g>
       {/* Faint outlines of all letters + punctuation (writing guide).
           Punctuation has no waypoints, so it's drawn with a font (Andika)
           instead of a spline path. */}
       {positioned.map((c, i) => {
+        const oc = charColor(i);
         if (c.type === 'punct') {
           return (
             <text key={`o-${i}`} x={c.x + c.w / 2} y={grassY}
-              fontSize={120} fill={OUTLINE} textAnchor="middle" opacity="1"
+              fontSize={120} fill={oc} textAnchor="middle" opacity="1"
               fontFamily="'Andika', sans-serif" fontWeight="bold">
               {c.ch}
             </text>
@@ -217,12 +231,12 @@ export default function SentenceModelAnimation({
         return c.strokes.map((stroke, si) => {
           if (stroke.length === 1) {
             const p = mapPoint(stroke[0], c);
-            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={OUTLINE} opacity="1" vectorEffect="non-scaling-stroke" />;
+            return <circle key={`o-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={oc} opacity="1" vectorEffect="non-scaling-stroke" />;
           }
           const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`o-${i}-${si}`} d={splinePathD(pts)} fill="none"
-              stroke={OUTLINE} strokeWidth={OUTLINE_STROKE} strokeLinecap="round" strokeLinejoin="round"
+              stroke={oc} strokeWidth={OUTLINE_STROKE} strokeLinecap="round" strokeLinejoin="round"
               opacity="1" vectorEffect="non-scaling-stroke" />
           );
         });
@@ -231,6 +245,7 @@ export default function SentenceModelAnimation({
       {/* Animated ink + space markers + punctuation */}
       {positioned.map((c, i) => {
         const cp = charProgress(i);
+        const ic = charColor(i);
 
         if (c.type === 'space') {
           // Show space marker only if the word before it has been started
@@ -249,7 +264,7 @@ export default function SentenceModelAnimation({
           if (cp <= 0) return null;
           return (
             <text key={`pu-${i}`} x={c.x + c.w / 2} y={grassY}
-              fontSize={120} fill={INK} textAnchor="middle" opacity={cp}
+              fontSize={120} fill={ic} textAnchor="middle" opacity={cp}
               fontFamily="'Andika', sans-serif" fontWeight="bold">
               {c.ch}
             </text>
@@ -263,12 +278,12 @@ export default function SentenceModelAnimation({
           if (sp <= 0) return null;
           if (stroke.length === 1) {
             const p = mapPoint(stroke[0], c);
-            return <circle key={`i-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={INK} opacity={sp} vectorEffect="non-scaling-stroke" />;
+            return <circle key={`i-${i}-${si}`} cx={p.x} cy={p.y} r={3} fill={ic} opacity={sp} vectorEffect="non-scaling-stroke" />;
           }
           const pts = stroke.map((pt) => mapPoint(pt, c));
           return (
             <path key={`i-${i}-${si}`} d={splinePathD(pts)} fill="none"
-              stroke={INK} strokeWidth={INK_STROKE} strokeLinecap="round" strokeLinejoin="round"
+              stroke={ic} strokeWidth={INK_STROKE} strokeLinecap="round" strokeLinejoin="round"
               pathLength={1} strokeDasharray="1" strokeDashoffset={1 - sp}
               vectorEffect="non-scaling-stroke" />
           );

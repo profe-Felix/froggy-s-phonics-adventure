@@ -7,7 +7,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import CardSlot from './CardSlot';
 import CardPicker from './CardPicker';
 import SentenceWritingArea from './SentenceWritingArea';
-import ColoredSentence from './ColoredSentence';
+import ColoredSentence, { colorizeSentence } from './ColoredSentence';
 import SelfChecks from './SelfChecks';
 import { Loader2, ArrowLeft, RefreshCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -431,8 +431,11 @@ export default function CreandoOraciones({ studentNumber, className, studentName
               const rWhatCard = CARD_MAP[row.what_card];
               const rWhereCard = CARD_MAP[row.where_card];
               const rowSentence = (row.who_card && row.what_card)
-                ? assembleSentence(rWhoCard, rWhatCard, rWhereCard, row.mode)
-                : '';
+              ? assembleSentence(rWhoCard, rWhatCard, rWhereCard, row.mode)
+              : '';
+              const rowWordColors = (row.who_card && row.what_card)
+              ? colorizeSentence(rWhoCard?.text || '', rWhatCard?.text || '', rWhereCard?.text || '', row.mode).map(s => s.color)
+              : [];
               return (
                 <div key={i}>
                   <SentenceWritingArea
@@ -440,6 +443,7 @@ export default function CreandoOraciones({ studentNumber, className, studentName
                     index={i}
                     row={row}
                     sentenceText={rowSentence}
+                    wordColors={rowWordColors}
                     artMode={artMode}
                     tool={tool}
                     color={color}

@@ -11,7 +11,7 @@ import SentenceWritingLines from './SentenceWritingLines';
 // letter outlines) remains so students can see how the letters sit on the
 // lines, and "Escuchar" reads the sentence aloud.
 export default function SentenceWritingArea({
-  index, row, sentenceText,
+  index, row, sentenceText, wordColors,
   tool, color, size,
   onStrokeStart, onStrokeEnd, onActivateCanvas,
   onTypedTextChange, onSelfCheckChange,
@@ -65,6 +65,7 @@ export default function SentenceWritingArea({
           onActivate={onActivate}
           lineCount={2}
           modelText={sentenceText || ''}
+          wordColors={wordColors}
           active={active}
         />
       </div>
