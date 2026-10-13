@@ -516,6 +516,7 @@ export default function Carpet() {
               </Button>
               <div>
                 <h1 className="text-xl font-bold">Carpet Seating</h1>
+                <Link to="/TeacherView" className="text-xs font-bold text-rose-600 hover:underline">← Teacher View</Link>
                 <p className="text-xs text-muted-foreground">
                   {seats
                     ? `${seatedCount} seated · ${homeroom} homeroom`

@@ -10,6 +10,7 @@ import { useLiveBroadcast } from '@/hooks/useLiveBroadcast';
 import TeacherModelPanel from '@/components/live/TeacherModelPanel';
 import TryDashboard from '@/components/live/TryDashboard';
 import LiveNotebookAssessmentPanel from '@/components/live/LiveNotebookAssessmentPanel';
+import ActiveSessionsPanel from '@/components/live/ActiveSessionsPanel';
 import { useClassNames } from '@/hooks/useClassNames';
 import { getHomeroomForClass, ROTATION_TEACHERS } from '@/lib/classRotation';
 import { cn } from '@/lib/utils';
@@ -593,11 +594,11 @@ export default function LiveLesson() {
 
           <div className="flex items-center gap-3 mb-6">
             <Link
-              to="/Lessons"
+              to="/TeacherView"
               className="text-rose-600 hover:underline font-bold text-sm"
             >
               <ArrowLeft className="w-4 h-4 inline mr-1" />
-              Lessons
+              Teacher View
             </Link>
 
             <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
@@ -636,9 +637,21 @@ export default function LiveLesson() {
             >
               📓 Notebook Assessment
             </button>
+            <button
+              onClick={() => setSetupMode('sessions')}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition ${
+                setupMode === 'sessions'
+                  ? 'bg-rose-500 text-white border-rose-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-rose-300'
+              }`}
+            >
+              ⚡ Active Sessions
+            </button>
           </div>
 
-          {setupMode === 'assessment' ? (
+          {setupMode === 'sessions' ? (
+            <ActiveSessionsPanel />
+          ) : setupMode === 'assessment' ? (
             <LiveNotebookAssessmentPanel />
           ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6 space-y-5">

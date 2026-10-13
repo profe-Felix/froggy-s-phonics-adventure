@@ -672,6 +672,7 @@ export default function Desk() {
               </Button>
               <div>
                 <h1 className="text-xl font-bold">Desk Seating</h1>
+                <Link to="/TeacherView" className="text-xs font-bold text-rose-600 hover:underline">← Teacher View</Link>
                 <p className="text-xs text-muted-foreground">
                   {desks
                     ? `${seatedCount} seated · ${desks.length} desks · ${homeroom} homeroom`

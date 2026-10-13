@@ -5,7 +5,7 @@ import { Camera, Radio, LayoutGrid, Table } from 'lucide-react';
 // right-edge LevelSideNav: dark rounded bar with icon buttons that jump to the
 // classroom tools. Links pass the active class so Carpet/Desk land on it.
 const TOOLS = [
-  { key: 'doccam', label: 'Doc Cam', Icon: Camera, path: '/DocumentCamera', passClass: false },
+  { key: 'doccam', label: 'Doc Cam', Icon: Camera, path: '/DocumentCamera', passClass: false, external: true },
   { key: 'live', label: 'Live', Icon: Radio, path: '/LiveLesson', passClass: false },
   { key: 'carpet', label: 'Carpet', Icon: LayoutGrid, path: '/Carpet', passClass: true },
   { key: 'desk', label: 'Desks', Icon: Table, path: '/Desk', passClass: true },
@@ -16,7 +16,12 @@ export default function TeacherToolDock({ activeClass }) {
 
   const go = (tool) => {
     const qs = tool.passClass && activeClass ? `?class=${encodeURIComponent(activeClass)}` : '';
-    navigate(`${tool.path}${qs}`);
+    const url = `${tool.path}${qs}`;
+    if (tool.external) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    navigate(url);
   };
 
   return (
