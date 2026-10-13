@@ -2,8 +2,8 @@ import { useRef, useEffect, useState } from 'react';
 import LinedPaper from './LinedPaper';
 import { smoothPoints } from '@/components/tracing/strokeMath';
 
-// Match the thumbnail + student canvas: 4 lines at the "Big" 150px feel.
-const LINE_HEIGHT = 150;
+// Match the shrunk DictadoLinesCanvas lines so replay matches what students saw.
+const LINE_HEIGHT = 115;
 const LINE_COUNT = 4;
 const PAGE_ASPECT = (LINE_HEIGHT * LINE_COUNT) / 740; // height/width
 

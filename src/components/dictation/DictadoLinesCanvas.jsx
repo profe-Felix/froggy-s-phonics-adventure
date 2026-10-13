@@ -22,7 +22,7 @@ import { Volume2 } from 'lucide-react';
 //
 // Teacher controls (DictadoLivePanel) drive this via `currentLine` + `revealed`.
 
-const MAX_LINE_HEIGHT = 150;
+const MAX_LINE_HEIGHT = 115;
 const MAX_PAGE_WIDTH = 740;
 const DARK = '#1e293b';
 

@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, ChevronRight, ChevronLeft } from 'lucide-react';
 import DictadoThumbnail from '@/components/dictation/DictadoThumbnail';
+import DictadoReplayModal from '@/components/dictation/DictadoReplayModal';
 
 // Teacher control for a live dictado launched from a lesson step.
 // Drives broadcast_state { current_line, revealed } on the LiveDictationSession;
@@ -12,6 +14,7 @@ export default function DictadoLive() {
   const params = new URLSearchParams(window.location.search);
   const sessionId = params.get('session');
   const qc = useQueryClient();
+  const [replay, setReplay] = useState(null);
 
   const { data: session } = useQuery({
     queryKey: ['dictado-live-teacher', sessionId],
@@ -206,23 +209,40 @@ export default function DictadoLive() {
         </main>
 
         {/* Student work */}
-        <aside className="w-72 shrink-0 bg-slate-800/50 border-l border-slate-700 p-3 overflow-y-auto">
-          <p className="text-xs text-slate-500 font-bold mb-2">Student work</p>
+        <aside className="w-80 shrink-0 bg-slate-800/50 border-l border-slate-700 p-3 overflow-y-auto">
+          <p className="text-xs text-slate-500 font-bold mb-2">Student work · tap to replay</p>
           <div className="grid grid-cols-2 gap-2">
-            {(students || []).map((st) => (
-              <div key={st.id} className="bg-white rounded-lg p-1.5">
-                <p className="text-[10px] font-bold text-slate-700 truncate mb-1">
-                  {st.name || `#${st.student_number}`}
-                </p>
-                <DictadoThumbnail submission={subByNumber[st.student_number]} />
-              </div>
-            ))}
+            {(students || []).map((st) => {
+              const sub = subByNumber[st.student_number];
+              return (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => sub && setReplay({ sub, name: st.name || `#${st.student_number}` })}
+                  disabled={!sub}
+                  className={`bg-white rounded-lg p-1.5 text-left transition ${sub ? 'hover:ring-2 hover:ring-indigo-400 cursor-pointer' : 'opacity-60 cursor-default'}`}
+                >
+                  <p className="text-[10px] font-bold text-slate-700 truncate mb-1">
+                    {st.name || `#${st.student_number}`}
+                  </p>
+                  <DictadoThumbnail submission={sub} width={132} height={170} />
+                </button>
+              );
+            })}
             {(students || []).length === 0 && (
               <p className="text-xs text-slate-500 col-span-2">No students.</p>
             )}
           </div>
         </aside>
       </div>
+      {replay && (
+        <DictadoReplayModal
+          submission={replay.sub}
+          studentName={replay.name}
+          lines={lines}
+          onClose={() => setReplay(null)}
+        />
+      )}
     </div>
   );
 }
