@@ -57,7 +57,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [enabledGroups, setEnabledGroups] = useState([]);
   const [waypoints, setWaypoints] = useState({ ...LETTER_WAYPOINTS, ...NUMBER_WAYPOINTS });
   const [selectedKey, setSelectedKey] = useState(null);
-  const [sizeMode, setSizeMode] = useState('paper'); // 'paper' | 'big'
+  const [sizeMode, setSizeMode] = useState('big'); // 'paper' | 'big'
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [letterIdx, setLetterIdx] = useState(0); // which letter (row) within the phase
   const [copyIdx, setCopyIdx] = useState(0);      // which copy of that letter (0..4)
@@ -197,28 +197,6 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           <div className="text-4xl mb-1">✏️</div>
           <h1 className="text-2xl font-bold text-slate-800">Letter Tracing</h1>
           <p className="text-slate-500 text-sm mt-1">Practice letter families together. Finish a set to earn {coinReward} coins!</p>
-        </div>
-
-        {/* Size choice — students weigh paper-size (more coins) vs big (easier, fewer coins) */}
-        <div className="flex items-center gap-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-1.5">
-          <button
-            onClick={() => setSizeMode('paper')}
-            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
-              sizeMode === 'paper' ? 'bg-indigo-500 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <span className="text-base">📏</span> Paper size
-            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${sizeMode === 'paper' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>+{REWARD.paper}</span>
-          </button>
-          <button
-            onClick={() => setSizeMode('big')}
-            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
-              sizeMode === 'big' ? 'bg-indigo-500 text-white shadow' : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <span className="text-base">🔍</span> Big
-            <span className={`text-xs font-black px-1.5 py-0.5 rounded-full ${sizeMode === 'big' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>+{REWARD.big}</span>
-          </button>
         </div>
 
         {groups.length === 0 ? (
