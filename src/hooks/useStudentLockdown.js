@@ -176,6 +176,12 @@ export function useStudentLockdown({
     activeTracingLock: queries[4].data?.find(s => s.active) || null,
     activeNotebookAssessment: queries[5].data?.find(s => {
       if (!s.active) return false;
+      // Teacher released this student early — they're no longer in the
+      // assessment and should not be pulled back in on refresh.
+      if (Array.isArray(s.finished_students) && s.finished_students.some(
+        t => String(t.class_name || '') === String(className || '') &&
+          Number(t.student_number) === Number(studentNumber)
+      )) return false;
       // Whole class (empty target_students) = everyone joins.
       if (!s.target_students || s.target_students.length === 0) return true;
       // Targeted: only listed students join.

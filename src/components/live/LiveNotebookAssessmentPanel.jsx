@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Radio, Eye, EyeOff, ChevronLeft, ChevronRight, X, Pause, Play, Lock, Unlock, Footprints, Users, UserCheck } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
+import NotebookAssessmentRoster from '@/components/live/NotebookAssessmentRoster';
 
 // Live notebook assessment control panel.
 //
@@ -216,6 +217,36 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
       else next.add(num);
       return next;
     });
+  };
+
+  // Release a student early from the live assessment — adds them to
+  // finished_students so their notebook saves and exits while the rest
+  // of the class keeps going. Reads from the ref so two quick taps don't
+  // race on stale state.
+  const releaseStudent = async (num) => {
+    const current = sessionRef.current;
+    if (!current?.id) return;
+    const existing = Array.isArray(current.finished_students) ? current.finished_students : [];
+    const already = existing.some(
+      t => Number(t.student_number) === Number(num) &&
+        String(t.class_name || '') === String(current.class_name || '')
+    );
+    if (already) return;
+    await updateSession({
+      finished_students: [...existing, { class_name: current.class_name, student_number: Number(num) }],
+    });
+  };
+
+  // Re-add a student who was released by mistake.
+  const readdStudent = async (num) => {
+    const current = sessionRef.current;
+    if (!current?.id) return;
+    const existing = Array.isArray(current.finished_students) ? current.finished_students : [];
+    const next = existing.filter(
+      t => !(Number(t.student_number) === Number(num) &&
+        String(t.class_name || '') === String(current.class_name || ''))
+    );
+    await updateSession({ finished_students: next });
   };
 
   // ---------- SETUP SCREEN ----------
@@ -587,6 +618,14 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
             Students are free to navigate at their own pace.
           </div>
         )}
+
+        {/* Student roster — release early finishers so they're not stuck waiting */}
+        <NotebookAssessmentRoster
+          session={session}
+          className={session.class_name}
+          onRelease={releaseStudent}
+          onReadd={readdStudent}
+        />
       </div>
     </div>
   );

@@ -173,6 +173,15 @@ export default function StudentNotebookView({
         setLiveEnded(true);
         return;
       }
+      // Teacher released this student early — treat like the session ending
+      // for them: save their work and exit back to home.
+      if (Array.isArray(fresh.finished_students) && fresh.finished_students.some(
+        t => String(t.class_name || '') === String(className || '') &&
+          Number(t.student_number) === Number(studentNumber)
+      )) {
+        setLiveEnded(true);
+        return;
+      }
       setLiveAssessment(previous => ({
         ...previous,
         ...fresh,
@@ -206,7 +215,7 @@ export default function StudentNotebookView({
         setLiveEnded(true);
         return;
       }
-      if (event.data && ['active', 'paused', 'current_page', 'release_mode'].some(key => key in event.data)) {
+      if (event.data && ['active', 'paused', 'current_page', 'release_mode', 'finished_students'].some(key => key in event.data)) {
         apply(event.data);
       } else {
         void load();

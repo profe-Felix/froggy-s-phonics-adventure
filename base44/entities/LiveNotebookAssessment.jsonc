@@ -36,6 +36,22 @@
       "default": [],
       "description": "Specific students targeted. Empty array = whole class auto-joins. Non-empty = only these students are pulled in (useful for absent students or small-group modeling)."
     },
+    "finished_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": [],
+      "description": "Students the teacher has released early from the assessment. A student in this list is freed back to their normal home (treated as if the session ended for them) while the rest of the class continues. Entries can be removed to re-add a student."
+    },
     "release_mode": {
       "type": "string",
       "enum": [
