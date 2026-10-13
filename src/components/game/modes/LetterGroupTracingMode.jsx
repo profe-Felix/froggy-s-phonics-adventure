@@ -12,12 +12,13 @@ import { inchesToCssPx } from '@/lib/physicalSize';
 import { useViewportScale } from '@/hooks/useViewportScale';
 
 // Letter Tracing GROUP practice (game mode / free play). Students trace a
-// formation family together — all its letters on one ruled line, in
-// pedagogical order — through three phases, then earn a coin set bonus.
+// formation family one letter at a time — each letter gets its own row of
+// COPIES_PER_LETTER copies so the same letter is practiced back-to-back
+// before moving to the next — through three phases, then earn a coin bonus.
 //
-//   Phase 1 "guided"   — 6 lines, dot-guide tracing.
-//   Phase 2 "practice" — 6 lines, faint model + starting dot (no breadcrumb).
-//   Phase 3 "mixed"    — 6 lines, alternating guided / freehand (3 pairs).
+//   Phase 1 "guided"   — one row per letter, dot-guide tracing.
+//   Phase 2 "practice" — one row per letter, faint model + starting dot.
+//   Phase 3 "mixed"    — one row per letter, alternating guided / freehand.
 //
 // SIZE CHOICE:
 //   "paper" — letters at paper-writing size, ALL on one ruled line so
@@ -31,7 +32,7 @@ import { useViewportScale } from '@/hooks/useViewportScale';
 // student record tracks the cycle). Pinch-zoom is disabled so students can't
 // scale the page to cheat the size.
 
-const LINES_PER_PHASE = 6;
+const COPIES_PER_LETTER = 5; // 5 copies of one letter per row → back-to-back practice
 const REWARD = { paper: 30, big: 10 };
 
 // LetterTracingCanvas viewBox constants (kept in sync with the canvas).
@@ -58,8 +59,8 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const [selectedKey, setSelectedKey] = useState(null);
   const [sizeMode, setSizeMode] = useState('paper'); // 'paper' | 'big'
   const [phaseIdx, setPhaseIdx] = useState(0);
-  const [line, setLine] = useState(0);
-  const [letterIdx, setLetterIdx] = useState(0);
+  const [letterIdx, setLetterIdx] = useState(0); // which letter (row) within the phase
+  const [copyIdx, setCopyIdx] = useState(0);      // which copy of that letter (0..4)
   const [traceKey, setTraceKey] = useState(0);
   const [celebrate, setCelebrate] = useState(null);
   // Per-letterIdx saved strokes for the CURRENT line, so completed letters
@@ -159,22 +160,22 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     [enabledGroups, waypoints]
   );
 
-  const persistProgress = (pIdx, ln, li) => {
+  const persistProgress = (pIdx, li, ci) => {
     if (!studentData?.id || !selectedKey) return;
     const prog = { ...(studentData.letter_group_progress || {}) };
-    prog[selectedKey] = { phase: pIdx, line: ln, letterIdx: li };
+    prog[selectedKey] = { phase: pIdx, letterIdx: li, copyIdx: ci };
     onStudentPatch?.({ letter_group_progress: prog });
   };
 
   const selectGroup = (g) => {
     setSelectedKey(g.key);
     const saved = studentData?.letter_group_progress?.[g.key];
-    if (saved && typeof saved === 'object' && (saved.phase || saved.line || saved.letterIdx)) {
+    if (saved && typeof saved === 'object' && (saved.phase || saved.letterIdx || saved.copyIdx)) {
       setPhaseIdx(Math.min(PHASES.length - 1, saved.phase || 0));
-      setLine(Math.max(0, Math.min(LINES_PER_PHASE - 1, saved.line || 0)));
       setLetterIdx(Math.max(0, saved.letterIdx || 0));
+      setCopyIdx(Math.max(0, saved.copyIdx || 0));
     } else {
-      setPhaseIdx(0); setLine(0); setLetterIdx(0);
+      setPhaseIdx(0); setLetterIdx(0); setCopyIdx(0);
     }
     setTraceKey((k) => k + 1);
   };
@@ -232,7 +233,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
             {groups.map((g) => {
               const awarded = awardedSet.has(g.key);
               const prog = studentData?.letter_group_progress?.[g.key];
-              const resume = !awarded && prog && (prog.phase || prog.line || prog.letterIdx);
+              const resume = !awarded && prog && (prog.phase || prog.letterIdx || prog.copyIdx);
               return (
                 <button
                   key={g.key}
@@ -276,45 +277,49 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const currentLetter = letters[letterIdx];
   const letterData = waypoints[currentLetter];
 
-  // Alternating phase: even lines guided, odd lines freehand.
-  const isGuidedLine = phase.key === 'guided' || (phase.key === 'alternating' && line % 2 === 0);
+  // Alternating phase: even letter-rows guided, odd rows freehand.
+  const isGuidedLine = phase.key === 'guided' || (phase.key === 'alternating' && letterIdx % 2 === 0);
   const showGuide = isGuidedLine;
   const freehandMode = !isGuidedLine;
   const dotOnly = !isGuidedLine; // freehand lines show a faint model + starting dot
   const letterSilent = tracingOnly || !isLetterSoundIntroduced(currentLetter, classConfig);
 
-  const totalLines = LINES_PER_PHASE * PHASES.length;
-  const doneLines = phaseIdx * LINES_PER_PHASE + line;
+  // One row per letter per phase; each row = COPIES_PER_LETTER copies of that
+  // letter so the same letter is practiced back-to-back before moving on.
+  const linesPerPhase = letters.length;
+  const totalLines = linesPerPhase * PHASES.length;
+  const doneLines = phaseIdx * linesPerPhase + letterIdx;
   const sectionProgress = Math.round((doneLines / totalLines) * 100);
 
-  // Paper-size line: one canvas row with every letter as a copy, the active
-  // one traceable. Fit all copies into the wrapper width (no scroll) while
-  // capping at real handwriting size.
-  const copies = letters.map((l) => ({ letter: l, strokes: waypoints[l]?.strokes || [] }));
-  const denom = letters.length + ((COPY_GAP * (letters.length - 1) + GUIDE_W) / CANVAS_W);
+  // Paper-size row: COPIES_PER_LETTER copies of the SAME letter, the active
+  // one traceable. Fit at real handwriting size; wide rows scroll if needed.
+  const copies = Array.from({ length: COPIES_PER_LETTER }, () => ({
+    letter: currentLetter,
+    strokes: letterData?.strokes || [],
+  }));
   const physicalPaperCopyWidth = inchesToCssPx(PAPER_COPY_WIDTH_IN) / viewportScale;
-  // Always keep real physical size; if the line is wider than the screen
-  // (portrait phones), it scrolls horizontally instead of shrinking.
   const fitCopyWidth = physicalPaperCopyWidth;
 
   const handleComplete = () => {
-    const nextLetterIdx = letterIdx + 1;
-    if (nextLetterIdx < letters.length) {
-      setLetterIdx(nextLetterIdx);
+    // Advance through the copies of the current letter first (back-to-back),
+    // then move to the next letter (next row), then the next phase.
+    const nextCopy = copyIdx + 1;
+    if (nextCopy < COPIES_PER_LETTER) {
+      setCopyIdx(nextCopy);
       setTraceKey((k) => k + 1);
-      persistProgress(phaseIdx, line, nextLetterIdx);
+      persistProgress(phaseIdx, letterIdx, nextCopy);
       return;
     }
-    const nextLine = line + 1;
-    if (nextLine < LINES_PER_PHASE) {
-      setLine(nextLine); setLetterIdx(0); setLineStrokes([]);
+    const nextLetter = letterIdx + 1;
+    if (nextLetter < letters.length) {
+      setLetterIdx(nextLetter); setCopyIdx(0); setLineStrokes([]);
       setTraceKey((k) => k + 1);
-      persistProgress(phaseIdx, nextLine, 0);
+      persistProgress(phaseIdx, nextLetter, 0);
       return;
     }
     const nextPhase = phaseIdx + 1;
     if (nextPhase < PHASES.length) {
-      setPhaseIdx(nextPhase); setLine(0); setLetterIdx(0); setLineStrokes([]);
+      setPhaseIdx(nextPhase); setLetterIdx(0); setCopyIdx(0); setLineStrokes([]);
       setTraceKey((k) => k + 1);
       persistProgress(nextPhase, 0, 0);
       setCelebrate({ msg: `${phase.label} done!` });
@@ -349,12 +354,12 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
     if (!strokes || !strokes.length) return;
     setLineStrokes(prev => {
       const next = [...prev];
-      next[letterIdx] = strokes;
+      next[copyIdx] = strokes;
       return next;
     });
     if (!studentData?.student_number || !studentData?.class_name || !currentLetter) return;
     // Normalize strokes to 0-1 per letter (subtract this copy's offset).
-    const copyOffset = letterIdx * (300 + 24) + 260;
+    const copyOffset = copyIdx * (300 + 24) + 260;
     const normalized = strokes.map(stroke =>
       stroke.map(p => ({ x: (p.x - copyOffset) / 300, y: p.y / 375 }))
     );
@@ -397,7 +402,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
         </button>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{sizeMode === 'paper' ? '📏 Paper' : '🔍 Big'}</span>
-          <div className="text-[11px] text-slate-400 font-bold leading-none">{phase.label} · line {line + 1}/{LINES_PER_PHASE}</div>
+          <div className="text-[11px] text-slate-400 font-bold leading-none">{phase.label} · {currentLetter} · {copyIdx + 1}/{COPIES_PER_LETTER}</div>
           <div className={`text-[11px] font-bold rounded-full px-2 py-0.5 border ${isGuidedLine ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-violet-700 bg-violet-50 border-violet-200'}`}>
             {isGuidedLine ? '● Trace' : '✍️ Write'}
           </div>
@@ -439,12 +444,12 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
         {sizeMode === 'paper' ? (
           <div className="w-full min-w-0">
           <LetterTracingCanvas
-            key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-paper`}
+            key={`${traceKey}-${currentLetter}-${phaseIdx}-${letterIdx}-${copyIdx}-paper`}
             letter={currentLetter}
             lang={lang}
             strokes={letterData.strokes}
             copies={copies}
-            activeCopy={letterIdx}
+            activeCopy={copyIdx}
             renderWidth={fitCopyWidth}
             showGuide={showGuide}
             freehandMode={freehandMode}
@@ -462,7 +467,7 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
           </div>
         ) : (
           <LetterTracingCanvas
-            key={`${traceKey}-${currentLetter}-${phaseIdx}-${line}-big`}
+            key={`${traceKey}-${currentLetter}-${phaseIdx}-${letterIdx}-${copyIdx}-big`}
             letter={currentLetter}
             lang={lang}
             strokes={letterData.strokes}
