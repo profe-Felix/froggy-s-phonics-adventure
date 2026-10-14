@@ -284,6 +284,11 @@ export default function StudentNotebookView({
   const voiceNotesWritePromiseRef = useRef(Promise.resolve());  
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
+  // Tracks pages the USER actually modified (drew, cleared, undo, redo) on
+  // THIS device. An idle duplicate login (same student left logged in on
+  // another iPad) never touches this set, so it never saves — preventing it
+  // from overwriting the active instance's work with stale canvas data.
+  const modifiedPagesRef = useRef(new Set());
   const lastMicTouchRef = useRef(0);
   const navigationInFlightRef = useRef(false);
 
@@ -346,6 +351,7 @@ export default function StudentNotebookView({
 
   useLayoutEffect(() => {
     loadedKeyRef.current = null;
+    modifiedPagesRef.current.clear();
   }, [selectedAssignment?.id, session?.id]);
 
   useEffect(() => {
@@ -498,6 +504,11 @@ export default function StudentNotebookView({
       canvasRef.current.loadStrokes(data);
       loadedKeyRef.current = key;
       isDrawingRef.current = false;
+      // Reset the modified flag for this page — it was just loaded from the
+      // server/draft, not drawn by the user. If the user doesn't draw, we
+      // must NOT save (prevents an idle duplicate login from overwriting the
+      // active instance's work with stale canvas data).
+      modifiedPagesRef.current.delete(String(currentPage));
       localDirtyRef.current = Boolean(memory || localDraft) || pendingSavesRef.current.size > 0;
     } catch {
       loadedKeyRef.current = null;
@@ -516,6 +527,15 @@ export default function StudentNotebookView({
 
     if (canvasRef.current.pageIdentity !== identity || loadedKeyRef.current !== identity) {
       return Promise.resolve(false);
+    }
+
+    // If the user never modified this page on THIS device, do not save.
+    // This prevents an idle duplicate login (same student left logged in on
+    // another iPad) from overwriting the active instance's work. The idle
+    // iPad's canvas has different dimensions, which would otherwise make the
+    // serialized payload differ from the stored version and trigger a save.
+    if (!modifiedPagesRef.current.has(String(page))) {
+      return Promise.resolve(true);
     }
 
     const key = String(page);
@@ -701,6 +721,7 @@ export default function StudentNotebookView({
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
     localDirtyRef.current = true;
+    modifiedPagesRef.current.add(String(currentPageRef.current));
     setSaveStatus('Unsaved changes');
   }, []);
 
@@ -713,6 +734,7 @@ export default function StudentNotebookView({
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
+    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.clearStrokes();
     void saveStrokes(page);
@@ -723,6 +745,7 @@ export default function StudentNotebookView({
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
+    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.undo();
     void saveStrokes(page);
@@ -733,6 +756,7 @@ export default function StudentNotebookView({
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
+    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.redo();
     void saveStrokes(page);
@@ -883,8 +907,11 @@ export default function StudentNotebookView({
       // commitSessionPage or updateVoiceNotes call) can arrive carrying a
       // strokes_by_page snapshot from BEFORE a just-completed save landed,
       // which would silently delete pages the student already drew. Instead,
-      // only adopt server pages the local has never touched (cross-device
-      // sync from another tab), and always keep the student's own pages.
+      // only adopt server pages the user has NOT modified on THIS device,
+      // and always keep the pages the user drew. This also handles the
+      // duplicate-login case: an idle iPad never modifies any page, so it
+      // adopts every server update (becoming a live mirror of the active
+      // iPad), while the active iPad keeps its own drawn pages.
       const localStrokes =
         latestSessionRef.current?.strokes_by_page || {};
       const serverStrokes = fresh.strokes_by_page || {};
@@ -899,12 +926,11 @@ export default function StudentNotebookView({
         const identity = `${sessionId}-${pageKey}`;
         if (pageDraftsRef.current.has(identity)) continue;
 
-        const localData = localStrokes[pageKey];
-
-        // Only adopt server data for pages the local has never touched.
-        // If the local has any data (even a clear), keep it — the student's
-        // own edit is always the authoritative version for their session.
-        if (localData === undefined || localData === null) {
+        // Adopt server data for pages the user has NOT modified on this
+        // device. If the user drew on this page (or cleared it), keep the
+        // local version — their own edit is authoritative. An idle duplicate
+        // login never modifies any page, so it adopts every update.
+        if (!modifiedPagesRef.current.has(pageKey)) {
           mergedStrokes[pageKey] = serverData;
           if (pageKey === currentPageKey) adoptedCurrentPage = true;
         }
