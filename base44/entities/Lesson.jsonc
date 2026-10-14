@@ -226,6 +226,33 @@
       "default": [],
       "description": "Ordered list of activity steps. Students must complete step N before step N+1 unlocks."
     },
+    "literacy_progression": {
+      "type": "object",
+      "description": "Curriculum content introduced by this lesson: graphemes, sight words, picture words, and sentence patterns. Drives cumulative spiral-review pools and the 'New Words' fluency chart. The LessonEditor edits these fields per lesson.",
+      "default": {},
+      "properties": {
+        "graphemes": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated graphemes introduced this lesson (e.g. 'm,s,a')."
+        },
+        "sightWords": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated new sight words introduced this lesson (e.g. 'tiene,tambi\u00e9n,dice'). Drives the 'New Words' fluency chart and the cumulative sight-word pool."
+        },
+        "pictureWords": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated picture/vocabulary words introduced this lesson."
+        },
+        "sentencePatterns": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated sentence patterns introduced this lesson."
+        }
+      }
+    },
     "active": {
       "type": "boolean",
       "default": true,

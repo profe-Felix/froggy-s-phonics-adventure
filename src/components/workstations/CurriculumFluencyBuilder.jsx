@@ -14,9 +14,11 @@ const DAYS = [
 ];
 
 const CONTENT_TYPES = [
-  { key: 'sight_words', label: 'Sight Words' },
-  { key: 'letters', label: 'Letters / Phonemes' },
-  { key: 'syllables', label: 'Syllables' },
+  { key: 'sight_words_new', label: 'New Words', desc: 'just this lesson' },
+  { key: 'sight_words_all', label: 'All Words', desc: 'cumulative' },
+  { key: 'sight_words', label: 'Spiral Review', desc: 'weighted review' },
+  { key: 'letters', label: 'Letters', desc: 'phonemes' },
+  { key: 'syllables', label: 'Syllables', desc: 'syllables' },
 ];
 
 // Curriculum-driven Fluency Table builder. The teacher picks a week (Lesson
@@ -119,13 +121,13 @@ export default function CurriculumFluencyBuilder({ onStart }) {
 
       <div className="flex flex-col gap-1.5">
         <label className="font-bold text-sm">Content</label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {CONTENT_TYPES.map(t => (
             <button
               key={t.key}
               type="button"
               onClick={() => setContentType(t.key)}
-              className={`flex-1 px-3 py-2 rounded-lg border font-bold text-sm transition ${
+              className={`flex-1 min-w-[90px] px-3 py-2 rounded-lg border font-bold text-sm transition ${
                 contentType === t.key
                   ? 'bg-emerald-600 text-white border-emerald-600'
                   : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
@@ -143,7 +145,7 @@ export default function CurriculumFluencyBuilder({ onStart }) {
             {preset.title} · {preset.rows}×{preset.cols}
           </p>
           <p className="text-xs text-slate-500 mt-0.5">
-            {preset.content.length} items (cumulative spiral review)
+            {preset.content.length} items ({(CONTENT_TYPES.find(t => t.key === contentType) || {}).desc || ''})
           </p>
           {preset.content.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">

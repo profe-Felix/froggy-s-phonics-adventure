@@ -161,6 +161,62 @@ export function buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay 
   return applyWeightedDecay(weekWords.map(w => w.words), 10, decay);
 }
 
+// ── New sight words introduced at exactly this lesson position ─────────────
+// Returns only the words first introduced at M{module}.L{lesson}, deduped.
+export function buildSightWordPoolNew({ moduleNumber, lessonNumber, lessons }) {
+  const newWords = [];
+  (lessons || []).forEach((lesson) => {
+    const dailyLessons = lesson.daily_lessons || [];
+    const hasExact = dailyLessons.some(d =>
+      d.active !== false &&
+      Number(d.module_number) === moduleNumber &&
+      Number(d.curriculum_lesson_number) === lessonNumber
+    );
+    if (!hasExact) return;
+    const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
+    sightWords.forEach(w => { if (!newWords.includes(w)) newWords.push(w); });
+  });
+
+  // Fallback: the incremental delta of the static list between this lesson
+  // and the previous one.
+  if (newWords.length === 0) {
+    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
+    const countHere = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
+    const prevIndex = Math.max(1, lessonIndex - 1);
+    const countPrev = Math.max(5, Math.ceil(prevIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
+    return SIGHT_WORDS_EASY.slice(countPrev, countHere);
+  }
+  return newWords;
+}
+
+// ── All cumulative sight words up to and including this lesson ─────────────
+// Flat deduped list of every sight word introduced at or before this position.
+export function buildSightWordPoolAll({ moduleNumber, lessonNumber, lessons }) {
+  const target = { module_number: moduleNumber, curriculum_lesson_number: lessonNumber };
+  const all = [];
+  (lessons || []).forEach((lesson) => {
+    const dailyLessons = lesson.daily_lessons || [];
+    const positions = dailyLessons
+      .filter(d => d.active !== false)
+      .map(d => ({
+        module_number: Number(d.module_number) || 0,
+        curriculum_lesson_number: Number(d.curriculum_lesson_number) || 0,
+      }))
+      .filter(p => p.module_number > 0 && p.curriculum_lesson_number > 0)
+      .filter(p => compareCurriculumPositions(p, target) <= 0);
+    if (positions.length === 0) return;
+    const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
+    sightWords.forEach(w => { if (!all.includes(w)) all.push(w); });
+  });
+
+  if (all.length === 0) {
+    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
+    const wordCount = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
+    return SIGHT_WORDS_EASY.slice(0, wordCount);
+  }
+  return all;
+}
+
 // ── Fluency preset builder ─────────────────────────────────────────────────
 function ensurePoolSize(pool, targetSize) {
   if (pool.length === 0 || pool.length >= targetSize) return pool;
@@ -182,6 +238,14 @@ export function buildFluencyPreset({ moduleNumber, lessonNumber, contentType, le
     sweep_ms = 800;
   } else if (contentType === 'sight_words') {
     content = buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay });
+    cols = 6;
+    sweep_ms = 800;
+  } else if (contentType === 'sight_words_new') {
+    content = buildSightWordPoolNew({ moduleNumber, lessonNumber, lessons });
+    cols = 6;
+    sweep_ms = 800;
+  } else if (contentType === 'sight_words_all') {
+    content = buildSightWordPoolAll({ moduleNumber, lessonNumber, lessons });
     cols = 6;
     sweep_ms = 800;
   }
