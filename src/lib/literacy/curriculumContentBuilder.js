@@ -16,6 +16,11 @@ import {
   splitLiteracyList,
   normalizeSpanish,
 } from './lessonProgression';
+import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
+
+// Total curriculum lessons = 9 modules × 15 lessons. Used by the static
+// fallback when no lesson records carry literacy_progression.sightWords.
+const TOTAL_CURRICULUM_LESSONS = 135;
 
 // decay=0.6 → each lesson back gets 60% of the weight of the one after it.
 const DEFAULT_DECAY = 0.6;
@@ -140,6 +145,19 @@ export function buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay 
   });
 
   weekWords.sort((a, b) => compareCurriculumPositions(a.position, b.position));
+
+  // Fallback: when no lesson records carry literacy_progression.sightWords,
+  // use a cumulative position-based subset of the static SIGHT_WORDS_EASY
+  // list (ordered by pedagogical progression). Mirrors useKnownSightWords.
+  if (weekWords.length === 0) {
+    const lessonIndex = (moduleNumber - 1) * 15 + lessonNumber;
+    const wordCount = Math.max(
+      5,
+      Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS)
+    );
+    return SIGHT_WORDS_EASY.slice(0, wordCount);
+  }
+
   return applyWeightedDecay(weekWords.map(w => w.words), 10, decay);
 }
 
