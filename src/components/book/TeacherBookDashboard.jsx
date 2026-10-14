@@ -10,6 +10,8 @@ import BookStudentGrid from './BookStudentGrid';
 import TeacherBookAnnotator from './TeacherBookAnnotator';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
+import HtmlBookReview from './HtmlBookReview';
+import { parseHtmlPage } from '@/lib/htmlBookParser';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
@@ -30,6 +32,8 @@ export default function TeacherBookDashboard({ onBack }) {
   const [reviewDate, setReviewDate] = useState(todayLocal());
   const [qrBook, setQrBook] = useState(null);
   const [qrBookClass, setQrBookClass] = useState('Felix');
+  const [parsingHtml, setParsingHtml] = useState(false);
+  const [htmlPages, setHtmlPages] = useState(null);
 
   const selectedClassConfig =
     CLASS_CONFIGS.find(
@@ -272,6 +276,128 @@ export default function TeacherBookDashboard({ onBack }) {
     }
   };
 
+  const handleFileSelect = async (files) => {
+    const htmlFiles = files.filter(
+      (f) =>
+        /\.(htm|html|xhtml)$/i.test(f.name) ||
+        f.type === 'text/html' ||
+        f.type === 'application/xhtml+xml'
+    );
+    const otherFiles = files.filter((f) => !htmlFiles.includes(f));
+
+    if (htmlFiles.length > 0 && otherFiles.length > 0) {
+      alert(
+        'Please upload either HTML pages or a single PDF/image, not both at once.'
+      );
+      return;
+    }
+
+    if (htmlFiles.length > 0) {
+      if (!newTitle.trim()) {
+        alert('Enter a book title first');
+        return;
+      }
+      setParsingHtml(true);
+      try {
+        const parsed = await Promise.all(
+          htmlFiles.map((f) => parseHtmlPage(f))
+        );
+        parsed.sort(
+          (a, b) => (a.pageNumber ?? 9999) - (b.pageNumber ?? 9999)
+        );
+        setHtmlPages(parsed);
+      } catch (error) {
+        alert('Could not parse the HTML files: ' + error.message);
+      } finally {
+        setParsingHtml(false);
+      }
+      return;
+    }
+
+    if (otherFiles.length > 0) {
+      await uploadBook(otherFiles[0]);
+    }
+  };
+
+  const uploadHtmlBook = async (orderedPages) => {
+    setUploading(true);
+    try {
+      const uploadedPages = await Promise.all(
+        orderedPages.map(async (p, i) => {
+          const imageFile = p.imageBlob
+            ? new File([p.imageBlob], `page-${p.pageNumber || i + 1}.png`, {
+                type: p.imageBlob.type || 'image/png',
+              })
+            : null;
+
+          const [imageRes, htmlRes] = await Promise.all([
+            imageFile
+              ? base44.integrations.Core.UploadFile({ file: imageFile })
+              : Promise.resolve(null),
+            base44.integrations.Core.UploadFile({ file: p.file }),
+          ]);
+
+          return {
+            page_number: p.pageNumber || i + 1,
+            image_url: imageRes?.file_url || '',
+            html_url: htmlRes.file_url,
+            text: p.text,
+            words: p.words,
+          };
+        })
+      );
+
+      const pageCount = uploadedPages.length;
+      const coverImage = uploadedPages[0]?.image_url || '';
+
+      const catalogBook = await base44.entities.BookCatalog.create({
+        title: newTitle.trim(),
+        language: classLanguage,
+        grade: classGrade,
+        pdf_url: null,
+        cover_image_url: coverImage,
+        pages: uploadedPages,
+        pdf_page_count: pageCount,
+        book_type: 'html',
+        module: newModule || '',
+        recording_pages: [],
+        source_assignment_id: '',
+      });
+
+      const assignment = await base44.entities.BookAssignment.create({
+        title: newTitle.trim(),
+        class_name: className,
+        language: classLanguage,
+        grade: classGrade,
+        catalog_book_id: catalogBook.id,
+        available_to_classes: [className],
+        school_year: ACTIVE_SCHOOL_YEAR,
+        pdf_url: null,
+        cover_image_url: coverImage,
+        pages: uploadedPages,
+        pdf_page_count: pageCount,
+        book_type: 'html',
+        module: newModule || '',
+        status: 'draft',
+        teacher_annotations: [],
+      });
+
+      await base44.entities.BookCatalog.update(catalogBook.id, {
+        source_assignment_id: assignment.id,
+      });
+
+      setNewTitle('');
+      setNewModule('');
+      setHtmlPages(null);
+      qc.invalidateQueries(['books-all', className]);
+    } catch (error) {
+      console.error('HTML book upload failed', error);
+      alert('The book could not be created. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const ensureCatalogForBook = async (book) => {
     if (!book) return null;
 
@@ -327,9 +453,9 @@ export default function TeacherBookDashboard({ onBack }) {
   const handleDrop = async (e) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
-    await uploadBook(file);
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length === 0) return;
+    await handleFileSelect(files);
   };
 
   const getBookClasses = book =>
@@ -515,12 +641,12 @@ export default function TeacherBookDashboard({ onBack }) {
                 onDrop={handleDrop}
                 onClick={() => document.getElementById('book-file-input').click()}
                 className={`h-28 rounded-2xl border-4 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${dragging ? 'border-teal-400 bg-teal-900/30' : 'border-teal-700 hover:border-teal-500'}`}>
-                {uploading
+                {uploading || parsingHtml
                   ? <div className="w-6 h-6 border-4 border-teal-400 border-t-transparent rounded-full animate-spin" />
-                  : <><span className="text-3xl">📄</span><p className="text-teal-300 text-sm font-bold">Drop PDF or image, or tap to browse</p></>}
+                  : <><span className="text-3xl">📄</span><p className="text-teal-300 text-sm font-bold">Drop PDF, image, or HTML pages, or tap to browse</p></>}
               </div>
-              <input id="book-file-input" type="file" accept="application/pdf,image/*" className="hidden"
-                onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await uploadBook(f); }} />
+              <input id="book-file-input" type="file" accept="application/pdf,image/*,.htm,.html,.xhtml,text/html,application/xhtml+xml" multiple className="hidden"
+                onChange={async e => { const files = [...(e.target.files || [])]; e.target.value = ''; if (files.length) await handleFileSelect(files); }} />
             </div>
 
             {books.map(b => (
@@ -1084,6 +1210,18 @@ export default function TeacherBookDashboard({ onBack }) {
           </div>
         )}
       </div>
+
+      {/* HTML page review modal */}
+      {htmlPages && (
+        <HtmlBookReview
+          pages={htmlPages}
+          bookTitle={newTitle}
+          module={newModule}
+          uploading={uploading}
+          onConfirm={(ordered) => uploadHtmlBook(ordered)}
+          onCancel={() => setHtmlPages(null)}
+        />
+      )}
 
       {/* Book QR Modal */}
       {qrBook && (() => {

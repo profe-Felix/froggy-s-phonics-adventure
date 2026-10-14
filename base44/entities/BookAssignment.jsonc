@@ -63,7 +63,7 @@
       "items": {
         "type": "object"
       },
-      "description": "Array of {page_number, image_url} for image-based books"
+      "description": "Array of page objects. For image books: {page_number, image_url}. For HTML books: {page_number, image_url, html_url, text, words: [{text, x, y, w, h}]}."
     },
     "pdf_page_count": {
       "type": "integer",
@@ -73,7 +73,8 @@
       "type": "string",
       "enum": [
         "pdf",
-        "images"
+        "images",
+        "html"
       ],
       "default": "pdf"
     },

@@ -14,6 +14,7 @@ import useBookQuestions from '@/hooks/useBookQuestions';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
 import ReaderQuestions from '@/components/book/ReaderQuestions';
 import PageMarkOverlay from '@/components/book/PageMarkOverlay';
+import HtmlPageRenderer from '@/components/book/HtmlPageRenderer';
 
 // localStorage key remembering the last book + page this student opened, so a
 // refresh (or re-entering Books from the game menu) drops them back on the
@@ -569,6 +570,12 @@ export default function StudentBookReader({
       return img
         ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
+    }
+    if (book.book_type === 'html') {
+      const page = (book.pages || []).find(p => p.page_number === pageNum);
+      return page
+        ? <HtmlPageRenderer page={page} highlightWords={teacherMode ? bookKnownWords : null} alignSelf={align} />
+        : <div className="flex items-center justify-center w-full h-full text-gray-400">No page</div>;
     }
     return (
       <PdfPageRenderer
