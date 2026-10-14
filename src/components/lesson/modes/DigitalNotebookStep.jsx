@@ -157,6 +157,7 @@ export default function DigitalNotebookStep({
   studentNumber,
   className,
   onComplete,
+  registerSave = null,
 }) {
   const [completing, setCompleting] =
     useState(false);
@@ -165,7 +166,8 @@ export default function DigitalNotebookStep({
   const [finishError, setFinishError] = useState('');
   const registerNotebookSave = useCallback(save => {
     notebookSaveRef.current = save;
-  }, []);
+    registerSave?.(save);
+  }, [registerSave]);
 
   const selectedPages = useMemo(
     () =>

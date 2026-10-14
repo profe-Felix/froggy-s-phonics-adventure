@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { X, Check } from 'lucide-react';
 import LessonModeRouter from './LessonModeRouter';
@@ -27,6 +27,12 @@ export default function LessonStepper({
   const completedSteps = progress?.completed_steps || [];
   const [stepIdx, setStepIdx] = useState(0);
   const [viewMode, setViewMode] = useState('overview');
+  const activitySaveRef = useRef(null);
+  const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
+  const leaveActivity = async () => {
+    if (activitySaveRef.current && await activitySaveRef.current() !== true) return;
+    stopAllAudio(); setViewMode('overview');
+  };
 
   // Independent lessons never show live-only activities. Home sessions also
   // hide activities marked school-only.
@@ -153,7 +159,7 @@ export default function LessonStepper({
     <div className="relative h-screen flex flex-col bg-[#dae2f3]">
       {/* Top bar: exit + step title */}
       <div className="flex items-center justify-between px-4 py-3 z-30 shrink-0">
-        <button onClick={() => { stopAllAudio(); setViewMode('overview'); }} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
+        <button onClick={leaveActivity} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
           <X className="w-5 h-5" />
         </button>
         <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
@@ -166,6 +172,7 @@ export default function LessonStepper({
       <div className="flex-1 relative min-h-0">
         <LessonModeRouter
           key={stepIdx}
+          registerActivitySave={registerActivitySave}
           step={step}
           stepIndex={curOriginalIndex}
           lessonId={lessonId}

@@ -19,6 +19,12 @@ import useCutPaste from '@/hooks/useCutPaste';
 import BackButton from '@/components/ui/BackButton';
 import { QRCodeSVG } from 'qrcode.react';
 import { useClassNames } from '@/hooks/useClassNames';
+import useSharedNotebook from '@/components/notebook/useSharedNotebook';
+import NotebookFeedback from '@/components/notebook/NotebookFeedback';
+import NotebookNotePins from '@/components/notebook/NotebookNotePins';
+import useNotebookPagePosition from '@/components/notebook/useNotebookPagePosition';
+import useNotebookMedia from '@/components/notebook/useNotebookMedia';
+import { getAssignmentPageBounds, getEffectiveLockedPage, snapToAllowedPage } from '@/components/notebook/notebookPageBounds';
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return null;
@@ -31,70 +37,6 @@ function getYouTubeEmbedUrl(url) {
   } catch { return null; }
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
   return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1` : null;
-}
-
-function getAssignmentPageBounds(assignment) {
-  const total = Math.max(
-    1,
-    Number(
-      assignment?.pdf_page_count ||
-      assignment?.page_count ||
-      assignment?.page_range_end ||
-      1
-    )
-  );
-
-  const limitActive =
-    assignment?.page_mode === 'locked' ||
-    assignment?.limit_pages;
-
-  if (!limitActive) {
-    return {
-      total,
-      min: 1,
-      max: total,
-    };
-  }
-
-  const requestedMin = Number(assignment?.page_range_start || 1);
-  const requestedMax = Number(assignment?.page_range_end || total);
-
-  const min = Math.max(1, Math.min(total, requestedMin));
-  const max = Math.max(min, Math.min(total, requestedMax));
-
-  return {
-    total,
-    min,
-    max,
-  };
-}
-
-function getEffectiveLockedPage(assignment) {
-  const bounds = getAssignmentPageBounds(assignment);
-  const requestedPage = Number(
-    assignment?.locked_page ||
-    bounds.min
-  );
-
-  return Math.max(
-    bounds.min,
-    Math.min(bounds.max, requestedPage)
-  );
-}
-
-function snapToAllowedPage(targetPage, currentPage, allowedPages) {
-  if (!allowedPages || allowedPages.length === 0) return targetPage;
-  if (allowedPages.includes(targetPage)) return targetPage;
-  const min = allowedPages[0];
-  const max = allowedPages[allowedPages.length - 1];
-  const clamped = Math.max(min, Math.min(max, targetPage));
-  if (allowedPages.includes(clamped)) return clamped;
-  if (targetPage > currentPage) {
-    const next = allowedPages.find(p => p > currentPage);
-    return next ?? max;
-  }
-  const prev = [...allowedPages].reverse().find(p => p < currentPage);
-  return prev ?? min;
 }
 
 function AssignmentPicker({ assignments, onSelect, className }) {
@@ -135,6 +77,8 @@ export default function StudentNotebookView({
   liveAssessmentId = null,
   pageLock = null,
   registerSave = null,
+  teacherMode = false,
+  assignmentOverride = null,
 }) {
   const qc = useQueryClient();
   const onBackRef = useRef(onBack);
@@ -246,10 +190,12 @@ export default function StudentNotebookView({
   const isEmbedded = embedded || Boolean(extraHeaderContent);
   const [showQR, setShowQR] = useState(false);
   const [qrClass, setQrClass] = useState('');
-  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [selectedAssignment, setSelectedAssignment] = useState(assignmentOverride);
+  const [placingFeedback, setPlacingFeedback] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [tool, setTool] = useState('pen');
-  const [color, setColor] = useState('#4338ca');
+  const [color, setColor] = useState(teacherMode ? '#dc2626' : '#4338ca');
   const [size, setSize] = useState(4);
   const [side, setSide] = useState('left');
   const [fitMode, setFitMode] = useState(() => {
@@ -260,6 +206,7 @@ export default function StudentNotebookView({
   }); // width | height | page
   const [session, setSession] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingSave, setConfirmingSave] = useState(false);
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastUrl, setBroadcastUrl] = useState(null);
   const [showAudioHint, setShowAudioHint] = useState(false);
@@ -273,23 +220,15 @@ export default function StudentNotebookView({
   const pdfWrapperRef = useRef(null); // inner PDF wrapper — laser tracks against this
   const [canvasSize, setCanvasSize] = useState({ w: 600, h: 800 });
   const [pdfRenderedSize, setPdfRenderedSize] = useState(null);
-  const saveTimer = useRef(null);
   const loadedKeyRef = useRef(null);
-  const saveInFlightRef = useRef(false);
-  const pendingSavesRef = useRef(new Map());
-  const saveDrainPromiseRef = useRef(null);
   const latestSessionRef = useRef(null);
   const pendingPageCommitRef = useRef(null);
   const pageCommitPromiseRef = useRef(null);
-  const voiceNotesWritePromiseRef = useRef(Promise.resolve());  
+  const voiceNotesWritePromiseRef = useRef(Promise.resolve());
   const isDrawingRef = useRef(false);
   const localDirtyRef = useRef(false);
-  // Tracks pages the USER actually modified (drew, cleared, undo, redo) on
-  // THIS device. An idle duplicate login (same student left logged in on
-  // another iPad) never touches this set, so it never saves — preventing it
-  // from overwriting the active instance's work with stale canvas data.
-  const modifiedPagesRef = useRef(new Set());
   const lastMicTouchRef = useRef(0);
+  const shared = useSharedNotebook(selectedAssignment, className, studentNumber, currentPage, teacherMode);
   const navigationInFlightRef = useRef(false);
 
   // Keep a ref so saveStrokes always uses the correct page — avoids stale closure bugs
@@ -349,10 +288,7 @@ export default function StudentNotebookView({
     if (match) setSelectedAssignment(match);
   }, [assignments, directAssignmentName, selectedAssignment]);
 
-  useLayoutEffect(() => {
-    loadedKeyRef.current = null;
-    modifiedPagesRef.current.clear();
-  }, [selectedAssignment?.id, session?.id]);
+  useLayoutEffect(() => { loadedKeyRef.current = null; }, [selectedAssignment?.id, session?.id]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -398,273 +334,42 @@ export default function StudentNotebookView({
   }, [selectedAssignment?.id]);
 
   useEffect(() => {
-    if (!selectedAssignment) return;
-    let alive = true;
-    setNotebookLoadError('');
-    (async () => {
-      try {
-      const sessions = await requestWithRetry(() => base44.entities.NotebookSession.filter({
-        assignment_id: selectedAssignment.id,
-        student_number: studentNumber,
-        class_name: className,
-        school_year: ACTIVE_SCHOOL_YEAR,
-      }));
-      if (!alive) return;
-
-      const limitActive = selectedAssignment.page_mode === 'locked' || selectedAssignment.limit_pages;
-      const pdfMaxPage = selectedAssignment.pdf_page_count || selectedAssignment.page_count || 1;
-      const minAllowed = limitActive ? (selectedAssignment.page_range_start || 1) : 1;
-      const maxAllowed = limitActive
-        ? Math.min(selectedAssignment.page_range_end || pdfMaxPage, pdfMaxPage)
-        : pdfMaxPage;
-
-      if (sessions.length > 0) {
-        const sorted = [...sessions].sort(
-          (a, b) => new Date(b.updated_date || b.last_active || 0) - new Date(a.updated_date || a.last_active || 0)
-        );
-        const activeSession = sorted[0];
-        setSession(activeSession);
-        latestSessionRef.current = activeSession;
-        const page = activeSession.current_page || 1;
-        let desiredPage;
-        if (pageLock && pageLock.length > 0) {
-          desiredPage = snapToAllowedPage(directPage || page || pageLock[0], pageLock[0], pageLock);
-        } else if (selectedAssignment.page_mode === 'locked') {
-          desiredPage = getEffectiveLockedPage(selectedAssignment);
-        } else {
-          desiredPage = Math.max(
-            minAllowed,
-            Math.min(maxAllowed, directPage || page)
-          );
-        }
-
-        currentPageRef.current = desiredPage;
-        setCurrentPage(desiredPage);
-      } else {
-        let desiredPage;
-        if (pageLock && pageLock.length > 0) {
-          desiredPage = snapToAllowedPage(directPage || pageLock[0], pageLock[0], pageLock);
-        } else if (selectedAssignment.page_mode === 'locked') {
-          desiredPage = getEffectiveLockedPage(selectedAssignment);
-        } else {
-          desiredPage = Math.max(
-            minAllowed,
-            Math.min(maxAllowed, directPage || 1)
-          );
-        }
-
-        const newSession = await base44.entities.NotebookSession.create({
-          assignment_id: selectedAssignment.id,
-          class_name: className,
-          student_number: studentNumber,
-          school_year: ACTIVE_SCHOOL_YEAR,
-          current_page: desiredPage,
-          strokes_by_page: {},
-        });
-
-        if (!alive) return;
-        setSession(newSession);
-        latestSessionRef.current = newSession;
-        currentPageRef.current = desiredPage;
-        setCurrentPage(desiredPage);
-      }
-      } catch (error) {
-        if (alive) {
-          setNotebookLoadError('Your notebook could not load yet. Keep your class and number selected and retry.');
-        }
-      }
-    })();
-    return () => { alive = false; };
-  }, [selectedAssignment?.id, className, studentNumber, notebookLoadAttempt]);
-
-  useEffect(() => {
-    latestSessionRef.current = session;
-  }, [session]);
+    if (!shared.session) return;
+    const firstLoad = latestSessionRef.current?.id !== shared.session.id;
+    const next = firstLoad ? shared.session : { ...latestSessionRef.current, strokes_by_page: shared.session.strokes_by_page };
+    latestSessionRef.current = next;
+    setSession(next);
+    if (firstLoad) {
+      const bounds = getAssignmentPageBounds(selectedAssignment);
+      const requested = directPage || next.current_page || 1;
+      const target = teacherMode ? Math.max(1, Math.min(bounds.total, requested)) : pageLock?.length ? snapToAllowedPage(requested, pageLock[0], pageLock) : selectedAssignment?.page_mode === 'locked' ? getEffectiveLockedPage(selectedAssignment) : Math.max(bounds.min, Math.min(bounds.max, requested));
+      currentPageRef.current = target;
+      setCurrentPage(target);
+    }
+  }, [shared.session, selectedAssignment?.id]);
 
   useLayoutEffect(() => {
-    if (!session || !canvasRef.current || !pdfRenderedSize) return;
-    if (session.assignment_id !== selectedAssignment?.id) return;
-
-    const key = `${session.id}-${currentPage}`;
-    if (canvasRef.current.pageIdentity !== key || loadedKeyRef.current === key) return;
-
-    const memory = pageDraftsRef.current.get(key);
-    let localDraft = null;
-
-    try {
-      localDraft = draftKey ? localStorage.getItem(draftKey) : null;
-    } catch {
-      setSaveError('Local storage is unavailable. Keep this notebook open until the server confirms saving.');
-    }
-
-    const source = memory?.payload ?? localDraft ?? session.strokes_by_page?.[String(currentPage)] ?? null;
-
-    try {
-      const data = typeof source === 'string' ? JSON.parse(source) : source;
+    const data = shared.pages[currentPage];
+    const identity = session ? `${session.id}-${currentPage}` : null;
+    if (!data || !canvasRef.current || !pdfRenderedSize || canvasRef.current.pageIdentity !== identity) return;
+    if (loadedKeyRef.current !== identity) {
       canvasRef.current.loadStrokes(data);
-      loadedKeyRef.current = key;
-      isDrawingRef.current = false;
-      // Reset the modified flag for this page — it was just loaded from the
-      // server/draft, not drawn by the user. If the user doesn't draw, we
-      // must NOT save (prevents an idle duplicate login from overwriting the
-      // active instance's work with stale canvas data).
-      modifiedPagesRef.current.delete(String(currentPage));
-      localDirtyRef.current = Boolean(memory || localDraft) || pendingSavesRef.current.size > 0;
-    } catch {
-      loadedKeyRef.current = null;
-      setNotebookLoadError('This page has unreadable recovery data. It has NOT been erased. Keep this device open and ask your teacher for help.');
-    }
-  }, [currentPage, session?.id, selectedAssignment?.id, draftKey, !!pdfRenderedSize]);
+      loadedKeyRef.current = identity;
+    } else canvasRef.current.mergeSharedStrokes(data);
+  }, [shared.pages, currentPage, session?.id, !!pdfRenderedSize]);
 
-  const saveStrokes = useCallback((pageOverride, preCapturedData) => {
-    if (!canvasRef.current || !latestSessionRef.current) {
-      return Promise.resolve(false);
-    }
-
-    const active = latestSessionRef.current;
-    const page = pageOverride ?? currentPageRef.current;
-    const identity = `${active.id}-${page}`;
-
-    if (canvasRef.current.pageIdentity !== identity || loadedKeyRef.current !== identity) {
-      return Promise.resolve(false);
-    }
-
-    // If the user never modified this page on THIS device, do not save.
-    // This prevents an idle duplicate login (same student left logged in on
-    // another iPad) from overwriting the active instance's work. The idle
-    // iPad's canvas has different dimensions, which would otherwise make the
-    // serialized payload differ from the stored version and trigger a save.
-    if (!modifiedPagesRef.current.has(String(page))) {
-      return Promise.resolve(true);
-    }
-
-    const key = String(page);
-    const payload = {
-      ...(preCapturedData ?? canvasRef.current.getStrokes()),
-      canvasWidth: pdfRenderedSize?.w || canvasSize.w,
-      canvasHeight: pdfRenderedSize?.h || canvasSize.h,
-      normalized: true,
-    };
-    const serialized = JSON.stringify(payload);
-    const draftKey = `notebook-draft-${active.id}-${page}`;
-
-    const existingDraft = pageDraftsRef.current.get(identity);
-    const alreadyCaptured = existingDraft && JSON.stringify(existingDraft.payload) === serialized;
-
-    if (!alreadyCaptured && (
-      active.strokes_by_page?.[key] !== serialized ||
-      pendingSavesRef.current.has(key) ||
-      saveInFlightRef.current
-    )) {
-      try {
-        localStorage.setItem(draftKey, serialized);
-      } catch {
-        setSaveError('Local recovery storage is unavailable. Keep this page open until saving succeeds.');
-      }
-      const entry = { sessionId: active.id, page, payload, draftKey };
-      pendingSavesRef.current.set(key, entry);
-      pageDraftsRef.current.set(identity, entry);
-      localDirtyRef.current = true;
-      setSaveStatus('Unsaved changes');
-    }
-
-    if (isDrawingRef.current) {
-      return Promise.resolve(false);
-    }
-
-    if (saveDrainPromiseRef.current) return saveDrainPromiseRef.current;
-    if (!pendingSavesRef.current.size) return Promise.resolve(true);
-
-    saveInFlightRef.current = true;
-    setSaving(true);
-
-    saveDrainPromiseRef.current = (async () => {
-      // Capture strokes locally immediately, then coalesce short bursts.
-      // Longer delay = fewer API calls under heavy classroom load.
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      while (pendingSavesRef.current.size) {
-        const [pageKey, queued] =
-          pendingSavesRef.current.entries().next().value;
-
-        pendingSavesRef.current.delete(pageKey);
-        if (latestSessionRef.current?.id !== queued.sessionId) continue;
-
-        try {
-          // Dot-notation $set touches ONLY the specific page key — other
-          // pages on the server are never at risk, even if local state
-          // somehow lost one. This is the bulletproof fix for data loss:
-          // the old code sent the ENTIRE strokes_by_page object, so a
-          // stale realtime echo that clobbered local state would propagate
-          // the loss to the server on the next save.
-          const now = new Date().toISOString();
-          const serializedPayload = JSON.stringify(queued.payload);
-
-          await requestWithRetry(() =>
-            base44.entities.NotebookSession.updateMany(
-              { id: queued.sessionId },
-              {
-                $set: {
-                  [`strokes_by_page.${pageKey}`]: serializedPayload,
-                  last_active: now,
-                },
-              }
-            )
-          );
-
-          if (latestSessionRef.current?.id === queued.sessionId) {
-            const next = {
-              ...latestSessionRef.current,
-              strokes_by_page: {
-                ...(latestSessionRef.current.strokes_by_page || {}),
-                [pageKey]: serializedPayload,
-              },
-            };
-            latestSessionRef.current = next;
-            setSession(next);
-          }
-
-          const identity = `${queued.sessionId}-${queued.page}`;
-
-          if (pageDraftsRef.current.get(identity) === queued) {
-            pageDraftsRef.current.delete(identity);
-            try {
-              localStorage.removeItem(queued.draftKey);
-            } catch {}
-          }
-
-          setSaveError('');
-        } catch (error) {
-          // Keep failed work queued and retain its recovery draft.
-          // Do not replace a newer pending version of the same page.
-          if (!pendingSavesRef.current.has(pageKey)) {
-            pendingSavesRef.current.set(pageKey, queued);
-          }
-          setSaveError('Not saved to the server yet — keeping your draft and retrying. Keep this notebook open.');
-          console.error('Notebook save failed', error);
-          return false;
-        }
-      }
-
-      if (isDrawingRef.current) return false;
-      setSaveStatus('Saved to server');
-      return true;
-    })().finally(() => {
-      saveInFlightRef.current = false;
-      saveDrainPromiseRef.current = null;
-      localDirtyRef.current =
-        pendingSavesRef.current.size > 0 || isDrawingRef.current;
-      setSaving(false);
-    });
-
-    return saveDrainPromiseRef.current;
-  }, [canvasSize, pdfRenderedSize]);
-
+  const saveStrokes = useCallback(() => shared.flush(), [shared.flush]);
   const flushNotebook = useCallback(() => {
     canvasRef.current?.finishPendingStroke?.();
     isDrawingRef.current = false;
-    return saveStrokes(currentPageRef.current);
-  }, [saveStrokes]);
+    return shared.flush();
+  }, [shared.flush]);
+
+  useEffect(() => {
+    setSaveStatus(shared.status);
+    setSaveError(shared.error);
+    setSaving(shared.status === 'Saving changes…');
+  }, [shared.status, shared.error]);
 
   useEffect(() => {
     if (!registerSave) return;
@@ -721,23 +426,19 @@ export default function StudentNotebookView({
   const handleStrokeStart = useCallback(() => {
     isDrawingRef.current = true;
     localDirtyRef.current = true;
-    modifiedPagesRef.current.add(String(currentPageRef.current));
     setSaveStatus('Unsaved changes');
   }, []);
 
   const handleStrokeEnd = useCallback(() => {
     isDrawingRef.current = false;
-    void saveStrokes(currentPageRef.current);
-  }, [saveStrokes]);
+  }, []);
   const handleClearPage = useCallback(() => {
     if (!canvasRef.current) return;
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
-    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.clearStrokes();
-    void saveStrokes(page);
   }, [saveStrokes]);
 
   const handleUndoPage = useCallback(() => {
@@ -745,10 +446,8 @@ export default function StudentNotebookView({
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
-    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.undo();
-    void saveStrokes(page);
   }, [saveStrokes]);
 
   const handleRedoPage = useCallback(() => {
@@ -756,75 +455,11 @@ export default function StudentNotebookView({
 
     const page = currentPageRef.current;
     localDirtyRef.current = true;
-    modifiedPagesRef.current.add(String(page));
 
     canvasRef.current.redo();
-    void saveStrokes(page);
   }, [saveStrokes]);
   
-  const updateVoiceNotes = useCallback((sessionId, mutateVoiceNotes) => {
-    if (!sessionId) {
-      return Promise.resolve();
-    }
-
-    const writePromise = voiceNotesWritePromiseRef.current
-      .catch(() => {
-        // Allow later writes to continue after an earlier failure.
-      })
-      .then(async () => {
-        const activeSession = latestSessionRef.current;
-
-        if (!activeSession || activeSession.id !== sessionId) {
-          return;
-        }
-
-        let baseVoiceNotes =
-          activeSession.voice_notes_by_page || {};
-
-        try {
-          const freshSession =
-            await base44.entities.NotebookSession.get(sessionId);
-
-          if (freshSession?.voice_notes_by_page) {
-            baseVoiceNotes =
-              freshSession.voice_notes_by_page;
-          }
-        } catch {
-          // Fall back to the latest local session data.
-        }
-
-        const updatedVoiceNotes =
-          mutateVoiceNotes({ ...baseVoiceNotes });
-
-        await base44.entities.NotebookSession.update(
-          sessionId,
-          {
-            voice_notes_by_page: updatedVoiceNotes,
-          }
-        );
-
-        const currentSession = latestSessionRef.current;
-
-        if (
-          !currentSession ||
-          currentSession.id !== sessionId
-        ) {
-          return;
-        }
-
-        const nextSession = {
-          ...currentSession,
-          voice_notes_by_page: updatedVoiceNotes,
-        };
-
-        latestSessionRef.current = nextSession;
-        setSession(nextSession);
-      });
-
-    voiceNotesWritePromiseRef.current = writePromise;
-
-    return writePromise;
-  }, []);
+  const updateVoiceNotes = useNotebookMedia(session?.id, latestSessionRef, setSession);
 
   const saveVoiceNote = useCallback((url) => {
     const activeSession = latestSessionRef.current;
@@ -888,140 +523,7 @@ export default function StudentNotebookView({
     };
   }, [flushNotebook]);
 
-  // Realtime synchronization for changes made in another device or tab.
-  useEffect(() => {
-    const sessionId = session?.id;
-
-    if (!sessionId) return;
-
-    const applySessionUpdate = (fresh) => {
-      if (!fresh || fresh.id !== sessionId) {
-        return;
-      }
-
-      if (isDrawingRef.current) return;
-      if (saveInFlightRef.current) return;
-
-      // Page-by-page merge — NEVER replace the whole local strokes_by_page
-      // with the server's version. A stale realtime echo (from a concurrent
-      // commitSessionPage or updateVoiceNotes call) can arrive carrying a
-      // strokes_by_page snapshot from BEFORE a just-completed save landed,
-      // which would silently delete pages the student already drew. Instead,
-      // only adopt server pages the user has NOT modified on THIS device,
-      // and always keep the pages the user drew. This also handles the
-      // duplicate-login case: an idle iPad never modifies any page, so it
-      // adopts every server update (becoming a live mirror of the active
-      // iPad), while the active iPad keeps its own drawn pages.
-      const localStrokes =
-        latestSessionRef.current?.strokes_by_page || {};
-      const serverStrokes = fresh.strokes_by_page || {};
-      const mergedStrokes = { ...localStrokes };
-
-      let adoptedCurrentPage = false;
-      const currentPageKey = String(currentPageRef.current);
-
-      for (const [pageKey, serverData] of Object.entries(serverStrokes)) {
-        // Skip pages the student is actively editing — local is always newer.
-        if (pendingSavesRef.current.has(pageKey)) continue;
-        const identity = `${sessionId}-${pageKey}`;
-        if (pageDraftsRef.current.has(identity)) continue;
-
-        // Adopt server data for pages the user has NOT modified on this
-        // device. If the user drew on this page (or cleared it), keep the
-        // local version — their own edit is authoritative. An idle duplicate
-        // login never modifies any page, so it adopts every update.
-        if (!modifiedPagesRef.current.has(pageKey)) {
-          mergedStrokes[pageKey] = serverData;
-          if (pageKey === currentPageKey) adoptedCurrentPage = true;
-        }
-      }
-
-      // Always sync non-stroke metadata (current_page, last_active, etc.)
-      // without clobbering the student's strokes.
-      const mergedSession = {
-        ...latestSessionRef.current,
-        ...fresh,
-        strokes_by_page: mergedStrokes,
-      };
-
-      latestSessionRef.current = mergedSession;
-      setSession(mergedSession);
-
-      // Only reload the canvas if the CURRENT page was adopted from the
-      // server (cross-device). Never overwrite a page the student has drawn.
-      if (
-        adoptedCurrentPage &&
-        canvasRef.current &&
-        !isDrawingRef.current &&
-        !localDirtyRef.current
-      ) {
-        try {
-          const adopted = mergedStrokes[currentPageKey];
-          const parsed =
-            typeof adopted === 'string'
-              ? JSON.parse(adopted)
-              : adopted;
-          canvasRef.current.loadStrokes(parsed);
-        } catch {
-          // Skip malformed drawing data.
-        }
-      }
-    };
-
-    const unsubscribe =
-      base44.entities.NotebookSession.subscribe(
-        (event) => {
-          const eventId =
-            event.id ||
-            event.data?.id;
-
-          if (
-            eventId !== sessionId ||
-            event.type === 'delete'
-          ) {
-            return;
-          }
-
-          applySessionUpdate(event.data);
-        }
-      );
-
-    const reconcileWhenVisible =
-      async () => {
-        if (
-          document.visibilityState !==
-          'visible'
-        ) {
-          return;
-        }
-
-        try {
-          const fresh =
-            await base44.entities.NotebookSession.get(
-              sessionId
-            );
-
-          applySessionUpdate(fresh);
-        } catch {
-          // Realtime remains the primary synchronization path.
-        }
-      };
-
-    document.addEventListener(
-      'visibilitychange',
-      reconcileWhenVisible
-    );
-
-    return () => {
-      unsubscribe?.();
-
-      document.removeEventListener(
-        'visibilitychange',
-        reconcileWhenVisible
-      );
-    };
-  }, [session?.id]);
-
+  // Drawing synchronization is owned by the shared room, never by replacing a device snapshot.
   const pageAudio = selectedAssignment?.audio_instructions?.filter((a) => a.page === currentPage) || [];
   const pageVideo = selectedAssignment?.video_instructions?.filter((v) => v.page === currentPage) || [];
 
@@ -1102,6 +604,14 @@ export default function StudentNotebookView({
   }, [updateVoiceNotes]);
 
   const handlePageClickForMic = (e) => {
+    if (placingFeedback && teacherMode && pdfWrapperRef.current) {
+      e.preventDefault(); e.stopPropagation();
+      const src = e.changedTouches ? e.changedTouches[0] : e;
+      const rect = pdfWrapperRef.current.getBoundingClientRect();
+      shared.enqueue(currentPage, { kind: 'note', note: { id: crypto.randomUUID(), text: feedbackText || 'Check this word', x: (src.clientX - rect.left) / (pdfRenderedSize?.w || rect.width), y: (src.clientY - rect.top) / (pdfRenderedSize?.h || rect.height) } });
+      setPlacingFeedback(false); setFeedbackText('');
+      return;
+    }
     if (!addingMic || !pdfWrapperRef.current) return;
     if (e.type === 'touchend') lastMicTouchRef.current = Date.now();
     if (e.type === 'click' && Date.now() - lastMicTouchRef.current < 700) return;
@@ -1123,79 +633,14 @@ export default function StudentNotebookView({
     setAddingMic(false);
   };
 
-  const commitSessionPage = useCallback((sessionId, page) => {
-    if (!sessionId) {
-      return Promise.resolve();
-    }
-
-    // While one page update is running, retain only the newest requested page.
-    pendingPageCommitRef.current = {
-      sessionId,
-      page,
-    };
-
-    if (pageCommitPromiseRef.current) {
-      return pageCommitPromiseRef.current;
-    }
-
-    const commitPromise = (async () => {
-      try {
-        while (pendingPageCommitRef.current) {
-          const pendingCommit =
-            pendingPageCommitRef.current;
-
-          pendingPageCommitRef.current = null;
-
-          const updatedAt =
-            new Date().toISOString();
-
-          try {
-            await base44.entities.NotebookSession.update(
-              pendingCommit.sessionId,
-              {
-                current_page:
-                  pendingCommit.page,
-                last_active: updatedAt,
-              }
-            );
-
-            // Keep local state on the newest visible page even if this request
-            // was for an earlier page.
-            const nextSession = {
-              ...latestSessionRef.current,
-              current_page:
-                currentPageRef.current,
-              last_active: updatedAt,
-            };
-
-            latestSessionRef.current =
-              nextSession;
-
-            setSession(nextSession);
-          } catch (error) {
-            console.error(
-              'Unable to commit notebook page',
-              error
-            );
-          }
-        }
-      } finally {
-        pageCommitPromiseRef.current = null;
-      }
-    })();
-
-    pageCommitPromiseRef.current =
-      commitPromise;
-
-    return commitPromise;
-  }, []);
+  const commitSessionPage = useNotebookPagePosition(latestSessionRef, currentPageRef, setSession);
 
   const pageBounds = getAssignmentPageBounds(selectedAssignment);
-  const lockedPages = pageLock && pageLock.length > 0 ? pageLock : null;
-  const minPage = lockedPages ? lockedPages[0] : pageBounds.min;
-  const maxPage = lockedPages ? lockedPages[lockedPages.length - 1] : pageBounds.max;
+  const lockedPages = !teacherMode && pageLock && pageLock.length > 0 ? pageLock : null;
+  const minPage = teacherMode ? 1 : lockedPages ? lockedPages[0] : pageBounds.min;
+  const maxPage = teacherMode ? pageBounds.total : lockedPages ? lockedPages[lockedPages.length - 1] : pageBounds.max;
   const pdfTotal = pageBounds.total;
-  const isPageLocked = selectedAssignment?.page_mode === 'locked' || !!lockedPages;
+  const isPageLocked = !teacherMode && (selectedAssignment?.page_mode === 'locked' || !!lockedPages);
 
   const goToPage = async (requestedPage, assignmentOverride = null, followTeacher = false) => {
     const assignment = assignmentOverride || selectedAssignment;
@@ -1218,6 +663,8 @@ export default function StudentNotebookView({
 
         if (request.followTeacher) {
           target = Math.max(1, Math.min(bounds.total, Number(request.requestedPage) || 1));
+        } else if (teacherMode) {
+          target = Math.max(1, Math.min(bounds.total, Number(request.requestedPage) || 1));
         } else if (lockedPages) {
           target = snapToAllowedPage(Number(request.requestedPage) || lockedPages[0], currentPageRef.current, lockedPages);
         } else if (request.assignment.page_mode === 'locked') {
@@ -1239,9 +686,7 @@ export default function StudentNotebookView({
 
         canvasRef.current.finishPendingStroke?.();
         isDrawingRef.current = false;
-
-        const snapshot = canvasRef.current.getStrokes();
-        void saveStrokes(fromPage, snapshot);
+        // Completed strokes already have independent recovery entries and keep saving after navigation.
 
         loadedKeyRef.current = null;
         currentPageRef.current = target;
@@ -1279,7 +724,7 @@ export default function StudentNotebookView({
   useEffect(() => {
     const assignmentId = selectedAssignment?.id;
 
-    if (!assignmentId) return;
+    if (!assignmentId || teacherMode) return;
 
     const applyAssignmentUpdate = async (freshAssignment) => {
       if (
@@ -1418,7 +863,7 @@ export default function StudentNotebookView({
       style={{ background: '#0f0f1a' }}
     >
       <div
-        className="flex items-center gap-2 px-3 py-2 shrink-0"
+        className="flex flex-wrap items-center gap-2 px-3 py-2 shrink-0"
         style={{ background: '#1a1a2e', borderBottom: '2px solid #4338ca', paddingTop: 'env(safe-area-inset-top)' }}
       >
         <BackButton
@@ -1426,6 +871,7 @@ export default function StudentNotebookView({
           onClick={async () => {
             const saved = await flushNotebook();
             if (saved !== true) return;
+            if (teacherMode) { onBackRef.current?.(); return; }
             loadedKeyRef.current = null;
             setSelectedAssignment(null);
           }}
@@ -1451,7 +897,7 @@ export default function StudentNotebookView({
             </button>
           </span>
         )}
-        {!saving && saveStatus && <span role="status" className={`text-xs font-bold ${saveStatus === 'Saved to server' ? 'text-green-300' : 'text-amber-300'}`}>{saveStatus}</span>}
+        {!saving && saveStatus && <span role="status" className={`text-xs font-bold ${saveStatus === 'Saved to shared notebook' ? 'text-green-300' : 'text-amber-300'}`}>{saveStatus}</span>}
         {extraHeaderContent}
         <button
           onClick={() => setShowQR(true)}
@@ -1462,13 +908,15 @@ export default function StudentNotebookView({
           📱 QR
         </button>
         <button
+          disabled={confirmingSave}
           onClick={async () => {
-            await flushNotebook();
+            setConfirmingSave(true);
+            try { await flushNotebook(); } finally { setConfirmingSave(false); }
           }}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white"
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-60"
           style={{ background: '#4338ca' }}
         >
-          💾 Save
+          {confirmingSave ? 'Confirming save…' : '💾 Save'}
         </button>
                 <select
           value={fitMode}
@@ -1582,7 +1030,7 @@ export default function StudentNotebookView({
               scrollbarGutter: 'stable',
             }}
             onClick={handlePageClickForMic}
-            onTouchEnd={addingMic ? handlePageClickForMic : undefined}
+            onTouchEnd={addingMic || placingFeedback ? handlePageClickForMic : undefined}
           >
             {selectedAssignment.pdf_url ? (
               <div
@@ -1615,12 +1063,16 @@ export default function StudentNotebookView({
                     size={size}
                     tool={tool === 'laser' || tool === 'lasso' ? 'none' : tool}
                     mode={tool === 'laser' || tool === 'lasso' ? 'none' : 'draw'}
-                    passThrough={addingMic || tool === 'lasso' || !!cutPaste.selectedPieceId}
+                    passThrough={!shared.ready || !shared.pages[currentPage] || placingFeedback || addingMic || tool === 'lasso' || !!cutPaste.selectedPieceId}
+                    onOperation={change => shared.enqueue(currentPage, change)}
+                    writerId={shared.writer}
+                    teacherMode={teacherMode}
                     scrollContainerRef={containerRef}
                     onStrokeStart={handleStrokeStart}
                     onStrokeEnd={handleStrokeEnd}
                   />
                 )}
+                {pdfRenderedSize && <NotebookNotePins notes={shared.pages[currentPage]?.notes || []} width={pdfRenderedSize.w} height={pdfRenderedSize.h} />}
                 {/* Lasso layer — only active when lasso tool selected */}
                 {tool === 'lasso' && pdfRenderedSize && (
                   <LassoLayer
@@ -1781,6 +1233,17 @@ export default function StudentNotebookView({
         </div>
       )}
 
+      {(teacherMode || (shared.pages[currentPage]?.notes || []).length > 0) && <NotebookFeedback
+        teacherMode={teacherMode}
+        notes={shared.pages[currentPage]?.notes || []}
+        placing={placingFeedback}
+        onToggle={text => { setFeedbackText(text); setPlacingFeedback(value => !value); }}
+        onAdd={text => {
+          if (placingFeedback) { setFeedbackText(text); return; }
+          shared.enqueue(currentPage, { kind: 'note', note: { id: crypto.randomUUID(), text, x: 0.03, y: 0.03 } });
+        }}
+        onRemove={id => shared.enqueue(currentPage, { kind: 'remove_note', note_id: id })}
+      />}
       {(!isPageLocked || (lockedPages && lockedPages.length > 1)) && !(liveActive && liveAssessment?.release_mode === 'follow') && (
         <PageNavBar
           currentPage={currentPage}

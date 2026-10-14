@@ -138,7 +138,7 @@ function splitStrokeByPixelErase(s, px, py, w, h, eraserRadius) {
 }
 
 const AnnotationCanvas = forwardRef(function AnnotationCanvas(
-  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, passThrough = false, scrollContainerRef = null, pageIdentity = null },
+  { width, height, color, size, tool, mode = 'draw', onStrokeStart, onStrokeEnd, onOperation = null, writerId = 0, teacherMode = false, passThrough = false, scrollContainerRef = null, pageIdentity = null },
   ref
 ) {
   const canvasRef = useRef(null);
@@ -160,6 +160,16 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   const onStrokeEndRef = useRef(onStrokeEnd);
   onStrokeStartRef.current = onStrokeStart;
   onStrokeEndRef.current = onStrokeEnd;
+  const operationRef = useRef(onOperation);
+  operationRef.current = onOperation;
+  const writerRef = useRef(writerId);
+  writerRef.current = writerId;
+  const publishStroke = (stroke) => {
+    if (!operationRef.current) return;
+    stroke.writerId = writerRef.current;
+    stroke.authorRole = teacherMode ? 'teacher' : 'student';
+    operationRef.current({ kind: 'add', stroke: cloneStroke(stroke) });
+  };
   const [eraserCursorPos, setEraserCursorPos] = useState(null);
   const twoFingerScroll = useRef({
     active: false,
@@ -178,7 +188,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
   });
 
   const ensureStrokeId = (s) => {
-    if (!s.id) s.id = `stroke_${Date.now()}_${strokeIdCounter.current++}`;
+    if (!s.id) s.id = operationRef.current ? crypto.randomUUID() : `stroke_${Date.now()}_${strokeIdCounter.current++}`;
     return s;
   };
 
@@ -334,6 +344,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
     if (current.current.pts.length >= 1) {
       pushUndo();
       const finished = ensureStrokeId(current.current);
+      publishStroke(finished);
       strokes.current.push(finished);
       history.current.push(cloneStroke(finished));
       redoStack.current = [];
@@ -367,7 +378,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       const removed = [];
 
       strokes.current = strokes.current.filter(s => {
-        if (s.tool === 'eraser_object' || s.tool === 'eraser_pixel') return true;
+        if (s.tool === 'eraser_object' || s.tool === 'eraser_pixel' || (operationRef.current && (teacherMode ? s.authorRole !== 'teacher' : s.authorRole === 'teacher'))) return true;
 
         const hit = strokeHitTest(s, px, py, width, height, hitDist);
 
@@ -388,6 +399,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           removedStrokes: removed.map(cloneStroke),
         });
 
+        publishStroke(eraseEvent);
         history.current.push(eraseEvent);
         redoStack.current = [];
         limitHistory();
@@ -410,7 +422,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
       const resultMap = new Map();
 
       for (const s of strokes.current) {
-        if (s.tool === 'eraser_pixel' || s.tool === 'eraser_object') {
+        if (s.tool === 'eraser_pixel' || s.tool === 'eraser_object' || (operationRef.current && (teacherMode ? s.authorRole !== 'teacher' : s.authorRole === 'teacher'))) {
           next.push(s);
           continue;
         }
@@ -530,6 +542,7 @@ const AnnotationCanvas = forwardRef(function AnnotationCanvas(
           delete pixelEvent.removedMap;
           delete pixelEvent.resultMap;
 
+          publishStroke(pixelEvent);
           history.current.push(cloneStroke(pixelEvent));
           redoStack.current = [];
           limitHistory();
@@ -698,6 +711,7 @@ const onTouchStart = (e) => {
           delete pixelEvent.removedMap;
           delete pixelEvent.resultMap;
 
+          publishStroke(pixelEvent);
           history.current.push(cloneStroke(pixelEvent));
           redoStack.current = [];
           limitHistory();
@@ -841,19 +855,27 @@ const onTouchStart = (e) => {
       redraw();
     },
 
+    mergeSharedStrokes: (data) => {
+      history.current = (data?.history || []).map(cloneStroke);
+      rebuildVisibleStrokesFromHistory();
+      redraw();
+    },
+
     clearStrokes: () => {
       pushUndo();
 
       const clearEvent = ensureStrokeId({
         color: '#000',
         size: 1,
-        tool: 'clear_page',
+        tool: operationRef.current ? 'eraser_object' : 'clear_page',
         pts: [{ x: 0, y: 0, t: Date.now() }],
+        erasedStrokeIds: strokes.current.filter(s => teacherMode ? s.authorRole === 'teacher' : s.authorRole !== 'teacher').map(s => s.id),
         removedStrokes: strokes.current.map(cloneStroke),
       });
 
-      strokes.current = [];
+      publishStroke(clearEvent);
       history.current.push(clearEvent);
+      rebuildVisibleStrokesFromHistory();
       redoStack.current = [];
       limitHistory();
       current.current = null;
@@ -866,8 +888,11 @@ const onTouchStart = (e) => {
     undo: () => {
       if (history.current.length === 0) return;
 
-      const undone = history.current.pop();
+      const index = operationRef.current ? history.current.map(s => s.writerId).lastIndexOf(writerRef.current) : history.current.length - 1;
+      if (index < 0) return;
+      const [undone] = history.current.splice(index, 1);
       redoStack.current.push(cloneStroke(undone));
+      operationRef.current?.({ kind: 'toggle', stroke_id: undone.id, active: false });
 
       rebuildVisibleStrokesFromHistory();
 
@@ -882,6 +907,7 @@ const onTouchStart = (e) => {
 
       const redone = redoStack.current.pop();
       history.current.push(cloneStroke(redone));
+      operationRef.current?.({ kind: 'toggle', stroke_id: redone.id, active: true });
 
       rebuildVisibleStrokesFromHistory();
 

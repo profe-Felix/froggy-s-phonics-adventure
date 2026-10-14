@@ -13,7 +13,7 @@
     },
     "school_year": {
       "type": "string",
-      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions when the same class+number is reused.",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions.",
       "default": ""
     },
     "current_page": {
@@ -22,7 +22,7 @@
     },
     "strokes_by_page": {
       "type": "object",
-      "description": "Map of page number (string key) -> strokes JSON array"
+      "description": "Compatible rendered page snapshots; collaborative changes are durably owned by the notebook room."
     },
     "voice_notes_by_page": {
       "type": "object",
@@ -33,8 +33,15 @@
       "description": "Map of page number (string key) -> video URL"
     },
     "last_active": {
+      "type": "string"
+    },
+    "collaboration_room_id": {
       "type": "string",
-      "description": "ISO timestamp"
+      "description": "Opaque shared notebook room identifier."
+    },
+    "collaboration_version": {
+      "type": "integer",
+      "default": 0
     }
   },
   "required": [

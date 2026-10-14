@@ -13,6 +13,7 @@ import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
 import { useClassColors } from '@/hooks/useClassColors';
+import NotebookFeedbackModal from '@/components/notebook/NotebookFeedbackModal';
 
 const GRADE_LABELS = { kinder: 'Kinder', first: '1st Grade' };
 
@@ -119,6 +120,7 @@ export default function TeacherNotebookDashboard({
   const [replaySession, setReplaySession] = useState(null);
   const [replayAssignment, setReplayAssignment] = useState(null);
   const [replayPage, setReplayPage] = useState(null);
+  const [feedbackSession, setFeedbackSession] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
@@ -227,6 +229,13 @@ export default function TeacherNotebookDashboard({
     refetchInterval: 15000,
     retry: false,
   });
+
+  useEffect(() => {
+    if (!selectedAssignment?.id) return;
+    return base44.entities.NotebookSession.subscribe(event => {
+      if (event.data?.assignment_id === selectedAssignment.id) qc.invalidateQueries({ queryKey: ['notebook-sessions', selectedAssignment.id] });
+    });
+  }, [selectedAssignment?.id, qc]);
 
   // Sort by student number and filter out students with no work (empty
   // strokes_by_page). Students 17-30 typically have no data, so hiding them
@@ -849,16 +858,15 @@ export default function TeacherNotebookDashboard({
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
                   {activeSessions.map(s => (
-                    <StudentThumbnail
-                      key={s.id}
-                      session={s}
-                      assignment={selectedAssignment}
-                      viewPage={globalViewPage}
-                      onOpen={(sess, pg) => { setReplaySession(sess); setReplayAssignment(selectedAssignment); setReplayPage(pg); }}
-                    />
+                    <div key={s.id} className="min-w-0 flex flex-col gap-1">
+                      <StudentThumbnail session={s} assignment={selectedAssignment} viewPage={globalViewPage}
+                        onOpen={(sess, pg) => { setReplaySession(sess); setReplayAssignment(selectedAssignment); setReplayPage(pg); }} />
+                      <button type="button" onClick={() => setFeedbackSession(s)} className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-bold">Feedback · #{s.student_number}</button>
+                    </div>
                   ))}
                 </div>
 
+                {feedbackSession && <NotebookFeedbackModal session={feedbackSession} assignment={selectedAssignment} page={globalViewPage || feedbackSession.current_page} onClose={() => setFeedbackSession(null)} />}
                 {replaySession && (
                   <ReplayModal
                     session={replaySession}

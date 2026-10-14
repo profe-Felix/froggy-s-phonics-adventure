@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
 import { useQuery } from '@tanstack/react-query';
@@ -68,6 +68,9 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   const exitRef = useRef(onExit);
   exitRef.current = onExit;
   const [sessionSyncError, setSessionSyncError] = useState('');
+  const activitySaveRef = useRef(null);
+  const transitionRef = useRef(Promise.resolve());
+  const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
 
   // Fetch the lesson to get the full steps array
   const { data: lesson, error: lessonError, refetch: retryLesson } = useQuery({
@@ -92,19 +95,37 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     let eventVersion = 0;
     let blockedUntil = 0;
     let timer;
+    let transitionRetry;
+    let desiredSession = localSessionRef.current;
+    let transitionGeneration = 0;
 
     const apply = fresh => {
-      if (!alive || !fresh) return;
-      if (fresh.active === false) {
-        exitRef.current?.();
-        return;
-      }
-      const merged = { ...localSessionRef.current, ...fresh, id: sessionId };
-      const changedStep = merged.current_step !== localSessionRef.current?.current_step;
-      localSessionRef.current = merged;
-      setLocalSession(merged);
-      setSessionSyncError('');
-      if (changedStep && fresh.broadcast_state === undefined) refreshBroadcast();
+      desiredSession = { ...desiredSession, ...fresh };
+      const generation = ++transitionGeneration;
+      transitionRef.current = transitionRef.current.catch(() => {}).then(async () => {
+        if (!alive || !fresh || generation !== transitionGeneration) return;
+        const previous = localSessionRef.current;
+        const merged = { ...desiredSession, id: sessionId };
+        const changedStep = merged.current_step !== previous?.current_step;
+        const leavingActivity = merged.active === false || changedStep || merged.phase !== previous?.phase || merged.release_mode !== previous?.release_mode;
+        if (leavingActivity && activitySaveRef.current) {
+          setSessionSyncError('Saving your notebook before changing activities…');
+          const saved = await activitySaveRef.current();
+          if (!alive || generation !== transitionGeneration) return;
+          if (saved !== true) {
+            setSessionSyncError('Your notebook is still saving. Staying here and retrying before changing activities.');
+            clearTimeout(transitionRetry);
+            transitionRetry = setTimeout(() => { void apply({}); }, 5000);
+            return;
+          }
+        }
+        if (merged.active === false) { exitRef.current?.(); return; }
+        localSessionRef.current = merged;
+        setLocalSession(merged);
+        setSessionSyncError('');
+        if (changedStep && fresh.broadcast_state === undefined) refreshBroadcast();
+      });
+      return transitionRef.current;
     };
 
     const refresh = async () => {
@@ -113,7 +134,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       const version = eventVersion;
       try {
         const fresh = await requestWithRetry(() => base44.entities.LiveLessonSession.get(sessionId));
-        if (alive && version === eventVersion) apply(fresh);
+        if (alive && version === eventVersion) await apply(fresh);
       } catch (error) {
         blockedUntil = Date.now() + retryDelay(error, 2);
         if (alive) setSessionSyncError('Connection interrupted — keeping your activity and retrying.');
@@ -126,7 +147,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       if (!alive || (event.id || event.data?.id) !== sessionId) return;
       eventVersion += 1;
       if (event.type === 'delete') {
-        exitRef.current?.();
+        void apply({ active: false });
         return;
       }
       const data = event.data || {};
@@ -160,6 +181,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       alive = false;
       unsubscribe?.();
       clearTimeout(timer);
+      clearTimeout(transitionRetry);
       document.removeEventListener('visibilitychange', visible);
       window.removeEventListener('online', visible);
     };
@@ -240,11 +262,12 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     return (
       <div className="relative h-screen overflow-hidden flex flex-col bg-slate-50">
         <div className="bg-violet-600 text-white text-center py-2 text-sm font-black flex items-center justify-center gap-2 shrink-0">
-          <Footprints className="w-4 h-4" /> Work at your own pace — step {stepIndex + 1} of {steps.length}
+          <Footprints className="w-4 h-4" /> {sessionSyncError || `Work at your own pace — step ${stepIndex + 1} of ${steps.length}`}
         </div>
         <div className="flex-1 min-h-0 overflow-hidden">
           <LessonModeRouter
             key={stepIndex}
+            registerActivitySave={registerActivitySave}
             step={currentStep}
             stepIndex={stepIndex}
             lessonId={lesson.id}
@@ -281,10 +304,12 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   return (
     <div className="relative h-screen overflow-hidden flex flex-col">
       <div className="bg-green-600 text-white text-center py-2 text-sm font-black flex items-center justify-center gap-2 shrink-0">
-        <Unlock className="w-4 h-4" /> Try it on your iPad! Your teacher will advance when ready.
+        <Unlock className="w-4 h-4" /> {sessionSyncError || 'Try it on your iPad! Your teacher will advance when ready.'}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <LessonModeRouter
+          key={stepIndex}
+          registerActivitySave={registerActivitySave}
           step={currentStep}
           stepIndex={stepIndex}
           lessonId={lesson.id}

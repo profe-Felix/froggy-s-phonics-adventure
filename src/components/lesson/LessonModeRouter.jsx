@@ -16,23 +16,12 @@ import SentencesMode from '@/components/game/modes/SentencesMode';
 import SpanishReadingGame from '@/components/game/spanishReading/SpanishReadingGame';
 import StoryBuilder from '@/pages/StoryBuilder';
 import CreandoOracionesMode from '@/components/sentence/CreandoOraciones';
-import BookReadingStep from '@/components/lesson/modes/BookReadingStep';
-import LetterSortStep from '@/components/lesson/modes/LetterSortStep';
 import LetterRecognitionStep from '@/components/lesson/modes/LetterRecognitionStep';
-import PowerfulWordStep from '@/components/lesson/modes/PowerfulWordStep';
-import SyllableTrainStep from '@/components/lesson/modes/SyllableTrainStep';
-import SyllableBlenderStep from '@/components/lesson/modes/SyllableBlenderStep';
-import ActivitiesStep from '@/components/lesson/modes/ActivitiesStep';
-import WordBuilderStep from '@/components/lesson/modes/WordBuilderStep';
-import FluencyPracticeStep from '@/components/lesson/modes/FluencyPracticeStep';
-import VideoStep from '@/components/lesson/modes/VideoStep';
-import SoundWallStep from '@/components/lesson/modes/SoundWallStep';
-import GoogleSlidesStep from '@/components/lesson/modes/GoogleSlidesStep';
-import DigitalNotebookStep from '@/components/lesson/modes/DigitalNotebookStep';
+
 import WordTracingMode from '@/components/game/modes/WordTracingMode';
-import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
-import DictationStep from '@/components/lesson/modes/DictationStep';
+
 import { buildBlendingSubstepsForWords } from '@/lib/blendingLetters';
+import LessonConfiguredActivity from '@/components/lesson/LessonConfiguredActivity';
 
 // Renders the existing activity component for one lesson step, wraps the
 // mode's progress/back callbacks to detect step completion per the lesson's
@@ -53,6 +42,7 @@ export default function LessonModeRouter({
   liveMode = false,
   teacherMode = false,
   embeddedMode = false,
+  registerActivitySave = null,
 }) {
   const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
@@ -929,6 +919,9 @@ export default function LessonModeRouter({
   const goalDone = done;
 
   function renderMode() {
+    if (['book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','missing_letter','dictation'].includes(step.mode)) {
+      return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex}} onComplete={completeStep}/>;
+    }
     switch (step.mode) {
       case 'letter_sounds':
         return (
@@ -1160,60 +1153,6 @@ export default function LessonModeRouter({
           />
         );
 
-      case 'book_reading':
-        return (
-          <BookReadingStep
-            stepConfig={
-              step?.config
-            }
-            studentNumber={
-              studentNumber
-            }
-            className={
-              className
-            }
-            onBack={
-              wrappedBack
-            }
-            onRecordingSaved={
-              handleBookRecordingSaved
-            }
-            onRequiredPagesLoaded={
-              setCatalogRecordingPages
-            }
-            embedded={
-              embeddedMode ||
-              stepperMode
-            }
-          />
-        );
-
-      case 'letter_sort':
-        return (
-          <LetterSortStep
-            onComplete={
-              completeStep
-            }
-            presetId={
-              step?.config?.preset
-            }
-            curriculumPosition={
-              step?.config
-                ?.curriculumPosition
-            }
-            curriculumPositionOverride={
-              step?.config
-                ?.curriculumPositionOverride
-            }
-            studentNumber={
-              studentNumber
-            }
-            studentClass={
-              className
-            }
-          />
-        );
-
       case 'letter_recognition':
         return (
           <LetterRecognitionStep
@@ -1222,190 +1161,6 @@ export default function LessonModeRouter({
             }
             targets={
               step?.config?.targets
-            }
-          />
-        );
-
-      case 'powerful_word':
-        return (
-          <PowerfulWordStep
-            onComplete={
-              completeStep
-            }
-            presetId={
-              step?.config?.preset
-            }
-          />
-        );
-
-      case 'syllable_train':
-        return (
-          <SyllableTrainStep
-            onComplete={
-              completeStep
-            }
-          />
-        );
-
-      case 'syllable_blender':
-        return (
-          <SyllableBlenderStep
-            onComplete={
-              completeStep
-            }
-            curriculumPosition={
-              step?.config
-                ?.curriculumPosition
-            }
-            curriculumPositionOverride={
-              step?.config
-                ?.curriculumPositionOverride
-            }
-          />
-        );
-
-      case 'activities':
-        return (
-          <ActivitiesStep
-            onComplete={
-              completeStep
-            }
-            studentName={
-              selectedStudent?.name ||
-              `Estudiante ${
-                studentNumber ||
-                ''
-              }`
-            }
-            stepConfig={
-              step?.config
-            }
-            completion={comp}
-            activityState={getActivityState?.(stepIndex)}
-            onActivityState={(state) => saveActivityState?.(stepIndex, state)}
-          />
-        );
-
-      case 'word_builder':
-        return (
-          <WordBuilderStep
-            onComplete={
-              completeStep
-            }
-            studentNumber={
-              studentNumber
-            }
-            className={
-              className
-            }
-            studentData={
-              activityStudentData
-            }
-            onStudentPatch={
-              onStudentPatch
-            }
-            presetId={
-              step?.config?.preset
-            }
-            curriculumPosition={
-              step?.config
-                ?.curriculumPosition
-            }
-          />
-        );
-
-      case 'fluency':
-        return (
-          <FluencyPracticeStep
-            onComplete={
-              completeStep
-            }
-            presetId={
-              step?.config?.preset
-            }
-            curriculumPosition={
-              step?.config
-                ?.curriculumPosition
-            }
-            curriculumPositionOverride={
-              step?.config
-                ?.curriculumPositionOverride
-            }
-            curriculumContentType={
-              step?.config
-                ?.curriculumContentType
-            }
-            studentNumber={
-              studentNumber
-            }
-            className={
-              className
-            }
-          />
-        );
-
-      case 'video':
-        return (
-          <VideoStep
-            onComplete={
-              completeStep
-            }
-            videoUrl={
-              step?.config?.videoUrl
-            }
-            title={
-              step.title
-            }
-          />
-        );
-
-      case 'soundwall':
-        return (
-          <SoundWallStep
-            onComplete={
-              completeStep
-            }
-            stepConfig={{
-              ...step?.config,
-              curriculumKey:
-                step?.config
-                  ?.curriculumKey ||
-                '',
-            }}
-          />
-        );
-
-      case 'google_slides':
-        return (
-          <GoogleSlidesStep
-            onComplete={
-              completeStep
-            }
-            stepConfig={
-              step?.config
-            }
-            title={
-              step.title
-            }
-          />
-        );
-
-      case 'digital_notebook':
-        return (
-          <DigitalNotebookStep
-            stepConfig={
-              step?.config
-            }
-            studentNumber={
-              selectedStudent?.number ||
-              studentData?.number
-            }
-            className={
-              selectedStudent?.class_name ||
-              studentData?.class_name
-            }
-            onComplete={
-              completeStep
             }
           />
         );
@@ -1428,37 +1183,6 @@ export default function LessonModeRouter({
             freeSpinEnabled={
               !isReplayRun
             }
-          />
-        );
-
-      case 'missing_letter':
-        return (
-          <MissingLetterStep
-            presetId={
-              step?.config?.preset
-            }
-            studentData={
-              activityStudentData
-            }
-            onUpdateProgress={
-              wrappedUpdateProgress
-            }
-            onStudentPatch={
-              onStudentPatch
-            }
-            onComplete={
-              completeStep
-            }
-          />
-        );
-
-      case 'dictation':
-        return (
-          <DictationStep
-            stepConfig={step?.config}
-            studentNumber={selectedStudent?.number || studentData?.number}
-            className={selectedStudent?.class_name || studentData?.class_name}
-            onComplete={completeStep}
           />
         );
 
