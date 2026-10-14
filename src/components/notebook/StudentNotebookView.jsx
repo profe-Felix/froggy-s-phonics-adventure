@@ -571,29 +571,34 @@ export default function StudentNotebookView({
         if (latestSessionRef.current?.id !== queued.sessionId) continue;
 
         try {
-          // Merge from local state instead of re-reading from the server.
-          // Each student is the sole writer of their own session, so the
-          // local strokes_by_page is always the most recent version. This
-          // eliminates one API call per save (halving total API volume).
-          const baseStrokes = latestSessionRef.current?.id === queued.sessionId
-            ? (latestSessionRef.current.strokes_by_page || {})
-            : {};
-          const strokesByPage = {
-            ...baseStrokes,
-            [pageKey]: JSON.stringify(queued.payload),
-          };
+          // Dot-notation $set touches ONLY the specific page key — other
+          // pages on the server are never at risk, even if local state
+          // somehow lost one. This is the bulletproof fix for data loss:
+          // the old code sent the ENTIRE strokes_by_page object, so a
+          // stale realtime echo that clobbered local state would propagate
+          // the loss to the server on the next save.
+          const now = new Date().toISOString();
+          const serializedPayload = JSON.stringify(queued.payload);
 
           await requestWithRetry(() =>
-            base44.entities.NotebookSession.update(queued.sessionId, {
-              strokes_by_page: strokesByPage,
-              last_active: new Date().toISOString(),
-            })
+            base44.entities.NotebookSession.updateMany(
+              { id: queued.sessionId },
+              {
+                $set: {
+                  [`strokes_by_page.${pageKey}`]: serializedPayload,
+                  last_active: now,
+                },
+              }
+            )
           );
 
           if (latestSessionRef.current?.id === queued.sessionId) {
             const next = {
               ...latestSessionRef.current,
-              strokes_by_page: strokesByPage,
+              strokes_by_page: {
+                ...(latestSessionRef.current.strokes_by_page || {}),
+                [pageKey]: serializedPayload,
+              },
             };
             latestSessionRef.current = next;
             setSession(next);
