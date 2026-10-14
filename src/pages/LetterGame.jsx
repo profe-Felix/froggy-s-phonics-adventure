@@ -112,14 +112,18 @@ export default function LetterGame() {
   });
   const rotationChecked = !lockdownLoading || !!liveSession;
 
-  // Lock the student into the assigned activity. Like the tracing lock, this
-  // overrides any free-play mode and prevents navigation away.
+  // Lock the student into the assigned activity. The rotation is a live-session
+  // tier: it locks students out of free play, but steps aside the moment any
+  // teacher-driven session (live lesson, dictation, notebook assessment, or
+  // tracing lock) starts — so starting one of those never flashes the rotation
+  // mode first, and ending one returns students to the rotation cleanly.
   useEffect(() => {
-    if (!rotationAssignedMode || liveSession) return;
+    if (!rotationAssignedMode) return;
+    if (liveSession || activeDictationSession || activeNotebookAssessment || activeTracingLock) return;
     if (currentMode !== rotationAssignedMode) {
       setCurrentMode(rotationAssignedMode);
     }
-  }, [rotationAssignedMode, liveSession, currentMode]);
+  }, [rotationAssignedMode, liveSession, activeDictationSession, activeNotebookAssessment, activeTracingLock, currentMode]);
 
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
