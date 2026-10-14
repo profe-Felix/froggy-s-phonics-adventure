@@ -30,10 +30,13 @@ export default function CurriculumFluencyBuilder({ onStart }) {
 
   const { data: lessons = [], isLoading } = useQuery({
     queryKey: ['fluency-curriculum-lessons', ACTIVE_SCHOOL_YEAR],
-    queryFn: () => requestWithRetry(() => base44.entities.Lesson.filter({
-      active: true,
-      school_year: ACTIVE_SCHOOL_YEAR,
-    }, { sort: 'lesson_number', limit: 100 })),
+    queryFn: async () => {
+      const page = await requestWithRetry(() => base44.entities.Lesson.filter({
+        active: true,
+        school_year: ACTIVE_SCHOOL_YEAR,
+      }, { sort: 'lesson_number', limit: 100 }));
+      return page?.items ?? page ?? [];
+    },
     staleTime: 5 * 60 * 1000,
   });
 
