@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import StudentNotebookView from '@/components/notebook/StudentNotebookView';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 function expandCustomPages(
   customPages,
@@ -262,35 +263,37 @@ export default function DigitalNotebookStep({
 
   return (
     <div className="h-full min-h-0 overflow-hidden">
-      <StudentNotebookView
-        studentNumber={
-          studentNumber
-        }
-        className={
-          className
-        }
-        directAssignmentName={
-          assignmentTitle
-        }
-        directPage={
-          firstPage
-        }
-        pageLock={
-          pageLock
-        }
-        onBack={() => {}}
-        registerSave={registerNotebookSave}
-        extraHeaderContent={
-          <div className="flex items-center gap-2">
-            {finishError && (
-              <span role="alert" className="text-xs text-amber-300 max-w-xs">
-                {finishError}
-              </span>
-            )}
-            {finishButton}
-          </div>
-        }
-      />
+      <ErrorBoundary resetKey={`${assignmentTitle}-${firstPage}`}>
+        <StudentNotebookView
+          studentNumber={
+            studentNumber
+          }
+          className={
+            className
+          }
+          directAssignmentName={
+            assignmentTitle
+          }
+          directPage={
+            firstPage
+          }
+          pageLock={
+            pageLock
+          }
+          onBack={() => {}}
+          registerSave={registerNotebookSave}
+          extraHeaderContent={
+            <div className="flex items-center gap-2">
+              {finishError && (
+                <span role="alert" className="text-xs text-amber-300 max-w-xs">
+                  {finishError}
+                </span>
+              )}
+              {finishButton}
+            </div>
+          }
+        />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -872,53 +872,67 @@ export default function StudentNotebookView({
 
       if (isDrawingRef.current) return;
       if (saveInFlightRef.current) return;
-      if (localDirtyRef.current || pendingSavesRef.current.size > 0) return;
 
-      const pageKey = String(
-        currentPageRef.current
-      );
+      // Page-by-page merge — NEVER replace the whole local strokes_by_page
+      // with the server's version. A stale realtime echo (from a concurrent
+      // commitSessionPage or updateVoiceNotes call) can arrive carrying a
+      // strokes_by_page snapshot from BEFORE a just-completed save landed,
+      // which would silently delete pages the student already drew. Instead,
+      // only adopt server pages the local has never touched (cross-device
+      // sync from another tab), and always keep the student's own pages.
+      const localStrokes =
+        latestSessionRef.current?.strokes_by_page || {};
+      const serverStrokes = fresh.strokes_by_page || {};
+      const mergedStrokes = { ...localStrokes };
 
-      const serverStroke =
-        fresh.strokes_by_page?.[pageKey];
+      let adoptedCurrentPage = false;
+      const currentPageKey = String(currentPageRef.current);
 
-      const localStroke =
-        latestSessionRef.current
-          ?.strokes_by_page?.[pageKey];
+      for (const [pageKey, serverData] of Object.entries(serverStrokes)) {
+        // Skip pages the student is actively editing — local is always newer.
+        if (pendingSavesRef.current.has(pageKey)) continue;
+        const identity = `${sessionId}-${pageKey}`;
+        if (pageDraftsRef.current.has(identity)) continue;
 
+        const localData = localStrokes[pageKey];
+
+        // Only adopt server data for pages the local has never touched.
+        // If the local has any data (even a clear), keep it — the student's
+        // own edit is always the authoritative version for their session.
+        if (localData === undefined || localData === null) {
+          mergedStrokes[pageKey] = serverData;
+          if (pageKey === currentPageKey) adoptedCurrentPage = true;
+        }
+      }
+
+      // Always sync non-stroke metadata (current_page, last_active, etc.)
+      // without clobbering the student's strokes.
+      const mergedSession = {
+        ...latestSessionRef.current,
+        ...fresh,
+        strokes_by_page: mergedStrokes,
+      };
+
+      latestSessionRef.current = mergedSession;
+      setSession(mergedSession);
+
+      // Only reload the canvas if the CURRENT page was adopted from the
+      // server (cross-device). Never overwrite a page the student has drawn.
       if (
-        serverStroke &&
-        serverStroke !== localStroke
+        adoptedCurrentPage &&
+        canvasRef.current &&
+        !isDrawingRef.current &&
+        !localDirtyRef.current
       ) {
-        const mergedSession = {
-          ...latestSessionRef.current,
-          ...fresh,
-          strokes_by_page:
-            fresh.strokes_by_page || {},
-        };
-
-        latestSessionRef.current =
-          mergedSession;
-
-        setSession(mergedSession);
-
-        if (
-          canvasRef.current &&
-          !isDrawingRef.current &&
-          !localDirtyRef.current
-        ) {
-          try {
-            const parsed =
-              typeof serverStroke ===
-              'string'
-                ? JSON.parse(serverStroke)
-                : serverStroke;
-
-            canvasRef.current.loadStrokes(
-              parsed
-            );
-          } catch {
-            // Skip malformed drawing data.
-          }
+        try {
+          const adopted = mergedStrokes[currentPageKey];
+          const parsed =
+            typeof adopted === 'string'
+              ? JSON.parse(adopted)
+              : adopted;
+          canvasRef.current.loadStrokes(parsed);
+        } catch {
+          // Skip malformed drawing data.
         }
       }
     };
