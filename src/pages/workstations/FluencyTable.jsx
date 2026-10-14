@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { FLUENCY_PRESETS } from '@/components/workstations/fluencyPresets';
 import BackButton from '@/components/ui/BackButton';
 import FluencyGrid from '@/components/workstations/FluencyGrid';
+import CurriculumFluencyBuilder from '@/components/workstations/CurriculumFluencyBuilder';
 
 // Real curriculum presets live in Supabase Storage (public bucket). Fetched at
 // load; the local FLUENCY_PRESETS is the fallback if the fetch fails.
@@ -24,6 +25,7 @@ export default function FluencyTable() {
   const [lobbyPreset, setLobbyPreset] = useState(
     presetParam && FLUENCY_PRESETS.some((p) => p.id === presetParam) ? presetParam : FLUENCY_PRESETS[0].id
   );
+  const [lobbyMode, setLobbyMode] = useState('manual'); // 'manual' | 'curriculum'
   const unsubRef = useRef(null);
 
   // Pull the real curriculum from Supabase Storage; fall back to local presets.
@@ -74,15 +76,23 @@ export default function FluencyTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A curriculum-built session carries its generated preset on the session
+  // record itself (preset_data), so students render the same table without
+  // needing it in the Supabase presets file. Manual sessions fall back to the
+  // presets list by id.
   const preset = useMemo(
-    () => presets.find((p) => p.id === (session?.preset_id || lobbyPreset)) || presets[0],
+    () => session?.preset_data?.id
+      ? session.preset_data
+      : presets.find((p) => p.id === (session?.preset_id || lobbyPreset)) || presets[0],
     [session, presets, lobbyPreset]
   );
 
-  const startSession = async () => {
+  const startSession = async (curriculum) => {
     const code = genCode();
+    const preset_id = curriculum ? curriculum.preset_id : lobbyPreset;
+    const preset_data = curriculum ? curriculum.preset_data : undefined;
     const created = await base44.entities.FluencySession.create({
-      code, preset_id: lobbyPreset, seed: Date.now(), active_row: 0, sweep_start_at: '',
+      code, preset_id, ...(preset_data ? { preset_data } : {}), seed: Date.now(), active_row: 0, sweep_start_at: '',
     });
     setSession(created);
     subscribeTo(created.id);
@@ -105,9 +115,9 @@ export default function FluencyTable() {
 
   const changePreset = (id) => {
     setLobbyPreset(id);
-    setSession((prev) => (prev ? { ...prev, preset_id: id, active_row: 0, sweep_start_at: '' } : prev));
+    setSession((prev) => (prev ? { ...prev, preset_id: id, preset_data: {}, active_row: 0, sweep_start_at: '' } : prev));
     if (session) base44.entities.FluencySession.update(session.id, {
-      preset_id: id, active_row: 0, sweep_start_at: '',
+      preset_id: id, preset_data: {}, active_row: 0, sweep_start_at: '',
     }).catch(() => {});
   };
 
@@ -138,19 +148,37 @@ export default function FluencyTable() {
             <h1 className="font-bold text-lg">Fluency Table — New Session</h1>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
-            <div className="flex flex-col gap-3 w-full max-w-md">
-              <label className="font-bold">Choose a word set</label>
-              <select
-                value={lobbyPreset}
-                onChange={(e) => setLobbyPreset(e.target.value)}
-                className="px-3 py-2 rounded-lg border font-bold"
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setLobbyMode('manual')}
+                className={`px-4 py-2 rounded-lg font-bold text-sm transition ${lobbyMode === 'manual' ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}
               >
-                {presets.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-              <button onClick={startSession} className="px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold">
-                Start live session
+                Manual presets
+              </button>
+              <button
+                onClick={() => setLobbyMode('curriculum')}
+                className={`px-4 py-2 rounded-lg font-bold text-sm transition ${lobbyMode === 'curriculum' ? 'bg-emerald-600 text-white' : 'bg-white border text-slate-600'}`}
+              >
+                📚 Curriculum builder
               </button>
             </div>
+            {lobbyMode === 'manual' ? (
+              <div className="flex flex-col gap-3 w-full max-w-md">
+                <label className="font-bold">Choose a word set</label>
+                <select
+                  value={lobbyPreset}
+                  onChange={(e) => setLobbyPreset(e.target.value)}
+                  className="px-3 py-2 rounded-lg border font-bold"
+                >
+                  {presets.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                <button onClick={() => startSession()} className="px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold">
+                  Start live session
+                </button>
+              </div>
+            ) : (
+              <CurriculumFluencyBuilder onStart={startSession} />
+            )}
           </div>
         </div>
       );

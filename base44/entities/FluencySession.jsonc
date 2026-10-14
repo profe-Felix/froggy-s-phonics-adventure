@@ -8,7 +8,12 @@
     },
     "preset_id": {
       "type": "string",
-      "description": "Active preset lesson id (matches a key in the Supabase presets file)"
+      "description": "Active preset lesson id (matches a key in the Supabase presets file, or a curriculum-generated id like 'curriculum_M2.L6_sight_words')"
+    },
+    "preset_data": {
+      "type": "object",
+      "description": "When the session was built from the curriculum builder (week + day), the full generated preset object is stored here so students render the same table without needing it in the Supabase presets file. Shape: { id, title, rows, cols, sweep_ms, content[] }. Null/empty for manual-preset sessions.",
+      "default": {}
     },
     "seed": {
       "type": "integer",
