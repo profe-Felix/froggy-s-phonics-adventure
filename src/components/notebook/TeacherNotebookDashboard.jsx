@@ -115,6 +115,7 @@ export default function TeacherNotebookDashboard({
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [videoBroadcast, setVideoBroadcast] = useState('');
   const [globalViewPage, setGlobalViewPage] = useState(null);
+  const [pageInput, setPageInput] = useState('');
   const [replaySession, setReplaySession] = useState(null);
   const [replayAssignment, setReplayAssignment] = useState(null);
   const [replayPage, setReplayPage] = useState(null);
@@ -130,6 +131,9 @@ export default function TeacherNotebookDashboard({
     refetchInterval: 15000,
     retry: false,
   });
+
+  // Keep the page input in sync when globalViewPage changes via prev/next/reset.
+  useEffect(() => { setPageInput(''); }, [globalViewPage]);
 
   // Resolve a direct URL assignment or the same assignment after switching
   // teachers. Match by ID first, then by title because each class may have its
@@ -820,7 +824,24 @@ export default function TeacherNotebookDashboard({
                     <span className="text-indigo-400 text-xs font-bold">View page:</span>
                     <button onClick={() => setGlobalViewPage(v => Math.max(1, (v || (selectedAssignment?.locked_page || 1)) - 1))}
                       className="w-8 h-8 rounded-lg font-bold text-white flex items-center justify-center" style={{ background: '#4338ca' }}>‹</button>
-                    <span className="text-white font-black text-sm w-6 text-center">{globalViewPage || '—'}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter') return;
+                        const n = parseInt(pageInput, 10);
+                        if (n >= 1) setGlobalViewPage(n);
+                        else setGlobalViewPage(null);
+                      }}
+                      onBlur={() => {
+                        const n = parseInt(pageInput, 10);
+                        if (pageInput !== '' && n >= 1) setGlobalViewPage(n);
+                      }}
+                      placeholder={globalViewPage || '—'}
+                      className="w-12 h-8 rounded-lg text-center text-white font-black text-sm bg-transparent border border-indigo-500 focus:outline-none focus:border-indigo-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button onClick={() => setGlobalViewPage(v => (v || (selectedAssignment?.locked_page || 1)) + 1)}
                       className="w-8 h-8 rounded-lg font-bold text-white flex items-center justify-center" style={{ background: '#4338ca' }}>›</button>
                     {globalViewPage && <button onClick={() => setGlobalViewPage(null)} className="text-xs text-indigo-400 hover:text-white font-bold">Reset</button>}
