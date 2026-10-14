@@ -38,7 +38,7 @@
         "type": "object"
       },
       "default": [],
-      "description": "Array of page objects. For image books: {page_number, image_url}. For HTML books: {page_number, image_url, html_url, text, words: [{text, x, y, w, h}]}."
+      "description": "Array of page objects. For image books: {page_number, image_url}. For HTML books: {page_number, image_url, html_url, words: [{text, x, y, w, h}]}."
     },
     "pdf_page_count": {
       "type": "integer",

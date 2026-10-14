@@ -58,6 +58,10 @@ function findEmbeddedImage(doc) {
   return img ? img.getAttribute('src') : null;
 }
 
+const SKIP_TAGS = new Set([
+  'style', 'script', 'noscript', 'head', 'title', 'meta', 'link', 'svg',
+]);
+
 function extractText(container) {
   let text = '';
   const walk = (node) => {
@@ -67,6 +71,7 @@ function extractText(container) {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const tag = node.tagName.toLowerCase();
+    if (SKIP_TAGS.has(tag)) return;
     if (BLOCK_TAGS.has(tag)) text += '\n';
     for (const child of node.childNodes) walk(child);
     if (BLOCK_TAGS.has(tag) && tag !== 'br') text += '\n';

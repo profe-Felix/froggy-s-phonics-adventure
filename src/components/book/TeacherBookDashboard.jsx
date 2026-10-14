@@ -341,8 +341,7 @@ export default function TeacherBookDashboard({ onBack }) {
             page_number: p.pageNumber || i + 1,
             image_url: imageRes?.file_url || '',
             html_url: htmlRes.file_url,
-            text: p.text,
-            words: p.words,
+            words: p.words || [],
           };
         })
       );
@@ -392,7 +391,8 @@ export default function TeacherBookDashboard({ onBack }) {
       qc.invalidateQueries(['books-all', className]);
     } catch (error) {
       console.error('HTML book upload failed', error);
-      alert('The book could not be created. Please try again.');
+      const detail = error?.message || error?.error || (typeof error === 'string' ? error : 'Unknown error');
+      alert(`The book could not be created: ${detail}`);
     } finally {
       setUploading(false);
     }
