@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR, todayLocal } from '@/lib/schoolYear';
 import { useToast } from '@/components/ui/use-toast';
-import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
+import BookPageRenderer from '@/components/book/BookPageRenderer';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
@@ -14,7 +14,6 @@ import useBookQuestions from '@/hooks/useBookQuestions';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
 import ReaderQuestions from '@/components/book/ReaderQuestions';
 import PageMarkOverlay from '@/components/book/PageMarkOverlay';
-import HtmlPageRenderer from '@/components/book/HtmlPageRenderer';
 
 // localStorage key remembering the last book + page this student opened, so a
 // refresh (or re-entering Books from the game menu) drops them back on the
@@ -564,30 +563,16 @@ export default function StudentBookReader({
       ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
       : null;
 
-  const renderPage = (pageNum, align = 'center') => {
-    if (book.book_type === 'images') {
-      const img = (book.pages || []).find(p => p.page_number === pageNum);
-      return img
-        ? <img src={img.image_url} alt={`Page ${pageNum}`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-        : <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>;
-    }
-    if (book.book_type === 'html') {
-      const page = (book.pages || []).find(p => p.page_number === pageNum);
-      return page
-        ? <HtmlPageRenderer page={page} highlightWords={teacherMode ? bookKnownWords : null} alignSelf={align} />
-        : <div className="flex items-center justify-center w-full h-full text-gray-400">No page</div>;
-    }
-    return (
-      <PdfPageRenderer
-        pdfUrl={book.pdf_url}
-        pageNumber={pageNum}
-        fitMode="contain"
-        fillHeight={twoPerPage}
-        alignSelf={align}
-        highlightWords={teacherMode ? bookKnownWords : null}
-      />
-    );
-  };
+  const renderPage = (pageNum, align = 'center') => (
+    <BookPageRenderer
+      book={book}
+      pageNumber={pageNum}
+      fitMode="contain"
+      fillHeight={twoPerPage}
+      alignSelf={align}
+      highlightWords={teacherMode ? bookKnownWords : null}
+    />
+  );
 
   const readerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);

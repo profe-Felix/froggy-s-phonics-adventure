@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
+import BookPageRenderer from '@/components/book/BookPageRenderer';
 import LaserOverlay from '@/components/notebook/LaserOverlay';
 import LaserReplayOverlay from '@/components/notebook/LaserReplayOverlay';
 import useLaserTracker from '@/hooks/useLaserTracker';
@@ -309,7 +309,8 @@ export default function TeacherBookAnnotator({ book, onUpdate }) {
     if (editingId === id) setEditingId(null);
   }, [book, onUpdate, editingId]);
 
-  const effectiveSize = pdfSize || containerSize;
+  const isHtmlBook = book.book_type === 'html' || (book.pages || []).some(page => page.html_url);
+  const effectiveSize = isHtmlBook ? containerSize : pdfSize || containerSize;
 
   return (
     <div className="flex flex-col gap-3">
@@ -335,18 +336,15 @@ export default function TeacherBookAnnotator({ book, onUpdate }) {
       {/* PDF page with annotation icons */}
       <div
         ref={containerRef}
-        style={{ position: 'relative', background: '#e8e8e8', cursor: placing ? 'crosshair' : 'default' }}
+        style={{ position: 'relative', background: '#e8e8e8', cursor: placing ? 'crosshair' : 'default', height: isHtmlBook ? 'min(65vh, 768px)' : undefined }}
         onClick={handlePageClick}
       >
-        {book.pdf_url ? (
-          <PdfPageRenderer
-            pdfUrl={book.pdf_url}
-            pageNumber={currentPage}
-            onRendered={(w, h) => setPdfSize({ w, h })}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-64 text-gray-400">No PDF</div>
-        )}
+        <BookPageRenderer
+          book={book}
+          pageNumber={currentPage}
+          fitMode="width"
+          onRendered={(w, h) => setPdfSize({ w, h })}
+        />
 
         {/* Live laser overlay while any icon is recording */}
         {editingId && (
