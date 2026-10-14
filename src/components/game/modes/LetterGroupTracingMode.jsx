@@ -170,7 +170,10 @@ export default function LetterGroupTracingMode({ studentData, onStudentPatch, cl
   const coinReward = REWARD[sizeMode];
 
   // ── GROUP PICKER ──────────────────────────────────────────────────────
-  if (!selectedKey) {
+  // If the selected group is no longer enabled (teacher toggled it off, or
+  // waypoints/settings reloaded to a state where it's unavailable), fall back
+  // to the picker instead of crashing the render on `currentGroup.letters`.
+  if (!selectedKey || !currentGroup) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center py-6 px-4 gap-4 select-none">
         {onBack && (

@@ -25,6 +25,7 @@ import StoryBuilder from '../pages/StoryBuilder';
 import CreandoOracionesMode from '@/components/sentence/CreandoOraciones';
 import BookReading from '../pages/BookReading';
 import { Button } from "@/components/ui/button";
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { ArrowLeft } from 'lucide-react';
 import { ALL_PETS } from '../components/game/avatar/PETS_DATA';
 import { getNewFruits, FRUIT_LIST } from '../components/game/FruitCollection';
@@ -701,7 +702,12 @@ export default function LetterGame() {
         />
       )}
       {currentMode === 'letter_tracing' && (
-        activeTracingLock ? (
+        <ErrorBoundary
+          key={`tracing-${activeTracingLock ? 'lock' : 'group'}`}
+          resetKey={activeTracingLock ? activeTracingLock.letter : 'group'}
+          onBack={handleBackToModes}
+        >
+        {activeTracingLock ? (
           <LetterTracingMode
             studentData={studentData}
             onUpdateProgress={handleUpdateProgress}
@@ -719,7 +725,8 @@ export default function LetterGame() {
             tracingOnly={tracingOnlyFor(studentData?.class_name)}
             onBack={handleBackToModes}
           />
-        )
+        )}
+        </ErrorBoundary>
       )}
       {currentMode === 'number_hearing' && (
         <NumberHearingMode
