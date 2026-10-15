@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR, todayLocal } from '@/lib/schoolYear';
@@ -116,7 +118,7 @@ export default function StudentBookReader({
   const pairing = useBookPagePairing(book);
   const firstPair = Math.min(Math.max(1, totalPages - 1), pairing.firstPair);
   const visiblePageNumbers = bookSpreadPages(currentPage, totalPages, twoPerPage, firstPair);
-  const hasRightPage = visiblePageNumbers.length === 2 && !showChart;
+  const hasRightPage = visiblePageNumbers.length === 2 && !panelMode;
   const today = todayLocal();
 
   const recKey = currentPage;
@@ -550,27 +552,41 @@ export default function StudentBookReader({
     ? bookQuestions.filter((q) => visiblePageNumbers.includes(q.page_number))
     : [];
 
-  // Side-by-side anchor chart panel (teacher mode). A teacher can pin any
-  // anchor chart planned for this book and keep it visible alongside the
-  // text while flipping through multiple pages.
+  // Side-by-side panel (teacher mode). The panel can show either a pinned
+  // anchor chart or the page's comprehension questions. Questions cycle
+  // when a page has more than one, so the teacher can discuss each while
+  // the book page stays visible beside it.
   const anchorCharts = teacherMode
     ? bookQuestions.filter((q) => q.anchor_chart_url)
     : [];
-  const [showChart, setShowChart] = useState(false);
+  const pageQuestions = teacherMode
+    ? bookQuestions.filter((q) => q.page_number === currentPage && !q.anchor_chart_url)
+    : [];
+  const [panelMode, setPanelMode] = useState(null); // null | 'chart' | 'questions'
   const [pinnedChartUrl, setPinnedChartUrl] = useState(null);
+  const [panelQIdx, setPanelQIdx] = useState(0);
+  const [solFirst, setSolFirst] = useState(true);
+  const showChart = panelMode === 'chart';
+  const showQuestions = panelMode === 'questions';
   const toggleChart = () => {
-    if (showChart) {
-      setShowChart(false);
-      return;
-    }
+    if (showChart) { setPanelMode(null); return; }
     const pageChart = bookQuestions.find(
       (q) => q.page_number === currentPage && q.anchor_chart_url
     );
     setPinnedChartUrl(
       pageChart?.anchor_chart_url || anchorCharts[0]?.anchor_chart_url || null
     );
-    setShowChart(true);
+    setPanelMode('chart');
   };
+  const toggleQuestions = () => {
+    if (showQuestions) { setPanelMode(null); return; }
+    setPanelQIdx(0);
+    setPanelMode('questions');
+  };
+  // Keep the question index in range when the page changes
+  useEffect(() => {
+    if (panelQIdx > pageQuestions.length - 1) setPanelQIdx(0);
+  }, [currentPage, panelQIdx, pageQuestions.length]);
   const markFor = (pageNum) =>
     teacherMode && activeQ?.mark?.shape && activeQ.page_number === pageNum && (!activeQ.mark.book_id || activeQ.mark.book_id === book.catalog_book_id)
       ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
@@ -698,6 +714,14 @@ export default function StudentBookReader({
             )}
           </>
         )}
+        {teacherMode && (
+          <button onClick={toggleQuestions}
+            disabled={pageQuestions.length === 0 && !showQuestions}
+            className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${showQuestions ? 'bg-indigo-500 text-white border-indigo-300' : pageQuestions.length === 0 ? 'text-slate-600 border-slate-700 opacity-40' : 'text-indigo-300 border-indigo-600'}`}
+            title={pageQuestions.length === 0 ? 'No questions on this page' : 'Show this page\'s questions beside the page'}>
+            ❓ Questions{pageQuestions.length > 1 ? ` (${pageQuestions.length})` : ''}
+          </button>
+        )}
         {teacherMode && totalPages > 1 && (
           <BookPairingControl firstPair={firstPair} totalPages={totalPages}
             isLoading={pairing.isLoading} isSaving={pairing.isSaving} error={pairing.error}
@@ -734,6 +758,41 @@ export default function StudentBookReader({
             </div>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f3d3a', borderLeft: '2px solid #0d9488' }}>
               <img src={pinnedChartUrl} alt="Anchor chart" className="max-h-full max-w-full object-contain" style={{ userSelect: 'none' }} draggable={false} />
+            </div>
+          </div>
+        ) : showQuestions && pageQuestions.length > 0 ? (
+          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
+            <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', background: '#fff' }}>
+              {renderPage(currentPage, 'flex-end')}
+              {markFor(currentPage)}
+              {pageAnnotations.map((ann, i) => (
+                <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
+              ))}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', background: '#0f3d3a', borderLeft: '2px solid #0d9488', padding: '0.5rem' }}>
+              {pageQuestions.length > 1 && (
+                <div className="flex items-center justify-center gap-2 mb-1 shrink-0">
+                  <button onClick={() => setPanelQIdx(i => Math.max(0, i - 1))} disabled={panelQIdx === 0}
+                    className="rounded-full bg-slate-800/70 p-1.5 text-white disabled:opacity-30">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="rounded-full bg-slate-800/70 px-3 py-1 text-xs font-bold text-white">
+                    {panelQIdx + 1} / {pageQuestions.length}
+                  </span>
+                  <button onClick={() => setPanelQIdx(i => Math.min(pageQuestions.length - 1, i + 1))} disabled={panelQIdx === pageQuestions.length - 1}
+                    className="rounded-full bg-slate-800/70 p-1.5 text-white disabled:opacity-30">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
+              <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center">
+                <ToggleableQuestionBar
+                  question={pageQuestions[panelQIdx]}
+                  solFirst={solFirst}
+                  setSolFirst={setSolFirst}
+                  knownWords={bookKnownWords}
+                />
+              </div>
             </div>
           </div>
         ) : hasRightPage ? (
