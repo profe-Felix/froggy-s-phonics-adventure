@@ -128,7 +128,10 @@ class SharedNotebookClient {
   }
   async flush() {
     const deadline=Date.now()+15000;
-    while((this.pending.size||!this.connected) && Date.now()<deadline) {this.retry();await new Promise(resolve=>setTimeout(resolve,100));}
+    this.retry();
+    // Wait for acknowledgements; the scheduled retry handles lost messages.
+    // Resending every 100ms queues duplicate work while the server is saving.
+    while((this.pending.size||!this.connected) && Date.now()<deadline) {await new Promise(resolve=>setTimeout(resolve,100));}
     if(this.pending.size||!this.connected) {this.fail('Changes are kept on this device but not confirmed saved yet. Keep the notebook open and retry.');return false;}
     const request_id=crypto.randomUUID();
     return await new Promise(resolve=>{
