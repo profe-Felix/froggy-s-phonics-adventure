@@ -75,7 +75,9 @@ export default function PresentationRemote() {
     );
   }
 
-  const notes = slides[currentIndex]?.notes || '';
+  const slide = slides[currentIndex];
+  const notesHtml = slide?.notesHtml || '';
+  const notesPlain = slide?.notes || '';
 
   return (
     <div className="fixed inset-0 bg-slate-900 flex flex-col select-none">
@@ -90,8 +92,13 @@ export default function PresentationRemote() {
       <div className="flex-1 overflow-y-auto p-6">
         {loadingNotes ? (
           <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 text-white/50 animate-spin" /></div>
-        ) : notes ? (
-          <p className="text-white text-lg leading-relaxed whitespace-pre-wrap">{notes}</p>
+        ) : notesHtml ? (
+          <div
+            className="text-white text-lg leading-relaxed notes-html"
+            dangerouslySetInnerHTML={{ __html: notesHtml }}
+          />
+        ) : notesPlain ? (
+          <p className="text-white text-lg leading-relaxed whitespace-pre-wrap">{notesPlain}</p>
         ) : (
           <p className="text-white/40 text-center mt-8">No speaker notes for this slide</p>
         )}

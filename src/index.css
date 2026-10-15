@@ -634,6 +634,13 @@
   line-height: 1;
 }
 
+/* Speaker notes rendered from Google Slides — styled for the dark remote
+   background. Inline styles from the API (colors, font-size, bold) override
+   these defaults; this just handles list structure and base spacing. */
+.notes-html ul { list-style: disc; padding-left: 1.5em; margin: 0.5em 0; }
+.notes-html li { margin: 0.25em 0; }
+.notes-html strong { font-weight: 700; }
+
 /* Sound Wall card blue→red frame replacement is now done at the pixel level
    via canvas (src/lib/blueToRed.js) — no CSS overlay needed. */
 
