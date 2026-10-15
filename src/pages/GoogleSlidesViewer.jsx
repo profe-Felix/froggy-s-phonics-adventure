@@ -25,6 +25,7 @@ export default function GoogleSlidesViewer() {
   const roomRef = useRef(null);
   const presentationRef = useRef(null);
   const roomSetupRef = useRef(false);
+  const iframeRef = useRef(null);
 
   // Load presentation record
   useEffect(() => {
@@ -99,6 +100,30 @@ export default function GoogleSlidesViewer() {
   const goNext = () => roomRef.current?.send({ type: 'next' });
   const goPrev = () => roomRef.current?.send({ type: 'prev' });
 
+  // Keyboard arrow-key navigation — works when the iframe doesn't have focus.
+  // When the iframe has focus, Google Slides handles arrow keys internally
+  // (advancing animations). This covers the case where the teacher clicks
+  // outside the iframe (on the annotation overlay or page chrome).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPrev(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Navigate the iframe without a full remount — update the src directly so
+  // the iframe stays mounted and navigates internally (smoother, no blank
+  // flash). This makes the phone remote feel like a real presentation clicker.
+  useEffect(() => {
+    if (!iframeRef.current || !presentation) return;
+    const slide = slides[currentIndex];
+    const pid = presentation.presentation_id || extractPresentationId(presentation.presentation_url);
+    const url = buildEmbedUrl(pid, slide?.slideId);
+    if (url) iframeRef.current.src = url;
+  }, [currentIndex]);
+
   if (loading) {
     return <div className="fixed inset-0 bg-black flex items-center justify-center"><Loader2 className="w-12 h-12 text-white animate-spin" /></div>;
   }
@@ -128,7 +153,7 @@ export default function GoogleSlidesViewer() {
       <div ref={containerRef} className="relative flex-1 overflow-hidden">
         {presentationId ? (
           <iframe
-            key={currentIndex}
+            ref={iframeRef}
             src={embedUrl}
             className="absolute inset-0 w-full h-full"
             frameBorder="0"
