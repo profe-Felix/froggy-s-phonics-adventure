@@ -114,32 +114,24 @@ export default function GoogleSlidesViewer() {
     try { iframeRef.current?.contentWindow?.focus(); } catch (e) { /* cross-origin */ }
   };
 
-  // Keyboard navigation: Space focuses the iframe (so the next key press
-  // advances the slide's animation), and PageDown/PageUp change slides.
-  // Arrow keys are intentionally NOT handled here — they pass through to the
-  // Google Slides iframe, which uses them to advance animations on the
-  // current slide. Intercepting them at the window level would advance slides
-  // instead of animations, which is not what the teacher expects.
+  // Keys do not bubble into a cross-origin iframe. Return focus to Slides
+  // when a toolbar/control has taken it; native keys then operate its builds.
+  // Stroke completion and the interact toggle also restore focus directly.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === ' ') { e.preventDefault(); focusIframe(); }
-      else if (e.key === 'PageDown') { e.preventDefault(); goNext(); }
+      if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      if ([' ', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+        focusIframe();
+      } else if (e.key === 'PageDown') { e.preventDefault(); goNext(); }
       else if (e.key === 'PageUp') { e.preventDefault(); goPrev(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Navigate the iframe without a full remount — update the src directly so
-  // the iframe stays mounted and navigates internally (smoother, no blank
-  // flash). This makes the phone remote feel like a real presentation clicker.
-  useEffect(() => {
-    if (!iframeRef.current || !presentation) return;
-    const slide = slides[currentIndex];
-    const pid = presentation.presentation_id || extractPresentationId(presentation.presentation_url);
-    const url = buildEmbedUrl(pid, slide?.slideId);
-    if (url) iframeRef.current.src = url;
-  }, [currentIndex]);
+  // React updates the embed URL only when the selected slide changes.
+  // Do not also assign iframe.src: that navigates twice and restarts builds.
 
   if (loading) {
     return <div className="fixed inset-0 bg-black flex items-center justify-center"><Loader2 className="w-12 h-12 text-white animate-spin" /></div>;
@@ -176,17 +168,18 @@ export default function GoogleSlidesViewer() {
             frameBorder="0"
             allow="autoplay; fullscreen"
             title="Google Slides"
+            onLoad={focusIframe}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-white/70">Invalid Google Slides URL</div>
         )}
 
-        <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} slideId={currentSlide?.slideId} />
+        <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} slideId={currentSlide?.slideId} onInteract={focusIframe} />
 
-        <button onClick={goPrev} disabled={currentIndex === 0} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
+        <button onClick={goPrev} aria-label="Previous slide" title="Previous slide (skips animations)" disabled={currentIndex === 0} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <button onClick={goNext} disabled={currentIndex >= slides.length - 1} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
+        <button onClick={goNext} aria-label="Next slide" title="Next slide (skips animations)" disabled={currentIndex >= slides.length - 1} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
           <ChevronRight className="w-6 h-6" />
         </button>
 

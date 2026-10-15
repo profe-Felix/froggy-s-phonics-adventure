@@ -1,0 +1,20 @@
+{
+  "name": "BookPagePairing",
+  "type": "object",
+  "properties": {
+    "book_key": {
+      "type": "string",
+      "description": "Canonical book reference: catalog:<id>, or assignment:<id> for a legacy book without a catalog."
+    },
+    "first_pair_page": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "File-order page on the left of the first two-page spread. Earlier pages display individually."
+    }
+  },
+  "required": [
+    "book_key",
+    "first_pair_page"
+  ]
+}

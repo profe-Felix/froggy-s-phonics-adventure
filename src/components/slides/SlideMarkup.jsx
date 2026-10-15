@@ -5,7 +5,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 // Annotation overlay for Google Slides. Toggles between interact mode
 // (pointer-events pass through to the iframe) and draw mode (canvas
 // captures events). Strokes persist across mode toggles.
-const SlideMarkup = forwardRef(function SlideMarkup({ width, height, slideId }, ref) {
+const SlideMarkup = forwardRef(function SlideMarkup({ width, height, slideId, onInteract }, ref) {
   const canvasRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
   const [tool, setTool] = useState('pen');
@@ -53,11 +53,14 @@ const SlideMarkup = forwardRef(function SlideMarkup({ width, height, slideId }, 
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
-        <AnnotationCanvas ref={canvasRef} width={width} height={height} color={color} size={size} tool={tool} mode="draw" />
+        <AnnotationCanvas ref={canvasRef} width={width} height={height} color={color} size={size} tool={tool}
+          mode={drawMode ? 'draw' : 'interact'} passThrough={!drawMode} onStrokeEnd={onInteract} />
       </div>
 
       <button
-        onClick={() => setDrawMode(m => !m)}
+        onClick={() => { setDrawMode(!drawMode); setOpenPanel(null); onInteract?.(); }}
+        aria-label={drawMode ? 'Interact with slides' : 'Draw on slides'}
+        aria-pressed={drawMode}
         className={`absolute top-4 right-4 z-30 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-transform ${
           drawMode ? 'bg-indigo-600 text-white' : 'bg-white/90 text-slate-900'
         }`}
@@ -67,7 +70,7 @@ const SlideMarkup = forwardRef(function SlideMarkup({ width, height, slideId }, 
       </button>
 
       {drawMode && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30">
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30" onClick={onInteract}>
           <div className="bg-zinc-900/95 backdrop-blur rounded-2xl px-2 py-1.5 gap-1 shadow-2xl border border-white/10 flex items-center">
             <div className="flex gap-1">
               <button onClick={() => setTool('pen')} className={`p-1.5 rounded-lg active:scale-90 ${tool === 'pen' ? 'bg-white text-black' : 'bg-zinc-700 text-white'}`} title="Pen"><Pen className="w-4 h-4" /></button>

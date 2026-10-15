@@ -14,6 +14,9 @@ import useBookQuestions from '@/hooks/useBookQuestions';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
 import ReaderQuestions from '@/components/book/ReaderQuestions';
 import PageMarkOverlay from '@/components/book/PageMarkOverlay';
+import BookPairingControl from '@/components/book/BookPairingControl';
+import useBookPagePairing from '@/components/book/useBookPagePairing';
+import { bookSpreadStart, bookSpreadPages, previousBookPage } from '@/components/book/bookSpreads';
 
 // localStorage key remembering the last book + page this student opened, so a
 // refresh (or re-entering Books from the game menu) drops them back on the
@@ -31,10 +34,6 @@ function writeRestore(className, studentNumber, book, page) {
 }
 function clearRestore(className, studentNumber) {
   try { localStorage.removeItem(restoreKey(className, studentNumber)); } catch { /* ignore */ }
-}
-
-function spreadKey(page) {
-  return page % 2 === 0 ? page - 1 : page;
 }
 
 function TeacherSpeakerIcon({ annotation, containerSize }) {
@@ -114,24 +113,19 @@ export default function StudentBookReader({
   const audioRef = useRef(null);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
+  const pairing = useBookPagePairing(book);
+  const firstPair = Math.min(Math.max(1, totalPages - 1), pairing.firstPair);
+  const visiblePageNumbers = bookSpreadPages(currentPage, totalPages, twoPerPage, firstPair);
+  const hasRightPage = visiblePageNumbers.length === 2;
   const today = todayLocal();
 
-  const recKey = twoPerPage ? spreadKey(currentPage) : currentPage;
+  const recKey = currentPage;
 
   // When recordingPages is undefined, preserve the original reader behavior
   // and allow recording on every page. An explicit array means the book has
   // permanent recording-page settings.
   const hasRecordingPageRules =
     Array.isArray(recordingPages);
-
-  const visiblePageNumbers = twoPerPage
-    ? [
-        currentPage,
-        currentPage + 1 <= totalPages
-          ? currentPage + 1
-          : null,
-      ].filter(Boolean)
-    : [currentPage];
 
   const requiredVisiblePages =
     hasRecordingPageRules
@@ -255,7 +249,7 @@ export default function StudentBookReader({
   const handleToggle2Up = () => {
     setTwoPerPage(v => {
       const next = !v;
-      if (next) setCurrentPage(p => spreadKey(p));
+      if (next) setCurrentPage(p => bookSpreadStart(p, firstPair));
       return next;
     });
   };
@@ -351,7 +345,7 @@ export default function StudentBookReader({
           audio_url: file_url,
           laser_data: ld,
           recorded_at: new Date().toISOString(),
-          is_spread: twoPerPage,
+          is_spread: hasRightPage,
           laser_coordinate_space: 'book-reader-viewport-v1',
           laser_viewport_width: recordingViewportRef.current?.width || containerSize.w,
           laser_viewport_height: recordingViewportRef.current?.height || containerSize.h,
@@ -385,13 +379,11 @@ export default function StudentBookReader({
         const extraSessions = existing.slice(1);
 
         // Replace the page being recorded (and its 2-up pair) with the new rec.
-        const pagesToReplace = twoPerPage ? [key, key + 1] : [key];
+        const pagesToReplace = hasRightPage ? [key, key + 1] : [key];
         for (const p of pagesToReplace) recsByPage.delete(p);
         recsByPage.set(key, newRec);
         const updatedRecs = Array.from(recsByPage.values());
-        const newPages = twoPerPage
-          ? [key, key + 1 <= totalPages ? key + 1 : null].filter(Boolean)
-          : [key];
+        const newPages = hasRightPage ? [key, key + 1] : [key];
         const updatedPages = Array.from(new Set([...allPages, ...newPages]));
 
         if (primarySession) {
@@ -462,7 +454,7 @@ export default function StudentBookReader({
     try { await saveInFlightRef.current; } finally { saveInFlightRef.current = null; }
   }, [
     recKey,
-    twoPerPage,
+    hasRightPage,
     totalPages,
     currentPage,
     laserTracker,
@@ -517,11 +509,10 @@ export default function StudentBookReader({
     onBack();
   }, [saveRecording, recKey, stopRecording, laserTracker, resetRecorder, onBack]);
 
-  const step = twoPerPage ? 2 : 1;
-  const canGoNext = currentPage + step - 1 < totalPages;
+  const canGoNext = visiblePageNumbers[visiblePageNumbers.length - 1] < totalPages;
   const canGoPrev = currentPage > 1;
-  const goNext = () => navigateTo(Math.min(totalPages, currentPage + step));
-  const goPrev = () => navigateTo(Math.max(1, currentPage - step));
+  const goNext = () => navigateTo(Math.min(totalPages, currentPage + visiblePageNumbers.length));
+  const goPrev = () => navigateTo(previousBookPage(currentPage, twoPerPage, firstPair));
 
   const handleReplay = (rec) => {
     const ld = rec.laser_data || [];
@@ -546,7 +537,7 @@ export default function StudentBookReader({
   };
 
   const pageAnnotations = (book.teacher_annotations || []).filter(a => a.page === currentPage);
-  const rightPageAnnotations = twoPerPage ? (book.teacher_annotations || []).filter(a => a.page === currentPage + 1) : [];
+  const rightPageAnnotations = hasRightPage ? (book.teacher_annotations || []).filter(a => a.page === currentPage + 1) : [];
   const isRecording = recState === 'recording' || recState === 'paused';
 
   // Teacher-mode only: planned comprehension questions for the visible page(s).
@@ -568,7 +559,7 @@ export default function StudentBookReader({
       book={book}
       pageNumber={pageNum}
       fitMode="contain"
-      fillHeight={twoPerPage}
+      fillHeight={hasRightPage}
       alignSelf={align}
       highlightWords={teacherMode ? bookKnownWords : null}
     />
@@ -621,7 +612,7 @@ export default function StudentBookReader({
     }
   };
   // Single combined bottom bar
-  const pageLabel = `${currentPage}${twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''}/${totalPages}`;
+  const pageLabel = `${visiblePageNumbers.join('–')}/${totalPages}`;
 
   return (
     <div
@@ -649,7 +640,7 @@ export default function StudentBookReader({
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488', paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 shrink-0" style={{ background: '#0f3d3a', borderBottom: '1px solid #0d9488', paddingTop: 'env(safe-area-inset-top)' }}>
         {!embedded && (
           <BackButton
             tone="teal"
@@ -659,10 +650,16 @@ export default function StudentBookReader({
         {headerExtra}
         <p className="flex-1 text-white font-black text-sm truncate min-w-0">{book.title}</p>
         <span className="text-teal-400 text-xs font-bold shrink-0">#{studentNumber}</span>
-        <button onClick={handleToggle2Up}
+        <button onClick={handleToggle2Up} disabled={pairing.isLoading || uploading || recState !== 'idle'}
           className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}>
           {twoPerPage ? '2-up' : '1-up'}
         </button>
+        {teacherMode && totalPages > 1 && (
+          <BookPairingControl firstPair={firstPair} totalPages={totalPages}
+            isLoading={pairing.isLoading} isSaving={pairing.isSaving} error={pairing.error}
+            disabled={uploading || recState !== 'idle'}
+            onChange={page => pairing.save(page, { onSuccess: () => { setTwoPerPage(true); setCurrentPage(page); } })} />
+        )}
         {showQrButton && (
           <button
             onClick={onShowQR}
@@ -676,13 +673,13 @@ export default function StudentBookReader({
           className={`px-2 py-0.5 rounded text-xs font-bold border shrink-0 ${isFullscreen ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}
           title="Fullscreen">{isFullscreen ? '⊡' : '⛶'}</button>
         <span className="text-teal-300 text-xs font-bold shrink-0">
-          Pg {currentPage}{twoPerPage && currentPage + 1 <= totalPages ? `–${currentPage + 1}` : ''} / {totalPages}
+          Pg {visiblePageNumbers.join('–')} / {totalPages}
         </span>
       </div>
 
       {/* Page display — fixed height, contain-fit so nothing scrolls */}
       <div className="flex-1 relative overflow-hidden no-select-text" ref={containerRef} style={{ background: '#fff' }}>
-        {twoPerPage ? (
+        {hasRightPage ? (
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
               {renderPage(currentPage, 'flex-end')}
@@ -730,7 +727,7 @@ export default function StudentBookReader({
       <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5" style={{ background: '#0f3d3a', borderTop: '1px solid #0d9488' }}>
 
         {/* Prev button — large rounded rectangle for easy tapping by kids */}
-        <button onClick={goPrev} disabled={!canGoPrev || uploading}
+        <button onClick={goPrev} aria-label="Previous book pages" disabled={!canGoPrev || uploading}
           className="shrink-0 w-16 h-12 rounded-2xl flex items-center justify-center font-bold text-white text-3xl leading-none disabled:opacity-30 active:scale-95 transition-transform"
           style={{ background: '#0f766e' }}>‹</button>
 
@@ -819,7 +816,7 @@ export default function StudentBookReader({
         <span className="text-teal-400 text-xs font-bold shrink-0 px-1">{pageLabel}</span>
 
         {/* Next button — large rounded rectangle for easy tapping by kids */}
-        <button onClick={goNext} disabled={!canGoNext || uploading}
+        <button onClick={goNext} aria-label="Next book pages" disabled={!canGoNext || uploading}
           className="shrink-0 w-16 h-12 rounded-2xl flex items-center justify-center font-bold text-white text-3xl leading-none disabled:opacity-30 active:scale-95 transition-transform"
           style={{ background: '#0f766e' }}>›</button>
       </div>
