@@ -98,7 +98,10 @@ class SharedNotebookClient {
       pages[page]=projectPage(data,[...this.pending.values()].filter(op=>op.page===page),this.writer,this.teacher);
       strokes[page]=JSON.stringify(pages[page]);
     }
-    this.state={...this.state,pages,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status:this.pending.size?'Saving changes…':this.connected?'Saved to shared notebook':'Reconnecting — keeping your changes'};
+    const status=this.pending.size?'Saving changes…':this.connected?'Saved to shared notebook':'Reconnecting — keeping your changes';
+    // Clear any stale error once the connection is healthy or work is in-flight.
+    const error=(this.connected||this.pending.size)?'':this.state.error;
+    this.state={...this.state,pages,error,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status};
     for(const listener of this.listeners) listener(this.state);
   }
   enqueue(page,change) {
@@ -132,9 +135,11 @@ class SharedNotebookClient {
           this.registrySub?.unsubscribe(); this.registry?.close();
           this.registryClosed=true; this.failures=0;
           this.fail('Notebook is in offline mode. Your work is saved on this device.');
-        } else {
-          this.fail('The notebook server is taking longer than usual. Still trying…');
         }
+        // Intermediate failures: stay silent. The status bar already shows
+        // "Reconnecting — keeping your changes" which is enough for the user.
+        // Showing "Still trying…" after just 2.5s alarms users on slow school WiFi
+        // when the connection would still succeed given a few more seconds.
       }
       this.scheduleRetry();
       return;
