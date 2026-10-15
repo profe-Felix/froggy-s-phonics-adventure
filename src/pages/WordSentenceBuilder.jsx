@@ -531,8 +531,9 @@ function ProblemZone({
                 // Activate this problem zone when tapping any tile inside it
                 onActivate(index);
                 if (pendingRemove===tile.id) {
-                  if (swapMode) { onRemoveTile(i); setPendingRemove(null); }
-                  else setPendingRemove(null);
+                  // Second tap on the same tile erases it (double-tap to erase).
+                  onRemoveTile(i);
+                  setPendingRemove(null);
                 } else {
                   setPendingRemove(tile.id);
                 }
@@ -546,6 +547,19 @@ function ProblemZone({
             style={{ minWidth: dragRef.current?.tile?.type==='text'
               ? `${Math.max(String(dragRef.current.tile.value||'').length*1.1,3)}ch` : '2rem',
               fontSize:'0.75rem', color:'#60a5fa', fontWeight:'bold' }}>↓</div>
+        )}
+        {/* Inline trash button — appears in the row that has the selected tile,
+            so students erase without scrolling to the bottom bin. */}
+        {pendingRemove && tiles.some(t => t.id === pendingRemove) && (
+          <button
+            onClick={(e) => { e.stopPropagation();
+              const ti = tiles.findIndex(t => t.id === pendingRemove);
+              if (ti >= 0) onRemoveTile(ti);
+              setPendingRemove(null);
+            }}
+            className="ml-1 shrink-0 w-10 h-10 rounded-full bg-red-500 text-white flex items-center justify-center text-lg shadow-md active:scale-90 transition"
+            title="Borrar"
+          >🗑️</button>
         )}
       </div>
     </div>
