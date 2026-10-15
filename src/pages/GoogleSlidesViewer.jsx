@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { QRCodeSVG } from 'qrcode.react';
 import { ChevronLeft, ChevronRight, QrCode, X, Loader2 } from 'lucide-react';
@@ -59,8 +59,9 @@ export default function GoogleSlidesViewer() {
     })();
   }, [presentation, fetchingSlides]);
 
-  // Track container size for the annotation canvas
-  useEffect(() => {
+  // Track container size for the annotation canvas — useLayoutEffect runs
+  // synchronously after DOM mutations so the size is set before first paint.
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight });
@@ -175,9 +176,7 @@ export default function GoogleSlidesViewer() {
           <div className="flex items-center justify-center h-full text-white/70">Invalid Google Slides URL</div>
         )}
 
-        {containerSize.w > 0 && (
-          <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} slideId={currentSlide?.slideId} />
-        )}
+        <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} slideId={currentSlide?.slideId} />
 
         <button onClick={goPrev} disabled={currentIndex === 0} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
           <ChevronLeft className="w-6 h-6" />
