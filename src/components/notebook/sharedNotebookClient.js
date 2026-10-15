@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+import { notebookBase44 as base44 } from '@/api/base44Client';
 import { projectPage, recoverLegacy } from '@/components/notebook/notebookOperations';
 const clients=new Map();
 const opPrefix='notebook-operation-';

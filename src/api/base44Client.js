@@ -15,7 +15,18 @@ const clientConfig = {
 
 export let base44 = createClient(clientConfig);
 
+// Keep notebooks on the app's own origin when the separate realtime host
+// cannot be reached. The SDK still owns authentication and reconnection.
+const notebookClientConfig = {
+  ...clientConfig,
+  analytics: { enabled: false },
+  options: { actorsTransport: 'proxy' },
+};
+export let notebookBase44 = createClient(notebookClientConfig);
+
 export function resetBase44Client() {
   base44.cleanup();
+  notebookBase44.cleanup();
   base44 = createClient(clientConfig);
+  notebookBase44 = createClient(notebookClientConfig);
 }
