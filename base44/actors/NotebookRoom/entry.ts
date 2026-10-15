@@ -1,11 +1,12 @@
 import { Actor } from 'base44:runtime/actors';
 import { legacyPage, snapshot, applyOperation } from '../../shared/notebookModel.ts';
+import { notebookSessionHeader } from '../../shared/notebookSession.ts';
 
 export default class NotebookRoom extends Actor {
   users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null;
   async handleStart() {
     const state = await this.storage.get('session');
-    this.session = state || null;
+    this.session = notebookSessionHeader(state);
     this.users = new Map(await this.storage.get('seats') || []);
     this.dirty = new Set(await this.storage.get('dirty') || []);
     this.pages = new Map();
@@ -32,9 +33,9 @@ export default class NotebookRoom extends Actor {
         if (!msg || typeof msg !== 'object') return;
         if (msg.type === 'join') {
           if (typeof msg.session_id !== 'string' || typeof msg.room_id !== 'string' || msg.room_id !== this.instanceId) throw new Error('Invalid notebook');
-          const record = await this.client.asServiceRole.entities.NotebookSession.get(msg.session_id);
+          const record = notebookSessionHeader(await this.client.asServiceRole.entities.NotebookSession.get(msg.session_id));
           if (!record || record.collaboration_room_id !== msg.room_id || (this.session && this.session.id !== record.id)) throw new Error('Notebook selection does not match');
-          this.session = this.session ? {...record,strokes_by_page:this.session.strokes_by_page} : record;
+          this.session = record;
           await this.storage.put('session',this.session);
           let user = this.users.get(conn.id);
           if (!user) user = {seat:Math.max(0,...[...this.users.values()].map(u=>u.seat))+1,role:'student'};
@@ -68,10 +69,12 @@ export default class NotebookRoom extends Actor {
     const meta = await this.storage.get(`page:${number}`);
     let page;
     if (!meta) {
-      page = legacyPage(this.session.strokes_by_page?.[String(number)],number,this.session.id);
       const duplicates = await this.client.asServiceRole.entities.NotebookSession.filter({assignment_id:this.session.assignment_id,class_name:this.session.class_name,student_number:this.session.student_number,school_year:this.session.school_year},'created_date',50);
+      const records = Array.isArray(duplicates) ? duplicates : duplicates.items;
+      const canonical = records.find(record=>record.id===this.session.id);
+      page = legacyPage(canonical?.strokes_by_page?.[String(number)],number,this.session.id);
       const signatures = new Set(snapshot(page).strokes.map(s=>JSON.stringify([s.pts,s.color,s.tool,s.size])));
-      for (const other of (Array.isArray(duplicates) ? duplicates : duplicates.items)) {
+      for (const other of records) {
         if (other.id === this.session.id || !other.strokes_by_page?.[number]) continue;
         const extra = snapshot(legacyPage(other.strokes_by_page[number],number,other.id));
         for (const stroke of extra.strokes) {

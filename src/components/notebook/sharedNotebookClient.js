@@ -1,6 +1,5 @@
 import { base44 } from '@/api/base44Client';
 import { projectPage, recoverLegacy } from '@/components/notebook/notebookOperations';
-import { requestWithRetry } from '@/lib/classroomSync';
 const clients=new Map();
 const opPrefix='notebook-operation-';
 
@@ -11,10 +10,9 @@ class SharedNotebookClient {
     let id=sessionStorage.getItem('notebook-connection-id');
     if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);} this.clientId=`${id}-${teacher?'teacher':'student'}`;
     this.recoveryConnections=new Map();
-    this.failures=0; this.lastRetry=0;
-    this.registryClosed=false;
+    this.lastOpen=0; this.lastJoin=0;
+    this.openPayload={type:'open',...context};
     this.connectRegistry();
-    void this.bootstrap();
     this.scheduleRetry();
     this.online=()=>this.retry(); window.addEventListener('online',this.online);
   }
@@ -22,32 +20,17 @@ class SharedNotebookClient {
     const id=sessionStorage.getItem('notebook-connection-id')||crypto.randomUUID();
     this.registry=base44.actors.NotebookRegistry(`notebook-${this.context.assignment_id}-${this.context.student_number}-${this.context.school_year}`).connect({id});
     this.registryReady=false;
-    this.registryClosed=false;
     this.registrySub=this.registry.subscribe(msg=>{
-      if(msg.type==='registry_ready'){this.registryReady=true;this.failures=0;if(this.openPayload)this.registry.send(this.openPayload);}
+      if(msg.type==='registry_ready'){this.registryReady=true;this.lastOpen=Date.now();this.registry.send(this.openPayload);}
       if(msg.type==='document'&&!this.room) this.open(msg);
       if(msg.type==='error') this.fail(msg.message);
     });
   }
   scheduleRetry() {
     if(this.timer){clearTimeout(this.timer);this.timer=null;}
-    // When the registry is closed (offline mode), retry reconnection after 60s.
-    // Otherwise use exponential backoff: 2.5s → 5s → 10s → 20s → 30s (capped)
-    const delay=this.registryClosed?60000:Math.min(2500*Math.pow(2,Math.min(this.failures,4)),30000);
-    this.timer=setTimeout(()=>{this.timer=null;this.retry();},delay);
-  }
-  async bootstrap() {
-    if(this.bootstrapping)return;
-    this.bootstrapping=true;
-    try {
-      const result=await requestWithRetry(()=>base44.entities.NotebookSession.filter(this.context,'created_date',50));
-      const records=Array.isArray(result)?result:result.items;
-      this.openPayload={type:'open',...this.context,session_id:records[0]?.id};
-      // Only send if the registry WebSocket is ready; otherwise the retry loop
-      // or the registry_ready handler will send it once connected.
-      if(this.registryReady) this.registry.send(this.openPayload);
-    } catch {this.fail('The notebook could not connect yet. Keeping your selection and retrying.');}
-    finally {this.bootstrapping=false;}
+    // The connection already handles transport backoff. Retry a small handshake,
+    // not a full-workbook read, and never close a connection that is still opening.
+    this.timer=setTimeout(()=>{this.timer=null;this.retry();},10000);
   }
   fail(message) {this.state={...this.state,error:message};this.notify();}
   open(msg) {
@@ -62,14 +45,18 @@ class SharedNotebookClient {
       }
     }
     this.room=base44.actors.NotebookRoom(this.roomId).connect({id:this.clientId});
+    this.roomReady=false;
     this.sub=this.room.subscribe(message=>this.receive(message));
-    this.join();
     this.registrySub.unsubscribe(); this.registry.close();
   }
-  join() {this.room?.send({type:'join',room_id:this.roomId,session_id:this.session.id,page:this.page||1,teacher:this.teacher});}
+  join() {
+    if(!this.roomReady||Date.now()-this.lastJoin<10000)return;
+    this.lastJoin=Date.now();
+    this.room.send({type:'join',room_id:this.roomId,session_id:this.session.id,page:this.page||1,teacher:this.teacher});
+  }
   receive(msg) {
-    if(msg.type==='ready') {this.connected=false;this.join();}
-    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.failures=0;this.state={...this.state,session:msg.session,ready:true,writer:this.writer,error:''};this.retry();}
+    if(msg.type==='ready') {this.connected=false;this.roomReady=true;this.lastJoin=0;this.join();}
+    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.state={...this.state,session:msg.session,ready:true,writer:this.writer,error:''};this.retry();}
     if(msg.type==='page') {
       const old=this.serverPages.get(msg.page);
       if(old&&old.sharedRevision>msg.data.sharedRevision) return;
@@ -99,9 +86,7 @@ class SharedNotebookClient {
       strokes[page]=JSON.stringify(pages[page]);
     }
     const status=this.pending.size?'Saving changes…':this.connected?'Saved to shared notebook':'Reconnecting — keeping your changes';
-    // Clear any stale error once the connection is healthy or work is in-flight.
-    const error=(this.connected||this.pending.size)?'':this.state.error;
-    this.state={...this.state,pages,error,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status};
+    this.state={...this.state,pages,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status};
     for(const listener of this.listeners) listener(this.state);
   }
   enqueue(page,change) {
@@ -117,29 +102,8 @@ class SharedNotebookClient {
   pageChanged(page) {this.page=page;if(this.connected)this.room.send({type:'page',page});}
   retry() {
     if(!this.room) {
-      if(this.registryClosed) {
-        // Registry was closed after repeated failures. Wait 60s, then try a fresh connection.
-        this.connectRegistry();
-        if(this.openPayload && this.registryReady) this.registry.send(this.openPayload);
-        this.scheduleRetry();
-        return;
-      }
-      // Registry phase — only send if the registry WebSocket is actually connected,
-      // otherwise we generate a flood of failed connection attempts.
-      if(this.registryReady && this.openPayload) this.registry.send(this.openPayload);
-      else if(!this.openPayload) void this.bootstrap();
-      else {
-        this.failures++;
-        if(this.failures>=4) {
-          // Close the registry to stop the SDK's internal WebSocket reconnection flood.
-          this.registrySub?.unsubscribe(); this.registry?.close();
-          this.registryClosed=true; this.failures=0;
-          this.fail('Notebook is in offline mode. Your work is saved on this device.');
-        }
-        // Intermediate failures: stay silent. The status bar already shows
-        // "Reconnecting — keeping your changes" which is enough for the user.
-        // Showing "Still trying…" after just 2.5s alarms users on slow school WiFi
-        // when the connection would still succeed given a few more seconds.
+      if(this.registryReady&&Date.now()-this.lastOpen>=10000) {
+        this.lastOpen=Date.now();this.registry.send(this.openPayload);
       }
       this.scheduleRetry();
       return;
@@ -156,7 +120,7 @@ class SharedNotebookClient {
           if(msg.type==='ready')join();
           else if(msg.type==='joined'){recovery.ready=true;this.retry();}
           else this.receive(msg);
-        });join();
+        });
       }
       if(recovery.ready)recovery.connection.send(op);
     }
@@ -164,7 +128,7 @@ class SharedNotebookClient {
   }
   async flush() {
     const deadline=Date.now()+15000;
-    while(this.pending.size && Date.now()<deadline) {this.retry();await new Promise(resolve=>setTimeout(resolve,100));}
+    while((this.pending.size||!this.connected) && Date.now()<deadline) {this.retry();await new Promise(resolve=>setTimeout(resolve,100));}
     if(this.pending.size||!this.connected) {this.fail('Changes are kept on this device but not confirmed saved yet. Keep the notebook open and retry.');return false;}
     const request_id=crypto.randomUUID();
     return await new Promise(resolve=>{
