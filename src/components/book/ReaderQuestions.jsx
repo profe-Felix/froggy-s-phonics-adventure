@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { HelpCircle, ChevronLeft, ChevronRight, Image as ImageIcon, X } from 'lucide-react';
 import ToggleableQuestionBar from './ToggleableQuestionBar';
 
 // ? button + slide-up question bar inside the book reader.
@@ -8,11 +8,12 @@ import ToggleableQuestionBar from './ToggleableQuestionBar';
 export default function ReaderQuestions({ questions, onActiveChange, knownWords }) {
   const [idx, setIdx] = useState(null);
   const [solFirst, setSolFirst] = useState(true);
+  const [showAnchor, setShowAnchor] = useState(false);
   if (questions.length === 0) return null;
   const q = idx === null ? null : questions[idx];
 
-  const open = (i) => { setIdx(i); onActiveChange(questions[i]); };
-  const close = () => { setIdx(null); onActiveChange(null); };
+  const open = (i) => { setIdx(i); setShowAnchor(false); onActiveChange(questions[i]); };
+  const close = () => { setIdx(null); setShowAnchor(false); onActiveChange(null); };
 
   return (
     <>
@@ -37,6 +38,40 @@ export default function ReaderQuestions({ questions, onActiveChange, knownWords 
               </div>
             )}
             <ToggleableQuestionBar question={q} solFirst={solFirst} setSolFirst={setSolFirst} knownWords={knownWords} onClose={close} />
+            {q.anchor_chart_url && (
+              <button
+                onClick={() => setShowAnchor(v => !v)}
+                className="absolute -top-14 right-3 z-30 flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-2 text-sm font-bold text-white shadow-lg transition hover:scale-105"
+              >
+                <ImageIcon className="h-4 w-4" />
+                {showAnchor ? 'Hide chart' : 'Anchor chart'}
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {q?.anchor_chart_url && showAnchor && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-4"
+            onClick={() => setShowAnchor(false)}
+          >
+            <img
+              src={q.anchor_chart_url}
+              alt="Anchor chart"
+              className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setShowAnchor(false)}
+              className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-slate-700 shadow-lg hover:bg-white"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
