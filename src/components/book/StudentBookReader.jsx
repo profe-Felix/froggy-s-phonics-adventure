@@ -119,6 +119,7 @@ export default function StudentBookReader({
   const [pinnedChartUrl, setPinnedChartUrl] = useState(null);
   const [panelQIdx, setPanelQIdx] = useState(0);
   const [solFirst, setSolFirst] = useState(true);
+  const [selectedLessonKey, setSelectedLessonKey] = useState(null);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
   const pairing = useBookPagePairing(book);
@@ -550,12 +551,25 @@ export default function StudentBookReader({
 
   // Teacher-mode only: planned comprehension questions for the visible page(s).
   // Students never see the ? button or the Sol/Luna bar.
-  const { items: bookQuestions, lessonKey: bookLessonKey } = useBookQuestions(teacherMode ? book.catalog_book_id : null);
-  const { data: bookKnownWords } = useKnownSightWords(teacherMode ? bookLessonKey : null);
+  const { items: bookQuestions, lessonKeys: bookLessonKeys, lessonKey: bookLessonKey } = useBookQuestions(teacherMode ? book.catalog_book_id : null);
+  const effectiveLessonKey = selectedLessonKey || bookLessonKey;
+  const { data: bookKnownWords } = useKnownSightWords(teacherMode ? effectiveLessonKey : null, teacherMode ? className : null);
   const [activeQ, setActiveQ] = useState(null);
   useEffect(() => { setActiveQ(null); }, [recKey]);
+
+  // Auto-select the first lesson key when the hook loads
+  useEffect(() => {
+    if (bookLessonKeys?.length > 0 && !selectedLessonKey) {
+      setSelectedLessonKey(bookLessonKeys[0]);
+    }
+  }, [bookLessonKeys, selectedLessonKey]);
+
+  const filteredQuestions = teacherMode && selectedLessonKey
+    ? bookQuestions.filter((q) => q.lesson_key === selectedLessonKey)
+    : bookQuestions;
+
   const visibleQuestions = teacherMode
-    ? bookQuestions.filter((q) => visiblePageNumbers.includes(q.page_number))
+    ? filteredQuestions.filter((q) => visiblePageNumbers.includes(q.page_number))
     : [];
 
   // Side-by-side panel (teacher mode). The panel can show either a pinned
@@ -563,16 +577,16 @@ export default function StudentBookReader({
   // when a page has more than one, so the teacher can discuss each while
   // the book page stays visible beside it.
   const anchorCharts = teacherMode
-    ? bookQuestions.filter((q) => q.anchor_chart_url)
+    ? filteredQuestions.filter((q) => q.anchor_chart_url)
     : [];
   const pageQuestions = teacherMode
-    ? bookQuestions.filter((q) => q.page_number === currentPage && !q.anchor_chart_url)
+    ? filteredQuestions.filter((q) => q.page_number === currentPage && !q.anchor_chart_url)
     : [];
   const showChart = panelMode === 'chart';
   const showQuestions = panelMode === 'questions';
   const toggleChart = () => {
     if (showChart) { setPanelMode(null); return; }
-    const pageChart = bookQuestions.find(
+    const pageChart = filteredQuestions.find(
       (q) => q.page_number === currentPage && q.anchor_chart_url
     );
     setPinnedChartUrl(
@@ -715,6 +729,17 @@ export default function StudentBookReader({
               </select>
             )}
           </>
+        )}
+        {teacherMode && bookLessonKeys?.length > 1 && (
+          <select
+            value={selectedLessonKey || ''}
+            onChange={(e) => setSelectedLessonKey(e.target.value || null)}
+            className="px-2 py-0.5 rounded text-xs font-bold border border-indigo-600 text-indigo-200 shrink-0 max-w-[120px]"
+            style={{ background: '#0f3d3a' }}
+            title="Which lesson's questions to show"
+          >
+            {bookLessonKeys.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
         )}
         {teacherMode && (
           <button onClick={toggleQuestions}

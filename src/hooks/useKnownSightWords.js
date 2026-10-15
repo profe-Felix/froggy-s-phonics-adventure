@@ -9,19 +9,41 @@ import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
 const TOTAL_CURRICULUM_LESSONS = 135;
 
 // Loads all active Lesson records and returns a Set of lowercase-normalized
-// sight words that students should know by the given curriculum position
-// (e.g. "M2.L1"). A word is "known" if it appears in any lesson whose
-// daily_lessons curriculum position is <= the target.
+// sight words that students should know by the given curriculum position.
+//
+// Sight words are introduced in PHONICS lessons (the daily_lessons on Lesson
+// records), not in reading lessons.  When `className` is provided we look up
+// the class's ClassConfig to get its active phonics position
+// (active_spanish_module / active_spanish_lesson) and use THAT as the target,
+// because phonics is typically further ahead than reading.  If no ClassConfig
+// is found we fall back to the reading lessonKey.
 //
 // If no lessons have literacy_progression.sightWords populated, falls back to
-// a position-based subset of the static SIGHT_WORDS_EASY list (which is ordered
-// by pedagogical progression).
-export function useKnownSightWords(lessonKey) {
+// a position-based subset of the static SIGHT_WORDS_EASY list.
+export function useKnownSightWords(lessonKey, className) {
   return useQuery({
-    queryKey: ['known-sight-words', lessonKey],
+    queryKey: ['known-sight-words', lessonKey, className || null],
     queryFn: async () => {
-      if (!lessonKey) return new Set();
-      const target = parseCurriculumKey(lessonKey);
+      let target = null;
+
+      // 0. If a class name is given, use the active PHONICS position from ClassConfig
+      if (className) {
+        try {
+          const cfgRes = await base44.entities.ClassConfig.filter({ class_name: className }, { limit: 1 });
+          const cfg = cfgRes.items?.[0];
+          if (cfg && cfg.active_spanish_module && cfg.active_spanish_lesson) {
+            target = {
+              module_number: Number(cfg.active_spanish_module),
+              curriculum_lesson_number: Number(cfg.active_spanish_lesson),
+            };
+          }
+        } catch { /* fall back to lessonKey */ }
+      }
+
+      // 0b. Fall back to the reading lesson key if no phonics position
+      if (!target) {
+        target = parseCurriculumKey(lessonKey);
+      }
       if (!target) return new Set();
 
       // 1. Try lesson-based sight words from literacy_progression
@@ -56,6 +78,6 @@ export function useKnownSightWords(lessonKey) {
       return known;
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !!lessonKey,
+    enabled: !!(lessonKey || className),
   });
 }

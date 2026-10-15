@@ -15,7 +15,7 @@ export default function ToggleableQuestionBar({ question, solFirst, setSolFirst,
   const rightLabel = solFirst ? 'Luna' : 'Sol';
 
   return (
-    <div className="relative grid grid-cols-2 gap-4 rounded-2xl bg-white p-5 shadow-2xl">
+    <div className="relative grid grid-cols-2 gap-4 rounded-2xl bg-white p-6 shadow-2xl">
       {onClose && (
         <button onClick={onClose} className="absolute right-2 top-2 z-10 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
           <X className="h-5 w-5" />
@@ -28,13 +28,13 @@ export default function ToggleableQuestionBar({ question, solFirst, setSolFirst,
       >
         <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
           <LeftIcon
-            className="h-10 w-10 transition-transform scale-110"
+            className="h-12 w-12 transition-transform scale-110"
             style={{ color: leftColor }}
             strokeWidth={2.5}
           />
-          <span className="text-xs font-black" style={{ color: leftColor }}>{leftLabel}</span>
+          <span className="text-sm font-black" style={{ color: leftColor }}>{leftLabel}</span>
         </div>
-        <p className="pt-1 text-lg font-black leading-snug text-slate-800">
+        <p className="pt-1.5 text-2xl font-black leading-tight text-slate-800">
           <HighlightedText knownWords={knownWords} text={question.question_text} />
         </p>
       </div>
@@ -46,13 +46,13 @@ export default function ToggleableQuestionBar({ question, solFirst, setSolFirst,
       >
         <div className="flex flex-shrink-0 flex-col items-center gap-0.5">
           <RightIcon
-            className="h-10 w-10 transition-transform"
+            className="h-12 w-12 transition-transform"
             style={{ color: rightColor }}
             strokeWidth={2.5}
           />
-          <span className="text-xs font-black" style={{ color: rightColor }}>{rightLabel}</span>
+          <span className="text-sm font-black" style={{ color: rightColor }}>{rightLabel}</span>
         </div>
-        <p className="pt-1 text-lg font-bold leading-snug text-slate-500">
+        <p className="pt-1.5 text-xl font-bold leading-snug text-slate-500">
           <HighlightedText knownWords={knownWords} text={question.sentence_stem || '—'} />
         </p>
       </div>

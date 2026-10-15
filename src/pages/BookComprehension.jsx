@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Presentation, ArrowLeft, BookOpen, XCircle, Upload, Loader2 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { Plus, Pencil, Trash2, Presentation, ArrowLeft, BookOpen, XCircle, Upload, Loader2, GripVertical } from 'lucide-react';
 import MarkEditor from '@/components/book/MarkEditor';
 import ComparisonReader from '@/components/book/ComparisonReader';
 
@@ -10,9 +11,12 @@ const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
 const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
 
 // ── Authoring row ─────────────────────────────────────────────
-function QuestionRow({ q, onEdit, onDelete }) {
+function QuestionRow({ q, onEdit, onDelete, dragHandleProps }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div {...dragHandleProps} className="flex h-9 w-6 flex-shrink-0 cursor-grab items-center justify-center text-slate-300 hover:text-slate-500 active:cursor-grabbing">
+        <GripVertical className="h-5 w-5" />
+      </div>
       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-sm font-black text-indigo-600">
         {q.page_number ? `p${q.page_number}` : '★'}
       </div>
@@ -395,6 +399,22 @@ export default function BookComprehension() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (reordered) => {
+      const updates = reordered.map((q, i) => ({ id: q.id, order: i }));
+      await base44.entities.BookComprehensionQuestion.bulkUpdate(updates);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); },
+  });
+
+  const onDragEnd = (result) => {
+    if (!result.destination || result.destination.index === result.source.index) return;
+    const reordered = [...questions];
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    reorderMutation.mutate(reordered);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4">
       <div className="mx-auto max-w-3xl">
@@ -457,16 +477,33 @@ export default function BookComprehension() {
             <p className="mt-1 text-sm text-slate-400">Click "Add question" to create one.</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {questions.map((q, i) => (
-              <QuestionRow
-                key={q.id}
-                q={q}
-                onEdit={() => setEditing(q)}
-                onDelete={() => { if (confirm('Delete this question?')) deleteMutation.mutate(q.id); }}
-              />
-            ))}
-          </div>
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="questions">
+              {(provided) => (
+                <div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col gap-2">
+                  {questions.map((q, i) => (
+                    <Draggable key={q.id} draggableId={q.id} index={i}>
+                      {(dragProvided) => (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          style={dragProvided.draggableProps.style}
+                        >
+                          <QuestionRow
+                            q={q}
+                            onEdit={() => setEditing(q)}
+                            onDelete={() => { if (confirm('Delete this question?')) deleteMutation.mutate(q.id); }}
+                            dragHandleProps={dragProvided.dragHandleProps}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
         )}
       </div>
 
