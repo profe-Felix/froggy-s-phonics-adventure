@@ -3,14 +3,14 @@ import { legacyPage, snapshot, applyOperation } from '../../shared/notebookModel
 import { notebookSessionHeader, readNotebookSessionHeader } from '../../shared/notebookSession.ts';
 
 export default class NotebookRoom extends Actor {
-  users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null;
+  users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null; mirrorRetryAfter = 0;
   async handleStart() {
     const state = await this.storage.get('session');
     this.session = notebookSessionHeader(state);
     this.users = new Map(await this.storage.get('seats') || []);
     this.dirty = new Set(await this.storage.get('dirty') || []);
     this.pages = new Map();
-    if (this.dirty.size) await this.schedule('mirror',Date.now()+1500);
+    if (this.dirty.size) await this.scheduleMirror();
   }
   async writeBlob(key, value) {
     const json=JSON.stringify(value);
@@ -108,7 +108,7 @@ export default class NotebookRoom extends Actor {
     const page=await this.loadPage(Number(msg.page));
     if (page.applied.has(msg.op_id)) {
       this.dirty.add(Number(msg.page)); await this.storage.put('dirty',[...this.dirty]);
-      await this.schedule('mirror',Date.now()+1500);
+      await this.scheduleMirror();
       conn.send({type:'ack',op_id:msg.op_id}); await this.sendPage(conn,Number(msg.page)); return;
     }
     const next=applyOperation(page,msg.change,user.seat,user.role);
@@ -121,9 +121,13 @@ export default class NotebookRoom extends Actor {
     const committed={...next,applied:new Set([...page.applied,msg.op_id]),count:page.count+1,baseCount:page.baseCount};
     this.pages.set(Number(msg.page),committed);
     this.dirty.add(Number(msg.page)); await this.storage.put('dirty',[...this.dirty]);
-    await this.schedule('mirror',Date.now()+1500);
+    await this.scheduleMirror();
     this.broadcast({type:'page',page:Number(msg.page),data:snapshot(committed)});
     conn.send({type:'ack',op_id:msg.op_id});
+  }
+  async scheduleMirror() {
+    const when = Math.max(Date.now() + 5000, this.mirrorRetryAfter);
+    await this.schedule('mirror', when);
   }
   async mirror() {
     if (!this.session || !this.dirty.size) return;
@@ -131,11 +135,16 @@ export default class NotebookRoom extends Actor {
     for (const number of this.dirty) set[`strokes_by_page.${number}`]=JSON.stringify(snapshot(await this.loadPage(number)));
     await this.client.asServiceRole.entities.NotebookSession.updateMany({id:this.session.id},{$set:set});
     this.dirty.clear(); await this.storage.put('dirty',[]);
+    this.mirrorRetryAfter = 0;
   }
   async handleWake(key) {
     if (key !== 'mirror') return;
     this.chain=this.chain.catch(()=>{}).then(async()=>{
-      try { await this.mirror(); } catch { await this.schedule('mirror',Date.now()+15000); }
+      try { await this.mirror(); }
+      catch {
+        this.mirrorRetryAfter = Date.now() + 30000;
+        await this.schedule('mirror', this.mirrorRetryAfter);
+      }
     });
     await this.chain;
   }
