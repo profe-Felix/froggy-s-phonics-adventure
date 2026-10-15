@@ -1,17 +1,39 @@
-import { useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import { useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Undo2, Redo2, Eraser, Highlighter, Pen, Trash2, MousePointer2 } from 'lucide-react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 
 // Annotation overlay for Google Slides. Toggles between interact mode
 // (pointer-events pass through to the iframe) and draw mode (canvas
 // captures events). Strokes persist across mode toggles.
-const SlideMarkup = forwardRef(function SlideMarkup({ width, height }, ref) {
+const SlideMarkup = forwardRef(function SlideMarkup({ width, height, slideId }, ref) {
   const canvasRef = useRef(null);
   const [drawMode, setDrawMode] = useState(false);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState('#ef4444');
   const [size, setSize] = useState(4.5);
   const [openPanel, setOpenPanel] = useState(null);
+
+  // Per-slide annotation storage — each slide ID gets its own set of
+  // strokes. When the teacher navigates to a different slide, we save the
+  // current canvas state and load the destination slide's saved strokes
+  // (or clear the canvas if none exist). This eliminates the need to
+  // manually clear annotations before moving on.
+  const strokesBySlide = useRef(new Map());
+  const prevSlideId = useRef(null);
+
+  useEffect(() => {
+    if (slideId === prevSlideId.current) return;
+    // Save current canvas state under the previous slide ID
+    if (prevSlideId.current && canvasRef.current) {
+      strokesBySlide.current.set(prevSlideId.current, canvasRef.current.getStrokes());
+    }
+    // Load the new slide's saved strokes (or clear if none)
+    if (canvasRef.current) {
+      const saved = strokesBySlide.current.get(slideId);
+      canvasRef.current.loadStrokes(saved || null);
+    }
+    prevSlideId.current = slideId;
+  }, [slideId]);
 
   const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ffffff', '#000000'];
   const SIZES = [3, 4.5, 6, 12, 20];

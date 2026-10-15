@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { ChevronLeft, ChevronRight, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Wifi, WifiOff, MousePointerClick } from 'lucide-react';
 
 // Phone remote — connects to the PresentationRoom actor via a QR code, shows
 // speaker notes for the current slide, and sends next/prev commands.
@@ -50,6 +50,7 @@ export default function PresentationRemote() {
 
   const goNext = () => roomRef.current?.send({ type: 'next' });
   const goPrev = () => roomRef.current?.send({ type: 'prev' });
+  const advanceAnimation = () => roomRef.current?.send({ type: 'advance_animation' });
 
   if (!roomCode) {
     return (
@@ -104,13 +105,19 @@ export default function PresentationRemote() {
         )}
       </div>
 
-      <div className="bg-slate-800 px-6 py-4 flex items-center justify-between gap-4 shrink-0">
-        <button onClick={goPrev} disabled={currentIndex === 0} className="flex-1 flex items-center justify-center gap-2 bg-slate-700 text-white font-bold py-4 rounded-xl active:scale-95 disabled:opacity-30">
-          <ChevronLeft className="w-6 h-6" /> Prev
+      <div className="bg-slate-800 px-6 py-4 flex flex-col gap-3 shrink-0">
+        <button onClick={advanceAnimation} className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white font-bold py-5 rounded-xl active:scale-95 text-lg shadow-lg">
+          <MousePointerClick className="w-6 h-6" /> Tap to Animate
         </button>
-        <button onClick={goNext} disabled={currentIndex >= slideCount - 1} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-4 rounded-xl active:scale-95 disabled:opacity-30">
-          Next <ChevronRight className="w-6 h-6" />
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <button onClick={goPrev} disabled={currentIndex === 0} className="flex-1 flex items-center justify-center gap-2 bg-slate-700 text-white font-bold py-4 rounded-xl active:scale-95 disabled:opacity-30">
+            <ChevronLeft className="w-6 h-6" /> Prev
+          </button>
+          <button onClick={goNext} disabled={currentIndex >= slideCount - 1} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-4 rounded-xl active:scale-95 disabled:opacity-30">
+            Next <ChevronRight className="w-6 h-6" />
+          </button>
+        </div>
+        <p className="text-center text-xs text-white/40">Tap to Animate focuses the slide on your computer — then press Space or click to advance animations</p>
       </div>
     </div>
   );

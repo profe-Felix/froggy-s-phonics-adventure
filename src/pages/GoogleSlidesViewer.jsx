@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { QRCodeSVG } from 'qrcode.react';
-import { ChevronLeft, ChevronRight, QrCode, X, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, QrCode, X, Loader2, MousePointerClick } from 'lucide-react';
 import SlideMarkup from '@/components/slides/SlideMarkup';
 import { extractPresentationId, buildEmbedUrl, generateRoomCode } from '@/lib/slidesUtils';
 
@@ -85,6 +85,7 @@ export default function GoogleSlidesViewer() {
     const sub = room.subscribe((msg) => {
       if (msg.type === 'state') setCurrentIndex(msg.currentSlideIndex || 0);
       else if (msg.type === 'slide_changed') setCurrentIndex(msg.index);
+      else if (msg.type === 'advance_animation') focusIframe();
     });
 
     room.send({
@@ -99,6 +100,15 @@ export default function GoogleSlidesViewer() {
 
   const goNext = () => roomRef.current?.send({ type: 'next' });
   const goPrev = () => roomRef.current?.send({ type: 'prev' });
+  const advanceAnimation = () => roomRef.current?.send({ type: 'advance_animation' });
+
+  // Focus the Google Slides iframe so the next physical key press (Space,
+  // ArrowRight) or click advances the current slide's animation. Cross-origin
+  // security prevents synthetic clicks, but focusing the content window is
+  // allowed and routes subsequent keyboard input to the embed.
+  const focusIframe = () => {
+    try { iframeRef.current?.contentWindow?.focus(); } catch (e) { /* cross-origin */ }
+  };
 
   // Keyboard arrow-key navigation — works when the iframe doesn't have focus.
   // When the iframe has focus, Google Slides handles arrow keys internally
@@ -106,7 +116,8 @@ export default function GoogleSlidesViewer() {
   // outside the iframe (on the annotation overlay or page chrome).
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
+      if (e.key === ' ') { e.preventDefault(); focusIframe(); }
+      else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPrev(); }
     };
     window.addEventListener('keydown', onKey);
@@ -165,7 +176,7 @@ export default function GoogleSlidesViewer() {
         )}
 
         {containerSize.w > 0 && (
-          <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} />
+          <SlideMarkup ref={markupRef} width={containerSize.w} height={containerSize.h} slideId={currentSlide?.slideId} />
         )}
 
         <button onClick={goPrev} disabled={currentIndex === 0} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
@@ -173,6 +184,10 @@ export default function GoogleSlidesViewer() {
         </button>
         <button onClick={goNext} disabled={currentIndex >= slides.length - 1} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
           <ChevronRight className="w-6 h-6" />
+        </button>
+
+        <button onClick={focusIframe} className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 px-5 py-2.5 rounded-full bg-indigo-600 text-white font-bold text-sm flex items-center gap-2 active:scale-95 shadow-lg" title="Focus slide to advance animations (Space)">
+          <MousePointerClick className="w-4 h-4" /> Tap Slide
         </button>
 
         {fetchingSlides && (

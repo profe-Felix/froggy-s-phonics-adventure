@@ -67,6 +67,13 @@ export default class PresentationRoom extends Actor {
         await this.saveState();
         this.broadcast({ type: 'slide_changed', index: this.currentSlideIndex });
       }
+    } else if (msg.type === 'advance_animation') {
+      // Advance an animation step within the current slide (not a slide
+      // change). Broadcast to all connections so the viewer can focus the
+      // Google Slides iframe — cross-origin security prevents synthetic
+      // clicks, but focusing the iframe's content window makes the next
+      // physical key/click advance the animation.
+      this.broadcast({ type: 'advance_animation' });
     }
   }
 
