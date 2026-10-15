@@ -116,7 +116,7 @@ export default function StudentBookReader({
   const pairing = useBookPagePairing(book);
   const firstPair = Math.min(Math.max(1, totalPages - 1), pairing.firstPair);
   const visiblePageNumbers = bookSpreadPages(currentPage, totalPages, twoPerPage, firstPair);
-  const hasRightPage = visiblePageNumbers.length === 2;
+  const hasRightPage = visiblePageNumbers.length === 2 && !showChart;
   const today = todayLocal();
 
   const recKey = currentPage;
@@ -549,6 +549,28 @@ export default function StudentBookReader({
   const visibleQuestions = teacherMode
     ? bookQuestions.filter((q) => visiblePageNumbers.includes(q.page_number))
     : [];
+
+  // Side-by-side anchor chart panel (teacher mode). A teacher can pin any
+  // anchor chart planned for this book and keep it visible alongside the
+  // text while flipping through multiple pages.
+  const anchorCharts = teacherMode
+    ? bookQuestions.filter((q) => q.anchor_chart_url)
+    : [];
+  const [showChart, setShowChart] = useState(false);
+  const [pinnedChartUrl, setPinnedChartUrl] = useState(null);
+  const toggleChart = () => {
+    if (showChart) {
+      setShowChart(false);
+      return;
+    }
+    const pageChart = bookQuestions.find(
+      (q) => q.page_number === currentPage && q.anchor_chart_url
+    );
+    setPinnedChartUrl(
+      pageChart?.anchor_chart_url || anchorCharts[0]?.anchor_chart_url || null
+    );
+    setShowChart(true);
+  };
   const markFor = (pageNum) =>
     teacherMode && activeQ?.mark?.shape && activeQ.page_number === pageNum && (!activeQ.mark.book_id || activeQ.mark.book_id === book.catalog_book_id)
       ? <PageMarkOverlay key={activeQ.id} mark={activeQ.mark} />
@@ -654,6 +676,28 @@ export default function StudentBookReader({
           className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${twoPerPage ? 'bg-teal-600 text-white border-teal-400' : 'text-teal-300 border-teal-700'}`}>
           {twoPerPage ? '2-up' : '1-up'}
         </button>
+        {teacherMode && anchorCharts.length > 0 && (
+          <>
+            <button onClick={toggleChart}
+              className={`px-2 py-0.5 rounded text-xs font-bold border transition-all shrink-0 ${showChart ? 'bg-amber-500 text-white border-amber-300' : 'text-amber-300 border-amber-600'}`}
+              title="Show an anchor chart beside the page">
+              📐 Chart
+            </button>
+            {showChart && anchorCharts.length > 1 && (
+              <select
+                value={pinnedChartUrl || ''}
+                onChange={(e) => setPinnedChartUrl(e.target.value)}
+                className="px-1 py-0.5 rounded text-xs font-bold text-white border border-amber-600 shrink-0 max-w-[140px]"
+                style={{ background: '#042f2e' }}>
+                {anchorCharts.map((c, i) => (
+                  <option key={c.id} value={c.anchor_chart_url}>
+                    {c.page_number ? `Pg ${c.page_number}` : `Chart ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        )}
         {teacherMode && totalPages > 1 && (
           <BookPairingControl firstPair={firstPair} totalPages={totalPages}
             isLoading={pairing.isLoading} isSaving={pairing.isSaving} error={pairing.error}
@@ -679,7 +723,20 @@ export default function StudentBookReader({
 
       {/* Page display — fixed height, contain-fit so nothing scrolls */}
       <div className="flex-1 relative overflow-hidden no-select-text" ref={containerRef} style={{ background: '#fff' }}>
-        {hasRightPage ? (
+        {showChart && pinnedChartUrl ? (
+          <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
+            <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', background: '#fff' }}>
+              {renderPage(currentPage, 'flex-end')}
+              {markFor(currentPage)}
+              {pageAnnotations.map((ann, i) => (
+                <TeacherSpeakerIcon key={ann.id || i} annotation={ann} containerSize={{ w: containerSize.w / 2, h: containerSize.h }} />
+              ))}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f3d3a', borderLeft: '2px solid #0d9488' }}>
+              <img src={pinnedChartUrl} alt="Anchor chart" className="max-h-full max-w-full object-contain" style={{ userSelect: 'none' }} draggable={false} />
+            </div>
+          </div>
+        ) : hasRightPage ? (
           <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'stretch' }}>
             <div style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
               {renderPage(currentPage, 'flex-end')}
