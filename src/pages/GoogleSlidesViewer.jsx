@@ -19,6 +19,7 @@ export default function GoogleSlidesViewer() {
   const [fetchingSlides, setFetchingSlides] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [containerReady, setContainerReady] = useState(false);
   const [roomCode] = useState(() => generateRoomCode());
   const containerRef = useRef(null);
   const markupRef = useRef(null);
@@ -59,9 +60,11 @@ export default function GoogleSlidesViewer() {
     })();
   }, [presentation, fetchingSlides]);
 
-  // Track container size for the annotation canvas — useLayoutEffect runs
-  // synchronously after DOM mutations so the size is set before first paint.
+  // Track container size for the annotation canvas. The container div is only
+  // rendered after loading finishes and presentation is set, so a callback ref
+  // (not an empty-deps effect) is what fires when it actually mounts.
   useLayoutEffect(() => {
+    if (!containerReady) return;
     const el = containerRef.current;
     if (!el) return;
     const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight });
@@ -69,7 +72,7 @@ export default function GoogleSlidesViewer() {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [containerReady]);
 
   // Connect to actor and set up the room once slides are available
   useEffect(() => {
@@ -111,15 +114,17 @@ export default function GoogleSlidesViewer() {
     try { iframeRef.current?.contentWindow?.focus(); } catch (e) { /* cross-origin */ }
   };
 
-  // Keyboard arrow-key navigation — works when the iframe doesn't have focus.
-  // When the iframe has focus, Google Slides handles arrow keys internally
-  // (advancing animations). This covers the case where the teacher clicks
-  // outside the iframe (on the annotation overlay or page chrome).
+  // Keyboard navigation: Space focuses the iframe (so the next key press
+  // advances the slide's animation), and PageDown/PageUp change slides.
+  // Arrow keys are intentionally NOT handled here — they pass through to the
+  // Google Slides iframe, which uses them to advance animations on the
+  // current slide. Intercepting them at the window level would advance slides
+  // instead of animations, which is not what the teacher expects.
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === ' ') { e.preventDefault(); focusIframe(); }
-      else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goNext(); }
-      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goPrev(); }
+      else if (e.key === 'PageDown') { e.preventDefault(); goNext(); }
+      else if (e.key === 'PageUp') { e.preventDefault(); goPrev(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -162,7 +167,7 @@ export default function GoogleSlidesViewer() {
         </button>
       </div>
 
-      <div ref={containerRef} className="relative flex-1 overflow-hidden">
+      <div ref={(el) => { containerRef.current = el; setContainerReady(!!el); }} className="relative flex-1 overflow-hidden">
         {presentationId ? (
           <iframe
             ref={iframeRef}
