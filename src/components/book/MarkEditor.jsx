@@ -64,7 +64,7 @@ export default function MarkEditor({ books, page, mark, onChange }) {
         return (
           <div key={b.id} ref={el => { refs.current[b.id] = el; }}
             onPointerDown={e => onDown(b.id, e)} onPointerMove={e => onMove(b.id, e)} onPointerUp={onUp}
-            className={`relative w-full touch-none select-none overflow-hidden rounded-lg border border-slate-200 ${shape ? 'cursor-crosshair' : ''}`}>
+            className={`relative h-72 w-full touch-none select-none overflow-hidden rounded-lg border border-slate-200 ${shape ? 'cursor-crosshair' : ''}`}>
             <BookPageThumbnail book={b} pageNumber={page} width={480} />
             {shown && <MarkShape mark={shown} />}
             {books.length > 1 && (
