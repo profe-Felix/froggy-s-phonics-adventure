@@ -362,7 +362,7 @@ export default function TeacherBookDashboard({ onBack }) {
           ]);
 
           return {
-            page_number: p.pageNumber || i + 1,
+            page_number: i + 1,
             image_url: imageRes?.file_url || '',
             html_url: htmlRes.file_url,
             words: p.words || [],
