@@ -1,5 +1,5 @@
 import { Actor } from 'base44:runtime/actors';
-import { notebookSessionHeader } from '../../shared/notebookSession.ts';
+import { notebookSessionHeader, readNotebookSessionHeader, NOTEBOOK_SESSION_FIELDS } from '../../shared/notebookSession.ts';
 
 export default class NotebookRegistry extends Actor {
   chain = Promise.resolve();
@@ -19,16 +19,16 @@ export default class NotebookRegistry extends Actor {
         if (!assignment || assignment.class_name !== msg.class_name) throw new Error('Assignment not available in this class');
         if (saved) {
           stage = 'saved_session';
-          const session = notebookSessionHeader(await this.client.asServiceRole.entities.NotebookSession.get(saved.session_id));
+          const session = await readNotebookSessionHeader(this.client.asServiceRole.entities, saved.session_id);
           if (session) { conn.send({type:'document',session,room_id:saved.room_id}); return; }
         }
         stage = 'session_lookup';
-        const result = await this.client.asServiceRole.entities.NotebookSession.filter(context,'created_date',1);
+        const result = await this.client.asServiceRole.entities.NotebookSession.filter(context,'created_date',1,0,NOTEBOOK_SESSION_FIELDS);
         const records = Array.isArray(result) ? result : result.items;
         if (!Array.isArray(records)) throw new Error('The notebook lookup returned an unexpected response');
         let session = notebookSessionHeader(records[0]);
         if (!session && typeof msg.session_id === 'string') {
-          const candidate = notebookSessionHeader(await this.client.asServiceRole.entities.NotebookSession.get(msg.session_id));
+          const candidate = await readNotebookSessionHeader(this.client.asServiceRole.entities, msg.session_id);
           if (candidate && Object.entries(context).every(([key,value]) => candidate[key] === value)) session = candidate;
         }
         if (!session) session = await this.client.asServiceRole.entities.NotebookSession.create({...context,current_page:1,strokes_by_page:{}});
