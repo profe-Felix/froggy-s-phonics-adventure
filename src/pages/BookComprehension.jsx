@@ -7,7 +7,7 @@ import MarkEditor from '@/components/book/MarkEditor';
 import ComparisonReader from '@/components/book/ComparisonReader';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
-const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
+const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
 
 // ── Authoring row ─────────────────────────────────────────────
 function QuestionRow({ q, onEdit, onDelete }) {
