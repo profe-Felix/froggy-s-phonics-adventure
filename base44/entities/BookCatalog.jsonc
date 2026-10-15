@@ -68,6 +68,11 @@
       "default": "",
       "description": "Module folder such as M1, M2, or M3"
     },
+    "lesson": {
+      "type": "string",
+      "default": "",
+      "description": "Lesson tag e.g. 'L1'. Combined with module forms M#.L# (e.g. M2.L1) so the book can be tied to a specific daily curriculum lesson later."
+    },
     "recording_pages": {
       "type": "array",
       "items": {

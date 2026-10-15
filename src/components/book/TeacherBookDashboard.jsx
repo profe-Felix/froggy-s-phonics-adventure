@@ -14,6 +14,7 @@ import HtmlBookReview from './HtmlBookReview';
 import { parseHtmlPage } from '@/lib/htmlBookParser';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
+const LESSONS = ['', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15'];
 
 const SUBJECTS = [
   { value: 'lv', label: '📖 Lectura y Vocabulario (LV)', short: '📖 LV' },
@@ -29,6 +30,7 @@ export default function TeacherBookDashboard({ onBack }) {
   } = useClassNames();
   const [className, setClassName] = useState(CLASS_NAMES[0] || 'Felix');
   const [newModule, setNewModule] = useState('');
+  const [newLesson, setNewLesson] = useState('');
   const [newSubject, setNewSubject] = useState('lv');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);
@@ -247,6 +249,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
+        lesson: newLesson || '',
         subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
@@ -265,6 +268,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
+        lesson: newLesson || '',
         subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
@@ -276,6 +280,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
+      setNewLesson('');
       setNewSubject('lv');
       qc.invalidateQueries(['books-all', className]);
     } catch (error) {
@@ -369,6 +374,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: 'html',
         module: newModule || '',
+        lesson: newLesson || '',
         subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
@@ -388,6 +394,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: 'html',
         module: newModule || '',
+        lesson: newLesson || '',
         subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
@@ -399,6 +406,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
+      setNewLesson('');
       setNewSubject('lv');
       setHtmlPages(null);
       qc.invalidateQueries(['books-all', className]);
@@ -653,6 +661,12 @@ export default function TeacherBookDashboard({ onBack }) {
                 <option value="">No module</option>
                 {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
               </select>
+              <select value={newLesson} onChange={e => setNewLesson(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
+                style={{ background: '#042f2e' }}>
+                <option value="">No lesson</option>
+                {LESSONS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -730,6 +744,14 @@ export default function TeacherBookDashboard({ onBack }) {
                     style={{ background: '#042f2e' }}>
                     <option value="">No module</option>
                     {MODULES.filter(Boolean).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <select
+                    value={b.lesson || ''}
+                    onChange={e => updateBook.mutate({ id: b.id, data: { lesson: e.target.value } })}
+                    className="px-2 py-1 rounded-lg text-xs font-bold text-white border border-teal-700"
+                    style={{ background: '#042f2e' }}>
+                    <option value="">No lesson</option>
+                    {LESSONS.filter(Boolean).map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
                   <button
                     title={

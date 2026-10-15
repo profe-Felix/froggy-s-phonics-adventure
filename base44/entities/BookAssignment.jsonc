@@ -60,6 +60,11 @@
       "description": "Module folder e.g. M1, M2 \u2026 M9",
       "default": ""
     },
+    "lesson": {
+      "type": "string",
+      "default": "",
+      "description": "Lesson tag e.g. 'L1'. Combined with module forms M#.L# (e.g. M2.L1) so the book can be tied to a specific daily curriculum lesson later."
+    },
     "cover_image_url": {
       "type": "string",
       "description": "Thumbnail/cover image URL"
