@@ -68,7 +68,8 @@ export default function GameHome({
     fetchLessons().then((lessons) => {
       if (cancelled) return;
       const found = lessons.find((l) => l.id === savedId);
-      if (found) setOpenLesson(found);
+      // Never let a delayed restore replace the lesson the student already chose.
+      if (found) setOpenLesson(current => current || { id: found.id });
       else sessionStorage.removeItem(LESSON_KEY);
     }).catch(() => {});
     return () => { cancelled = true; };
