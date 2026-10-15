@@ -27,18 +27,22 @@ export default async function(req) {
 
     const slides = (data.slides || []).map((slide, i) => {
       const slideId = slide.objectId;
-      const slideNumber = slide.slideNumber || i + 1;
+      const slideNumber = i + 1;
       let notes = '';
-      const np = slide.notesPage;
+      // notesPage is nested inside slideProperties, not directly on the slide
+      const np = slide.notesPage || slide.slideProperties?.notesPage;
       if (np) {
+        // Try np.notes.text first (Shape with text)
         if (np.notes?.text?.textElements) {
           notes = np.notes.text.textElements.map(te => te.textRun?.content || '').join('');
         }
+        // Then search pageElements for the speaker notes text box
+        // (the slide image placeholder has no text; the body placeholder has the notes)
         if (!notes && Array.isArray(np.pageElements)) {
           for (const el of np.pageElements) {
             if (el.shape?.text?.textElements) {
-              notes = el.shape.text.textElements.map(te => te.textRun?.content || '').join('');
-              if (notes) break;
+              const t = el.shape.text.textElements.map(te => te.textRun?.content || '').join('');
+              if (t.trim()) { notes = t; break; }
             }
           }
         }
