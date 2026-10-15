@@ -127,16 +127,18 @@ export default function LessonMap({
     currentLesson?.id
   );
 
-  // When opened from a level puck, jump straight to that lesson.
+  // Reset the day only when navigation changes, not when an API refresh
+  // replaces the lesson list while a student is opening their notebook.
+  useEffect(() => {
+    setSelectedDay(initialDay || null);
+  }, [initialLessonId, initialDay]);
+
+  // Keep the requested week selected when refreshed lesson data arrives.
   useEffect(() => {
     if (!initialLessonId || !myLessons.length) return;
     const idx = myLessons.findIndex((l) => l.id === initialLessonId);
-
-    if (idx >= 0) {
-      setLessonIdx(idx);
-      setSelectedDay(initialDay || null);
-    }
-  }, [initialLessonId, initialDay, myLessons]);
+    if (idx >= 0) setLessonIdx(idx);
+  }, [initialLessonId, myLessons]);
 
   if (!myLessons.length) {
     return <FreePlayFallback onFreePlay={onFreePlay} onLogout={onLogout} studentData={studentData} />;
