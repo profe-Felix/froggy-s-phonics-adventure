@@ -31,8 +31,9 @@ class SharedNotebookClient {
   }
   scheduleRetry() {
     if(this.timer){clearTimeout(this.timer);this.timer=null;}
-    // Exponential backoff: 2.5s → 5s → 10s → 20s → 30s (capped)
-    const delay=Math.min(2500*Math.pow(2,Math.min(this.failures,4)),30000);
+    // When the registry is closed (offline mode), retry reconnection after 60s.
+    // Otherwise use exponential backoff: 2.5s → 5s → 10s → 20s → 30s (capped)
+    const delay=this.registryClosed?60000:Math.min(2500*Math.pow(2,Math.min(this.failures,4)),30000);
     this.timer=setTimeout(()=>{this.timer=null;this.retry();},delay);
   }
   async bootstrap() {
@@ -113,11 +114,28 @@ class SharedNotebookClient {
   pageChanged(page) {this.page=page;if(this.connected)this.room.send({type:'page',page});}
   retry() {
     if(!this.room) {
+      if(this.registryClosed) {
+        // Registry was closed after repeated failures. Wait 60s, then try a fresh connection.
+        this.connectRegistry();
+        if(this.openPayload && this.registryReady) this.registry.send(this.openPayload);
+        this.scheduleRetry();
+        return;
+      }
       // Registry phase — only send if the registry WebSocket is actually connected,
       // otherwise we generate a flood of failed connection attempts.
       if(this.registryReady && this.openPayload) this.registry.send(this.openPayload);
       else if(!this.openPayload) void this.bootstrap();
-      else { this.failures++; this.fail('The notebook server is taking longer than usual. Still trying…'); }
+      else {
+        this.failures++;
+        if(this.failures>=4) {
+          // Close the registry to stop the SDK's internal WebSocket reconnection flood.
+          this.registrySub?.unsubscribe(); this.registry?.close();
+          this.registryClosed=true; this.failures=0;
+          this.fail('Notebook is in offline mode. Your work is saved on this device.');
+        } else {
+          this.fail('The notebook server is taking longer than usual. Still trying…');
+        }
+      }
       this.scheduleRetry();
       return;
     }
