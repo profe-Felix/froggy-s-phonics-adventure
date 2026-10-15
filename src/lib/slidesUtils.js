@@ -19,8 +19,8 @@ export function generateRoomCode() {
 }
 
 // School year start date — Monday of the first full week of school.
-// For the 26-27 school year: August 17, 2026. Update this when the year starts.
-export const SCHOOL_YEAR_START = new Date('2026-08-17');
+// For the 26-27 school year: August 10, 2026. Update this when the year starts.
+export const SCHOOL_YEAR_START = new Date('2026-08-10');
 
 // Calculate the current 9-week period and week number from the school year
 // start date. Periods 1-3 have 9 weeks; period 4 has 11 (38 total).

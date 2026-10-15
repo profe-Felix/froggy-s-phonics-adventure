@@ -69,21 +69,24 @@ export default function SlideWeekManager({ className }) {
   const present = (p) => { window.location.href = `/GoogleSlidesViewer?id=${p.id}`; };
 
   return (
-    <div className="h-full overflow-y-auto p-4 pb-20" style={{ color: '#fff' }}>
-      <div className="flex gap-2 mb-4">
-        {[1, 2, 3, 4].map(p => (
-          <button key={p} onClick={() => setPeriod(p)} className={`px-4 py-2 rounded-lg font-bold text-sm transition ${period === p ? 'bg-white text-slate-900' : 'bg-white/10 text-white/70 hover:text-white'}`}>
-            Period {p}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {Array.from({ length: getWeeksInPeriod(period) }, (_, i) => i + 1).map(w => (
-          <button key={w} onClick={() => setWeek(w)} className={`w-10 h-10 rounded-lg font-bold text-sm transition ${week === w ? 'bg-indigo-600 text-white' : 'bg-white/10 text-white/70 hover:text-white'}`}>
-            {w}
-          </button>
-        ))}
+    <div className="h-full overflow-y-auto px-4 pb-20 pt-20" style={{ color: '#fff' }}>
+      {/* Period + Week selector — single compact panel below the floating nav */}
+      <div className="mb-6 rounded-2xl bg-black/30 p-3 backdrop-blur">
+        <div className="flex gap-2 mb-3">
+          {[1, 2, 3, 4].map(p => (
+            <button key={p} onClick={() => { setPeriod(p); setWeek(1); }} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${period === p ? 'bg-white text-slate-900' : 'bg-white/10 text-white/70 hover:text-white'}`}>
+              P{p}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {Array.from({ length: getWeeksInPeriod(period) }, (_, i) => i + 1).map(w => (
+            <button key={w} onClick={() => setWeek(w)} className={`w-9 h-9 rounded-lg font-bold text-sm transition ${week === w ? 'bg-indigo-600 text-white' : 'bg-white/10 text-white/70 hover:text-white'}`}>
+              {w}
+            </button>
+          ))}
+        </div>
+        <p className="text-white/40 text-xs mt-2 text-center">Period {period} · Week {week}</p>
       </div>
 
       {loading ? (
