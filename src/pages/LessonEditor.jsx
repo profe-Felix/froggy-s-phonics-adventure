@@ -1503,6 +1503,7 @@ export default function LessonEditor() {
       subtitle: editing.subtitle || '',
       daily_lessons: cleanDailyLessons,
       steps: cleanSteps,
+      literacy_progression: literacy,
       active: editing.active !== false,
       assignment_type: editing.assignment_type || 'class',
       assigned_students: editing.assignment_type === 'side_quest' ? (editing.assigned_students || []) : [],
