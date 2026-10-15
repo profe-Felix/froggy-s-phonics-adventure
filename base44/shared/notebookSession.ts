@@ -6,9 +6,9 @@ export const NOTEBOOK_SESSION_FIELDS = [
 ];
 
 export async function readNotebookSessionHeader(entities, id) {
-  const result = await entities.NotebookSession.filter({id}, 'created_date', 1, 0, NOTEBOOK_SESSION_FIELDS);
-  const records = Array.isArray(result) ? result : result.items;
-  return notebookSessionHeader(records?.[0]);
+  // Admission needs the exact current record, as it did before the lookup
+  // optimization. Strip drawing history before sending the connection reply.
+  return notebookSessionHeader(await entities.NotebookSession.get(id));
 }
 
 export function notebookSessionHeader(record) {

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import AnnotationToolbar from './AnnotationToolbar';
 import VoiceNoteRecorder from './VoiceNoteRecorder';
@@ -20,6 +20,7 @@ import BackButton from '@/components/ui/BackButton';
 import { QRCodeSVG } from 'qrcode.react';
 import { useClassNames } from '@/hooks/useClassNames';
 import useSharedNotebook from '@/components/notebook/useSharedNotebook';
+import useNotebookAssignments from '@/components/notebook/useNotebookAssignments';
 import NotebookFeedback from '@/components/notebook/NotebookFeedback';
 import NotebookNotePins from '@/components/notebook/NotebookNotePins';
 import useNotebookPagePosition from '@/components/notebook/useNotebookPagePosition';
@@ -257,28 +258,7 @@ export default function StudentNotebookView({
     data: assignments = [],
     error: assignmentLoadError,
     refetch: retryAssignments,
-  } = useQuery({
-    queryKey: [
-      'student-notebook-assignments',
-      className,
-    ],
-
-    queryFn: () =>
-      requestWithRetry(() => base44.entities.DigitalNotebookAssignment.filter({
-        class_name: className,
-        status: 'active',
-      })),
-
-    enabled: Boolean(className),
-
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-
-    refetchInterval: false,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
+  } = useNotebookAssignments(className, directAssignmentName);
 
   useEffect(() => {
     if (!directAssignmentName || selectedAssignment || assignments.length === 0) return;

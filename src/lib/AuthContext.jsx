@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { base44, resetBase44Client } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 
@@ -108,6 +108,10 @@ export const AuthProvider = ({ children }) => {
       if (error.status === 401 || error.status === 403) {
         try { localStorage.removeItem('base44_access_token'); } catch {}
         try { localStorage.removeItem('token'); } catch {}
+        appParams.token = null;
+        // Clear the SDK's old authorization headers and actor connections too,
+        // before the public student screens are allowed to mount.
+        resetBase44Client();
       }
     }
   };
