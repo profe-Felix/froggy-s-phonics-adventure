@@ -31,7 +31,7 @@ function QuestionRow({ q, onEdit, onDelete }) {
 }
 
 // ── Edit dialog ───────────────────────────────────────────────
-function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
+function QuestionEditor({ initial, onSave, onCancel, onSaveAndContinue, maxPages, books }) {
   const [question, setQuestion] = useState(initial?.question_text || '');
   const [stem, setStem] = useState(initial?.sentence_stem || '');
   const [page, setPage] = useState(initial?.page_number || 0);
@@ -40,6 +40,15 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
   const [uploading, setUploading] = useState(false);
   const max = maxPages || 999;
   const isQuestionSlide = page > 0 && page > max;
+
+  // Reset the form for the next question, keeping the same page so a teacher
+  // can add several questions in sequence for one page without re-typing it.
+  const resetForNext = () => {
+    setQuestion('');
+    setStem('');
+    setMark(null);
+    setAnchorChartUrl('');
+  };
 
   const handleUpload = async (file) => {
     setUploading(true);
@@ -125,6 +134,18 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
           )}
           <div className="flex justify-end gap-2">
             <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100">Cancel</button>
+            {onSaveAndContinue && !initial && (
+              <button
+                onClick={() => {
+                  if (!question.trim()) return;
+                  onSaveAndContinue(question.trim(), stem.trim(), page, page > 0 ? mark : null, anchorChartUrl);
+                  resetForNext();
+                }}
+                className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300"
+              >
+                Save & add next
+              </button>
+            )}
             <button
               onClick={() => question.trim() && onSave(question.trim(), stem.trim(), page, page > 0 ? mark : null, anchorChartUrl)}
               className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-bold text-white hover:bg-indigo-700"
@@ -347,7 +368,7 @@ export default function BookComprehension() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark, anchor_chart_url }) => {
+    mutationFn: async ({ id, question_text, sentence_stem, page_number, mark, anchor_chart_url, keepOpen }) => {
       if (id) {
         await base44.entities.BookComprehensionQuestion.update(id, { question_text, sentence_stem, page_number, mark: mark || {}, anchor_chart_url: anchor_chart_url || '' });
       } else {
@@ -361,8 +382,12 @@ export default function BookComprehension() {
           order: questions.length,
         });
       }
+      return { keepOpen };
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] }); setEditing(null); },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['book-comp-questions', lessonKey] });
+      if (!vars?.keepOpen) setEditing(null);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -452,6 +477,7 @@ export default function BookComprehension() {
           maxPages={books.reduce((sum, b) => sum + (b.pdf_page_count || 0), 0) || null}
           books={books}
           onSave={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: editing === 'new' ? null : editing.id, question_text, sentence_stem, page_number, mark, anchor_chart_url })}
+          onSaveAndContinue={(question_text, sentence_stem, page_number, mark, anchor_chart_url) => saveMutation.mutate({ id: null, question_text, sentence_stem, page_number, mark, anchor_chart_url, keepOpen: true })}
           onCancel={() => setEditing(null)}
         />
       )}
