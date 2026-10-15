@@ -91,7 +91,11 @@
           "curriculum_lesson_number": {
             "type": "integer",
             "default": 1,
-            "description": "Lesson number within the module, such as 1 in M2.L1"
+            "description": "Lesson number within the module, such as 1 in M2.L1. For a doubled-up day, this is the START of the range."
+          },
+          "curriculum_lesson_end": {
+            "type": "integer",
+            "description": "Optional end of a lesson range (e.g. 4 for M3.L3-4). Null/absent = single lesson. curriculum_lesson_number is the start."
           },
           "title": {
             "type": "string",

@@ -57,9 +57,33 @@ function blankDailyLesson(day) {
     active: true,
     module_number: 1,
     curriculum_lesson_number: 1,
+    curriculum_lesson_end: null,
     title: '',
     steps: [],
   };
+}
+
+// Format a daily lesson's lesson range for display: "3" or "3-4".
+function lessonRangeLabel(dailyLesson) {
+  const start = Number(dailyLesson?.curriculum_lesson_number) || 1;
+  const end = Number(dailyLesson?.curriculum_lesson_end);
+  if (end && end > start) return `${start}-${end}`;
+  return String(start);
+}
+
+// Parse a lesson range input ("3" or "3-4") into start/end fields.
+function parseLessonRangeInput(value) {
+  const trimmed = String(value || '').trim();
+  const m = /^(\d+)\s*-\s*(\d+)$/.exec(trimmed);
+  if (m) {
+    const start = Math.max(1, parseInt(m[1], 10) || 1);
+    const end = Math.max(1, parseInt(m[2], 10) || 1);
+    return end > start
+      ? { curriculum_lesson_number: start, curriculum_lesson_end: end }
+      : { curriculum_lesson_number: start, curriculum_lesson_end: null };
+  }
+  const single = Math.max(1, parseInt(trimmed, 10) || 1);
+  return { curriculum_lesson_number: single, curriculum_lesson_end: null };
 }
 
 function getAssignmentSteps(lesson) {
@@ -1437,6 +1461,12 @@ export default function LessonEditor() {
               .curriculum_lesson_number
           ) || 1;
 
+        const lessonEnd =
+          Number(
+            dailyLesson
+              .curriculum_lesson_end
+          ) || null;
+
         const curriculumPosition = {
           day:
             dailyLesson.day,
@@ -1446,6 +1476,9 @@ export default function LessonEditor() {
 
           curriculum_lesson_number:
             lessonNumber,
+
+          curriculum_lesson_end:
+            lessonEnd,
 
           key:
             `M${moduleNumber}.L${lessonNumber}`,
@@ -1463,6 +1496,9 @@ export default function LessonEditor() {
 
           curriculum_lesson_number:
             lessonNumber,
+
+          curriculum_lesson_end:
+            lessonEnd,
 
           title:
             dailyLesson.title || '',
@@ -1819,7 +1855,7 @@ export default function LessonEditor() {
                           <p className="font-black text-gray-800">{label}</p>
                           {isActive && (
                             <p className="text-xs font-bold text-indigo-600">
-                              M{dailyLesson.module_number || 1}.L{dailyLesson.curriculum_lesson_number || 1}
+                              M{dailyLesson.module_number || 1}.L{lessonRangeLabel(dailyLesson)}
                             </p>
                           )}
                         </div>
@@ -1856,17 +1892,18 @@ export default function LessonEditor() {
                           <label className="text-xs text-gray-600 font-bold">
                             Lesson
                             <input
-                              type="number"
-                              min={1}
-                              max={20}
-                              value={dailyLesson.curriculum_lesson_number || 1}
+                              type="text"
+                              inputMode="numeric"
+                              value={lessonRangeLabel(dailyLesson)}
                               onChange={(e) =>
-                                updateDailyLesson(value, {
-                                  curriculum_lesson_number: parseInt(e.target.value) || 1,
-                                })
+                                updateDailyLesson(value, parseLessonRangeInput(e.target.value))
                               }
+                              placeholder="1 or 3-4"
                               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 bg-white"
                             />
+                            <span className="block text-[10px] font-normal text-gray-400 mt-1">
+                              A single number, or a range like 3-4 to double up.
+                            </span>
                           </label>
 
                           <label className="text-xs text-gray-600 font-bold col-span-2">
@@ -1906,7 +1943,7 @@ export default function LessonEditor() {
                                     {label} activities
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    M{dailyLesson.module_number || 1}.L{dailyLesson.curriculum_lesson_number || 1}
+                                    M{dailyLesson.module_number || 1}.L{lessonRangeLabel(dailyLesson)}
                                   </p>
                                 </div>
 
