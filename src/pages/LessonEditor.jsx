@@ -1893,7 +1893,6 @@ export default function LessonEditor() {
                             Lesson
                             <input
                               type="text"
-                              inputMode="numeric"
                               value={lessonRangeLabel(dailyLesson)}
                               onChange={(e) =>
                                 updateDailyLesson(value, parseLessonRangeInput(e.target.value))
