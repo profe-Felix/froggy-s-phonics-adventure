@@ -14,7 +14,7 @@ import HtmlBookReview from './HtmlBookReview';
 import { parseHtmlPage } from '@/lib/htmlBookParser';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
-const LESSONS = ['', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15'];
+const LESSONS = ['', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9', 'L10', 'L11', 'L12', 'L13', 'L14', 'L15', 'L16', 'L17', 'L18', 'L19', 'L20'];
 
 const SUBJECTS = [
   { value: 'lv', label: '📖 Lectura y Vocabulario (LV)', short: '📖 LV' },

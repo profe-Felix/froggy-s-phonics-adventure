@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Presentation, BookOpen, ChevronRight, Loader2 } from 'lucide-react';
 
 const MODULES = Array.from({ length: 9 }, (_, i) => `M${i + 1}`);
-const LESSONS = Array.from({ length: 15 }, (_, i) => `L${i + 1}`);
+const LESSONS = Array.from({ length: 20 }, (_, i) => `L${i + 1}`);
 
 // TeacherView "Compare" tab: a compact lesson selector (M + L dropdowns,
 // saved to localStorage) that fetches the books and questions for the chosen
