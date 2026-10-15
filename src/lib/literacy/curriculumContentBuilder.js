@@ -117,6 +117,29 @@ export function buildSyllablePool({ moduleNumber, lessonNumber, decay = DEFAULT_
   return applyWeightedDecay(groups, 5, decay);
 }
 
+// Extract sight words for a specific daily lesson position. Prefers the
+// week-level literacy_progression.sightWords (backward compatible); falls back
+// to the matching daily lesson's dictation step config.lines, which carries
+// the specific words the teacher assigned to that curriculum lesson.
+function getDailyLessonSightWords(lesson, moduleNumber, lessonNumber) {
+  const weekWords = splitLiteracyList(lesson?.literacy_progression?.sightWords);
+  if (weekWords.length > 0) return weekWords;
+
+  const dailyLessons = lesson?.daily_lessons || [];
+  const matching = dailyLessons.find(d =>
+    d.active !== false &&
+    Number(d.module_number) === moduleNumber &&
+    Number(d.curriculum_lesson_number) === lessonNumber
+  );
+  if (!matching) return [];
+  const dictation = (matching.steps || []).find(s => s.mode === 'dictation');
+  const lines = dictation?.config?.lines;
+  if (Array.isArray(lines)) {
+    return lines.map(l => String(l).trim()).filter(Boolean);
+  }
+  return [];
+}
+
 // ── Sight words (from lesson literacy_progression) ─────────────────────────
 export function buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay = DEFAULT_DECAY }) {
   const target = { module_number: moduleNumber, curriculum_lesson_number: lessonNumber };
@@ -135,12 +158,17 @@ export function buildSightWordPool({ moduleNumber, lessonNumber, lessons, decay 
 
     if (positions.length === 0) return;
 
-    const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
-    if (sightWords.length > 0) {
+    // Collect sight words from each daily lesson's dictation (or week-level field)
+    const wordsForLesson = [];
+    positions.forEach(p => {
+      const words = getDailyLessonSightWords(lesson, p.module_number, p.curriculum_lesson_number);
+      words.forEach(w => { if (!wordsForLesson.includes(w)) wordsForLesson.push(w); });
+    });
+    if (wordsForLesson.length > 0) {
       const maxPos = positions.reduce((max, p) =>
         compareCurriculumPositions(p, max) > 0 ? p : max
       );
-      weekWords.push({ words: sightWords, position: maxPos });
+      weekWords.push({ words: wordsForLesson, position: maxPos });
     }
   });
 
@@ -173,7 +201,7 @@ export function buildSightWordPoolNew({ moduleNumber, lessonNumber, lessons }) {
       Number(d.curriculum_lesson_number) === lessonNumber
     );
     if (!hasExact) return;
-    const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
+    const sightWords = getDailyLessonSightWords(lesson, moduleNumber, lessonNumber);
     sightWords.forEach(w => { if (!newWords.includes(w)) newWords.push(w); });
   });
 
@@ -205,8 +233,10 @@ export function buildSightWordPoolAll({ moduleNumber, lessonNumber, lessons }) {
       .filter(p => p.module_number > 0 && p.curriculum_lesson_number > 0)
       .filter(p => compareCurriculumPositions(p, target) <= 0);
     if (positions.length === 0) return;
-    const sightWords = splitLiteracyList(lesson.literacy_progression?.sightWords);
-    sightWords.forEach(w => { if (!all.includes(w)) all.push(w); });
+    positions.forEach(p => {
+      const sightWords = getDailyLessonSightWords(lesson, p.module_number, p.curriculum_lesson_number);
+      sightWords.forEach(w => { if (!all.includes(w)) all.push(w); });
+    });
   });
 
   if (all.length === 0) {
