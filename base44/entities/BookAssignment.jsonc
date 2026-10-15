@@ -27,6 +27,16 @@
       "default": "kinder",
       "description": "Book grade copied from the permanent catalog for filtering"
     },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "df",
+        "lv",
+        "library"
+      ],
+      "default": "lv",
+      "description": "Curriculum subject: df = Destrezas Fundamentales (Phonics), lv = Lectura y Vocabulario (Reading), library = classroom library (random, not tied to specific lessons). DF and LV follow different pacing and lesson/module sequences."
+    },
     "catalog_book_id": {
       "type": "string",
       "default": "",

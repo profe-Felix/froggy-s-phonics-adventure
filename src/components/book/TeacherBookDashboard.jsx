@@ -15,6 +15,12 @@ import { parseHtmlPage } from '@/lib/htmlBookParser';
 
 const MODULES = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'];
 
+const SUBJECTS = [
+  { value: 'lv', label: '📖 Lectura y Vocabulario (LV)', short: '📖 LV' },
+  { value: 'df', label: '🔤 Destrezas Fundamentales (DF)', short: '🔤 DF' },
+  { value: 'library', label: '📚 Classroom Library', short: '📚 Library' },
+];
+
 export default function TeacherBookDashboard({ onBack }) {
   const qc = useQueryClient();
   const {
@@ -23,6 +29,7 @@ export default function TeacherBookDashboard({ onBack }) {
   } = useClassNames();
   const [className, setClassName] = useState(CLASS_NAMES[0] || 'Felix');
   const [newModule, setNewModule] = useState('');
+  const [newSubject, setNewSubject] = useState('lv');
   const [tab, setTab] = useState('books');
   const [selectedBook, setSelectedBook] = useState(null);
   const [selectedCatalogBook, setSelectedCatalogBook] = useState(null);
@@ -240,6 +247,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
+        subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
       });
@@ -257,6 +265,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: isPdf ? 'pdf' : 'images',
         module: newModule || '',
+        subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
       });
@@ -267,6 +276,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
+      setNewSubject('lv');
       qc.invalidateQueries(['books-all', className]);
     } catch (error) {
       console.error('Book upload failed', error);
@@ -359,6 +369,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: 'html',
         module: newModule || '',
+        subject: newSubject,
         recording_pages: [],
         source_assignment_id: '',
       });
@@ -377,6 +388,7 @@ export default function TeacherBookDashboard({ onBack }) {
         pdf_page_count: pageCount,
         book_type: 'html',
         module: newModule || '',
+        subject: newSubject,
         status: 'draft',
         teacher_annotations: [],
       });
@@ -387,6 +399,7 @@ export default function TeacherBookDashboard({ onBack }) {
 
       setNewTitle('');
       setNewModule('');
+      setNewSubject('lv');
       setHtmlPages(null);
       qc.invalidateQueries(['books-all', className]);
     } catch (error) {
@@ -629,6 +642,11 @@ export default function TeacherBookDashboard({ onBack }) {
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Book title…"
                 className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
                 style={{ background: '#042f2e' }} />
+              <select value={newSubject} onChange={e => setNewSubject(e.target.value)}
+                className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
+                style={{ background: '#042f2e' }}>
+                {SUBJECTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
               <select value={newModule} onChange={e => setNewModule(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-teal-600 text-white text-sm"
                 style={{ background: '#042f2e' }}>
@@ -677,6 +695,8 @@ export default function TeacherBookDashboard({ onBack }) {
                 <div className="min-w-0 self-center">
                   <p className="font-black text-white leading-tight">{b.title}</p>
                   <p className="text-xs text-teal-400 mt-1">
+                    {(SUBJECTS.find(s => s.value === (b.subject || 'lv')) || SUBJECTS[0]).short}
+                    {' · '}
                     {getBookClasses(b).includes(className)
                       ? 'Assigned to this class'
                       : 'Not assigned to this class'}
@@ -696,6 +716,13 @@ export default function TeacherBookDashboard({ onBack }) {
                     title="Generate QR for this book">
                     📱 QR
                   </button>
+                  <select
+                    value={b.subject || 'lv'}
+                    onChange={e => updateBook.mutate({ id: b.id, data: { subject: e.target.value } })}
+                    className="px-2 py-1 rounded-lg text-xs font-bold text-white border border-teal-700"
+                    style={{ background: '#042f2e' }}>
+                    {SUBJECTS.map(s => <option key={s.value} value={s.value}>{s.short}</option>)}
+                  </select>
                   <select
                     value={b.module || ''}
                     onChange={e => updateBook.mutate({ id: b.id, data: { module: e.target.value } })}
