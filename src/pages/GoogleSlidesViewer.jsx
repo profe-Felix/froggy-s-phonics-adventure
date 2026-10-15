@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { QRCodeSVG } from 'qrcode.react';
-import { ChevronLeft, ChevronRight, QrCode, X, Loader2, MousePointerClick } from 'lucide-react';
+import { ChevronLeft, ChevronRight, QrCode, X, Loader2 } from 'lucide-react';
 import SlideMarkup from '@/components/slides/SlideMarkup';
 import { extractPresentationId, buildEmbedUrl, generateRoomCode } from '@/lib/slidesUtils';
 
@@ -184,10 +184,6 @@ export default function GoogleSlidesViewer() {
         </button>
         <button onClick={goNext} disabled={currentIndex >= slides.length - 1} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-black/50 text-white flex items-center justify-center active:scale-90 disabled:opacity-30">
           <ChevronRight className="w-6 h-6" />
-        </button>
-
-        <button onClick={focusIframe} className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 px-5 py-2.5 rounded-full bg-indigo-600 text-white font-bold text-sm flex items-center gap-2 active:scale-95 shadow-lg" title="Focus slide to advance animations (Space)">
-          <MousePointerClick className="w-4 h-4" /> Tap Slide
         </button>
 
         {fetchingSlides && (
