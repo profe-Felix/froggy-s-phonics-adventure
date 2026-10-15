@@ -1,0 +1,120 @@
+{
+  "name": "SlidePresentation",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Display name shown in the subject tab"
+    },
+    "class_name": {
+      "type": "string",
+      "default": "",
+      "description": "Class this presentation set belongs to. Empty = all classes."
+    },
+    "school_year": {
+      "type": "string",
+      "default": "",
+      "description": "School year tag e.g. '26-27'. Prevents cross-year collisions."
+    },
+    "nine_weeks": {
+      "type": "integer",
+      "enum": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "description": "Which 9-week grading period (1-3 have 9 weeks, period 4 has 11)"
+    },
+    "week_number": {
+      "type": "integer",
+      "description": "Week number within the 9-week period (1-9, or 1-11 for period 4)"
+    },
+    "subject": {
+      "type": "string",
+      "default": "Phonics",
+      "description": "Subject tab label e.g. Phonics, Reading, Math"
+    },
+    "presentation_url": {
+      "type": "string",
+      "description": "Full Google Slides URL (edit or share link)"
+    },
+    "presentation_id": {
+      "type": "string",
+      "default": "",
+      "description": "Extracted Google Slides presentation ID from the URL"
+    },
+    "slide_data": {
+      "type": "string",
+      "default": "[]",
+      "description": "JSON-encoded array of {slideId, notes} fetched from the Google Slides API. Used for embed navigation and speaker notes."
+    },
+    "slide_data_fetched": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once slide IDs and speaker notes have been fetched from the API"
+    },
+    "slide_count": {
+      "type": "integer",
+      "default": 0,
+      "description": "Total number of slides in the presentation"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Inactive presentations are hidden from the weekly view"
+    }
+  },
+  "required": [
+    "title",
+    "subject",
+    "presentation_url",
+    "nine_weeks",
+    "week_number"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}
