@@ -1,5 +1,6 @@
 import { Actor } from 'base44:runtime/actors';
 import { notebookSessionHeader, readNotebookSessionHeader, NOTEBOOK_SESSION_FIELDS } from '../../shared/notebookSession.ts';
+import { notebookError } from '../../shared/notebookErrors.ts';
 
 export default class NotebookRegistry extends Actor {
   chain = Promise.resolve();
@@ -31,12 +32,19 @@ export default class NotebookRegistry extends Actor {
           const candidate = await readNotebookSessionHeader(this.client.asServiceRole.entities, msg.session_id);
           if (candidate && Object.entries(context).every(([key,value]) => candidate[key] === value)) session = candidate;
         }
-        if (!session) session = await this.client.asServiceRole.entities.NotebookSession.create({...context,current_page:1,strokes_by_page:{}});
+        if (!session) {
+          // Create the complete link atomically: a classroom opening needs one
+          // write per NEW notebook, and no entity write for an existing link.
+          session = await this.client.asServiceRole.entities.NotebookSession.create({...context,current_page:1,strokes_by_page:{},collaboration_room_id:crypto.randomUUID(),collaboration_version:1});
+        }
         const room_id = session.collaboration_room_id || crypto.randomUUID();
-        await this.client.asServiceRole.entities.NotebookSession.update(session.id,{collaboration_room_id:room_id,collaboration_version:1});
+        if (!session.collaboration_room_id) {
+          stage = 'link_session';
+          await this.client.asServiceRole.entities.NotebookSession.update(session.id,{collaboration_room_id:room_id,collaboration_version:1});
+        }
         await this.storage.put('document',{context,room_id,session_id:session.id});
         conn.send({type:'document',session:notebookSessionHeader({...session,collaboration_room_id:room_id}),room_id});
-      } catch (error) { conn.send({type:'error',message:error.message,stage}); }
+      } catch (error) { conn.send(notebookError(error,{stage})); }
     });
     await this.chain;
   }

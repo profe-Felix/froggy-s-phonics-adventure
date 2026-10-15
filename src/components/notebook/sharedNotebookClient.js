@@ -10,7 +10,8 @@ class SharedNotebookClient {
     let id=sessionStorage.getItem('notebook-connection-id');
     if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);} this.clientId=`${id}-${teacher?'teacher':'student'}`;
     this.recoveryConnections=new Map();
-    this.lastOpen=0; this.lastJoin=0;
+    this.lastOpen=0; this.lastJoin=0; this.lastPageRequest=0;
+    this.retryAttempt=0; this.retryAt=0; this.pagePending=true;
     this.openPayload={type:'open',...context};
     this.connectRegistry();
     this.scheduleRetry();
@@ -23,14 +24,26 @@ class SharedNotebookClient {
     this.registrySub=this.registry.subscribe(msg=>{
       if(msg.type==='registry_ready'){this.registryReady=true;this.lastOpen=Date.now();this.registry.send(this.openPayload);}
       if(msg.type==='document'&&!this.room) this.open(msg);
-      if(msg.type==='error') this.fail(msg.message);
+      if(msg.type==='error') this.retryError(msg);
     });
   }
-  scheduleRetry() {
+  scheduleRetry(delay=10000) {
     if(this.timer){clearTimeout(this.timer);this.timer=null;}
-    // The connection already handles transport backoff. Retry a small handshake,
-    // not a full-workbook read, and never close a connection that is still opening.
-    this.timer=setTimeout(()=>{this.timer=null;this.retry();},10000);
+    this.timer=setTimeout(()=>{this.timer=null;this.retry();},delay + Math.floor(Math.random()*1000));
+  }
+  retryError(msg) {
+    // A failed page read is not a failed socket. Retry that page without
+    // re-opening the registry or marking an empty notebook ready to draw.
+    const delay=Math.max(Number(msg.retry_after_ms)||0,Math.min(30000,1500*2**Math.min(this.retryAttempt++,5)));
+    this.retryAt=Date.now()+delay;
+    if(msg.stage==='page') {this.pagePending=true;this.lastPageRequest=0;}
+    this.fail(msg.message);
+    this.scheduleRetry(delay);
+  }
+  requestPage() {
+    if(!this.connected||Date.now()-this.lastPageRequest<10000)return;
+    this.lastPageRequest=Date.now();
+    this.room.send({type:'page',page:this.page||1});
   }
   fail(message) {this.state={...this.state,error:message};this.notify();}
   open(msg) {
@@ -55,18 +68,20 @@ class SharedNotebookClient {
     this.room.send({type:'join',room_id:this.roomId,session_id:this.session.id,page:this.page||1,teacher:this.teacher});
   }
   receive(msg) {
-    if(msg.type==='ready') {this.connected=false;this.roomReady=true;this.lastJoin=0;this.join();}
-    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.state={...this.state,session:msg.session,ready:true,writer:this.writer,error:''};this.retry();}
+    if(msg.type==='ready') {this.connected=false;this.pagePending=true;this.roomReady=true;this.lastJoin=0;this.join();}
+    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.lastPageRequest=Date.now();this.state={...this.state,session:msg.session,writer:this.writer};this.retry();}
     if(msg.type==='page') {
       const old=this.serverPages.get(msg.page);
       if(old&&old.sharedRevision>msg.data.sharedRevision) return;
-      this.serverPages.set(msg.page,msg.data); this.recover(msg.page,msg.data);
+      this.serverPages.set(msg.page,msg.data);
+      if(msg.page===(this.page||1)) {this.pagePending=false;this.retryAttempt=0;this.retryAt=0;this.state={...this.state,error:''};}
+      this.recover(msg.page,msg.data);
     }
     if(msg.type==='ack') {
       this.pending.delete(msg.op_id);localStorage.removeItem(`${opPrefix}${this.roomId}-${msg.op_id}`);
     }
     if(msg.type==='flushed') {this.waiters.get(msg.request_id)?.(true);this.waiters.delete(msg.request_id);}
-    if(msg.type==='error') {this.fail(msg.message);if(msg.request_id){this.waiters.get(msg.request_id)?.(false);this.waiters.delete(msg.request_id);}}
+    if(msg.type==='error') {this.retryError(msg);if(msg.request_id){this.waiters.get(msg.request_id)?.(false);this.waiters.delete(msg.request_id);}}
     this.notify();
   }
   recover(page,data) {
@@ -85,8 +100,9 @@ class SharedNotebookClient {
       pages[page]=projectPage(data,[...this.pending.values()].filter(op=>op.page===page),this.writer,this.teacher);
       strokes[page]=JSON.stringify(pages[page]);
     }
-    const status=this.pending.size?'Saving changes…':this.connected?'Saved to shared notebook':'Reconnecting — keeping your changes';
-    this.state={...this.state,pages,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status};
+    const ready=this.connected&&!this.pagePending&&this.serverPages.has(this.page||1);
+    const status=this.pending.size?'Saving changes…':ready?'Saved to shared notebook':this.connected?'Loading notebook page…':'Connecting to shared notebook…';
+    this.state={...this.state,pages,ready,session:this.state.session?{...this.state.session,strokes_by_page:strokes}:null,status};
     for(const listener of this.listeners) listener(this.state);
   }
   enqueue(page,change) {
@@ -99,8 +115,9 @@ class SharedNotebookClient {
     if(this.connected) this.room.send(operation);
     return durable;
   }
-  pageChanged(page) {this.page=page;if(this.connected)this.room.send({type:'page',page});}
+  pageChanged(page) {if(this.page===page)return;this.page=page;this.pagePending=true;this.lastPageRequest=0;if(this.connected)this.requestPage();this.notify();}
   retry() {
+    if(Date.now()<this.retryAt){this.scheduleRetry(this.retryAt-Date.now());return;}
     if(!this.room) {
       if(this.registryReady&&Date.now()-this.lastOpen>=10000) {
         this.lastOpen=Date.now();this.registry.send(this.openPayload);
@@ -109,6 +126,7 @@ class SharedNotebookClient {
       return;
     }
     if(!this.connected){this.join();this.scheduleRetry();return;}
+    if(this.pagePending||!this.serverPages.has(this.page||1))this.requestPage();
     for(const op of this.pending.values()) {
       if(op.client_id===this.clientId) {this.room.send(op);continue;}
       let recovery=this.recoveryConnections.get(op.client_id);

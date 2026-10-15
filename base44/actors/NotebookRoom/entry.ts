@@ -1,6 +1,7 @@
 import { Actor } from 'base44:runtime/actors';
 import { legacyPage, snapshot, applyOperation } from '../../shared/notebookModel.ts';
 import { notebookSessionHeader, readNotebookSessionHeader } from '../../shared/notebookSession.ts';
+import { notebookError } from '../../shared/notebookErrors.ts';
 
 export default class NotebookRoom extends Actor {
   users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null; mirrorRetryAfter = 0;
@@ -29,6 +30,7 @@ export default class NotebookRoom extends Actor {
   async handleClose() {}
   async handleMessage(conn, msg) {
     this.chain = this.chain.catch(() => {}).then(async () => {
+      let stage = msg?.type;
       try {
         if (!msg || typeof msg !== 'object') return;
         if (msg.type === 'join') {
@@ -48,6 +50,7 @@ export default class NotebookRoom extends Actor {
           }
           this.users.set(conn.id,user); await this.storage.put('seats',[...this.users]);
           conn.send({type:'joined',seat:user.seat,session:this.session});
+          stage = 'page';
           await this.sendPage(conn,Number(msg.page)||1);
         } else {
           const user = this.users.get(conn.id);
@@ -58,7 +61,7 @@ export default class NotebookRoom extends Actor {
             await this.mirror(); conn.send({type:'flushed',request_id:msg.request_id});
           }
         }
-      } catch (error) { conn.send({type:'error',message:error.message,op_id:msg?.op_id,request_id:msg?.request_id}); }
+      } catch (error) { conn.send(notebookError(error,{stage,page:msg?.page,op_id:msg?.op_id,request_id:msg?.request_id})); }
     });
     await this.chain;
   }

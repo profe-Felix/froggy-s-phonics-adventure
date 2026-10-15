@@ -9,6 +9,7 @@ import VoiceNoteRecorder from './VoiceNoteRecorder';
 import LaserRecordView from './LaserRecordView';
 import AnnotationCanvas from './AnnotationCanvas';
 import PdfPageRenderer from './PdfPageRenderer';
+import loadNotebookPdf from '@/components/notebook/loadNotebookPdf';
 import PageNavBar from './PageNavBar';
 import FloatingMicWidget from './FloatingMicWidget';
 import LaserOverlay from './LaserOverlay';
@@ -1023,6 +1024,7 @@ export default function StudentNotebookView({
                 }}
               >
                   <PdfPageRenderer
+                    loadDocument={loadNotebookPdf}
                     pdfUrl={selectedAssignment.pdf_url}
                     pageNumber={currentPage}
                     fitMode={fitMode}

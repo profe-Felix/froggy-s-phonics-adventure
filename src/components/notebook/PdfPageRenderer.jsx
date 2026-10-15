@@ -229,7 +229,7 @@ function renderPageToCachedRaster({
  *  - The "Loading page…" overlay only appears for a brand-new page, not for a
  *    resize of the current one.
  */
-export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight, highlightWords }) {
+export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMode = 'width', fillHeight = false, alignSelf = 'center', renderScale = 1, targetWidth, targetHeight, highlightWords, loadDocument = getCachedPdfDocument }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
@@ -426,7 +426,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
     (async () => {
       try {
-        const document = await getCachedPdfDocument(pdfUrl);
+        const document = await loadDocument(pdfUrl);
         if (cancelled) return;
 
         const safePageNumber = Math.max(
@@ -601,6 +601,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     renderScale,
     targetWidth,
     targetHeight,
+    loadDocument,
   ]);
 
   // Extract text from the PDF page and overlay highlights on known sight words.
@@ -619,7 +620,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
 
     (async () => {
       try {
-        const document = await getCachedPdfDocument(pdfUrl);
+        const document = await loadDocument(pdfUrl);
         if (cancelled) return;
         const safePageNumber = Math.max(1, Math.min(document.numPages, pageNumber));
         const page = await getCachedPdfPage(pdfUrl, document, safePageNumber);
@@ -662,7 +663,7 @@ export default function PdfPageRenderer({ pdfUrl, pageNumber, onRendered, fitMod
     })();
 
     return () => { cancelled = true; };
-  }, [pdfUrl, pageNumber, highlightWords, containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight, loading, alignSelf]);
+  }, [pdfUrl, pageNumber, highlightWords, containerSize.w, containerSize.h, fitMode, fillHeight, targetWidth, targetHeight, loading, alignSelf, loadDocument]);
 
   if (error) return <div className="flex items-center justify-center h-full text-red-400">{error}</div>;
 
