@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
-import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
+import BookPageRenderer from '@/components/book/BookPageRenderer';
 import BackButton from '@/components/ui/BackButton';
 import ToggleableQuestionBar from '@/components/book/ToggleableQuestionBar';
 import { useKnownSightWords } from '@/hooks/useKnownSightWords';
@@ -95,34 +95,30 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
   const canGoPrev = currentPage > 1;
 
   // ── Page rendering ──
-  const renderBookPage = (book, pageNum) => {
-    if (book.book_type === 'images') {
-      const img = (book.pages || []).find(p => p.page_number === pageNum);
-      return img ? (
-        <img
-          src={img.image_url}
-          alt={`Page ${pageNum}`}
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-        />
-      ) : (
-        <div className="flex items-center justify-center w-full h-full text-gray-400">No image</div>
-      );
-    }
-    return (
-      <PdfPageRenderer
-        pdfUrl={book.pdf_url}
-        pageNumber={pageNum}
-        fitMode="contain"
-        highlightWords={safeKnownWords}
-      />
-    );
-  };
+  const renderBookPage = (book, pageNum) => (
+    <BookPageRenderer
+      book={book}
+      pageNumber={pageNum}
+      fitMode="contain"
+      highlightWords={safeKnownWords}
+    />
+  );
 
   const pageTitle = isQuestion
     ? `Pregunta ${page.qIdx + 1}`
     : (currentBook?.title || '');
 
   const hasAnchor = isQuestion && !!page.question?.anchor_chart_url;
+
+  // When a question has an anchor chart tied to a specific book page, show a
+  // 2-up spread: the book page on the left, the anchor chart on the right.
+  const anchorPageNum = isQuestion && hasAnchor ? page.question.page_number : 0;
+  const anchorBook = anchorPageNum >= 1
+    ? (safeBooks.find(b => {
+        const pc = b.pdf_page_count || (b.pages || []).length || 1;
+        return anchorPageNum <= pc;
+      }) || safeBooks[0])
+    : null;
 
   return (
     <div
@@ -185,20 +181,37 @@ export default function ComparisonReader({ books, questions, onExit, lessonKey }
         style={{ background: '#fff' }}
       >
         {isQuestion ? (
-          <div className="relative w-full h-full flex items-center justify-center">
-            {hasAnchor && showAnchor ? (
-              <img
-                src={page.question.anchor_chart_url}
-                alt="Anchor chart"
-                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-              />
+          hasAnchor && showAnchor ? (
+            anchorBook ? (
+              <div className="flex h-full w-full">
+                <div className="flex flex-1 items-center justify-center overflow-hidden border-r border-slate-200 bg-white">
+                  {renderBookPage(anchorBook, anchorPageNum)}
+                </div>
+                <div className="flex flex-1 items-center justify-center overflow-hidden bg-slate-50">
+                  <img
+                    src={page.question.anchor_chart_url}
+                    alt="Anchor chart"
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
             ) : (
+              <div className="relative flex h-full w-full items-center justify-center">
+                <img
+                  src={page.question.anchor_chart_url}
+                  alt="Anchor chart"
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                />
+              </div>
+            )
+          ) : (
+            <div className="relative flex h-full w-full items-center justify-center">
               <div className="flex flex-col items-center justify-center">
                 <span className="text-8xl font-black text-slate-200">?</span>
                 <p className="mt-2 text-lg font-bold text-slate-300">Pregunta {page.qIdx + 1}</p>
               </div>
-            )}
-          </div>
+            </div>
+          )
         ) : currentBook ? (
           <div className="relative w-full h-full">
             {renderBookPage(currentBook, page.pageNumber)}
