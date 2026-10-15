@@ -13,7 +13,3 @@ export function notebookSessionHeader(record) {
   }
   return header;
 }
-
-export async function readNotebookSession(client, id) {
-  return notebookSessionHeader(await client.entities.NotebookSession.get(id));
-}
