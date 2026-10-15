@@ -11,15 +11,23 @@ class SharedNotebookClient {
     let id=sessionStorage.getItem('notebook-connection-id');
     if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);} this.clientId=`${id}-${teacher?'teacher':'student'}`;
     this.recoveryConnections=new Map();
+    this.failures=0; this.lastRetry=0;
     this.registry=base44.actors.NotebookRegistry(`notebook-${context.assignment_id}-${context.student_number}-${context.school_year}`).connect({id});
+    this.registryReady=false;
     this.registrySub=this.registry.subscribe(msg=>{
-      if(msg.type==='registry_ready' && this.openPayload) this.registry.send(this.openPayload);
+      if(msg.type==='registry_ready'){this.registryReady=true;this.failures=0;if(this.openPayload)this.registry.send(this.openPayload);}
       if(msg.type==='document'&&!this.room) this.open(msg);
       if(msg.type==='error') this.fail(msg.message);
     });
     void this.bootstrap();
-    this.timer=setInterval(()=>this.retry(),2500);
+    this.scheduleRetry();
     this.online=()=>this.retry(); window.addEventListener('online',this.online);
+  }
+  scheduleRetry() {
+    if(this.timer){clearTimeout(this.timer);this.timer=null;}
+    // Exponential backoff: 2.5s → 5s → 10s → 20s → 30s (capped)
+    const delay=Math.min(2500*Math.pow(2,Math.min(this.failures,4)),30000);
+    this.timer=setTimeout(()=>{this.timer=null;this.retry();},delay);
   }
   async bootstrap() {
     if(this.bootstrapping)return;
@@ -28,7 +36,9 @@ class SharedNotebookClient {
       const result=await requestWithRetry(()=>base44.entities.NotebookSession.filter(this.context,'created_date',50));
       const records=Array.isArray(result)?result:result.items;
       this.openPayload={type:'open',...this.context,session_id:records[0]?.id};
-      this.registry.send(this.openPayload);
+      // Only send if the registry WebSocket is ready; otherwise the retry loop
+      // or the registry_ready handler will send it once connected.
+      if(this.registryReady) this.registry.send(this.openPayload);
     } catch {this.fail('The notebook could not connect yet. Keeping your selection and retrying.');}
     finally {this.bootstrapping=false;}
   }
@@ -52,7 +62,7 @@ class SharedNotebookClient {
   join() {this.room?.send({type:'join',room_id:this.roomId,session_id:this.session.id,page:this.page||1,teacher:this.teacher});}
   receive(msg) {
     if(msg.type==='ready') {this.connected=false;this.join();}
-    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.state={...this.state,session:msg.session,ready:true,writer:this.writer,error:''};this.retry();}
+    if(msg.type==='joined') {this.writer=msg.seat;this.connected=true;this.failures=0;this.state={...this.state,session:msg.session,ready:true,writer:this.writer,error:''};this.retry();}
     if(msg.type==='page') {
       const old=this.serverPages.get(msg.page);
       if(old&&old.sharedRevision>msg.data.sharedRevision) return;
@@ -96,8 +106,16 @@ class SharedNotebookClient {
   }
   pageChanged(page) {this.page=page;if(this.connected)this.room.send({type:'page',page});}
   retry() {
-    if(!this.room) {if(this.openPayload)this.registry.send(this.openPayload);else void this.bootstrap();return;}
-    if(!this.connected){this.join();return;}
+    if(!this.room) {
+      // Registry phase — only send if the registry WebSocket is actually connected,
+      // otherwise we generate a flood of failed connection attempts.
+      if(this.registryReady && this.openPayload) this.registry.send(this.openPayload);
+      else if(!this.openPayload) void this.bootstrap();
+      else { this.failures++; this.fail('The notebook server is taking longer than usual. Still trying…'); }
+      this.scheduleRetry();
+      return;
+    }
+    if(!this.connected){this.join();this.scheduleRetry();return;}
     for(const op of this.pending.values()) {
       if(op.client_id===this.clientId) {this.room.send(op);continue;}
       let recovery=this.recoveryConnections.get(op.client_id);
@@ -113,6 +131,7 @@ class SharedNotebookClient {
       }
       if(recovery.ready)recovery.connection.send(op);
     }
+    this.scheduleRetry();
   }
   async flush() {
     const deadline=Date.now()+15000;
@@ -130,7 +149,7 @@ class SharedNotebookClient {
     setTimeout(()=>{
       if(this.listeners.size||this.pending.size||this.waiters.size)return;
       for(const recovery of this.recoveryConnections.values()){recovery.subscription?.unsubscribe();recovery.connection.close();}
-      clearInterval(this.timer);window.removeEventListener('online',this.online);this.sub?.unsubscribe();this.room?.close();this.registrySub?.unsubscribe();this.registry?.close();clients.delete(this.key);
+      clearTimeout(this.timer);window.removeEventListener('online',this.online);this.sub?.unsubscribe();this.room?.close();this.registrySub?.unsubscribe();this.registry?.close();clients.delete(this.key);
     },30000);
   }
 }
