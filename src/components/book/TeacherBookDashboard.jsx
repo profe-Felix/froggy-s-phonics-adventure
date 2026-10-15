@@ -213,8 +213,17 @@ export default function TeacherBookDashboard({ onBack }) {
   });
 
   const deleteBook = useMutation({
-    mutationFn: (id) => base44.entities.BookAssignment.delete(id),
-    onSuccess: () => { qc.invalidateQueries(['books-all', className]); setSelectedBook(null); },
+    mutationFn: async ({ id, catalogBookId }) => {
+      await base44.entities.BookAssignment.delete(id);
+      if (catalogBookId) {
+        try { await base44.entities.BookCatalog.delete(catalogBookId); } catch (e) { /* already gone */ }
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['books-all', className]);
+      qc.invalidateQueries({ queryKey: ['book-catalog'] });
+      setSelectedBook(null);
+    },
   });
 
   const extractPageCount = async (file) => {
@@ -839,7 +848,7 @@ export default function TeacherBookDashboard({ onBack }) {
                           'Use the class access button instead if you only want to remove student access.'
                         )
                       ) {
-                        deleteBook.mutate(b.id);
+                        deleteBook.mutate({ id: b.id, catalogBookId: b.catalog_book_id });
                       }
                     }}
                     className="px-2 py-1 rounded-full text-xs font-bold bg-red-900 text-red-200 hover:bg-red-700 transition-all hover:scale-105"
