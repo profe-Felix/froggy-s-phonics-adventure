@@ -25,7 +25,7 @@ export default function HtmlPageThumbnail({ book, pageNumber }) {
   }
 
   return (
-    <div className="h-72 w-full">
+    <div className="h-full w-full">
       <HtmlDocumentFrame sourceDocument={doc} pageNumber={pageNumber} />
     </div>
   );

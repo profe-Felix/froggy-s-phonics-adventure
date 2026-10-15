@@ -8,12 +8,22 @@ import HtmlPageThumbnail from './HtmlPageThumbnail';
 export default function BookPageThumbnail({ book, pageNumber, width = 500 }) {
   if (!book) return null;
 
-  // HTML book: always render the saved HTML in an iframe (the extracted
-  // image_url is often a blank placeholder, but html_url has real content)
+  // HTML book: prefer the saved HTML in an iframe (the extracted image_url is
+  // often a blank placeholder, but html_url has real content). Fall back to
+  // image_url if html_url is missing (legacy uploads).
   if (book.book_type === 'html' && book.pages?.length > 0) {
     const pageData = book.pages.find(p => p.page_number === pageNumber);
     if (pageData?.html_url) {
       return <HtmlPageThumbnail book={book} pageNumber={pageNumber} />;
+    }
+    if (pageData?.image_url) {
+      return (
+        <img
+          src={pageData.image_url}
+          alt={`Page ${pageNumber}`}
+          className="h-full w-full object-contain"
+        />
+      );
     }
   }
 

@@ -5,6 +5,7 @@ import { Link as LinkIcon } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useToast } from '@/components/ui/use-toast';
 import PdfThumbnail from '@/components/book/PdfThumbnail';
+import BookPageThumbnail from '@/components/book/BookPageThumbnail';
 
 // Teacher bookshelf: same class-filtered book list the student sees, but
 // without per-student queue gating (the teacher can open any class book) and
@@ -118,6 +119,8 @@ export default function TeacherBookShelf({ className, onSelectBook }) {
             <div className="h-40 w-full overflow-hidden">
               {book.cover_image_url ? (
                 <img src={book.cover_image_url} alt={book.title} className="h-full w-full object-cover" />
+              ) : book.book_type === 'html' && book.pages?.length > 0 ? (
+                <BookPageThumbnail book={book} pageNumber={1} />
               ) : book.pdf_url ? (
                 <PdfThumbnail pdfUrl={book.pdf_url} pageNumber={2} width={300} />
               ) : (
