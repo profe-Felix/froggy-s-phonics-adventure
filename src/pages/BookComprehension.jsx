@@ -142,7 +142,7 @@ function QuestionEditor({ initial, onSave, onCancel, maxPages, books }) {
 // Shows the book(s) assigned to this lesson and lets the teacher
 // pick from the BookCatalog (filtered by module). Solo lessons
 // get 1 book; comparison lessons get 2 (Libro A + Libro B).
-function BookPicker({ lessonKey, module, books, catalog, onSave }) {
+function BookPicker({ lessonKey, module, books, catalog, onSave, onDeleteCatalog }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const isComparison = books.length > 1;
 
@@ -222,20 +222,34 @@ function BookPicker({ lessonKey, module, books, catalog, onSave }) {
           ) : (
             <div className="flex flex-col gap-1">
               {available.map(b => (
-                <button
-                  key={b.id}
-                  onClick={() => addBook(b.id)}
-                  className="flex items-center gap-3 rounded-lg p-2 text-left hover:bg-white"
-                >
-                  {b.cover_image_url ? (
-                    <img src={b.cover_image_url} alt="" className="h-12 w-9 rounded object-cover" />
-                  ) : (
-                    <div className="flex h-12 w-9 items-center justify-center rounded bg-slate-200">
-                      <BookOpen className="h-5 w-5 text-slate-400" />
-                    </div>
+                <div key={b.id} className="group flex items-center gap-3 rounded-lg p-2 hover:bg-white">
+                  <button
+                    onClick={() => addBook(b.id)}
+                    className="flex flex-1 items-center gap-3 text-left"
+                  >
+                    {b.cover_image_url ? (
+                      <img src={b.cover_image_url} alt="" className="h-12 w-9 rounded object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-9 items-center justify-center rounded bg-slate-200">
+                        <BookOpen className="h-5 w-5 text-slate-400" />
+                      </div>
+                    )}
+                    <span className="text-sm font-bold text-slate-700">{b.title}</span>
+                  </button>
+                  {onDeleteCatalog && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete "${b.title}" from the book catalog?\n\nThis removes it for every class and lesson.`)) {
+                          onDeleteCatalog(b.id);
+                        }
+                      }}
+                      className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                      title="Delete from catalog"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   )}
-                  <span className="text-sm font-bold text-slate-700">{b.title}</span>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -299,6 +313,26 @@ export default function BookComprehension() {
   const books = (lessonBooks?.book_ids || [])
     .map(id => catalog.find(b => b.id === id))
     .filter(Boolean);
+
+  // Delete a book from the catalog entirely (removes it from every lesson)
+  const deleteCatalogMutation = useMutation({
+    mutationFn: async (bookId) => {
+      await base44.entities.BookCatalog.delete(bookId);
+      // Clean up any LessonBooks associations referencing this book
+      try {
+        const res = await base44.entities.LessonBooks.filter({ book_ids: bookId }, { limit: 100 });
+        await Promise.all((res.items || []).map(lb =>
+          base44.entities.LessonBooks.update(lb.id, {
+            book_ids: (lb.book_ids || []).filter(id => id !== bookId),
+          })
+        ));
+      } catch (e) { /* best-effort cleanup */ }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['book-catalog'] });
+      qc.invalidateQueries({ queryKey: ['lesson-books'] });
+    },
+  });
 
   // Save book association
   const bookMutation = useMutation({
@@ -384,6 +418,7 @@ export default function BookComprehension() {
           books={books}
           catalog={catalog}
           onSave={(book_ids) => bookMutation.mutate(book_ids)}
+          onDeleteCatalog={(id) => deleteCatalogMutation.mutate(id)}
         />
 
         {/* Question list */}
