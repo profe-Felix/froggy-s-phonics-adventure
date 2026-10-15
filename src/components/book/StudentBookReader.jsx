@@ -113,6 +113,12 @@ export default function StudentBookReader({
   const recordingViewportRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const audioRef = useRef(null);
+  // Side-by-side panel mode: null | 'chart' | 'questions'. Declared early
+  // because hasRightPage (below) reads it.
+  const [panelMode, setPanelMode] = useState(null);
+  const [pinnedChartUrl, setPinnedChartUrl] = useState(null);
+  const [panelQIdx, setPanelQIdx] = useState(0);
+  const [solFirst, setSolFirst] = useState(true);
 
   const totalPages = book.pdf_page_count || (book.pages || []).length || 1;
   const pairing = useBookPagePairing(book);
@@ -562,10 +568,6 @@ export default function StudentBookReader({
   const pageQuestions = teacherMode
     ? bookQuestions.filter((q) => q.page_number === currentPage && !q.anchor_chart_url)
     : [];
-  const [panelMode, setPanelMode] = useState(null); // null | 'chart' | 'questions'
-  const [pinnedChartUrl, setPinnedChartUrl] = useState(null);
-  const [panelQIdx, setPanelQIdx] = useState(0);
-  const [solFirst, setSolFirst] = useState(true);
   const showChart = panelMode === 'chart';
   const showQuestions = panelMode === 'questions';
   const toggleChart = () => {
