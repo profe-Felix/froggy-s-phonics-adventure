@@ -8,6 +8,7 @@ import StudentBookReader from '@/components/book/StudentBookReader';
 import ComparisonLauncher from '@/components/teacher/ComparisonLauncher';
 import ComparisonReader from '@/components/book/ComparisonReader';
 import TeacherToolDock from '@/components/teacher/TeacherToolDock';
+import SlideWeekManager from '@/components/slides/SlideWeekManager';
 
 // Teacher view — mirrors the student home (level path + bookshelf) but with
 // teacher-only behavior: tapping a level opens a pre-filled live-lesson
@@ -67,6 +68,7 @@ export default function TeacherView() {
             { id: 'lessons', label: 'Lessons' },
             { id: 'books', label: 'Books' },
             { id: 'compare', label: 'Compare' },
+            { id: 'slides', label: 'Slides' },
           ].map((t) => (
             <button
               key={t.id}
@@ -101,6 +103,9 @@ export default function TeacherView() {
         )}
         {section === 'compare' && (
           <ComparisonLauncher onPresent={(questions, books, lessonKey) => setComparing({ questions, books, lessonKey })} />
+        )}
+        {section === 'slides' && activeClass && (
+          <SlideWeekManager className={activeClass} />
         )}
       </div>
 
