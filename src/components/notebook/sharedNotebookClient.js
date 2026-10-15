@@ -12,16 +12,22 @@ class SharedNotebookClient {
     if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);} this.clientId=`${id}-${teacher?'teacher':'student'}`;
     this.recoveryConnections=new Map();
     this.failures=0; this.lastRetry=0;
-    this.registry=base44.actors.NotebookRegistry(`notebook-${context.assignment_id}-${context.student_number}-${context.school_year}`).connect({id});
+    this.registryClosed=false;
+    this.connectRegistry();
+    void this.bootstrap();
+    this.scheduleRetry();
+    this.online=()=>this.retry(); window.addEventListener('online',this.online);
+  }
+  connectRegistry() {
+    const id=sessionStorage.getItem('notebook-connection-id')||crypto.randomUUID();
+    this.registry=base44.actors.NotebookRegistry(`notebook-${this.context.assignment_id}-${this.context.student_number}-${this.context.school_year}`).connect({id});
     this.registryReady=false;
+    this.registryClosed=false;
     this.registrySub=this.registry.subscribe(msg=>{
       if(msg.type==='registry_ready'){this.registryReady=true;this.failures=0;if(this.openPayload)this.registry.send(this.openPayload);}
       if(msg.type==='document'&&!this.room) this.open(msg);
       if(msg.type==='error') this.fail(msg.message);
     });
-    void this.bootstrap();
-    this.scheduleRetry();
-    this.online=()=>this.retry(); window.addEventListener('online',this.online);
   }
   scheduleRetry() {
     if(this.timer){clearTimeout(this.timer);this.timer=null;}
