@@ -209,7 +209,7 @@ export function useAssessmentSessions({
     };
 
     recoveryTimer = setTimeout(recover, 2500 + Math.random() * 700);
-    discoveryTimer = setTimeout(rediscover, 15000 + Math.random() * 3000);
+    discoveryTimer = setTimeout(rediscover, 45000 + Math.random() * 15000);
 
     const visible = () => {
       if (document.visibilityState !== 'visible') return;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
-import { requestWithRetry } from '@/lib/classroomSync';
+import { requestWithRetry, wait } from '@/lib/classroomSync';
 import { useAssessmentSessions } from '@/hooks/useAssessmentSessions';
 
 const TYPES = [
@@ -21,7 +21,9 @@ export function useStudentLockdown({
   const qc = useQueryClient();
   const year = schoolYear || ACTIVE_SCHOOL_YEAR;
   const ready = enabled && !!studentId && !!className && !!studentNumber;
-  const [pollMs] = useState(() => 25000 + Math.random() * 5000);
+  // Polling is a safety net only — realtime subscriptions handle live updates.
+  // Keep it slow so a class of 20 students doesn't saturate the rate limit.
+  const [pollMs] = useState(() => 60000 + Math.random() * 20000);
 
   const keys = useMemo(() => TYPES.map(type =>
     ['student-lockdown-v2', type, studentId, className, year]),
@@ -36,15 +38,23 @@ export function useStudentLockdown({
     { class_name: className, school_year: year, active: true },
   ];
 
+  // Stagger initial fetches so 6 queries don't all fire at once on mount.
+  // Each query waits index * 350ms before its first request, spreading the
+  // initial burst over ~2s instead of 0s — critical when a whole class loads
+  // simultaneously. Per-query jitter on the poll interval prevents all 6
+  // from re-syncing on the same tick.
   const queries = useQueries({
     queries: TYPES.map((type, i) => ({
       queryKey: keys[i],
-      queryFn: () => requestWithRetry(() => base44.entities[type].filter(filters[i])),
+      queryFn: async () => {
+        await wait(i * 350);
+        return requestWithRetry(() => base44.entities[type].filter(filters[i]));
+      },
       enabled: ready,
-      staleTime: 15000,
+      staleTime: 60000,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
-      refetchInterval: pollMs,
+      refetchInterval: pollMs + i * 3000,
       refetchIntervalInBackground: false,
       retry: false,
     })),

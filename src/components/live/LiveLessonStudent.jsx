@@ -158,14 +158,16 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       }
     });
 
+    // Realtime subscription handles live updates; this is recovery only.
+    // Slow poll (30-40s) keeps rate limit headroom for a full class.
     const recover = async () => {
       if (!alive) return;
       if (document.visibilityState === 'visible') await refresh();
-      if (alive) timer = setTimeout(recover, 8000 + Math.random() * 3000);
+      if (alive) timer = setTimeout(recover, 30000 + Math.random() * 10000);
     };
 
     void refresh();
-    timer = setTimeout(recover, 8000 + Math.random() * 3000);
+    timer = setTimeout(recover, 30000 + Math.random() * 10000);
 
     const visible = () => {
       if (document.visibilityState === 'visible') {
