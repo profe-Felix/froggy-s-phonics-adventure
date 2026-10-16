@@ -1,0 +1,87 @@
+{
+  "name": "TestLiveNotebookAssessment",
+  "type": "object",
+  "properties": {
+    "class_name": {
+      "type": "string"
+    },
+    "assignment_id": {
+      "type": "string"
+    },
+    "assignment_title": {
+      "type": "string",
+      "default": ""
+    },
+    "school_year": {
+      "type": "string",
+      "default": ""
+    },
+    "target_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": []
+    },
+    "finished_students": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "class_name": {
+            "type": "string"
+          },
+          "student_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "default": []
+    },
+    "release_mode": {
+      "type": "string",
+      "enum": [
+        "follow",
+        "free"
+      ],
+      "default": "follow"
+    },
+    "current_page": {
+      "type": "integer",
+      "default": 1
+    },
+    "total_pages": {
+      "type": "integer",
+      "default": 1
+    },
+    "paused": {
+      "type": "boolean",
+      "default": false
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "started_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "class_name",
+    "assignment_id"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

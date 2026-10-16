@@ -1,0 +1,66 @@
+{
+  "name": "TestNotebookSession",
+  "type": "object",
+  "properties": {
+    "assignment_id": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "student_number": {
+      "type": "integer"
+    },
+    "school_year": {
+      "type": "string",
+      "default": ""
+    },
+    "current_page": {
+      "type": "integer",
+      "default": 1
+    },
+    "strokes_by_page": {
+      "type": "object"
+    },
+    "voice_notes_by_page": {
+      "type": "object"
+    },
+    "recordings_by_page": {
+      "type": "object"
+    },
+    "last_active": {
+      "type": "string"
+    },
+    "collaboration_room_id": {
+      "type": "string"
+    },
+    "collaboration_version": {
+      "type": "integer",
+      "default": 0
+    }
+  },
+  "required": [
+    "assignment_id",
+    "class_name",
+    "student_number"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    }
+  }
+}

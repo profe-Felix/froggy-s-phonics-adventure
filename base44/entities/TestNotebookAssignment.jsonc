@@ -1,0 +1,90 @@
+{
+  "name": "TestNotebookAssignment",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "class_name": {
+      "type": "string"
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "URL of the uploaded PDF"
+    },
+    "pdf_page_count": {
+      "type": "integer",
+      "default": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "closed"
+      ],
+      "default": "draft"
+    },
+    "page_mode": {
+      "type": "string",
+      "enum": [
+        "locked",
+        "free"
+      ],
+      "default": "free",
+      "description": "locked = teacher controls page, free = student picks"
+    },
+    "locked_page": {
+      "type": "integer",
+      "default": 1,
+      "description": "Current page when mode=locked"
+    },
+    "limit_pages": {
+      "type": "boolean",
+      "default": false
+    },
+    "page_range_start": {
+      "type": "integer"
+    },
+    "page_range_end": {
+      "type": "integer"
+    },
+    "audio_instructions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "video_instructions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "recording_pages": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "default": []
+    },
+    "shared_across_classes": {
+      "type": "boolean",
+      "default": false
+    },
+    "hidden": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title",
+    "class_name"
+  ],
+  "rls": {
+    "create": null,
+    "read": null,
+    "update": null,
+    "delete": null
+  }
+}

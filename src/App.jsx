@@ -82,6 +82,8 @@ import TeacherView from './pages/TeacherView';
 import BookReader from './pages/BookReader';
 import GoogleSlidesViewer from './pages/GoogleSlidesViewer';
 import PresentationRemote from './pages/PresentationRemote';
+import NotebookLoadTest from './pages/NotebookLoadTest';
+import NotebookLoadTestStudent from './pages/NotebookLoadTestStudent';
 import TeacherViewRedirect from '@/components/teacher/TeacherViewRedirect';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -215,6 +217,8 @@ const AuthenticatedApp = () => {
       <Route path="/BookReader" element={<BookReader />} />
       <Route path="/GoogleSlidesViewer" element={<GoogleSlidesViewer />} />
       <Route path="/PresentationRemote" element={<PresentationRemote />} />
+      <Route path="/NotebookLoadTest" element={<NotebookLoadTest />} />
+      <Route path="/NotebookLoadTestStudent" element={<NotebookLoadTestStudent />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
