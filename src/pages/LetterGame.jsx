@@ -200,6 +200,7 @@ export default function LetterGame() {
     queryKey: ['student-by-id', directStudentId],
     queryFn: () => requestWithRetry(() => base44.entities.Student.filter({ id: directStudentId })),
     enabled: !!directStudentId,
+    retry: false,
     onSuccess: (data) => {
       if (data?.[0]) {
         setStudentData(data[0]);
@@ -223,6 +224,7 @@ export default function LetterGame() {
       )[0];
     },
     enabled: !!urlBarcode,
+    retry: false,
   });
 
   useEffect(() => {
@@ -244,6 +246,7 @@ export default function LetterGame() {
     // mutations below (instead of invalidating → full refetch), which was
     // the main driver of 429 rate limits with many students saving progress.
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
   const createStudentMutation = useMutation({

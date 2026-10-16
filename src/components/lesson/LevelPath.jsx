@@ -68,6 +68,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
       class_name: className,
     }),
     enabled: !!studentNumber && !!className,
+    retry: false,
   });
 
   // Saved layout for this class (slot -> {x,y}). Empty = use the 120-slot default.
@@ -78,6 +79,7 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
       return rows[0] || null;
     },
     enabled: !!className,
+    retry: false,
   });
   const savedPositions = useMemo(() => {
     if (!layoutRec?.positions_data) return {};

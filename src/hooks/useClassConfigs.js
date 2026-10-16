@@ -8,7 +8,7 @@ export function useClassConfigs() {
     queryFn: () => requestWithRetry(() => base44.entities.ClassConfig.list('-updated_date', 100)),
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    refetchOnMount: true,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
     // Retry slowly only while there is an actual error.
     // Previously loaded configurations stay available during that error.

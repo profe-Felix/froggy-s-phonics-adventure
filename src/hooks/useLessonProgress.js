@@ -40,6 +40,7 @@ export function useLessonProgress(studentNumber, className, lessonId) {
     },
     enabled: !!lessonId && !!studentNumber,
     staleTime: 60000,
+    retry: false,
   });
 
   // Lazily create a progress record the first time a student opens a lesson.
