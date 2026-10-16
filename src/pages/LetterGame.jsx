@@ -38,6 +38,7 @@ import { useStudentLockdown } from '@/hooks/useStudentLockdown';
 import { useClassColors } from '@/hooks/useClassColors';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
+import { fetchLessons } from '@/lib/lessonsLoader';
 
 export default function LetterGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -129,7 +130,7 @@ export default function LetterGame() {
   // Active lessons for this student's class (class-specific or all-classes).
   const { data: lessonsForClass = [] } = useQuery({
     queryKey: ['lessons', selectedStudent?.class_name],
-    queryFn: () => requestWithRetry(() => base44.entities.Lesson.filter({ active: true })),
+    queryFn: fetchLessons,
     enabled: !!selectedStudent && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
     // Lessons rarely change — cache 5 min so a class of students logging in
     // doesn't each refetch (was contributing to 429 rate limits).

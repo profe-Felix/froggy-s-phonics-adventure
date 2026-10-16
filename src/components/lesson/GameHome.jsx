@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import LevelPath from './LevelPath';
 import LevelSideNav from './LevelSideNav';
 import LessonMap from './LessonMap';
@@ -60,20 +61,22 @@ export default function GameHome({
   useEffect(() => { localStorage.setItem('parent_view', parentView ? '1' : '0'); }, [parentView]);
 
   // Restore the open lesson after a refresh so the student lands back in
-  // their lesson instead of the level path.
+  // their lesson instead of the level path. Shares the same cached query as
+  // LevelPath/LetterGame so we don't fire a separate fetch.
+  const className = studentData?.class_name || selectedStudent?.class_name || '';
+  const { data: restoreLessons = [] } = useQuery({
+    queryKey: ['lessons', className],
+    queryFn: fetchLessons,
+    staleTime: 5 * 60 * 1000,
+  });
   useEffect(() => {
     const savedId = sessionStorage.getItem(LESSON_KEY);
-    if (!savedId) return;
-    let cancelled = false;
-    fetchLessons().then((lessons) => {
-      if (cancelled) return;
-      const found = lessons.find((l) => l.id === savedId);
-      // Never let a delayed restore replace the lesson the student already chose.
-      if (found) setOpenLesson(current => current || { id: found.id });
-      else sessionStorage.removeItem(LESSON_KEY);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+    if (!savedId || !restoreLessons.length) return;
+    const found = restoreLessons.find((l) => l.id === savedId);
+    // Never let a delayed restore replace the lesson the student already chose.
+    if (found) setOpenLesson(current => current || { id: found.id });
+    else sessionStorage.removeItem(LESSON_KEY);
+  }, [restoreLessons]);
 
   // Persist the open lesson id so a refresh restores it.
   useEffect(() => {
