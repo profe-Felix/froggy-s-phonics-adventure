@@ -2,18 +2,31 @@ import { pdfjsLib } from '@/lib/pdfWorkerSetup';
 
 export default async function notebookPdfSource(url) {
   const controller = new AbortController();
-  // Some public file routes reject HEAD. Read just the GET headers, then
-  // cancel its body before requesting the small ranges PDF.js actually needs.
-  const probe = await fetch(url, { signal: controller.signal });
-  if (!probe.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: probe.status });
-  // Use the final URL after redirect — the base44.app file route 302-redirects
-  // to media.base44.com, and the redirect drops the Range header, causing every
-  // range request to re-download the entire PDF. Pinning the resolved URL keeps
-  // range requests on the CDN that honours them.
-  const resolvedUrl = probe.url || url;
-  const length = Number(probe.headers.get('content-length'));
-  if (!length) return { source: { data: new Uint8Array(await probe.arrayBuffer()) }, failure: new Promise(() => {}), abort: () => controller.abort() };
-  await probe.body?.cancel();
+  // Resolve the final URL after redirect without downloading the body.
+  // The base44.app file route 302-redirects to media.base44.com, and the
+  // redirect drops the Range header — so a GET probe downloads the entire
+  // PDF before we can cancel it. HEAD follows the same redirect but has no
+  // body, giving us the resolved URL and content-length for free.
+  let resolvedUrl = url;
+  let length = 0;
+  try {
+    const head = await fetch(url, { signal: controller.signal, method: 'HEAD' });
+    if (head.ok) {
+      resolvedUrl = head.url || url;
+      length = Number(head.headers.get('content-length')) || 0;
+    }
+  } catch (e) {
+    if (controller.signal.aborted) throw e;
+  }
+  if (!length) {
+    // HEAD rejected — fall back to a cancelled GET probe
+    const probe = await fetch(url, { signal: controller.signal });
+    if (!probe.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: probe.status });
+    resolvedUrl = probe.url || url;
+    length = Number(probe.headers.get('content-length'));
+    if (!length) return { source: { data: new Uint8Array(await probe.arrayBuffer()) }, failure: new Promise(() => {}), abort: () => controller.abort() };
+    await probe.body?.cancel();
+  }
   const read = async (begin, end) => {
     const response = await fetch(resolvedUrl, { headers: { Range: `bytes=${begin}-${end - 1}` }, signal: controller.signal });
     if (!response.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: response.status });
