@@ -6,9 +6,10 @@ export const NOTEBOOK_SESSION_FIELDS = [
 ];
 
 export async function readNotebookSessionHeader(entities, id) {
-  // Admission needs the exact current record, as it did before the lookup
-  // optimization. Strip drawing history before sending the connection reply.
-  return notebookSessionHeader(await entities.NotebookSession.get(id));
+  // Read the current record for admission, but never transfer its full
+  // multi-page drawing history for a connection handshake.
+  const page = await entities.NotebookSession.filter({ id }, { limit: 1, fields: NOTEBOOK_SESSION_FIELDS });
+  return notebookSessionHeader(page.items[0]);
 }
 
 export function notebookSessionHeader(record) {

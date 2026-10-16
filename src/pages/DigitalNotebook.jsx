@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import TeacherNotebookDashboard from '../components/notebook/TeacherNotebookDashboard';
@@ -205,12 +206,14 @@ function ClassPicker({ onSelect, title, classList }) {
 }
 
 export default function DigitalNotebook() {
+  const navigate = useNavigate();
   const params = new URLSearchParams(window.location.search);
   const isTeacherMode = params.get('mode') === 'teacher';
   const { classList } = useClassNames();
 
   const urlClass = parseClassParam(params.get('class'), classList);
   const urlAssignment = params.get('assignment') || params.get('Assignment') || null;
+  const urlAssignmentId = params.get('assignmentId') || null;
   const urlTeacherTab = params.get('tab') || null;
   const urlNumber = parseInt(params.get('number') || params.get('student'));
   const urlPage = parseInt(params.get('page')) || null;
@@ -291,6 +294,7 @@ export default function DigitalNotebook() {
         studentNumber={studentInfo.number}
         className={studentInfo.className}
         directAssignmentName={studentInfo.directAssignment || null}
+        directAssignmentId={urlAssignmentId}
         directPage={studentInfo.directPage || null}
         liveAssessmentId={studentInfo.liveAssessmentId || null}
         onBack={() => {
@@ -303,8 +307,10 @@ export default function DigitalNotebook() {
             const params = new URLSearchParams();
             if (studentInfo?.className) params.set('class', studentInfo.className);
             if (studentInfo?.number) params.set('number', String(studentInfo.number));
+            const studentId = new URLSearchParams(window.location.search).get('studentId');
+            if (studentId) params.set('studentId', studentId);
             const qs = params.toString();
-            window.location.href = qs ? `/?${qs}` : '/';
+            navigate(qs ? `/?${qs}` : '/', { replace: true });
             return;
           }
           setStudentInfo(null); setRole(null); setPickedClass(urlClass || null);

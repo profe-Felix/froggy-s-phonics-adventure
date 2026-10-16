@@ -4,12 +4,14 @@ import { notebookSessionHeader, readNotebookSessionHeader } from '../../shared/n
 import { notebookError } from '../../shared/notebookErrors.ts';
 
 export default class NotebookRoom extends Actor {
-  users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null; mirrorRetryAfter = 0;
+  users = new Map(); pages = new Map(); dirty = new Set(); chain = Promise.resolve(); session = null; mirrorRetryAfter = 0; mirrorDueAt = 0;
   async handleStart() {
     const state = await this.storage.get('session');
     this.session = notebookSessionHeader(state);
     this.users = new Map(await this.storage.get('seats') || []);
     this.dirty = new Set(await this.storage.get('dirty') || []);
+    this.mirrorRetryAfter = await this.storage.get('mirrorRetryAfter') || 0;
+    this.mirrorDueAt = await this.storage.get('mirrorDueAt') || 0;
     this.pages = new Map();
     if (this.dirty.size) await this.scheduleMirror();
   }
@@ -58,7 +60,7 @@ export default class NotebookRoom extends Actor {
           if (msg.type === 'page') await this.sendPage(conn,Number(msg.page));
           else if (msg.type === 'operation') await this.change(conn,user,msg);
           else if (msg.type === 'flush') {
-            await this.mirror(); conn.send({type:'flushed',request_id:msg.request_id});
+            await this.mirrorSafely(); conn.send({type:'flushed',request_id:msg.request_id});
           }
         }
       } catch (error) { conn.send(notebookError(error,{stage,page:msg?.page,op_id:msg?.op_id,request_id:msg?.request_id})); }
@@ -110,8 +112,8 @@ export default class NotebookRoom extends Actor {
     if (typeof msg.op_id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(msg.op_id) || !msg.change || JSON.stringify(msg.change).length > 600000) throw new Error('Invalid notebook change');
     const page=await this.loadPage(Number(msg.page));
     if (page.applied.has(msg.op_id)) {
-      this.dirty.add(Number(msg.page)); await this.storage.put('dirty',[...this.dirty]);
-      await this.scheduleMirror();
+      // Lost acknowledgements must not turn an already committed operation
+      // into another entity write or postpone the pending snapshot.
       conn.send({type:'ack',op_id:msg.op_id}); await this.sendPage(conn,Number(msg.page)); return;
     }
     const next=applyOperation(page,msg.change,user.seat,user.role);
@@ -129,8 +131,31 @@ export default class NotebookRoom extends Actor {
     conn.send({type:'ack',op_id:msg.op_id});
   }
   async scheduleMirror() {
-    const when = Math.max(Date.now() + 5000, this.mirrorRetryAfter);
-    await this.schedule('mirror', when);
+    if (!this.mirrorDueAt) {
+      // A fixed deadline batches classroom writes without postponing saves
+      // forever while a student keeps drawing. Each notebook has its own jitter.
+      this.mirrorDueAt = Math.max(Date.now() + 30000 + Math.floor(Math.random() * 15000), this.mirrorRetryAfter);
+      await this.storage.put('mirrorDueAt', this.mirrorDueAt);
+    }
+    await this.schedule('mirror', this.mirrorDueAt);
+  }
+  async mirrorSafely() {
+    if (Date.now() < this.mirrorRetryAfter) {
+      const error = new Error('Notebook snapshot is waiting for the connection to recover. Your drawing is retained.');
+      error.status = 429;
+      error.headers = { 'retry-after': String(Math.ceil((this.mirrorRetryAfter - Date.now()) / 1000)) };
+      throw error;
+    }
+    try { await this.mirror(); }
+    catch (error) {
+      const delay = notebookError(error).retry_after_ms;
+      this.mirrorRetryAfter = Date.now() + Math.max(30000, delay) + Math.floor(Math.random() * 15000);
+      this.mirrorDueAt = this.mirrorRetryAfter;
+      await this.storage.put('mirrorRetryAfter', this.mirrorRetryAfter);
+      await this.storage.put('mirrorDueAt', this.mirrorDueAt);
+      await this.schedule('mirror', this.mirrorDueAt);
+      throw error;
+    }
   }
   async mirror() {
     if (!this.session || !this.dirty.size) return;
@@ -139,14 +164,20 @@ export default class NotebookRoom extends Actor {
     await this.client.asServiceRole.entities.NotebookSession.updateMany({id:this.session.id},{$set:set});
     this.dirty.clear(); await this.storage.put('dirty',[]);
     this.mirrorRetryAfter = 0;
+    this.mirrorDueAt = 0;
+    await this.storage.put('mirrorRetryAfter', 0);
+    await this.storage.put('mirrorDueAt', 0);
+    await this.cancelSchedule('mirror');
   }
   async handleWake(key) {
     if (key !== 'mirror') return;
     this.chain=this.chain.catch(()=>{}).then(async()=>{
-      try { await this.mirror(); }
+      this.mirrorDueAt = 0;
+      await this.storage.put('mirrorDueAt', 0);
+      try { await this.mirrorSafely(); }
       catch {
-        this.mirrorRetryAfter = Date.now() + 30000;
-        await this.schedule('mirror', this.mirrorRetryAfter);
+        // mirrorSafely retains dirty pages and schedules the durable retry.
+        if (Date.now() < this.mirrorRetryAfter) await this.schedule('mirror', this.mirrorRetryAfter);
       }
     });
     await this.chain;

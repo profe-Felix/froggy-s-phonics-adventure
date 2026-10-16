@@ -24,6 +24,7 @@ export function useStudentLockdown({
   // Polling is a safety net only — realtime subscriptions handle live updates.
   // Keep it slow so a class of 20 students doesn't saturate the rate limit.
   const [pollMs] = useState(() => 60000 + Math.random() * 20000);
+  const [loadJitter] = useState(() => Math.random() * 800);
 
   const keys = useMemo(() => TYPES.map(type =>
     ['student-lockdown-v2', type, studentId, className, year]),
@@ -38,17 +39,18 @@ export function useStudentLockdown({
     { class_name: className, school_year: year, active: true },
   ];
 
-  // Stagger initial fetches so 6 queries don't all fire at once on mount.
-  // Each query waits index * 350ms before its first request, spreading the
-  // initial burst over ~2s instead of 0s — critical when a whole class loads
-  // simultaneously. Per-query jitter on the poll interval prevents all 6
-  // from re-syncing on the same tick.
+  // Spread requests across students as well as entities. Identical delays
+  // on every device merely move a whole-class burst to a later instant.
   const queries = useQueries({
     queries: TYPES.map((type, i) => ({
       queryKey: keys[i],
-      queryFn: async () => {
-        await wait(i * 350);
-        return requestWithRetry(() => base44.entities[type].filter(filters[i]));
+      queryFn: async ({ signal }) => {
+        await wait(((Number(studentNumber) - 1) % 30) * 120 + loadJitter + i * 350);
+        if (signal.aborted) throw new DOMException('Notebook navigation cancelled this read', 'AbortError');
+        return requestWithRetry(() => {
+          if (signal.aborted) throw new DOMException('Notebook navigation cancelled this read', 'AbortError');
+          return base44.entities[type].filter(filters[i]);
+        });
       },
       enabled: ready,
       staleTime: 60000,
@@ -116,8 +118,17 @@ export function useStudentLockdown({
         return;
       }
 
-      // New records need one authoritative read of THIS entity only.
-      // Debounce bursts, and keep the slow safety fetch for missed events.
+      // Complete realtime records can enter the cache without making every
+      // student fetch the same session again. Incomplete payloads still recover.
+      const expected = filters[i];
+      if (Object.keys(expected).every(key => key in data)) {
+        if (Object.entries(expected).every(([key, value]) => data[key] === value)) {
+          qc.setQueryData(keys[i], records => [...(records || []).filter(record => record.id !== id), { ...data, id }]);
+        }
+        return;
+      }
+
+      // Debounce incomplete payloads; the slow safety fetch covers missed events.
       clearTimeout(timers.get(type));
 
       timers.set(type, setTimeout(() => {

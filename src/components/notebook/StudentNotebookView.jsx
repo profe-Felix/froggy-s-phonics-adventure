@@ -73,6 +73,7 @@ export default function StudentNotebookView({
   className,
   onBack,
   directAssignmentName,
+  directAssignmentId = null,
   directPage,
   extraHeaderContent,
   embedded = false,
@@ -115,6 +116,10 @@ export default function StudentNotebookView({
 
     const apply = fresh => {
       if (!alive || !fresh) return;
+      // Keep the home-screen cache current while it is unmounted. Otherwise
+      // SPA return can immediately rejoin an ended or released assessment.
+      qc.setQueriesData({ queryKey: ['student-lockdown-v2', 'LiveNotebookAssessment'] }, records =>
+        records?.map(record => record.id === liveAssessmentId ? { ...record, ...fresh, id: liveAssessmentId } : record));
       if (fresh.active === false) {
         setLiveEnded(true);
         return;
@@ -158,7 +163,7 @@ export default function StudentNotebookView({
       if (!alive || (event.id || event.data?.id) !== liveAssessmentId) return;
       version += 1;
       if (event.type === 'delete') {
-        setLiveEnded(true);
+        apply({ active: false });
         return;
       }
       if (event.data && ['active', 'paused', 'current_page', 'release_mode', 'finished_students'].some(key => key in event.data)) {
@@ -261,15 +266,15 @@ export default function StudentNotebookView({
     data: assignments = [],
     error: assignmentLoadError,
     refetch: retryAssignments,
-  } = useNotebookAssignments(className, directAssignmentName);
+  } = useNotebookAssignments(className, directAssignmentName, directAssignmentId);
 
   useEffect(() => {
-    if (!directAssignmentName || selectedAssignment || assignments.length === 0) return;
-    const match = assignments.find(
-      (a) => a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim()
-    );
+    if ((!directAssignmentName && !directAssignmentId) || selectedAssignment || assignments.length === 0) return;
+    const match = assignments.find(a => directAssignmentId
+      ? a.id === directAssignmentId
+      : a.title?.toLowerCase().trim() === directAssignmentName.toLowerCase().trim());
     if (match) setSelectedAssignment(match);
-  }, [assignments, directAssignmentName, selectedAssignment]);
+  }, [assignments, directAssignmentName, directAssignmentId, selectedAssignment]);
 
   useLayoutEffect(() => { loadedKeyRef.current = null; }, [selectedAssignment?.id, session?.id]);
 
@@ -476,15 +481,9 @@ export default function StudentNotebookView({
     );
   }, [updateVoiceNotes]);
 
-  useEffect(() => {
-    if (!session) return;
-
-    const interval = setInterval(() => {
-      void saveStrokes();
-    }, 20000);
-
-    return () => clearInterval(interval);
-  }, [saveStrokes, session]);
+  // Each completed stroke is durably acknowledged by the shared room and
+  // retried from device storage when necessary. The room batches entity
+  // snapshots; a second per-device autosave loop only duplicates those writes.
 
   useEffect(() => {
     const handlePageHide = () => {

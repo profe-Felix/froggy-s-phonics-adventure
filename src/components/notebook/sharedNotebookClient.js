@@ -18,7 +18,8 @@ class SharedNotebookClient {
     this.lastOpen=0; this.lastJoin=0; this.lastPageRequest=0;
     this.retryAttempt=0; this.retryAt=0; this.pagePending=true;
     this.openPayload={type:'open',...context};
-    this.connectRegistry();
+    // Direct QR links can open an entire class at once too.
+    this.registryTimer=setTimeout(()=>this.connectRegistry(), ((context.student_number-1)%30)*120 + Math.floor(Math.random()*800));
     this.scheduleRetry();
     this.online=()=>this.retry(); window.addEventListener('online',this.online);
   }
@@ -39,7 +40,7 @@ class SharedNotebookClient {
   retryError(msg) {
     // A failed page read is not a failed socket. Retry that page without
     // re-opening the registry or marking an empty notebook ready to draw.
-    const delay=Math.max(Number(msg.retry_after_ms)||0,Math.min(30000,1500*2**Math.min(this.retryAttempt++,5)));
+    const delay=Math.max(Number(msg.retry_after_ms)||0,Math.min(60000,1500*2**Math.min(this.retryAttempt++,6))) + Math.floor(Math.random()*8000);
     this.retryAt=Date.now()+delay;
     if(msg.stage==='page') {this.pagePending=true;this.lastPageRequest=0;}
     this.fail(msg.message);
@@ -149,7 +150,11 @@ class SharedNotebookClient {
     }
     this.scheduleRetry();
   }
-  async flush() {
+  flush() {
+    if(!this.flushPromise) this.flushPromise=this.confirmFlush().finally(()=>{this.flushPromise=null;});
+    return this.flushPromise;
+  }
+  async confirmFlush() {
     const deadline=Date.now()+15000;
     this.retry();
     // Wait for acknowledgements; the scheduled retry handles lost messages.
@@ -168,7 +173,7 @@ class SharedNotebookClient {
     setTimeout(()=>{
       if(this.listeners.size||this.pending.size||this.waiters.size)return;
       for(const recovery of this.recoveryConnections.values()){recovery.subscription?.unsubscribe();recovery.connection.close();}
-      clearTimeout(this.timer);window.removeEventListener('online',this.online);this.sub?.unsubscribe();this.room?.close();this.registrySub?.unsubscribe();this.registry?.close();clients.delete(this.key);
+      clearTimeout(this.timer);clearTimeout(this.registryTimer);window.removeEventListener('online',this.online);this.sub?.unsubscribe();this.room?.close();this.registrySub?.unsubscribe();this.registry?.close();clients.delete(this.key);
     },30000);
   }
 }

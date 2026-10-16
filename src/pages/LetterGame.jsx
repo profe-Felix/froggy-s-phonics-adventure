@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { errorStatus, requestWithRetry } from '@/lib/classroomSync';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
@@ -41,6 +42,7 @@ import { syllabifyEs } from '@/lib/spanishSyllables';
 import { fetchLessons } from '@/lib/lessonsLoader';
 
 export default function LetterGame() {
+  const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const urlStudentId = urlParams.get('studentId');
   const urlBarcode = urlParams.get('barcode');
@@ -158,9 +160,9 @@ export default function LetterGame() {
     if (liveSession || activeDictationSession) return; // live lesson / dictation take priority
     if (!activeNotebookAssessment.assignment_id) return;
     if (!selectedStudent?.number) return;
-    const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
-    window.location.href = url;
-  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent]);
+    const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&assignmentId=${encodeURIComponent(activeNotebookAssessment.assignment_id)}&studentId=${encodeURIComponent(studentData.id)}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
+    navigate(url, { replace: true });
+  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent, navigate]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not
