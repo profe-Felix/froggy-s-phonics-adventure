@@ -168,14 +168,16 @@ export default function StudentNotebookView({
       }
     });
 
+    // Realtime subscription handles live page/pause updates; this is recovery only.
+    // Slow poll (30-40s) keeps rate limit headroom for a full class.
     const recover = async () => {
       if (!alive) return;
       if (document.visibilityState === 'visible') await load();
-      if (alive) timer = setTimeout(recover, 8000 + Math.random() * 3000);
+      if (alive) timer = setTimeout(recover, 30000 + Math.random() * 10000);
     };
 
     void load();
-    timer = setTimeout(recover, 8000 + Math.random() * 3000);
+    timer = setTimeout(recover, 30000 + Math.random() * 10000);
 
     return () => {
       alive = false;
