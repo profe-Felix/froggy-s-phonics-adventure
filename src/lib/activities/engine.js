@@ -66,6 +66,14 @@ export const ACTIVITY_MODES = [
     count: () => 0,
     desc: 'El alumno escucha dos palabras, repite cada una con un deslizador por sílaba y decide si riman (terminan igual).',
   },
+  {
+    key: 'rhyme_matching',
+    label: 'Emparejar rimas (arrastrar)',
+    what: 'rimas',
+    in: 'imágenes',
+    count: () => 0,
+    desc: 'El alumno ve una imagen objetivo, arrastra la imagen que rima a la caja y envía. La app busca las imágenes automáticamente.',
+  },
 ];
 
 // Normalize a preset/config object into a ready-to-render activity:

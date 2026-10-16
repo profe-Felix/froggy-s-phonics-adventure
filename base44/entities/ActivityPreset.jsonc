@@ -13,13 +13,14 @@
         "counting_phonemes",
         "phoneme_manipulation",
         "text_hunt",
-        "rhyme_identification"
+        "rhyme_identification",
+        "rhyme_matching"
       ],
       "description": "Which activity mode this preset belongs to"
     },
     "items_data": {
       "type": "string",
-      "description": "JSON-encoded items array. Counting modes: [\"text\", ...] or [{text, answer}]. Rhyme: [{word1, word2, answer}].",
+      "description": "JSON-encoded items array. Counting modes: [\"text\", ...] or [{text, answer}]. Rhyme identification: [{word1, word2, answer}]. Rhyme matching: [{target, answer, distractors:[...]}].",
       "default": "[]"
     },
     "hunt_type": {

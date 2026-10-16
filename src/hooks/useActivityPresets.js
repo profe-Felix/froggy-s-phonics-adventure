@@ -47,6 +47,9 @@ export function serializeItems(mode, items) {
   if (mode === 'rhyme_identification') {
     return (items || []).map((it) => `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`).join('\n');
   }
+  if (mode === 'rhyme_matching') {
+    return (items || []).map((it) => [it.target, it.answer, ...(it.distractors || [])].join(', ')).join('\n');
+  }
   return (items || []).map((it) => (typeof it === 'string' ? it : it.text || it.word || '')).join('\n');
 }
 
@@ -58,6 +61,13 @@ export function parseItems(mode, text) {
       const parts = l.split(',').map(x => x.trim());
       if (parts.length < 2) return null;
       return { word1: parts[0], word2: parts[1], answer: /sí|si|true/i.test(parts[2] || '') };
+    }).filter(Boolean);
+  }
+  if (mode === 'rhyme_matching') {
+    return lines.map(l => {
+      const parts = l.split(',').map(x => x.trim()).filter(Boolean);
+      if (parts.length < 2) return null;
+      return { target: parts[0], answer: parts[1], distractors: parts.slice(2) };
     }).filter(Boolean);
   }
   return lines.map(t => ({ text: t }));
