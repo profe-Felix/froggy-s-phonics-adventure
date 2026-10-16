@@ -6,11 +6,16 @@ export default async function notebookPdfSource(url) {
   // cancel its body before requesting the small ranges PDF.js actually needs.
   const probe = await fetch(url, { signal: controller.signal });
   if (!probe.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: probe.status });
+  // Use the final URL after redirect — the base44.app file route 302-redirects
+  // to media.base44.com, and the redirect drops the Range header, causing every
+  // range request to re-download the entire PDF. Pinning the resolved URL keeps
+  // range requests on the CDN that honours them.
+  const resolvedUrl = probe.url || url;
   const length = Number(probe.headers.get('content-length'));
   if (!length) return { source: { data: new Uint8Array(await probe.arrayBuffer()) }, failure: new Promise(() => {}), abort: () => controller.abort() };
   await probe.body?.cancel();
   const read = async (begin, end) => {
-    const response = await fetch(url, { headers: { Range: `bytes=${begin}-${end - 1}` }, signal: controller.signal });
+    const response = await fetch(resolvedUrl, { headers: { Range: `bytes=${begin}-${end - 1}` }, signal: controller.signal });
     if (!response.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: response.status });
     return { status: response.status, bytes: new Uint8Array(await response.arrayBuffer()) };
   };
