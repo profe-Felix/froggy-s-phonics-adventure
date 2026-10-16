@@ -17,7 +17,7 @@ export function retryDelay(error, attempt = 0) {
     : Math.max(0, Date.parse(raw) - Date.now()) || 0;
 
   return Math.max(fromHeader, Math.min(30000, 1500 * 2 ** attempt)) +
-    Math.floor(Math.random() * 800);
+    Math.floor(Math.random() * 2000);
 }
 
 export const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -25,7 +25,7 @@ let coolingUntil = 0;
 
 // Retry idempotent reads/updates only. Do not wrap creates: an ambiguous
 // timeout could otherwise create duplicate student or notebook records.
-export async function requestWithRetry(operation, retries = 2) {
+export async function requestWithRetry(operation, retries = 1) {
   for (let attempt = 0; ; attempt += 1) {
     if (coolingUntil > Date.now()) await wait(coolingUntil - Date.now());
 

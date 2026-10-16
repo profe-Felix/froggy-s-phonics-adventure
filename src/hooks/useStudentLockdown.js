@@ -42,6 +42,7 @@ export function useStudentLockdown({
       queryFn: () => requestWithRetry(() => base44.entities[type].filter(filters[i])),
       enabled: ready,
       staleTime: 15000,
+      refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchInterval: pollMs,
       refetchIntervalInBackground: false,

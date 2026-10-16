@@ -204,7 +204,7 @@ export function useAssessmentSessions({
       }
 
       if (alive) {
-        discoveryTimer = setTimeout(rediscover, 15000 + Math.random() * 3000);
+        discoveryTimer = setTimeout(rediscover, 30000 + Math.random() * 5000);
       }
     };
 
