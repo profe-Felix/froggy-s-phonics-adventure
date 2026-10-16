@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
-import { splinePathD } from '@/components/tracing/strokeMath';
-import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
+import { splinePathD, pointAtLength } from '@/components/tracing/strokeMath';
 import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
 
 // Static, non-interactive rendering of the faint letter model (the correct
@@ -8,11 +7,16 @@ import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
 // their red corrections freehand over it on the AnnotationCanvas above it.
 //
 // `startX` offsets the letters past the left guide area (fence + backgrounds).
-// `progress` (0..1) drives the scrubber: strokes are drawn in order up to that
-// fraction of the total, using stroke-dashoffset so the student can follow
-// along and trace properly. progress >= 1 shows the full model.
+// `progress` (0..1) drives the scrubber LETTER BY LETTER: each letter's strokes
+// draw in order, completing one letter before the next begins, so the student
+// can follow along and trace properly. progress >= 1 shows the full model.
+// `waypoints` is the merged waypoint set (built-in + DB overrides) from the
+// parent, so corners flagged in the authoring tool stay sharp here too.
+// During replay a contrasting pen-tip dot travels the active stroke so the
+// student can see where the pen point is against the gray ink.
 
 const MODEL = '#1e293b';
+const PEN_TIP = '#f97316'; // contrasting orange pen point during replay
 
 function letterBounds(strokes) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity;
@@ -31,24 +35,26 @@ function letterBounds(strokes) {
   return { minX, maxX, minY, inkW: maxX - minX };
 }
 
-export default function DictadoModelGuide({ word, width, height, startX = 0, progress = 1 }) {
-  const { letters, layout, xScale, flatIndexByLetter, totalStrokes } = useMemo(() => {
+export default function DictadoModelGuide({ word, width, height, startX = 0, progress = 1, waypoints }) {
+  const wp = waypoints || {};
+
+  const { letters, layout, xScale, scaledStrokes } = useMemo(() => {
     const rawChars = (word || '').split('');
     const chars = rawChars.map(ch => {
       const acc = ACCENT_MAP[ch];
-      if (acc && LETTER_WAYPOINTS[acc.base]) {
-        const baseStrokes = LETTER_WAYPOINTS[acc.base].strokes || [];
+      if (acc && wp[acc.base]) {
+        const baseStrokes = wp[acc.base].strokes || [];
         const b = letterBounds(baseStrokes);
         const accentStrokes = buildAccentStrokes(acc.accent, b);
         return { ch, base: acc.base, strokes: [...baseStrokes, ...accentStrokes] };
       }
-      if (LETTER_WAYPOINTS[ch]) {
-        return { ch, base: ch, strokes: LETTER_WAYPOINTS[ch].strokes || [] };
+      if (wp[ch]) {
+        return { ch, base: ch, strokes: wp[ch].strokes || [] };
       }
       return null;
     }).filter(Boolean);
     const bounds = chars.map(c => {
-      const baseStrokes = LETTER_WAYPOINTS[c.base]?.strokes || [];
+      const baseStrokes = wp[c.base]?.strokes || [];
       return { ...c, ...letterBounds(baseStrokes) };
     });
     const yFit = height;
@@ -64,43 +70,77 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
       cursor += inkW + gapPx;
       return { ...b, offset, yScale: 1.0, yOffset: 0.0 };
     });
-    // Flatten stroke indices in order for the scrubber.
-    let flatCounter = 0;
-    const flatIdx = chars.map(c =>
-      (c.strokes || []).map(() => flatCounter++)
-    );
-    return { letters: chars, layout: lay, xScale: xs, flatIndexByLetter: flatIdx, totalStrokes: flatCounter };
-  }, [word, width, height, startX]);
-
-  const scaleForLetter = (pt, li) => {
-    const lay = layout[li];
-    if (!lay) return { x: 0, y: 0 };
-    return {
-      x: lay.offset + (pt.x - lay.minX) * xScale,
-      y: (lay.yOffset + pt.y * lay.yScale) * height,
+    // Scale each stroke into page px, PRESERVING the corner flag so splinePathD
+    // keeps sharp turns (matches the tracing authoring tool's rendering).
+    const scaleForLetter = (pt, li) => {
+      const l = lay[li];
+      if (!l) return { x: 0, y: 0 };
+      return {
+        x: l.offset + (pt.x - l.minX) * xs,
+        y: (l.yOffset + pt.y * l.yScale) * height,
+        corner: pt.corner,
+      };
     };
-  };
+    const scaled = chars.map((c, li) =>
+      (c.strokes || []).map(st => st.map(p => scaleForLetter(p, li)))
+    );
+    return { letters: chars, layout: lay, xScale: xs, scaledStrokes: scaled };
+  }, [word, width, height, startX, wp]);
 
   if (!letters.length) return null;
 
-  const MODEL_W = Math.max(2, height * 0.016);
-  const scrubbing = progress < 1 && totalStrokes > 0;
+  const MODEL_W = Math.max(1.4, height * 0.012);
+  const scrubbing = progress < 1 && letters.length > 0;
+  const numLetters = letters.length;
+
+  // Letter-by-letter: progress 0..1 spans all letters equally. Each letter
+  // completes fully before the next begins; within a letter, strokes draw in
+  // order based on the within-letter fraction.
+  let activeLetter = 0;
+  let withinFrac = 0;
+  if (scrubbing && numLetters > 0) {
+    activeLetter = Math.min(numLetters - 1, Math.floor(progress * numLetters));
+    withinFrac = progress * numLetters - activeLetter;
+  }
+
+  // Contrasting pen-tip dot: travels along the active stroke of the active
+  // letter so the student can see the pen point against the gray ink.
+  let penTip = null;
+  if (scrubbing && numLetters > 0) {
+    const strokes = scaledStrokes[activeLetter] || [];
+    const strokeCount = strokes.length;
+    if (strokeCount > 0) {
+      const si = Math.min(strokeCount - 1, Math.floor(withinFrac * strokeCount));
+      const frac = Math.max(0, Math.min(1, withinFrac * strokeCount - si));
+      if (frac > 0 && frac < 1 && strokes[si] && strokes[si].length >= 2) {
+        const pt = pointAtLength(strokes[si], frac);
+        penTip = { x: pt.x, y: pt.y };
+      }
+    }
+  }
+  const PEN_R = Math.max(3, height * 0.05);
 
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
       style={{ position: 'absolute', left: 0, top: 0, width: `${width}px`, height: `${height}px`, pointerEvents: 'none', zIndex: 2, overflow: 'visible' }}
     >
-      {letters.map((l, li) =>
-        (l.strokes || []).map((stroke, si) => {
-          const flatIdx = flatIndexByLetter[li]?.[si] ?? 0;
+      {letters.map((l, li) => {
+        const strokes = scaledStrokes[li] || [];
+        const strokeCount = strokes.length || 1;
+        let letterFrac;
+        if (!scrubbing) letterFrac = 1;
+        else if (li < activeLetter) letterFrac = 1;
+        else if (li > activeLetter) letterFrac = 0;
+        else letterFrac = withinFrac;
+        return strokes.map((stroke, si) => {
           const frac = scrubbing
-            ? Math.max(0, Math.min(1, progress * totalStrokes - flatIdx))
+            ? Math.max(0, Math.min(1, letterFrac * strokeCount - si))
             : 1;
           return (
             <path
               key={`m-${li}-${si}`}
-              d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
+              d={splinePathD(stroke)}
               fill="none" stroke={MODEL} strokeWidth={MODEL_W}
               strokeLinecap="round" strokeLinejoin="round" opacity={0.28}
               pathLength={1}
@@ -108,7 +148,14 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
               strokeDashoffset={scrubbing ? 1 - frac : undefined}
             />
           );
-        })
+        });
+      })}
+      {penTip && (
+        <circle
+          cx={penTip.x} cy={penTip.y} r={PEN_R} fill={PEN_TIP}
+          stroke="white" strokeWidth={1.5}
+          style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
+        />
       )}
     </svg>
   );
