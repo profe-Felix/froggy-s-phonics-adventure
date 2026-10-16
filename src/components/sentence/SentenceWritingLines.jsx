@@ -3,6 +3,7 @@ import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import GuideKeyVisual from '@/components/tracing/GuideKeyVisual';
 import SentenceModelAnimation from './SentenceModelAnimation';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
+import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 import { inchesToCssPx } from '@/lib/physicalSize';
 
 // SVG-based handwriting guide lines matching Letter Tracing / Name Tracing size.
@@ -31,6 +32,7 @@ export default function SentenceWritingLines({
   const loadedRef = useRef(false);
   const [panMode, setPanMode] = useState(false);
   const hasModel = !!modelText;
+  const waypoints = useMergedWaypoints();
   const savedHeight = Number(row.writing_strokes?.canvasHeight);
   const legacyInk = Boolean(row.writing_strokes?.strokes?.length || row.writing_strokes?.history?.length);
   const [lineHeight] = useState(() =>
@@ -158,6 +160,7 @@ export default function SentenceWritingLines({
                   replayKey={replayKey}
                   scrub={scrub}
                   onProgress={onProgress}
+                  waypoints={waypoints}
                 />
               )}
             </g>

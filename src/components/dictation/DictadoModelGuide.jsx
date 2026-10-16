@@ -50,14 +50,16 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
   const { letters, layout, xScale, scaledStrokes } = useMemo(() => {
     const rawChars = (word || '').split('');
     const chars = rawChars.map(ch => {
-      const acc = ACCENT_MAP[ch];
-      if (acc && wp[acc.base]) {
-        // Accented letter: base strokes only; the accent mark is rendered as
-        // a font glyph above the letter (see ACCENT_GLYPH below).
-        return { ch, base: acc.base, accent: acc.accent, strokes: wp[acc.base].strokes || [] };
-      }
+      // If the character (including accented) has its own authored waypoints,
+      // use them directly — the accent is part of the stroke data.
       if (wp[ch]) {
         return { ch, base: ch, strokes: wp[ch].strokes || [] };
+      }
+      // Fallback for accented chars without their own waypoints: base strokes
+      // + a font-rendered accent glyph above the letter.
+      const acc = ACCENT_MAP[ch];
+      if (acc && wp[acc.base]) {
+        return { ch, base: acc.base, accent: acc.accent, strokes: wp[acc.base].strokes || [] };
       }
       return null;
     }).filter(Boolean);
@@ -145,6 +147,19 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
           const frac = scrubbing
             ? Math.max(0, Math.min(1, letterFrac * strokeCount - si))
             : 1;
+          // A single-point stroke is a dot (the tittle on i/j). splinePathD
+          // returns '' for < 2 points, so render it as a filled circle.
+          if (stroke.length === 1) {
+            const p = stroke[0];
+            const dotVisible = scrubbing ? frac > 0 : true;
+            return (
+              <circle
+                key={`m-${li}-${si}`}
+                cx={p.x} cy={p.y} r={Math.max(2, MODEL_W * 1.5)}
+                fill={MODEL} opacity={dotVisible ? 0.28 : 0}
+              />
+            );
+          }
           return (
             <path
               key={`m-${li}-${si}`}

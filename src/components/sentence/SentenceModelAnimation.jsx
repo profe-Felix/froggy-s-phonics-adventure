@@ -54,7 +54,7 @@ const BASE_SPACE_W = computeSpaceWidth();
 
 export default function SentenceModelAnimation({
   text, wordColors = [], startX, maxX, lineIndex = 0, activeWordIndex = -1, replayKey = 0,
-  scrub = null, onProgress = null,
+  scrub = null, onProgress = null, waypoints,
 }) {
   const lineOffset = lineIndex * CH;
   const skyY = SKY + lineOffset;
@@ -63,6 +63,7 @@ export default function SentenceModelAnimation({
   const availW = Math.max(40, maxX - startX);
 
   // Parse text into positioned chars + compute word ranges
+  const wp = waypoints || LETTER_WAYPOINTS;
   const { chars, wordRanges, xScale } = useMemo(() => {
     const parsed = [];
     const ranges = [];
@@ -78,21 +79,23 @@ export default function SentenceModelAnimation({
         if (ci > wordStart) ranges.push({ start: wordStart, end: ci });
         wordStart = ci + 1;
       } else {
-        const acc = ACCENT_MAP[ch];
-        if (acc && LETTER_WAYPOINTS[acc.base]) {
-          const baseStrokes = LETTER_WAYPOINTS[acc.base].strokes || [];
-          const b = letterBounds(baseStrokes);
-          const accentStrokes = buildAccentStrokes(acc.accent, b);
-          const strokes = [...baseStrokes, ...accentStrokes];
+        // If the character (including accented) has its own waypoints, use them.
+        const wpCh = wp[ch] || wp[ch.toLowerCase()];
+        if (wpCh && wpCh.strokes && wpCh.strokes.length) {
+          const b = letterBounds(wpCh.strokes);
           const inkW = (b.maxX - b.minX) * BASE_X_SCALE;
-          parsed.push({ type: 'letter', ch, strokes, minX: b.minX, maxX: b.maxX, w: inkW });
+          parsed.push({ type: 'letter', ch, strokes: wpCh.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
           totalW += inkW + LETTER_GAP;
         } else {
-          const wp = LETTER_WAYPOINTS[ch] || LETTER_WAYPOINTS[ch.toLowerCase()];
-          if (wp && wp.strokes && wp.strokes.length) {
-            const b = letterBounds(wp.strokes);
+          // Fallback for accented chars without their own waypoints: base + synthetic accent.
+          const acc = ACCENT_MAP[ch];
+          if (acc && wp[acc.base]) {
+            const baseStrokes = wp[acc.base].strokes || [];
+            const b = letterBounds(baseStrokes);
+            const accentStrokes = buildAccentStrokes(acc.accent, b);
+            const strokes = [...baseStrokes, ...accentStrokes];
             const inkW = (b.maxX - b.minX) * BASE_X_SCALE;
-            parsed.push({ type: 'letter', ch, strokes: wp.strokes, minX: b.minX, maxX: b.maxX, w: inkW });
+            parsed.push({ type: 'letter', ch, strokes, minX: b.minX, maxX: b.maxX, w: inkW });
             totalW += inkW + LETTER_GAP;
           } else {
             const w = BASE_X_SCALE * 0.2;
@@ -107,7 +110,7 @@ export default function SentenceModelAnimation({
     totalW -= LETTER_GAP;
     const fitScale = totalW > availW ? availW / totalW : 1;
     return { chars: parsed, wordRanges: ranges, xScale: fitScale };
-  }, [text, availW]);
+  }, [text, availW, wp]);
 
   const total = chars.length;
 

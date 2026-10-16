@@ -740,10 +740,23 @@ const currentStrokeWaypoints = strokes[strokeIndex] || [];
                           isCurrent ? '#A78BFA' :
                           '#cbd5e1';
             const opacity = isCompleted ? 0.55 : isCurrent ? (guideFlash ? 0.85 : 0.6) : 0.4;
+            const scaledPts = stroke.map(p => scaleForLetter(p, li));
+            // A single-point stroke is a dot (the tittle on i/j). splinePathD
+            // returns '' for < 2 points, so render it as a filled circle.
+            if (scaledPts.length === 1) {
+              const p = scaledPts[0];
+              return (
+                <circle
+                  key={`${li}-${si}`}
+                  cx={p.x} cy={p.y} r={isCurrent && guideFlash ? 5 : 3}
+                  fill={color} opacity={opacity}
+                />
+              );
+            }
             return (
               <path
                 key={`${li}-${si}`}
-                d={splinePathD(stroke.map(p => scaleForLetter(p, li)))}
+                d={splinePathD(scaledPts)}
                 fill="none"
                 stroke={color}
                 strokeWidth={isCurrent && guideFlash ? 10 : 6}
