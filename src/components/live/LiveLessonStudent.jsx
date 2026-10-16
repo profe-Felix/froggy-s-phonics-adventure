@@ -210,7 +210,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   const currentStep = steps[stepIndex];
 
   // Live mirror of the teacher's screen during the "watch" phase.
-  const { broadcast, refresh: refreshBroadcast } = useLiveBroadcast(session?.id);
+  const { broadcast, refresh: refreshBroadcast } = useLiveBroadcast(session?.id, session?.broadcast_state);
 
   // Report this student's work to the teacher dashboard during the try phase.
   const student = selectedStudent

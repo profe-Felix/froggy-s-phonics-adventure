@@ -10,8 +10,8 @@ import { base44 } from '@/api/base44Client';
 // driven by local interaction, not by the received state).
 const THROTTLE_MS = 50;
 
-export function useLiveBroadcast(sessionId) {
-  const [broadcast, setBroadcast] = useState(null);
+export function useLiveBroadcast(sessionId, initialBroadcast) {
+  const [broadcast, setBroadcast] = useState(initialBroadcast ?? null);
   const lastSendRef = useRef(0);
   const pendingRef = useRef(null);
   const flushTimerRef = useRef(null);
@@ -19,10 +19,15 @@ export function useLiveBroadcast(sessionId) {
   useEffect(() => {
     if (!sessionId) return;
     let alive = true;
-    // Seed the initial state from the DB (subscription only fires on changes).
-    base44.entities.LiveLessonSession.get(sessionId)
-      .then((s) => { if (alive && s?.broadcast_state) setBroadcast(s.broadcast_state); })
-      .catch(() => {});
+    // Seed the initial state. Prefer the caller-provided value (the parent
+    // already fetched the session) to avoid a duplicate get() on mount.
+    if (initialBroadcast) {
+      setBroadcast(initialBroadcast);
+    } else {
+      base44.entities.LiveLessonSession.get(sessionId)
+        .then((s) => { if (alive && s?.broadcast_state) setBroadcast(s.broadcast_state); })
+        .catch(() => {});
+    }
     const unsub =
       base44.entities.LiveLessonSession.subscribe(
         (event) => {
