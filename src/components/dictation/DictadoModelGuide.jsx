@@ -1,6 +1,15 @@
 import { useMemo } from 'react';
 import { splinePathD, pointAtLength } from '@/components/tracing/strokeMath';
-import { ACCENT_MAP, buildAccentStrokes } from '@/lib/accentLetters';
+import { ACCENT_MAP } from '@/lib/accentLetters';
+
+// Accent mark rendered as a font glyph (Andika) above the base letter, instead
+// of tiny waypoint strokes that get lost above a cramped dictado line. Matches
+// the "font accent above it" approach the teacher requested.
+const ACCENT_GLYPH = {
+  acute: '\u00B4',     // ´
+  tilde: '\u02DC',    // ˜
+  diaeresis: '\u00A8' // ¨
+};
 
 // Static, non-interactive rendering of the faint letter model (the correct
 // formation) for a dictado trace row. Students see this as a guide and write
@@ -43,10 +52,9 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
     const chars = rawChars.map(ch => {
       const acc = ACCENT_MAP[ch];
       if (acc && wp[acc.base]) {
-        const baseStrokes = wp[acc.base].strokes || [];
-        const b = letterBounds(baseStrokes);
-        const accentStrokes = buildAccentStrokes(acc.accent, b);
-        return { ch, base: acc.base, strokes: [...baseStrokes, ...accentStrokes] };
+        // Accented letter: base strokes only; the accent mark is rendered as
+        // a font glyph above the letter (see ACCENT_GLYPH below).
+        return { ch, base: acc.base, accent: acc.accent, strokes: wp[acc.base].strokes || [] };
       }
       if (wp[ch]) {
         return { ch, base: ch, strokes: wp[ch].strokes || [] };
@@ -89,7 +97,7 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
 
   if (!letters.length) return null;
 
-  const MODEL_W = Math.max(1.4, height * 0.012);
+  const MODEL_W = Math.max(0.8, height * 0.007);
   const scrubbing = progress < 1 && letters.length > 0;
   const numLetters = letters.length;
 
@@ -157,6 +165,34 @@ export default function DictadoModelGuide({ word, width, height, startX = 0, pro
           style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
         />
       )}
+      {/* Font-rendered accent marks above accented letters (í, ñ, ü, ...). */}
+      {letters.map((l, li) => {
+        if (!l.accent) return null;
+        const b = layout[li];
+        if (!b) return null;
+        const glyph = ACCENT_GLYPH[l.accent];
+        if (!glyph) return null;
+        const cx = b.offset + (b.minX + (b.maxX - b.minX) / 2 - b.minX) * xScale;
+        // Place the glyph just above the letter's top ink edge.
+        const topY = b.minY * height;
+        const accentSize = height * 0.5;
+        return (
+          <text
+            key={`acc-${li}`}
+            x={cx}
+            y={topY - accentSize * 0.02}
+            fontSize={accentSize}
+            fill={MODEL}
+            textAnchor="middle"
+            dominantBaseline="alphabetic"
+            opacity={0.28}
+            fontFamily="'Andika', sans-serif"
+            fontWeight="bold"
+          >
+            {glyph}
+          </text>
+        );
+      })}
     </svg>
   );
 }
