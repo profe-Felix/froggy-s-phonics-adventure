@@ -3,7 +3,18 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { base44 } from '@/api/base44Client';
 import { useSortSensors } from '@/hooks/useSortSensors';
 import { resolveRhymeMatchItems, autoGenerateRhymeMatchItems } from '@/lib/activities/rhymeMatchItems';
-import { Send, RefreshCw, Check, X, Shuffle } from 'lucide-react';
+import { Send, RefreshCw, Check, X, Shuffle, Volume2 } from 'lucide-react';
+
+// Phonological awareness: students listen to the word (speaker button) and
+// match by sound. No written words are shown — pure oral rhyming.
+function speak(text) {
+  try {
+    window.speechSynthesis?.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'es-ES'; u.rate = 0.8;
+    window.speechSynthesis?.speak(u);
+  } catch { /* best-effort */ }
+}
 
 // "Emparejar rimas" (student). The teacher types word pairs; the app finds
 // images. The student sees a target picture on the left, an empty drop box in
@@ -39,12 +50,17 @@ function PictureCard({ word, image, isPlaced, dragging }) {
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center p-2">
-          <span className="text-center font-bold text-slate-700 text-lg break-words">{word}</span>
+          <span className="text-4xl">❓</span>
         </div>
       )}
-      <span className="absolute bottom-1 left-1 right-1 text-center text-[10px] font-bold text-slate-600 bg-white/80 rounded px-1 py-0.5">
-        {word}
-      </span>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); speak(word); }}
+        className="absolute top-1 right-1 p-1.5 rounded-full bg-white/90 text-indigo-600 shadow-sm hover:bg-white active:scale-95"
+        aria-label={`Escuchar ${word}`}
+      >
+        <Volume2 className="w-4 h-4" />
+      </button>
     </div>
   );
 }
@@ -370,11 +386,19 @@ export default function RhymeMatchActivity({ config, studentName, onScoreUpdate 
         >
           {submittedCorrect ? (
             <>
-              <Check className="w-6 h-6" /> ¡Correcto! "{item.answer}" rima con "{item.target}"
+              <Check className="w-6 h-6" /> ¡Correcto!
             </>
           ) : (
             <>
-              <X className="w-6 h-6" /> La respuesta era "{item.answer}"
+              <X className="w-6 h-6" /> Escucha la respuesta
+              <button
+                type="button"
+                onClick={() => speak(item.answer)}
+                className="p-2 rounded-full bg-white/90 text-indigo-600 shadow-sm hover:bg-white active:scale-95"
+                aria-label="Escuchar respuesta"
+              >
+                <Volume2 className="w-5 h-5" />
+              </button>
             </>
           )}
         </div>
