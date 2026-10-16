@@ -283,7 +283,7 @@ export default function DictadoLinesCanvas({
                           width={pageWidth}
                           height={lineHeight}
                           color={DARK}
-                          size={5}
+                          size={3}
                           tool={editable ? tool : 'pen'}
                           mode={editable ? 'draw' : 'view'}
                           onStrokeEnd={attemptEndCache.current[w]}
@@ -330,7 +330,7 @@ export default function DictadoLinesCanvas({
                         width={pageWidth - GUIDE_W}
                         height={lineHeight}
                         color={RED}
-                        size={5}
+                        size={3}
                         tool={tEditable ? tool : 'pen'}
                         mode={tEditable ? 'draw' : 'view'}
                         onStrokeEnd={traceEndCache.current[w]}
