@@ -2,17 +2,19 @@ import { pdfjsLib } from '@/lib/pdfWorkerSetup';
 
 export default async function notebookPdfSource(url) {
   const controller = new AbortController();
-  // Resolve the final URL after redirect without downloading the body.
-  // The base44.app file route 302-redirects to media.base44.com, and the
-  // redirect drops the Range header — so a GET probe downloads the entire
-  // PDF before we can cancel it. HEAD follows the same redirect but has no
-  // body, giving us the resolved URL and content-length for free.
-  let resolvedUrl = url;
+  // Legacy public-file links redirect on GET but return 404 on HEAD.
+  // Use their direct public media path so HEAD and byte ranges both work,
+  // without starting a full-workbook download just to resolve a redirect.
+  const sourceUrl = url.replace(
+    /^https:\/\/base44\.app\/api\/apps\/[^/]+\/files\/mp\/public\//,
+    'https://media.base44.com/files/public/'
+  );
+  let resolvedUrl = sourceUrl;
   let length = 0;
   try {
-    const head = await fetch(url, { signal: controller.signal, method: 'HEAD' });
+    const head = await fetch(sourceUrl, { signal: controller.signal, method: 'HEAD' });
     if (head.ok) {
-      resolvedUrl = head.url || url;
+      resolvedUrl = head.url || sourceUrl;
       length = Number(head.headers.get('content-length')) || 0;
     }
   } catch (e) {
@@ -20,9 +22,9 @@ export default async function notebookPdfSource(url) {
   }
   if (!length) {
     // HEAD rejected — fall back to a cancelled GET probe
-    const probe = await fetch(url, { signal: controller.signal });
+    const probe = await fetch(sourceUrl, { signal: controller.signal });
     if (!probe.ok) throw Object.assign(new Error('Workbook download interrupted'), { status: probe.status });
-    resolvedUrl = probe.url || url;
+    resolvedUrl = probe.url || sourceUrl;
     length = Number(probe.headers.get('content-length'));
     if (!length) return { source: { data: new Uint8Array(await probe.arrayBuffer()) }, failure: new Promise(() => {}), abort: () => controller.abort() };
     await probe.body?.cancel();
