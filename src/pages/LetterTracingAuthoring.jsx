@@ -59,6 +59,43 @@ export default function LetterTracingAuthoring() {
     };
     img.src = url;
   }, []);
+
+  // Render the selected letter in the ZBKidLettersArrowDot font (dotted
+  // letters with directional arrows + stroke-order numbers) as a background
+  // guide image, so you can scale/position it and trace over it — especially
+  // for accented vowels where you just add the accent mark to the base letter.
+  const [fontGuideLoading, setFontGuideLoading] = useState(false);
+  const generateFontGuide = useCallback(async (ch) => {
+    setFontGuideLoading(true);
+    try {
+      await document.fonts.load('300px ZBKidLettersArrowDot', ch);
+      const canvas = document.createElement('canvas');
+      canvas.width = CANVAS_W;
+      canvas.height = CANVAS_H;
+      const ctx = canvas.getContext('2d');
+      ctx.font = `240px ZBKidLettersArrowDot, sans-serif`;
+      ctx.fillStyle = '#9ca3af';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Slightly below center so the stroke-order numbers above the glyph
+      // aren't clipped.
+      ctx.fillText(ch, CANVAS_W / 2, CANVAS_H * 0.56);
+      const url = canvas.toDataURL('image/png');
+      const img = new Image();
+      img.onload = () => {
+        const aspect = img.naturalWidth / img.naturalHeight || 1;
+        setSharedBg({ url, aspect, img });
+        // Canvas matches CANVAS_W x CANVAS_H, so scale 1 fills it exactly.
+        setSharedBgScale(1);
+        setSharedBgX(0);
+        setSharedBgY(0);
+        setFontGuideLoading(false);
+      };
+      img.src = url;
+    } catch {
+      setFontGuideLoading(false);
+    }
+  }, []);
   useEffect(() => {
     if (!sharedBg) return;
     return () => URL.revokeObjectURL(sharedBg.url);
@@ -348,7 +385,16 @@ export default function LetterTracingAuthoring() {
               <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
                 Draw · <span className="text-indigo-600 text-xl align-middle">{target}</span>
               </h2>
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => generateFontGuide(target)}
+                  disabled={fontGuideLoading}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50"
+                  title="Show the arrow-dot font guide for this letter so you can trace over it"
+                >
+                  📐 {fontGuideLoading ? 'Loading…' : 'Font guide'}
+                </button>
+                <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
                 <button
                   onClick={() => setAuthorMode('snap')}
                   className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${
@@ -365,6 +411,7 @@ export default function LetterTracingAuthoring() {
                 >
                   Trace thin
                 </button>
+                </div>
               </div>
             </div>
             {authorMode === 'snap' ? (
