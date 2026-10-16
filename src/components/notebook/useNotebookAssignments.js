@@ -20,6 +20,11 @@ export default function useNotebookAssignments(className, directAssignmentName) 
     refetchInterval: false,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    retry: false,
+    // When a direct assignment name is present (student redirected from a live
+    // assessment), retry the query a couple of times so a transient 429 doesn't
+    // leave the notebook view without its PDF. When no direct name is set the
+    // student is just browsing the picker, so no retry needed.
+    retry: Boolean(directAssignmentName?.trim()) ? 2 : false,
+    retryDelay: (attempt) => Math.min(10000, 2000 * 2 ** attempt) + Math.random() * 1000,
   });
 }
