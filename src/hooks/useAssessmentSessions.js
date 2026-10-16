@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { mergeAssessment, requestWithRetry, retryDelay } from '@/lib/classroomSync';
 
+const DISPLAY_FIELDS = ['status', 'broadcast_state'];
+
 // Shared by the standalone assessment page and the in-app overlay.
 // Stable lifecycle, top-level event IDs, ordered payloads, and guarded recovery.
 export function useAssessmentSessions({
@@ -63,9 +65,10 @@ export function useAssessmentSessions({
       const version = versions.get(id) || 0;
 
       try {
-        const fresh = await requestWithRetry(() =>
-          base44.entities.SmallGroupAssessment.get(id)
-        );
+        const fresh = await requestWithRetry(async () => {
+          const page = await base44.entities.SmallGroupAssessment.filter({ id }, { limit: 1, fields: DISPLAY_FIELDS });
+          return page.items[0];
+        });
 
         if (!alive) return;
 
@@ -91,9 +94,10 @@ export function useAssessmentSessions({
       const startVersions = new Map(versions);
 
       try {
-        const active = await requestWithRetry(() =>
-          base44.entities.SmallGroupAssessment.filter({ status: 'active' })
-        );
+        const active = await requestWithRetry(async () => {
+          const page = await base44.entities.SmallGroupAssessment.filter({ status: 'active' }, { limit: 50, fields: DISPLAY_FIELDS });
+          return page.items;
+        });
 
         if (!alive) return;
 
