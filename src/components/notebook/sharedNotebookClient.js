@@ -8,7 +8,12 @@ class SharedNotebookClient {
     this.context=context; this.teacher=teacher; this.listeners=new Set(); this.serverPages=new Map(); this.pending=new Map(); this.waiters=new Map(); this.writer=0; this.connected=false;
     this.state={session:null,pages:{},status:'Connecting to shared notebook…',error:'',ready:false,writer:0};
     let id=sessionStorage.getItem('notebook-connection-id');
-    if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);} this.clientId=`${id}-${teacher?'teacher':'student'}`;
+    if(!id){id=crypto.randomUUID();sessionStorage.setItem('notebook-connection-id',id);}
+    // Append a per-instance suffix so two tabs that share sessionStorage (e.g.
+    // tab duplication) don't connect to the same NotebookRoom with the same
+    // actor connection ID — the actor's user map would only track one of them
+    // and the other would stop receiving updates / get stuck on saving.
+    this.clientId=`${id}-${teacher?'teacher':'student'}-${crypto.randomUUID().slice(0,8)}`;
     this.recoveryConnections=new Map();
     this.lastOpen=0; this.lastJoin=0; this.lastPageRequest=0;
     this.retryAttempt=0; this.retryAt=0; this.pagePending=true;
