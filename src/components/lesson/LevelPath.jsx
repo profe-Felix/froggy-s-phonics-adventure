@@ -59,6 +59,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
     queryFn: fetchLessons,
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
   });
 
   const { data: progresses = [] } = useQuery({
@@ -68,6 +70,8 @@ export default function LevelPath({ studentData, selectedStudent, onOpenLesson, 
       class_name: className,
     }),
     enabled: !!studentNumber && !!className,
+    staleTime: 60000,
+    refetchOnMount: false,
     retry: false,
   });
 

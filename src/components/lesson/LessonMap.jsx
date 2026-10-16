@@ -106,6 +106,8 @@ export default function LessonMap({
   const { data: lessons = [] } = useQuery({
     queryKey: ['lessons', className],
     queryFn: fetchLessons,
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,
   });
 
   const myLessons = useMemo(
