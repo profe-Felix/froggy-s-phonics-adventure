@@ -6,4 +6,8 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
+// Suppress pdfjs console warnings (getHexString, Indexing objects, etc.)
+// that flood the console on large PDFs and block the main thread.
+try { pdfjsLib.setVerbosityLevel(0); } catch {}
+
 export { pdfjsLib };

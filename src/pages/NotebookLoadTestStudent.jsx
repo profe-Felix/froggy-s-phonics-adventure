@@ -26,7 +26,7 @@ export default function NotebookLoadTestStudent() {
   const qc = useQueryClient();
   const { classList } = useClassNames();
   const [className, setClassName] = useState(params.get('class') || '');
-  const [studentNumber, setStudentNumber] = useState(Number(params.get('student')) || 0);
+  const [studentNumber, setStudentNumber] = useState(Number(params.get('number') || params.get('student')) || 0);
   const [assignmentId, setAssignmentId] = useState(params.get('assignment') || '');
   const [page, setPage] = useState(1);
   const [color, setColor] = useState('#1e40af');
