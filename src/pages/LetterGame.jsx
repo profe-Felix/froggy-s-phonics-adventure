@@ -93,6 +93,7 @@ export default function LetterGame() {
   const [activeStepIndex, setActiveStepIndex] = useState(null);
   const [liveSession, setLiveSession] = useState(null);
   const queryClient = useQueryClient();
+  const studentQueryKey = ['student-selection', selectedStudent?.class_name, selectedStudent?.number, urlYear || ACTIVE_SCHOOL_YEAR];
   const { languageFor, configs, tracingOnlyFor, error: classConfigError, retry: retryClassConfig } = useClassColors();
 
   // Consolidated lockdown state — replaces 5 independent polling queries
@@ -241,12 +242,18 @@ export default function LetterGame() {
   }, [barcodeStudent, urlBarcode, studentData]);
 
   const { data: students, error: studentLoadError, refetch: retryStudentLoad } = useQuery({
-    queryKey: ['students'],
-    queryFn: () => requestWithRetry(() => base44.entities.Student.list()),
-    enabled: selectedStudent !== null && selectedStudent !== 'loading_by_id' && selectedStudent !== 'loading_by_barcode',
-    // The full roster is heavy. Cache 5 min and update it in place on
-    // mutations below (instead of invalidating → full refetch), which was
-    // the main driver of 429 rate limits with many students saving progress.
+    queryKey: studentQueryKey,
+    queryFn: () => requestWithRetry(async () => {
+      const page = await base44.entities.Student.filter({
+        class_name: selectedStudent.class_name,
+        student_number: selectedStudent.number,
+        school_year: urlYear || ACTIVE_SCHOOL_YEAR,
+      }, { limit: 1, sort: 'created_date' });
+      return page.items;
+    }),
+    enabled: !!selectedStudent?.class_name && !!selectedStudent?.number && !directStudentId && !urlBarcode,
+    // A student needs one record, never the entire school's progress history.
+    // QR and barcode lookups already supply that record without a second read.
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -254,20 +261,20 @@ export default function LetterGame() {
   const createStudentMutation = useMutation({
     mutationFn: (data) => base44.entities.Student.create(data),
     onSuccess: (data) => {
-      queryClient.setQueryData(['students'], old => Array.isArray(old) ? [...old, data] : [data]);
+      queryClient.setQueryData(studentQueryKey, old => Array.isArray(old) ? [...old, data] : [data]);
     }
   });
 
   const updateStudentMutation = useMutation({
     mutationFn: ({ id, data }) => requestWithRetry(() => base44.entities.Student.update(id, data)),
     onSuccess: (data) => {
-      queryClient.setQueryData(['students'], old => Array.isArray(old) ? old.map(s => s.id === data.id ? data : s) : old);
+      queryClient.setQueryData(studentQueryKey, old => Array.isArray(old) ? old.map(s => s.id === data.id ? data : s) : old);
       setStudentData(data);
     },
     onError: (error) => {
       // A transient failure is not a logout or evidence of deletion.
       if (errorStatus(error) === 404) {
-        queryClient.invalidateQueries({ queryKey: ['students'] });
+        queryClient.invalidateQueries({ queryKey: studentQueryKey });
       }
       console.error('Student progress save failed; preserving identity', error);
     }
@@ -454,7 +461,7 @@ export default function LetterGame() {
     if (!studentData?.id) return;
     await base44.entities.Student.update(studentData.id, { language });
     setStudentData(prev => prev ? { ...prev, language } : prev);
-    queryClient.setQueryData(['students'], old => Array.isArray(old) ? old.map(s => s.id === studentData.id ? { ...s, language } : s) : old);
+    queryClient.setQueryData(studentQueryKey, old => Array.isArray(old) ? old.map(s => s.id === studentData.id ? { ...s, language } : s) : old);
   };
 
   const handleModeSelect = (mode) => {
@@ -472,7 +479,7 @@ export default function LetterGame() {
   const handleStudentPatch = (patch) => {
     setStudentData(prev => prev ? { ...prev, ...patch } : prev);
 
-    queryClient.setQueryData(['students'], old => {
+    queryClient.setQueryData(studentQueryKey, old => {
       if (!Array.isArray(old)) return old;
       return old.map(s => s.id === studentData?.id ? { ...s, ...patch } : s);
     });
@@ -482,7 +489,7 @@ export default function LetterGame() {
   const handlePersistPatch = async (patch) => {
     if (!studentData?.id) return;
     setStudentData(prev => prev ? { ...prev, ...patch } : prev);
-    queryClient.setQueryData(['students'], old => Array.isArray(old)
+    queryClient.setQueryData(studentQueryKey, old => Array.isArray(old)
       ? old.map(s => s.id === studentData.id ? { ...s, ...patch } : s) : old);
     try { await base44.entities.Student.update(studentData.id, patch); } catch {}
   };
