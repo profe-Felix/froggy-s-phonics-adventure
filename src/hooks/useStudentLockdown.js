@@ -32,7 +32,7 @@ export function useStudentLockdown({
 
   const filters = [
     { student_id: studentId },
-    { active: true, school_year: year },
+    { active: true, school_year: year, class_name: className },
     { active: true },
     { class_name: className, school_year: year, active: true },
     { class_name: className, active: true },

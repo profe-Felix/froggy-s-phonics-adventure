@@ -9,7 +9,7 @@ export async function readNotebookSessionHeader(entities, id) {
   // Read the current record for admission, but never transfer its full
   // multi-page drawing history for a connection handshake.
   const page = await entities.NotebookSession.filter({ id }, { limit: 1, fields: NOTEBOOK_SESSION_FIELDS });
-  return notebookSessionHeader(page.items[0]);
+  return notebookSessionHeader(page?.items?.[0]);
 }
 
 export function notebookSessionHeader(record) {

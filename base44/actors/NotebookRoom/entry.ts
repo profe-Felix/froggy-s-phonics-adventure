@@ -74,8 +74,8 @@ export default class NotebookRoom extends Actor {
     const meta = await this.storage.get(`page:${number}`);
     let page;
     if (!meta) {
-      const duplicates = await this.client.asServiceRole.entities.NotebookSession.filter({assignment_id:this.session.assignment_id,class_name:this.session.class_name,student_number:this.session.student_number,school_year:this.session.school_year},'created_date',50,0,[`strokes_by_page.${number}`]);
-      const records = Array.isArray(duplicates) ? duplicates : duplicates.items;
+      const duplicates = await this.client.asServiceRole.entities.NotebookSession.filter({assignment_id:this.session.assignment_id,class_name:this.session.class_name,student_number:this.session.student_number,school_year:this.session.school_year},{sort:'created_date',limit:50,fields:[`strokes_by_page.${number}`]});
+      const records = Array.isArray(duplicates) ? duplicates : (duplicates?.items || []);
       const canonical = records.find(record=>record.id===this.session.id);
       page = legacyPage(canonical?.strokes_by_page?.[String(number)],number,this.session.id);
       const signatures = new Set(snapshot(page).strokes.map(s=>JSON.stringify([s.pts,s.color,s.tool,s.size])));
