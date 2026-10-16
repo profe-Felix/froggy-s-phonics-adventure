@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Eye, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eye, Loader2, RefreshCw } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
@@ -35,6 +35,8 @@ export default function NotebookLoadTestStudent() {
   const [saveError, setSaveError] = useState('');
   const [liveAssessment, setLiveAssessment] = useState(null);
   const [liveEnded, setLiveEnded] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const canvasRef = useRef(null);
   const latestSessionRef = useRef(null);
   const currentPageRef = useRef(1);
@@ -47,10 +49,23 @@ export default function NotebookLoadTestStudent() {
 
   // Shared notebook connection
   const notebook = useSharedNotebookTest(assignment, className, studentNumber, page, false);
-  const { ready, status, pages: notebookPages, enqueue, flush, session: nbSession } = notebook;
+  const { ready, status, pages: notebookPages, enqueue, flush, session: nbSession, error: nbError, stage, connectStartedAt, retryNow } = notebook;
 
   useEffect(() => { if (nbSession) { latestSessionRef.current = nbSession; setSession(nbSession); } }, [nbSession]);
   useEffect(() => { currentPageRef.current = page; }, [page]);
+
+  // Bounded connection timeout — show Retry after 30s if not ready
+  useEffect(() => {
+    if (ready || liveEnded) { setTimedOut(false); setElapsed(0); return; }
+    setTimedOut(false);
+    const start = connectStartedAt || Date.now();
+    const tick = setInterval(() => {
+      const e = Math.floor((Date.now() - start) / 1000);
+      setElapsed(e);
+      if (e >= 30) setTimedOut(true);
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [ready, liveEnded, connectStartedAt]);
 
   // Media and page position hooks (test versions)
   const saveMedia = useNotebookMediaTest(session?.id, latestSessionRef, setSession);

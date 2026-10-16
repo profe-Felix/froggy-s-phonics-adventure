@@ -15,5 +15,6 @@ export default function useSharedNotebookTest(assignment, className, studentNumb
   useEffect(() => { client.current?.pageChanged(page); }, [page]);
   const enqueue = useCallback((page, change) => client.current?.enqueue(page, change), []);
   const flush = useCallback(() => client.current?.flush() || Promise.resolve(false), []);
-  return { ...state, enqueue, flush };
+  const retryNow = useCallback(() => client.current?.retryNow(), []);
+  return { ...state, enqueue, flush, retryNow };
 }
