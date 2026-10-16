@@ -104,9 +104,9 @@ export default function DictadoTraceCanvas({
   const STEP = 3 * S;
   const ACC_PENALTY = 30 * S;
   const DOT_PIXEL_LIM = 14 * S;
-  const STROKE_W = Math.max(3, height * 0.028);
-  const MODEL_W = Math.max(2, height * 0.016);
-  const MODEL_FLASH_W = Math.max(3, height * 0.028);
+  const STROKE_W = Math.max(2, height * 0.018);
+  const MODEL_W = Math.max(1.2, height * 0.01);
+  const MODEL_FLASH_W = Math.max(2, height * 0.018);
 
   const [letterIndex, setLetterIndex] = useState(0);
   const [strokeIndex, setStrokeIndex] = useState(0);

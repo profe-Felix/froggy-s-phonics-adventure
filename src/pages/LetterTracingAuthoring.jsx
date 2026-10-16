@@ -9,10 +9,12 @@ import NumberComposer from '@/components/tracing/NumberComposer';
 import { base44 } from '@/api/base44Client';
 import { useTracingGuideSettings } from '@/hooks/useTracingGuideSettings';
 import TracingGuideTuner from '@/components/tracing/TracingGuideTuner';
+import { ACCENT_MAP } from '@/lib/accentLetters';
+import { LETTER_WAYPOINTS } from '@/components/data/letterWaypoints';
 
 const LOWER = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const UPPER = LOWER.map((c) => c.toUpperCase());
-const SPANISH = ['ñ', 'Ñ'];
+const SPANISH = ['á', 'é', 'í', 'ó', 'ú', 'ü', 'Á', 'É', 'Í', 'Ó', 'Ú', 'Ü', 'ñ', 'Ñ'];
 const NUMBERS = Array.from({ length: 21 }, (_, i) => String(i));
 
 export default function LetterTracingAuthoring() {
@@ -89,30 +91,61 @@ export default function LetterTracingAuthoring() {
   // entity, so this keeps authoring and student play in sync.
   useEffect(() => {
     let cancelled = false;
-    base44.entities.LetterWaypoint.filter({ letter: target })
-      .then((records) => {
-        if (cancelled || !records || !records.length) return;
-        const rec = records[0];
-        try {
-          const strokes = JSON.parse(rec.strokes_data);
-          if (Array.isArray(strokes) && strokes.length) {
-            // Load the exact skeleton points the user placed — no simplification.
-            // Earlier this ran RDP (simplify) on strokes with >16 points, which
-            // silently dropped control points the user had intentionally placed
-            // close together on curves, so re-editing showed fewer handles than
-            // the first edit. Saves already store the sparse skeleton, so the
-            // loaded points are exactly what was authored.
-            const px = strokes.map((s) => s.map((p) => ({
+    const baseLetter = ACCENT_MAP[target]?.base;
+
+    const applyRecords = (records) => {
+      if (cancelled || !records || !records.length) return false;
+      const rec = records[0];
+      try {
+        const strokes = JSON.parse(rec.strokes_data);
+        if (Array.isArray(strokes) && strokes.length) {
+          // Load the exact skeleton points the user placed — no simplification.
+          // Earlier this ran RDP (simplify) on strokes with >16 points, which
+          // silently dropped control points the user had intentionally placed
+          // close together on curves, so re-editing showed fewer handles than
+          // the first edit. Saves already store the sparse skeleton, so the
+          // loaded points are exactly what was authored.
+          const px = strokes.map((s) => s.map((p) => ({
+            x: p.x * CANVAS_W,
+            y: p.y * CANVAS_H,
+            ...(p.corner ? { corner: true } : {}),
+          })));
+          setRawStrokes(px);
+          setHint(rec.hint || '');
+          return true;
+        }
+      } catch { /* ignore malformed */ }
+      return false;
+    };
+
+    // For accented vowels with no saved waypoints, pre-fill with the base
+    // vowel's strokes so the user just adds the accent mark themselves.
+    const fallbackToBase = () => {
+      if (!baseLetter) return;
+      base44.entities.LetterWaypoint.filter({ letter: baseLetter })
+        .then((baseRecords) => {
+          if (applyRecords(baseRecords)) return;
+          // Fall back to built-in waypoint data if the DB has nothing either.
+          const builtIn = LETTER_WAYPOINTS[baseLetter];
+          if (builtIn && builtIn.strokes && builtIn.strokes.length && !cancelled) {
+            const px = builtIn.strokes.map((s) => s.map((p) => ({
               x: p.x * CANVAS_W,
               y: p.y * CANVAS_H,
               ...(p.corner ? { corner: true } : {}),
             })));
             setRawStrokes(px);
-            setHint(rec.hint || '');
+            setHint(builtIn.hint || '');
           }
-        } catch { /* ignore malformed */ }
+        })
+        .catch(() => {});
+    };
+
+    base44.entities.LetterWaypoint.filter({ letter: target })
+      .then((records) => {
+        if (applyRecords(records)) return;
+        fallbackToBase();
       })
-      .catch(() => {});
+      .catch(() => fallbackToBase());
     return () => { cancelled = true; };
   }, [target]);
 
