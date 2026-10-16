@@ -6,7 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
 import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import PdfPageRenderer from '@/components/notebook/PdfPageRenderer';
 import PageNavBar from '@/components/notebook/PageNavBar';
@@ -37,15 +37,34 @@ export default function NotebookLoadTestStudent() {
   const [liveEnded, setLiveEnded] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [autoLiveId, setAutoLiveId] = useState('');
   const canvasRef = useRef(null);
   const latestSessionRef = useRef(null);
   const currentPageRef = useRef(1);
   const [session, setSession] = useState(null);
-  const liveAssessmentId = params.get('live');
+  const liveAssessmentId = params.get('live') || autoLiveId;
 
   // Fetch assignments for this class
   const { data: assignments = [] } = useNotebookAssignmentsTest(className, '', assignmentId);
   const assignment = assignments.find(a => a.id === assignmentId) || assignments[0] || null;
+
+  // Auto-join: check for active live assessment when student has picked class + number but no assignment yet
+  const { data: activeLive = [] } = useQuery({
+    queryKey: ['test-active-live-autojoin', className],
+    queryFn: () => base44.entities.TestLiveNotebookAssessment.filter({ class_name: className, active: true, school_year: ACTIVE_SCHOOL_YEAR }),
+    enabled: !!className && !!studentNumber && !assignmentId && !liveAssessmentId,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    if (!assignmentId && !liveAssessmentId && activeLive?.length > 0) {
+      const live = activeLive[0];
+      setAutoLiveId(live.id);
+      setAssignmentId(live.assignment_id);
+    }
+  }, [activeLive, assignmentId, liveAssessmentId]);
 
   // Shared notebook connection
   const notebook = useSharedNotebookTest(assignment, className, studentNumber, page, false);

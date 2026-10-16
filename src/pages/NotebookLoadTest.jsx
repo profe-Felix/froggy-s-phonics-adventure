@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Trash2, Play, Pause, Square, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Upload, Trash2, Play, Pause, Square, ChevronLeft, ChevronRight, AlertTriangle, RefreshCw, Copy, ExternalLink } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
@@ -225,28 +225,56 @@ export default function NotebookLoadTest() {
                     <Play className="w-4 h-4 mr-1" /> Start Live Assessment
                   </Button>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      onClick={togglePause}
-                      className={liveAssessment.paused ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'}
-                    >
-                      {liveAssessment.paused ? <><Play className="w-4 h-4 mr-1" /> Resume</> : <><Pause className="w-4 h-4 mr-1" /> Pause</>}
-                    </Button>
-                    <Button onClick={endLive} variant="destructive">
-                      <Square className="w-4 h-4 mr-1" /> End
-                    </Button>
-                    <div className="flex items-center gap-2 ml-2">
-                      <Button size="sm" variant="outline" onClick={() => pageAdvance(-1)} disabled={liveAssessment.current_page <= 1}>
-                        <ChevronLeft className="w-4 h-4" />
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        onClick={togglePause}
+                        className={liveAssessment.paused ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-500 hover:bg-amber-600'}
+                      >
+                        {liveAssessment.paused ? <><Play className="w-4 h-4 mr-1" /> Resume</> : <><Pause className="w-4 h-4 mr-1" /> Pause</>}
                       </Button>
-                      <span className="font-medium text-slate-600">Page {liveAssessment.current_page} / {liveAssessment.total_pages}</span>
-                      <Button size="sm" variant="outline" onClick={() => pageAdvance(1)} disabled={liveAssessment.current_page >= liveAssessment.total_pages}>
-                        <ChevronRight className="w-4 h-4" />
+                      <Button onClick={endLive} variant="destructive">
+                        <Square className="w-4 h-4 mr-1" /> End
+                      </Button>
+                      <div className="flex items-center gap-2 ml-2">
+                        <Button size="sm" variant="outline" onClick={() => pageAdvance(-1)} disabled={liveAssessment.current_page <= 1}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="font-medium text-slate-600">Page {liveAssessment.current_page} / {liveAssessment.total_pages}</span>
+                        <Button size="sm" variant="outline" onClick={() => pageAdvance(1)} disabled={liveAssessment.current_page >= liveAssessment.total_pages}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {liveAssessment.paused && (
+                        <span className="text-amber-600 font-medium text-sm">⚠ Students paused (Eyes on board)</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                      <span className="text-sm font-medium text-indigo-700">Student login URL:</span>
+                      <code className="text-xs text-indigo-900 bg-white px-2 py-1 rounded border border-indigo-200 flex-1 min-w-0 truncate">
+                        {window.location.origin}/notebook-load-test-student?class={encodeURIComponent(className)}&live={liveAssessment.id}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const url = `${window.location.origin}/notebook-load-test-student?class=${encodeURIComponent(className)}&live=${liveAssessment.id}`;
+                          navigator.clipboard?.writeText(url);
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const url = `${window.location.origin}/notebook-load-test-student?class=${encodeURIComponent(className)}&live=${liveAssessment.id}`;
+                          window.open(url, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 mr-1" /> Open Student
                       </Button>
                     </div>
-                    {liveAssessment.paused && (
-                      <span className="text-amber-600 font-medium text-sm">⚠ Students paused (Eyes on board)</span>
-                    )}
                   </div>
                 )}
               </div>
