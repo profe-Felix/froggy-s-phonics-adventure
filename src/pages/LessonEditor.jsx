@@ -1244,6 +1244,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
                   const lines = (p.items || []).map(it => {
                     if (typeof it === 'string') return it;
                     if (p.mode === 'rhyme_identification') return `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`;
+                    if (p.mode === 'rhyme_matching') return [it.target, it.answer, ...(it.distractors || [])].join(', ');
                     return it.text || '';
                   });
                   update({ config: { ...step.config, preset: pid, activityMode: p.mode, itemsText: lines.join('\n'), huntType: p.huntType || step.config?.huntType || '', huntTarget: p.target != null ? String(p.target) : step.config?.huntTarget || '' } });
@@ -1286,13 +1287,18 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
             </label>
           )}
 
-          <label className="text-xs text-gray-600 font-bold">Examples (one per line{step.config?.activityMode === 'rhyme_identification' ? ' · word1, word2, sí/no' : ''})
+          <label className="text-xs text-gray-600 font-bold">Examples (one per line{step.config?.activityMode === 'rhyme_identification' ? ' · word1, word2, sí/no' : step.config?.activityMode === 'rhyme_matching' ? ' · target, answer, distractor…' : ''})
             <textarea value={step.config?.itemsText || ''}
               onChange={e => update({ config: { ...step.config, itemsText: e.target.value, preset: '' } })}
               rows={4}
-              placeholder={step.config?.activityMode === 'counting_words' ? 'El gato come\nYo soy grande' : step.config?.activityMode === 'rhyme_identification' ? 'gracioso, hermoso, sí\nnota, noche, no' : 'gato\nsol\nflor'}
+              placeholder={step.config?.activityMode === 'counting_words' ? 'El gato come\nYo soy grande' : step.config?.activityMode === 'rhyme_identification' ? 'gracioso, hermoso, sí\nnota, noche, no' : step.config?.activityMode === 'rhyme_matching' ? 'gato, pato, cocodrilo\nflor, tambor, sol' : 'gato\nsol\nflor'}
               className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mt-0.5 font-mono" />
           </label>
+          {step.config?.activityMode === 'rhyme_matching' && (
+            <p className="text-[10px] text-gray-400">
+              Type: target, answer, distractor1, distractor2… The app finds images automatically. One line = one problem. After these rounds, students can replay with auto-generated rhyme pairs.
+            </p>
+          )}
         </div>
       )}
 

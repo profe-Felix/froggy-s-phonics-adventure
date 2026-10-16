@@ -81,4 +81,14 @@ export const PRESETS = {
       { word1: 'camisa', word2: 'repisa', answer: true },
     ],
   },
+  rhyme_match_basic: {
+    label: 'Ejemplo · emparejar rimas (imágenes)',
+    mode: 'rhyme_matching',
+    items: [
+      { target: 'gato', answer: 'pato', distractors: ['cocodrilo'] },
+      { target: 'flor', answer: 'tambor', distractors: ['sol'] },
+      { target: 'mesa', answer: 'pesa', distractors: ['luna'] },
+      { target: 'pan', answer: 'tren', distractors: ['sol'] },
+    ],
+  },
 };

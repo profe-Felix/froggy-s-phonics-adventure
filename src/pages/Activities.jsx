@@ -6,6 +6,7 @@ import PhonemeManipulationActivity from '@/components/activities/PhonemeManipula
 import PaletteEditor from '@/components/activities/PaletteEditor';
 import HuntActivity from '@/components/activities/HuntActivity';
 import RhymeActivity from '@/components/activities/RhymeActivity';
+import RhymeMatchActivity from '@/components/activities/RhymeMatchActivity';
 import { HUNT_TYPES } from '@/lib/activities/hunt';
 import { ACTIVITY_MODES } from '@/lib/activities/engine';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
@@ -22,6 +23,7 @@ const DEFAULT_ITEMS = {
   phoneme_manipulation: 'gato\nsol\nflor\npan\nluna',
   text_hunt: 'El gato come pescado.\n¡Hola! ¿Cómo estás?',
   rhyme_identification: 'gracioso, hermoso, sí\nentrenamiento, descubrimiento, sí\nportón, cartón, sí\nnota, noche, no\npalabra, palo, no\npincel, prenda, no\nfelicidad, ciudad, sí\ncamisa, repisa, sí',
+  rhyme_matching: 'gato, pato, cocodrilo\nflor, tambor, sol\nmesa, pesa, luna\npan, tren, sol',
 };
 
 function parseItems(text) {
@@ -45,9 +47,25 @@ function parseRhymeItems(text) {
     .filter(Boolean);
 }
 
+function parseRhymeMatchItems(text) {
+  return String(text || '')
+    .split(/\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const parts = l.split(',').map((x) => x.trim()).filter(Boolean);
+      if (parts.length < 2) return null;
+      return { target: parts[0], answer: parts[1], distractors: parts.slice(2) };
+    })
+    .filter(Boolean);
+}
+
 function serializeItems(mode, items) {
   if (mode === 'rhyme_identification') {
     return (items || []).map((it) => `${it.word1}, ${it.word2}, ${it.answer ? 'sí' : 'no'}`).join('\n');
+  }
+  if (mode === 'rhyme_matching') {
+    return (items || []).map((it) => [it.target, it.answer, ...(it.distractors || [])].join(', ')).join('\n');
   }
   return (items || []).map((it) => (typeof it === 'string' ? it : it.text || it.word || '')).join('\n');
 }
@@ -77,7 +95,7 @@ export default function Activities() {
   );
 
   const config = useMemo(() => {
-    const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: modeKey === 'rhyme_identification' ? parseRhymeItems(itemsText) : parseItems(itemsText) };
+    const base = (presetKey && PRESETS[presetKey]) ? PRESETS[presetKey] : { mode: modeKey, items: modeKey === 'rhyme_identification' ? parseRhymeItems(itemsText) : modeKey === 'rhyme_matching' ? parseRhymeMatchItems(itemsText) : parseItems(itemsText) };
     let out = modeKey === 'phoneme_manipulation' ? { ...base, palette } : base;
     if (modeKey === 'text_hunt') out = { ...out, huntType, target: huntTarget };
     return out;
@@ -210,7 +228,7 @@ export default function Activities() {
                   onChange={(e) => { setItemsText(e.target.value); setPresetKey(''); }}
                   rows={3}
                   className="px-2 py-2 rounded-lg border bg-white w-full"
-                  placeholder={modeKey === 'counting_phonemes' ? 'gato\nsol\nflor' : 'El gato come\nYo soy grande'}
+                  placeholder={modeKey === 'counting_phonemes' ? 'gato\nsol\nflor' : modeKey === 'rhyme_matching' ? 'gato, pato, cocodrilo\nflor, tambor, sol' : 'El gato come\nYo soy grande'}
                 />
               </div>
             </>
@@ -225,6 +243,8 @@ export default function Activities() {
             ? <HuntActivity config={config} studentName={studentName} />
             : modeKey === 'rhyme_identification'
             ? <RhymeActivity config={config} studentName={studentName} />
+            : modeKey === 'rhyme_matching'
+            ? <RhymeMatchActivity config={config} studentName={studentName} />
             : <ElkoninCountActivity config={config} studentName={studentName} />)
         : <TeacherReview mode={modeKey} />}
     </div>

@@ -135,11 +135,11 @@ export default function ActivityPresets() {
 
             <label className="block text-sm">
               <span className="text-xs font-bold text-slate-500">
-                Items {editing.mode === 'rhyme_identification' ? '(word1, word2, sí/no — one per line)' : '(one per line)'}
+                Items {editing.mode === 'rhyme_identification' ? '(word1, word2, sí/no — one per line)' : editing.mode === 'rhyme_matching' ? '(target, answer, distractor… — one per line)' : '(one per line)'}
               </span>
               <textarea value={editing.itemsText} onChange={e => setEditing({ ...editing, itemsText: e.target.value })}
                 rows={6}
-                placeholder={editing.mode === 'counting_words' ? 'El gato come\nYo soy grande' : editing.mode === 'rhyme_identification' ? 'gracioso, hermoso, sí\nnota, noche, no' : 'gato\nsol\nflor'}
+                placeholder={editing.mode === 'counting_words' ? 'El gato come\nYo soy grande' : editing.mode === 'rhyme_identification' ? 'gracioso, hermoso, sí\nnota, noche, no' : editing.mode === 'rhyme_matching' ? 'gato, pato, cocodrilo\nflor, tambor, sol' : 'gato\nsol\nflor'}
                 className="w-full mt-1 border rounded-lg px-3 py-2 font-mono text-sm" />
             </label>
 

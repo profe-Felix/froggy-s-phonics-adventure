@@ -3,6 +3,7 @@ import ElkoninCountActivity from '@/components/activities/ElkoninCountActivity';
 import PhonemeManipulationActivity from '@/components/activities/PhonemeManipulationActivity';
 import HuntActivity from '@/components/activities/HuntActivity';
 import RhymeActivity from '@/components/activities/RhymeActivity';
+import RhymeMatchActivity from '@/components/activities/RhymeMatchActivity';
 import { useActivityPresets } from '@/hooks/useActivityPresets';
 import { buildHuntItemsFromBank } from '@/lib/activities/huntItems';
 import StepDoneBar from './StepDoneBar';
@@ -15,6 +16,13 @@ function parseItems(mode, text) {
       const parts = l.split(',').map(x => x.trim());
       if (parts.length < 2) return null;
       return { word1: parts[0], word2: parts[1], answer: /sí|si|true/i.test(parts[2] || '') };
+    }).filter(Boolean);
+  }
+  if (mode === 'rhyme_matching') {
+    return lines.map(l => {
+      const parts = l.split(',').map(x => x.trim()).filter(Boolean);
+      if (parts.length < 2) return null;
+      return { target: parts[0], answer: parts[1], distractors: parts.slice(2) };
     }).filter(Boolean);
   }
   return lines.map(t => ({ text: t }));
@@ -131,6 +139,8 @@ export default function ActivitiesStep({ onComplete, studentName, stepConfig, co
           <HuntActivity config={config} studentName={name} onRegenerate={isHuntNoExamples ? fetchBankItems : undefined} onScoreUpdate={setScore} />
         ) : mode === 'rhyme_identification' ? (
           <RhymeActivity config={config} studentName={name} />
+        ) : mode === 'rhyme_matching' ? (
+          <RhymeMatchActivity config={config} studentName={name} onScoreUpdate={setScore} />
         ) : (
           <ElkoninCountActivity
             config={config}
