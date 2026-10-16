@@ -68,12 +68,12 @@ export function useKnownSightWords(lessonKey, className) {
         sightWords.forEach(w => known.add(normalizeSpanish(w)));
       });
 
-      // 2. If no lesson-based words found, fall back to static progression list
-      if (known.size === 0) {
-        const lessonIndex = (target.module_number - 1) * 15 + target.curriculum_lesson_number;
-        const wordCount = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
-        SIGHT_WORDS_EASY.slice(0, wordCount).forEach(w => known.add(normalizeSpanish(w)));
-      }
+      // 2. Always merge the static progression list up to the target position.
+      // Many lessons don't have literacy_progression.sightWords populated yet,
+      // so the static list ensures students see age-appropriate highlights.
+      const lessonIndex = (target.module_number - 1) * 15 + target.curriculum_lesson_number;
+      const wordCount = Math.max(5, Math.ceil(lessonIndex * SIGHT_WORDS_EASY.length / TOTAL_CURRICULUM_LESSONS));
+      SIGHT_WORDS_EASY.slice(0, wordCount).forEach(w => known.add(normalizeSpanish(w)));
 
       return known;
     },
