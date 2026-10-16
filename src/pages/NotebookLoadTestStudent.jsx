@@ -315,10 +315,34 @@ export default function NotebookLoadTestStudent() {
 
         {/* Loading overlay */}
         {!ready && !liveEnded && (
-          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-30">
-            <div className="flex items-center gap-2 text-slate-500">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              {status}
+          <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-30 p-4">
+            <div className="max-w-sm w-full text-center">
+              {nbError ? (
+                <>
+                  <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-red-500" />
+                  <div className="text-red-600 font-medium mb-2">Connection problem</div>
+                  <div className="text-sm text-slate-600 mb-1">{nbError}</div>
+                  <div className="text-xs text-slate-400 mb-4">Stage: {stage} · {elapsed}s elapsed</div>
+                  <Button onClick={retryNow} className="bg-indigo-600 hover:bg-indigo-700">
+                    <RefreshCw className="w-4 h-4 mr-2" /> Retry
+                  </Button>
+                </>
+              ) : timedOut ? (
+                <>
+                  <Loader2 className="w-8 h-8 mx-auto mb-3 text-slate-400 animate-spin" />
+                  <div className="text-slate-600 font-medium mb-2">Taking longer than usual…</div>
+                  <div className="text-xs text-slate-400 mb-4">Stage: {stage} · {elapsed}s elapsed</div>
+                  <Button onClick={retryNow} variant="outline">
+                    <RefreshCw className="w-4 h-4 mr-2" /> Retry now
+                  </Button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-slate-500 justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{status}</span>
+                  <span className="text-xs text-slate-400">· {elapsed}s</span>
+                </div>
+              )}
             </div>
           </div>
         )}
