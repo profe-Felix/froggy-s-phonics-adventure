@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { parseCurriculumKey } from '@/lib/literacy/curriculumContentBuilder';
 import { splitLiteracyList, normalizeSpanish } from '@/lib/literacy/lessonProgression';
 import { compareCurriculumPositions } from '@/lib/literacy/curriculumGraphemes';
 import { SIGHT_WORDS_EASY } from '@/components/data/sightWords';
+import { fetchLessons } from '@/lib/lessonsLoader';
 
 // Total curriculum lessons = 9 modules × 15 lessons
 const TOTAL_CURRICULUM_LESSONS = 135;
@@ -21,6 +22,7 @@ const TOTAL_CURRICULUM_LESSONS = 135;
 // If no lessons have literacy_progression.sightWords populated, falls back to
 // a position-based subset of the static SIGHT_WORDS_EASY list.
 export function useKnownSightWords(lessonKey, className) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['known-sight-words', lessonKey, className || null],
     queryFn: async () => {
@@ -46,9 +48,14 @@ export function useKnownSightWords(lessonKey, className) {
       }
       if (!target) return new Set();
 
-      // 1. Try lesson-based sight words from literacy_progression
-      const res = await base44.entities.Lesson.filter({ active: true }, { limit: 200 });
-      const lessons = res.items || [];
+      // 1. Try lesson-based sight words from literacy_progression.
+      // Reuse the shared lessons query cache (same key as LevelPath/LetterGame)
+      // so opening a book reader doesn't fire a separate Lesson entity fetch.
+      const lessons = await queryClient.fetchQuery({
+        queryKey: ['lessons', className || ''],
+        queryFn: fetchLessons,
+        staleTime: 5 * 60 * 1000,
+      });
       const known = new Set();
 
       lessons.forEach((lesson) => {
