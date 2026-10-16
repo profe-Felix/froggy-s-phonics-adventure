@@ -27,7 +27,7 @@ export default class NotebookClassRegistryLoadTest extends Actor {
           if (session) { conn.send({ type: 'document', session, room_id: saved.room_id }); return; }
         }
         stage = 'session_lookup';
-        const result = await this.client.asServiceRole.entities.TestNotebookSession.filter(context, { sort: 'created_date', limit: 1, fields: TEST_NOTEBOOK_SESSION_FIELDS });
+        const result = await this.client.asServiceRole.entities.TestNotebookSession.filter(context, { sort: 'created_date', limit: 1 });
         const records = Array.isArray(result) ? result : result.items;
         if (!Array.isArray(records)) throw new Error('The notebook lookup returned an unexpected response');
         let session = testNotebookSessionHeader(records[0]);

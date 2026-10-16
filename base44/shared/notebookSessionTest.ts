@@ -1,5 +1,7 @@
 // Test-only session header helpers — mirror notebookSession.ts but reference
 // the TestNotebookSession entity so load tests never touch production data.
+// Uses .get(id) instead of filter({ id }) because the actor's asServiceRole
+// client does not support filter with the fields parameter — it returns empty.
 export const TEST_NOTEBOOK_SESSION_FIELDS = [
   'assignment_id', 'class_name', 'student_number', 'school_year', 'current_page',
   'voice_notes_by_page', 'recordings_by_page', 'last_active',
@@ -7,8 +9,8 @@ export const TEST_NOTEBOOK_SESSION_FIELDS = [
 ];
 
 export async function readTestNotebookSessionHeader(entities, id) {
-  const page = await entities.TestNotebookSession.filter({ id }, { limit: 1, fields: TEST_NOTEBOOK_SESSION_FIELDS });
-  return testNotebookSessionHeader(page?.items?.[0]);
+  const record = await entities.TestNotebookSession.get(id);
+  return testNotebookSessionHeader(record);
 }
 
 export function testNotebookSessionHeader(record) {
