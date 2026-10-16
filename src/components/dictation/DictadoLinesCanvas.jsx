@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import AnnotationCanvas from '@/components/notebook/AnnotationCanvas';
 import LinedPaper from './LinedPaper';
 import DictadoModelGuide from './DictadoModelGuide';
+import { useMergedWaypoints } from '@/hooks/useMergedWaypoints';
 import { base44 } from '@/api/base44Client';
 import { playTts } from '@/lib/audio';
 import { Volume2, Play, RotateCcw } from 'lucide-react';
@@ -75,6 +76,9 @@ export default function DictadoLinesCanvas({
   const [scrubProgress, setScrubProgress] = useState(1);
   const scrubAnimRef = useRef(null);
   const lastActiveWord = useRef(0);
+  // Merged waypoints (built-in + DB overrides) shared by every trace row so
+  // the model guide matches the tracing authoring tool — corners stay sharp.
+  const waypoints = useMergedWaypoints();
 
   // Live values in refs so callbacks stay identity-stable across re-renders.
   const dimsRef = useRef({ pageWidth, lineHeight, wordCount });
@@ -314,6 +318,7 @@ export default function DictadoLinesCanvas({
                         height={lineHeight}
                         startX={GUIDE_W}
                         progress={isCurrentTrace ? scrubProgress : 1}
+                        waypoints={waypoints}
                       />
                     )}
                     <div
