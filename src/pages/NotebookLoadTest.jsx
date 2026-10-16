@@ -5,7 +5,7 @@ import { Upload, Trash2, Play, Pause, Square, ChevronLeft, ChevronRight, AlertTr
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
-import StudentThumbnail from '@/components/notebook/StudentThumbnail';
+import TestStudentThumbnail from '@/components/notebook-test/TestStudentThumbnail';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -286,7 +286,7 @@ export default function NotebookLoadTest() {
                 <h2 className="font-semibold text-slate-700 mb-3">Student Notebooks (1–90)</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                   {STUDENT_NUMBERS.map(n => (
-                    <StudentThumbnail
+                    <TestStudentThumbnail
                       key={n}
                       assignment={selectedAssignment}
                       className={className}
