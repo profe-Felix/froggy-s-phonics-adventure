@@ -112,6 +112,9 @@ export default function LiveLesson() {
   // Always-current session snapshot so the heartbeat interval reads live
   // step/phase values instead of the stale ones captured at setup.
   const sessionRef = useRef(session);
+  const controlsQueueRef = useRef(new Map());
+  const [controlError, setControlError] = useState("");
+  const [controlsSaving, setControlsSaving] = useState(false);
   const { classList: CLASSES } = useClassNames();
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [selectedSGLessonId, setSelectedSGLessonId] = useState('');
@@ -978,6 +981,27 @@ export default function LiveLesson() {
 
   return (
     <div className="relative h-screen bg-slate-900 text-white overflow-hidden">
+
+      {(controlsSaving || controlError) && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed left-3 right-3 top-16 z-[10002] max-w-lg rounded-xl bg-amber-100 text-amber-950 p-3 text-sm shadow-lg"
+        >
+          {controlsSaving
+            ? "Sending teacher controls — not confirmed yet."
+            : controlError}
+          {controlError && !controlsSaving && (
+            <button
+              type="button"
+              onClick={() => { void updateSession({}); }}
+              className="ml-3 font-bold underline"
+            >
+              Retry controls
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Top bar */}
       <div className="fixed top-0 inset-x-0 z-[10000] h-14 flex items-center justify-between gap-3 px-4 bg-slate-950 border-b border-slate-700 shadow-xl overflow-x-auto">
