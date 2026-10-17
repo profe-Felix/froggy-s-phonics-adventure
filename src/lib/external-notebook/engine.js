@@ -1,14 +1,62 @@
-// Manual replacement port. This is intentionally NOT a pretend drawing engine.
+// Keep false until teacher mode, session renewal and host save guards are ready.
+// ExternalNotebookSlot owns this readiness check and the rollout switches.
 export const NOTEBOOK_ENGINE_READY = false;
 
-/**
- * Future mountNotebook({ element, role, context, session, transport, persistence }).
- * Must return { flush(): Promise<boolean>, updateContext(next): Promise<void>,
- * close({ keepOutbox: true }): Promise<void> }.
- * Rendering, normalized ink, erasers, undo/redo and read-only replay live here.
- * close() must never clear unacknowledged local work.
- * Both student and teacher components use this one implementation.
- */
-export async function mountNotebook() {
-  throw new Error("NOTEBOOK_ENGINE_NOT_INSTALLED: keep the external notebook disabled.");
+// Reserve a container before asynchronous startup, not after it completes.
+// A failed save/close must not permit another engine to overwrite its screen.
+const owners = new WeakMap();
+
+export async function mountNotebook(options = {}) {
+  const { element, role, context, session } = options || {};
+  if (role !== "student") {
+    throw new Error("NOTEBOOK_TEACHER_NOT_READY: keep teacher mode disabled.");
+  }
+  if (context?.role !== role || session?.role !== role) {
+    throw new Error("The notebook context and signed session must both belong to this student role.");
+  }
+  if (!element || typeof element !== "object") {
+    throw new Error("A notebook mount element is required.");
+  }
+  if (owners.has(element)) {
+    throw new Error("This notebook screen is still open. Finish saving and closing it before opening another.");
+  }
+  const owner = {};
+  owners.set(element, owner);
+  let runtime;
+  try {
+    const { mountNotebookStudent } = await import("./student-runtime");
+    runtime = await mountNotebookStudent(options);
+    if (!runtime || ["flush", "updateContext", "close"].some(name => typeof runtime[name] !== "function")) {
+      throw new Error("The student notebook did not provide its required save and lifecycle methods.");
+    }
+  } catch (error) {
+    if (owners.get(element) === owner) owners.delete(element);
+    throw error;
+  }
+
+  let closed = false, closing = null;
+  return {
+    async flush() {
+      if (closed) return false;
+      return await runtime.flush() === true;
+    },
+    async updateContext(next) {
+      if (closed) throw new Error("This notebook engine has closed.");
+      if (next?.role !== role) {
+        throw new Error("The notebook role changed. Keep the existing notebook open until its work is saved.");
+      }
+      await runtime.updateContext(next);
+    },
+    close(settings = { keepOutbox: true }) {
+      if (closed) return Promise.resolve(true);
+      if (closing) return closing;
+      closing = Promise.resolve().then(() => runtime.close(settings)).then(result => {
+        if (result !== true) return false;
+        closed = true;
+        if (owners.get(element) === owner) owners.delete(element);
+        return true;
+      }).finally(() => { if (!closed) closing = null; });
+      return closing;
+    },
+  };
 }
