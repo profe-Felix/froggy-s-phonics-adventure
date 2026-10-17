@@ -21,12 +21,22 @@ import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
 // Built from the saved live session; only called for notebook steps.
 function teacherLessonContext(session, step) {
   if (!session?.id) return null;
+
+  const phase = session.phase || "watch";
+  const releaseMode = session.release_mode || "stay";
+
   return {
-    kind: 'lesson', role: 'teacher',
-    sourceId: session.id, active: session.active !== false,
-    assignmentId: step?.config?.assignmentId, // may be undefined; guard returns false
-    className: session.class_name, schoolYear: session.school_year,
-    stepId: String(session.current_step || 0),
+    kind: "lesson", role: "teacher",
+    sourceId: session.id,
+    active: session.active === true,
+    assignmentId: step?.config?.assignmentId,
+    className: session.class_name,
+    schoolYear: session.school_year,
+    stepId: String(session.current_step ?? 0),
+    targetStudents: session.target_students,
+    phase,
+    releaseMode,
+    paused: releaseMode !== "lesson" && phase !== "try",
   };
 }
 
