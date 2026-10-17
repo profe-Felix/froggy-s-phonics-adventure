@@ -29,9 +29,59 @@ export default function LessonStepper({
   const [viewMode, setViewMode] = useState('overview');
   const activitySaveRef = useRef(null);
   const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
-  const leaveActivity = async () => {
-    if (activitySaveRef.current && await activitySaveRef.current() !== true) return;
-    stopAllAudio(); setViewMode('overview');
+  const leaveTaskRef = useRef(null);
+  const mountedRef = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+  const [activityGeneration, setActivityGeneration] = useState(0);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const leaveActivity = (destination = 'overview') => {
+    if (leaveTaskRef.current) return leaveTaskRef.current;
+    if (!mountedRef.current) return Promise.resolve(false);
+    const exit = onBack;
+    if (destination === 'path' && typeof exit !== 'function') {
+      setLeaveError('The lesson cannot return to the path yet. Keep this activity open.');
+      return Promise.resolve(false);
+    }
+    setLeaving(true);
+    setLeaveError('');
+    let closedNotebook = false;
+    leaveTaskRef.current = Promise.resolve().then(async () => {
+      const save = activitySaveRef.current;
+      if (save) {
+        const closesNotebook = typeof save.close === 'function';
+        const saved = await (closesNotebook ? save.close() : save());
+        if (!mountedRef.current) return false;
+        if (saved !== true) {
+          setLeaveError('Your notebook is still saving. Staying here; try the same button again after it reconnects.');
+          return false;
+        }
+        closedNotebook = closesNotebook;
+      }
+      if (!mountedRef.current) return false;
+      stopAllAudio();
+      if (destination === 'path') {
+        if (await exit() === false) throw new Error('The lesson could not leave.');
+      } else {
+        setViewMode('overview');
+      }
+      return true;
+    }).catch(() => {
+      if (mountedRef.current) {
+        // A confirmed close must not leave a dead engine on screen if the
+        // outer navigation fails. Reopen the same saved work on retry.
+        if (closedNotebook) setActivityGeneration(value => value + 1);
+        setLeaveError('The activity could not finish leaving. Staying here; try the same button again.');
+      }
+      return false;
+    }).finally(() => {
+      leaveTaskRef.current = null;
+      if (mountedRef.current) setLeaving(false);
+    });
+    return leaveTaskRef.current;
   };
 
   // Independent lessons never show live-only activities. Home sessions also
@@ -149,9 +199,8 @@ export default function LessonStepper({
   // When an activity completes, return to overview so the student sees the
   // star fill in and the next card pulsate.
   const goNext = () => {
-    if (!curDone && !modelStudent) return;
-    stopAllAudio();
-    setViewMode('overview');
+    if (!curDone && !modelStudent) return Promise.resolve(false);
+    return leaveActivity();
   };
   const step = cur?.step;
 
@@ -159,7 +208,7 @@ export default function LessonStepper({
     <div className="relative h-screen flex flex-col bg-[#dae2f3]">
       {/* Top bar: exit + step title */}
       <div className="flex items-center justify-between px-4 py-3 z-30 shrink-0">
-        <button onClick={leaveActivity} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
+        <button type="button" disabled={leaving} onClick={() => { void leaveActivity(); }} className="w-9 h-9 rounded-full bg-white shadow flex items-center justify-center hover:bg-white/90" style={{ color: NAVY }}>
           <X className="w-5 h-5" />
         </button>
         <div className="px-5 py-1.5 rounded-full bg-white shadow text-sm font-bold truncate max-w-[65%]" style={{ color: NAVY }}>
@@ -168,10 +217,16 @@ export default function LessonStepper({
         <div className="w-9" />
       </div>
 
+      {leaveError && <div role="alert" className="px-4 py-2 text-sm font-bold text-red-800 bg-red-50">
+        {leaveError}
+      </div>}
+
       {/* Activity fills the space */}
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative min-h-0" aria-busy={leaving} onPointerDownCapture={event => {
+        if (leaveTaskRef.current) { event.preventDefault(); event.stopPropagation(); }
+      }}>
         <LessonModeRouter
-          key={stepIdx}
+          key={`${stepIdx}:${activityGeneration}`}
           registerActivitySave={registerActivitySave}
           step={step}
           stepIndex={curOriginalIndex}
@@ -181,7 +236,7 @@ export default function LessonStepper({
           selectedStudent={selectedStudent}
           onUpdateProgress={onUpdateProgress}
           onStudentPatch={onStudentPatch}
-          onBack={onBack}
+          onBack={() => leaveActivity('path')}
           stepperMode
           onNext={goNext}
           isLast={isLast}
@@ -191,7 +246,7 @@ export default function LessonStepper({
       {/* Bottom: lesson complete banner (only when all done) */}
       {allDone && (
         <div className="shrink-0 pb-4 flex justify-center">
-          <button onClick={onBack} className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center gap-2">
+          <button type="button" disabled={leaving} onClick={() => { void leaveActivity('path'); }} className="px-6 py-3 bg-green-500 text-white font-black rounded-2xl shadow hover:bg-green-600 inline-flex items-center gap-2">
             <Check className="w-5 h-5" /> Lesson Complete! Return to Path
           </button>
         </div>
