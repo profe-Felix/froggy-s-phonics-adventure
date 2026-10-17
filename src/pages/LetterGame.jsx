@@ -188,7 +188,7 @@ export default function LetterGame() {
     ? assessmentContext({
         student: studentData,
         assessment: activeNotebookAssessment,
-        blocked: !!(liveSession || activeDictationSession),
+        blocked: !studentEntryReady || lockdownLoading || !!(liveSession || pendingLiveSession || activeDictationSession),
       })
     : null;
   const externalNotebookActive = isExternalNotebookActive(notebookAssessmentContext);
@@ -198,14 +198,14 @@ export default function LetterGame() {
   // Assessment tab; students auto-join the notebook on the teacher's page.
   // Suppressed when the external notebook guard is active for this route.
   useEffect(() => {
-    if (!activeNotebookAssessment) return;
-    if (liveSession || activeDictationSession) return; // live lesson / dictation take priority
+    if (!studentEntryReady || lockdownLoading || !activeNotebookAssessment) return;
+    if (liveSession || pendingLiveSession || activeDictationSession) return; // live lesson / dictation take priority
     if (!activeNotebookAssessment.assignment_id) return;
     if (!selectedStudent?.number) return;
     if (externalNotebookActive) return; // external notebook renders in-place
     const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&assignmentId=${encodeURIComponent(activeNotebookAssessment.assignment_id)}&studentId=${encodeURIComponent(studentData.id)}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
     navigate(url, { replace: true });
-  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent, navigate, externalNotebookActive]);
+  }, [activeNotebookAssessment, liveSession, pendingLiveSession, activeDictationSession, selectedStudent, studentData, studentEntryReady, lockdownLoading, navigate, externalNotebookActive]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not
@@ -217,28 +217,11 @@ export default function LetterGame() {
     }
   }, [activeTracingLock, liveSession, activeDictationSession, currentMode]);
 
-  // Immediately enter a Live Lesson started after the student logs in.
-  // Uses activeLiveSessions from useStudentLockdown instead of a separate query.
+  // Join only a session that matches this student's class, year, and group.
   useEffect(() => {
-    if (!activeLiveSessions.length) return;
-    if (liveSession) return; // Already in a live session — don't auto-join another.
-    // QR deep-link: auto-join the matching session immediately.
-    if (liveCode) {
-      const qrMatch = activeLiveSessions.find(s => s.code === liveCode);
-      if (qrMatch) { setLiveSession(qrMatch); return; }
-    }
-    // Auto-join: bring the student straight into any active session for their
-    // class (whole class = empty target_students, or explicitly listed) instead
-    // of showing a banner they have to tap.
-    const classMatch = activeLiveSessions.find(s => {
-      if (s.class_name !== selectedStudent?.class_name) return false;
-      if (!s.target_students || s.target_students.length === 0) return true;
-      return s.target_students.some(
-        t => t.class_name === selectedStudent?.class_name && t.student_number === selectedStudent?.number
-      );
-    });
-    if (classMatch) setLiveSession(classMatch);
-  }, [activeLiveSessions, liveCode, selectedStudent, liveSession]);
+    if (lockdownLoading || !studentEntryReady || liveSession || !pendingLiveSession) return;
+    setLiveSession(pendingLiveSession);
+  }, [lockdownLoading, studentEntryReady, liveSession, pendingLiveSession]);
 
   // Direct load by student ID (from QR code)
   const { data: directStudent, error: directStudentError, refetch: retryDirectStudent } = useQuery({
