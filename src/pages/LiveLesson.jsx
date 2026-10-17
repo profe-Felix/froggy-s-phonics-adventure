@@ -664,18 +664,23 @@ export default function LiveLesson() {
   };
 
   const endSession = async () => {
-    // Deactivate the lesson session AND any active dictation simultaneously.
-    // If the lesson is deactivated first, students exit to LetterGame home
-    // while the dictation is still active — useStudentLockdown then redirects
-    // them back to /DictationStudent, creating a home→dictation→home loop.
-    // Doing both at once ensures the dictation is already inactive by the
-    // time students arrive home, so the lockdown hook doesn't redirect them.
-    await Promise.all([
+    const current = sessionRef.current;
+    if (!current?.id) return;
+
+    // Keep the existing parallel dictation shutdown.
+    const [saved] = await Promise.all([
       updateSession({ active: false }),
       endClassDictation(),
     ]);
 
+    // Keep the screen and Retry controls available if saving or sync failed.
+    if (saved !== true) return;
+    if (sessionRef.current?.id !== current.id) return;
+
+    controlsQueueRef.current.delete(current.id);
+    sessionRef.current = null;
     setSession(null);
+    setControlError('');
     setSelectedLessonId('');
     setSelectedSGLessonId('');
     setClassName('');
