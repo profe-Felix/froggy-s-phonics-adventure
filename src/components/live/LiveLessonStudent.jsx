@@ -68,6 +68,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
   const exitRef = useRef(onExit);
   exitRef.current = onExit;
   const [sessionSyncError, setSessionSyncError] = useState('');
+  const [activityGeneration, setActivityGeneration] = useState(0);
   const activitySaveRef = useRef(null);
   const transitionRef = useRef(Promise.resolve());
   const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
@@ -105,21 +106,51 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       transitionRef.current = transitionRef.current.catch(() => {}).then(async () => {
         if (!alive || !fresh || generation !== transitionGeneration) return;
         const previous = localSessionRef.current;
-        const merged = { ...desiredSession, id: sessionId };
-        const changedStep = merged.current_step !== previous?.current_step;
-        const leavingActivity = merged.active === false || changedStep || merged.phase !== previous?.phase || merged.release_mode !== previous?.release_mode;
-        if (leavingActivity && activitySaveRef.current) {
+        let merged = { ...desiredSession, id: sessionId };
+        let changedStep = merged.current_step !== previous?.current_step;
+        const leavingActivity = merged.active === false || changedStep ||
+          merged.phase !== previous?.phase ||
+          merged.release_mode !== previous?.release_mode ||
+          merged.lesson_day !== previous?.lesson_day;
+        const save = activitySaveRef.current;
+        if (leavingActivity && save) {
           setSessionSyncError('Saving your notebook before changing activities…');
-          const saved = await activitySaveRef.current();
-          if (!alive || generation !== transitionGeneration) return;
+          const closesNotebook = typeof save.close === 'function';
+          let saved = false;
+          try {
+            saved = await (closesNotebook ? save.close() : save());
+          } catch {
+            saved = false;
+          }
+          if (!alive) return;
           if (saved !== true) {
             setSessionSyncError('Your notebook is still saving. Staying here and retrying before changing activities.');
             clearTimeout(transitionRetry);
             transitionRetry = setTimeout(() => { void apply({}); }, 5000);
             return;
           }
+          if (closesNotebook) {
+            // A successfully closed engine cannot be reused, even if the
+            // teacher returned to the same step while it was saving.
+            setActivityGeneration(value => value + 1);
+            merged = { ...desiredSession, id: sessionId };
+            changedStep = merged.current_step !== previous?.current_step;
+          } else if (generation !== transitionGeneration) {
+            return;
+          }
         }
-        if (merged.active === false) { exitRef.current?.(); return; }
+        clearTimeout(transitionRetry);
+        if (merged.active === false) {
+          try {
+            if (typeof exitRef.current !== 'function' || await exitRef.current() === false) {
+              throw new Error('The lesson could not exit.');
+            }
+          } catch {
+            setSessionSyncError('The lesson could not finish leaving. Keep this page open; retrying.');
+            transitionRetry = setTimeout(() => { void apply({}); }, 5000);
+          }
+          return;
+        }
         localSessionRef.current = merged;
         setLocalSession(merged);
         setSessionSyncError('');
@@ -268,7 +299,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
         </div>
         <div className="flex-1 min-h-0 overflow-hidden">
           <LessonModeRouter
-            key={stepIndex}
+            key={`${stepIndex}:${activityGeneration}`}
             registerActivitySave={registerActivitySave}
             step={currentStep}
             stepIndex={stepIndex}
@@ -312,7 +343,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <LessonModeRouter
-          key={stepIndex}
+          key={`${stepIndex}:${activityGeneration}`}
           registerActivitySave={registerActivitySave}
           step={currentStep}
           stepIndex={stepIndex}
