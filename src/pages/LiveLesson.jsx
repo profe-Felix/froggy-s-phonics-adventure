@@ -484,28 +484,82 @@ export default function LiveLesson() {
   };
 
   const updateSession = async (patch) => {
-    if (!session?.id) return;
+    const current = sessionRef.current;
+    if (!current?.id) return false;
 
-    setSession(prev =>
-      prev
-        ? { ...prev, ...patch }
-        : prev
-    );
+    const id = current.id;
+    let channel = controlsQueueRef.current.get(id);
 
-    try {
-      await base44.entities.LiveLessonSession.update(
-        session.id,
-        patch
-      );
-      // Sync external notebook controls for notebook steps after successful
-      // persistence. When disabled, this skips without a backend call.
-      const steps = getLiveLessonSteps(selectedLesson, session?.lesson_day || selectedLessonDay);
-      const stepIdx = patch.current_step ?? session.current_step ?? 0;
-      const currentStep = steps[stepIdx];
-      if (currentStep?.mode === 'digital_notebook') {
-        try { await syncExternalNotebookControls(teacherLessonContext({ ...session, ...patch }, currentStep)); } catch {}
+    if (!channel) {
+      channel = { pending: null, running: null, confirmed: current };
+      controlsQueueRef.current.set(id, channel);
+    }
+
+    channel.pending = { ...channel.pending, ...patch };
+    sessionRef.current = { ...current, ...patch };
+    setSession(sessionRef.current);
+
+    if (channel.running) return channel.running;
+
+    setControlsSaving(true);
+    setControlError('');
+
+    channel.running = (async () => {
+      while (channel.pending) {
+        const next = channel.pending;
+        channel.pending = null;
+
+        try {
+          await base44.entities.LiveLessonSession.update(id, next);
+          channel.confirmed = { ...channel.confirmed, ...next };
+        } catch {
+          channel.pending = { ...next, ...channel.pending };
+          setControlError('Teacher controls have NOT reached Base44. Students may still be on the previous activity. Use Retry controls.');
+          return false;
+        }
+
+        if (channel.pending) continue;
+
+        try {
+          const confirmed = channel.confirmed;
+          const steps = getLiveLessonSteps(
+            selectedLesson,
+            confirmed.lesson_day || selectedLessonDay
+          );
+          const notebookAssignments = new Map();
+
+          // Include notebook assignments elsewhere in the lesson so moving
+          // away from a notebook, ending, and self-paced work are not skipped.
+          for (const step of steps) {
+            if (step?.mode === 'digital_notebook' && step.config?.assignmentId) {
+              notebookAssignments.set(step.config.assignmentId, step);
+            }
+          }
+
+          // The backend must read the saved lesson to authorize and apply
+          // its current state. This context only selects the integration.
+          // Disabled integrations skip without making a backend request.
+          for (const notebookStep of notebookAssignments.values()) {
+            await syncExternalNotebookControls(
+              teacherLessonContext(confirmed, notebookStep)
+            );
+          }
+        } catch {
+          setControlError('Lesson controls saved to Base44, but the external notebook has NOT confirmed them. Use Retry controls.');
+          return false;
+        }
+
+        // Process any controls queued while synchronization was in progress.
       }
-    } catch {}
+
+      setControlError('');
+      return true;
+    })().finally(() => {
+      channel.running = null;
+      setControlsSaving(false);
+    });
+
+    return channel.running;
   };
 
   // End any active dictation for this class. Called when the teacher advances
