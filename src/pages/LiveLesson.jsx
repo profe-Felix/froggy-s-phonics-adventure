@@ -313,23 +313,38 @@ export default function LiveLesson() {
 
       if (eventId !== session.id) return;
 
-      if (event.type === 'delete' || !event.data?.active) {
-        setSession(null);
+      const current = sessionRef.current;
+      if (!current || current.id !== session.id) return;
+
+      if (event.type === 'delete') {
+        setControlError('This lesson was deleted in Base44. Notebook shutdown could not be confirmed. Do not start another lesson until the connection is checked.');
         return;
       }
 
-      setSession(prev => {
-        if (!prev) return event.data;
+      if (event.data?.active === false) {
+        // Our own End action closes the screen only after synchronization.
+        if (current.active === false) return;
 
-        return {
-          ...event.data,
+        const ended = { ...current, active: false };
+        sessionRef.current = ended;
+        setSession(ended);
+        setControlError('This lesson was ended in Base44. Press End to confirm notebook shutdown before leaving this screen.');
+        return;
+      }
 
-          // Preserve the teacher's current controls instead of accepting
-          // possibly delayed values from another realtime update.
-          current_step: prev.current_step,
-          phase: prev.phase,
-        };
-      });
+      // Partial or delayed events must not overwrite local teacher controls
+      // or reopen a lesson while its End action is being confirmed.
+      const merged = {
+        ...current,
+        ...event.data,
+        id: current.id,
+        current_step: current.current_step,
+        phase: current.phase,
+        release_mode: current.release_mode,
+        active: current.active,
+      };
+      sessionRef.current = merged;
+      setSession(merged);
     });
 
     return unsub;
@@ -368,7 +383,7 @@ export default function LiveLesson() {
 
       try {
         const s = sessionRef.current;
-        if (!s?.id) return;
+        if (!s?.id || s.active !== true) return;
         await base44.entities.LiveLessonSession.update(
           s.id,
           {
