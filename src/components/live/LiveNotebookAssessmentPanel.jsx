@@ -646,17 +646,17 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           </div>
         )}
 
-        {/* Student roster — release early finishers so they're not stuck waiting.
-            ExternalNotebookSlot wraps the roster with the original as fallback;
-            when disabled (as shipped) the roster renders unchanged. */}
-        <ExternalNotebookSlot context={teacherAssessmentContext(session)}>
-          <NotebookAssessmentRoster
-            session={session}
-            className={session.class_name}
-            onRelease={releaseStudent}
-            onReadd={readdStudent}
-          />
-        </ExternalNotebookSlot>
+        {/* External work overview — hidden until the integration is ready. */}
+        <ExternalNotebookSlot context={teacherAssessmentContext(session)} />
+
+        {/* Keep release/re-add controls visible with either notebook version. */}
+        <NotebookAssessmentRoster
+          session={session}
+          className={session.class_name}
+          onRelease={releaseStudent}
+          onReadd={readdStudent}
+        />
+
         {/* Optional retry port — hidden while disabled. */}
         <ExternalNotebookTeacherStatus context={teacherAssessmentContext(session)} />
       </div>
