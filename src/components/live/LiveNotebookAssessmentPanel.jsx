@@ -169,43 +169,60 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   };
 
   const startSession = async () => {
-    if (!selectedAssignmentId || !className) return;
+    if (!selectedAssignmentId || !className || starting) return;
     setStarting(true);
+    setControlError('');
+
     try {
-      const stale = await base44.entities.LiveNotebookAssessment.filter({
-        active: true,
-        class_name: className,
-      });
+      const stale = await requestWithRetry(() =>
+        base44.entities.LiveNotebookAssessment.filter({
+          active: true,
+          class_name: className,
+        })
+      );
       await Promise.all(
         (stale || []).map(s =>
-          base44.entities.LiveNotebookAssessment.update(s.id, { active: false }).catch(() => {})
+          requestWithRetry(() =>
+            base44.entities.LiveNotebookAssessment.update(s.id, { active: false })
+          )
         )
       );
-    } catch {}
 
-    const page = Math.max(1, Math.min(totalPages, Number(startPage) || 1));
-    const targetStudents = targetMode === 'selected'
-      ? Array.from(selectedStudentNumbers).map(n => ({ class_name: className, student_number: n }))
-      : [];
+      const page = Math.max(1, Math.min(totalPages, Number(startPage) || 1));
+      const targetStudents = targetMode === 'selected'
+        ? Array.from(selectedStudentNumbers).map(n => ({ class_name: className, student_number: n }))
+        : [];
 
-    const created = await base44.entities.LiveNotebookAssessment.create({
-      class_name: className,
-      assignment_id: selectedAssignmentId,
-      assignment_title: selectedAssignment?.title || '',
-      school_year: ACTIVE_SCHOOL_YEAR,
-      target_students: targetStudents,
-      release_mode: releaseMode,
-      current_page: page,
-      total_pages: totalPages,
-      paused: false,
-      active: true,
-      started_at: new Date().toISOString(),
-    });
-    setSession(created);
-    // Sync external notebook controls after successful session creation.
-    // When disabled, this skips without a backend call.
-    try { await syncExternalNotebookControls(teacherAssessmentContext(created)); } catch {}
-    setStarting(false);
+      const created = await base44.entities.LiveNotebookAssessment.create({
+        class_name: className,
+        assignment_id: selectedAssignmentId,
+        assignment_title: selectedAssignment?.title || '',
+        school_year: ACTIVE_SCHOOL_YEAR,
+        target_students: targetStudents,
+        release_mode: releaseMode,
+        current_page: page,
+        total_pages: totalPages,
+        paused: false,
+        active: true,
+        started_at: new Date().toISOString(),
+      });
+
+      sessionRef.current = created;
+      setSession(created);
+      setControlsSaving(true);
+
+      try {
+        await syncExternalNotebookControls(teacherAssessmentContext(created));
+      } catch {
+        setControlError('Assessment created, but the external notebook has NOT confirmed the start. Use Retry controls.');
+      } finally {
+        setControlsSaving(false);
+      }
+    } catch {
+      window.alert('Could not finish starting the assessment. Check your connection and try again.');
+    } finally {
+      setStarting(false);
+    }
   };
 
   const endSession = async () => {
