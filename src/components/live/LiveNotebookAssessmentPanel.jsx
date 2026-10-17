@@ -126,6 +126,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     if (channel.running) return channel.running;
 
     setControlsSaving(true);
+    setControlError('');
+    let confirmed = current;
 
     channel.running = (async () => {
       while (channel.pending) {
@@ -136,23 +138,27 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           await requestWithRetry(() =>
             base44.entities.LiveNotebookAssessment.update(id, next)
           );
-          setControlError('');
-        } catch (error) {
+          confirmed = { ...confirmed, ...next };
+        } catch {
           channel.pending = { ...next, ...channel.pending };
           setControlError('Teacher controls have NOT reached the server yet. Students may still be on the previous page. Use Retry controls.');
           return false;
         }
+
+        // Save any newer controls before broadcasting the confirmed state.
+        if (channel.pending) continue;
+
+        try {
+          await syncExternalNotebookControls(teacherAssessmentContext(confirmed));
+        } catch {
+          setControlError('Notebook controls saved to the server but NOT broadcast to the external notebook. Use Retry controls.');
+          return false;
+        }
+
+        // If controls changed during the broadcast, save and broadcast those too.
       }
 
-      // After successful persistence, sync external notebook controls ONCE.
-      // When disabled, syncExternalNotebookControls skips without a backend call.
-      // When enabled, a failure is reported visibly but does not fail the update.
-      try {
-        await syncExternalNotebookControls(teacherAssessmentContext(sessionRef.current));
-      } catch {
-        setControlError('Notebook controls saved to the server but NOT broadcast to the external notebook. Use Retry controls.');
-      }
-
+      setControlError('');
       return true;
     })().finally(() => {
       channel.running = null;
