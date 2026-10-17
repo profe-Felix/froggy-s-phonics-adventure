@@ -146,15 +146,40 @@ export default function LetterGame() {
     l => !l.class_name || l.class_name === selectedStudent?.class_name
   );
 
-  // Redirect to dictation when a live dictation session is active for this
-  // student's class. Uses activeDictationSession from useStudentLockdown.
+  const studentEntryReady = !!(
+    studentData?.id &&
+    studentData.school_year &&
+    studentData.class_name === selectedStudent?.class_name &&
+    Number(studentData.student_number) === Number(selectedStudent?.number)
+  );
+
+  const eligibleLiveSessions = studentEntryReady
+    ? (activeLiveSessions || []).filter(s => {
+        if (s.active !== true || s.class_name !== studentData.class_name) return false;
+        if (s.school_year !== studentData.school_year) return false;
+        const targets = s.target_students ?? [];
+        if (!Array.isArray(targets)) return false;
+        return !targets.length || targets.some(t =>
+          t?.class_name === studentData.class_name &&
+          Number(t.student_number) === Number(studentData.student_number)
+        );
+      })
+    : [];
+
+  const pendingLiveSession =
+    eligibleLiveSessions.find(s => liveCode && s.code === liveCode) ||
+    eligibleLiveSessions[0] ||
+    null;
+
+  // Redirect to dictation only after student identity and session checks finish.
+  // A matching live lesson takes priority, including before it mounts.
   useEffect(() => {
-    if (!activeDictationSession) return;
-    if (liveSession) return; // don't interrupt an active live lesson
+    if (!studentEntryReady || lockdownLoading || !activeDictationSession) return;
+    if (liveSession || pendingLiveSession) return; // live lessons take priority
     if (!activeDictationSession.assignment_id) return;
     const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}&fromLive=1`;
     window.location.href = url;
-  }, [activeDictationSession, liveSession, selectedStudent]);
+  }, [activeDictationSession, liveSession, pendingLiveSession, studentEntryReady, lockdownLoading, selectedStudent]);
 
   // External notebook context — built only after the student record resolves.
   // When disabled (all readiness constants false), isExternalNotebookActive
