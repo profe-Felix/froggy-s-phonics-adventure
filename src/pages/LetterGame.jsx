@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { errorStatus, requestWithRetry } from '@/lib/classroomSync';
@@ -79,6 +79,12 @@ export default function LetterGame() {
   const [barcodeLogin, setBarcodeLogin] = useState(!!urlBarcode);
   const [barcodeError, setBarcodeError] = useState(false);
   const [studentData, setStudentData] = useState(null);
+  const assessmentSaveRef = useRef(null);
+  const [assessmentHeld, setAssessmentHeld] = useState(false);
+  const registerAssessmentSave = useCallback(save => {
+    assessmentSaveRef.current = save;
+    setAssessmentHeld(typeof save === 'function');
+  }, []);
   // Always start on the path homescreen (GameHome) when a student logs in.
   // Previously this restored the last mode from localStorage, which sent
   // students straight back into a game instead of the level path.
@@ -175,11 +181,12 @@ export default function LetterGame() {
   // A matching live lesson takes priority, including before it mounts.
   useEffect(() => {
     if (!studentEntryReady || lockdownLoading || !activeDictationSession) return;
+    if (assessmentHeld || assessmentSaveRef.current) return;
     if (liveSession || pendingLiveSession) return; // live lessons take priority
     if (!activeDictationSession.assignment_id) return;
     const url = `/DictationStudent?assignment=${encodeURIComponent(activeDictationSession.assignment_id)}&class=${encodeURIComponent(activeDictationSession.class_name)}&student=${selectedStudent?.number}&fromLive=1`;
     window.location.href = url;
-  }, [activeDictationSession, liveSession, pendingLiveSession, studentEntryReady, lockdownLoading, selectedStudent]);
+  }, [activeDictationSession, liveSession, pendingLiveSession, studentEntryReady, lockdownLoading, selectedStudent, assessmentHeld]);
 
   // External notebook context — built only after the student record resolves.
   // When disabled (all readiness constants false), isExternalNotebookActive
@@ -202,10 +209,10 @@ export default function LetterGame() {
     if (liveSession || pendingLiveSession || activeDictationSession) return; // live lesson / dictation take priority
     if (!activeNotebookAssessment.assignment_id) return;
     if (!selectedStudent?.number) return;
-    if (externalNotebookActive) return; // external notebook renders in-place
+    if (assessmentHeld || assessmentSaveRef.current || externalNotebookActive) return;
     const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&assignmentId=${encodeURIComponent(activeNotebookAssessment.assignment_id)}&studentId=${encodeURIComponent(studentData.id)}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
     navigate(url, { replace: true });
-  }, [activeNotebookAssessment, liveSession, pendingLiveSession, activeDictationSession, selectedStudent, studentData, studentEntryReady, lockdownLoading, navigate, externalNotebookActive]);
+  }, [activeNotebookAssessment, liveSession, pendingLiveSession, activeDictationSession, selectedStudent, studentData, studentEntryReady, lockdownLoading, navigate, externalNotebookActive, assessmentHeld]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not
@@ -220,8 +227,9 @@ export default function LetterGame() {
   // Join only a session that matches this student's class, year, and group.
   useEffect(() => {
     if (lockdownLoading || !studentEntryReady || liveSession || !pendingLiveSession) return;
+    if (assessmentHeld || assessmentSaveRef.current) return;
     setLiveSession(pendingLiveSession);
-  }, [lockdownLoading, studentEntryReady, liveSession, pendingLiveSession]);
+  }, [lockdownLoading, studentEntryReady, liveSession, pendingLiveSession, assessmentHeld]);
 
   // Direct load by student ID (from QR code)
   const { data: directStudent, error: directStudentError, refetch: retryDirectStudent } = useQuery({
@@ -602,6 +610,9 @@ export default function LetterGame() {
     window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
   };
 
+  // Keep one assessment slot mounted across every normal student screen.
+  // This function only builds the fallback UI; all hooks stay above it.
+  const renderStudentContent = () => {
   if (!selectedStudent) {
     if (barcodeLogin || barcodeError) {
       return <ScanToPlay error={barcodeError ? 'QR code not recognized. Ask your teacher for help.' : null} />;
@@ -658,11 +669,7 @@ export default function LetterGame() {
     );
   }
 
-  // External notebook renders in-place when the readiness guard is active.
-  // When disabled (as shipped), this branch is never reached.
-  if (externalNotebookActive && notebookAssessmentContext) {
-    return <ExternalNotebookSlot context={notebookAssessmentContext} />;
-  }
+  // Assessment display is handled by the persistent slot below.
 
   if (!currentMode && !activeLessonStep) {
     return (
@@ -861,5 +868,15 @@ export default function LetterGame() {
         </Button>
       )}
     </div>
+  );
+  };
+
+  return (
+    <ExternalNotebookSlot
+      context={notebookAssessmentContext}
+      registerSave={registerAssessmentSave}
+    >
+      {renderStudentContent()}
+    </ExternalNotebookSlot>
   );
 }
