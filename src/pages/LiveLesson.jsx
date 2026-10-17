@@ -428,51 +428,53 @@ export default function LiveLesson() {
 
   const startSession = async () => {
     const hasLesson = targetMode === 'group' ? !!selectedSGLessonId : !!selectedLessonId;
-    if (!hasLesson || !className) return;
+    if (!hasLesson || !selectedLesson || !className || starting) return;
 
-    setStarting(true);
-
-    let code = genCode();
-
-    // Avoid rare code collisions
-    const existing =
-      await base44.entities.LiveLessonSession.filter({
-        code,
-        active: true,
-      });
-
-    if (existing?.length) {
-      code = genCode();
+    if (targetMode === 'group' && !pickedStudents.length) {
+      window.alert('Select a group with at least one student before starting. An empty group must not start a whole-class lesson.');
+      return;
     }
 
-    const target =
-      targetMode === 'group'
-        ? pickedStudents
-        : [];
+    setStarting(true);
+    setControlError('');
 
-    // Deactivate any leftover active sessions for this class so students
-    // auto-join THIS new lesson instead of a stale session from a previous one.
     try {
-      const stale =
-        await base44.entities.LiveLessonSession.filter({
+      let code = null;
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const candidate = genCode();
+        const existing = await base44.entities.LiveLessonSession.filter({
+          code: candidate,
           active: true,
-          class_name: className,
         });
+        if (!existing?.length) {
+          code = candidate;
+          break;
+        }
+      }
+
+      if (!code) {
+        window.alert('Could not get an unused lesson code. Please try starting again.');
+        return;
+      }
+
+      const target = targetMode === 'group' ? pickedStudents : [];
+
+      const stale = await base44.entities.LiveLessonSession.filter({
+        active: true,
+        class_name: className,
+      });
       await Promise.all(
         (stale || []).map(s =>
-          base44.entities.LiveLessonSession
-            .update(s.id, { active: false })
-            .catch(() => {})
+          base44.entities.LiveLessonSession.update(s.id, { active: false })
         )
       );
-    } catch {}
 
-    const created =
-      await base44.entities.LiveLessonSession.create({
+      const created = await base44.entities.LiveLessonSession.create({
         code,
         lesson_id: targetMode === 'group' ? selectedSGLessonId : selectedLessonId,
         lesson_source: targetMode === 'group' ? 'small_group' : 'lesson',
-        lesson_title: selectedLesson?.title || '',
+        lesson_title: selectedLesson.title || '',
         lesson_day: selectedLessonDay || '',
         class_name: className,
         school_year: ACTIVE_SCHOOL_YEAR,
@@ -485,17 +487,17 @@ export default function LiveLesson() {
         joined_students: [],
       });
 
-    setSession(created);
-    // Sync external notebook controls for the initial notebook step, if any.
-    // When disabled, syncExternalNotebookControls skips without a backend call.
-    {
-      const steps = getLiveLessonSteps(selectedLesson, selectedLessonDay);
-      const currentStep = steps[created.current_step || 0];
-      if (currentStep?.mode === 'digital_notebook') {
-        try { await syncExternalNotebookControls(teacherLessonContext(created, currentStep)); } catch {}
-      }
+      sessionRef.current = created;
+      setSession(created);
+
+      // Use the same confirmed synchronization and retry path as later controls.
+      // If synchronization fails, that handler keeps its error visible here.
+      await updateSession({ active: true });
+    } catch {
+      window.alert('Could not finish starting the live lesson. Check your connection and try again.');
+    } finally {
+      setStarting(false);
     }
-    setStarting(false);
   };
 
   const updateSession = async (patch) => {
