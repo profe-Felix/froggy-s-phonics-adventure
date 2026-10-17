@@ -111,18 +111,47 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       return false;
     }).finally(() => {
       saving.current = null;
-      if (entry.live) setScreen(value => ({ ...value, busy: finishing.current }));
+      if (entry.live) setScreen(value => ({ ...value, busy: finishing.current || !!entry.leaving }));
     });
     return saving.current;
   }
 
   useEffect(() => {
-    registerSave?.(flush);
+    // Saving and leaving are different operations. Normal saves keep the
+    // notebook usable; close() must finish before its parent removes this view.
+    const save = () => owner.current?.released === true ? Promise.resolve(true) : flush();
+    save.close = () => {
+      const entry = owner.current;
+      if (!entry?.live) return Promise.resolve(false);
+      if (entry.released) return Promise.resolve(true);
+      if (entry.leaving) return entry.leaving;
+      if (finishing.current) return Promise.resolve(false);
+      setScreen(value => ({ ...value, busy: true }));
+      entry.leaving = Promise.resolve().then(async () => {
+        if (finishing.current || await flush() !== true) return false;
+        if (!entry.live || await entry.host.close() !== true) return false;
+        entry.released = true;
+        return true;
+      }).catch(() => {
+        report(entry, "The notebook could not close safely. Keep this activity open and retry.");
+        return false;
+      }).then(closed => {
+        if (!closed) {
+          report(entry, "Your notebook is still saving. Staying on this activity.");
+        }
+        return closed;
+      }).finally(() => {
+        if (!entry.released) entry.leaving = null;
+        if (entry.live) setScreen(value => ({ ...value, busy: entry.released }));
+      });
+      return entry.leaving;
+    };
+    registerSave?.(save);
     return () => { registerSave?.(null); };
   }, [registerSave]);
 
   const complete = async () => {
-    if (finishing.current || typeof latestComplete.current !== "function") return;
+    if (finishing.current || owner.current?.leaving || typeof latestComplete.current !== "function") return;
     const entry = owner.current, requested = latestContext.current;
     const callback = latestComplete.current;
     finishing.current = true;
@@ -141,7 +170,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   };
 
   const blockNewInput = event => {
-    if (saving.current || finishing.current || !screen.ready || screen.applied !== context) {
+    if (saving.current || finishing.current || owner.current?.leaving || !screen.ready || screen.applied !== context) {
       event.preventDefault(); event.stopPropagation();
     }
   };
