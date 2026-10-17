@@ -40,6 +40,9 @@ import { useClassColors } from '@/hooks/useClassColors';
 import { useCoinAward } from '@/hooks/useCoinAward';
 import { syllabifyEs } from '@/lib/spanishSyllables';
 import { fetchLessons } from '@/lib/lessonsLoader';
+import { assessmentContext } from '@/lib/external-notebook/context';
+import { isExternalNotebookActive } from '@/lib/external-notebook/runtime';
+import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 
 export default function LetterGame() {
   const navigate = useNavigate();
@@ -153,17 +156,31 @@ export default function LetterGame() {
     window.location.href = url;
   }, [activeDictationSession, liveSession, selectedStudent]);
 
+  // External notebook context — built only after the student record resolves.
+  // When disabled (all readiness constants false), isExternalNotebookActive
+  // returns false and the old DigitalNotebook redirect runs unchanged.
+  const notebookAssessmentContext = studentData && activeNotebookAssessment
+    ? assessmentContext({
+        student: studentData,
+        assessment: activeNotebookAssessment,
+        blocked: !!(liveSession || activeDictationSession),
+      })
+    : null;
+  const externalNotebookActive = isExternalNotebookActive(notebookAssessmentContext);
+
   // Redirect to the Digital Notebook when a live notebook assessment is
   // active for this student's class. The teacher started it from LiveLesson's
   // Assessment tab; students auto-join the notebook on the teacher's page.
+  // Suppressed when the external notebook guard is active for this route.
   useEffect(() => {
     if (!activeNotebookAssessment) return;
     if (liveSession || activeDictationSession) return; // live lesson / dictation take priority
     if (!activeNotebookAssessment.assignment_id) return;
     if (!selectedStudent?.number) return;
+    if (externalNotebookActive) return; // external notebook renders in-place
     const url = `/DigitalNotebook?assignment=${encodeURIComponent(activeNotebookAssessment.assignment_title || '')}&assignmentId=${encodeURIComponent(activeNotebookAssessment.assignment_id)}&studentId=${encodeURIComponent(studentData.id)}&class=${encodeURIComponent(activeNotebookAssessment.class_name)}&number=${encodeURIComponent(selectedStudent.number)}&page=${activeNotebookAssessment.current_page || 1}&liveAssessment=${encodeURIComponent(activeNotebookAssessment.id)}&fromLive=1`;
     navigate(url, { replace: true });
-  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent, navigate]);
+  }, [activeNotebookAssessment, liveSession, activeDictationSession, selectedStudent, navigate, externalNotebookActive]);
 
   // Force the student into Letter Tracing when a tracing lock is active for
   // their class. The lock takes priority over normal mode selection but not
@@ -631,6 +648,12 @@ export default function LetterGame() {
         onExit={() => setLiveSession(null)}
       />
     );
+  }
+
+  // External notebook renders in-place when the readiness guard is active.
+  // When disabled (as shipped), this branch is never reached.
+  if (externalNotebookActive && notebookAssessmentContext) {
+    return <ExternalNotebookSlot context={notebookAssessmentContext} />;
   }
 
   if (!currentMode && !activeLessonStep) {

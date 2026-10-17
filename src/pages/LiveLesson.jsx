@@ -15,6 +15,20 @@ import { useClassNames } from '@/hooks/useClassNames';
 import { getHomeroomForClass, ROTATION_TEACHERS } from '@/lib/classRotation';
 import { cn } from '@/lib/utils';
 import { COLOR_GROUPS } from '@/lib/smallGroupColors';
+import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
+
+// Teacher lesson context for external notebook control sync.
+// Built from the saved live session; only called for notebook steps.
+function teacherLessonContext(session, step) {
+  if (!session?.id) return null;
+  return {
+    kind: 'lesson', role: 'teacher',
+    sourceId: session.id, active: session.active !== false,
+    assignmentId: step?.config?.assignmentId, // may be undefined; guard returns false
+    className: session.class_name, schoolYear: session.school_year,
+    stepId: String(session.current_step || 0),
+  };
+}
 
 const LIVE_WEEKDAYS = [
   'sunday',
@@ -444,6 +458,15 @@ export default function LiveLesson() {
       });
 
     setSession(created);
+    // Sync external notebook controls for the initial notebook step, if any.
+    // When disabled, syncExternalNotebookControls skips without a backend call.
+    {
+      const steps = getLiveLessonSteps(selectedLesson, selectedLessonDay);
+      const currentStep = steps[created.current_step || 0];
+      if (currentStep?.mode === 'digital_notebook') {
+        try { await syncExternalNotebookControls(teacherLessonContext(created, currentStep)); } catch {}
+      }
+    }
     setStarting(false);
   };
 
@@ -461,6 +484,14 @@ export default function LiveLesson() {
         session.id,
         patch
       );
+      // Sync external notebook controls for notebook steps after successful
+      // persistence. When disabled, this skips without a backend call.
+      const steps = getLiveLessonSteps(selectedLesson, session?.lesson_day || selectedLessonDay);
+      const stepIdx = patch.current_step ?? session.current_step ?? 0;
+      const currentStep = steps[stepIdx];
+      if (currentStep?.mode === 'digital_notebook') {
+        try { await syncExternalNotebookControls(teacherLessonContext({ ...session, ...patch }, currentStep)); } catch {}
+      }
     } catch {}
   };
 

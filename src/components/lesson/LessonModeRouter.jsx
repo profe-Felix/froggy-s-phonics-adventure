@@ -43,6 +43,7 @@ export default function LessonModeRouter({
   teacherMode = false,
   embeddedMode = false,
   registerActivitySave = null,
+  liveSessionId = null,
 }) {
   const { progress, markStepComplete, saveActivityState, getActivityState } = useLessonProgress(
     selectedStudent?.number,
@@ -920,7 +921,7 @@ export default function LessonModeRouter({
 
   function renderMode() {
     if (['book_reading','letter_sort','powerful_word','syllable_train','syllable_blender','activities','word_builder','fluency','video','soundwall','google_slides','digital_notebook','missing_letter','dictation'].includes(step.mode)) {
-      return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex}} onComplete={completeStep}/>;
+      return <LessonConfiguredActivity {...{step,selectedStudent,studentData,activityStudentData,onStudentPatch,studentNumber,className,wrappedBack,embeddedMode,stepperMode,registerActivitySave,wrappedUpdateProgress,handleBookRecordingSaved,setCatalogRecordingPages,comp,getActivityState,saveActivityState,stepIndex,liveSessionId}} onComplete={completeStep}/>;
     }
     switch (step.mode) {
       case 'letter_sounds':

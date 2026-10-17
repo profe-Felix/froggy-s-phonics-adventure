@@ -8,6 +8,21 @@ import { ArrowLeft, Radio, Eye, EyeOff, ChevronLeft, ChevronRight, X, Pause, Pla
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { useClassNames } from '@/hooks/useClassNames';
 import NotebookAssessmentRoster from '@/components/live/NotebookAssessmentRoster';
+import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
+import ExternalNotebookTeacherStatus from '@/components/external-notebook/ExternalNotebookTeacherStatus';
+import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
+
+// Teacher assessment context for external notebook control sync.
+// Built from the actual saved session; never from browser-chosen values.
+function teacherAssessmentContext(s) {
+  if (!s?.id) return null;
+  return {
+    kind: 'assessment', role: 'teacher',
+    sourceId: s.id, active: s.active !== false,
+    assignmentId: s.assignment_id,
+    className: s.class_name, schoolYear: s.school_year,
+  };
+}
 
 // Live notebook assessment control panel.
 //
@@ -129,6 +144,15 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         }
       }
 
+      // After successful persistence, sync external notebook controls ONCE.
+      // When disabled, syncExternalNotebookControls skips without a backend call.
+      // When enabled, a failure is reported visibly but does not fail the update.
+      try {
+        await syncExternalNotebookControls(teacherAssessmentContext(sessionRef.current));
+      } catch {
+        setControlError('Notebook controls saved to the server but NOT broadcast to the external notebook. Use Retry controls.');
+      }
+
       return true;
     })().finally(() => {
       channel.running = null;
@@ -172,6 +196,9 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
       started_at: new Date().toISOString(),
     });
     setSession(created);
+    // Sync external notebook controls after successful session creation.
+    // When disabled, this skips without a backend call.
+    try { await syncExternalNotebookControls(teacherAssessmentContext(created)); } catch {}
     setStarting(false);
   };
 
@@ -619,13 +646,19 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           </div>
         )}
 
-        {/* Student roster — release early finishers so they're not stuck waiting */}
-        <NotebookAssessmentRoster
-          session={session}
-          className={session.class_name}
-          onRelease={releaseStudent}
-          onReadd={readdStudent}
-        />
+        {/* Student roster — release early finishers so they're not stuck waiting.
+            ExternalNotebookSlot wraps the roster with the original as fallback;
+            when disabled (as shipped) the roster renders unchanged. */}
+        <ExternalNotebookSlot context={teacherAssessmentContext(session)}>
+          <NotebookAssessmentRoster
+            session={session}
+            className={session.class_name}
+            onRelease={releaseStudent}
+            onReadd={readdStudent}
+          />
+        </ExternalNotebookSlot>
+        {/* Optional retry port — hidden while disabled. */}
+        <ExternalNotebookTeacherStatus context={teacherAssessmentContext(session)} />
       </div>
     </div>
   );
