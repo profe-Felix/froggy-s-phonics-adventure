@@ -281,7 +281,8 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
             onBack={() => {}}
             stepperMode
             onNext={() => {}}
-            liveSessionId={session?.id}
+            liveSessionId={localSession?.id}
+            liveSession={localSession}
           />
         </div>
       </div>
@@ -323,7 +324,8 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
           onStudentPatch={onStudentPatch}
           onBack={() => {}}
           liveMode
-          liveSessionId={session?.id}
+          liveSessionId={localSession?.id}
+          liveSession={localSession}
         />
       </div>
     </div>
