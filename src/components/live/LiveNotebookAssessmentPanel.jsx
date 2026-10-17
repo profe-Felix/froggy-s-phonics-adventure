@@ -82,27 +82,43 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     ? Math.max(1, Number(selectedAssignment.pdf_page_count || selectedAssignment.page_count || 1))
     : 1;
 
-  // Realtime subscription to the active session.
+  // Keep teacher controls visible until our End action is confirmed.
   useEffect(() => {
     if (!session?.id) return;
     const unsub = base44.entities.LiveNotebookAssessment.subscribe((event) => {
       const eventId = event.id || event.data?.id;
       if (eventId !== session.id) return;
-      if (event.type === 'delete' || event.data?.active === false) {
-        setSession(null);
+
+      const current = sessionRef.current;
+      if (!current || current.id !== session.id) return;
+
+      if (event.type === "delete") {
+        setControlError("This assessment was deleted in Base44. External notebook shutdown could not be confirmed. Keep this screen open while the connection is checked.");
         return;
       }
-      setSession(prev => {
-        if (!prev) return event.data;
-        // Preserve teacher's own controls (release_mode toggle, page) from
-        // being overwritten by delayed realtime echoes.
-        return {
-          ...prev,
-          ...event.data,
-          release_mode: prev.release_mode,
-          current_page: prev.current_page,
-        };
-      });
+
+      if (event.data?.active === false) {
+        // Local End already handles confirmation and closing the screen.
+        if (current.active === false) return;
+
+        const ended = { ...current, active: false };
+        sessionRef.current = ended;
+        setSession(ended);
+        setControlError("This assessment was ended in Base44. Press End to confirm notebook shutdown before leaving this screen.");
+        return;
+      }
+
+      const merged = {
+        ...current,
+        ...event.data,
+        id: current.id,
+        active: current.active,
+        paused: current.paused,
+        release_mode: current.release_mode,
+        current_page: current.current_page,
+      };
+      sessionRef.current = merged;
+      setSession(merged);
     });
     return unsub;
   }, [session?.id]);
