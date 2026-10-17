@@ -5,118 +5,156 @@ import { bootstrapExternalNotebook } from "@/lib/external-notebook/client";
 import { mountNotebook } from "@/lib/external-notebook/engine";
 import { createNotebookTransport } from "@/lib/external-notebook/transport";
 import { openNotebookPersistence } from "@/lib/external-notebook/persistence";
+import { createNotebookHostSession } from "@/lib/external-notebook/host-session";
 
 // Mounted ONLY after the disabled/readiness checks in ExternalNotebookSlot.
 // No iframe, navigation, separate login, polling, or recording in this host.
 export default function ExternalNotebookSurface({ context, registerSave, onComplete }) {
   const element = useRef(null);
-  const runtime = useRef(null);
+  const owner = useRef(null);
   const latestContext = useRef(context);
   const latestComplete = useRef(onComplete);
   latestContext.current = context;
   latestComplete.current = onComplete;
-  const [status, setStatus] = useState("Opening notebook…");
-  const [attempt, setAttempt] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [completing, setCompleting] = useState(false);
-  const workKey = context.role === "student"
-    ? persistentWorkKey(context, EXTERNAL_NOTEBOOK_CONFIG.appId)
-    : JSON.stringify(["teacher", EXTERNAL_NOTEBOOK_CONFIG.appId, context.schoolYear, context.className, context.assignmentId]);
-  const scopeKey = JSON.stringify([workKey, context.kind, context.sourceId, context.stepId || ""]);
+  const saving = useRef(null);
+  const finishing = useRef(false);
+  const [screen, setScreen] = useState({
+    ready: false, failed: false, busy: false, applied: null,
+    status: "Opening notebook…",
+  });
+
+  function report(entry, message) {
+    if (entry?.live && owner.current === entry) {
+      setScreen(value => ({ ...value, failed: true, status: message }));
+    }
+  }
+
+  function applyContext(force = false) {
+    const entry = owner.current, next = latestContext.current;
+    if (!entry?.live) return Promise.resolve(false);
+    if (!force && entry.requested === next && entry.update) return entry.update;
+    entry.requested = next;
+    entry.update = (entry.update || Promise.resolve()).then(async () => {
+      if (!entry.live || next !== latestContext.current) return false;
+      await entry.host.start();
+      if (!entry.live || next !== latestContext.current) return false;
+      await entry.host.updateContext(next);
+      if (!entry.live || next !== latestContext.current) return false;
+      entry.applied = next;
+      setScreen(value => ({
+        ...value, ready: true, failed: false, applied: next, status: "",
+      }));
+      return true;
+    }).catch(() => {
+      if (next === latestContext.current) {
+        report(entry, "The notebook could not connect or update safely. Keep this page open and retry. Existing work was not discarded.");
+      }
+      return false;
+    });
+    return entry.update;
+  }
 
   useEffect(() => {
-    const flush = async () => {
-      try { return runtime.current ? (await runtime.current.flush()) === true : false; }
-      catch { setFailed(true); setStatus("Your work is still on this device. Keep this notebook open and retry saving."); return false; }
+    // One owner for this mounted screen. Context changes do not tear it down.
+    // React's development effect replay reuses the same owner and opening task.
+    if (!owner.current) {
+      const initial = latestContext.current;
+      const workKey = initial.role === "student"
+        ? persistentWorkKey(initial, EXTERNAL_NOTEBOOK_CONFIG.appId)
+        : JSON.stringify(["teacher", EXTERNAL_NOTEBOOK_CONFIG.appId, initial.schoolYear, initial.className, initial.assignmentId]);
+      owner.current = {
+        host: createNotebookHostSession({
+          element: element.current, context: initial, workKey,
+          bootstrap: bootstrapExternalNotebook,
+          openPersistence: openNotebookPersistence,
+          createTransport: createNotebookTransport, mount: mountNotebook,
+        }),
+      };
+    }
+    const entry = owner.current;
+    entry.live = true;
+    void applyContext();
+    return () => {
+      entry.live = false;
+      queueMicrotask(() => {
+        if (entry.live) return;
+        // Cleanup cannot undo a parent unmount. Parent guards are still required.
+        // A false close intentionally retains the connection and local storage.
+        void entry.host.close().then(closed => {
+          if (closed !== true) console.error("Notebook removed before saving finished. Resources and pending work were retained.");
+        }).catch(error => console.error("Notebook cleanup could not finish safely:", error));
+      });
     };
+  }, []);
+
+  useEffect(() => {
+    void applyContext();
+  }, [context]);
+
+  function flush() {
+    if (saving.current) return saving.current;
+    const entry = owner.current, requested = latestContext.current;
+    if (!entry?.live) return Promise.resolve(false);
+    setScreen(value => ({ ...value, busy: true }));
+    saving.current = Promise.resolve().then(async () => {
+      if (entry.applied !== requested && !await applyContext()) return false;
+      const saved = await entry.host.flush() === true;
+      if (!entry.live || requested !== latestContext.current) return false;
+      if (!saved) {
+        report(entry, "Saving is not confirmed. Keep this notebook open and retry saving.");
+        return false;
+      }
+      setScreen(value => ({ ...value, failed: false, status: "" }));
+      return true;
+    }).catch(() => {
+      report(entry, "Saving could not finish. Keep this notebook open; do not switch activities yet.");
+      return false;
+    }).finally(() => {
+      saving.current = null;
+      if (entry.live) setScreen(value => ({ ...value, busy: finishing.current }));
+    });
+    return saving.current;
+  }
+
+  useEffect(() => {
     registerSave?.(flush);
     return () => { registerSave?.(null); };
   }, [registerSave]);
 
-  useEffect(() => {
-    let alive = true;
-    let mountedRuntime = null;
-    let transport = null;
-    let persistence = null;
-    const controller = new AbortController();
-    const close = async () => {
-      // All implementations must preserve the durable outbox on close.
-      try { await mountedRuntime?.close({ keepOutbox: true }); }
-      finally {
-        try { await transport?.close?.(); }
-        finally { await persistence?.close?.({ keepOutbox: true }); }
-      }
-    };
-    setReady(false); setFailed(false); setStatus("Opening notebook…");
-    void (async () => {
-      try {
-        const initial = latestContext.current;
-        const session = await bootstrapExternalNotebook(initial);
-        if (!alive) return;
-        persistence = await openNotebookPersistence({ workKey });
-        if (!alive) return;
-        transport = await createNotebookTransport({ session, signal: controller.signal });
-        if (!alive) return;
-        mountedRuntime = await mountNotebook({
-          element: element.current, role: initial.role, context: initial,
-          session, transport, persistence,
-        });
-        if (!alive) return;
-        if (!mountedRuntime || typeof mountedRuntime.flush !== "function" ||
-            typeof mountedRuntime.updateContext !== "function" || typeof mountedRuntime.close !== "function") {
-          throw new Error("The notebook engine does not implement the save/transition contract.");
-        }
-        runtime.current = mountedRuntime;
-        await mountedRuntime.updateContext(latestContext.current);
-        if (alive) { setReady(true); setStatus(""); }
-      } catch {
-        if (alive) {
-          setFailed(true);
-          setStatus("The new notebook could not open. Keep this page open and retry. No switch to the old notebook was made.");
-        }
-      } finally {
-        if (!alive) await close().catch(() => {});
-      }
-    })();
-    return () => {
-      alive = false;
-      controller.abort();
-      runtime.current = null;
-      // Parent must await registered flush BEFORE unmount. This is cleanup,
-      // not a substitute for that guarantee; it never deletes local work.
-      void close().catch(() => {});
-    };
-  }, [scopeKey, workKey, attempt]);
-
-  useEffect(() => {
-    if (!runtime.current) return;
-    void runtime.current.updateContext(context).catch(() => {
-      setFailed(true); setStatus("The notebook context could not update. Keep this page open.");
-    });
-  }, [context]);
-
   const complete = async () => {
-    if (completing) return;
-    setCompleting(true);
+    if (finishing.current || typeof latestComplete.current !== "function") return;
+    const entry = owner.current, requested = latestContext.current;
+    const callback = latestComplete.current;
+    finishing.current = true;
+    setScreen(value => ({ ...value, busy: true }));
     try {
-      if (!runtime.current || (await runtime.current.flush()) !== true) {
-        setFailed(true); setStatus("Still saving your work. Keep this notebook open and try again."); return;
+      if (await flush() !== true || !entry?.live ||
+          requested !== latestContext.current || callback !== latestComplete.current) return;
+      if (await callback() === false) {
+        report(entry, "The activity did not finish. Your notebook remains open.");
       }
-      await latestComplete.current?.();
-    } catch { setFailed(true); setStatus("The activity could not finish. Your notebook remains open."); }
-    finally { setCompleting(false); }
+    } catch { report(entry, "The activity could not finish. Your notebook remains open."); }
+    finally {
+      finishing.current = false;
+      if (entry?.live) setScreen(value => ({ ...value, busy: false }));
+    }
   };
 
+  const blockNewInput = event => {
+    if (saving.current || finishing.current || !screen.ready || screen.applied !== context) {
+      event.preventDefault(); event.stopPropagation();
+    }
+  };
   return <section style={{ position: "relative", height: "100%", minHeight: 320 }} aria-label="Live notebook">
-    <div ref={element} style={{ height: "100%", minHeight: 320 }} />
-    {status && <div role={failed ? "alert" : "status"} style={{ padding: 16 }}>
-      <p>{status}</p>
-      {/* Never restart a mounted engine/outbox as a retry shortcut. */}
-      {failed && !runtime.current && <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry notebook connection</button>}
+    <div ref={element} style={{ height: "100%", minHeight: 320 }} onPointerDownCapture={blockNewInput} />
+    {screen.status && <div role={screen.failed ? "alert" : "status"} style={{ padding: 16 }}>
+      <p>{screen.status}</p>
+      {screen.failed && <button type="button" disabled={screen.busy} onClick={() => { void applyContext(true); }}>
+        Retry notebook connection
+      </button>}
     </div>}
-    {onComplete && <button type="button" disabled={!ready || completing || failed} onClick={complete}>
-      {completing ? "Saving…" : "Finish activity"}
+    {onComplete && <button type="button" disabled={!screen.ready || screen.busy || screen.applied !== context} onClick={complete}>
+      {screen.busy ? "Saving…" : "Finish activity"}
     </button>}
   </section>;
 }
