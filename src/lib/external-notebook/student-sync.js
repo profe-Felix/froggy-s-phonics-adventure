@@ -59,6 +59,7 @@ export async function createNotebookStudentSync({
   let closed = false;
   let closing = null;
   let renewing = null, resuming = null, resumingExpiry;
+  let recovering = null;
   let renewalEpoch = 0;
   const idleWaiters = new Set();
 
@@ -251,6 +252,7 @@ export async function createNotebookStudentSync({
 
   function suspendForRenewal() {
     open();
+    if (recovering) return Promise.resolve(false);
     if (renewing) return renewing;
     if (resuming) return Promise.resolve(false);
     renewing = Promise.resolve().then(async () => {
@@ -269,6 +271,9 @@ export async function createNotebookStudentSync({
 
   function resumeAfterRenewal({ expiresAtMs: nextExpiry } = {}) {
     open();
+    if (recovering) {
+      return Promise.reject(problem("Finish pending-work recovery before reconnecting."));
+    }
     if (resuming) {
       if (nextExpiry !== resumingExpiry) {
         return Promise.reject(problem("Another connection renewal is still finishing."));
@@ -295,6 +300,37 @@ export async function createNotebookStudentSync({
     return resuming;
   }
 
+  function recoverPending({ isFrozen, isCurrent } = {}) {
+    open();
+    if (typeof isFrozen !== "function" || typeof isCurrent !== "function") {
+      return Promise.reject(problem("Frozen-input and current-owner guards are required."));
+    }
+    if (recovering || renewing || resuming || !channel.getState().suspended) {
+      return Promise.reject(problem("Suspend the live connection before recovering pending work."));
+    }
+    const epoch = renewalEpoch;
+    const frozen = () => !closed && channel.getState().suspended === true &&
+      isFrozen() === true;
+    const current = () => !closed && epoch === renewalEpoch && isCurrent() === true;
+    const valid = () => frozen() && current();
+    try {
+      if (!valid()) throw problem("Recovery requires the same frozen notebook owner.");
+    } catch (reason) { return Promise.reject(reason); }
+    recovering = Promise.resolve().then(async () => {
+      // The controller owns the input lock and fresh signed authorization.
+      // Retain the same Canvas, outbox, operation IDs and page controllers.
+      if (!valid() || !await finishLocal() || !valid()) return false;
+      const saved = await queue.recover({ isFrozen: frozen, isCurrent: current });
+      return saved === true && valid() && !writes.size && !failedLocal.size &&
+        queue.getState().pendingCount === 0;
+    }).finally(() => {
+      recovering = null;
+      emit("recovery", { active: false });
+      // Leave the channel suspended. Recovery is not permission to draw.
+    });
+    emit("recovery", { active: true });
+    return recovering;
+  }
   channel = createNotebookLiveChannel({
     transport,
     classId,
@@ -443,6 +479,7 @@ export async function createNotebookStudentSync({
 
     suspendForRenewal,
     resumeAfterRenewal,
+    recoverPending,
 
     enqueue,
 
