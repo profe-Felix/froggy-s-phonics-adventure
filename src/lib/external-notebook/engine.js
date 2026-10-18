@@ -40,6 +40,20 @@ export async function mountNotebook(options = {}) {
       if (closed) return false;
       return await runtime.flush() === true;
     },
+    async renewSession(next, { isCurrent = () => true } = {}) {
+      if (closed || closing) throw new Error("This notebook engine is closed or closing.");
+      if (next?.role !== role) {
+        throw new Error("The notebook role changed. Keep the existing notebook open until its work is saved.");
+      }
+      if (typeof isCurrent !== "function") throw new Error("A notebook renewal guard is required.");
+      if (typeof runtime.renewSession !== "function") {
+        throw new Error("The mounted notebook does not support session renewal. Keep it open and update the student runtime.");
+      }
+      const current = () => !closed && !closing && owners.get(element) === owner && isCurrent() === true;
+      if (!current()) return false;
+      const renewed = await runtime.renewSession(next, { isCurrent: current });
+      return renewed === true && current();
+    },
     async updateContext(next) {
       if (closed) throw new Error("This notebook engine has closed.");
       if (next?.role !== role) {
