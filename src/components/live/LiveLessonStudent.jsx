@@ -99,21 +99,39 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
     let transitionRetry;
     let desiredSession = localSessionRef.current;
     let transitionGeneration = 0;
+    let closedActivity = null;
 
     const apply = fresh => {
+      if (!alive || !fresh || typeof fresh !== 'object' || Array.isArray(fresh) ||
+          (fresh.id !== undefined && fresh.id !== sessionId)) return Promise.resolve(false);
       desiredSession = { ...desiredSession, ...fresh };
+      clearTimeout(transitionRetry);
       const generation = ++transitionGeneration;
       transitionRef.current = transitionRef.current.catch(() => {}).then(async () => {
-        if (!alive || !fresh || generation !== transitionGeneration) return;
+        if (!alive || generation !== transitionGeneration) return false;
         const previous = localSessionRef.current;
+        const save = activitySaveRef.current;
+        const exit = exitRef.current;
+        const ownsActivity = () => alive && localSessionRef.current === previous &&
+          activitySaveRef.current === save;
+        const retry = message => {
+          if (!ownsActivity() || generation !== transitionGeneration) return false;
+          setSessionSyncError(message);
+          clearTimeout(transitionRetry);
+          transitionRetry = setTimeout(() => {
+            if (ownsActivity()) void apply({});
+          }, 5000);
+          return false;
+        };
         let merged = { ...desiredSession, id: sessionId };
         let changedStep = merged.current_step !== previous?.current_step;
         const leavingActivity = merged.active === false || changedStep ||
           merged.phase !== previous?.phase ||
           merged.release_mode !== previous?.release_mode ||
           merged.lesson_day !== previous?.lesson_day;
-        const save = activitySaveRef.current;
-        if (leavingActivity && save) {
+        let closedNotebook = closedActivity?.previous === previous &&
+          closedActivity?.save === save;
+        if (leavingActivity && save && !closedNotebook) {
           setSessionSyncError('Saving your notebook before changing activities…');
           const closesNotebook = typeof save.close === 'function';
           let saved = false;
@@ -122,39 +140,52 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
           } catch {
             saved = false;
           }
-          if (!alive) return;
+          if (!ownsActivity()) return false;
           if (saved !== true) {
-            setSessionSyncError('Your notebook is still saving. Staying here and retrying before changing activities.');
-            clearTimeout(transitionRetry);
-            transitionRetry = setTimeout(() => { void apply({}); }, 5000);
-            return;
+            return retry('Your notebook is still saving. Staying here and retrying before changing activities.');
           }
           if (closesNotebook) {
-            // A successfully closed engine cannot be reused, even if the
-            // teacher returned to the same step while it was saving.
-            setActivityGeneration(value => value + 1);
-            merged = { ...desiredSession, id: sessionId };
-            changedStep = merged.current_step !== previous?.current_step;
+            closedNotebook = true;
+            closedActivity = { previous, save };
           } else if (generation !== transitionGeneration) {
-            return;
+            return false;
           }
+        }
+        if (!ownsActivity()) return false;
+        if (closedNotebook) {
+          // This owner has confirmed close. Only its newest requested state
+          // may follow it; never reuse that acknowledgment for another adapter.
+          merged = { ...desiredSession, id: sessionId };
+          changedStep = merged.current_step !== previous?.current_step;
+        } else if (generation !== transitionGeneration) {
+          return false;
         }
         clearTimeout(transitionRetry);
         if (merged.active === false) {
+          // Keep the closed notebook closed while exit is retried. Remounting
+          // here would create unnecessary reconnects for every student.
+          if (exitRef.current !== exit) {
+            return retry('The lesson destination changed. Keeping this page open and retrying.');
+          }
           try {
-            if (typeof exitRef.current !== 'function' || await exitRef.current() === false) {
+            if (typeof exit !== 'function' || await exit() === false) {
               throw new Error('The lesson could not exit.');
             }
+            return true;
           } catch {
-            setSessionSyncError('The lesson could not finish leaving. Keep this page open; retrying.');
-            transitionRetry = setTimeout(() => { void apply({}); }, 5000);
+            return retry('The lesson could not finish leaving. Keep this page open; retrying.');
           }
-          return;
+        }
+        if (closedNotebook) {
+          // Even a return to the original step needs a fresh engine after close.
+          setActivityGeneration(value => value + 1);
+          closedActivity = null;
         }
         localSessionRef.current = merged;
         setLocalSession(merged);
         setSessionSyncError('');
         if (changedStep && fresh.broadcast_state === undefined) refreshBroadcast();
+        return true;
       });
       return transitionRef.current;
     };
@@ -182,7 +213,7 @@ export default function LiveLessonStudent({ session, studentData, selectedStuden
         return;
       }
       const data = event.data || {};
-      if (['active', 'phase', 'current_step', 'release_mode', 'broadcast_state'].some(key => key in data)) {
+      if (['active', 'phase', 'current_step', 'release_mode', 'lesson_day', 'broadcast_state'].some(key => key in data)) {
         apply(data);
       } else {
         void refresh();
