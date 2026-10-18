@@ -29,6 +29,7 @@ export default async function(req: Request) {
   const headers = {
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",
+    "X-Notebook-Adapter": "native-assessment-lesson-v1",
   };
 
   const reply = (error: string, status: number) =>

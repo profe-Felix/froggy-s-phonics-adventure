@@ -1,8 +1,9 @@
 # Native notebook control synchronization
 
 This branch implements native assessment, lesson-step and direct-link notebooks without enabling them.
-It does not change main, publish the app, change student picture login, or
-activate recordings or route students away from the existing writer.
+The dormant implementation is installed on main. It does not change student
+picture login, activate recordings or route students away from the existing writer
+while the rollout gates remain disabled.
 
 ## Implemented in this branch
 
@@ -44,8 +45,8 @@ available for earlier work.
 
 ## Still disabled / not verified in a live Base44 classroom
 
-All client configuration and readiness switches remain OFF. The current Base44
-server gate has not been inspected; it must remain OFF until the
+All client configuration and readiness switches remain OFF. The Base44
+server gate has been staged OFF through its management API; keep it OFF until the
 backend is published and the installed Base44 configuration is verified.
 Teacher bootstrap and monitoring are implemented, but installed Base44 SDK and
 native browser handoff verification remain incomplete. Do not toggle flags yet.
