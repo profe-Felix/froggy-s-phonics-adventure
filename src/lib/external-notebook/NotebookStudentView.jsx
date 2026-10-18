@@ -44,6 +44,7 @@ const CSS = `
   gap:8px;
   height:min(86dvh,960px);
   min-height:420px;
+  overflow:hidden;
   padding:8px;
   box-sizing:border-box;
   border-radius:18px;
@@ -326,6 +327,51 @@ export function NotebookStudentView({
   const [localError, setLocalError] = useState("");
 
   const busyRef = useRef(false);
+  // Fill from the surface top to the visible viewport bottom (no fixed px,
+  // no reliance on percentage-height ancestors, no body double scroll).
+  const fitRef = useRef(null);
+  const [fitHeight, setFitHeight] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = fitRef.current;
+        if (!el) return;
+        const vh = window.visualViewport?.height || window.innerHeight;
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        // Reserve the real rendered footer(s) of the host surface, e.g. the
+        // Finish activity button, measured including their margins.
+        const host = el.closest("[data-notebook-surface]");
+        let footer = 0;
+        host?.querySelectorAll("[data-notebook-footer]").forEach(f => {
+          const cs = getComputedStyle(f);
+          footer += f.getBoundingClientRect().height +
+            (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+        });
+        const next = Math.max(420, Math.floor(vh - top - footer - 4));
+        setFitHeight(h => (Math.abs(h - next) > 1 ? next : h));
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    const ro = typeof ResizeObserver !== "undefined" && fitRef.current?.parentElement
+      ? new ResizeObserver(measure) : null;
+    if (ro) {
+      ro.observe(fitRef.current.parentElement);
+      fitRef.current.closest("[data-notebook-surface]")
+        ?.querySelectorAll("[data-notebook-footer]").forEach(f => ro.observe(f));
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -555,8 +601,9 @@ export function NotebookStudentView({
 
   return (
     <div
+      ref={fitRef}
       className="nbs"
-      style={style}
+      style={fitHeight ? { height: fitHeight, ...style } : style}
       data-testid="notebook-student-view"
     >
       <style>{CSS}</style>

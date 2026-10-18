@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Radio, Eye, EyeOff, ChevronLeft, ChevronRight, X, Pause, Play, Lock, Unlock, Footprints, Users, UserCheck } from 'lucide-react';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { notebookLibrary } from '@/lib/notebook-library.mjs';
 import { useClassNames } from '@/hooks/useClassNames';
 import NotebookAssessmentRoster from '@/components/live/NotebookAssessmentRoster';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
@@ -108,13 +109,13 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   // Release mode: 'follow' = locked to teacher page, 'free' = own pace
   const [releaseMode, setReleaseMode] = useState('follow');
 
-  const { data: assignments = [] } = useQuery({
+  const { data: assignmentRows = [] } = useQuery({
     queryKey: ['notebook-assignments-live-assessment', className],
-    queryFn: () =>
-      base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
+    queryFn: () => base44.entities.DigitalNotebookAssignment.list('-created_date', 500),
     enabled: !!className,
     retry: false,
   });
+  const assignments = notebookLibrary(assignmentRows, className, ['active', 'draft']);
 
   // Load students for the selected class (for the student picker grid)
   const { data: students = [] } = useQuery({
@@ -129,7 +130,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
     staleTime: 60000,
   });
 
-  const selectedAssignment = assignments.find(a => a.id === selectedAssignmentId);
+  const selectedAssignment = assignmentRows.find(a => a.id === selectedAssignmentId);
   const totalPages = selectedAssignment
     ? Math.max(1, Number(selectedAssignment.pdf_page_count || selectedAssignment.page_count || 1))
     : 1;

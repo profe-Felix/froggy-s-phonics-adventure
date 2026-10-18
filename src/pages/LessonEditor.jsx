@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { notebookLibrary } from '@/lib/notebook-library.mjs';
 import { useAuth } from '@/lib/AuthContext';
 import { MODE_OPTIONS, MODE_BY_VALUE, COLOR_KEYS, colorOf } from '@/lib/lessonColors';
 import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Star, Save, Download, Upload, Copy, Settings, Image as ImageIcon } from 'lucide-react';
@@ -140,24 +141,7 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
       step.mode === 'digital_notebook',
   });
 
-  const notebookAssignmentChoices =
-    Array.from(
-      new Map(
-        notebookAssignments
-          .filter(
-            (assignment) =>
-              assignment.title?.trim()
-          )
-          .map((assignment) => [
-            assignment.title
-              .trim()
-              .toLowerCase(),
-            assignment,
-          ])
-      ).values()
-    ).sort((a, b) =>
-      a.title.localeCompare(b.title)
-    );
+  const notebookAssignmentChoices = notebookLibrary(notebookAssignments, lessonClass || '');
 
   const {
     data: dictationAssignments = [],
@@ -286,21 +270,22 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
 
                 <select
                   value={
-                    step.config?.assignmentTitle ||
+                    step.config?.assignmentId ||
+                    notebookAssignmentChoices.find(a => a.title === step.config?.assignmentTitle)?.id ||
                     ''
                   }
                   onChange={(e) => {
                     const assignment =
                       notebookAssignmentChoices.find(
                         (item) =>
-                          item.title ===
+                          item.id ===
                           e.target.value
                       );
 
                     update({
                       config: {
                         ...step.config,
-                        assignmentId: '',
+                        assignmentId: assignment?.id || '',
                         assignmentTitle:
                           assignment?.title || '',
                         assignmentPageCount:
@@ -336,8 +321,8 @@ export function StepEditor({ step, index, total, onChange, onRemove, onMove, les
                   {notebookAssignmentChoices.map(
                     (assignment) => (
                       <option
-                        key={assignment.title}
-                        value={assignment.title}
+                        key={assignment.id}
+                        value={assignment.id}
                       >
                         {assignment.title}
                         {' · '}

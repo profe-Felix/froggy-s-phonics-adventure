@@ -6,6 +6,7 @@ import ExternalNotebookSlot from "./ExternalNotebookSlot";
 import { assessmentContext } from "@/lib/external-notebook/context";
 import { EXTERNAL_NOTEBOOK_CONFIG } from "@/lib/external-notebook/config";
 import { lessonStepPages } from "@/lib/external-notebook/lesson-pages";
+import { notebookLibrary, resolveNotebookAssignment } from "@/lib/notebook-library.mjs";
 
 // Class/picture entry stays with Base44. Only the selected writing surface is
 // replaced; the old component is never mounted (or downloading a PDF) first.
@@ -54,11 +55,12 @@ export default function NotebookAssignmentEntry({ LegacyView, ...props }) {
     });
     return () => unsubscribe?.();
   }, [enabled, className, queries]);
-  const assignments = (books.data || []).filter(book =>
-    book.status === "active" && (book.class_name === className || book.shared_across_classes))
-    .sort((a, b) => Number(b.class_name === className) - Number(a.class_name === className));
-  const choices = props.stepConfig ? (books.data || []).filter(book =>
-    ["active", "draft"].includes(book.status) && (book.class_name === className || book.shared_across_classes)) : assignments;
+  const assignments = notebookLibrary(books.data || [], className);
+  const requestedId = directAssignmentId || props.stepConfig?.assignmentId;
+  const requestedTitle = directAssignmentName || props.stepConfig?.assignmentTitle;
+  const linkedBook = resolveNotebookAssignment(books.data || [], {
+    className, id: requestedId, title: requestedTitle, allowDraft: !!props.stepConfig,
+  });
   const eligibleBroadcast = (live.data || []).find(record =>
     (!record.target_students?.length || record.target_students.some(seat =>
       seat.class_name === className && Number(seat.student_number) === Number(studentNumber))) &&
@@ -66,9 +68,8 @@ export default function NotebookAssignmentEntry({ LegacyView, ...props }) {
       seat.class_name === className && Number(seat.student_number) === Number(studentNumber)));
   const broadcastBook = (books.data || []).find(book => book.id === eligibleBroadcast?.assignment_id &&
     ["active", "draft"].includes(book.status) && (book.class_name === className || book.shared_across_classes));
-  const assignment = broadcastBook || selected || choices.find(book => directAssignmentId
-    ? book.id === directAssignmentId : directAssignmentName
-      ? book.title?.trim().toLowerCase() === directAssignmentName.trim().toLowerCase() : false);
+  const assignment = broadcastBook || linkedBook ||
+    (!requestedId && !requestedTitle ? selected : null);
   const student = roster.data?.length === 1 ? roster.data[0] : null;
   const context = useMemo(() => {
     if (!student || !assignment) return null;
@@ -96,17 +97,21 @@ export default function NotebookAssignmentEntry({ LegacyView, ...props }) {
   </div>;
   if (roster.isPending || books.isPending || live.isPending) return <div role="status" className="p-6">Opening notebook…</div>;
   if (!student) return <div role="alert" className="p-6">Choose your class picture again. Your notebook work was not changed.</div>;
+  if (!assignment && (requestedId || requestedTitle)) return <div role="alert" className="p-6">
+    The notebook linked to this lesson is unavailable. Its saved link and student work were not changed.
+    <button className="ml-3 underline" onClick={() => { void books.refetch(); }}>Retry notebook</button>
+  </div>;
   if (!assignment) return <main className="p-5 max-w-5xl mx-auto">
     <button onClick={onBack} className="underline mb-4">Back</button>
     <h1 className="text-2xl font-bold mb-5">Choose your notebook</h1>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{assignments.map(book =>
       <button key={book.id} onClick={() => setSelected(book)}
         className="p-5 text-left rounded-2xl border bg-white shadow-sm">
-        <strong>{book.title}</strong><p className="text-sm mt-2">{book.pdf_page_count} pages · {book.class_name === className ? className : `Shared from ${book.class_name}`}</p>
+        <strong>{book.title}</strong><p className="text-sm mt-2">{book.pdf_page_count} pages · Shared library</p>
       </button>)}</div>
     {!assignments.length && <p>No active assignments are available.</p>}
   </main>;
-  return <section className="flex flex-col w-full bg-slate-50" style={{ height: "100dvh", minHeight: 400 }}>
+  return <section className="flex flex-col w-full bg-slate-50" style={{ minHeight: 400 }}>
     <header className="flex flex-wrap items-center gap-3 px-4 py-2 border-b bg-white text-slate-900">
       <button onClick={() => { void leave(onBack); }} className="underline">Back</button>
       <strong className="flex-1">{assignment.title}</strong>

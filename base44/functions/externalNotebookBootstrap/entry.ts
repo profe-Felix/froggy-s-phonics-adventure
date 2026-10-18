@@ -334,6 +334,12 @@ export default async function(req: Request) {
     }, { headers });
   } catch (error: any) {
     // Never echo SDK/upstream errors, credentials, tokens, or roster records.
+    if (error?.code === "notebook_images_preparing") {
+      return Response.json({
+        error: "Preparing this notebook's image pages. Keep this page open; it will connect automatically.",
+        code: "notebook_images_preparing", retryAfterMs: 5000,
+      }, { status: 503, headers });
+    }
     const status = error?.status ?? error?.response?.status;
     const message = typeof error?.message === "string" ? error.message : "";
     const reason = /AbortSignal.*timeout|timeout.*not a function/i.test(message) ? "timeout-api" :

@@ -2,6 +2,10 @@
   "name": "DigitalNotebookAssignment",
   "type": "object",
   "properties": {
+    "library_key": {
+      "type": "string",
+      "description": "SHA-256 PDF identity for shared library grouping; never a student-work or authorization identifier."
+    },
     "title": {
       "type": "string"
     },

@@ -356,8 +356,8 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       event.preventDefault(); event.stopPropagation();
     }
   };
-  return <section style={{ position: "relative", width: "100%", minWidth: 0, height: "100%", minHeight: 320 }} aria-label="Live notebook">
-    <div ref={element} style={{ height: "100%", minHeight: 320 }} onPointerDownCapture={blockNewInput} />
+  return <section data-notebook-surface="" style={{ position: "relative", width: "100%", minWidth: 0, minHeight: 320 }} aria-label="Live notebook">
+    <div ref={element} style={{ minHeight: 320 }} onPointerDownCapture={blockNewInput} />
     {(screen.status || renewalStatus) && <div role={screen.failed || renewalFailed ? "alert" : "status"} style={{
       position: "absolute", top: 12, left: 12, right: 12, maxWidth: 520,
       zIndex: 30, padding: 12, background: "#fff", border: "1px solid #d4d4d4",
@@ -376,7 +376,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
         Retry notebook connection
       </button>}
     </div>}
-    {onComplete && <button type="button" disabled={
+    {onComplete && <button type="button" data-notebook-footer="" disabled={
       !screen.ready ||
       screen.busy ||
       screen.applied !== context ||

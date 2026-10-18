@@ -94,10 +94,10 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
       const notebookStep = <DigitalNotebookStep onComplete={onComplete} registerSave={registerActivitySave} stepConfig={config} studentNumber={selectedStudent?.number||studentData?.number} className={selectedStudent?.class_name||studentData?.class_name}/>;
       const lessonCtx = lessonNotebookContext({ liveSession, stepIndex, step, selectedStudent, studentData });
       if (!liveSession?.id) return <NotebookAssignmentEntry LegacyView={DigitalNotebookStep}
-        directAssignmentId={config.assignmentId} stepConfig={config}
+        directAssignmentId={config.assignmentId} directAssignmentName={config.assignmentTitle} stepConfig={config}
         onComplete={onComplete} registerSave={registerActivitySave}
-        studentNumber={selectedStudent?.number || studentData?.number || studentData?.student_number}
-        className={selectedStudent?.class_name || studentData?.class_name} />;
+        studentNumber={selectedStudent?.number || studentData?.number || studentData?.student_number || studentNumber}
+        className={selectedStudent?.class_name || studentData?.class_name || className} />;
       if (!lessonCtx) return <div role="status" className="p-6">Opening the lesson notebook…</div>;
       return <ExternalNotebookSlot context={lessonCtx} registerSave={registerActivitySave} onComplete={onComplete}>{notebookStep}</ExternalNotebookSlot>;
     }

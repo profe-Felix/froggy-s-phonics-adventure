@@ -31,16 +31,20 @@ export async function authorizeNotebookTeacherStart(context) {
 async function invokeNotebookFunction(name, body, context) {
   const accountRequired = context?.role === "teacher" && EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== "open";
   if (accountRequired) await verifyNotebookTeacherSignIn();
-  for (let attempt = 0; attempt < 6; attempt++) {
+  const started = Date.now();
+  let transientFailures = 0;
+  for (let attempt = 0; ; attempt++) {
     try { return await base44.functions.invoke(name, body); }
     catch (error) {
       if (accountRequired && isTeacherSignInRequired(error)) throw teacherAuthenticationError();
       const status = error?.response?.status ?? error?.status;
       const retryable = context?.role === "student" && name === "externalNotebookBootstrap" &&
         [429, 502, 503, 504].includes(status);
-      if (!retryable || attempt === 5) throw error;
+      const preparing = retryable && error?.response?.data?.code === "notebook_images_preparing";
+      if (!retryable || (preparing ? Date.now() - started > 180000 : transientFailures++ >= 5)) throw error;
       // Spread a classroom joining together; never retry teacher mutations.
-      const delay = Math.min(4000, 500 * 2 ** attempt) + Math.random() * 750;
+      const delay = (preparing ? Math.min(10000, 2000 + attempt * 1000) :
+        Math.min(4000, 500 * 2 ** Math.min(attempt, 4))) + Math.random() * 750;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

@@ -10,6 +10,7 @@ import StudentLoginShell from '@/components/game/StudentLoginShell';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
+import { notebookLibrary, notebookLibraryFamily, notebookFileLibraryKey } from '@/lib/notebook-library.mjs';
 import BackButton from '@/components/ui/BackButton';
 import { useClassNames } from '@/hooks/useClassNames';
 import { useClassColors } from '@/hooks/useClassColors';
@@ -126,13 +127,14 @@ export default function TeacherNotebookDashboard({
   const [rangeEnd, setRangeEnd] = useState('');
   const [totalPages, setTotalPages] = useState('');
 
-  const { data: assignments = [], isFetched: assignmentsFetched } = useQuery({
+  const { data: assignmentRows = [], isFetched: assignmentsFetched } = useQuery({
     queryKey: ['notebook-assignments', className],
-    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ class_name: className }),
+    queryFn: () => base44.entities.DigitalNotebookAssignment.list('-created_date', 500),
     enabled: !!className,
     refetchInterval: 15000,
     retry: false,
   });
+  const assignments = notebookLibrary(assignmentRows, className, ['active', 'draft', 'closed']);
 
   // Keep the page input in sync when globalViewPage changes via prev/next/reset.
   useEffect(() => { setPageInput(''); }, [globalViewPage]);
@@ -145,7 +147,7 @@ export default function TeacherNotebookDashboard({
     if (!assignmentRef || !className || !assignmentsFetched) return;
 
     const normalizedRef = String(assignmentRef).trim().toLowerCase();
-    const matchingAssignment = assignments.find((assignment) =>
+    const matchingAssignment = assignmentRows.find(assignment => assignment.id === assignmentRef) || assignments.find((assignment) =>
       assignment.id === assignmentRef ||
       String(assignment.title || '').trim().toLowerCase() === normalizedRef
     );
@@ -214,13 +216,6 @@ export default function TeacherNotebookDashboard({
     );
   };
 
-  const { data: sharedAssignments = [] } = useQuery({
-    queryKey: ['notebook-shared'],
-    queryFn: () => base44.entities.DigitalNotebookAssignment.filter({ shared_across_classes: true }),
-    enabled: !!className,
-    refetchInterval: 60000,
-    retry: false,
-  });
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['notebook-sessions', selectedAssignment?.id],
@@ -245,8 +240,17 @@ export default function TeacherNotebookDashboard({
     .sort((a, b) => (a.student_number || 0) - (b.student_number || 0));
 
   const updateAssignment = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.DigitalNotebookAssignment.update(id, data),
-    onSuccess: () => qc.invalidateQueries(['notebook-assignments', className]),
+    mutationFn: async ({ id, data }) => {
+      const book = assignmentRows.find(row => row.id === id);
+      const family = book ? notebookLibraryFamily(assignmentRows, book) : [{ id }];
+      return Promise.all(family.map(row => base44.entities.DigitalNotebookAssignment.update(row.id, data)));
+    },
+    onSuccess: () => {
+      for (const key of ['notebook-assignments', 'image-notebook-assignments',
+        'notebook-assignments-live-assessment', 'lesson-editor-notebook-assignments']) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
   });
 
   const extractPageCount = async (file) => {
@@ -260,31 +264,39 @@ export default function TeacherNotebookDashboard({
     }
   };
 
-  const handleDrop = async (e) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (!file || file.type !== 'application/pdf') return alert('Please drop a PDF file');
+  const createLibraryAssignment = async (file) => {
     if (!newTitle.trim()) return alert('Please enter a title first');
     setUploading(true);
-    const [{ file_url }, pageCount] = await Promise.all([
-      base44.integrations.Core.UploadFile({ file }),
-      extractPageCount(file),
-    ]);
-    await base44.entities.DigitalNotebookAssignment.create({
-      title: newTitle.trim(),
-      class_name: className,
-      pdf_url: file_url,
-      status: 'draft',
-      page_mode: 'free',
-      page_range_start: 1,
-      page_range_end: pageCount || 1,
-      pdf_page_count: pageCount || 1,
-      page_count: pageCount || 1,
-    });
-    setNewTitle('');
-    setUploading(false);
-    qc.invalidateQueries(['notebook-assignments', className]);
+    try {
+      const libraryKey = await notebookFileLibraryKey(file);
+      const existing = assignmentRows.find(row => row.library_key === libraryKey &&
+        row.title?.trim().toLowerCase() === newTitle.trim().toLowerCase());
+      if (existing) {
+        setSelectedAssignment(existing);
+        alert('This document is already in the shared library. No class copy is needed.');
+        return;
+      }
+      const [{ file_url }, pageCount] = await Promise.all([
+        base44.integrations.Core.UploadFile({ file }), extractPageCount(file),
+      ]);
+      await base44.entities.DigitalNotebookAssignment.create({
+        title: newTitle.trim(), class_name: className, pdf_url: file_url,
+        shared_across_classes: true, library_key: libraryKey,
+        status: 'draft', page_mode: 'free', page_range_start: 1,
+        page_range_end: pageCount || 1, pdf_page_count: pageCount || 1, page_count: pageCount || 1,
+      });
+      setNewTitle('');
+      void qc.invalidateQueries({ queryKey: ['notebook-assignments'] });
+      void qc.invalidateQueries({ queryKey: ['image-notebook-assignments'] });
+    } catch {
+      alert('The notebook could not be added to the library. Existing assignments and student work were not changed. Please retry.');
+    } finally { setUploading(false); }
+  };
+  const handleDrop = async (e) => {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || file.type !== 'application/pdf') return alert('Please drop a PDF file');
+    await createLibraryAssignment(file);
   };
 
   const handleSaveInstructions = async (instructions) => {
@@ -488,7 +500,8 @@ export default function TeacherNotebookDashboard({
         {tab === 'assignments' && (
           <div className="max-w-2xl mx-auto flex flex-col gap-4">
             <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
-              <p className="font-bold text-indigo-200 text-sm">Create New Assignment</p>
+              <p className="font-bold text-indigo-200 text-sm">Shared notebook library — all classes</p>
+              <p className="text-xs text-indigo-300">Upload once. Select a class to review its students, not to copy documents.</p>
               <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Assignment title..."
                 className="px-3 py-2 rounded-xl border border-indigo-500 text-white text-sm"
                 style={{ background: '#0f0f1a' }} />
@@ -507,26 +520,7 @@ export default function TeacherNotebookDashboard({
                   const file = e.target.files?.[0];
                   e.target.value = '';
                   if (!file) return;
-                  if (!newTitle.trim()) return alert('Please enter a title first');
-                  setUploading(true);
-                  const [{ file_url }, pageCount] = await Promise.all([
-                    base44.integrations.Core.UploadFile({ file }),
-                    extractPageCount(file),
-                  ]);
-                  await base44.entities.DigitalNotebookAssignment.create({
-                    title: newTitle.trim(),
-                    class_name: className,
-                    pdf_url: file_url,
-                    status: 'draft',
-                    page_mode: 'free',
-                    page_range_start: 1,
-                    page_range_end: pageCount || 1,
-                    pdf_page_count: pageCount || 1,
-                    page_count: pageCount || 1,
-                  });
-                  setNewTitle('');
-                  setUploading(false);
-                  qc.invalidateQueries(['notebook-assignments', className]);
+                  await createLibraryAssignment(file);
                 }} />
             </div>
 
@@ -549,8 +543,8 @@ export default function TeacherNotebookDashboard({
                     {a.hidden ? '🙈' : '👁'}
                   </button>
                   <button
-                    title={a.shared_across_classes ? 'Shared with all classes — click to unshare' : 'Share with all classes'}
-                    onClick={() => updateAssignment.mutate({ id: a.id, data: { shared_across_classes: !a.shared_across_classes } })}
+                    title="Shared library item — available to all classes"
+                    disabled
                     className={`px-2 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 ${a.shared_across_classes ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-400 hover:bg-indigo-900 hover:text-indigo-300'}`}>
                     {a.shared_across_classes ? '🌐' : '🔒'}
                   </button>
@@ -564,55 +558,18 @@ export default function TeacherNotebookDashboard({
                   </button>
                   <button
                     onClick={async () => {
-                      if (!confirm(`Delete "${a.title}"?`)) return;
-                      await base44.entities.DigitalNotebookAssignment.delete(a.id);
+                      if (!confirm(`Archive "${a.title}" from the shared library for all classes? Existing student work and assignment IDs will be kept.`)) return;
+                      await updateAssignment.mutateAsync({ id: a.id, data: { status: 'closed' } });
                       if (selectedAssignment?.id === a.id) setSelectedAssignment(null);
                       qc.invalidateQueries(['notebook-assignments', className]);
                     }}
                     className="px-2 py-1 rounded-full text-xs font-bold text-red-400 border border-red-800 hover:bg-red-900">
-                    🗑
+                    Archive
                   </button>
                 </div>
               </motion.div>
             ))}
 
-            {/* Shared library from other classes */}
-            {sharedAssignments.filter(a => a.class_name !== className).length > 0 && (
-              <div className="mt-2">
-                <p className="text-indigo-300 text-xs font-bold uppercase mb-2">🌐 Shared Library — from other classes</p>
-                {sharedAssignments.filter(a => a.class_name !== className).map(a => (
-                  <div key={a.id} className="rounded-2xl p-4 flex items-center gap-3 mb-2"
-                    style={{ background: '#0f0f24', border: '1px dashed #4338ca' }}>
-                    <span className="text-2xl">📓</span>
-                    <div className="flex-1">
-                      <p className="font-black text-white text-sm">{a.title}</p>
-                      <p className="text-indigo-400 text-xs">From class {a.class_name} · {a.pdf_page_count || '?'} pages</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const pageCount = a.pdf_page_count || 1;
-                        await base44.entities.DigitalNotebookAssignment.create({
-                          title: a.title,
-                          class_name: className,
-                          pdf_url: a.pdf_url,
-                          pdf_page_count: pageCount,
-                          status: 'draft',
-                          page_mode: 'free',
-                          page_range_start: 1,
-                          page_range_end: pageCount,
-                          page_count: pageCount,
-                          shared_across_classes: true,
-                        });
-                        qc.invalidateQueries(['notebook-assignments', className]);
-                      }}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white whitespace-nowrap"
-                      style={{ background: '#4338ca', border: '1px solid #6366f1' }}>
-                      + Add to my class
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
