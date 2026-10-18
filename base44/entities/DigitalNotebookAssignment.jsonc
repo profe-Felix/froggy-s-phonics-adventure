@@ -56,6 +56,25 @@
       "type": "integer",
       "description": "Last allowed page (free mode, when limit_pages=true)"
     },
+    "letter_help": {
+      "type": "array",
+      "default": [],
+      "description": "Shared page/range letter-formation help; normalized page pins, targets and default replay speed. Never student ink.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "pageStart": { "type": "integer", "minimum": 1 },
+          "pageEnd": { "type": "integer", "minimum": 1 },
+          "letters": { "type": "array", "items": { "type": "string" } },
+          "x": { "type": "number", "minimum": 0.02, "maximum": 0.98 },
+          "y": { "type": "number", "minimum": 0.02, "maximum": 0.98 },
+          "speed": { "type": "number", "enum": [0.25, 0.5, 1] },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["id", "pageStart", "pageEnd", "letters", "x", "y", "speed", "enabled"]
+      }
+    },
     "audio_instructions": {
       "type": "array",
       "items": {

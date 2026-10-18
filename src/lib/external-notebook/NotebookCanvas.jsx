@@ -43,7 +43,7 @@ const overlayStyle = { position: "absolute", inset: 0, display: "flex", flexDire
   justifyContent: "center", gap: 8, fontSize: 14, color: "hsl(200 15% 40%)", pointerEvents: "none", textAlign: "center", padding: 16 };
 
 export function NotebookCanvas({ workbook, page, imageUrl, strokes = [], canDraw = false, tool = "pen", color = "#1d3a46",
-  width = 0.004, eraserWidth = 0.035, onStroke, onErase, onPixelErase, onPan, onDrawStart, onError, finishRef, className }) {
+  width = 0.004, eraserWidth = 0.035, onStroke, onErase, onPixelErase, onPan, onDrawStart, onError, finishRef, className, pageOverlay }) {
   const validGeometry = validDim(workbook?.width) && validDim(workbook?.height);
   const ratio = validGeometry ? workbook.height / workbook.width : 1;
   const H = W * ratio;
@@ -378,6 +378,7 @@ export function NotebookCanvas({ workbook, page, imageUrl, strokes = [], canDraw
             stroke={tool === "eraser" ? "#dc2626" : "#4b5563"} strokeOpacity={0.7} strokeWidth={1.5} />}
         </g>
       </svg>
+      {pageOverlay}
       {failure && <div role="alert" data-testid="status-ink-error"
         style={{ position: "absolute", left: 12, right: 12, bottom: 12, padding: "10px 12px", borderRadius: 6, fontSize: 13,
           background: "hsl(0 70% 96%)", color: "hsl(0 60% 34%)", border: "1px solid hsl(0 55% 80%)" }}>

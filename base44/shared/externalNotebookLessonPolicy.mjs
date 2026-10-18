@@ -1,5 +1,6 @@
 import { resolveNotebookAssessmentAccess } from "./externalNotebookNativePolicy.mjs";
 import { resolveNotebookAssessmentControls, allowsOpenNotebookTeacher } from "./externalNotebookControlPolicy.mjs";
+import { withNotebookLetterHelp } from "./notebookLetterHelp.mjs";
 
 const fail = () => { throw new Error("The saved notebook lesson could not be verified."); };
 const positive = value => Number.isSafeInteger(value) && value > 0;
@@ -181,6 +182,23 @@ export async function bootstrapNotebookExtension({
     { status: [401, 403, 409, 429].includes(response.status) ? response.status : 503, headers });
   onStage("session-contract");
   const session = await response.json(), pages = session.allowedPages;
+  // BEGIN SESSION CONTRACT DIAGNOSTICS
+  // Only field names, never signed capabilities, rosters, or upstream bodies.
+  const mismatch = [
+    [session.contractVersion !== 1, "version"],
+    [session.role !== request.role || session.kind !== request.kind, "role-kind"],
+    [session.sourceId !== body.sourceId || (request.stepId && session.stepId !== request.stepId), "source"],
+    [!teacher && session.studentNumber !== request.studentNumber, "student-number"],
+    [typeof session.accessToken !== "string" || !session.accessToken, "capability"],
+    [!Number.isSafeInteger(session.expiresAtMs) || session.expiresAtMs <= Date.now() || session.expiresAtMs > Date.now() + 11 * 60 * 1000, "expiry"],
+    [session.classroom?.id !== session.classId || session.classroom?.workbookId !== session.workbookId || session.workbook?.id !== session.workbookId, "workbook-scope"],
+    [session.workbook?.pageCount !== count, "page-count"],
+    [typeof session.canWrite !== "boolean" || (session.canWrite && (teacher || recoveryOnly || !request.canWrite)), "write-policy"],
+    [pages !== null && (!Array.isArray(pages) || !pages.length || new Set(pages).size !== pages.length || pages.some(page => !positive(page) || page > count)), "pages"],
+    [request.allowedPages !== null && (pages === null || !Array.isArray(pages) || pages.some(page => !request.allowedPages.includes(page))), "page-scope"],
+  ].find(([bad]) => bad);
+  if (mismatch) { onStage(`session-contract-${mismatch[1]}`); fail(); }
+  // END SESSION CONTRACT DIAGNOSTICS
   if (session.contractVersion !== 1 || session.role !== request.role || session.kind !== request.kind ||
       session.sourceId !== body.sourceId || (request.stepId && session.stepId !== request.stepId) ||
       (!teacher && session.studentNumber !== request.studentNumber) ||
@@ -200,7 +218,8 @@ export async function bootstrapNotebookExtension({
     ...(!teacher ? { studentNumber: request.studentNumber } : {}),
     backendOrigin: notebookOrigin, accessToken: session.accessToken, expiresAtMs: session.expiresAtMs,
     classId: session.classId, workbookId: session.workbookId, canWrite: session.canWrite,
-    allowedPages: pages, classroom: session.classroom, workbook: session.workbook,
+    allowedPages: pages, classroom: session.classroom,
+    workbook: await withNotebookLetterHelp(session.workbook, assignment, svc),
   }, { headers });
 }
 

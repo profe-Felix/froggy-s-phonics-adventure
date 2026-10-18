@@ -8,13 +8,14 @@ const source = stripTypeScriptTypes(await readFile(entry, "utf8"))
   .replace('"npm:@base44/sdk@0.8.54"', JSON.stringify(sdk))
   .replace('"../../shared/externalNotebookMapping.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookMapping.mjs", import.meta.url).href))
   .replace('"../../shared/externalNotebookNativePolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookNativePolicy.mjs", import.meta.url).href))
-  .replace('"../../shared/externalNotebookLessonPolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookLessonPolicy.mjs", import.meta.url).href));
+  .replace('"../../shared/externalNotebookLessonPolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookLessonPolicy.mjs", import.meta.url).href))
+  .replace('"../../shared/notebookLetterHelp.mjs"', JSON.stringify(new URL("../base44/shared/notebookLetterHelp.mjs", import.meta.url).href));
 const { default: handler } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
 function fixture(t) {
   const previous = { sdk: globalThis.__bootstrapSDK, deno: globalThis.Deno, fetch: globalThis.fetch };
   const h = {
     config: { appId: "app", className: "Class", schoolYear: "26-27", assignmentId: "assignment" },
-    user: { id: "admin", role: "admin" }, reads: [], requests: [], patch: {}, dictations: [],
+    user: { id: "admin", role: "admin" }, reads: [], requests: [], patch: {}, dictations: [], models: [],
     student: { id: "student", class_name: "Class", school_year: "26-27", student_number: 4 },
     assignment: { id: "assignment", class_name: "Class", status: "active", pdf_page_count: 206 },
     assessment: { id: "assessment", assignment_id: "assignment", class_name: "Class", school_year: "26-27",
@@ -37,9 +38,11 @@ function fixture(t) {
       ["LiveNotebookAssessment", "assessment"], ["LiveLessonSession", "lessonSession"],
       ["Lesson", "lesson"], ["SmallGroupLesson", "lesson"],
       ["LiveDictationSession", "dictations"],
+      ["LetterWaypoint", "models"],
     ].map(([entity, key]) => [entity, {
       get: async () => { h.reads.push(entity); return structuredClone(h[key]); },
       filter: async () => key === "dictations" ? h.dictations : [],
+      list: async () => key === "models" ? h.models : [],
     }])) },
   });
   globalThis.fetch = async (url, init) => {
@@ -74,6 +77,27 @@ test("teacher assessment authenticates, synchronizes once, then receives a read-
   assert.equal(h.requests.length, 2);
   assert.equal(h.requests[0].body.currentPage, 9);
   assert.equal(h.requests[1].body.role, "teacher");
+});
+test("real bootstrap handler carries letter help for direct, lesson and assessment student entry", async t => {
+  const h = fixture(t);
+  h.assignment.letter_help = [{
+    id: 'help-live', pageStart: 9, pageEnd: 10, letters: ['d', 't'],
+    x: .85, y: .08, speed: .5, enabled: true,
+  }];
+  h.models = [{ letter: 'd', strokes_data: JSON.stringify([[{ x: .1, y: .1 }, { x: .1, y: .633 }]]) }];
+  for (const request of [
+    { kind: 'assignment', sourceId: 'assignment', studentId: 'student' },
+    { kind: 'lesson', sourceId: 'live', stepId: '0', studentId: 'student' },
+    { kind: 'assessment', sourceId: 'assessment', studentId: 'student' },
+  ]) {
+    const response = await h.call(request);
+    assert.equal(response.status, 200, `${request.kind} should connect`);
+    const payload = await response.json();
+    assert.deepEqual(payload.workbook.letterHelp[0].letters, ['d', 't']);
+    assert.equal(payload.workbook.letterHelp[0].pageStart, 9);
+    assert.equal(payload.workbook.letterHelpWaypoints.d.strokes[0][1].y, .633);
+    assert.equal(payload.workbook.id, 'workbook');
+  }
 });
 test("unauthorized teacher is rejected before loading records", async t => {
   const h = fixture(t); h.user = { id: "other", role: "user" };

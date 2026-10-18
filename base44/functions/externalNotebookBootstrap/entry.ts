@@ -2,6 +2,7 @@ import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
 import { prepareNotebookRequest } from "../../shared/externalNotebookMapping.mjs";
 import { resolveNotebookAssessmentAccess } from "../../shared/externalNotebookNativePolicy.mjs";
 import { bootstrapNotebookExtension } from "../../shared/externalNotebookLessonPolicy.mjs";
+import { withNotebookLetterHelp } from "../../shared/notebookLetterHelp.mjs";
 
 // The server supplies Deno; this declaration is only for the code editor.
 declare const Deno: {
@@ -330,7 +331,7 @@ export default async function(req: Request) {
       canWrite: session.canWrite,
       allowedPages: allowed,
       classroom: session.classroom,
-      workbook: session.workbook,
+      workbook: await withNotebookLetterHelp(session.workbook, assignment, svc),
     }, { headers });
   } catch (error: any) {
     // Never echo SDK/upstream errors, credentials, tokens, or roster records.

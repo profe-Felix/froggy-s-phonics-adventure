@@ -12,6 +12,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ACTIVE_SCHOOL_YEAR } from '@/lib/schoolYear';
 import { notebookLibrary, notebookLibraryFamily, notebookFileLibraryKey } from '@/lib/notebook-library.mjs';
 import BackButton from '@/components/ui/BackButton';
+import NotebookLetterHelpEditor from '@/components/notebook/NotebookLetterHelpEditor';
+import { normalizeLetterHelp } from '@/lib/notebookLetterHelp.mjs';
 import { useClassNames } from '@/hooks/useClassNames';
 import { useClassColors } from '@/hooks/useClassColors';
 import NotebookFeedbackModal from '@/components/notebook/NotebookFeedbackModal';
@@ -297,6 +299,14 @@ export default function TeacherNotebookDashboard({
     const file = e.dataTransfer?.files?.[0];
     if (!file || file.type !== 'application/pdf') return alert('Please drop a PDF file');
     await createLibraryAssignment(file);
+  };
+
+  const handleSaveLetterHelp = async (rules) => {
+    const assignmentId = selectedAssignment.id;
+    const letter_help = normalizeLetterHelp(rules,
+      Number(selectedAssignment.pdf_page_count || selectedAssignment.page_count) || 2000);
+    await updateAssignment.mutateAsync({ id: assignmentId, data: { letter_help } });
+    setSelectedAssignment(current => current?.id === assignmentId ? { ...current, letter_help } : current);
   };
 
   const handleSaveInstructions = async (instructions) => {
@@ -729,6 +739,9 @@ export default function TeacherNotebookDashboard({
                     </div>
                   )}
                 </div>
+
+                <NotebookLetterHelpEditor key={selectedAssignment.id}
+                  assignment={selectedAssignment} onSave={handleSaveLetterHelp} />
 
                 <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: '#1a1a2e', border: '1px solid #4338ca' }}>
                   <p className="text-indigo-200 font-bold text-sm">🔊 Instructions — Place speaker icons on the PDF</p>

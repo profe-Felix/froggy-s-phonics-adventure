@@ -17,6 +17,7 @@ import {
 } from "./NotebookToolbar";
 
 import { NotebookViewport } from "./NotebookViewport";
+import NotebookLetterHelp from "@/components/notebook/NotebookLetterHelp";
 
 const SIDE_KEY = "notebook-toolbar-side";
 
@@ -609,6 +610,7 @@ export function NotebookStudentView({
       <style>{CSS}</style>
 
       <div className="nbs-head">
+        {workbook?.letterHelpError && <span className="nbs-pill" data-tone="warn" role="status">{workbook.letterHelpError}</span>}
         <span
           className="nbs-pill"
           data-tone={connectionTone}
@@ -736,6 +738,9 @@ export function NotebookStudentView({
           aria-label="Worksheet"
         >
           <NotebookViewport
+            pageOverlay={<NotebookLetterHelp rules={workbook?.letterHelp}
+              teacherWaypoints={workbook?.letterHelpWaypoints} page={page} workbookId={workbook?.id}
+              finishGesture={() => typeof finishRef?.current === "function" ? finishRef.current() : false} />}
             ready={ready === true}
             fit={fit}
             workbook={workbook}
