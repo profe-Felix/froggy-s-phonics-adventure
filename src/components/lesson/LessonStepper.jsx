@@ -30,57 +30,138 @@ export default function LessonStepper({
   const activitySaveRef = useRef(null);
   const registerActivitySave = useCallback(save => { activitySaveRef.current = save; }, []);
   const leaveTaskRef = useRef(null);
+  const leaveRequestRef = useRef(null);
+  const activityOwnerRef = useRef(null);
   const mountedRef = useRef(false);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState('');
   const [activityGeneration, setActivityGeneration] = useState(0);
+
+  activityOwnerRef.current = {
+    key: JSON.stringify([
+      lessonId,
+      studentData?.id,
+      studentData?.class_name,
+      studentData?.school_year,
+      selectedStudent?.number,
+      selectedStudent?.class_name,
+      accessContext,
+      stepIdx,
+      viewMode,
+      activityGeneration,
+      steps.filter(step =>
+        step.live_scope !== 'live_only' &&
+        (accessContext !== 'home' || step.access_scope !== 'school_only')
+      )[stepIdx],
+    ]),
+    exit: onBack,
+  };
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
   const leaveActivity = (destination = 'overview') => {
-    if (leaveTaskRef.current) return leaveTaskRef.current;
     if (!mountedRef.current) return Promise.resolve(false);
+
+    const save = activitySaveRef.current;
+    const origin = activityOwnerRef.current?.key;
     const exit = onBack;
-    if (destination === 'path' && typeof exit !== 'function') {
-      setLeaveError('The lesson cannot return to the path yet. Keep this activity open.');
+
+    if (leaveTaskRef.current) {
+      const request = leaveRequestRef.current;
+      return (
+        request?.destination === destination &&
+        request.origin === origin &&
+        request.save === save &&
+        (destination !== 'path' || request.exit === exit)
+      )
+        ? leaveTaskRef.current
+        : Promise.resolve(false);
+    }
+
+    if (destination !== 'overview' && destination !== 'path') {
+      setLeaveError(
+        'The activity destination is not valid. Keep this activity open.'
+      );
       return Promise.resolve(false);
     }
+
+    if (destination === 'path' && typeof exit !== 'function') {
+      setLeaveError(
+        'The lesson cannot return to the path yet. Keep this activity open.'
+      );
+      return Promise.resolve(false);
+    }
+
+    const sameActivity = () =>
+      mountedRef.current &&
+      activityOwnerRef.current?.key === origin &&
+      activitySaveRef.current === save;
+
+    const sameRequest = () =>
+      sameActivity() &&
+      (destination !== 'path' || activityOwnerRef.current?.exit === exit);
+
     setLeaving(true);
     setLeaveError('');
+
     let closedNotebook = false;
+    leaveRequestRef.current = { destination, origin, save, exit };
+
     leaveTaskRef.current = Promise.resolve().then(async () => {
-      const save = activitySaveRef.current;
+      if (!sameRequest()) return false;
+
       if (save) {
         const closesNotebook = typeof save.close === 'function';
         const saved = await (closesNotebook ? save.close() : save());
-        if (!mountedRef.current) return false;
+
+        if (saved === true) closedNotebook = closesNotebook;
+
+        if (!sameRequest()) {
+          throw new Error('The activity changed while saving.');
+        }
+
         if (saved !== true) {
-          setLeaveError('Your notebook is still saving. Staying here; try the same button again after it reconnects.');
+          setLeaveError(
+            'Your notebook is still saving. Staying here; try the same button again after it reconnects.'
+          );
           return false;
         }
-        closedNotebook = closesNotebook;
       }
-      if (!mountedRef.current) return false;
+
+      if (!sameRequest()) return false;
+
       stopAllAudio();
+
       if (destination === 'path') {
-        if (await exit() === false) throw new Error('The lesson could not leave.');
+        if (await exit() === false) {
+          throw new Error('The lesson could not leave.');
+        }
+        if (!sameRequest()) return false;
       } else {
         setViewMode('overview');
       }
+
       return true;
     }).catch(() => {
-      if (mountedRef.current) {
-        // A confirmed close must not leave a dead engine on screen if the
-        // outer navigation fails. Reopen the same saved work on retry.
-        if (closedNotebook) setActivityGeneration(value => value + 1);
-        setLeaveError('The activity could not finish leaving. Staying here; try the same button again.');
+      if (sameActivity()) {
+        // Reopen only this saved activity after a failed exit. A stale result
+        // must never remount a newer student's notebook or lesson step.
+        if (closedNotebook) {
+          setActivityGeneration(value => value + 1);
+        }
+
+        setLeaveError(
+          'The activity could not finish leaving. Staying here; try the same button again.'
+        );
       }
       return false;
     }).finally(() => {
       leaveTaskRef.current = null;
+      leaveRequestRef.current = null;
       if (mountedRef.current) setLeaving(false);
     });
+
     return leaveTaskRef.current;
   };
 
