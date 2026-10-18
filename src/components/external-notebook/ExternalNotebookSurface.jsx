@@ -3,7 +3,7 @@ import { EXTERNAL_NOTEBOOK_CONFIG } from "@/lib/external-notebook/config";
 import { persistentWorkKey } from "@/lib/external-notebook/context";
 import { bootstrapExternalNotebook } from "@/lib/external-notebook/client";
 import { mountNotebook } from "@/lib/external-notebook/engine";
-import { createNotebookTransport } from "@/lib/external-notebook/transport";
+import { createNotebookRenewableTransport } from "@/lib/external-notebook/renewable-transport";
 import { openNotebookPersistence } from "@/lib/external-notebook/persistence";
 import { createNotebookHostSession } from "@/lib/external-notebook/host-session";
 
@@ -18,6 +18,8 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   latestComplete.current = onComplete;
   const saving = useRef(null);
   const finishing = useRef(false);
+  const retrying = useRef(null);
+  const [connection, setConnection] = useState(null);
   const [screen, setScreen] = useState({
     ready: false, failed: false, busy: false, applied: null,
     status: "Opening notebook…",
@@ -62,14 +64,19 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       const workKey = initial.role === "student"
         ? persistentWorkKey(initial, EXTERNAL_NOTEBOOK_CONFIG.appId)
         : JSON.stringify(["teacher", EXTERNAL_NOTEBOOK_CONFIG.appId, initial.schoolYear, initial.className, initial.assignmentId]);
-      owner.current = {
-        host: createNotebookHostSession({
+      const entry = {};
+      entry.host = createNotebookHostSession({
           element: element.current, context: initial, workKey,
           bootstrap: bootstrapExternalNotebook,
           openPersistence: openNotebookPersistence,
-          createTransport: createNotebookTransport, mount: mountNotebook,
-        }),
-      };
+          createTransport: createNotebookRenewableTransport, mount: mountNotebook,
+          onRenewalState: state => {
+            if (!entry.live || entry.released || owner.current !== entry) return;
+            entry.connection = state;
+            setConnection(state);
+          },
+        });
+      owner.current = entry;
     }
     const entry = owner.current;
     entry.live = true;
@@ -111,7 +118,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       return false;
     }).finally(() => {
       saving.current = null;
-      if (entry.live) setScreen(value => ({ ...value, busy: finishing.current || !!entry.leaving }));
+      if (entry.live) setScreen(value => ({ ...value, busy: finishing.current || !!retrying.current || !!entry.leaving }));
     });
     return saving.current;
   }
@@ -125,7 +132,7 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       if (!entry?.live) return Promise.resolve(false);
       if (entry.released) return Promise.resolve(true);
       if (entry.leaving) return entry.leaving;
-      if (finishing.current) return Promise.resolve(false);
+      if (finishing.current || retrying.current) return Promise.resolve(false);
       setScreen(value => ({ ...value, busy: true }));
       entry.leaving = Promise.resolve().then(async () => {
         if (finishing.current || await flush() !== true) return false;
@@ -150,8 +157,44 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
     return () => { registerSave?.(null); };
   }, [registerSave]);
 
+  function retryConnection() {
+    if (retrying.current) return retrying.current;
+    const entry = owner.current, requested = latestContext.current;
+    if (!entry?.live || entry.released || entry.leaving || saving.current || finishing.current) {
+      return Promise.resolve(false);
+    }
+    const current = () => entry.live && owner.current === entry &&
+      !entry.released && requested === latestContext.current;
+    setScreen(value => ({ ...value, busy: true }));
+    retrying.current = Promise.resolve().then(async () => {
+      if (!current()) return false;
+      await entry.host.start();
+      if (!current()) return false;
+      // Recover credentials BEFORE trying to drain/reapply the held context.
+      if (await entry.host.renew() !== true) {
+        throw new Error("The notebook connection is not renewed.");
+      }
+      if (!current()) return false;
+      if (entry.applied !== requested && !await applyContext(true)) return false;
+      if (!current()) return false;
+      // Renewal readiness alone must not clear a saving/context error.
+      return await flush();
+    }).catch(() => {
+      if (current()) {
+        report(entry, "The notebook could not reconnect safely. Keep this page open and retry. Existing work was not discarded.");
+      }
+      return false;
+    }).finally(() => {
+      retrying.current = null;
+      if (entry.live && owner.current === entry) {
+        setScreen(value => ({ ...value, busy: !!saving.current || finishing.current || !!entry.leaving }));
+      }
+    });
+    return retrying.current;
+  }
+
   const complete = async () => {
-    if (finishing.current || owner.current?.leaving || typeof latestComplete.current !== "function") return;
+    if (finishing.current || retrying.current || owner.current?.leaving || typeof latestComplete.current !== "function") return;
     const entry = owner.current, requested = latestContext.current;
     const callback = latestComplete.current;
     finishing.current = true;
@@ -169,16 +212,24 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
     }
   };
 
+  const renewalFailed = !connection?.closed && !!connection?.error;
+  const renewalStatus = connection?.closed ? "" :
+    connection?.renewing ? "Refreshing notebook connection…" : connection?.error || "";
   const blockNewInput = event => {
-    if (saving.current || finishing.current || owner.current?.leaving || !screen.ready || screen.applied !== context) {
+    if (saving.current || finishing.current || retrying.current || owner.current?.leaving || !screen.ready || screen.applied !== context) {
       event.preventDefault(); event.stopPropagation();
     }
   };
   return <section style={{ position: "relative", height: "100%", minHeight: 320 }} aria-label="Live notebook">
     <div ref={element} style={{ height: "100%", minHeight: 320 }} onPointerDownCapture={blockNewInput} />
-    {screen.status && <div role={screen.failed ? "alert" : "status"} style={{ padding: 16 }}>
-      <p>{screen.status}</p>
-      {screen.failed && <button type="button" disabled={screen.busy} onClick={() => { void applyContext(true); }}>
+    {(screen.status || renewalStatus) && <div role={screen.failed || renewalFailed ? "alert" : "status"} style={{
+      position: "absolute", top: 12, left: 12, right: 12, maxWidth: 520,
+      zIndex: 30, padding: 12, background: "#fff", border: "1px solid #d4d4d4",
+      borderRadius: 8, pointerEvents: screen.failed || renewalFailed ? "auto" : "none",
+    }}>
+      {screen.status && <p>{screen.status}</p>}
+      {renewalStatus && <p>{renewalStatus}</p>}
+      {(screen.failed || renewalFailed) && <button type="button" disabled={screen.busy} onClick={() => { void retryConnection(); }}>
         Retry notebook connection
       </button>}
     </div>}
