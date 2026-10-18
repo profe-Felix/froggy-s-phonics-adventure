@@ -30,6 +30,7 @@ export function createNotebookLiveChannel({
 
   let generation = 0, socket = null, hello = null, connected = false;
   let started = false, closed = false, blocked = false, attempts = 0, error = null;
+  let suspended = false;
   let retryTimer = null, expiryTimer = null;
   let events = Promise.resolve();
 
@@ -43,6 +44,7 @@ export function createNotebookLiveChannel({
     connecting: !!hello,
     blocked,
     closed,
+    suspended,
     error: error?.message || "",
     status: error?.status || 0,
   });
@@ -70,7 +72,7 @@ export function createNotebookLiveChannel({
   }
 
   function fail(epoch, reason) {
-    if (epoch !== generation || closed) return;
+    if (epoch !== generation || closed || suspended) return;
 
     clearRetry();
     generation++;
@@ -104,7 +106,7 @@ export function createNotebookLiveChannel({
     old?.close();
     notify();
 
-    if (started && !blocked) {
+    if (started && !blocked && !suspended && !closed) {
       clearRetry();
 
       const delay = Math.min(
@@ -208,6 +210,12 @@ export function createNotebookLiveChannel({
       );
     }
 
+    if (suspended) {
+      return Promise.reject(
+        makeError("The notebook connection is renewing; local work is retained.", 408)
+      );
+    }
+
     if (expired()) {
       fail(
         generation,
@@ -259,13 +267,17 @@ export function createNotebookLiveChannel({
 
     expiryTimer = setTimeout(
       () => fail(
-        generation,
+        epoch,
         makeError("Notebook access expired. Reconnect through Base44.", 401)
       ),
       Math.min(2147483647, Math.max(1, expiresAtMs - Date.now()))
     );
 
-    Promise.resolve().then(() => transport.openSocket({
+    Promise.resolve().then(() => {
+      if (closed || suspended || epoch !== generation) {
+        throw makeError("The notebook connection changed before opening.", 408);
+      }
+      return transport.openSocket({
       classId,
       studentNumber,
       clientId,
@@ -287,7 +299,8 @@ export function createNotebookLiveChannel({
               : 503
         )
       ),
-    })).then(candidate => {
+      });
+    }).then(candidate => {
       if (closed || epoch !== generation) {
         candidate.close();
         return;
@@ -308,7 +321,11 @@ export function createNotebookLiveChannel({
     }
 
     const pending = connect();
-    if (!signal) return pending;
+    const epoch = generation;
+    if (!signal) {
+      await pending;
+      return epoch;
+    }
 
     let abort;
 
@@ -327,10 +344,54 @@ export function createNotebookLiveChannel({
     } finally {
       if (abort) signal.removeEventListener("abort", abort);
     }
+    return epoch;
   }
 
   return {
     connect,
+
+    suspendForRenewal() {
+      if (closed) return false;
+      if (suspended) return true;
+      suspended = true;
+      generation++;
+      connected = false;
+      blocked = false;
+      clearRetry();
+      clearTimeout(expiryTimer);
+      expiryTimer = null;
+      events = Promise.resolve();
+      error = makeError("The notebook connection is renewing; local work is retained.", 408);
+      if (hello) {
+        const pending = hello;
+        hello = null;
+        clearTimeout(pending.timer);
+        pending.reject(error);
+      }
+      for (const id of [...waiting.keys()]) settle(id, error);
+      const old = socket;
+      socket = null;
+      old?.close();
+      notify();
+      return true;
+    },
+
+    // Only after committing a verified transport session. Omitting expiry is
+    // solely for cancelling preparation while the OLD transport is unchanged.
+    resumeAfterRenewal({ expiresAtMs: nextExpiry = expiresAtMs } = {}) {
+      if (closed || !suspended) {
+        return Promise.reject(makeError("Suspend the existing connection before resuming.", 409));
+      }
+      if (!Number.isSafeInteger(nextExpiry) || nextExpiry < expiresAtMs || nextExpiry <= Date.now()) {
+        return Promise.reject(makeError("A current verified notebook session is required.", 401));
+      }
+      expiresAtMs = nextExpiry;
+      suspended = false;
+      blocked = false;
+      attempts = 0;
+      error = null;
+      return connect();
+    },
 
     getState: state,
 
@@ -348,7 +409,10 @@ export function createNotebookLiveChannel({
         throw makeError("Invalid notebook save request.", 400);
       }
 
-      await waitUntilConnected(signal);
+      const epoch = await waitUntilConnected(signal);
+      if (closed || suspended || epoch !== generation) {
+        throw makeError("The live connection changed before sending; local work is retained.", 408);
+      }
 
       if (signal?.aborted) {
         throw makeError("This save was cancelled; local work is retained.", 408);
