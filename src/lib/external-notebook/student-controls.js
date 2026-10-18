@@ -41,11 +41,13 @@ export function createNotebookStudentControls({
     classId,
     workbookId,
     studentNumber,
-    expiresAtMs,
-    canWrite,
     kind,
     sourceId,
+    backendOrigin,
   } = session;
+
+  let { expiresAtMs, canWrite } = session;
+  let sessionGeneration = 0;
 
   if (
     initialContext?.role !== "student" ||
@@ -102,7 +104,7 @@ export function createNotebookStudentControls({
     );
   }
 
-  const allowedPages =
+  let allowedPages =
     pages === null
       ? null
       : Object.freeze(
@@ -168,8 +170,46 @@ export function createNotebookStudentControls({
 
   classroom = readClass(session.classroom);
 
+  function sameContext(value) {
+    return value?.role === "student" && value.kind === kind &&
+      value.sourceId === sourceId && value.student?.number === studentNumber &&
+      value.student.id === binding.studentId &&
+      ["assignmentId", "className", "schoolYear"].every(key => value[key] === binding[key]) &&
+      value.student.className === binding.className && value.student.schoolYear === binding.schoolYear &&
+      (kind !== "lesson" || value.stepId === binding.stepId);
+  }
+
   return {
-    receive(message) {
+    // Call only with a verified bootstrap, after invalidating the old channel.
+    // This changes UI policy, not transport credentials or saved/local work.
+    replaceSession(next, { context = initialContext, nowMs = Date.now() } = {}) {
+      if (!Number.isSafeInteger(nowMs) || nowMs < 0 || !sameContext(context) ||
+          sessionGeneration === Number.MAX_SAFE_INTEGER) {
+        throw new Error("Renewal must keep the same student, assignment and lesson step.");
+      }
+      const checked = createNotebookStudentControls({ session: next, context });
+      if (next.classId !== classId || next.workbookId !== workbookId ||
+          next.studentNumber !== studentNumber || next.role !== "student" ||
+          next.kind !== kind || next.sourceId !== sourceId ||
+          next.backendOrigin !== backendOrigin || next.workbook.pageCount !== count ||
+          next.expiresAtMs <= expiresAtMs || next.expiresAtMs <= nowMs) {
+        throw new Error("Renewal cannot change notebook scope or reuse an expired session.");
+      }
+      const nextPages = checked.getState({ context, nowMs }).allowedPages;
+      expiresAtMs = next.expiresAtMs;
+      canWrite = next.canWrite;
+      allowedPages = nextPages;
+      if (ownPage !== null && !allowed(ownPage)) ownPage = null;
+      seenReady = false;
+      error = null;
+      sessionGeneration++;
+      // Keep the last live classroom controls until the NEW ready arrives.
+      return sessionGeneration;
+    },
+    receive(message, { sessionGeneration: expectedGeneration = 0 } = {}) {
+      // Legacy callers belong to the initial session only. After renewal they
+      // cannot unlock input, even if an old asynchronous ready arrives late.
+      if (expectedGeneration !== sessionGeneration) return false;
       if (
         !["ready", "classroom"].includes(
           message?.type
@@ -259,27 +299,7 @@ export function createNotebookStudentControls({
           studentNumber
         );
 
-      const sameSource =
-        context?.role === "student" &&
-        context.kind === kind &&
-        context.sourceId === sourceId &&
-        context.student?.number === studentNumber &&
-        context.student.id === binding.studentId &&
-        [
-          "assignmentId",
-          "className",
-          "schoolYear",
-        ].every(key =>
-          context[key] === binding[key]
-        ) &&
-        context.student.className ===
-          binding.className &&
-        context.student.schoolYear ===
-          binding.schoolYear &&
-        (
-          kind !== "lesson" ||
-          context.stepId === binding.stepId
-        );
+      const sameSource = sameContext(context);
 
       const targets =
         context?.targetStudents ?? [];
@@ -372,6 +392,7 @@ export function createNotebookStudentControls({
         inGroup,
         expired,
         hasLiveControls: seenReady,
+        sessionGeneration,
         canDraw: reason === null,
         canSend,
         reason,
