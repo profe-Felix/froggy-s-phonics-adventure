@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { sightWordIntroductions, newSightWordsAt, knownSightWordsAt, latestSightWordIntroduction } from '../src/lib/literacy/sightWordProgression.mjs';
 import { elkoninTargets } from '../src/lib/literacy/elkoninTargets.mjs';
+import { createElkoninPromptQueue } from '../src/lib/literacy/elkoninPromptQueue.mjs';
 
 const at = (moduleNumber, lessonNumber) => ({ moduleNumber, lessonNumber });
 const source = name => readFile(new URL(`../src/${name}`, import.meta.url), 'utf8');
@@ -73,6 +74,88 @@ test('student Elkonin has numbered navigation, no answer text or syllable toolti
   assert.match(activity, /onError: failed/);
   assert.match(activity, /if \(i !== null\) setHeard/);
   assert.doesNotMatch(activity, /No audio for this syllable → counts as already heard/);
+  assert.doesNotMatch(activity, /'Escuchar palabra'/);
+});
+
+test('rapid counter taps queue in order, coalesce repeated taps, and continue after errors', async () => {
+  const queue = createElkoninPromptQueue();
+  const played = [];
+  let finish;
+  const first = queue.enqueue('0', () => new Promise(resolve => { played.push(0); finish = resolve; }));
+  assert.equal(queue.enqueue('0', () => { throw new Error('Duplicate'); }), first);
+  const second = queue.enqueue('1', () => { played.push(1); throw new Error('Audio unavailable'); });
+  const handled = second.catch(() => false);
+  const third = queue.enqueue('2', () => { played.push(2); return true; });
+  await Promise.resolve();
+  assert.deepEqual(played, [0]);
+  finish(true);
+  await first; await handled; await third;
+  assert.deepEqual(played, [0, 1, 2]);
+});
+
+test('leaving a word discards its queued prompts', async () => {
+  const queue = createElkoninPromptQueue();
+  let finish;
+  const first = queue.enqueue('0', () => new Promise(resolve => { finish = resolve; }));
+  const second = queue.enqueue('1', () => { throw new Error('Old word must not play'); });
+  await Promise.resolve();
+  queue.stop(); finish(false);
+  await first;
+  assert.equal(await second, false);
+});
+
+async function counterHarness(lookup) {
+  let heard = [false, false], pending = [];
+  const started = [];
+  const recordings = [0, 1].map(i => ({
+    currentTime: 0, pause() {},
+    async play() { started.push(i); },
+  }));
+  const context = vm.createContext({
+    promptRef: { current: null }, queueRef: { current: createElkoninPromptQueue() },
+    lookupsRef: { current: { syllables: [lookup || Promise.resolve(), Promise.resolve()] } },
+    syllAudioRefs: { current: recordings }, wordAudioRef: { current: null },
+    word: 'toro', syllables: ['to', 'ro'], markersToPretty: value => value,
+    setHeard: update => { heard = update(heard); },
+    setPendingCounters: update => { pending = update(pending); },
+    setAudioError() {}, setSpeaking() {}, AbortController, setTimeout, clearTimeout,
+    playTts: async () => { throw new Error('Recording should play first'); },
+  });
+  const raw = await source('components/workstations/ElkoninActivity.jsx');
+  vm.runInContext(raw.slice(raw.indexOf('  const runPrompt ='), raw.indexOf('  const onReveal ='))
+    + '\nglobalThis.tap = playPrompt;', context);
+  return { tap: context.tap, recordings, started, heard: () => Array.from(heard), pending: () => Array.from(pending) };
+}
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('actual counter handlers turn both counters green after two rapid taps', async () => {
+  const h = await counterHarness();
+  h.tap(0); h.tap(1); h.tap(0);
+  assert.deepEqual(h.pending(), [0, 1]);
+  await tick();
+  assert.deepEqual(h.started, [0]);
+  h.recordings[0].onended();
+  await tick();
+  assert.deepEqual(h.heard(), [true, false]);
+  assert.deepEqual(h.started, [0, 1]);
+  h.recordings[1].onended();
+  await tick();
+  assert.deepEqual(h.heard(), [true, true]);
+  assert.deepEqual(h.pending(), []);
+});
+
+test('a counter tapped before its recording lookup finishes is retained', async () => {
+  let ready;
+  const h = await counterHarness(new Promise(resolve => { ready = resolve; }));
+  h.tap(0);
+  await tick();
+  assert.deepEqual(h.started, []);
+  assert.deepEqual(h.pending(), [0]);
+  ready(); await tick();
+  assert.deepEqual(h.started, [0]);
+  h.recordings[0].onended();
+  await tick();
+  assert.deepEqual(h.heard(), [true, false]);
 });
 
 async function audioHarness({ rejectAudio = false, cloudUrl = 'https://example.invalid/audio.mp3', browser = true } = {}) {

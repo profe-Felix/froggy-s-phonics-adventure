@@ -3,6 +3,7 @@ import { markersToPretty } from '@/lib/markers';
 import { syllabifyEs } from '@/lib/spanishSyllables';
 import { resolveImageForWord, resolveSyllableAudio, resolveWordAudio } from '@/lib/supabaseStorage';
 import { playTts } from '@/lib/audio';
+import { createElkoninPromptQueue } from '@/lib/literacy/elkoninPromptQueue.mjs';
 
 // Student activity: Elkonin boxes. Each syllable has a counter; tap to hear it.
 // When every counter has actually finished playing, the reveal button
@@ -27,11 +28,17 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
   const [audioError, setAudioError] = useState('');
   const [speaking, setSpeaking] = useState(null);
   const [wordReady, setWordReady] = useState(false);
+  const queueRef = useRef(createElkoninPromptQueue());
+  const lookupsRef = useRef({ word: Promise.resolve(), syllables: [] });
+  const [pendingCounters, setPendingCounters] = useState([]);
 
   const word = words[index] || '';
 
   useEffect(() => {
     let cancelled = false;
+    queueRef.current.stop();
+    queueRef.current = createElkoninPromptQueue();
+    setPendingCounters([]);
     const pretty = markersToPretty(word);
     setRevealed(false);
     setImgUrl(null);
@@ -47,12 +54,12 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
 
     resolveImageForWord(pretty, media.images).then((url) => { if (!cancelled) setImgUrl(url); })
       .catch(() => { if (!cancelled) setImgUrl(null); });
-    resolveWordAudio(pretty, media.wordAudio).then((url) => {
+    lookupsRef.current.word = resolveWordAudio(pretty, media.wordAudio).then((url) => {
       if (cancelled) return;
       if (url) { const a = new Audio(url); a.preload = 'auto'; wordAudioRef.current = a; }
       setWordReady(true);
     }).catch(() => { if (!cancelled) setWordReady(true); });
-    syls.forEach((s, i) => {
+    lookupsRef.current.syllables = syls.map((s, i) =>
       resolveSyllableAudio(pretty, s, i, media.syllableAudio).then((url) => {
         if (cancelled) return;
         if (url) {
@@ -62,38 +69,47 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
         setHasAudio((p) => { const n = [...p]; n[i] = true; return n; });
       }).catch(() => {
         if (!cancelled) setHasAudio(p => { const n = [...p]; n[i] = true; return n; });
-      });
-    });
+      })
+    );
     return () => {
       cancelled = true;
+      queueRef.current.stop();
       promptRef.current?.abort();
       syllAudioRefs.current.forEach(a => a?.pause());
       wordAudioRef.current?.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [word, rebuildKey]);
+  }, [word, index, rebuildKey]);
 
   const allHeard = heard.length > 0 && heard.every(Boolean);
 
-  const playPrompt = async (i = null) => {
-    if (i === null ? !wordReady : !hasAudio[i]) return;
+  const runPrompt = (i = null) => new Promise(resolve => {
     promptRef.current?.abort();
     const owner = new AbortController();
     promptRef.current = owner;
     setAudioError('');
-    setSpeaking(i === null ? 'word' : i);
+    const settle = value => { clearTimeout(timeout); resolve(value); };
+    const timeout = setTimeout(() => { failed(); owner.abort(); }, 45000);
+    owner.signal.addEventListener('abort', () => settle(false), { once: true });
     const finished = () => {
       if (owner.signal.aborted || promptRef.current !== owner) return;
       setSpeaking(null);
       if (i !== null) setHeard(p => { const n = [...p]; n[i] = true; return n; });
+      settle(true);
     };
     const text = i === null ? markersToPretty(word) : syllables[i];
-    const recording = i === null ? wordAudioRef.current : syllAudioRefs.current[i];
     const failed = () => {
       if (owner.signal.aborted || promptRef.current !== owner) return;
       setSpeaking(null);
       setAudioError('No se pudo reproducir el audio. Toca para intentarlo otra vez.');
+      settle(false);
     };
+    const start = async () => {
+    // A tap during lookup is retained, not discarded because audio isn't ready.
+    await (i === null ? lookupsRef.current.word : lookupsRef.current.syllables[i]);
+    if (owner.signal.aborted) return;
+    setSpeaking(i === null ? 'word' : i);
+    const recording = i === null ? wordAudioRef.current : syllAudioRefs.current[i];
     const fallback = () => playTts(text, 'es', 0.85, '', finished, { signal: owner.signal, onError: failed });
     let started = false;
     try {
@@ -113,6 +129,22 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
     if (!started && !owner.signal.aborted) {
       failed();
     }
+    };
+    void start().catch(failed);
+  });
+
+  const playPrompt = (i = null) => {
+    const queue = queueRef.current;
+    const key = i === null ? 'word' : `syllable:${i}`;
+    if (queue.has(key)) return;
+    if (i !== null) setPendingCounters(p => [...p, i]);
+    void queue.enqueue(key, () => runPrompt(i)).catch(() => {
+      if (queueRef.current === queue) setAudioError('No se pudo reproducir el audio. Inténtalo otra vez.');
+    }).finally(() => {
+      if (queueRef.current === queue && i !== null) {
+        setPendingCounters(p => p.filter(counter => counter !== i));
+      }
+    });
   };
 
   const onReveal = () => {
@@ -162,12 +194,6 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
           />
         </div>
 
-        <button type="button" onClick={() => { void playPrompt(); }}
-          disabled={!wordReady}
-          aria-busy={speaking === 'word'}
-          className="mt-3 w-full py-3 rounded-xl font-bold border border-blue-300 text-blue-800 bg-blue-50">
-          {speaking === 'word' ? 'Escuchando…' : 'Escuchar palabra'}
-        </button>
         {audioError && <p role="alert" className="text-sm text-red-700 mt-2">{audioError}</p>}
 
         <button
@@ -186,13 +212,14 @@ export default function ElkoninActivity({ words, media, index: controlledIndex, 
                 onClick={() => { void playPrompt(i); }}
                 title={`Escuchar sílaba ${i + 1}`}
                 aria-label={`Escuchar sílaba ${i + 1}`}
-                aria-busy={speaking === i}
+                aria-busy={speaking === i || pendingCounters.includes(i)}
                 className="w-11 h-11 rounded-full border-2 border-gray-900 transition active:scale-95"
                 style={{
                   background: !hasAudio[i] ? '#d1d5db' : (heard[i] ? '#10b981' : '#111827'),
-                  cursor: hasAudio[i] ? 'pointer' : 'default',
-                  opacity: hasAudio[i] ? 1 : 0.55,
-                  borderColor: !hasAudio[i] ? '#9ca3af' : (heard[i] ? '#0f9a72' : '#111827'),
+                  cursor: 'pointer',
+                  opacity: 1,
+                  borderColor: pendingCounters.includes(i) ? '#f59e0b' : (!hasAudio[i] ? '#9ca3af' : (heard[i] ? '#0f9a72' : '#111827')),
+                  boxShadow: pendingCounters.includes(i) ? '0 0 0 3px #fef3c7' : 'none',
                 }}
               />
             </div>
