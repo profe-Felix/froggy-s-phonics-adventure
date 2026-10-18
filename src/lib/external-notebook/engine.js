@@ -40,6 +40,20 @@ export async function mountNotebook(options = {}) {
       if (closed) return false;
       return await runtime.flush() === true;
     },
+    async prepareRecovery(next, { isCurrent = () => true } = {}) {
+      if (closed || closing) throw new Error("This notebook engine is closed or closing.");
+      if (role !== "student" || next?.role !== role || next.kind !== "assessment") {
+        throw new Error("Recovery must keep the student assessment role.");
+      }
+      if (typeof isCurrent !== "function") throw new Error("A notebook recovery guard is required.");
+      if (typeof runtime.prepareRecovery !== "function") {
+        throw new Error("The mounted notebook does not support recovery preparation. Keep it open and update the student runtime.");
+      }
+      const current = () => !closed && !closing && owners.get(element) === owner && isCurrent() === true;
+      if (!current()) return false;
+      const prepared = await runtime.prepareRecovery(next, { isCurrent: current });
+      return prepared === true && current();
+    },
     async renewSession(next, { isCurrent = () => true } = {}) {
       if (closed || closing) throw new Error("This notebook engine is closed or closing.");
       if (next?.role !== role) {
