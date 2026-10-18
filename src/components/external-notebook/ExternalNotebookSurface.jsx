@@ -31,6 +31,74 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
     }
   }
 
+  function needsRecovery(value) {
+    if (value?.role !== "student" || value.kind !== "assessment") return false;
+    const targets = value.targetStudents ?? [], finished = value.finishedStudents ?? [];
+    const sameSeat = entry => entry?.class_name === value.student?.className &&
+      Number(entry.student_number) === value.student?.number;
+    return value.active !== true || value.blocked === true ||
+      !Array.isArray(targets) || !Array.isArray(finished) ||
+      finished.some(sameSeat) || (targets.length > 0 && !targets.some(sameSeat));
+  }
+
+  function recoverContext(entry, next) {
+    const current = () => entry?.live && owner.current === entry &&
+      !entry.released && next === latestContext.current;
+    if (!current() || next?.role !== "student" || next.kind !== "assessment") {
+      return Promise.resolve(false);
+    }
+    if (entry.recoverySaved === next && entry.recoveryHeld) return Promise.resolve(true);
+    if (entry.recovery) {
+      return entry.recoveryRequested === next ? entry.recovery : Promise.resolve(false);
+    }
+
+    // Lock new input synchronously, including the interval before a queued
+    // React render. Failure must not make the old activity editable again.
+    entry.recoveryHeld = true;
+    entry.recoveryRequested = next;
+    setScreen(value => ({
+      ...value,
+      busy: true,
+      status: "Saving pending notebook work…",
+    }));
+
+    entry.recovery = Promise.resolve().then(async () => {
+      if (!current()) return false;
+      await entry.host.start();
+      if (!current()) return false;
+
+      if (typeof entry.host.recover !== "function") {
+        throw new Error("The notebook host needs its recovery update.");
+      }
+
+      if (await entry.host.recover(next) !== true || !current()) {
+        throw new Error("Pending notebook work is not confirmed saved.");
+      }
+
+      entry.recoverySaved = next;
+      return true;
+    }).catch(() => {
+      if (current()) {
+        report(
+          entry,
+          "Pending work could not be recovered yet. This notebook stays locked and open. Retry the connection; no teacher approval is needed."
+        );
+      }
+      return false;
+    }).finally(() => {
+      entry.recovery = null;
+      if (entry.live && owner.current === entry) {
+        setScreen(value => ({
+          ...value,
+          busy: !!saving.current || finishing.current ||
+            !!retrying.current || !!entry.leaving,
+        }));
+      }
+    });
+
+    return entry.recovery;
+  }
+
   function applyContext(force = false) {
     const entry = owner.current, next = latestContext.current;
     if (!entry?.live) return Promise.resolve(false);
@@ -40,8 +108,30 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       if (!entry.live || next !== latestContext.current) return false;
       await entry.host.start();
       if (!entry.live || next !== latestContext.current) return false;
+      const held = entry.recoveryHeld === true;
+
+      if ((needsRecovery(next) || held) && !await recoverContext(entry, next)) {
+        return false;
+      }
+
+      if (!entry.live || next !== latestContext.current) return false;
+
       await entry.host.updateContext(next);
       if (!entry.live || next !== latestContext.current) return false;
+
+      if (held && !needsRecovery(next)) {
+        // Returning to an eligible activity requires fresh normal permission,
+        // not removal of a local lock or reuse of the recovery capability.
+        if (await entry.host.renew() !== true) {
+          throw new Error("Writing permission could not renew.");
+        }
+
+        if (!entry.live || next !== latestContext.current) return false;
+
+        entry.recoveryHeld = false;
+        entry.recoverySaved = null;
+      }
+
       entry.applied = next;
       setScreen(value => ({
         ...value, ready: true, failed: false, applied: next, status: "",
@@ -133,10 +223,32 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       if (entry.released) return Promise.resolve(true);
       if (entry.leaving) return entry.leaving;
       if (finishing.current || retrying.current) return Promise.resolve(false);
+
+      const requested = latestContext.current;
+      const current = () => entry.live && owner.current === entry &&
+        !entry.released && requested === latestContext.current;
+
       setScreen(value => ({ ...value, busy: true }));
+
       entry.leaving = Promise.resolve().then(async () => {
-        if (finishing.current || await flush() !== true) return false;
-        if (!entry.live || await entry.host.close() !== true) return false;
+        if (finishing.current || !current()) return false;
+
+        let saved = await flush() === true;
+        if (!current()) return false;
+
+        // Leaving may encounter pause/end before updated Base44 context arrives.
+        // This fallback is exit-only; an ordinary failed save never freezes an
+        // otherwise active notebook or requests a recovery capability.
+        if (
+          !saved &&
+          requested?.role === "student" &&
+          requested.kind === "assessment"
+        ) {
+          saved = await recoverContext(entry, requested) === true;
+        }
+
+        if (!saved || !current()) return false;
+        if (await entry.host.close() !== true || !current()) return false;
         entry.released = true;
         return true;
       }).catch(() => {
@@ -170,6 +282,12 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       if (!current()) return false;
       await entry.host.start();
       if (!current()) return false;
+      if (needsRecovery(requested) || entry.recoveryHeld) {
+        if (!await recoverContext(entry, requested) || !current()) return false;
+        if (!await applyContext(true) || !current()) return false;
+        return await flush();
+      }
+
       // Recover credentials BEFORE trying to drain/reapply the held context.
       if (await entry.host.renew() !== true) {
         throw new Error("The notebook connection is not renewed.");
@@ -194,7 +312,13 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   }
 
   const complete = async () => {
-    if (finishing.current || retrying.current || owner.current?.leaving || typeof latestComplete.current !== "function") return;
+    if (
+      finishing.current ||
+      retrying.current ||
+      owner.current?.leaving ||
+      owner.current?.recoveryHeld ||
+      typeof latestComplete.current !== "function"
+    ) return;
     const entry = owner.current, requested = latestContext.current;
     const callback = latestComplete.current;
     finishing.current = true;
@@ -216,7 +340,15 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
   const renewalStatus = connection?.closed ? "" :
     connection?.renewing ? "Refreshing notebook connection…" : connection?.error || "";
   const blockNewInput = event => {
-    if (saving.current || finishing.current || retrying.current || owner.current?.leaving || !screen.ready || screen.applied !== context) {
+    if (
+      saving.current ||
+      finishing.current ||
+      retrying.current ||
+      owner.current?.leaving ||
+      owner.current?.recoveryHeld ||
+      !screen.ready ||
+      screen.applied !== context
+    ) {
       event.preventDefault(); event.stopPropagation();
     }
   };
@@ -233,7 +365,12 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
         Retry notebook connection
       </button>}
     </div>}
-    {onComplete && <button type="button" disabled={!screen.ready || screen.busy || screen.applied !== context} onClick={complete}>
+    {onComplete && <button type="button" disabled={
+      !screen.ready ||
+      screen.busy ||
+      screen.applied !== context ||
+      owner.current?.recoveryHeld
+    } onClick={complete}>
       {screen.busy ? "Saving…" : "Finish activity"}
     </button>}
   </section>;
