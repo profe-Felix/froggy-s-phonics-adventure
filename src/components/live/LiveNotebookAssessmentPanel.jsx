@@ -10,7 +10,9 @@ import { useClassNames } from '@/hooks/useClassNames';
 import NotebookAssessmentRoster from '@/components/live/NotebookAssessmentRoster';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
 import ExternalNotebookTeacherStatus from '@/components/external-notebook/ExternalNotebookTeacherStatus';
-import { syncExternalNotebookControls } from '@/lib/external-notebook/client';
+import { syncExternalNotebookControls, authorizeNotebookTeacherStart, signInNotebookTeacher } from '@/lib/external-notebook/client';
+import { isTeacherSignInRequired } from '@/lib/external-notebook/teacher-auth';
+import { EXTERNAL_NOTEBOOK_CONFIG } from '@/lib/external-notebook/config';
 import { liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
 
 // Teacher assessment context for external notebook control sync.
@@ -59,17 +61,46 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   const sessionRef = useRef(session);
   const controlsQueueRef = useRef(new Map());
   const [controlError, setControlError] = useState('');
+  const [teacherAuthRequired, setTeacherAuthRequired] = useState(false);
   const [controlsSaving, setControlsSaving] = useState(false);
   sessionRef.current = session;
   const { classList: CLASSES } = useClassNames();
-  const [className, setClassName] = useState('');
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState('');
+  const [className, setClassName] = useState(() => new URLSearchParams(window.location.search).get('class') || '');
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(() => new URLSearchParams(window.location.search).get('assignment') || '');
   const [startPage, setStartPage] = useState(1);
   const [starting, setStarting] = useState(false);
 
   // Student targeting: 'class' = whole class, 'selected' = pick students
   const [targetMode, setTargetMode] = useState('class');
   const [selectedStudentNumbers, setSelectedStudentNumbers] = useState(new Set());
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('notebook_assessment');
+    if (!id || id.length > 100) return;
+    let current = true;
+    setControlsSaving(true);
+    void base44.entities.LiveNotebookAssessment.get(id).then(async saved => {
+      if (!current) return;
+      const cfg = EXTERNAL_NOTEBOOK_CONFIG;
+      if (saved?.id !== id || saved.active !== true || saved.class_name !== cfg.className ||
+          saved.assignment_id !== cfg.assignmentId || saved.school_year !== cfg.schoolYear) {
+        throw new Error('The saved assessment is no longer active or does not match this notebook pilot.');
+      }
+      // Resume the existing record, page and group. Never create or retarget it.
+      setClassName(saved.class_name);
+      setSelectedAssignmentId(saved.assignment_id);
+      sessionRef.current = saved;
+      setSession(saved);
+      await syncExternalNotebookControls(teacherAssessmentContext(saved));
+      if (current) { setControlError(''); setTeacherAuthRequired(false); }
+    }).catch(error => {
+      if (!current) return;
+      setTeacherAuthRequired(isTeacherSignInRequired(error));
+      setControlError(isTeacherSignInRequired(error)
+        ? 'Sign in as teacher to reconnect this existing assessment. Student work is retained.'
+        : 'This assessment could not be resumed or its controls confirmed. No replacement assessment was created.');
+    }).finally(() => { if (current) setControlsSaving(false); });
+    return () => { current = false; };
+  }, []);
   // Release mode: 'follow' = locked to teacher page, 'free' = own pace
   const [releaseMode, setReleaseMode] = useState('follow');
 
@@ -183,7 +214,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
 
         try {
           await syncExternalNotebookControls(teacherAssessmentContext(confirmed));
-        } catch {
+        } catch (error) {
+          setTeacherAuthRequired(isTeacherSignInRequired(error));
           setControlError('Notebook controls saved to the server but NOT broadcast to the external notebook. Use Retry controls.');
           return false;
         }
@@ -202,11 +234,27 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   };
 
   const startSession = async () => {
-    if (!selectedAssignmentId || !className || starting) return;
+    if (!selectedAssignmentId || !selectedAssignment || !className || starting) return;
     setStarting(true);
     setControlError('');
 
     try {
+      const cfg = EXTERNAL_NOTEBOOK_CONFIG;
+      if (cfg.enabled && cfg.assessmentsEnabled && className === cfg.className &&
+          selectedAssignmentId === cfg.assignmentId && ACTIVE_SCHOOL_YEAR === cfg.schoolYear) {
+        try {
+          await authorizeNotebookTeacherStart({
+            role: 'teacher', kind: 'assessment', className,
+            assignmentId: selectedAssignmentId, schoolYear: ACTIVE_SCHOOL_YEAR,
+          });
+          setTeacherAuthRequired(false);
+        }
+        catch (error) {
+          setTeacherAuthRequired(isTeacherSignInRequired(error));
+          setControlError('Teacher sign-in must be confirmed before starting this notebook. No new assessment was created.');
+          return;
+        }
+      }
       const stale = await requestWithRetry(() =>
         base44.entities.LiveNotebookAssessment.filter({
           active: true,
@@ -246,7 +294,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
 
       try {
         await syncExternalNotebookControls(teacherAssessmentContext(created));
-      } catch {
+      } catch (error) {
+        setTeacherAuthRequired(isTeacherSignInRequired(error));
         setControlError('Assessment created, but the external notebook has NOT confirmed the start. Use Retry controls.');
       } finally {
         setControlsSaving(false);
@@ -333,10 +382,24 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   };
 
   // ---------- SETUP SCREEN ----------
+  const controlsConfirmed = !controlsSaving && !controlError;
+  const requestedAssessment = new URLSearchParams(window.location.search).get('notebook_assessment');
+  const teacherSignInNotice = teacherAuthRequired && (
+    <div role="alert" className="rounded-xl bg-amber-100 text-amber-950 p-4 my-3 text-sm">
+      <p>Sign in as teacher to connect the notebook. The existing assessment and student work are retained. Students still use their pictures.</p>
+      <button type="button" className="mt-3 rounded-lg bg-slate-900 text-white px-4 py-2 font-bold"
+        onClick={() => signInNotebookTeacher(session ? teacherAssessmentContext(session) : {
+          role: 'teacher', kind: 'assessment', className, assignmentId: selectedAssignmentId,
+          sourceId: requestedAssessment?.length <= 100 ? requestedAssessment : undefined,
+        })}>Sign in as teacher</button>
+    </div>
+  );
   if (!session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-50 p-6">
         <div className="max-w-2xl mx-auto">
+          {teacherSignInNotice}
+          {controlError && !teacherAuthRequired && <p role="alert" className="mb-4 rounded-xl bg-amber-100 p-4 text-amber-950">{controlError}</p>}
           <div className="flex items-center gap-3 mb-6">
             <Link to="/Lessons" className="text-rose-600 hover:underline font-bold text-sm">
               <ArrowLeft className="w-4 h-4 inline mr-1" />
@@ -550,7 +613,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           {controlsSaving
             ? 'Sending teacher controls — not confirmed yet.'
             : controlError}
-          {controlError && !controlsSaving && (
+          {teacherSignInNotice}
+          {controlError && !controlsSaving && !teacherAuthRequired && (
             <button
               type="button"
               onClick={() => { void updateSession({}); }}
@@ -566,7 +630,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         <div className="flex items-center gap-3 min-w-0">
           <span className="flex items-center gap-2 text-rose-400 font-black shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-            LIVE
+            {controlsConfirmed ? 'LIVE' : 'CONNECTING'}
           </span>
           <h1 className="text-base font-bold truncate">{session.assignment_title || 'Notebook Assessment'}</h1>
           <span className="text-xs text-slate-500 hidden sm:inline">· {session.class_name}</span>
@@ -617,7 +681,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
               : 'bg-green-500 text-slate-950 border-green-200'
         }`}
       >
-        {paused
+        {!controlsConfirmed ? 'CONNECTION NOT CONFIRMED' : paused
           ? 'STUDENTS: PAUSED — EYES ON BOARD'
           : currentReleaseMode === 'free'
             ? 'STUDENTS: FREE PACE'
@@ -625,7 +689,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
       </div>
 
       {/* Main control area */}
-      <div className="fixed inset-x-0 top-14 bottom-0 z-0 flex flex-col items-center justify-center gap-8 p-6 overflow-auto">
+      <div className="fixed inset-x-0 top-14 bottom-0 z-0 flex flex-col items-center justify-start gap-4 p-6 pb-52 overflow-auto">
         {/* Pause / Resume — the big "someone at the door" button */}
         <button
           onClick={togglePause}
@@ -683,19 +747,19 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         </div>
 
         {/* State indicators */}
-        {paused && (
+        {controlsConfirmed && paused && (
           <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
             <EyeOff className="w-5 h-5" />
             Student screens are frozen with an "Eyes on board" overlay.
           </div>
         )}
-        {!paused && currentReleaseMode === 'follow' && (
+        {controlsConfirmed && !paused && currentReleaseMode === 'follow' && (
           <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
             <Lock className="w-5 h-5" />
             Students are locked to page {currentPage} and can draw.
           </div>
         )}
-        {!paused && currentReleaseMode === 'free' && (
+        {controlsConfirmed && !paused && currentReleaseMode === 'free' && (
           <div className="flex items-center gap-2 text-violet-400 font-bold text-sm">
             <Unlock className="w-5 h-5" />
             Students are free to navigate at their own pace.

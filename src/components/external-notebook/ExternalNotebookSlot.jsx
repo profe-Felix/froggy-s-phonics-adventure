@@ -287,7 +287,7 @@ export default function ExternalNotebookSlot({
   return (
     <section
       aria-label="Live notebook activity"
-      style={{ height: "100%", minHeight: 320 }}
+      style={{ width: "100%", minWidth: 0, height: "100%", minHeight: 320 }}
     >
       <div
         style={{ height: "100%", minHeight: 320 }}

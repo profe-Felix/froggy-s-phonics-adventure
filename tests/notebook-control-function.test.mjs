@@ -105,3 +105,18 @@ test("changed records, stale upstream state and malformed acknowledgments never 
     assert.equal((await h.call()).status, 503); h.upstream = old;
   }
 });
+
+test("teacher start preflight authenticates and authorizes without entity or notebook mutations", async t => {
+  const h = fixture(t);
+  const result = await h.call({ action: "verifyTeacher", sourceId: undefined, requestId: undefined });
+  assert.equal(result.status, 200);
+  const body = await result.json();
+  assert.equal(body.authorized, true);
+  assert.equal(body.className, h.config.className);
+  assert.equal(h.reads.length, 0);
+  assert.equal(h.requests.length, 0);
+  h.user = { id: "not-authorized", role: "user" };
+  assert.equal((await h.call({ action: "verifyTeacher", sourceId: undefined, requestId: undefined })).status, 403);
+  assert.equal(h.reads.length, 0);
+  assert.equal(h.requests.length, 0);
+});

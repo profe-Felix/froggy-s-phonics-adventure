@@ -149,7 +149,10 @@ export default function LiveLesson() {
   // Setup-screen tab: 'lesson' (pick a Lesson + class) or 'assessment'
   // (pick a DigitalNotebookAssignment + start page). The assessment tab
   // delegates to LiveNotebookAssessmentPanel and owns its own session.
-  const [setupMode, setSetupMode] = useState('lesson');
+  const [setupMode, setSetupMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('notebook_assessment') || params.has('notebook_setup') ? 'assessment' : 'lesson';
+  });
 
   // Deep-link from the TeacherView launcher: ?session=<id> loads an existing
   // session straight into the control screen (pre-filling lesson/day/class)

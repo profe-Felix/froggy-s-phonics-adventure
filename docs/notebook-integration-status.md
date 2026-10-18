@@ -45,6 +45,14 @@ available for earlier work.
 
 ## Verified and remaining classroom checks
 
+Teacher access requires a verified account in the published Base44 app; opening
+the public portal or creating an entity is not proof of teacher sign-in. Signed
+out teachers now get an explicit sign-in action, returning to the same saved
+assessment/page/group or lesson session without recreating it. New native
+assessments require server-authorized preflight before ending or creating records.
+Students retain picture entry and are never sent to teacher sign-in. A server
+administrative-token check is not evidence of browser user authentication.
+
 The published Base44 SDK function returned real assessment and lesson teacher
 contracts against the correct 206-page template; lesson step and page limits
 matched saved records. Checks used inactive disposable records and removed
@@ -74,7 +82,7 @@ Node 22.13 or newer:
 npm run test:notebook-controls
 ```
 
-The 32 tests run real policies/handlers and controller/route/renewal helpers with
+The tests run real policies/handlers and controller/route/renewal/auth helpers with
 controlled SDK and HTTP boundaries. The actual Base44 sandbox production build
 also passed. Separate production SDK checks and real development browser checks
 are described above; the unit suite alone does not establish those outcomes.

@@ -19,10 +19,11 @@ export default async function(req: Request) {
   if (Deno.env.get("NOTEBOOK_NATIVE_ENABLED") !== "true") return reply("Notebook controls are not activated.", 503);
   let body: any, config: any;
   try { body = await req.json(); } catch { return reply("Invalid request.", 400); }
+  const verifyOnly = body?.action === "verifyTeacher";
   if (!body || typeof body !== "object" || Array.isArray(body) ||
-      Object.keys(body).some(key => !["kind", "sourceId", "requestId"].includes(key)) ||
-      !["assessment", "lesson"].includes(body.kind) || !id(body.sourceId) ||
-      typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)) {
+      Object.keys(body).some(key => !(verifyOnly ? ["kind", "action"] : ["kind", "sourceId", "requestId"]).includes(key)) ||
+      !["assessment", "lesson"].includes(body.kind) || (!verifyOnly && (!id(body.sourceId) ||
+      typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)))) {
     return reply("A valid assessment control request is required.", 400);
   }
   try { config = JSON.parse(Deno.env.get("NOTEBOOK_BRIDGE_CONFIG") || "null"); }
@@ -41,6 +42,12 @@ export default async function(req: Request) {
   } catch { return reply("Teacher sign-in is required.", 401); }
   if (!id(user?.id) || (user.role !== "admin" && !config.teacherUserIds?.includes(user.id))) {
     return reply("This account is not authorized to control the mapped class.", 403);
+  }
+  if (verifyOnly) {
+    return Response.json({
+      contractVersion: 1, authorized: true, className: config.className,
+      schoolYear: config.schoolYear, assignmentId: config.assignmentId,
+    }, { headers });
   }
   try {
     const svc = client.asServiceRole;

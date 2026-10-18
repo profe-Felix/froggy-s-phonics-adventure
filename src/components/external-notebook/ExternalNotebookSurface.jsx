@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { EXTERNAL_NOTEBOOK_CONFIG } from "@/lib/external-notebook/config";
 import { persistentWorkKey } from "@/lib/external-notebook/context";
-import { bootstrapExternalNotebook } from "@/lib/external-notebook/client";
+import { bootstrapExternalNotebook, signInNotebookTeacher } from "@/lib/external-notebook/client";
+import { TEACHER_SIGN_IN_REQUIRED } from "@/lib/external-notebook/teacher-auth";
 import { mountNotebook } from "@/lib/external-notebook/engine";
 import { createNotebookRenewableTransport } from "@/lib/external-notebook/renewable-transport";
 import { openNotebookPersistence } from "@/lib/external-notebook/persistence";
@@ -25,9 +26,11 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
     status: "Opening notebook…",
   });
 
-  function report(entry, message) {
+  function report(entry, message, error) {
     if (entry?.live && owner.current === entry) {
-      setScreen(value => ({ ...value, failed: true, status: message }));
+      const authRequired = latestContext.current?.role === "teacher" && error?.code === TEACHER_SIGN_IN_REQUIRED;
+      setScreen(value => ({ ...value, failed: true, authRequired,
+        status: authRequired ? "Teacher sign-in is required to connect this notebook. The assessment and student work are retained." : message }));
     }
   }
 
@@ -134,12 +137,12 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
 
       entry.applied = next;
       setScreen(value => ({
-        ...value, ready: true, failed: false, applied: next, status: "",
+        ...value, ready: true, failed: false, authRequired: false, applied: next, status: "",
       }));
       return true;
-    }).catch(() => {
+    }).catch(error => {
       if (next === latestContext.current) {
-        report(entry, "The notebook could not connect or update safely. Keep this page open and retry. Existing work was not discarded.");
+        report(entry, "The notebook could not connect or update safely. Keep this page open and retry. Existing work was not discarded.", error);
       }
       return false;
     });
@@ -297,9 +300,9 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       if (!current()) return false;
       // Renewal readiness alone must not clear a saving/context error.
       return await flush();
-    }).catch(() => {
+    }).catch(error => {
       if (current()) {
-        report(entry, "The notebook could not reconnect safely. Keep this page open and retry. Existing work was not discarded.");
+        report(entry, "The notebook could not reconnect safely. Keep this page open and retry. Existing work was not discarded.", error);
       }
       return false;
     }).finally(() => {
@@ -352,16 +355,23 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
       event.preventDefault(); event.stopPropagation();
     }
   };
-  return <section style={{ position: "relative", height: "100%", minHeight: 320 }} aria-label="Live notebook">
+  return <section style={{ position: "relative", width: "100%", minWidth: 0, height: "100%", minHeight: 320 }} aria-label="Live notebook">
     <div ref={element} style={{ height: "100%", minHeight: 320 }} onPointerDownCapture={blockNewInput} />
     {(screen.status || renewalStatus) && <div role={screen.failed || renewalFailed ? "alert" : "status"} style={{
       position: "absolute", top: 12, left: 12, right: 12, maxWidth: 520,
       zIndex: 30, padding: 12, background: "#fff", border: "1px solid #d4d4d4",
-      borderRadius: 8, pointerEvents: screen.failed || renewalFailed ? "auto" : "none",
+      borderRadius: 8, color: "#17212b", fontSize: 14, lineHeight: 1.5,
+      boxSizing: "border-box", overflowWrap: "anywhere",
+      pointerEvents: screen.failed || renewalFailed ? "auto" : "none",
     }}>
       {screen.status && <p>{screen.status}</p>}
       {renewalStatus && <p>{renewalStatus}</p>}
-      {(screen.failed || renewalFailed) && <button type="button" disabled={screen.busy} onClick={() => { void retryConnection(); }}>
+      {screen.authRequired && context.role === "teacher" && <button type="button"
+        onClick={() => signInNotebookTeacher(context)}
+        style={{ display: "block", margin: "12px 0", padding: "10px 16px", background: "#0f5c66", color: "#fff", borderRadius: 6 }}>
+        Sign in as teacher
+      </button>}
+      {!screen.authRequired && (screen.failed || renewalFailed) && <button type="button" disabled={screen.busy} onClick={() => { void retryConnection(); }}>
         Retry notebook connection
       </button>}
     </div>}
