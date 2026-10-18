@@ -1,16 +1,43 @@
+import { createNotebookSessionRenewal } from "./session-renewal";
+
 // Own one signed session and its resources. Never use close as a save shortcut.
 // The host/router must await flush BEFORE changing the source or unmounting.
 export function createNotebookHostSession({
   element, context, workKey, bootstrap, openPersistence, createTransport, mount,
+  createRenewal = createNotebookSessionRenewal, onRenewalState,
 }) {
   if (!element || !context || !workKey ||
-      [bootstrap, openPersistence, createTransport, mount].some(fn => typeof fn !== "function")) {
+      [bootstrap, openPersistence, createTransport, mount, createRenewal].some(fn => typeof fn !== "function") ||
+      (onRenewalState !== undefined && typeof onRenewalState !== "function")) {
     throw new Error("The notebook host requires an element, context, work key and all connection methods.");
   }
   let runtime = null, transport = null, persistence = null, controller = null;
   let opening = null, closing = null, closed = false, started = false;
+  let renewal = null, updating = null, sealing = false, applyingContext = false;
+  let generation = 0, contextEpoch = 0;
+  const copy = value => JSON.parse(JSON.stringify(value));
+  const scope = value => JSON.stringify([
+    value?.role, value?.kind, value?.sourceId, value?.stepId ?? null,
+    value?.assignmentId, value?.className, value?.schoolYear,
+    value?.student?.id, value?.student?.number,
+    value?.student?.className, value?.student?.schoolYear,
+  ]);
+  context = copy(context);
+  const binding = scope(context);
+
+  async function readyForAction() {
+    const state = renewal?.getState();
+    if (state && (state.renewing || state.expired)) {
+      if (await renewal.renew() !== true) {
+        throw new Error("The notebook connection could not renew. Keep existing work open.");
+      }
+    }
+  }
 
   async function releaseResources() {
+    if (renewal && typeof renewal.close === "function") renewal.close();
+    renewal = null;
+    generation++;
     controller?.abort();
     try {
       if (transport) {
@@ -35,16 +62,49 @@ export function createNotebookHostSession({
       // Finish a previous failed startup's cleanup before creating anything new.
       if (transport || persistence) await releaseResources();
       controller = new AbortController();
+      const owner = ++generation;
       try {
         const session = await bootstrap(context);
         persistence = await openPersistence({ workKey });
         transport = await createTransport({ session, signal: controller.signal });
+        const active = () => owner === generation && !closed && !sealing && !applyingContext;
+        renewal = createRenewal({
+          session, context,
+          bootstrap: async nextContext => {
+            if (!active()) throw new Error("Notebook renewal is waiting for the current change.");
+            const revision = contextEpoch;
+            const candidate = await bootstrap(nextContext);
+            if (!active() || revision !== contextEpoch) {
+              throw new Error("Notebook context changed while requesting renewal.");
+            }
+            return candidate;
+          },
+          install: async (candidate, { isCurrent }) => {
+            const target = runtime, revision = contextEpoch;
+            const current = () => active() && runtime === target &&
+              revision === contextEpoch && isCurrent();
+            if (!target || !current()) return false;
+            if (typeof transport?.prepareSession !== "function" ||
+                typeof target.renewSession !== "function") {
+              throw new Error("The mounted notebook needs its renewable transport and engine. Existing work remains open.");
+            }
+            const installed = await target.renewSession(candidate, { isCurrent: current });
+            return installed === true && current();
+          },
+          onState: state => {
+            if (owner === generation && !closed) onRenewalState?.(state);
+          },
+        });
+        if (!renewal || ["start", "renew", "updateContext", "getState", "close"].some(name => typeof renewal[name] !== "function")) {
+          throw new Error("The notebook renewal coordinator is incomplete.");
+        }
         runtime = await mount({
           element, role: context.role, context, session, transport, persistence,
         });
         if (!runtime || ["flush", "updateContext", "close"].some(name => typeof runtime[name] !== "function")) {
           throw new Error("The notebook engine does not implement the save and close contract.");
         }
+        renewal.start();
         started = true;
         return true;
       } catch (error) {
@@ -62,15 +122,45 @@ export function createNotebookHostSession({
     if (opening) {
       try { await opening; } catch { return false; }
     }
+    try {
+      if (updating) await updating;
+      await readyForAction();
+    } catch { return false; }
+    if (closed || closing) return false;
     return !!runtime && (await runtime.flush()) === true;
   }
 
   async function updateContext(next) {
     if (closed || closing) throw new Error("This notebook host is closing or closed.");
     if (opening) await opening;
+    if (closed || closing) throw new Error("This notebook host is closing or closed.");
     if (!runtime) throw new Error("The notebook has not opened.");
-    // The engine validates immutable identity/source and supported live updates.
-    await runtime.updateContext(next);
+    if (updating) throw new Error("Another notebook context update is still finishing.");
+    const candidate = copy(next);
+    if (scope(candidate) !== binding) {
+      throw new Error("Changing student, assignment or lesson step requires a separate safe handoff.");
+    }
+    updating = Promise.resolve().then(async () => {
+      await readyForAction();
+      if (closed || closing) throw new Error("This notebook host is closing or closed.");
+      applyingContext = true;
+      contextEpoch++;
+      try {
+        // Only accepted runtime changes become future bootstrap context.
+        await runtime.updateContext(candidate);
+        renewal.updateContext(candidate);
+        context = candidate;
+      } finally { applyingContext = false; }
+    }).finally(() => { updating = null; });
+    return updating;
+  }
+
+  function renew() {
+    if (closed || closing || !started || !renewal) {
+      return Promise.reject(new Error("This notebook host is not ready to renew."));
+    }
+    if (updating) return Promise.reject(new Error("A notebook context update is still finishing."));
+    return renewal.renew();
   }
 
   function close() {
@@ -82,6 +172,13 @@ export function createNotebookHostSession({
         // In either case still run the appropriate close/cleanup path.
         try { await opening; } catch { /* Cleanup below owns any retained resources. */ }
       }
+      if (updating) {
+        try { await updating; } catch { /* Runtime close still owns pending work. */ }
+      }
+      try { await readyForAction(); } catch { return false; }
+      // Do not stop renewal until the engine confirms safe close. In-flight
+      // renewal may need to recover an expired credential before it can save.
+      sealing = true;
       if (runtime) {
         if (typeof runtime.close !== "function" ||
             (await runtime.close({ keepOutbox: true })) !== true) return false;
@@ -91,9 +188,12 @@ export function createNotebookHostSession({
       closed = true;
       started = false;
       return true;
-    }).finally(() => { closing = null; });
+    }).finally(() => { sealing = false; closing = null; });
     return closing;
   }
 
-  return { start, flush, updateContext, close };
+  return {
+    start, flush, updateContext, renew, close,
+    getRenewalState: () => renewal?.getState() ?? null,
+  };
 }
