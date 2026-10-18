@@ -3,7 +3,7 @@ import { createNotebookStudentControls } from "./student-controls";
 import { createNotebookPageImages } from "./page-images";
 import { createNotebookPageActions } from "./page-actions";
 
-// One immutable session/work identity. No React, Base44 calls or token renewal.
+// One fixed work identity. Verified sessions may renew; no React or Base44 calls.
 // finishGesture must await LOCAL Canvas tasks only, never this controller.flush().
 // The host must keep the Canvas mounted until flush() and close() both succeed.
 export async function createNotebookStudentController({
@@ -24,6 +24,7 @@ export async function createNotebookStudentController({
   let displayed = initial.page ?? initial.allowedPages?.[0] ?? session.classroom.currentPage;
   let lease = null, sync = null, busy = false, handshake = false, closed = false, closing = false;
   let closingPromise = null;
+  let policyGeneration = 0;
   let epoch = 0, scheduled = false, autoBlocked = false, error = "", pending = null;
 
   function history(page) {
@@ -66,7 +67,8 @@ export async function createNotebookStudentController({
   function state() {
     const pageState = sync?.getPageState(displayed) || null;
     const syncState = sync?.getState() || null;
-    const controls = policy.getState({ context, pageState, busy: busy || handshake || closed || closing });
+    const locked = busy || handshake || closed || closing || syncState?.renewing === true;
+    const controls = policy.getState({ context, pageState, busy: locked });
     const ready = !closed && !handshake && !!lease && pageState?.ready === true;
     const historyReady = ready && controls.canDraw && !error &&
       syncState?.connection.connected === true && syncState.save.pendingCount === 0 &&
@@ -76,7 +78,7 @@ export async function createNotebookStudentController({
     return {
       workbook: book, page: displayed, imageUrl: lease?.url || "",
       strokes: pageState?.strokes || [], ready, controls, syncState,
-      busy: busy || handshake || closed || closing, error,
+      busy: locked, error,
       canUndo: !!historyReady && h.undo.length > 0,
       canRedo: !!historyReady && h.redo.length > 0,
       canClear: ready && controls.canDraw && !error && (pageState?.strokes.length || 0) > 0,
@@ -138,9 +140,9 @@ export async function createNotebookStudentController({
     await finishPending();
     if (!await sync.flush()) throw new Error("Still waiting for saved-work confirmation. Keep this page open.");
   }
-  async function exclusive(work, allowClosing = false) {
+  async function exclusive(work, allowClosing = false, allowHandshake = false) {
     open();
-    if (busy || handshake || (closing && !allowClosing)) throw new Error("Another notebook change is still finishing.");
+    if (busy || (handshake && !allowHandshake) || (closing && !allowClosing)) throw new Error("Another notebook change is still finishing.");
     busy = true; emit();
     try { return await work(); }
     catch (reason) { fail(reason); throw reason; }
@@ -174,23 +176,31 @@ export async function createNotebookStudentController({
       classId: session.classId, workbookId: session.workbookId,
       studentNumber: session.studentNumber, expiresAtMs: session.expiresAtMs,
       onReady: async (message, guard) => {
-        handshake = true; epoch++; emit();
+        const controlGeneration = policyGeneration;
+        const generation = ++epoch;
+        handshake = true; emit();
         try {
-          policy.receive(message);
+          if (!guard.isCurrent() || closed || controlGeneration !== policyGeneration) return;
+          if (!policy.receive(message, { sessionGeneration: controlGeneration })) {
+            throw new Error("The notebook controls did not match this connection.");
+          }
           // Recover the displayed page first, including lost-ACK receipts.
           // NEVER await drain()/network flush inside the ready handler.
-          const generation = epoch;
           const current = () => !closed && generation === epoch && guard.isCurrent();
           if (!await prepare(displayed, guard.loadPage, current) && current()) {
             throw new Error("The notebook page could not be restored.");
           }
           if (current()) { error = ""; autoBlocked = false; }
-        } finally { handshake = false; emit(); }
+        } finally {
+          if (generation === epoch) handshake = false;
+          emit();
+        }
       },
       onEvent: (message, guard) => {
+        const controlGeneration = policyGeneration;
         if (!guard.isCurrent() || closed) return;
         try {
-          if (policy.receive(message)) {
+          if (policy.receive(message, { sessionGeneration: controlGeneration })) {
             autoBlocked = false;
             if (policy.getState({ context }).canSend) sync.resume();
           }
@@ -224,6 +234,60 @@ export async function createNotebookStudentController({
   return {
     getState: state,
     connect() { open(); return sync.connect(); },
+    renewSession(next, { isCurrent = () => true } = {}) {
+      return exclusive(async () => {
+        if (typeof isCurrent !== "function" || typeof transport.prepareSession !== "function") {
+          throw new Error("A guarded renewable notebook transport is required.");
+        }
+        const candidate = copy(next);
+        // Validate scope without changing the active UI policy.
+        const check = createNotebookStudentControls({ session, context });
+        check.replaceSession(candidate, { context });
+        const current = () => !closed && !closing && isCurrent();
+        if (!current()) throw new Error("Notebook renewal was cancelled. Existing work remains open.");
+        const prepared = transport.prepareSession(candidate, { isCurrent: current });
+        let committed = false, suspending = false;
+        try {
+          // Invalidate old page reads, including an obsolete ready hydration.
+          epoch++;
+          handshake = false;
+          suspending = true;
+          if (await sync.suspendForRenewal() !== true) {
+            throw new Error("Some local marks are not safely queued. Keep this notebook open.");
+          }
+          // A failed undo/redo/clear must keep its ORIGINAL local operation IDs.
+          // Do not call finishPending()/drain() over the expiring credential.
+          if (pending) await pending.run();
+          const allowed = page => candidate.allowedPages === null || candidate.allowedPages.includes(page);
+          if (!allowed(displayed) || sync.getPending().some(record => !allowed(record.operation.page))) {
+            throw new Error("Renewal removed a page still needed by this notebook. Keep it open and ask the teacher to restore its page access.");
+          }
+          if (!current() || prepared.commit() !== true) {
+            throw new Error("Notebook renewal was cancelled or expired. Existing work remains open.");
+          }
+          committed = true;
+          policyGeneration = policy.replaceSession(candidate, { context });
+          session = copy(candidate);
+          if (await sync.resumeAfterRenewal({ expiresAtMs: candidate.expiresAtMs }) !== true) {
+            throw new Error("The renewed notebook connection is not ready. Existing work remains open.");
+          }
+          if (!current()) throw new Error("Notebook renewal finished after cancellation. Existing work remains open.");
+          error = "";
+          autoBlocked = false;
+          return true;
+        } catch (reason) {
+          prepared.cancel();
+          if (!committed && suspending && !closed && sync.getState().connection.suspended) {
+            try {
+              if (await sync.resumeAfterRenewal() !== true) throw new Error("Previous connection is not ready.");
+            } catch {
+              throw new Error("Notebook renewal could not finish and the previous connection is unavailable. Local work was retained; keep this notebook open and retry renewal.");
+            }
+          }
+          throw reason;
+        } finally { prepared.cancel(); }
+      }, false, true);
+    },
     undo() { return historyAction("undo"); },
     redo() { return historyAction("redo"); },
     clear() {
