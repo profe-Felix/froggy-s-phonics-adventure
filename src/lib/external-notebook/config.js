@@ -4,6 +4,7 @@ export const EXTERNAL_NOTEBOOK_CONFIG = Object.freeze({
   assessmentsEnabled: true,
   lessonStepsEnabled: true,
   teacherViewEnabled: true,
+  teacherAccessMode: "open",
   appId: "6972eada24fac6b62ccbab8e",
   className: "Felix",
   schoolYear: "26-27",

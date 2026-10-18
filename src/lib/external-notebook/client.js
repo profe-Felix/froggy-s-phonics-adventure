@@ -20,6 +20,7 @@ export async function authorizeNotebookTeacherStart(context) {
     kind: context.kind, action: "verifyTeacher",
   }, context));
   if (data.contractVersion !== 1 || data.authorized !== true ||
+      (EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode === "open" && data.teacherAccessMode !== "open") ||
       data.className !== context.className || data.schoolYear !== context.schoolYear ||
       data.assignmentId !== context.assignmentId) {
     throw new Error("This account has not been authorized to start this class notebook.");
@@ -27,10 +28,11 @@ export async function authorizeNotebookTeacherStart(context) {
 }
 
 async function invokeNotebookFunction(name, body, context) {
-  if (context?.role === "teacher") await verifyNotebookTeacherSignIn();
+  const accountRequired = context?.role === "teacher" && EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== "open";
+  if (accountRequired) await verifyNotebookTeacherSignIn();
   try { return await base44.functions.invoke(name, body); }
   catch (error) {
-    if (context?.role === "teacher" && isTeacherSignInRequired(error)) {
+    if (accountRequired && isTeacherSignInRequired(error)) {
       throw teacherAuthenticationError();
     }
     throw error;

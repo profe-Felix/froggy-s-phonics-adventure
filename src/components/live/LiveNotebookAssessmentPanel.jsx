@@ -15,6 +15,9 @@ import { isTeacherSignInRequired } from '@/lib/external-notebook/teacher-auth';
 import { EXTERNAL_NOTEBOOK_CONFIG } from '@/lib/external-notebook/config';
 import { liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
 
+const needsTeacherAccount = error =>
+  EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== 'open' && isTeacherSignInRequired(error);
+
 // Teacher assessment context for external notebook control sync.
 // Built from the actual saved session; never from browser-chosen values.
 function teacherAssessmentContext(s) {
@@ -94,8 +97,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
       if (current) { setControlError(''); setTeacherAuthRequired(false); }
     }).catch(error => {
       if (!current) return;
-      setTeacherAuthRequired(isTeacherSignInRequired(error));
-      setControlError(isTeacherSignInRequired(error)
+      setTeacherAuthRequired(needsTeacherAccount(error));
+      setControlError(needsTeacherAccount(error)
         ? 'Sign in as teacher to reconnect this existing assessment. Student work is retained.'
         : 'This assessment could not be resumed or its controls confirmed. No replacement assessment was created.');
     }).finally(() => { if (current) setControlsSaving(false); });
@@ -215,7 +218,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
         try {
           await syncExternalNotebookControls(teacherAssessmentContext(confirmed));
         } catch (error) {
-          setTeacherAuthRequired(isTeacherSignInRequired(error));
+          setTeacherAuthRequired(needsTeacherAccount(error));
           setControlError('Notebook controls saved to the server but NOT broadcast to the external notebook. Use Retry controls.');
           return false;
         }
@@ -250,8 +253,8 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
           setTeacherAuthRequired(false);
         }
         catch (error) {
-          setTeacherAuthRequired(isTeacherSignInRequired(error));
-          setControlError('Teacher sign-in must be confirmed before starting this notebook. No new assessment was created.');
+          setTeacherAuthRequired(needsTeacherAccount(error));
+          setControlError('Notebook access could not be confirmed before starting. No new assessment was created; keep this page open and retry.');
           return;
         }
       }
@@ -295,7 +298,7 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
       try {
         await syncExternalNotebookControls(teacherAssessmentContext(created));
       } catch (error) {
-        setTeacherAuthRequired(isTeacherSignInRequired(error));
+        setTeacherAuthRequired(needsTeacherAccount(error));
         setControlError('Assessment created, but the external notebook has NOT confirmed the start. Use Retry controls.');
       } finally {
         setControlsSaving(false);

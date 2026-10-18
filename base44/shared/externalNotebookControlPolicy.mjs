@@ -1,4 +1,12 @@
-// Server-only: records must be freshly loaded after authenticating the teacher.
+// The owner explicitly chose open teacher access for this one existing pilot.
+// This is server-owned scope, never a browser role or permission override.
+export function allowsOpenNotebookTeacher(config) {
+  return config?.appId === "6972eada24fac6b62ccbab8e" &&
+    config.className === "Felix" && config.schoolYear === "26-27" &&
+    config.assignmentId === "69d650c08c922889cd55c561";
+}
+
+// Server-only: records must be freshly loaded after checking teacher access.
 // Never pass browser control values, timestamps, student arrays or destinations.
 export function resolveNotebookAssessmentControls({ config, assessment, assignment } = {}) {
   const fail = () => { throw new Error("The assessment records or notebook mapping could not be verified."); };

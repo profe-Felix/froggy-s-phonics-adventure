@@ -1,5 +1,5 @@
 import { resolveNotebookAssessmentAccess } from "./externalNotebookNativePolicy.mjs";
-import { resolveNotebookAssessmentControls } from "./externalNotebookControlPolicy.mjs";
+import { resolveNotebookAssessmentControls, allowsOpenNotebookTeacher } from "./externalNotebookControlPolicy.mjs";
 
 const fail = () => { throw new Error("The saved notebook lesson could not be verified."); };
 const positive = value => Number.isSafeInteger(value) && value > 0;
@@ -86,7 +86,7 @@ export async function bootstrapNotebookExtension({
   onStage = () => {},
 }) {
   const teacher = !body.studentId;
-  if (teacher) {
+  if (teacher && !allowsOpenNotebookTeacher(config)) {
     onStage("teacher-auth");
     let user;
     try { user = await client.auth.me(); } catch { return Response.json({ error: "Teacher sign-in is required." }, { status: 401, headers }); }
@@ -95,6 +95,7 @@ export async function bootstrapNotebookExtension({
     }
     if (body.recoveryOnly) fail();
   }
+  if (teacher && body.recoveryOnly) fail();
   const svc = client.asServiceRole;
   const key = JSON.stringify([config.appId, config.className, config.schoolYear, config.assignmentId]);
   const read = (suffix, action) => sharedRead(`${key}:${suffix}`, action);

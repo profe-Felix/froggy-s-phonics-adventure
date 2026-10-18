@@ -1,5 +1,5 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
-import { resolveNotebookAssessmentControls } from "../../shared/externalNotebookControlPolicy.mjs";
+import { resolveNotebookAssessmentControls, allowsOpenNotebookTeacher } from "../../shared/externalNotebookControlPolicy.mjs";
 import { savedLessonNotebookControls } from "../../shared/externalNotebookLessonPolicy.mjs";
 
 // Base44 executes this on Deno. This declaration is for non-Deno editors only.
@@ -38,14 +38,15 @@ export default async function(req: Request) {
   let client: any, user: any;
   try {
     client = createClientFromRequest(req);
-    user = await client.auth.me();
+    if (!allowsOpenNotebookTeacher(config)) user = await client.auth.me();
   } catch { return reply("Teacher sign-in is required.", 401); }
-  if (!id(user?.id) || (user.role !== "admin" && !config.teacherUserIds?.includes(user.id))) {
+  const openTeacher = allowsOpenNotebookTeacher(config);
+  if (!openTeacher && (!id(user?.id) || (user.role !== "admin" && !config.teacherUserIds?.includes(user.id)))) {
     return reply("This account is not authorized to control the mapped class.", 403);
   }
   if (verifyOnly) {
     return Response.json({
-      contractVersion: 1, authorized: true, className: config.className,
+      contractVersion: 1, authorized: true, teacherAccessMode: openTeacher ? "open" : "account", className: config.className,
       schoolYear: config.schoolYear, assignmentId: config.assignmentId,
     }, { headers });
   }

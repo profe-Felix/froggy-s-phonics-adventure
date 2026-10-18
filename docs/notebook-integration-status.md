@@ -45,13 +45,16 @@ available for earlier work.
 
 ## Verified and remaining classroom checks
 
-Teacher access requires a verified account in the published Base44 app; opening
-the public portal or creating an entity is not proof of teacher sign-in. Signed
-out teachers now get an explicit sign-in action, returning to the same saved
-assessment/page/group or lesson session without recreating it. New native
-assessments require server-authorized preflight before ending or creating records.
-Students retain picture entry and are never sent to teacher sign-in. A server
-administrative-token check is not evidence of browser user authentication.
+The owner explicitly chose to keep the current teacher page open, with no
+account login or private teacher link, after the access consequences were
+explained. Exact server-owned app/class/year/assignment matching enables this
+only for the fixed Felix pilot. Teacher bootstrap, controls and renewal do not
+require user sign-in there. Anyone reaching that teacher interface can view
+and control the pilot. Unrelated owner APIs and other scopes remain unchanged.
+Fresh saved records still govern groups, pages, pause, release and step limits;
+server bridge/admin keys are never exposed to the browser. The non-mutating
+start preflight remains, but verifies the approved open scope rather than
+requiring an account. Student picture entry and same-source resume are unchanged.
 
 The published Base44 SDK function returned real assessment and lesson teacher
 contracts against the correct 206-page template; lesson step and page limits

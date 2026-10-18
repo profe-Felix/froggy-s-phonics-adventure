@@ -28,7 +28,8 @@ export default function ExternalNotebookSurface({ context, registerSave, onCompl
 
   function report(entry, message, error) {
     if (entry?.live && owner.current === entry) {
-      const authRequired = latestContext.current?.role === "teacher" && error?.code === TEACHER_SIGN_IN_REQUIRED;
+      const authRequired = EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== "open" &&
+        latestContext.current?.role === "teacher" && error?.code === TEACHER_SIGN_IN_REQUIRED;
       setScreen(value => ({ ...value, failed: true, authRequired,
         status: authRequired ? "Teacher sign-in is required to connect this notebook. The assessment and student work are retained." : message }));
     }

@@ -120,3 +120,42 @@ test("teacher start preflight authenticates and authorizes without entity or not
   assert.equal(h.reads.length, 0);
   assert.equal(h.requests.length, 0);
 });
+
+test("approved open pilot preflight needs no account and performs no entity or notebook mutations", async t => {
+  const h = fixture(t);
+  Object.assign(h.config, {
+    appId: "6972eada24fac6b62ccbab8e", className: "Felix", schoolYear: "26-27",
+    assignmentId: "69d650c08c922889cd55c561",
+  });
+  h.authError = true;
+  const body = { action: "verifyTeacher", sourceId: undefined, requestId: undefined };
+  const response = await h.call(body);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).teacherAccessMode, "open");
+  assert.equal(h.reads.length, 0);
+  assert.equal(h.requests.length, 0);
+  for (const field of ["className", "appId", "schoolYear", "assignmentId"]) {
+    const previous = h.config[field];
+    h.config[field] = "Other";
+    assert.equal((await h.call(body)).status, 401);
+    h.config[field] = previous;
+  }
+  assert.equal(h.reads.length, 0);
+});
+
+test("open controls still reject a saved source from another class", async t => {
+  const h = fixture(t);
+  Object.assign(h.config, {
+    appId: "6972eada24fac6b62ccbab8e", className: "Felix", schoolYear: "26-27",
+    assignmentId: "69d650c08c922889cd55c561",
+  });
+  h.authError = true;
+  Object.assign(h.assignment, { id: h.config.assignmentId, class_name: "Felix" });
+  Object.assign(h.assessment, { class_name: "Felix", assignment_id: h.config.assignmentId });
+  assert.equal((await h.call()).status, 200);
+  assert.equal(h.requests[0].body.currentPage, 9);
+  h.requests.length = 0;
+  h.assessment.class_name = "Other";
+  assert.notEqual((await h.call()).status, 200);
+  assert.equal(h.requests.length, 0);
+});

@@ -79,6 +79,31 @@ test("unauthorized teacher is rejected before loading records", async t => {
   assert.equal((await h.call({ kind: "assessment", sourceId: "assessment" })).status, 403);
   assert.deepEqual(h.reads, ["auth"]); assert.equal(h.requests.length, 0);
 });
+test("approved open teacher receives assessment and lesson grants without account authentication", async t => {
+  const h = fixture(t);
+  Object.assign(h.config, {
+    appId: "6972eada24fac6b62ccbab8e", className: "Felix", schoolYear: "26-27",
+    assignmentId: "69d650c08c922889cd55c561",
+  });
+  Object.assign(h.assignment, { id: h.config.assignmentId, class_name: "Felix" });
+  Object.assign(h.assessment, { class_name: "Felix", assignment_id: h.config.assignmentId });
+  h.lessonSession.class_name = "Felix";
+  h.lesson.steps[0].config.assignmentId = h.config.assignmentId;
+  h.user = null;
+  for (const request of [
+    { kind: "assessment", sourceId: "assessment" },
+    { kind: "lesson", sourceId: "live", stepId: "0" },
+  ]) {
+    const response = await h.call(request);
+    assert.equal(response.status, 200);
+    const grant = await response.json();
+    assert.equal(grant.role, "teacher");
+    assert.equal(grant.canWrite, false);
+    assert.equal(grant.sourceId, request.sourceId);
+    if (request.kind === "lesson") assert.deepEqual(grant.allowedPages, [9, 10]);
+  }
+  assert.equal(h.reads.includes("auth"), false);
+});
 test("lesson student grant contains trusted identity, exact step, and only its saved pages", async t => {
   const h = fixture(t);
   const response = await h.call({ kind: "lesson", sourceId: "live", stepId: "0", studentId: "student" });
