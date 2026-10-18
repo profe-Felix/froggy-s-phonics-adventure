@@ -14,7 +14,7 @@ import { Check, LogOut, RotateCcw } from 'lucide-react';
 // `className` — the class the assessment is broadcasting to.
 // `onRelease(studentNumber)` — add student to finished_students.
 // `onReadd(studentNumber)` — remove student from finished_students.
-export default function NotebookAssessmentRoster({ session, className, onRelease, onReadd }) {
+export default function NotebookAssessmentRoster({ session, className, onRelease, onReadd, embedded = false }) {
   const [confirmNum, setConfirmNum] = useState(null);
 
   const { data: students = [] } = useQuery({
@@ -50,26 +50,9 @@ export default function NotebookAssessmentRoster({ session, className, onRelease
     );
   }
 
-  const handleTap = (num) => {
-    if (finishedSet.has(num)) {
-      onReadd?.(num);
-      setConfirmNum(null);
-    } else if (confirmNum === num) {
-      onRelease?.(num);
-      setConfirmNum(null);
-    } else {
-      setConfirmNum(num);
-    }
-  };
-
-  return (
-    <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-xl">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-slate-300 text-xs font-black uppercase tracking-wide">Release a student</p>
-        <span className="text-xs text-slate-500 font-bold">
-          {finishedSet.size} / {visible.length} done
-        </span>
-      </div>
+  function renderGrid() {
+    return (
+      <>
       <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 max-h-44 overflow-y-auto">
         {visible.map(s => {
           const num = Number(s.student_number);
@@ -117,6 +100,43 @@ export default function NotebookAssessmentRoster({ session, className, onRelease
       <p className="text-slate-500 text-[11px] mt-2 text-center">
         Tap a student to release them early · tap again to re-add
       </p>
+      </>
+    );
+  }
+
+  const handleTap = (num) => {
+    if (finishedSet.has(num)) {
+      onReadd?.(num);
+      setConfirmNum(null);
+    } else if (confirmNum === num) {
+      onRelease?.(num);
+      setConfirmNum(null);
+    } else {
+      setConfirmNum(num);
+    }
+  };
+
+  if (embedded) {
+    return (
+      <details className="bg-slate-800 rounded-xl border border-slate-700 shrink-0">
+        <summary className="cursor-pointer select-none px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-300 flex items-center justify-between">
+          <span>Manage students</span>
+          <span className="text-slate-500 normal-case">{finishedSet.size} / {visible.length} done</span>
+        </summary>
+        <div className="px-4 pb-3">{renderGrid()}</div>
+      </details>
+    );
+  }
+
+  return (
+    <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-xl">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-slate-300 text-xs font-black uppercase tracking-wide">Release a student</p>
+        <span className="text-xs text-slate-500 font-bold">
+          {finishedSet.size} / {visible.length} done
+        </span>
+      </div>
+      {renderGrid()}
     </div>
   );
 }

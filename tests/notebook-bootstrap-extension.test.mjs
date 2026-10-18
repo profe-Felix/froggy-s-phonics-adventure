@@ -6,6 +6,7 @@ const entry = new URL("../base44/functions/externalNotebookBootstrap/entry.ts", 
 const sdk = "data:text/javascript," + encodeURIComponent("export const createClientFromRequest = () => globalThis.__bootstrapSDK();");
 const source = stripTypeScriptTypes(await readFile(entry, "utf8"))
   .replace('"npm:@base44/sdk@0.8.54"', JSON.stringify(sdk))
+  .replace('"../../shared/externalNotebookMapping.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookMapping.mjs", import.meta.url).href))
   .replace('"../../shared/externalNotebookNativePolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookNativePolicy.mjs", import.meta.url).href))
   .replace('"../../shared/externalNotebookLessonPolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookLessonPolicy.mjs", import.meta.url).href));
 const { default: handler } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));

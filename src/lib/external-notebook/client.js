@@ -18,6 +18,7 @@ export function verifyNotebookTeacherSignIn() {
 export async function authorizeNotebookTeacherStart(context) {
   const data = unwrap(await invokeNotebookFunction("externalNotebookControl", {
     kind: context.kind, action: "verifyTeacher",
+    assignmentId: context.assignmentId, className: context.className, schoolYear: context.schoolYear,
   }, context));
   if (data.contractVersion !== 1 || data.authorized !== true ||
       (EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode === "open" && data.teacherAccessMode !== "open") ||
@@ -30,12 +31,18 @@ export async function authorizeNotebookTeacherStart(context) {
 async function invokeNotebookFunction(name, body, context) {
   const accountRequired = context?.role === "teacher" && EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== "open";
   if (accountRequired) await verifyNotebookTeacherSignIn();
-  try { return await base44.functions.invoke(name, body); }
-  catch (error) {
-    if (accountRequired && isTeacherSignInRequired(error)) {
-      throw teacherAuthenticationError();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try { return await base44.functions.invoke(name, body); }
+    catch (error) {
+      if (accountRequired && isTeacherSignInRequired(error)) throw teacherAuthenticationError();
+      const status = error?.response?.status ?? error?.status;
+      const retryable = context?.role === "student" && name === "externalNotebookBootstrap" &&
+        [429, 502, 503, 504].includes(status);
+      if (!retryable || attempt === 5) throw error;
+      // Spread a classroom joining together; never retry teacher mutations.
+      const delay = Math.min(4000, 500 * 2 ** attempt) + Math.random() * 750;
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    throw error;
   }
 }
 
@@ -54,7 +61,7 @@ export async function bootstrapExternalNotebook(context) {
   // This is only a fixed-scope/readiness check, NOT restored eligibility.
   // The server must find prior write authority before issuing save-only access.
   const recoveryOnly = !active && captured?.role === "student" &&
-    ["assessment", "lesson"].includes(captured.kind) && isExternalNotebookActive({
+    ["assessment", "lesson", "assignment"].includes(captured.kind) && isExternalNotebookActive({
       ...captured,
       active: true,
       blocked: false,
@@ -123,6 +130,12 @@ export async function bootstrapExternalNotebook(context) {
     throw new Error("The notebook bootstrap contract did not match the configured connection.");
   }
 
+  if (captured.kind === "assignment" && Array.isArray(captured.allowedPages)) {
+    const requested = captured.allowedPages.filter(page => Number.isSafeInteger(page) && page >= 1 &&
+      page <= count && (pages === null || pages.includes(page)));
+    if (!requested.length) throw new Error("The requested notebook pages are not available.");
+    return { ...data, allowedPages: [...new Set(requested)].sort((a, b) => a - b) };
+  }
   return data;
 }
 

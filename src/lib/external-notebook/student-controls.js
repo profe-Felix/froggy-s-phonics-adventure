@@ -29,7 +29,7 @@ export function createNotebookStudentControls({
     session.studentNumber > 100 ||
     !positive(session.expiresAtMs) ||
     typeof session.canWrite !== "boolean" ||
-    !["assessment", "lesson"].includes(session.kind) ||
+    !["assessment", "lesson", "assignment"].includes(session.kind) ||
     !text(session.sourceId)
   ) {
     throw new Error(
@@ -162,8 +162,14 @@ export function createNotebookStudentControls({
 
     return Object.freeze({
       ...value,
+      ...(kind === "assignment" ? {
+        status: ["waiting", "ended"].includes(value.status) ||
+          (value.targetStudentNumbers.length > 0 && !value.targetStudentNumbers.includes(studentNumber))
+          ? "live" : "paused",
+        followTeacher: false,
+      } : {}),
       targetStudentNumbers: Object.freeze(
-        [...value.targetStudentNumbers]
+        kind === "assignment" ? [] : [...value.targetStudentNumbers]
       ),
     });
   }

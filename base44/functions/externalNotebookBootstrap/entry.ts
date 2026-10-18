@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
+import { prepareNotebookRequest } from "../../shared/externalNotebookMapping.mjs";
 import { resolveNotebookAssessmentAccess } from "../../shared/externalNotebookNativePolicy.mjs";
 import { bootstrapNotebookExtension } from "../../shared/externalNotebookLessonPolicy.mjs";
 
@@ -39,7 +40,7 @@ export default async function(req: Request) {
 
   const origin = req.headers.get("Origin");
 
-  if (origin && origin !== BASE44_ORIGIN) {
+  if (origin && ![BASE44_ORIGIN, "https://preview--edu-aventura.base44.app"].includes(origin)) {
     return reply("This notebook origin is not enabled.", 403);
   }
 
@@ -69,7 +70,7 @@ export default async function(req: Request) {
     Object.keys(body).some(
       key => !["kind", "sourceId", "studentId", "stepId", "recoveryOnly"].includes(key)
     ) ||
-    !["assessment", "lesson"].includes(body.kind) ||
+    !["assessment", "lesson", "assignment"].includes(body.kind) ||
     !id(body.sourceId) ||
     (body.studentId !== undefined && !id(body.studentId)) ||
     (body.kind === "lesson" && (!id(body.stepId) || !/^(0|[1-9]\d{0,3})$/.test(body.stepId))) ||
@@ -79,7 +80,7 @@ export default async function(req: Request) {
     return reply("Only notebook activity and student identifiers are accepted.", 400);
   }
 
-  const credential = Deno.env.get("NOTEBOOK_BRIDGE_KEY");
+  let credential = Deno.env.get("NOTEBOOK_BRIDGE_KEY");
   let config: any;
 
   try {
@@ -102,10 +103,13 @@ export default async function(req: Request) {
 
   let bootstrapStage = "sdk-client";
   try {
-    const client = createClientFromRequest(req);
-    if (body.kind === "lesson" || !body.studentId) {
+    let client = createClientFromRequest(req);
+    bootstrapStage = "mapping";
+    ({ client, config, credential } = await prepareNotebookRequest(client, body, config, credential, NOTEBOOK_ORIGIN));
+    if (body.kind === "lesson" || body.kind === "assignment" || !body.studentId) {
       return await bootstrapNotebookExtension({
-        client, body, config, credential, notebookOrigin: NOTEBOOK_ORIGIN, headers, sharedRead,
+        client, body, config, credential, notebookOrigin: NOTEBOOK_ORIGIN,
+        browserOrigin: origin || BASE44_ORIGIN, headers, sharedRead,
         onStage: (stage: string) => { bootstrapStage = stage; },
       });
     }
@@ -248,6 +252,7 @@ export default async function(req: Request) {
         },
         body: JSON.stringify({
           ...decision.request,
+          origin: origin || BASE44_ORIGIN,
           recoveryOnly,
           canWrite: !recoveryOnly && decision.request.canWrite,
         }),

@@ -18,12 +18,14 @@ export function assessmentContext({ student, assessment, blocked = false }) {
 
 export function matchesExternalNotebook(context, config) {
   if (!config?.enabled || !context || context.blocked || context.active !== true) return false;
-  if (!["assessment", "lesson"].includes(context.kind) || !["student", "teacher"].includes(context.role)) return false;
+  if (!["assessment", "lesson", "assignment"].includes(context.kind) || !["student", "teacher"].includes(context.role)) return false;
   if (context.kind === "assessment" && !config.assessmentsEnabled) return false;
   if (context.kind === "lesson" && !config.lessonStepsEnabled) return false;
   if (!config.appId || !config.assignmentId || !config.className || !config.schoolYear) return false;
-  if (!context.sourceId || context.assignmentId !== config.assignmentId ||
-      context.className !== config.className || context.schoolYear !== config.schoolYear) return false;
+  const mapped = context.assignmentId === config.assignmentId && context.className === config.className;
+  const catalog = config.catalogEnabled === true && typeof context.assignmentId === "string" &&
+    config.catalogClasses?.includes(context.className);
+  if (!context.sourceId || (!mapped && !catalog) || context.schoolYear !== config.schoolYear) return false;
   if (context.kind === "lesson" && !context.stepId) return false;
   if (context.role === "teacher") return !!config.teacherViewEnabled;
   const s = context.student;

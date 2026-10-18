@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import NotebookAssignmentEntry from '@/components/external-notebook/NotebookAssignmentEntry';
 import { motion, AnimatePresence } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { requestWithRetry, retryDelay } from '@/lib/classroomSync';
@@ -68,7 +69,11 @@ function AssignmentPicker({ assignments, onSelect, className }) {
   );
 }
 
-export default function StudentNotebookView({
+export default function StudentNotebookView(props) {
+  return <NotebookAssignmentEntry LegacyView={LegacyStudentNotebookView} {...props} />;
+}
+
+export function LegacyStudentNotebookView({
   studentNumber,
   className,
   onBack,

@@ -21,7 +21,7 @@ export async function createNotebookRenewableTransport({
         !text(value.accessToken) || !positive(value.expiresAtMs) || value.expiresAtMs <= Date.now() ||
         !text(value.classId) || !text(value.workbookId) ||
         value.workbook?.id !== value.workbookId || !positive(value.workbook.pageCount) ||
-        !["assessment", "lesson"].includes(value.kind) || !text(value.sourceId) ||
+        !["assessment", "lesson", "assignment"].includes(value.kind) || !text(value.sourceId) ||
         typeof value.canWrite !== "boolean" ||
         (value.role === "student" && (!positive(value.studentNumber) || value.studentNumber > 100))) {
       throw problem("A complete unexpired notebook session is required.", 401);

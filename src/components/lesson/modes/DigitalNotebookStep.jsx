@@ -9,7 +9,7 @@ import {
   Check,
 } from 'lucide-react';
 
-import StudentNotebookView from '@/components/notebook/StudentNotebookView';
+import { LegacyStudentNotebookView as StudentNotebookView } from '@/components/notebook/StudentNotebookView';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 function expandCustomPages(

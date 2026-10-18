@@ -83,6 +83,7 @@ export function lessonNotebookPolicy({ config, lessonSession: s, lesson, assignm
 // Called only by the server function with its configured bridge credential.
 export async function bootstrapNotebookExtension({
   client, body, config, credential, notebookOrigin, headers, sharedRead,
+  browserOrigin = "https://edu-aventura.base44.app",
   onStage = () => {},
 }) {
   const teacher = !body.studentId;
@@ -102,7 +103,21 @@ export async function bootstrapNotebookExtension({
   onStage("assignment-read");
   const assignment = await read("assignment", () => svc.entities.DigitalNotebookAssignment.get(config.assignmentId));
   let request, count, controls;
-  if (body.kind === "assessment") {
+  if (body.kind === "assignment") {
+    if (teacher || body.sourceId !== config.assignmentId ||
+      assignment?.id !== config.assignmentId ||
+      (assignment.class_name !== config.className && assignment.shared_across_classes !== true) ||
+      !["active", "draft"].includes(assignment.status) ||
+      !Number.isSafeInteger(assignment.pdf_page_count) || assignment.pdf_page_count < 1) fail();
+    const student = await svc.entities.Student.get(body.studentId);
+    if (student?.id !== body.studentId || student.class_name !== config.className ||
+        student.school_year !== config.schoolYear || !Number.isSafeInteger(student.student_number) ||
+        student.student_number < 1 || student.student_number > 100) fail();
+    count = assignment.pdf_page_count;
+    request = { role: "student", kind: "assignment", sourceId: assignment.id,
+      studentId: student.id, studentNumber: student.student_number,
+      canWrite: body.recoveryOnly !== true, recoveryOnly: body.recoveryOnly === true, allowedPages: null };
+  } else if (body.kind === "assessment") {
     onStage("assessment-read");
     const assessment = await read(`assessment:${body.sourceId}`, () => svc.entities.LiveNotebookAssessment.get(body.sourceId));
     if (assessment?.id !== body.sourceId) fail();
@@ -157,7 +172,7 @@ export async function bootstrapNotebookExtension({
     method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${credential}` },
     body: JSON.stringify({
       appId: config.appId, className: config.className, schoolYear: config.schoolYear,
-      assignmentId: config.assignmentId, origin: "https://edu-aventura.base44.app",
+      assignmentId: config.assignmentId, origin: browserOrigin,
       canWrite: false, ...request, ...(recoveryOnly ? { canWrite: false } : {}),
     }),
     redirect: "manual", signal: AbortSignal.timeout(12000),

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.54";
+import { prepareNotebookRequest } from "../../shared/externalNotebookMapping.mjs";
 import { resolveNotebookAssessmentControls, allowsOpenNotebookTeacher } from "../../shared/externalNotebookControlPolicy.mjs";
 import { savedLessonNotebookControls } from "../../shared/externalNotebookLessonPolicy.mjs";
 
@@ -14,14 +15,14 @@ const id = (value: unknown): value is string =>
 export default async function(req: Request) {
   if (req.method !== "POST") return reply("POST required.", 405);
   const origin = req.headers.get("Origin");
-  if (origin && origin !== BASE44_ORIGIN) return reply("This notebook origin is not enabled.", 403);
+  if (origin && ![BASE44_ORIGIN, "https://preview--edu-aventura.base44.app"].includes(origin)) return reply("This notebook origin is not enabled.", 403);
   // Keep this OFF until the backend and native teacher/student screens are ready.
   if (Deno.env.get("NOTEBOOK_NATIVE_ENABLED") !== "true") return reply("Notebook controls are not activated.", 503);
   let body: any, config: any;
   try { body = await req.json(); } catch { return reply("Invalid request.", 400); }
   const verifyOnly = body?.action === "verifyTeacher";
   if (!body || typeof body !== "object" || Array.isArray(body) ||
-      Object.keys(body).some(key => !(verifyOnly ? ["kind", "action"] : ["kind", "sourceId", "requestId"]).includes(key)) ||
+      Object.keys(body).some(key => !(verifyOnly ? ["kind", "action", "assignmentId", "className", "schoolYear"] : ["kind", "sourceId", "requestId"]).includes(key)) ||
       !["assessment", "lesson"].includes(body.kind) || (!verifyOnly && (!id(body.sourceId) ||
       typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(body.requestId)))) {
     return reply("A valid assessment control request is required.", 400);
@@ -33,11 +34,20 @@ export default async function(req: Request) {
         config.teacherUserIds.length > 100 || config.teacherUserIds.some((value: unknown) => !id(value))))) {
     return reply("The notebook mapping is not configured.", 503);
   }
-  const credential = Deno.env.get("NOTEBOOK_BRIDGE_KEY");
+  let credential = Deno.env.get("NOTEBOOK_BRIDGE_KEY");
   if (!credential || !/^nbb_[a-f0-9]{64}$/.test(credential)) return reply("The notebook bridge is not configured.", 503);
   let client: any, user: any;
   try {
     client = createClientFromRequest(req);
+  } catch { return reply("Teacher access could not be initialized.", 503); }
+  try {
+    ({ client, config, credential } = await prepareNotebookRequest(client, body, config, credential, NOTEBOOK_ORIGIN));
+  } catch (error: any) {
+    return reply(error?.code === "notebook_images_preparing"
+      ? "Notebook image pages are preparing. Keep this page open and retry."
+      : "The saved notebook mapping could not be prepared. Existing work was retained.", 503);
+  }
+  try {
     if (!allowsOpenNotebookTeacher(config)) user = await client.auth.me();
   } catch { return reply("Teacher sign-in is required.", 401); }
   const openTeacher = allowsOpenNotebookTeacher(config);

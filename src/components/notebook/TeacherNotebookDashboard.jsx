@@ -601,7 +601,7 @@ export default function TeacherNotebookDashboard({
                           page_range_start: 1,
                           page_range_end: pageCount,
                           page_count: pageCount,
-                          shared_across_classes: false,
+                          shared_across_classes: true,
                         });
                         qc.invalidateQueries(['notebook-assignments', className]);
                       }}

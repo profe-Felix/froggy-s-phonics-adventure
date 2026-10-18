@@ -5,6 +5,8 @@ export const EXTERNAL_NOTEBOOK_CONFIG = Object.freeze({
   lessonStepsEnabled: true,
   teacherViewEnabled: true,
   teacherAccessMode: "open",
+  catalogEnabled: true,
+  catalogClasses: ["Felix", "Valero", "Campos", "Gutierrez"],
   appId: "6972eada24fac6b62ccbab8e",
   className: "Felix",
   schoolYear: "26-27",

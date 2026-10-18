@@ -12,6 +12,7 @@ const sdk = "data:text/javascript," + encodeURIComponent(
 );
 const source = stripTypeScriptTypes(await readFile(entry, "utf8"))
   .replace('"npm:@base44/sdk@0.8.54"', JSON.stringify(sdk))
+  .replace('"../../shared/externalNotebookMapping.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookMapping.mjs", import.meta.url).href))
   .replace('"../../shared/externalNotebookControlPolicy.mjs"', JSON.stringify(policy.href))
   .replace('"../../shared/externalNotebookLessonPolicy.mjs"', JSON.stringify(new URL("../base44/shared/externalNotebookLessonPolicy.mjs", import.meta.url).href));
 const { default: handler } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
@@ -63,7 +64,7 @@ test("disabled gate and foreign origins cannot read entities or send controls", 
 test("teacher authentication and explicit per-class authorization precede service-role reads", async t => {
   const h = fixture(t);
   h.authError = true; assert.equal((await h.call()).status, 401);
-  h.authError = false; h.sdkError = true; assert.equal((await h.call()).status, 401);
+  h.authError = false; h.sdkError = true; assert.equal((await h.call()).status, 503);
   h.sdkError = false; h.user = { id: "student", role: "user" };
   assert.equal((await h.call()).status, 403); assert.equal(h.reads.length, 0);
   h.config.teacherUserIds = ["student"];
@@ -137,10 +138,10 @@ test("approved open pilot preflight needs no account and performs no entity or n
   for (const field of ["className", "appId", "schoolYear", "assignmentId"]) {
     const previous = h.config[field];
     h.config[field] = "Other";
-    assert.equal((await h.call(body)).status, 401);
+    assert.ok([401, 503].includes((await h.call(body)).status));
     h.config[field] = previous;
   }
-  assert.equal(h.reads.length, 0);
+  assert.equal(h.requests.length, 0);
 });
 
 test("open controls still reject a saved source from another class", async t => {

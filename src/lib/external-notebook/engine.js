@@ -47,7 +47,7 @@ export async function mountNotebook(options = {}) {
     },
     async prepareRecovery(next, { isCurrent = () => true } = {}) {
       if (closed || closing) throw new Error("This notebook engine is closed or closing.");
-      if (role !== "student" || next?.role !== role || !["assessment", "lesson"].includes(next.kind)) {
+      if (role !== "student" || next?.role !== role || !["assessment", "lesson", "assignment"].includes(next.kind)) {
         throw new Error("Recovery must keep the student assessment role.");
       }
       if (typeof isCurrent !== "function") throw new Error("A notebook recovery guard is required.");

@@ -9,7 +9,7 @@ function validateRenewalSession(session, context) {
   const id = value => typeof value === "string" && value.length > 0 && value.length <= 100;
   const pages = session?.allowedPages, count = session?.workbook?.pageCount;
   if (!session || session.contractVersion !== 1 || session.role !== "teacher" ||
-      !["assessment", "lesson"].includes(context.kind) || session.kind !== context.kind ||
+      !["assessment", "lesson", "assignment"].includes(context.kind) || session.kind !== context.kind ||
       !id(context.sourceId) || session.sourceId !== context.sourceId ||
       (context.kind === "lesson" && session.stepId !== context.stepId) ||
       session.studentNumber !== undefined || session.canWrite !== false ||

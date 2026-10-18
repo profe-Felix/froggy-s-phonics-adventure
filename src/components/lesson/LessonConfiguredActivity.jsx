@@ -13,6 +13,7 @@ import DigitalNotebookStep from '@/components/lesson/modes/DigitalNotebookStep';
 import MissingLetterStep from '@/components/lesson/modes/MissingLetterStep';
 import DictationStep from '@/components/lesson/modes/DictationStep';
 import ExternalNotebookSlot from '@/components/external-notebook/ExternalNotebookSlot';
+import NotebookAssignmentEntry from '@/components/external-notebook/NotebookAssignmentEntry';
 
 // Build a lesson context for the external notebook from the actual live session.
 // Independent (non-live) lessons have no authorized live source → null context →
@@ -92,6 +93,12 @@ export default function LessonConfiguredActivity({step,onComplete,selectedStuden
     case 'digital_notebook': {
       const notebookStep = <DigitalNotebookStep onComplete={onComplete} registerSave={registerActivitySave} stepConfig={config} studentNumber={selectedStudent?.number||studentData?.number} className={selectedStudent?.class_name||studentData?.class_name}/>;
       const lessonCtx = lessonNotebookContext({ liveSession, stepIndex, step, selectedStudent, studentData });
+      if (!liveSession?.id) return <NotebookAssignmentEntry LegacyView={DigitalNotebookStep}
+        directAssignmentId={config.assignmentId} stepConfig={config}
+        onComplete={onComplete} registerSave={registerActivitySave}
+        studentNumber={selectedStudent?.number || studentData?.number || studentData?.student_number}
+        className={selectedStudent?.class_name || studentData?.class_name} />;
+      if (!lessonCtx) return <div role="status" className="p-6">Opening the lesson notebook…</div>;
       return <ExternalNotebookSlot context={lessonCtx} registerSave={registerActivitySave} onComplete={onComplete}>{notebookStep}</ExternalNotebookSlot>;
     }
     case 'missing_letter': return <MissingLetterStep presetId={config.preset} studentData={activityStudentData} onUpdateProgress={wrappedUpdateProgress} onStudentPatch={onStudentPatch} onComplete={onComplete}/>;

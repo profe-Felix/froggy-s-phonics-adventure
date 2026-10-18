@@ -14,6 +14,7 @@ import { syncExternalNotebookControls, authorizeNotebookTeacherStart, signInNote
 import { isTeacherSignInRequired } from '@/lib/external-notebook/teacher-auth';
 import { EXTERNAL_NOTEBOOK_CONFIG } from '@/lib/external-notebook/config';
 import { liveNotebookLink } from '@/lib/external-notebook/lesson-pages';
+import { matchesExternalNotebookControls } from '@/lib/external-notebook/context';
 
 const needsTeacherAccount = error =>
   EXTERNAL_NOTEBOOK_CONFIG.teacherAccessMode !== 'open' && isTeacherSignInRequired(error);
@@ -608,6 +609,82 @@ export default function LiveNotebookAssessmentPanel({ onBack }) {
   const currentPage = session.current_page || 1;
   const paused = !!session.paused;
   const currentReleaseMode = session.release_mode || 'follow';
+
+  const nativeContext = teacherAssessmentContext(session);
+  if (matchesExternalNotebookControls(nativeContext, EXTERNAL_NOTEBOOK_CONFIG)) {
+    return (
+      <div className="fixed inset-0 z-[10000] flex flex-col bg-slate-900 text-white overflow-hidden">
+        <header className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-950 border-b border-slate-700">
+          <span className="flex items-center gap-2 text-rose-400 font-black text-sm shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+            {controlsConfirmed ? 'LIVE' : 'CONNECTING'}
+          </span>
+          <h1 className="text-sm font-bold truncate min-w-0 max-w-[16rem]">{session.assignment_title || 'Notebook Assessment'}</h1>
+          <span className="text-xs text-slate-400 hidden sm:inline">{session.class_name}</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button type="button" onClick={togglePause}
+              className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold ${paused ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-amber-500 hover:bg-amber-600 text-slate-950'}`}>
+              {paused ? <><Play className="w-4 h-4" /> Resume</> : <><Pause className="w-4 h-4" /> Pause</>}
+            </button>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-800 border border-slate-700 px-1 h-9">
+              <button type="button" onClick={() => goToPage(-1)} disabled={currentPage <= 1} aria-label="Previous page"
+                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-slate-700 disabled:opacity-30">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <input type="number" min={1} max={total} value={currentPage} aria-label="Current page"
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) setPage(v); }}
+                className="w-12 text-center rounded-md bg-slate-900 border border-slate-600 text-sm font-black py-0.5" />
+              <span className="text-xs text-slate-400 font-bold">/ {total}</span>
+              <button type="button" onClick={() => goToPage(1)} disabled={currentPage >= total} aria-label="Next page"
+                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-slate-700 disabled:opacity-30">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <button type="button" onClick={toggleReleaseMode}
+              className={`flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold border ${currentReleaseMode === 'free' ? 'bg-violet-500/20 text-violet-300 border-violet-500/40' : 'bg-sky-500/20 text-sky-300 border-sky-500/40'}`}>
+              {currentReleaseMode === 'free' ? <><Footprints className="w-4 h-4" /> Free</> : <><Lock className="w-4 h-4" /> Follow me</>}
+            </button>
+            <CopyNotebookLink url={liveNotebookLink(window.location.origin, { assessmentId: session.id, className: session.class_name })} />
+            <button type="button" onClick={endSession}
+              className="flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-bold bg-red-500/90 hover:bg-red-500 text-white">
+              <X className="w-4 h-4" /> End
+            </button>
+          </div>
+        </header>
+        {(controlsSaving || controlError) && (
+          <div role="status" className="shrink-0 bg-amber-100 text-amber-950 px-3 py-2 text-sm">
+            {controlsSaving ? 'Sending teacher controls — not confirmed yet.' : controlError}
+            {teacherSignInNotice}
+            {controlError && !controlsSaving && !teacherAuthRequired && (
+              <button type="button" onClick={() => { void updateSession({}); }} className="ml-3 font-bold underline">
+                Retry controls
+              </button>
+            )}
+          </div>
+        )}
+        <main className="flex-1 min-h-0 overflow-auto p-2 sm:p-3 flex flex-col gap-3">
+          <p className="text-xs font-bold text-slate-400 flex items-center gap-2">
+            {!controlsConfirmed ? 'Connection not confirmed' : paused
+              ? <><EyeOff className="w-4 h-4 text-amber-400" /> Students paused, eyes on board</>
+              : currentReleaseMode === 'free'
+                ? <><Unlock className="w-4 h-4 text-violet-400" /> Students free to navigate</>
+                : <><Eye className="w-4 h-4 text-green-400" /> Students following page {currentPage}</>}
+          </p>
+          <div className="w-full">
+            <ExternalNotebookSlot context={nativeContext} />
+          </div>
+          <NotebookAssessmentRoster
+            session={session}
+            className={session.class_name}
+            onRelease={releaseStudent}
+            onReadd={readdStudent}
+            embedded
+          />
+          <ExternalNotebookTeacherStatus context={nativeContext} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-screen bg-slate-900 text-white overflow-hidden">
