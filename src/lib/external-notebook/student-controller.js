@@ -26,6 +26,7 @@ export async function createNotebookStudentController({
   let closingPromise = null;
   let policyGeneration = 0;
   let epoch = 0, scheduled = false, autoBlocked = false, error = "", pending = null;
+  let recoveryExitOnly = false, heldPage = null;
 
   function history(page) {
     if (!histories.has(page)) histories.set(page, { undo: [], redo: [], known: new Set() });
@@ -65,7 +66,7 @@ export async function createNotebookStudentController({
   pageActions(displayed);
 
   function state() {
-    const pageState = sync?.getPageState(displayed) || null;
+    const pageState = heldPage || sync?.getPageState(displayed) || null;
     const syncState = sync?.getState() || null;
     const locked = busy || handshake || closed || closing || syncState?.renewing === true ||
       syncState?.connection.suspended === true;
@@ -142,6 +143,19 @@ export async function createNotebookStudentController({
   }
   async function drain() {
     if (await finishGesture() !== true) throw new Error("Some marks are not safely stored yet. Keep this page open.");
+    if (recoveryExitOnly) {
+      const generation = epoch, action = pending;
+      if (action) await action.run();
+      const saved = await sync.recoverPending({
+        isFrozen: () => busy === true && !closed &&
+          sync.getState().connection.suspended === true,
+        isCurrent: () => !closed && generation === epoch &&
+          recoveryExitOnly && session.canWrite === false,
+      });
+      if (saved !== true) throw new Error("Pending work is not yet confirmed. Keep this notebook open and retry recovery.");
+      if (action) completePending(action);
+      return;
+    }
     await finishPending();
     if (!await sync.flush()) throw new Error("Still waiting for saved-work confirmation. Keep this page open.");
   }
@@ -343,11 +357,13 @@ export async function createNotebookStudentController({
           // Do not call finishPending()/drain() over the expiring credential.
           if (pending) await pending.run();
           const allowed = page => candidate.allowedPages === null || candidate.allowedPages.includes(page);
-          if (!allowed(displayed)) {
+          const saveOnlyExit = !allowed(displayed) &&
+            context.blocked === true && candidate.canWrite === false;
+          if (!allowed(displayed) && !saveOnlyExit) {
             throw new Error("Renewal removed a page still needed by this notebook. Keep it open and ask the teacher to restore its page access.");
           }
           const queued = sync.getPending();
-          const recoverBeforeReady = queued.length > 0 && (
+          const recoverBeforeReady = saveOnlyExit || queued.length > 0 && (
             candidate.canWrite !== true ||
             queued.some(record => !allowed(record.operation.page))
           );
@@ -358,6 +374,8 @@ export async function createNotebookStudentController({
           committed = true;
           policyGeneration = policy.replaceSession(candidate, { context });
           session = copy(candidate);
+          recoveryExitOnly = false;
+          heldPage = saveOnlyExit ? copy(heldPage || sync.getPageState(displayed)) : null;
           if (recoverBeforeReady) {
             const recoveryEpoch = epoch;
             const saved = await sync.recoverPending({
@@ -368,6 +386,14 @@ export async function createNotebookStudentController({
             if (saved !== true || !current() || epoch !== recoveryEpoch) {
               throw new Error("Pending work is not yet confirmed. The notebook stays locked; keep it open and retry the connection.");
             }
+          }
+          if (saveOnlyExit) {
+            if (!current()) throw new Error("Notebook recovery finished after cancellation. Existing work remains open.");
+            if (recoveredAction) completePending(recoveredAction);
+            recoveryExitOnly = true;
+            autoBlocked = true;
+            error = "";
+            return true;
           }
           if (await sync.resumeAfterRenewal({ expiresAtMs: candidate.expiresAtMs }) !== true) {
             throw new Error("The renewed notebook connection is not ready. Existing work remains open.");
@@ -431,7 +457,7 @@ export async function createNotebookStudentController({
       });
     },
     async flush() {
-      try { return await exclusive(async () => { await drain(); error = ""; return true; }); }
+      try { return await exclusive(async () => { await drain(); error = ""; return true; }, false, recoveryExitOnly); }
       catch { return false; }
     },
     updateContext(next) {
@@ -440,7 +466,7 @@ export async function createNotebookStudentController({
         const check = policy.getState({ context: next });
         if (check.needsNewSession) throw new Error("A new scoped session is needed. Existing work remains open.");
         context = next; error = ""; return true;
-      });
+      }, false, recoveryExitOnly);
     },
     close() {
       if (closed) return Promise.resolve(true);
@@ -452,7 +478,7 @@ export async function createNotebookStudentController({
         try { await sync.close(); }
         finally { lease?.release(); images.close(); }
         return true;
-      }, true).catch(() => false).finally(() => {
+      }, true, recoveryExitOnly).catch(() => false).finally(() => {
         if (!closed) { closing = false; closingPromise = null; emit(); }
       });
       return closingPromise;
